@@ -1,0 +1,5 @@
+node_modules/ 
+dist/ 
+.deploy-test-tmp/ 
+*.exe 
+RELEASE_NOTES.md 

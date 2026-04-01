@@ -1,0 +1,455 @@
+# Genesis Agent — Event Flow Architecture
+
+> v5.4.0 — Auto-generated event flow documentation.
+> This document maps which modules emit and consume which EventBus events.
+
+## System Overview
+
+```mermaid
+graph TB
+    subgraph KERNEL["🔒 Kernel (Immutable)"]
+        main["main.js"]
+        SafeGuard["SafeGuard"]
+    end
+
+    subgraph CORE["⚙️ Core Infrastructure"]
+        EventBus["EventBus"]
+        Container["Container"]
+        Constants["Constants"]
+        Logger["Logger"]
+        Language["Language"]
+    end
+
+    subgraph FOUNDATION["🏗️ Foundation (Phase 1)"]
+        Settings["Settings"]
+        SelfModel["SelfModel"]
+        ModelBridge["ModelBridge"]
+        LLMPort["LLMPort (Adapter)"]
+        Sandbox["Sandbox"]
+        Memory["ConversationMemory"]
+        EventStore["EventStore"]
+        KnowledgeGraph["KnowledgeGraph"]
+        WorldState["WorldState"]
+        DesktopPerception["DesktopPerception"]
+        EmbeddingService["EmbeddingService"]
+        WebFetcher["WebFetcher"]
+        CapabilityGuard["CapabilityGuard"]
+        StorageService["StorageService"]
+        BootTelemetry["BootTelemetry"]
+        TrustLevelSystem_f["TrustLevelSystem"]
+        LLMCache["LLMCache"]
+        LinuxSandboxHelper["LinuxSandboxHelper"]
+    end
+
+    subgraph INTELLIGENCE["🧠 Intelligence (Phase 2)"]
+        IntentRouter["IntentRouter"]
+        PromptBuilder["PromptBuilder"]
+        ContextManager["ContextManager"]
+        ReasoningEngine["ReasoningEngine"]
+        CodeAnalyzer["CodeAnalyzer"]
+        CircuitBreaker["CircuitBreaker"]
+        VerificationEngine["VerificationEngine"]
+        CodeSafetyScanner["CodeSafetyScanner"]
+        ToolRegistry["ToolRegistry"]
+        WorkerPool["WorkerPool"]
+        DynamicContextBudget["DynamicContextBudget"]
+        FailureTaxonomy["FailureTaxonomy"]
+        LocalClassifier["LocalClassifier"]
+        GraphReasoner["GraphReasoner"]
+        UserModel["UserModel"]
+    end
+
+    subgraph CAPABILITIES["🔧 Capabilities (Phase 3)"]
+        ShellAgent["ShellAgent"]
+        SkillManager["SkillManager"]
+        FileProcessor["FileProcessor"]
+        McpClient["McpClient"]
+        McpServer["McpServer"]
+        HotReloader["HotReloader"]
+        CloneFactory["CloneFactory"]
+        SnapshotManager["SnapshotManager"]
+        PluginRegistry["PluginRegistry"]
+        EffectorRegistry["EffectorRegistry"]
+        WebPerception["WebPerception"]
+        SelfSpawner["SelfSpawner"]
+    end
+
+    subgraph PLANNING["📋 Planning (Phase 4)"]
+        GoalStack["GoalStack"]
+        GoalPersistence["GoalPersistence"]
+        Reflector["Reflector"]
+        SelfOptimizer["SelfOptimizer"]
+        Anticipator["Anticipator"]
+        MetaLearning["MetaLearning"]
+        SchemaStore["SchemaStore"]
+        ValueStore["ValueStore"]
+    end
+
+    subgraph HEXAGONAL["🔀 Hexagonal (Phase 5)"]
+        ChatOrchestrator["ChatOrchestrator"]
+        CommandHandlers["CommandHandlers"]
+        SelfModPipeline["SelfModPipeline"]
+        UnifiedMemory["UnifiedMemory"]
+        LearningService["LearningService"]
+        EpisodicMemory["EpisodicMemory"]
+        AdaptiveMemory["AdaptiveMemory"]
+        PeerNetwork["PeerNetwork"]
+        TaskDelegation["TaskDelegation"]
+    end
+
+    subgraph AUTONOMY["🤖 Autonomy (Phase 6)"]
+        AutonomousDaemon["AutonomousDaemon"]
+        IdleMind["IdleMind"]
+        HealthMonitor["HealthMonitor"]
+        CognitiveMonitor["CognitiveMonitor"]
+        ErrorAggregator["ErrorAggregator"]
+        HealthServer["HealthServer"]
+    end
+
+    subgraph ORGANISM["🧬 Organism (Phase 7)"]
+        EmotionalState["EmotionalState"]
+        EmotionalSteering["EmotionalSteering"]
+        Homeostasis["Homeostasis"]
+        HomeostasisEffectors["HomeostasisEffectors"]
+        NeedsSystem["NeedsSystem"]
+        Metabolism["Metabolism"]
+        ImmuneSystem["ImmuneSystem"]
+        BodySchema["BodySchema"]
+    end
+
+    subgraph REVOLUTION["🚀 Revolution (Phase 8)"]
+        AgentLoop["AgentLoop"]
+        FormalPlanner["FormalPlanner"]
+        HTNPlanner["HTNPlanner"]
+        NativeToolUse["NativeToolUse"]
+        VectorMemory["VectorMemory"]
+        SessionPersistence["SessionPersistence"]
+        MultiFileRefactor["MultiFileRefactor"]
+        ModelRouter["ModelRouter"]
+        FailureAnalyzer["FailureAnalyzer"]
+        ModuleRegistry["ModuleRegistry"]
+    end
+
+    subgraph COGNITIVE["🧠 Cognitive (Phase 9)"]
+        ExpectationEngine["ExpectationEngine"]
+        MentalSimulator["MentalSimulator"]
+        SurpriseAccumulator["SurpriseAccumulator"]
+        DreamCycle["DreamCycle"]
+        SelfNarrative["SelfNarrative"]
+        CognitiveHealthTracker["CognitiveHealthTracker"]
+    end
+
+    subgraph CONSCIOUSNESS["✨ Consciousness (Phase 13)"]
+        PhenomenalField["PhenomenalField"]
+        AttentionalGate["AttentionalGate"]
+        TemporalSelf["TemporalSelf"]
+        IntrospectionEngine["IntrospectionEngine"]
+        ConsciousnessExt["ConsciousnessExtension"]
+        EchoicMemory["EchoicMemory"]
+        PredictiveCoder["PredictiveCoder"]
+        NeuroModulators["NeuroModulatorSystem"]
+        SalienceGate["SalienceGate"]
+        DreamEngine["DreamEngine"]
+        ConsciousnessState["ConsciousnessState"]
+    end
+
+    main --> Container
+    Container --> EventBus
+    EventBus --> ALL((All Modules))
+```
+
+## Event Flow: Chat Message Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant UI as UI (renderer.js)
+    participant IPC as main.js IPC
+    participant CO as ChatOrchestrator
+    participant IR as IntentRouter
+    participant CB as CircuitBreaker
+    participant LLM as LLMPort
+    participant MB as ModelBridge
+    participant ES as EmotionalState
+    participant Mem as ConversationMemory
+    participant KG as KnowledgeGraph
+
+    UI->>IPC: agent:request-stream (message)
+    IPC->>CO: handleChatStream()
+    CO->>+IR: classify(message)
+    IR-->>-CO: intent (chat|code|goal|...)
+
+    Note over CO: Builds prompt with PromptBuilder
+
+    CO->>+CB: execute(llmCall)
+    CB->>+LLM: chat() [rate-limit check]
+    LLM->>+MB: chat() [actual LLM call]
+    MB-->>-LLM: response text
+    LLM-->>-CB: response
+    CB-->>-CO: response
+
+    CO-->>UI: stream chunks via IPC
+
+    par Post-processing
+        CO->>Mem: addMessage(user + assistant)
+        CO->>KG: extractFacts(response)
+        CO->>ES: [bus] chat:completed
+        ES->>ES: _adjust(satisfaction +0.08)
+    end
+```
+
+## Event Flow: Autonomous Goal Execution (AgentLoop)
+
+```mermaid
+sequenceDiagram
+    participant CO as ChatOrchestrator
+    participant AL as AgentLoop
+    participant GS as GoalStack
+    participant FP as FormalPlanner
+    participant WS as WorldState
+    participant VE as VerificationEngine
+    participant SH as ShellAgent
+    participant SM as SelfModPipeline
+    participant EM as EpisodicMemory
+    participant ML as MetaLearning
+    participant UI as UI
+
+    CO->>AL: start(goalDescription)
+    AL->>GS: push(goal)
+    AL->>FP: plan(goal, worldState)
+    FP->>WS: getState()
+    FP-->>AL: typed plan (steps[])
+
+    loop Each Step (max 20)
+        AL->>AL: _executeStep(step)
+        alt Code Change
+            AL->>SM: propose(change)
+            SM->>SM: CodeSafetyScanner.scan()
+            SM-->>AL: result
+        else Shell Command
+            AL->>SH: run(command) [rate-limited]
+            SH-->>AL: result
+        end
+        AL->>VE: verify(step, result)
+        VE-->>AL: { pass | fail | ambiguous }
+        AL->>WS: applyEffects(step)
+        AL-->>UI: [bus] agent-loop:step-complete
+    end
+
+    AL->>GS: markComplete(goalId)
+    AL->>EM: record(episode)
+    AL->>ML: recordOutcome(goal, metrics)
+    AL-->>UI: [bus] agent-loop:complete
+```
+
+## Event Flow: Organism Layer
+
+```mermaid
+graph LR
+    subgraph Events["EventBus Events"]
+        chatComplete["chat:completed"]
+        chatError["chat:error"]
+        knowledgeLearned["knowledge:learned"]
+        circuitChange["circuit:state-change"]
+        userMessage["user:message"]
+        healthDeg["health:degradation"]
+    end
+
+    subgraph Emotion["EmotionalState"]
+        curiosity["curiosity 0.0–1.0"]
+        satisfaction["satisfaction 0.0–1.0"]
+        frustration["frustration 0.0–1.0"]
+        energy["energy 0.0–1.0"]
+        loneliness["loneliness 0.0–1.0"]
+        watchdog["🐕 Watchdog Timer"]
+    end
+
+    subgraph Outputs["Downstream Effects"]
+        prompt["PromptBuilder tone"]
+        idle["IdleMind priorities"]
+        needs["NeedsSystem drives"]
+        homeo["Homeostasis regulation"]
+    end
+
+    chatComplete --> satisfaction
+    chatComplete --> frustration
+    chatError --> frustration
+    chatError --> energy
+    knowledgeLearned --> curiosity
+    circuitChange --> frustration
+    userMessage --> loneliness
+    healthDeg --> frustration
+    healthDeg --> energy
+
+    watchdog -.->|"reset after 10min stuck"| frustration
+    watchdog -.->|"reset after 10min stuck"| energy
+
+    curiosity --> prompt
+    satisfaction --> prompt
+    frustration --> prompt
+    energy --> idle
+    curiosity --> idle
+    loneliness --> needs
+    energy --> homeo
+    frustration --> homeo
+```
+
+## Event Flow: Rate Limiting (v3.5.0)
+
+```mermaid
+graph TD
+    subgraph Callers["LLM Callers"]
+        Chat["ChatOrchestrator<br/>priority: 10 (CHAT)"]
+        Loop["AgentLoop<br/>priority: 5 (AUTONOMOUS)"]
+        Idle["IdleMind<br/>priority: 1 (IDLE)"]
+    end
+
+    subgraph RateLimit["LLMPort Rate Limiter"]
+        Bucket["TokenBucket<br/>capacity: 60<br/>refill: 30/min"]
+        Budget["HourlyBudget<br/>chat: 200/hr<br/>autonomous: 80/hr<br/>idle: 40/hr"]
+    end
+
+    subgraph Events["Events"]
+        limited["llm:rate-limited"]
+        warning["llm:budget-warning"]
+    end
+
+    Chat -->|"bypasses budget<br/>(priority >= 10)"| Bucket
+    Loop --> Bucket
+    Idle --> Bucket
+    Bucket -->|"burst OK"| Budget
+    Bucket -->|"burst exceeded"| limited
+    Budget -->|"budget OK"| LLM["ModelBridge"]
+    Budget -->|"budget exceeded"| limited
+    Budget -->|"≥80% used"| warning
+```
+
+## Event Flow: Safety & Security
+
+```mermaid
+graph TD
+    subgraph SelfMod["Self-Modification Pipeline"]
+        LLMCode["LLM generates code"]
+        Scanner["CodeSafetyScanner<br/>(AST + Regex)"]
+        Guard["SafeGuard<br/>kernel protection"]
+        CapGuard["CapabilityGuard<br/>token-based access"]
+    end
+
+    subgraph Checks["Safety Checks"]
+        AST["AST Pass:<br/>eval, Function, process.exit,<br/>kernel imports, Electron flags"]
+        Regex["Regex Pass:<br/>path traversal, network,<br/>env secrets, dynamic require"]
+    end
+
+    subgraph Outcomes["Outcomes"]
+        block["🛑 BLOCKED<br/>code:safety-blocked"]
+        warn["⚠️ WARNING<br/>logged, allowed with caution"]
+        allow["✅ ALLOWED<br/>written to disk"]
+    end
+
+    LLMCode --> Scanner
+    Scanner --> AST
+    Scanner --> Regex
+    AST -->|"severity: block"| block
+    AST -->|"severity: warn"| warn
+    Regex -->|"severity: block"| block
+    Regex -->|"severity: warn"| warn
+    AST -->|"clean"| Guard
+    Guard -->|"kernel file"| block
+    Guard -->|"safe path"| CapGuard
+    CapGuard -->|"token valid"| allow
+    CapGuard -->|"no grant"| block
+```
+
+## Event Flow: Shell Rate Limiting (v3.5.0)
+
+```mermaid
+graph TD
+    subgraph ShellAgent["ShellAgent"]
+        run["run(command, tier)"]
+        blocklist["Blocklist Check<br/>(pattern match)"]
+        rateLimit["Rate Limit Check<br/>read: 60/5min<br/>write: 20/5min<br/>system: 5/5min"]
+        exec["execSync(command)"]
+    end
+
+    run --> blocklist
+    blocklist -->|"matched"| blocked["shell:blocked"]
+    blocklist -->|"clean"| rateLimit
+    rateLimit -->|"exceeded"| rateLimited["shell:rate-limited"]
+    rateLimit -->|"allowed"| exec
+    exec -->|"success"| executed["shell:executed"]
+    exec -->|"failure"| failed["shell:failed"]
+```
+
+## Complete Event Catalog
+
+### Emitters → Events → Consumers
+
+| Event | Emitted By | Consumed By |
+|---|---|---|
+| `chat:completed` | ChatOrchestrator | EmotionalState, LearningService, CognitiveMonitor |
+| `chat:error` | ChatOrchestrator | EmotionalState, HealthMonitor |
+| `chat:retry` | ChatOrchestrator | EmotionalState |
+| `user:message` | ChatOrchestrator | EmotionalState, IdleMind (resets timer) |
+| `agent:status` | AgentCore, HealthMonitor | UI (renderer.js) |
+| `agent:shutdown` | AgentCore | — |
+| `intent:classified` | IntentRouter | LearningService, CognitiveMonitor |
+| `intent:llm-classified` | IntentRouter | LearningService |
+| `intent:learned` | IntentRouter | EmotionalState |
+| `circuit:state-change` | CircuitBreaker | EmotionalState, HealthMonitor |
+| `circuit:fallback` | CircuitBreaker | HealthMonitor |
+| `llm:call-complete` | LLMPort | CognitiveMonitor, HealthMonitor |
+| `llm:call-error` | LLMPort | CognitiveMonitor, HealthMonitor |
+| `llm:rate-limited` | LLMPort | HealthMonitor, CognitiveMonitor |
+| `llm:budget-warning` | LLMPort | HealthMonitor |
+| `knowledge:learned` | KnowledgeGraph, UnifiedMemory | EmotionalState |
+| `knowledge:node-added` | KnowledgeGraph | EmotionalState |
+| `memory:fact-stored` | ConversationMemory | EmotionalState |
+| `memory:unified-recall` | UnifiedMemory | — |
+| `emotion:shift` | EmotionalState | Homeostasis, NeedsSystem |
+| `emotion:watchdog-reset` | EmotionalState | EventStore (logged) |
+| `emotion:watchdog-alert` | EmotionalState | HealthMonitor |
+| `homeostasis:state-change` | Homeostasis | IdleMind |
+| `homeostasis:critical` | Homeostasis | HealthMonitor |
+| `homeostasis:pause-autonomy` | Homeostasis | AgentLoop, IdleMind |
+| `homeostasis:throttle` | Homeostasis | LLMPort |
+| `needs:high-drive` | NeedsSystem | IdleMind |
+| `needs:satisfied` | NeedsSystem | — |
+| `health:degradation` | HealthMonitor | EmotionalState |
+| `health:tick` | HealthMonitor | UI |
+| `health:memory-leak` | HealthMonitor | Homeostasis |
+| `idle:thinking` | IdleMind | UI |
+| `idle:thought-complete` | IdleMind | EmotionalState, LearningService |
+| `goal:created` | GoalStack | AgentLoop |
+| `goal:completed` | GoalStack | EpisodicMemory, MetaLearning |
+| `goal:failed` | GoalStack | MetaLearning |
+| `agent-loop:started` | AgentLoop | UI |
+| `agent-loop:step-complete` | AgentLoop | UI, CognitiveMonitor |
+| `agent-loop:complete` | AgentLoop | EpisodicMemory |
+| `agent-loop:approval-needed` | AgentLoop | UI |
+| `shell:executed` | ShellAgent | EventStore, WorldState |
+| `shell:blocked` | ShellAgent | EventStore, HealthMonitor |
+| `shell:rate-limited` | ShellAgent | HealthMonitor, EventStore |
+| `code:safety-blocked` | SelfModPipeline | EventStore, HealthMonitor |
+| `verification:complete` | VerificationEngine | AgentLoop |
+| `hot-reload:success` | HotReloader | EventStore |
+| `hot-reload:failed` | HotReloader | EventStore, HealthMonitor |
+| `mcp:connected` | McpClient | UI, ToolRegistry |
+| `mcp:disconnected` | McpClient | UI, HealthMonitor |
+| `mcp:tools-discovered` | McpClient | ToolRegistry |
+| `perception:file-changed` | DesktopPerception | WorldState, HotReloader |
+| `perception:memory-pressure` | DesktopPerception | Homeostasis |
+| `peer:discovered` | PeerNetwork | TaskDelegation |
+| `peer:trusted` | PeerNetwork | TaskDelegation |
+| `delegation:submitted` | TaskDelegation | AgentLoop |
+| `delegation:completed` | TaskDelegation | AgentLoop |
+| `container:replaced` | Container | HotReloader |
+| `capability:issued` | CapabilityGuard | EventStore |
+| `capability:revoked` | CapabilityGuard | EventStore |
+| `cognitive:circularity-detected` | CognitiveMonitor | HealthMonitor |
+| `cognitive:overload` | CognitiveMonitor | Homeostasis |
+| `learning:pattern-detected` | LearningService | IdleMind |
+| `learning:frustration-detected` | LearningService | IdleMind, EmotionalState |
+| `meta:outcome-recorded` | MetaLearning | — |
+| `model:failover` | ModelBridge | EmotionalState, HealthMonitor |
+| `model:ollama-unavailable` | AgentCore | UI |
+| `daemon:cycle-complete` | AutonomousDaemon | — |
+| `worldstate:file-changed` | WorldState | FormalPlanner |

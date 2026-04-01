@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "allowJs": true,
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": true,
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "*": ["types/*"]
+    }
+  },
+  "include": [
+    "src/**/*.js",
+    "types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "sandbox",
+    "test"
+  ]
+}

@@ -1,0 +1,99 @@
+name: Genesis CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  # Skip Electron binary download on CI — tests don't need it.
+  # Saves ~100MB download + avoids missing libgtk issues on Ubuntu.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [20, 22]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Build bundles (optional)
+        run: node scripts/build-bundle.js || echo "[CI] Bundle build skipped (no electron binary)"
+
+      - name: Run tests
+        run: npm test
+
+      - name: Validate event contracts
+        run: node scripts/validate-events.js
+
+      - name: Validate IPC channels
+        run: node scripts/validate-channels.js
+
+      - name: Architectural fitness check
+        run: node scripts/architectural-fitness.js --ci
+
+      - name: Fitness trend tracking
+        run: node scripts/fitness-trend.js --ci --threshold 2
+
+      - name: TypeScript type check
+        run: npx tsc --project tsconfig.json --noEmit
+
+  coverage:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Run coverage
+        run: npm run test:coverage
+
+      - name: Enforce coverage thresholds
+        run: npm run test:coverage:enforce
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: npm audit (production only)
+        run: npm audit --omit=dev --omit=optional
+        continue-on-error: true
+
+      - name: Event audit (strict)
+        run: npm run audit:events:strict
+
+      - name: Degradation matrix
+        run: npm run audit:degradation

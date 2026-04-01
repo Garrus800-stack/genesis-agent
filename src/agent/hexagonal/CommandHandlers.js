@@ -1,0 +1,510 @@
+// @ts-checked-v5.7
+// ============================================================
+// GENESIS — CommandHandlers.js
+// Lightweight handlers for operational intents.
+// Each method handles one intent type.
+// Registers all handlers with a ChatOrchestrator in one call.
+// ============================================================
+
+const { TIMEOUTS } = require('../core/Constants');
+class CommandHandlers {
+  constructor({ lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient}) {
+    this.lang = lang || { t: (k) => k, detect: () => {}, current: 'en' };
+    this.sandbox = sandbox;
+    this.fp = fileProcessor;
+    this.network = network;
+    this.daemon = daemon;
+    this.idleMind = idleMind;
+    this.analyzer = analyzer;
+    this.goalStack = goalStack;
+    this.settings = settings;
+    this.web = webFetcher;
+    this.shell = shellAgent;
+    this.mcp = mcpClient;
+    /** @type {*} */ this.skillManager = null; // late-bound v5.9.1
+  }
+
+  /** Register all handlers with the orchestrator */
+  registerHandlers(orchestrator) {
+    orchestrator.registerHandler('execute-code', (msg) => this.executeCode(msg));
+    orchestrator.registerHandler('execute-file', (msg) => this.executeFile(msg));
+    orchestrator.registerHandler('analyze-code', (msg) => this.analyzeCode(msg));
+    orchestrator.registerHandler('peer', (msg) => this.peer(msg));
+    orchestrator.registerHandler('daemon', (msg) => this.daemonControl(msg));
+    orchestrator.registerHandler('journal', () => this.journal());
+    orchestrator.registerHandler('plans', () => this.plans());
+    orchestrator.registerHandler('goals', (msg) => this.goals(msg));
+    orchestrator.registerHandler('settings', (msg) => this.handleSettings(msg));
+    orchestrator.registerHandler('web-lookup', (msg) => this.webLookup(msg));
+    orchestrator.registerHandler('undo', () => this.undo());
+    orchestrator.registerHandler('shell-task', (msg) => this.shellTask(msg));
+    orchestrator.registerHandler('shell-run', (msg) => this.shellRun(msg));
+    orchestrator.registerHandler('project-scan', (msg) => this.projectScan(msg));
+    orchestrator.registerHandler('mcp', (msg) => this.mcpControl(msg));
+    // v5.9.1: Run installed skill
+    orchestrator.registerHandler('run-skill', (msg) => this.runSkill(msg));
+  }
+
+  // ── Code Execution ───────────────────────────────────────
+
+  async executeCode(message) {
+    const m = message.match(/```(?:\w+)?\n([\s\S]+?)```/);
+    if (!m) return this.lang.t('agent.no_code_block');
+    const r = await this.sandbox.execute(m[1]);
+    return `\`\`\`\n${r.output || this.lang.t('agent.no_output')}\n\`\`\`${r.error ? `\n**${this.lang.t('agent.error')}:** ${r.error}` : ''}`;
+  }
+
+  // ── File Execution ───────────────────────────────────────
+
+  async executeFile(message) {
+    const fileMatch = message.match(/(\S+\.\w{2,4})\b/);
+    if (!fileMatch) return this.lang.t('agent.no_file');
+
+    const info = this.fp.getFileInfo(fileMatch[1]);
+    if (!info) return this.lang.t('agent.file_not_found', { file: fileMatch[1] });
+    if (!info.canExecute) {
+      const runtimes = Object.entries(this.fp.getRuntimes()).filter(([_, v]) => v).map(([k]) => k).join(', ');
+      return this.lang.t('agent.cannot_execute', { ext: info.extension, runtimes });
+    }
+
+    const result = await this.fp.executeFile(fileMatch[1]);
+    return `**${info.name}** (${info.language}):\n\`\`\`\n${result.output || this.lang.t('agent.no_output')}\n\`\`\`${result.error ? `\n**${this.lang.t('agent.error')}:** ${result.error}` : ''}`;
+  }
+
+  // ── Code Analysis ────────────────────────────────────────
+
+  async analyzeCode(message) {
+    return this.analyzer.analyze(message);
+  }
+
+  // ── Peer Network ─────────────────────────────────────────
+
+  async peer(message) {
+    // Scan for peers
+    if (/scan|such|discover|entdeck/i.test(message)) {
+      const peers = await this.network.scanLocalPeers();
+      if (peers.length === 0) return this.lang.t('peer.none_found');
+      const lines = [`**${peers.length} Peer(s) ${this.lang.t('peer.found')}:**`, ''];
+      for (const p of peers) {
+        lines.push(`- **${p.id}** v${p.version} (Protocol v${p.protocol || '?'})`);
+        if (p.skills?.length > 0) lines.push(`  Skills: ${p.skills.join(', ')}`);
+        if (p.capabilities?.length > 0) lines.push(`  Capabilities: ${p.capabilities.slice(0, 5).join(', ')}`);
+      }
+      return lines.join('\n');
+    }
+
+    // Trust a peer: "peer trust <peerId>" or "peer vertrauen <peerId>"
+    const trustMatch = message.match(/(?:trust|vertrau)\s+(\S+)/i);
+    if (trustMatch) {
+      const peerId = trustMatch[1];
+      const peer = this.network.peers.get(peerId);
+      if (!peer) return `**${this.lang.t('agent.error')}:** Peer "${peerId}" not found. Run peer scan first.`;
+      // Use own token for mutual trust (in production, exchange tokens via secure channel)
+      const token = this.network._token;
+      const ok = this.network.trustPeer(peerId, token);
+      if (ok) return `**${peerId}** is now trusted. Skill import and code exchange enabled.`;
+      return `**${this.lang.t('agent.error')}:** Could not trust "${peerId}".`;
+    }
+
+    // Import skill from peer: "peer import <peerId> <skillName>"
+    const importMatch = message.match(/(?:import|importiere?|hole?)\s+(?:skill\s+)?(\S+)\s+(?:von|from)\s+(\S+)/i) ||
+                         message.match(/(?:import|importiere?)\s+(\S+)\s+(\S+)/i);
+    if (importMatch) {
+      const skillName = importMatch[1];
+      const peerId = importMatch[2];
+      try {
+        const result = await this.network.importPeerSkill(peerId, skillName);
+        if (result.success) return `**Skill "${skillName}"** imported from **${peerId}**.\n${result.reason}`;
+        return `**Import failed:** ${result.reason}`;
+      } catch (err) {
+        return `**${this.lang.t('agent.error')}:** ${err.message}`;
+      }
+    }
+
+    // Compare module with peer: "peer compare <peerId> <module>"
+    const compareMatch = message.match(/(?:compare|vergleich)\s+(\S+)\s+(?:mit|with)\s+(\S+)/i) ||
+                          message.match(/(?:compare|vergleich)\s+(\S+)\s+(\S+)/i);
+    if (compareMatch) {
+      const moduleName = compareMatch[1];
+      const peerId = compareMatch[2];
+      try {
+        const result = await this.network.compareWithPeer(peerId, moduleName);
+        const lines = [
+          `**Code-Vergleich: ${moduleName}**`,
+          `**Verdict:** ${result.decision}`,
+          '',
+          result.analysis?.slice(0, 1000) || '',
+        ];
+        return lines.join('\n');
+      } catch (err) {
+        return `**${this.lang.t('agent.error')}:** ${err.message}`;
+      }
+    }
+
+    // Skills from a specific peer: "peer skills <peerId>"
+    const skillsMatch = message.match(/(?:skills?|faehigkeit)\s+(?:von|from|of)\s+(\S+)/i);
+    if (skillsMatch) {
+      const peerId = skillsMatch[1];
+      const peer = this.network.peers.get(peerId);
+      if (!peer) return `Peer "${peerId}" not found.`;
+      if (peer.skills?.length > 0) {
+        return `**Skills von ${peerId}:**\n${peer.skills.map(s => `- ${s}`).join('\n')}`;
+      }
+      return `Peer "${peerId}" has no skills.`;
+    }
+
+    // Default: show full status with health
+    const status = this.network.getPeerStatus();
+    if (status.length === 0) return this.lang.t('peer.none_hint');
+
+    const stats = this.network.getNetworkStats();
+    const lines = [
+      `**Genesis Peer Network** (Protocol v${stats.protocol})`,
+      `Listening: port ${stats.listening} | Peers: ${stats.totalPeers} (${stats.healthyPeers} healthy, ${stats.trustedPeers} trusted)`,
+      '',
+    ];
+    for (const p of status) {
+      const icon = p.health.isHealthy ? (p.trusted ? '[OK+T]' : '[OK]') : '[!!]';
+      lines.push(`${icon} **${p.id}** (${p.host}:${p.port})`);
+      lines.push(`    Protocol: v${p.protocol} | Latency: ${p.health.avgLatency}ms | Score: ${p.health.score}`);
+      if (p.skills?.length > 0) lines.push(`    Skills: ${p.skills.join(', ')}`);
+    }
+    lines.push('');
+    lines.push('**Commands:** peer scan | peer trust <id> | peer import <skill> from <id> | peer compare <module> <id>');
+    return lines.join('\n');
+  }
+
+  // ── Daemon Control ───────────────────────────────────────
+
+  async daemonControl(message) {
+    if (/stop/i.test(message)) { this.daemon.stop(); return this.lang.t('daemon.stopped'); }
+    if (/start/i.test(message)) { this.daemon.start(); return this.lang.t('daemon.started'); }
+    const st = this.daemon.getStatus();
+    return `**Daemon:** ${st.running ? this.lang.t('ui.active') : this.lang.t('ui.inactive')} | ${this.lang.t('health.cycles')}: ${st.cycleCount} | Gaps: ${st.knownGaps.length}`;
+  }
+
+  // ── Journal ──────────────────────────────────────────────
+
+  async journal() {
+    const entries = this.idleMind.readJournal(10);
+    if (entries.length === 0) return this.lang.t('journal.empty');
+    return `**Genesis Journal** (${this.lang.t('journal.last', { n: entries.length })}):\n\n${entries.map(e =>
+      `**[${e.timestamp?.split('T')[0]} ${e.activity}]**\n${e.thought}`
+    ).join('\n\n')}`;
+  }
+
+  // ── Plans ────────────────────────────────────────────────
+
+  async plans() {
+    const plans = this.idleMind.getPlans();
+    if (plans.length === 0) return this.lang.t('plans.empty');
+    return `**${this.lang.t('plans.title')}** (${plans.length}):\n\n${plans.slice(-5).map(p =>
+      `**${p.title}** [${p.priority}] -- ${p.status}\n${p.description?.slice(0, 200) || ''}`
+    ).join('\n\n')}`;
+  }
+
+  // ── Goals ────────────────────────────────────────────────
+
+  async goals(message) {
+    if (!this.goalStack) return this.lang.t('goals.unavailable');
+
+    // User wants to add a goal
+    const addMatch = message.match(/ziel.*(?:setze|erstelle|hinzufuegen|add).*?:\s*(.+)/i) ||
+                     message.match(/(?:setze|erstelle|add).*ziel.*?:\s*(.+)/i) ||
+                     message.match(/(?:set|create|add).*goal.*?:\s*(.+)/i);
+    if (addMatch) {
+      const goal = await this.goalStack.addGoal(addMatch[1].trim(), 'user', 'high');
+      return this.lang.t('goals.created', { description: goal.description }) +
+        `\n\n**${this.lang.t('goals.steps')}:**\n${goal.steps.map((s, i) =>
+        `${i + 1}. [${s.type}] ${s.action}`
+      ).join('\n')}`;
+    }
+
+    // Show active goals
+    const active = this.goalStack.getActiveGoals();
+    const all = this.goalStack.getAll();
+
+    if (all.length === 0) return this.lang.t('goals.empty');
+
+    const lines = [`**Genesis — ${this.lang.t('goals.title')}**`, ''];
+    for (const g of all.slice(-8)) {
+      const icon = g.status === 'completed' ? '[OK]' : g.status === 'active' ? '[>>]' : g.status === 'failed' ? '[!!]' : '[--]';
+      const progress = g.steps.length > 0 ? ` (${g.currentStep}/${g.steps.length})` : '';
+      lines.push(`${icon} **${g.description}**${progress} [${g.priority}]`);
+      if (g.status === 'active' && g.steps[g.currentStep]) {
+        lines.push(`    ${this.lang.t('goals.next_step')}: ${g.steps[g.currentStep].action}`);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  // ── Settings ─────────────────────────────────────────────
+
+  handleSettings(message) {
+    if (!this.settings) return this.lang.t('settings.unavailable');
+
+    // Set API key
+    const apiMatch = message.match(/(?:anthropic|api).?key.*?[:=]\s*(\S+)/i);
+    if (apiMatch) {
+      this.settings.set('models.anthropicApiKey', apiMatch[1]);
+      return this.lang.t('settings.api_key_saved', { key: apiMatch[1].slice(0, 8) });
+    }
+
+    // Show settings
+    const s = this.settings.getAll();
+    return [
+      `**Genesis — ${this.lang.t('ui.settings')}**`, '',
+      `**Anthropic API:** ${s.models.anthropicApiKey || this.lang.t('settings.not_configured')}`,
+      `**OpenAI API:** ${s.models.openaiBaseUrl || this.lang.t('settings.not_configured')}`,
+      `**${this.lang.t('settings.preferred_model')}:** ${s.models.preferred || 'auto'}`,
+      `**Daemon:** ${s.daemon.enabled ? this.lang.t('ui.active') : this.lang.t('ui.inactive')} (${this.lang.t('settings.every_n_min', { n: s.daemon.cycleMinutes })})`,
+      `**IdleMind:** ${s.idleMind.enabled ? this.lang.t('ui.active') : this.lang.t('ui.inactive')} (${this.lang.t('settings.idle_after_min', { n: s.idleMind.idleMinutes })})`,
+      `**${this.lang.t('ui.self_mod')}:** ${s.security.allowSelfModify ? this.lang.t('ui.allowed') : this.lang.t('ui.blocked')}`,
+      '',
+      this.lang.t('settings.api_key_hint'),
+    ].join('\n');
+  }
+
+  // ── Web Lookup ───────────────────────────────────────────
+
+  async webLookup(message) {
+    if (!this.web) return this.lang.t('web.unavailable');
+
+    // npm search
+    const npmMatch = message.match(/npm.*(?:such|search|paket|package).*?(?:fuer|for)?\s+(\w[\w\s-]*)/i);
+    if (npmMatch) {
+      const result = await this.web.npmSearch(npmMatch[1].trim());
+      if (result.error) return this.lang.t('web.npm_failed', { error: result.error });
+      if (result.packages.length === 0) return this.lang.t('web.npm_no_results', { query: npmMatch[1] });
+      return `**npm:**\n\n` + result.packages.map(p =>
+        `**${p.name}** v${p.version}\n${p.description}`
+      ).join('\n\n');
+    }
+
+    // URL fetch
+    const urlMatch = message.match(/(https?:\/\/\S+)/);
+    if (urlMatch) {
+      const result = await this.web.fetchText(urlMatch[1]);
+      if (!result.ok) return this.lang.t('web.fetch_failed', { url: urlMatch[1], error: result.error });
+      return `**${urlMatch[1]}** (${result.status}):\n\n${result.body.slice(0, 3000)}`;
+    }
+
+    // Ping check
+    const pingMatch = message.match(/(?:erreichbar|reachable|online|ping).*?(https?:\/\/\S+|\S+\.\w{2,})/i);
+    if (pingMatch) {
+      const url = pingMatch[1].startsWith('http') ? pingMatch[1] : 'https://' + pingMatch[1];
+      const result = await this.web.ping(url);
+      return result.reachable
+        ? this.lang.t('web.reachable', { url, status: result.status })
+        : this.lang.t('web.unreachable', { url, error: result.error });
+    }
+
+    return this.lang.t('web.hint');
+  }
+
+  // ── Run Skill (v5.9.1) ──────────────────────────────────
+
+  async runSkill(message) {
+    if (!this.skillManager) return 'No SkillManager available — skills are not loaded.';
+
+    // Extract skill name from message
+    const nameMatch = message.match(/([\w-]+-skill)\b/i) ||
+                      message.match(/(?:run|execute|use|start|starte?|nutze?|verwende?)\s+(?:the\s+|skill\s+)?["']?([\w-]+)["']?/i);
+    const skillName = nameMatch ? (nameMatch[1] || nameMatch[2]) : null;
+
+    if (!skillName || skillName === 'skill' || skillName === 'skills') {
+      // List available skills
+      const all = this.skillManager.listSkills();
+      if (all.length === 0) return 'No skills installed. Use "create a skill..." to build one.';
+      return `Available skills:\n${all.map(s => `  • ${s.name}: ${s.description || '(no description)'}`).join('\n')}\n\nUsage: "run <skill-name>"`;
+    }
+
+    try {
+      const result = await this.skillManager.executeSkill(skillName, {});
+      if (result.error) return `⚠️ Skill "${skillName}" error: ${result.error}`;
+      const output = result.output || result.result || result;
+      return `✅ Skill "${skillName}" result:\n\`\`\`json\n${JSON.stringify(output, null, 2)}\n\`\`\``;
+    } catch (err) {
+      // v5.9.1: If skill not found but shell is available, try as shell command
+      if (err.message?.includes('not found') && this.shell) {
+        return this.shellRun(message);
+      }
+      return `❌ Skill "${skillName}" failed: ${err.message}`;
+    }
+  }
+
+  // ── Shell Task (multi-step planned execution) ────────────
+
+  async shellTask(message) {
+    if (!this.shell) return this.lang.t('agent.shell_unavailable');
+
+    const task = message
+      .replace(/^(?:bitte\s+)?(?:richte|setup|einrichten|installiere|baue|build|deploy|teste|please\s+)?/i, '')
+      .replace(/^(?:fuehr|starte?|run|set\s+up|install)\s*/i, '')
+      .trim() || message;
+
+    const dirMatch = message.match(/(?:in|im|fuer|for)\s+(?:verzeichnis|ordner|dir|directory)?\s*['"]?([^\s'"]+)['"]?/i);
+    const cwd = dirMatch ? dirMatch[1] : undefined;
+
+    const result = await this.shell.plan(task, cwd);
+    return result.summary;
+  }
+
+  // ── Shell Run (single command) ──────────────────────────
+
+  async shellRun(message) {
+    if (!this.shell) return this.lang.t('agent.shell_unavailable');
+
+    let cmd = message.replace(/^[$>]\s*/, '')
+      .replace(/^(?:fuehr|execute|run)\s+(?:den\s+)?(?:befehl|kommando|command)\s*/i, '')
+      .replace(/\s*aus\s*$/i, '').trim();
+
+    if (!cmd) return this.lang.t('agent.no_command');
+
+    const result = await this.shell.run(cmd);
+    const lines = [`**$ ${cmd}**`, ''];
+    if (result.blocked) {
+      lines.push(`**${this.lang.t('agent.blocked_command', { reason: result.stderr })}**`);
+    } else if (result.ok) {
+      lines.push(result.stdout.trim() ? '```\n' + result.stdout.trim().slice(0, 3000) + '\n```' : `*${this.lang.t('agent.no_output')}*`);
+      lines.push(`\n*${result.duration}ms*`);
+    } else {
+      if (result.stdout.trim()) lines.push('```\n' + result.stdout.trim().slice(0, 1500) + '\n```');
+      lines.push(`**${this.lang.t('agent.error')} (exit ${result.exitCode}):**`);
+      lines.push('```\n' + result.stderr.slice(0, 1500) + '\n```');
+    }
+    return lines.join('\n');
+  }
+
+  // ── Project Scan ────────────────────────────────────────
+
+  async projectScan(message) {
+    if (!this.shell) return this.lang.t('agent.shell_unavailable');
+
+    const dirMatch = message.match(/(?:verzeichnis|ordner|dir|pfad|path|directory)\s*['":]?\s*([^\s'"]+)/i);
+    const dir = dirMatch ? dirMatch[1] : undefined;
+
+    const result = await this.shell.openWorkspace(dir || this.fp?.rootDir || process.cwd());
+    return result.description;
+  }
+
+  // ── MCP Control ──────────────────────────────────────────
+
+  async mcpControl(message) {
+    if (!this.mcp) return this.lang.t('mcp.unavailable');
+
+    // Add server: "mcp connect github https://mcp.github.com/sse"
+    const addMatch = message.match(/(?:mcp|server).*(?:connect|verbind|add|hinzufuegen)\s+(\S+)\s+(https?:\/\/\S+)/i);
+    if (addMatch) {
+      try {
+        const result = await this.mcp.addServer({ name: addMatch[1], url: addMatch[2] });
+        return this.lang.t('mcp.server_added', { name: addMatch[1], url: addMatch[2] }) +
+          `\n**Status:** ${result.status} | **Tools:** ${result.toolCount}`;
+      } catch (err) {
+        return this.lang.t('mcp.error', { name: addMatch[1], error: err.message });
+      }
+    }
+
+    // Remove server: "mcp disconnect github"
+    const removeMatch = message.match(/(?:mcp|server).*(?:disconnect|trenn|remove|entfern)\s+(\S+)/i);
+    if (removeMatch) {
+      const ok = await this.mcp.removeServer(removeMatch[1]);
+      return ok ? this.lang.t('mcp.server_removed', { name: removeMatch[1] }) : this.lang.t('mcp.server_not_found', { name: removeMatch[1] });
+    }
+
+    // Reconnect: "mcp reconnect github"
+    const reconMatch = message.match(/(?:mcp|server).*(?:reconnect|neu.*verbind)\s+(\S+)/i);
+    if (reconMatch) {
+      try {
+        const result = await this.mcp.reconnect(reconMatch[1]);
+        return `**${reconMatch[1]}** reconnected. Status: ${result.status}, Tools: ${result.toolCount}`;
+      } catch (err) {
+        return this.lang.t('mcp.error', { name: reconMatch[1], error: err.message });
+      }
+    }
+
+    // Serve Genesis: "mcp serve" / "genesis als server starten"
+    if (/(?:serve|server\s*starten|bereitstellen|anbieten)/i.test(message)) {
+      try {
+        const port = await this.mcp.startServer();
+        return this.lang.t('mcp.server_started', { port });
+      } catch (err) {
+        return this.lang.t('mcp.server_start_failed', { error: err.message });
+      }
+    }
+
+    // Search tools: "mcp tools filesystem"
+    const searchMatch = message.match(/(?:mcp|server).*(?:tools?|werkzeug).*?(?:such|search|fuer|for)?\s+(.+)/i);
+    if (searchMatch && !searchMatch[1].match(/^(?:status|connect|disconnect|serve)/i)) {
+      const results = this.mcp.findRelevantTools(searchMatch[1].trim(), 8);
+      if (results.length === 0) {
+        // Fallback to meta-tool search
+        const allTools = this.mcp._allTools();
+        const query = searchMatch[1].toLowerCase();
+        const filtered = allTools.filter(t =>
+          t.name.toLowerCase().includes(query) || (t.description || '').toLowerCase().includes(query)
+        );
+        if (filtered.length === 0) return this.lang.t('mcp.no_tools_found', { query: searchMatch[1] });
+        return `**MCP-Tools** (${filtered.length}):\n\n` +
+          filtered.slice(0, 10).map(t => `- **${t.server}:${t.name}** — ${t.description}`).join('\n');
+      }
+      return `**MCP-Tools** (${results.length} relevant):\n\n` +
+        results.map(t => `- **${t.server}:${t.name}** — ${t.description}`).join('\n');
+    }
+
+    // Status (default)
+    const status = this.mcp.getStatus();
+    if (status.serverCount === 0) return this.lang.t('mcp.no_servers') + '\n\n' + this.lang.t('mcp.connect_hint');
+
+    const lines = [
+      `**${this.lang.t('mcp.status_title')}**`, '',
+      `**${this.lang.t('mcp.servers')}:** ${status.connectedCount}/${status.serverCount}`,
+      `**${this.lang.t('mcp.total_tools')}:** ${status.totalTools}`,
+      `**Meta-Tools:** ${status.metaTools.join(', ')}`,
+      `**Recipes:** ${status.recipes} | **Skill candidates:** ${status.skillCandidates}`,
+      status.serving ? `**Genesis-Server:** Port ${status.serving}` : '',
+      '',
+    ];
+
+    for (const s of status.servers) {
+      const icon = s.status === 'ready' ? '[OK]' : s.status === 'error' ? '[!!]' : '[--]';
+      lines.push(`${icon} **${s.name}** (${s.url})`);
+      lines.push(`    ${s.toolCount} Tools | ${s.transport} | ${s.status}${s.error ? ' — ' + s.error : ''}`);
+    }
+
+    return lines.filter(Boolean).join('\n');
+  }
+
+  // ── Undo (Git Revert) ──────────────────────────────────
+
+  async undo() {
+    try {
+      // FIX v4.0.1: async execFile — no longer blocks the main thread.
+      const { execFile } = require('child_process');
+      const { promisify } = require('util');
+      const execFileAsync = promisify(execFile);
+      const cwd = this.fp?.rootDir || process.cwd();
+      const opts = { cwd, encoding: 'utf-8', timeout: TIMEOUTS.GIT_OP, windowsHide: true };
+
+      const { stdout: log } = await execFileAsync('git', ['log', '--oneline', '-5'], opts);
+      if (!log.trim()) return this.lang.t('agent.undo_failed', { error: 'No git repository' });
+
+      const lines = log.trim().split('\n');
+      const lastCommit = lines[0];
+
+      if (lines.length <= 1) return this.lang.t('agent.undo_only_one');
+
+      await execFileAsync('git', ['revert', '--no-edit', 'HEAD'], { ...opts, timeout: TIMEOUTS.COMMAND_EXEC });
+
+      return `**${this.lang.t('agent.undo_done', { commit: lastCommit })}**\n\n\`\`\`\n${lines.slice(0, 4).join('\n')}\n\`\`\``;
+    } catch (err) {
+      const msg = err.stderr || err.message || '';
+      if (msg.includes('nothing to commit') || msg.includes('MERGE_HEAD')) {
+        return this.lang.t('agent.undo_conflict');
+      }
+      return `**${this.lang.t('agent.undo_failed', { error: msg })}**`;
+    }
+  }
+}
+
+module.exports = { CommandHandlers };

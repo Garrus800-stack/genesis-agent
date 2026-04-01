@@ -1,0 +1,24 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/agent/index.js"],
+  "out": "docs/api",
+  "name": "Genesis Agent API",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeExternals": true,
+  "readme": "README.md",
+  "plugin": [],
+  "exclude": [
+    "src/ui/**",
+    "test/**",
+    "scripts/**",
+    "node_modules/**"
+  ],
+  "categorizeByGroup": true,
+  "sort": ["source-order"],
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  }
+}

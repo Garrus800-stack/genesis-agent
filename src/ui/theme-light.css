@@ -1,0 +1,45 @@
+/* ============================================================ */
+/* GENESIS — Light Theme (v4.12.2)                              */
+/* Activate via: document.body.classList.add('theme-light')      */
+/* or settings.set('ui.theme', 'light')                          */
+/* ============================================================ */
+
+body.theme-light {
+  --bg-deep: #f5f5f8;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f0f1f5;
+  --bg-hover: #e8e9f0;
+  --border: #d0d2dc;
+  --border-active: #a0a4b8;
+  --text-primary: #1a1a2e;
+  --text-secondary: #555570;
+  --text-dim: #8888a0;
+  --accent: #4a6cf7;
+  --accent-dim: #3a54c0;
+  --accent-soft: #e8ecff;
+  --success: #16a34a;
+  --warning: #d97706;
+  --error: #dc2626;
+  --user-bg: #eef0f8;
+  --user-border: #d0d4e8;
+  --genesis-bg: #f8f9fc;
+  --genesis-border: #e0e2ec;
+}
+
+/* Scrollbar styling for light theme */
+body.theme-light ::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+body.theme-light ::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+body.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: var(--border-active);
+}
+
+/* Code blocks need special handling */
+body.theme-light pre,
+body.theme-light code {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
