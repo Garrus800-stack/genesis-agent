@@ -1,0 +1,174 @@
+# Genesis — Quick Start Guide
+
+Get Genesis running in under 2 minutes and see what it can do.
+
+## 1. Install & Start
+
+```bash
+git clone https://github.com/Garrus800-stack/genesis-agent.git
+cd genesis-agent
+npm install
+npm start
+```
+
+Genesis boots in ~5 seconds. You'll see a chat window — that's your interface.
+
+**Optional — configure an LLM:**
+
+Genesis works out of the box with a local Ollama model. For best results, open Settings and add an **Anthropic API key** or **OpenAI API key**. Genesis auto-selects the best available model.
+
+If you want fully offline operation:
+```bash
+ollama pull gemma2:9b   # or any model you prefer
+ollama serve            # Genesis auto-detects it
+```
+
+## 2. Your First Conversation
+
+Type something. Genesis isn't just a chatbot — it maintains context, learns your preferences, and remembers across sessions.
+
+Try these to see different capabilities:
+
+| You type | What Genesis does |
+|---|---|
+| `Hello, who are you?` | Introduces itself, detects your language, adapts |
+| `What's your architecture?` | Scans its own modules and explains its structure |
+| `How are you feeling?` | Reports its emotional state (curiosity, energy, satisfaction) |
+| `What have you learned so far?` | Shows MetaLearning stats and conversation patterns |
+
+## 3. Give It a Goal
+
+This is where Genesis becomes different from a chatbot. Type a complex task:
+
+```
+Analyze the src/agent/core/ directory and tell me which files have
+the highest cyclomatic complexity. Then suggest refactoring strategies.
+```
+
+Watch what happens:
+
+1. **[PLAN]** — FormalPlanner creates a multi-step plan with preconditions
+2. **[STEP 1]** — ShellAgent scans the directory
+3. **[STEP 2]** — CodeAnalyzer measures complexity
+4. **[VERIFY]** — VerificationEngine checks results programmatically
+5. **[LEARN]** — MetaLearning records what worked
+
+Genesis doesn't just answer — it **plans, executes, verifies, and learns**.
+
+## 4. Watch It Think (Idle Mode)
+
+Stop typing for 30 seconds. Genesis doesn't just wait — it enters **IdleMind** mode:
+
+- Reflects on recent conversations
+- Explores its own code
+- Consolidates memories via DreamCycle
+- Updates its self-narrative
+
+You'll see periodic activity in the console. This is autonomous cognition — Genesis thinking when you're not asking.
+
+## 5. Self-Modification (Advanced)
+
+This is Genesis's signature capability. Ask it to improve itself:
+
+```
+Add a new command that shows memory statistics in a formatted table.
+```
+
+Genesis will:
+1. Read its own CommandHandlers.js
+2. Plan the modification
+3. Write the code in a sandbox
+4. Run AST safety scanning (blocks eval, process.exit, etc.)
+5. Create a git snapshot (rollback point)
+6. Apply the change
+7. Hot-reload without restart
+8. Sign the modified module (HMAC-SHA256)
+
+If any step fails, it rolls back automatically.
+
+## 6. Boot Profiles
+
+Genesis supports three boot profiles for different use cases:
+
+```bash
+npm start                    # Full mode (default) — all 116 services
+npm start -- --minimal       # Minimal — core + intelligence + planning (~50 services)
+npm start -- --cognitive      # Cognitive — full minus consciousness layer (~90 services)
+```
+
+| Profile | Services | Use case |
+|---|---|---|
+| `--full` | 111 | Production use — all cognitive and consciousness systems active |
+| `--cognitive` | 106 | Development — skips consciousness layer (PhenomenalField, TemporalSelf, IntrospectionEngine, AttentionalGate) |
+| `--minimal` | 81 | Learning — core agent loop, planning, and tools (skips cognitive, agency, extended, hybrid, consciousness) |
+
+## 7. Things to Try
+
+**Code analysis:**
+```
+Scan this project for potential security issues in the shell execution code.
+```
+
+**Autonomous research:**
+```
+Research how other AI agents handle memory consolidation and compare
+it to your DreamCycle implementation. Write a summary.
+```
+
+**Self-inspection:**
+```
+Show me your boot sequence. Which services start in which phase?
+```
+
+**Web perception (if Ollama or API configured):**
+```
+Fetch the Node.js changelog and summarize what changed in the latest LTS.
+```
+
+**Multi-file refactoring:**
+```
+The EventBus has too many responsibilities. Plan a refactoring
+that extracts the middleware system into a separate module.
+```
+
+## 8. Understanding the Output
+
+Genesis is transparent about its reasoning. Watch for these markers:
+
+| Marker | Meaning |
+|---|---|
+| `[PLAN]` | FormalPlanner created a step sequence |
+| `[EXPECT]` | ExpectationEngine predicted the outcome |
+| `[SIMULATE]` | MentalSimulator tested the plan hypothetically |
+| `[VERIFY]` | VerificationEngine checked the result programmatically |
+| `[SURPRISE]` | Outcome differed from expectation (drives learning) |
+| `[LEARN]` | MetaLearning recorded the outcome for future optimization |
+| `[DREAM]` | DreamCycle consolidating memories during idle time |
+| `[SIGN]` | Module signed with HMAC-SHA256 after self-modification |
+| `[EMOTION]` | Emotional state shifted (affects model selection, plan length) |
+
+## 9. Configuration
+
+All settings are in the Settings panel (gear icon in the UI):
+
+**Models:** API keys, preferred model, role assignments (chat, code, analysis, planning)
+
+**Autonomy:** Trust level (0–3), max steps per goal, idle thinking interval
+
+**Memory:** Retention policies, consolidation frequency, knowledge graph size
+
+**MCP:** External tool servers (semantic discovery, auto-registration)
+
+Settings persist in `.genesis/settings.json`.
+
+## 10. What's Next?
+
+- Read [ARCHITECTURE-DEEP-DIVE.md](docs/ARCHITECTURE-DEEP-DIVE.md) to understand the 13-phase boot
+- Read [CAPABILITIES.md](docs/CAPABILITIES.md) for the full feature list
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) if you want to extend Genesis
+- Run `npm test` to see all 2650+ tests pass
+- Run `node scripts/architectural-fitness.js` to check code health
+
+---
+
+**Genesis is not a framework.** You don't build agents with it — you talk to one. It reads its own code, modifies itself, and gets better over time. The more you use it, the more it learns.
