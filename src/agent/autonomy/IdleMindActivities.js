@@ -213,38 +213,46 @@ const activities = {
   },
 
   async _consolidateMemory() {
-    if (!this.unifiedMemory) return 'UnifiedMemory not available.';
+    const parts = [];
 
-    try {
-      const { promoted } = this.unifiedMemory.consolidate({
-        minOccurrences: 3,
-        maxPromotions: 5,
-      });
+    // ── Phase 1: UnifiedMemory consolidation ─────────────
+    if (this.unifiedMemory) {
+      try {
+        const { promoted } = this.unifiedMemory.consolidate({
+          minOccurrences: 3,
+          maxPromotions: 5,
+        });
 
-      let conflictCount = 0;
-      if (this.memory?.db?.episodic) {
-        const recentTopics = new Set();
-        const recent = this.memory.db.episodic.slice(-5);
-        for (const ep of recent) {
-          for (const t of (ep?.topics || [])) recentTopics.add(t);
+        let conflictCount = 0;
+        if (this.memory?.db?.episodic) {
+          const recentTopics = new Set();
+          const recent = this.memory.db.episodic.slice(-5);
+          for (const ep of recent) {
+            for (const t of (ep?.topics || [])) recentTopics.add(t);
+          }
+          for (const topic of [...recentTopics].slice(0, 3)) {
+            try {
+              const { conflicts } = await this.unifiedMemory.resolveConflicts(topic);
+              conflictCount += conflicts.length;
+            } catch (_e) { /* best effort */ }
+          }
         }
-        for (const topic of [...recentTopics].slice(0, 3)) {
-          try {
-            const { conflicts } = await this.unifiedMemory.resolveConflicts(topic);
-            conflictCount += conflicts.length;
-          } catch (_e) { /* best effort */ }
-        }
+
+        if (promoted.length > 0) parts.push(`${promoted.length} patterns promoted`);
+        if (conflictCount > 0) parts.push(`${conflictCount} conflicts resolved`);
+      } catch (err) {
+        parts.push(`UnifiedMemory: ${err.message}`);
       }
-
-      const parts = ['Memory consolidation complete'];
-      if (promoted.length > 0) parts.push(`${promoted.length} patterns promoted to facts`);
-      if (conflictCount > 0) parts.push(`${conflictCount} conflicts resolved`);
-      if (promoted.length === 0 && conflictCount === 0) parts.push('no changes needed');
-
-      return parts.join('. ');
-    } catch (err) {
-      return `Consolidation failed: ${err.message}`;
     }
+
+    // ── Phase 2: V6-7 MemoryConsolidator (KG + Lessons) ──
+    // Trigger via bus — MemoryConsolidator handles cooldown + execution
+    this.bus.emit('idle:consolidate-memory', {}, { source: 'IdleMind' });
+    parts.push('KG+Lessons consolidation triggered');
+
+    return parts.length > 0
+      ? `Memory consolidation: ${parts.join('. ')}`
+      : 'Memory consolidation: no changes needed';
   },
 
   _journal(activity, content) {

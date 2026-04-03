@@ -185,11 +185,24 @@ function phase9(ctx, R) {
 
     // v5.5.0: WorkspaceFactory — injects CognitiveWorkspace constructor into AgentLoop
     // via late-binding, eliminating the cross-phase import (revolution→cognitive).
+    // v6.0.0 (V6-5): onEvict callback wired — evicted slots emitted to bus for
+    // downstream persistence/summarization (MemoryConsolidator, LessonsStore).
     ['workspaceFactory', {
       phase: 9, deps: [], tags: ['cognitive', 'port'],
       factory: () => {
         const { CognitiveWorkspace } = R('CognitiveWorkspace');
-        return (opts) => new CognitiveWorkspace(opts);
+        return (opts) => new CognitiveWorkspace({
+          ...opts,
+          onEvict: (key, slot) => {
+            bus.emit('workspace:slot-evicted', {
+              key,
+              value: typeof slot.value === 'string' ? slot.value.slice(0, 500) : JSON.stringify(slot.value).slice(0, 500),
+              salience: slot.salience,
+              accessCount: slot.accessCount,
+              goalId: opts.goalId || null,
+            }, { source: 'CognitiveWorkspace' });
+          },
+        });
       },
     }],
     // v5.7.0 (SA-P3): ArchitectureReflection — live queryable architecture model
@@ -260,6 +273,29 @@ function phase9(ctx, R) {
         bus,
         config: c.tryResolve('settings')
           ?.get('cognitive.selfModel') || {},
+      }),
+    }],
+
+    // v6.0.0 (V6-7): MemoryConsolidator — KG + LessonsStore hygiene
+    ['memoryConsolidator', {
+      phase: 9, deps: ['bus'], tags: ['cognitive', 'memory', 'v6-7'],
+      lateBindings: [
+        { prop: 'knowledgeGraph', service: 'knowledgeGraph', optional: true },
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
+        { prop: 'storage', service: 'storage', optional: true },
+      ],
+      factory: (c) => new (R('MemoryConsolidator').MemoryConsolidator)({
+        bus,
+        config: c.tryResolve('settings')
+          ?.get('cognitive.memoryConsolidator') || {},
+      }),
+    }],
+
+    // v6.0.0 (V6-8): TaskRecorder — execution trace capture + replay
+    ['taskRecorder', {
+      phase: 9, deps: ['bus'], tags: ['cognitive', 'replay', 'v6-8'],
+      factory: () => new (R('TaskRecorder').TaskRecorder)({
+        bus,
       }),
     }],
   ];

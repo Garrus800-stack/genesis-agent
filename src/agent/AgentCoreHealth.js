@@ -305,6 +305,10 @@ class AgentCoreHealth {
       'deploymentManager',
       // v5.9.9: ColonyOrchestrator — cancels in-flight runs + unsubscribes
       'colonyOrchestrator',
+      // v6.0.0 (V6-7): MemoryConsolidator — stops consolidation cycle
+      'memoryConsolidator',
+      // v6.0.0 (V6-8): TaskRecorder — finalizes active recordings
+      'taskRecorder',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

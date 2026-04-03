@@ -167,6 +167,16 @@ const SCHEMAS = {
   // Skill Registry (v5.9.8)
   'skill:installed':   { name: 'required', version: 'required', source: 'required' },
   'skill:uninstalled': { name: 'required' },
+
+  // Memory Consolidation (v6.0.0 V6-7)
+  'memory:consolidation-complete': { kgMerged: 'required', kgPruned: 'required', lessonsArchived: 'required', durationMs: 'required' },
+  'memory:consolidation-failed':   { error: 'required' },
+
+  // Workspace Eviction (v6.0.0 V6-5)
+  'workspace:slot-evicted': { key: 'required', salience: 'required' },
+
+  // Task Recorder (v6.0.0 V6-8)
+  'replay:recording-complete': { id: 'required', goalId: 'required', steps: 'required', durationMs: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

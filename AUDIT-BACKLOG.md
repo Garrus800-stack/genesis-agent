@@ -30,6 +30,19 @@ Resolved items are documented in CHANGELOG.md for traceability.
 | Prototype pollution | `__proto__` filtered in WorldState.js. No `for...in` eliminates the primary attack vector. |
 | console.log | 1 in SkillManager.js:85 — runs in Sandbox child process where _log unavailable. Design-correct (v5.9.1 FIX-5). |
 
+## v6.0.0 — Resolved (Memory Consolidation + Task Replay + Benchmark Matrix)
+
+| ID          | Severity | Description |
+|-------------|----------|-------------|
+| V6-5-FINAL  | MEDIUM | workspaceFactory `onEvict` callback wired → emits `workspace:slot-evicted` with key, value, salience, accessCount, goalId. V6-5 complete. |
+| V6-7        | HIGH   | MemoryConsolidator.js (~340 LOC): KG redundancy detection (Jaccard merge), stale pruning, lesson archival with decay scoring. Phase 9 manifest. TO_STOP. 2 events, 2 schemas. IPC: get-consolidation-report + trigger-consolidation. 13 tests. |
+| V6-8        | HIGH   | TaskRecorder.js (~380 LOC): Execution trace capture (steps, LLM calls, tool invocations, decisions). Persistence to `.genesis-replay` files. Diff API. Phase 9 manifest. TO_STOP. 1 event, 1 schema. IPC: get-replay-report + get-replay-diff. 19 tests. |
+| V6-6-CLI    | MEDIUM | CLI skill commands: /skills, /skill install\|uninstall\|update. SkillRegistry API wired to REPL. |
+| V6-9-EXT    | MEDIUM | Benchmark suite: 8 → 12 tasks. `--ab-matrix` mode for multi-backend A/B validation. npm script `benchmark:agent:ab:matrix`. |
+| CLI-EXT     | LOW    | 7 new CLI commands: /skills, /skill install\|uninstall\|update, /consolidate, /replays. Help text updated. |
+| INFRA-1     | LOW    | EventTypes +5 events (343 total), EventPayloadSchemas +5 schemas (85 total), TO_STOP +2 (54 total), IPC +4, preload +4. |
+| IdleMind consolidation | LOW | `consolidate` activity always available (not gated on UnifiedMemory). Emits `idle:consolidate-memory` bus event for MemoryConsolidator. |
+
 ## v5.9.9 — Resolved (Stabilization + CI Green)
 
 | ID     | Severity | Description |
@@ -45,6 +58,8 @@ Resolved items are documented in CHANGELOG.md for traceability.
 | LEAK-3 | MEDIUM | DeploymentManager: `deploy:request` listener untracked, `stop()` was no-op. Fixed: `_unsubs[]` + cleanup + TO_STOP. |
 | LEAK-4 | MEDIUM | ColonyOrchestrator: `colony:run-request` listener untracked. Fixed: `_unsubs[]` + cleanup + TO_STOP. |
 | FIT-2 | MEDIUM | Fitness scanner blind spot: only detected `static containerConfig` services. Now also traces manifest `R('Module')` factory patterns. Stoppable: 49 → 52. Found LEAK-3/LEAK-4. |
+| AB-1 | MEDIUM | A/B Organism Validation: PromptBuilder section filter (`GENESIS_AB_MODE`), benchmark `--ab` mode. **First result: +37pp success rate with Organism (50% vs 13%, kimi-k2.5:cloud).** |
+| CLI-1 | HIGH | CLI `--once` mode missing — benchmark captured boot logs instead of LLM responses. Added `--once`, `--no-boot-log`, `--backend` flags. Benchmark now functional. |
 
 ## v5.9.8 — Resolved (V6-5 Fully Wired + V6-11 CognitiveSelfModel)
 

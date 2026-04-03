@@ -1,6 +1,6 @@
 # Genesis — Development Roadmap
 
-**v5.9.8. Prioritized by impact, not novelty.**
+**v6.0.0. Prioritized by impact, not novelty.**
 
 ---
 
@@ -8,13 +8,13 @@
 
 | Metric | Value |
 |--------|-------|
-| Source Files / LOC | 230 / ~79.2k |
+| Source Files / LOC | 231 / ~79.9k |
 | Test Suites / Tests | 180 / ~3100 |
 | Boot Phases | 13 |
-| Registered Services | 123 |
+| Registered Services | 125 |
 | Circular Dependencies | 0 |
 | Cross-Layer Violations | 0 |
-| Shutdown Integrity | ✅ All 44 services, sync writes |
+| Shutdown Integrity | ✅ All 54 services, sync writes |
 | Fitness Score | 90/90 (100%) |
 | TypeScript CI | ✅ Strict mode, 0 errors |
 | @ts-nocheck files | 0 (was 25) |
@@ -41,6 +41,8 @@
 | v5.9.6  | Organism Context Containment: Homeostasis prompt containment (behavioral-only), organism context guard, formatting metric prohibition |
 | v5.9.7  | SelfModel Data Layer + Context Overflow: TaskOutcomeTracker (V6-11 data collection), ConversationCompressor (V6-5 LLM-based history compression), coverage ratchet 70/60/65 |
 | v5.9.8  | V6-5 + V6-11 + V6-9 + V6-6: ConversationCompressor wiring fix, CognitiveWorkspace onEvict, CognitiveSelfModel (Wilson-calibrated), SelfModel Dashboard, Benchmarking Suite (8 tasks), SkillRegistry (install/uninstall/update), Sandbox SIGKILL fix (0 failures) |
+| v5.9.9  | Stabilization + CI Green: TSC-1/TSC-2 (TypeScript 6 fix), 4 listener leaks fixed (LEAK-1–4), fitness scanner upgrade (FIT-2), A/B Organism Validation (+37pp), headless --once mode |
+| v6.0.0  | V6-5 complete (eviction pipeline), V6-7 MemoryConsolidator, V6-8 TaskRecorder, V6-6 CLI commands, V6-9 benchmark expansion (12 tasks + --ab-matrix) |
 
 ### Completed SA Items
 
@@ -122,7 +124,7 @@ Automatic context budget tracking and compression to prevent token overflow.
 - **✅ Compressor Wiring**: `_compressor` late-binding added to `context` manifest entry — ConversationCompressor now live in `buildAsync()` (v5.9.8)
 - **✅ Backend-Aware Limits**: `configureForModel()` sets `maxContextTokens` per model via MODEL_CONTEXT_MAP, passed to DynamicContextBudget.allocate() (v3.5.3+)
 - **✅ Slot Eviction Hook**: CognitiveWorkspace `onEvict(key, slot)` callback + rich eviction data return (v5.9.8)
-- **Remaining**: Wire `onEvict` in workspaceFactory to persist/summarize evicted slots (e.g. KG node or compressor cache entry)
+- **Remaining**: ~~Wire `onEvict` in workspaceFactory to persist/summarize evicted slots~~ → **✅ Complete (v6.0.0)**: `onEvict` callback wired in workspaceFactory, emits `workspace:slot-evicted` bus event. MemoryConsolidator subscribes for archival tracking.
 - **Prerequisite**: CognitiveWorkspace ✅, LLMPort ✅, AttentionalGate ✅, DynamicContextBudget ✅, ConversationCompressor ✅
 - **Effort**: Very low (remaining — one callback wiring in workspaceFactory)
 - **Priority**: High — directly improves output quality on long tasks
@@ -137,35 +139,35 @@ Discover, install, and manage third-party skills from external sources.
 - **✅ Sandbox Isolation**: Community skills run in existing sandbox with restricted permissions (inherited from SkillManager)
 - **✅ Uninstall + Update**: `uninstall(name)` removes dir + meta. `update(name)` re-fetches from original source. (v5.9.8)
 - **✅ Search**: `search(query)` queries optional registry index URL. (v5.9.8)
-- **Remaining**: CLI commands (`genesis install/uninstall/update/skills`), public registry index hosting
+- **✅ CLI Commands (v6.0.0)**: `/skills`, `/skill install|uninstall|update` in CLI REPL.
+- **Remaining**: Public registry index hosting
 - **Prerequisite**: SkillManager ✅, Sandbox ✅, skill-manifest.schema.json ✅
 - **Effort**: Low (remaining — CLI wiring + registry hosting)
 - **Priority**: High — lowers barrier for external contributors
 
-### V6-7: Memory Consolidation
+### V6-7: Memory Consolidation — ✅ Complete (v6.0.0)
 
 Periodic pruning and merging of KnowledgeGraph and LessonsStore to prevent unbounded growth.
 
-- **MemoryConsolidator Service**: Runs on IdleMind schedule or manual trigger
-- **Redundancy Detection**: LLM-assisted merge of semantically duplicate KG nodes
-- **Lesson Archival**: Lessons older than N days with low access count → archived to `~/.genesis-lessons/archive/`
-- **Relevance Scoring**: Each KG node gets a decay-weighted relevance score (recency × access frequency)
-- **Compaction Report**: Dashboard panel showing consolidation stats (merged/archived/retained)
+- **✅ MemoryConsolidator Service**: Phase 9 cognitive service (~340 LOC). KG redundancy detection (Jaccard similarity merge), stale node pruning, lesson archival with decay scoring, compaction reports. (v6.0.0)
+- **✅ Redundancy Detection**: Same-type KG nodes merged by word-level Jaccard similarity (≥0.75). Properties merged, edges redirected, self-loops removed. Configurable max merges per run.
+- **✅ Lesson Archival**: Lessons older than N days with low access count → archived to `~/.genesis-lessons/archive/`. Configurable thresholds.
+- **✅ Relevance Scoring**: Decay-weighted relevance (recency × access frequency) drives eviction priority.
+- **✅ Compaction Report**: Dashboard-ready report via IPC. Cumulative stats across all runs.
+- **✅ IdleMind Integration**: `consolidate` activity triggers MemoryConsolidator via bus event. Always available.
+- **✅ CLI**: `/consolidate` command for manual trigger.
 - **Prerequisite**: KnowledgeGraph ✅, LessonsStore ✅, IdleMind ✅
-- **Effort**: Medium
-- **Priority**: Medium — prevents long-term performance degradation
 
 ### V6-8: Task Replay / Debug Mode
 
 Record and deterministically replay complete task executions for debugging and regression testing.
 
-- **TaskRecorder**: Serializes full execution trace (events, LLM calls, tool invocations, decisions) to `.genesis-replay` files
-- **Deterministic Replay**: Replay with mocked LLM responses reproduces exact execution path
-- **Diff View**: Compare two replays side-by-side (e.g. before/after a code change)
-- **Integration with ReasoningTracer**: Replay visualized in existing Reasoning Trace Decision Trees panel
-- **Prerequisite**: ReasoningTracer ✅, EventBus ✅, CorrelationIds ✅
-- **Effort**: High
-- **Priority**: Medium — unique differentiator, no competitor has this
+- **✅ TaskRecorder Service (v6.0.0)**: Phase 9 cognitive service (~380 LOC). Automatic recording of goal execution traces (steps, LLM calls, tool invocations, decisions). Serialized to `.genesis-replay` files. Ring buffer of last 50 recordings. Index loaded from disk on boot.
+- **✅ Diff View (v6.0.0)**: `diff(idA, idB)` compares two recordings step-by-step. Finds divergence point, compares step types, reports outcome deltas.
+- **✅ CLI (v6.0.0)**: `/replays` lists recent recordings with status icons.
+- **✅ IPC (v6.0.0)**: `agent:get-replay-report`, `agent:get-replay-diff`. Preload whitelisted.
+- **Deterministic Replay**: Replay with mocked LLM responses reproduces exact execution path (remaining)
+- **Dashboard Integration**: Replay visualized in existing Reasoning Trace Decision Trees panel (remaining)
 
 ### V6-9: Agent Benchmarking Suite
 
@@ -175,7 +177,9 @@ Standardized benchmarks to measure agent capability across versions and backends
 - **✅ Metrics**: Success rate, token estimate, latency per task, aggregate scores. (v5.9.8)
 - **✅ Regression Detection**: `--baseline save/compare` mode. Per-task regression flagging + overall success rate delta. (v5.9.8)
 - **✅ Modes**: `--quick` (3 tasks), `--backend <n>`, `--json` output. (v5.9.8)
-- **Remaining**: README auto-generation of benchmark table, multi-file edit tasks, SelfModel-before/after comparison
+- **✅ Extended Task Suite (v6.0.0)**: 4 new tasks (8 → 12): async rate limiter, async error handling, strategy pattern, API design review. Coverage across 5 categories.
+- **✅ `--ab-matrix` mode (v6.0.0)**: Runs A/B comparison across ALL configured backends. Auto-discovers backends from settings.json. Per-backend delta + aggregate average. Results saved to `.genesis/benchmark-ab-matrix.json`.
+- **Remaining**: README auto-generation of benchmark table
 - **Prerequisite**: SkillManager ✅, LLMPort ✅, Sandbox ✅
 - **Effort**: Low (remaining)
 - **Priority**: Medium — provides hard numbers for competitive positioning

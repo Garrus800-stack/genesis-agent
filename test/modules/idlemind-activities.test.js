@@ -207,13 +207,16 @@ describe('IdleMindActivities: _dream', () => {
 });
 
 describe('IdleMindActivities: _consolidateMemory', () => {
-  test('returns unavailable without unifiedMemory', async () => {
+  test('triggers MemoryConsolidator via bus even without unifiedMemory', async () => {
     const obj = createIdleMindLike();
+    let emitted = false;
+    obj.bus.on('idle:consolidate-memory', () => { emitted = true; });
     const result = await obj._consolidateMemory();
-    assert(result.includes('not available'), 'should report unavailable');
+    assert(result.includes('consolidation'), 'should report consolidation status');
+    assert(emitted, 'should emit idle:consolidate-memory bus event');
   });
 
-  test('reports consolidation results', async () => {
+  test('reports consolidation results with unifiedMemory', async () => {
     const obj = createIdleMindLike({
       unifiedMemory: {
         consolidate: () => ({ promoted: [{ fact: 'x' }] }),
@@ -222,6 +225,7 @@ describe('IdleMindActivities: _consolidateMemory', () => {
     });
     const result = await obj._consolidateMemory();
     assert(result.includes('1 patterns promoted'), 'should report promoted');
+    assert(result.includes('consolidation triggered'), 'should also trigger MemoryConsolidator');
   });
 });
 

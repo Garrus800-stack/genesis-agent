@@ -13,6 +13,18 @@
 //   node scripts/benchmark-agent.js --baseline save — save as baseline
 //   node scripts/benchmark-agent.js --baseline compare — compare vs saved
 //   node scripts/benchmark-agent.js --json         — JSON output
+//   node scripts/benchmark-agent.js --ab           — A/B organism validation
+//   node scripts/benchmark-agent.js --ab --quick   — A/B quick mode (3 tasks × 2 runs)
+//   node scripts/benchmark-agent.js --ab-mode baseline — single run with organism disabled
+//   node scripts/benchmark-agent.js --ab-matrix    — A/B across all configured backends (v6.0.0)
+//
+// A/B mode: Runs each task twice — once with all prompt sections (full),
+// once with organism/consciousness/selfAwareness disabled (baseline).
+// Compares success rate, duration, and token usage.
+//
+// Environment variables (for manual testing):
+//   GENESIS_AB_MODE=baseline|no-organism|no-consciousness
+//   GENESIS_DISABLED_SECTIONS=organism,consciousness
 //
 // Output: Per-task results + aggregate scores + regression flags
 // ============================================================
@@ -137,6 +149,63 @@ const TASKS = [
       return { pass, detail: pass ? 'Clear event loop explanation' : 'Missing key concepts' };
     },
   },
+
+  // ── v6.0.0: Extended task suite ──────────────────────────
+
+  {
+    id: 'cg-4',
+    type: 'code-gen',
+    title: 'Generate async rate limiter',
+    input: 'Write a JavaScript class RateLimiter with constructor(maxCalls, windowMs) and an async method acquire() that returns a Promise that resolves when a slot is available. Use a sliding window approach.',
+    verify(output) {
+      const hasClass = /class\s+RateLimiter/.test(output);
+      const hasAcquire = /acquire|async/.test(output);
+      const hasWindow = /window|slide|interval|setTimeout|Date\.now/.test(output);
+      const hasPromise = /Promise|resolve|await/.test(output);
+      const pass = hasClass && hasAcquire && hasWindow && hasPromise;
+      return { pass, detail: pass ? 'Valid rate limiter' : 'Missing key elements' };
+    },
+  },
+  {
+    id: 'bf-3',
+    type: 'bug-fix',
+    title: 'Fix async error handling bug',
+    input: 'Find and fix the bug in this code:\nasync function processItems(items) {\n  const results = [];\n  for (const item of items) {\n    try {\n      const result = await fetch(`/api/${item.id}`);\n      results.push(result.json());\n    } catch (e) {\n      results.push({ error: e.message });\n    }\n  }\n  return results;\n}\n// Bug: sometimes returns [Promise, Promise, ...] instead of actual data',
+    verify(output) {
+      const hasAwait = /await\s+result\.json|await\s+res\.json|await.*\.json\(\)/.test(output);
+      const mentionsMissing = /missing\s+await|await.*json|\.json\(\)\s+is|promise/i.test(output);
+      const pass = hasAwait || mentionsMissing;
+      return { pass, detail: pass ? 'Identified missing await on .json()' : 'Did not identify the bug' };
+    },
+  },
+  {
+    id: 'rf-2',
+    type: 'refactoring',
+    title: 'Extract strategy pattern',
+    input: 'Refactor this function to use the Strategy pattern:\nfunction calculatePrice(product, discountType) {\n  let price = product.basePrice;\n  if (discountType === "seasonal") { price *= 0.8; }\n  else if (discountType === "clearance") { price *= 0.5; }\n  else if (discountType === "employee") { price *= 0.7; }\n  else if (discountType === "vip") { price *= 0.85; }\n  else if (discountType === "bulk" && product.quantity > 100) { price *= 0.6; }\n  return Math.round(price * 100) / 100;\n}',
+    verify(output) {
+      const hasMap = /strategies|discounts|Map|Object|{/.test(output);
+      const noChain = !/if.*else\s+if.*else\s+if.*else\s+if/.test(output);
+      const hasLookup = /\[discountType\]|\[type\]|\.get\(|strategies/.test(output);
+      const pass = hasMap && noChain && hasLookup;
+      return { pass, detail: pass ? 'Strategy pattern applied' : 'Still uses if/else chain or missing lookup' };
+    },
+  },
+  {
+    id: 'an-2',
+    type: 'analysis',
+    title: 'API design review',
+    input: 'Review this REST API design and suggest improvements:\nPOST /api/getUsers          — returns all users\nPOST /api/deleteUser/:id    — deletes a user\nGET  /api/user_update/:id   — updates user (body in query params)\nGET  /api/createUser         — creates a user\nPOST /api/searchUsers       — search with body { name, email }\n\nList at least 3 specific problems with HTTP method usage, naming, or conventions.',
+    verify(output) {
+      const lower = output.toLowerCase();
+      const hasMethodIssue = /get.*delete|get.*create|post.*get|wrong.*method|http.*method|verb/i.test(lower);
+      const hasNaming = /naming|convention|inconsistent|snake.?case|camel|plural|singular|restful/i.test(lower);
+      const hasQueryBody = /query.*param|body.*get|get.*body|idempoten/i.test(lower);
+      const issueCount = [hasMethodIssue, hasNaming, hasQueryBody].filter(Boolean).length;
+      const pass = issueCount >= 2;
+      return { pass, detail: `${issueCount}/3 issue categories identified` };
+    },
+  },
 ];
 
 // ── Runner ──────────────────────────────────────────────────
@@ -149,7 +218,7 @@ function runBenchmark(opts = {}) {
   console.log('\n╔══════════════════════════════════════════════╗');
   console.log('║        GENESIS — Agent Benchmark Suite        ║');
   console.log('╚══════════════════════════════════════════════╝\n');
-  console.log(`  Tasks: ${tasks.length}  |  Backend: ${opts.backend || 'default'}  |  Mode: ${opts.quick ? 'quick' : 'full'}\n`);
+  console.log(`  Tasks: ${tasks.length}  |  Backend: ${opts.backend || 'default'}  |  Mode: ${opts.quick ? 'quick' : 'full'}${opts.abMode ? '  |  A/B: ' + opts.abMode : ''}\n`);
 
   for (const task of tasks) {
     const start = Date.now();
@@ -163,12 +232,16 @@ function runBenchmark(opts = {}) {
       const args = ['cli.js', '--once', '--no-boot-log', task.input];
       if (opts.backend) args.push('--backend', opts.backend);
 
+      const env = { ...process.env };
+      if (opts.abMode) env.GENESIS_AB_MODE = opts.abMode;
+
       output = execFileSync('node', args, {
         cwd: ROOT,
         timeout: 60_000,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
+        env,
       });
 
       tokenEstimate = Math.ceil(output.length / 3.5);
@@ -268,6 +341,183 @@ function runBenchmark(opts = {}) {
   return summary;
 }
 
+// ── A/B Comparison ──────────────────────────────────────────
+
+function runABComparison(opts = {}) {
+  console.log('\n╔══════════════════════════════════════════════╗');
+  console.log('║     GENESIS — A/B Organism Validation         ║');
+  console.log('╚══════════════════════════════════════════════╝\n');
+  console.log('  Mode A (full):     All prompt sections active');
+  console.log('  Mode B (baseline): Organism, consciousness, selfAwareness, taskPerformance disabled\n');
+
+  // Run Mode A: full
+  console.log('────────── Mode A: FULL ──────────────────────\n');
+  const fullResult = runBenchmark({ ...opts, abMode: '' });
+
+  // Run Mode B: baseline
+  console.log('\n────────── Mode B: BASELINE ─────────────────\n');
+  const baseResult = runBenchmark({ ...opts, abMode: 'baseline' });
+
+  // Compare
+  console.log('\n╔══════════════════════════════════════════════╗');
+  console.log('║              A/B COMPARISON                   ║');
+  console.log('╚══════════════════════════════════════════════╝\n');
+
+  const pad = (s, n) => String(s).padStart(n);
+
+  console.log(`  ${'Metric'.padEnd(25)} ${pad('Full (A)', 12)} ${pad('Baseline (B)', 12)} ${pad('Delta', 10)}`);
+  console.log('  ' + '─'.repeat(59));
+
+  const metrics = [
+    ['Success rate',    `${fullResult.successRate}%`,    `${baseResult.successRate}%`,    fullResult.successRate - baseResult.successRate, '%'],
+    ['Passed',          `${fullResult.passed}/${fullResult.tasks}`, `${baseResult.passed}/${baseResult.tasks}`, fullResult.passed - baseResult.passed, ''],
+    ['Avg duration',    `${fullResult.avgDurationMs}ms`, `${baseResult.avgDurationMs}ms`, fullResult.avgDurationMs - baseResult.avgDurationMs, 'ms'],
+    ['Total tokens',    `~${fullResult.totalTokens}`,    `~${baseResult.totalTokens}`,    fullResult.totalTokens - baseResult.totalTokens, ''],
+  ];
+
+  for (const [label, a, b, delta, unit] of metrics) {
+    const sign = delta > 0 ? '+' : '';
+    const icon = label === 'Success rate' ? (delta > 0 ? ' ✅' : delta < 0 ? ' ❌' : ' ─') : '';
+    console.log(`  ${label.padEnd(25)} ${pad(a, 12)} ${pad(b, 12)} ${pad(sign + delta + unit, 10)}${icon}`);
+  }
+
+  // Per-task comparison
+  console.log('\n  Per-task delta:');
+  for (let i = 0; i < fullResult.results.length; i++) {
+    const fr = fullResult.results[i];
+    const br = baseResult.results[i];
+    if (!br) continue;
+    const fIcon = fr.success ? '✅' : '❌';
+    const bIcon = br.success ? '✅' : '❌';
+    const changed = fr.success !== br.success;
+    const marker = changed ? (fr.success ? ' ← organism helped' : ' ← organism hurt') : '';
+    console.log(`    ${fr.id} ${fr.title.slice(0, 35).padEnd(35)} A:${fIcon} B:${bIcon}${marker}`);
+  }
+
+  // Verdict
+  console.log('\n  ' + '─'.repeat(59));
+  const delta = fullResult.successRate - baseResult.successRate;
+  if (delta > 0) {
+    console.log(`  Verdict: Organism layer IMPROVES success rate by ${delta} percentage points.`);
+  } else if (delta < 0) {
+    console.log(`  Verdict: Organism layer REDUCES success rate by ${Math.abs(delta)} percentage points.`);
+  } else {
+    console.log('  Verdict: No measurable difference. Organism layer is neutral on this task set.');
+  }
+  console.log('');
+
+  // Save A/B results
+  const abResult = {
+    version: fullResult.version,
+    timestamp: new Date().toISOString(),
+    backend: opts.backend || 'default',
+    full: fullResult,
+    baseline: baseResult,
+    delta: {
+      successRate: delta,
+      avgDurationMs: fullResult.avgDurationMs - baseResult.avgDurationMs,
+      totalTokens: fullResult.totalTokens - baseResult.totalTokens,
+    },
+  };
+  const abPath = path.join(ROOT, '.genesis', 'benchmark-ab.json');
+  const genesisDir = path.join(ROOT, '.genesis');
+  if (!fs.existsSync(genesisDir)) fs.mkdirSync(genesisDir, { recursive: true });
+  fs.writeFileSync(abPath, JSON.stringify(abResult, null, 2));
+  console.log(`  Results saved: ${path.relative(ROOT, abPath)}\n`);
+
+  return abResult;
+}
+
+// ── A/B Matrix: Multi-Backend Validation (v6.0.0) ─────────
+
+function runABMatrix(opts = {}) {
+  console.log('\n╔══════════════════════════════════════════════════╗');
+  console.log('║     A/B ORGANISM MATRIX — Multi-Backend         ║');
+  console.log('╚══════════════════════════════════════════════════╝\n');
+
+  // Discover configured backends
+  let backends = [];
+  try {
+    const settingsPath = path.join(ROOT, '.genesis', 'settings.json');
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+      const models = settings.models || settings.backends || [];
+      backends = models.map((m, i) => ({
+        index: i,
+        name: m.label || m.model || m.name || `backend-${i}`,
+      }));
+    }
+  } catch (_) { /* best effort */ }
+
+  if (backends.length === 0) {
+    // Fallback: run with default backend only
+    backends = [{ index: null, name: 'default' }];
+  }
+
+  console.log(`  Backends: ${backends.map(b => b.name).join(', ')}\n`);
+
+  const matrix = [];
+
+  for (const backend of backends) {
+    console.log(`\n▶ Backend: ${backend.name}\n`);
+
+    const backendOpts = { ...opts, backend: backend.index };
+
+    // Mode A: full
+    const fullResult = runBenchmark({ ...backendOpts, abMode: '' });
+    // Mode B: baseline
+    const baseResult = runBenchmark({ ...backendOpts, abMode: 'baseline' });
+
+    const delta = fullResult.successRate - baseResult.successRate;
+    matrix.push({
+      backend: backend.name,
+      full: fullResult.successRate,
+      baseline: baseResult.successRate,
+      delta,
+      fullPassed: fullResult.passed,
+      basePassed: baseResult.passed,
+      totalTasks: fullResult.tasks,
+    });
+  }
+
+  // Summary table
+  console.log('\n╔══════════════════════════════════════════════════╗');
+  console.log('║              MATRIX SUMMARY                     ║');
+  console.log('╚══════════════════════════════════════════════════╝\n');
+
+  const pad = (s, n) => String(s).padStart(n);
+  console.log(`  ${'Backend'.padEnd(20)} ${pad('Full', 8)} ${pad('Baseline', 8)} ${pad('Delta', 8)} ${'Verdict'}`);
+  console.log('  ' + '─'.repeat(56));
+
+  let totalDelta = 0;
+  for (const row of matrix) {
+    const sign = row.delta > 0 ? '+' : '';
+    const verdict = row.delta > 0 ? '✅ organism helps' : row.delta < 0 ? '❌ organism hurts' : '─ neutral';
+    console.log(`  ${row.backend.padEnd(20)} ${pad(row.full + '%', 8)} ${pad(row.baseline + '%', 8)} ${pad(sign + row.delta + '%', 8)} ${verdict}`);
+    totalDelta += row.delta;
+  }
+
+  const avgDelta = Math.round(totalDelta / matrix.length);
+  console.log('  ' + '─'.repeat(56));
+  console.log(`  ${'AVERAGE'.padEnd(20)} ${' '.repeat(16)} ${pad((avgDelta > 0 ? '+' : '') + avgDelta + '%', 8)} ${avgDelta > 0 ? '✅' : avgDelta < 0 ? '❌' : '─'}`);
+  console.log();
+
+  // Save results
+  const matrixResult = {
+    timestamp: new Date().toISOString(),
+    backends: matrix,
+    averageDelta: avgDelta,
+    taskCount: matrix[0]?.totalTasks || 0,
+  };
+  const matrixPath = path.join(ROOT, '.genesis', 'benchmark-ab-matrix.json');
+  const genesisDir = path.join(ROOT, '.genesis');
+  if (!fs.existsSync(genesisDir)) fs.mkdirSync(genesisDir, { recursive: true });
+  fs.writeFileSync(matrixPath, JSON.stringify(matrixResult, null, 2));
+  console.log(`  Results saved: ${path.relative(ROOT, matrixPath)}\n`);
+
+  return matrixResult;
+}
+
 // ── CLI ─────────────────────────────────────────────────────
 
 if (require.main === module) {
@@ -278,8 +528,18 @@ if (require.main === module) {
     baselineSave: args.includes('--baseline') && args.includes('save'),
     baselineCompare: args.includes('--baseline') && args.includes('compare'),
     json: args.includes('--json'),
+    ab: args.includes('--ab'),
+    abMode: args.includes('--ab-mode') ? args[args.indexOf('--ab-mode') + 1] : null,
+    abMatrix: args.includes('--ab-matrix'),
   };
-  runBenchmark(opts);
+
+  if (opts.abMatrix) {
+    runABMatrix(opts);
+  } else if (opts.ab) {
+    runABComparison(opts);
+  } else {
+    runBenchmark(opts);
+  }
 }
 
-module.exports = { runBenchmark, TASKS };
+module.exports = { runBenchmark, runABComparison, runABMatrix, TASKS };

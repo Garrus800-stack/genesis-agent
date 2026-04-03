@@ -646,6 +646,36 @@ const CHANNELS = {
     return sm.getReport();
   },
 
+  // v6.0.0 (V6-7): MemoryConsolidator — compaction report + manual trigger
+  'agent:get-consolidation-report': async () => {
+    if (!agent) return null;
+    const mc = agent.container.tryResolve('memoryConsolidator');
+    if (!mc) return null;
+    return mc.getReport();
+  },
+
+  'agent:trigger-consolidation': async () => {
+    if (!agent) return null;
+    const mc = agent.container.tryResolve('memoryConsolidator');
+    if (!mc) return null;
+    return mc.consolidate();
+  },
+
+  // v6.0.0 (V6-8): TaskRecorder — replay list + diff
+  'agent:get-replay-report': async () => {
+    if (!agent) return null;
+    const tr = agent.container.tryResolve('taskRecorder');
+    if (!tr) return null;
+    return tr.getReport();
+  },
+
+  'agent:get-replay-diff': async (_event, idA, idB) => {
+    if (!agent) return null;
+    const tr = agent.container.tryResolve('taskRecorder');
+    if (!tr) return null;
+    return tr.diff(idA, idB);
+  },
+
   'agent:stream-chunk': null, // Agent -> UI (push only)
   'agent:stream-done': null,  // Agent -> UI (push only, stream complete)
   'agent:status-update': null, // Agent -> UI (push only)

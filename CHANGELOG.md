@@ -1,3 +1,71 @@
+## [6.0.0] — Memory Consolidation + Task Replay + Benchmark Matrix
+
+**Focus: Complete three V6 roadmap items (V6-5, V6-7, V6-8), expand benchmark suite to 12 tasks with multi-backend A/B matrix validation, add CLI skill management commands, wire workspace eviction pipeline.**
+
+### V6-5-FINAL: Workspace Eviction Pipeline (Complete)
+
+- **Root cause**: `onEvict` callback added to CognitiveWorkspace in v5.9.8 but never wired in workspaceFactory. Evicted slots were lost silently.
+- **Fix**: workspaceFactory in phase9-cognitive.js now passes `onEvict` callback that emits `workspace:slot-evicted` with key, value (truncated 500 chars), salience, accessCount, goalId.
+- **Event**: `workspace:slot-evicted` registered in EventTypes.js + EventPayloadSchemas.js.
+- **Downstream**: MemoryConsolidator subscribes to eviction events for archival tracking.
+- **Impact**: V6-5 Context Window Manager is now fully complete — no remaining work items.
+
+### V6-7: MemoryConsolidator (New Service)
+
+- **MemoryConsolidator.js** (~340 LOC): Phase 9 cognitive service. Periodic pruning and merging of KnowledgeGraph and LessonsStore to prevent unbounded growth.
+- **KG Redundancy Detection**: Groups same-type nodes by word-level Jaccard similarity (≥0.75 threshold). Merges properties, redirects edges, removes self-loops. Configurable max merges per run.
+- **KG Stale Pruning**: Delegates to `KnowledgeGraph.pruneStale()` with configurable age threshold (default: 14 days).
+- **Lesson Archival**: Lessons older than 30 days with <2 uses → serialized to `~/.genesis-lessons/archive/archived-{ts}.json` and removed from active store. Configurable thresholds.
+- **Relevance Decay Scoring**: Identifies lessons approaching archival threshold for Dashboard display.
+- **Cooldown**: 5-minute minimum between consolidation runs. Concurrent run protection.
+- **Compaction Report API**: `getReport()` returns cumulative stats, current KG/lesson counts, configuration, cooldown state.
+- **IdleMind Integration**: `_consolidateMemory()` now emits `idle:consolidate-memory` bus event → MemoryConsolidator handles execution. `consolidate` activity always available (not gated on UnifiedMemory).
+- **CLI**: `/consolidate` command triggers manual consolidation with inline report.
+- **Manifest**: phase9-cognitive.js, late-bindings for knowledgeGraph + lessonsStore + storage.
+- **TO_STOP**: Added. **Events**: `memory:consolidation-complete`, `memory:consolidation-failed` (2 events, 2 schemas).
+- **IPC**: `agent:get-consolidation-report`, `agent:trigger-consolidation`. Preload whitelisted.
+
+### V6-8: TaskRecorder (New Service)
+
+- **TaskRecorder.js** (~380 LOC): Phase 9 cognitive service. Records complete execution traces for debugging and regression testing. No competing framework has this capability.
+- **Automatic Recording**: Subscribes to `agent-loop:started` / `agent-loop:complete` for recording boundaries. Each goal/task gets a separate recording file.
+- **Execution Trace**: Captures steps (`goal:step-complete`), intent classification, LLM calls (`chat:completed` with model/prompt/response/tokens/duration), tool invocations (`shell:complete`, `mcp:tool-call`), reasoning decisions.
+- **Data Sanitization**: Strings truncated to 500 chars, arrays capped at 10 elements, objects replaced with `[object]`. Prevents multi-MB recording files.
+- **Persistence**: Recordings saved as `rec_{ts}_{id}.json` in `~/.genesis/replays/`. Ring buffer of last 50 recordings in memory. Index loaded from disk on boot.
+- **Diff API**: `diff(idA, idB)` compares two recordings step-by-step. Finds divergence point, compares step types, reports outcome deltas (success, duration, LLM calls).
+- **Query API**: `list(limit)`, `load(id)`, `getReport()`, `getStats()`.
+- **CLI**: `/replays` command lists recent recordings with status icons.
+- **Manifest**: phase9-cognitive.js. **TO_STOP**: Added (finalizes active recordings on shutdown).
+- **Events**: `replay:recording-complete` (1 event, 1 schema).
+- **IPC**: `agent:get-replay-report`, `agent:get-replay-diff`. Preload whitelisted.
+
+### V6-6-CLI: Skill CLI Commands
+
+- `/skills` / `/skill list`: Shows built-in and community skills with version and source.
+- `/skill install <source>`: Install from GitHub URL, Gist, npm package (`npm:<n>`), or archive URL. Validates manifest, triggers SkillManager reload. Error handling with user feedback.
+- `/skill uninstall <name>`: Remove community skill by name.
+- `/skill update <name>`: Re-fetch from original source URL.
+- **Impact**: V6-6 Skill Registry remaining work reduced to public registry index hosting only.
+
+### V6-9-EXT: Benchmark Suite Expansion + A/B Matrix
+
+- **4 new benchmark tasks** (8 → 12): `cg-4` async rate limiter, `bf-3` async error handling bug, `rf-2` strategy pattern extraction, `an-2` API design review. Coverage: code-gen (4), bug-fix (3), refactoring (2), analysis (2), chat (1).
+- **`--ab-matrix` mode**: Runs A/B organism comparison across ALL configured backends. Auto-discovers backends from `settings.json`. Per-backend success rate delta + aggregate average. Results saved to `.genesis/benchmark-ab-matrix.json`.
+- **npm script**: `benchmark:agent:ab:matrix`.
+- **Impact**: V6-9 remaining work reduced to README auto-generation only.
+
+### Infrastructure
+
+- **EventTypes.js**: +3 sections (MEMORY_CONSOLIDATION, WORKSPACE_EVICTION, TASK_RECORDER), +4 events.
+- **EventPayloadSchemas.js**: +5 schemas.
+- **TO_STOP**: +2 services (memoryConsolidator, taskRecorder). Stoppable services: 52 → 54.
+- **IPC**: +4 handlers (get-consolidation-report, trigger-consolidation, get-replay-report, get-replay-diff). Preload whitelisted.
+- **CLI commands**: +7 new commands (/skills, /skill install|uninstall|update, /consolidate, /replays).
+
+### Version Housekeeping
+
+- package.json, package-lock.json, README badge, docs/banner.svg, McpTransport clientInfo → 6.0.0
+
 ## [5.9.9] — Stabilization + CI Green
 
 **Focus: Fix all CI blockers introduced across v5.9.5–v5.9.8, resolve TypeScript 6 type coverage gaps, complete event contract registration for SkillRegistry, eliminate phantom listeners.**
@@ -55,6 +123,27 @@
 - **Root cause**: Shutdown Coverage check only detected services with `static containerConfig` in source files. Services registered via the older manifest array pattern (`['name', { phase: N, factory: ... }]`) were invisible — creating a false "all clear" when services like DeploymentManager and ColonyOrchestrator were actually missing from TO_STOP.
 - **Fix**: Scanner now also traces manifest `R('Module')` factory patterns to resolve source files. Exact basename matching prevents false positives (e.g. `SelfModel` vs `CognitiveSelfModel`). Also captures `saveSync()` patterns in shutdown detection.
 - **Impact**: Stoppable service detection: 49 → 52. Immediately found LEAK-3 and LEAK-4.
+
+### AB-1: A/B Organism Validation Framework
+
+- **PromptBuilder section filter**: New `_disabledSections` Set, controlled via `GENESIS_AB_MODE` environment variable. Modes: `baseline` (disables organism, consciousness, selfAwareness, bodySchema, taskPerformance), `no-organism` (organism + bodySchema only), `no-consciousness` (consciousness only). Also supports explicit `GENESIS_DISABLED_SECTIONS=section1,section2` for custom configurations.
+- **Benchmark A/B mode**: `node scripts/benchmark-agent.js --ab` runs each task twice — once with all sections (full), once with organism/consciousness disabled (baseline). Outputs per-task comparison with delta markers ("organism helped" / "organism hurt"), aggregate success rate delta, duration and token differences, and a verdict. Results saved to `.genesis/benchmark-ab.json`.
+- **Single-mode runs**: `--ab-mode baseline` runs one benchmark pass with organism disabled, for manual testing or CI integration.
+- **npm scripts**: `benchmark:agent`, `benchmark:agent:quick`, `benchmark:agent:ab`, `benchmark:agent:ab:quick`.
+- **First empirical result** (kimi-k2.5:cloud, Windows 11, Ryzen 7 7735HS):
+  - Mode A (full): **50% success** (4/8 tasks, avg 47s/task)
+  - Mode B (baseline): **13% success** (1/8 tasks, avg 55s/task)
+  - **Delta: +37 percentage points** with Organism layer active
+  - Per-task: Organism helped on 4 code-gen/bug-fix tasks, hurt on 1 async task, neutral on 3
+  - This is the first empirical evidence that the Organism layer measurably improves agent task performance
+
+### CLI-1: Headless `--once` Mode (Benchmark Prerequisite)
+
+- **Root cause**: Benchmark script called `node cli.js --once` but `--once` flag didn't exist. CLI fell through to REPL mode, benchmark captured boot logs instead of LLM responses — explaining the uniform ~1662 token counts across all tasks.
+- **`--once "message"`**: Boots Genesis, sends one message, prints raw LLM response to stdout, shuts down. No REPL, no MCP server, clean output for script consumption.
+- **`--no-boot-log`**: Suppresses all boot messages (banner, phase logs, service announcements). Used by benchmark script to get clean LLM output only.
+- **`--backend <name>`**: Select specific LLM backend from CLI.
+- **Intent routing works**: `--once "Write a fizzbuzz function"` correctly routes through IntentRouter → ChatOrchestrator → LLM streaming, including Organism/Consciousness prompt injection.
 
 ### Static Analysis Notes (v5.9.9)
 

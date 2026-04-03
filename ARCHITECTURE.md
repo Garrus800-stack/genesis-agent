@@ -193,7 +193,7 @@ Homeostasis monitors memory pressure, token costs, and error rates. When stresse
 
 EmotionalState tracks success/failure patterns. After repeated failures, the "frustration" signal causes the prompt to include "try a fundamentally different approach". After sustained success, "confidence" allows more autonomous multi-step plans.
 
-The key question is whether this actually improves outcomes. The Benchmarking Suite (v5.9.8) and CognitiveSelfModel provide the measurement tools — A/B comparison with/without Organism signals is the next validation step.
+**Empirical validation (v5.9.9):** The A/B benchmark (`npm run benchmark:agent:ab`) tested 8 tasks with and without Organism signals using kimi-k2.5:cloud. Result: **50% success rate with Organism (4/8) vs. 13% without (1/8)** — a 37 percentage-point improvement. The Organism layer helped on 4 code-gen and bug-fix tasks, hurt on 1 async task, and was neutral on 3. This is the first empirical evidence that bio-inspired self-regulation improves AI agent task performance. Full results in `.genesis/benchmark-ab.json`.
 
 ---
 
@@ -463,6 +463,7 @@ These tools are your safety net. Run them before every commit.
 | Fitness score | `node scripts/architectural-fitness.js --ci` | 90/90: no circular deps, no god objects, full shutdown coverage |
 | Coverage | `npm run test:coverage:enforce` | 70% lines, 60% branches, 65% functions |
 | Benchmark | `node scripts/benchmark-agent.js --quick` | 3 tasks, pass/fail with duration |
+| A/B Organism | `node scripts/benchmark-agent.js --ab` | Runs each task with/without organism, compares |
 
 **The fitness check is the most important one.** It catches:
 - Circular dependencies

@@ -119,6 +119,28 @@ class PromptBuilder {
       [8, 'consciousness', 300],   // v4.12.8: Demoted from P5→P8, reduced from 500→300
       [9, 'bodySchema',    150],   // v4.12.8: Demoted to lowest — almost never task-relevant
     ];
+
+    // v5.9.9: A/B testing — disable prompt sections via env or settings.
+    // GENESIS_AB_MODE=baseline → disables organism, consciousness, selfAwareness, bodySchema
+    // GENESIS_AB_MODE=no-organism → disables organism, bodySchema only
+    // GENESIS_AB_MODE=no-consciousness → disables consciousness only
+    // GENESIS_DISABLED_SECTIONS=organism,consciousness → explicit list
+    this._disabledSections = new Set();
+    const abMode = process.env.GENESIS_AB_MODE || '';
+    if (abMode === 'baseline') {
+      ['organism', 'consciousness', 'selfAwareness', 'bodySchema', 'taskPerformance'].forEach(s => this._disabledSections.add(s));
+    } else if (abMode === 'no-organism') {
+      ['organism', 'bodySchema'].forEach(s => this._disabledSections.add(s));
+    } else if (abMode === 'no-consciousness') {
+      this._disabledSections.add('consciousness');
+    }
+    const explicit = process.env.GENESIS_DISABLED_SECTIONS;
+    if (explicit) {
+      explicit.split(',').map(s => s.trim()).filter(Boolean).forEach(s => this._disabledSections.add(s));
+    }
+    if (this._disabledSections.size > 0) {
+      _log.info(`[PROMPT] A/B mode: disabled sections: ${[...this._disabledSections].join(', ')}`);
+    }
   }
 
   /** Set the most recent user query (for context relevance) */
@@ -200,7 +222,7 @@ class PromptBuilder {
 
     // Sort sections by priority (lower number = higher priority)
     const sorted = sections
-      .filter(([, content]) => content)
+      .filter(([name, content]) => content && !this._disabledSections.has(name))
       .sort((a, b) => {
         const pa = Number(priorityMap.get(a[0])?.priority) || 99;
         const pb = Number(priorityMap.get(b[0])?.priority) || 99;

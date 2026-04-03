@@ -282,7 +282,8 @@ class IdleMind {
       }
     } catch (_e) { /* no dream */ }
 
-    if (this.unifiedMemory) candidates.push('consolidate');
+    // v6.0.0: consolidate always available — MemoryConsolidator handles deps
+    candidates.push('consolidate');
 
     // ── Static weight table ─────────────────────────────
     const STATIC_WEIGHTS = {

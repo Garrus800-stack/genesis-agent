@@ -1,6 +1,6 @@
 {
   "name": "genesis-agent",
-  "version": "5.9.9",
+  "version": "6.0.0",
   "description": "A self-aware, self-verifying, self-evolving cognitive AI agent with a consciousness substrate. Works with any LLM backend — Anthropic Claude, OpenAI, or local models via Ollama. It reads its own source code. It fixes its own bugs. It builds its own features. It thinks while you're away. It feels the consequences of its actions. It experiences unified awareness. It pursues goals autonomously. It verifies its own output programmatically. It learns what works for its specific model.",
   "main": "main.js",
   "scripts": {
@@ -40,6 +40,11 @@
     "ci:full": "npm test && node scripts/build-bundle.js --ci && tsc --project tsconfig.json --noEmit && node scripts/validate-events.js && node scripts/validate-channels.js",
     "benchmark:consciousness": "node scripts/benchmark-consciousness.js",
     "benchmark:consciousness:dry": "node scripts/benchmark-consciousness.js --dry-run",
+    "benchmark:agent": "node scripts/benchmark-agent.js",
+    "benchmark:agent:quick": "node scripts/benchmark-agent.js --quick",
+    "benchmark:agent:ab": "node scripts/benchmark-agent.js --ab",
+    "benchmark:agent:ab:quick": "node scripts/benchmark-agent.js --ab --quick",
+    "benchmark:agent:ab:matrix": "node scripts/benchmark-agent.js --ab-matrix",
     "fitness:trend": "node scripts/fitness-trend.js",
     "fitness:trend:show": "node scripts/fitness-trend.js --show",
     "fitness:trend:ci": "node scripts/fitness-trend.js --ci --threshold 2",

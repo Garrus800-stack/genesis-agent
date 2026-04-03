@@ -536,6 +536,26 @@ const EVENTS = Object.freeze({
     UNINSTALLED: 'skill:uninstalled',
   }),
 
+  // ── Memory Consolidation (v6.0.0 V6-7) ─────────────────
+  MEMORY_CONSOLIDATION: Object.freeze({
+    /** @payload {{ kgMerged: number, kgPruned: number, lessonsArchived: number, lessonsDecayed: number, durationMs: number }} */
+    COMPLETE:  'memory:consolidation-complete',
+    /** @payload {{ error: string }} */
+    FAILED:    'memory:consolidation-failed',
+  }),
+
+  // ── Workspace Eviction (v6.0.0 V6-5) ───────────────────
+  WORKSPACE_EVICTION: Object.freeze({
+    /** @payload {{ key: string, value: string, salience: number, accessCount: number, goalId: string|null }} */
+    SLOT_EVICTED: 'workspace:slot-evicted',
+  }),
+
+  // ── Task Recorder (v6.0.0 V6-8) ────────────────────────
+  TASK_RECORDER: Object.freeze({
+    /** @payload {{ id: string, goalId: string, steps: number, llmCalls: number, durationMs: number }} */
+    RECORDING_COMPLETE: 'replay:recording-complete',
+  }),
+
   // ── Store (EventStore.append dynamic events) ────────────
   STORE: Object.freeze({
     AGENT_LOOP_COMPLETE: 'store:AGENT_LOOP_COMPLETE',
