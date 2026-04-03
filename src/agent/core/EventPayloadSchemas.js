@@ -163,6 +163,10 @@ const SCHEMAS = {
   // Context Compression (v5.9.7)
   'context:compressed':         { originalTokens: 'required', compressedTokens: 'required', messagesCompressed: 'required', tokensSaved: 'required' },
   'context:overflow-prevented': { totalTokens: 'required', budget: 'required', messagesCompressed: 'required' },
+
+  // Skill Registry (v5.9.8)
+  'skill:installed':   { name: 'required', version: 'required', source: 'required' },
+  'skill:uninstalled': { name: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

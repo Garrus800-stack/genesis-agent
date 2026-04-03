@@ -167,6 +167,7 @@ class CognitiveSelfModel {
     this.reasoningTracer = null;
 
     // Cached computations (invalidated on new outcomes)
+    /** @type {{ profile: Record<string, CapabilityEntry>|null, calibration: *|null, biases: Array<BiasReport>|null, timestamp: number }} */
     this._cache = { profile: null, calibration: null, biases: null, timestamp: 0 };
     this._cacheMaxAge = (config && config.cacheMaxAgeMs) || 60_000; // 1 min
 
@@ -241,6 +242,7 @@ class CognitiveSelfModel {
       };
     }
 
+    // @ts-ignore — typed via JSDoc on _cache declaration
     this._cache.profile = profile;
     this._cache.timestamp = Date.now();
     this.stats.profileBuilds++;
@@ -329,6 +331,7 @@ class CognitiveSelfModel {
       }
     }
 
+    // @ts-ignore — typed via JSDoc on _cache declaration
     this._cache.biases = biases;
     this.stats.biasScans++;
     return biases;
@@ -367,7 +370,7 @@ class CognitiveSelfModel {
     const biases = this.getBiasPatterns({ windowMs: 14 * 24 * 3600_000 });
     for (const bias of biases) {
       if (bias.evidence.toLowerCase().includes(taskType)) {
-        risks.push(`Active bias: ${bias.id} — ${bias.evidence}`);
+        risks.push(`Active bias: ${bias.name} — ${bias.evidence}`);
       }
     }
 
@@ -442,7 +445,7 @@ class CognitiveSelfModel {
       const biases = this.getBiasPatterns({ windowMs: 7 * 24 * 3600_000 });
       const highBiases = biases.filter(b => b.severity === 'high');
       if (highBiases.length > 0) {
-        parts.push('Active bias: ' + highBiases.map(b => b.id).join(', ') + '. Compensate actively.');
+        parts.push('Active bias: ' + highBiases.map(b => b.name).join(', ') + '. Compensate actively.');
       }
 
       return '[Cognitive Self-Model] ' + parts.join(' ');

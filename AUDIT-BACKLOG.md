@@ -12,7 +12,7 @@ Resolved items are documented in CHANGELOG.md for traceability.
 | TS-1 | Info     | ✅ Done  | 0 @ts-nocheck files (was 25). All 25 cleaned via JSDoc + @ts-ignore + type casts. |
 | L-4x | Low      | Hardened | ShellAgent: _sanitizeCommand() + blocklist + execFile. Shell-spawn for pipes is intentional. |
 | I-2  | Info     | Stable   | Orphan events — expected for IPC/EventStore/Peer audit trail. |
-| M-4x | Info     | Stable   | 5 phantom listeners — IPC/Peer events, design-correct. |
+| M-4x | Info     | ✅ Done  | 0 phantom listeners (was 5). All resolved: IPC/Peer events added to exclusion set, shell:complete traced to EventStore routing. |
 | CP-1 | Info     | Stable   | Cross-phase coupling: AgentLoop (phase 8) → CognitiveWorkspace (phase 9). Intentional. |
 
 ### Observations (no action needed)
@@ -22,9 +22,29 @@ Resolved items are documented in CHANGELOG.md for traceability.
 | ConsciousnessExtension | 10 uncatalogued events — Node.js EventEmitter, not Genesis EventBus. |
 | Catch blocks | 44 comment-annotated + 270 with _log calls. Zero truly empty. |
 | Event schemas | 0 unschema'd events (was 7). All registered events now have payload schemas. |
-| Listener leaks | 0 (was 11). All services use _sub()/_unsubs auto-cleanup pattern. |
+| Listener leaks | 0 (was 11). All services use _sub()/_unsubs auto-cleanup pattern. GoalPersistence + SessionPersistence migrated in v5.9.9. |
 | Async without await | ~70 methods (45 interface stubs, 25 procedural). Observation only. |
 | Hardcoded timeouts | 42 sites. Constants defined (GIT_OP, QUICK_CHECK, COMMAND_EXEC, TEST_INSTALL). |
+| 'use strict' | 35/206 files (17%). No `for...in`, no `with`, no `arguments.callee`, TSC active. Strict violations impossible by construction. Intentional. |
+| hasOwnProperty | 0 checks needed. Zero `for...in` loops — codebase uses Object.keys/entries/values + for...of exclusively (all prototype-safe). |
+| Prototype pollution | `__proto__` filtered in WorldState.js. No `for...in` eliminates the primary attack vector. |
+| console.log | 1 in SkillManager.js:85 — runs in Sandbox child process where _log unavailable. Design-correct (v5.9.1 FIX-5). |
+
+## v5.9.9 — Resolved (Stabilization + CI Green)
+
+| ID     | Severity | Description |
+|--------|----------|-------------|
+| TSC-1  | HIGH   | `ignoreDeprecations: "6.0"` missing from tsconfig.json + tsconfig.ci.json. TypeScript 6.0.2 exit 2. CI blocker. Fixed both files. |
+| TSC-2  | HIGH   | 36 TS errors unmasked after TSC-1 fix. Root cause: types/node.d.ts missing `events`, `http` (IncomingMessage/ServerResponse), `crypto` (timingSafeEqual), `electron` (Notification), `cheerio`, `puppeteer`. All resolved via type declarations. New service errors (CognitiveSelfModel, SkillRegistry) fixed with JSDoc. Zero @ts-nocheck. |
+| EVT-1  | HIGH   | `skill:installed` + `skill:uninstalled` emitted but not in EventTypes.js / EventPayloadSchemas.js. audit:events:strict exit 1. Added SKILL_REGISTRY section + 2 schemas. Catalog: 338 events, 80 schemas. |
+| PHANTOM-1 | LOW | `shell:complete` phantom listener — design-correct (EventStore → EVENT_STORE_BUS_MAP routing). Added to fitness check exclusion. Phantoms: 1 → 0. |
+| CATCH-1 | LOW  | SkillRegistry silent catch-swallows on SkillManager.loadSkills() after install/uninstall → added `_log.warn()`. |
+| LEAK-1 | MEDIUM | GoalPersistence: 5 raw `bus.on()` without cleanup, no `stop()`, not in TO_STOP. Fixed: `_unsubs[]` + tracked subs + `stop()` with sync persist + TO_STOP. |
+| LEAK-2 | MEDIUM | SessionPersistence: 6 raw `bus.on()` in `_wireEvents()` without cleanup, no `stop()`. Fixed: `_unsubs[]` + tracked subs + `stop()` + TO_STOP. Stoppable: 47 → 49. |
+| ANNOT-1 | LOW | HealthServer: 5 silent `catch (_e) { /* */ }` → annotated `/* optional service */`. |
+| LEAK-3 | MEDIUM | DeploymentManager: `deploy:request` listener untracked, `stop()` was no-op. Fixed: `_unsubs[]` + cleanup + TO_STOP. |
+| LEAK-4 | MEDIUM | ColonyOrchestrator: `colony:run-request` listener untracked. Fixed: `_unsubs[]` + cleanup + TO_STOP. |
+| FIT-2 | MEDIUM | Fitness scanner blind spot: only detected `static containerConfig` services. Now also traces manifest `R('Module')` factory patterns. Stoppable: 49 → 52. Found LEAK-3/LEAK-4. |
 
 ## v5.9.8 — Resolved (V6-5 Fully Wired + V6-11 CognitiveSelfModel)
 

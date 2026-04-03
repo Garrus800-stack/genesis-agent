@@ -297,6 +297,14 @@ class AgentCoreHealth {
       'cognitiveSelfModel',
       // v5.9.8 (V6-6): SkillRegistry — lifecycle compliance
       'skillRegistry',
+      // v5.9.9: GoalPersistence — unsubscribes goal event listeners
+      'goalPersistence',
+      // v5.9.9: SessionPersistence — unsubscribes session tracking listeners
+      'sessionPersistence',
+      // v5.9.9: DeploymentManager — unsubscribes deploy:request listener
+      'deploymentManager',
+      // v5.9.9: ColonyOrchestrator — cancels in-flight runs + unsubscribes
+      'colonyOrchestrator',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

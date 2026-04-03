@@ -183,14 +183,18 @@ declare module 'crypto' {
     digest(): Buffer;
   };
   export function pbkdf2Sync(password: string | Buffer, salt: string | Buffer, iterations: number, keylen: number, digest: string): Buffer;
-  export function createCipheriv(algorithm: string, key: Buffer, iv: Buffer | null): {
+  export function createCipheriv(algorithm: string, key: Buffer | Uint8Array, iv: Buffer | Uint8Array | null): {
     update(data: string, inputEncoding?: string, outputEncoding?: string): string;
     final(outputEncoding?: string): string;
+    setAuthTag?(tag: Buffer | Uint8Array): any;
+    getAuthTag?(): Buffer;
   };
-  export function createDecipheriv(algorithm: string, key: Buffer, iv: Buffer | null): {
-    update(data: string, inputEncoding?: string, outputEncoding?: string): string;
+  export function createDecipheriv(algorithm: string, key: Buffer | Uint8Array, iv: Buffer | Uint8Array | null): {
+    update(data: string | Buffer | Uint8Array, inputEncoding?: string | null, outputEncoding?: string): string;
     final(outputEncoding?: string): string;
+    setAuthTag?(tag: Buffer | Uint8Array): any;
   };
+  export function timingSafeEqual(a: Buffer | Uint8Array, b: Buffer | Uint8Array): boolean;
 }
 
 // ── os ───────────────────────────────────────────────────────
@@ -248,7 +252,30 @@ declare module 'child_process' {
 // ── http ─────────────────────────────────────────────────────
 
 declare module 'http' {
-  export function createServer(requestListener?: (req: any, res: any) => void): {
+  export class IncomingMessage {
+    url?: string;
+    method?: string;
+    headers: Record<string, string | string[] | undefined>;
+    statusCode?: number;
+    statusMessage?: string;
+    socket: any;
+    on(event: string, listener: (...args: any[]) => void): this;
+    pipe(destination: any, options?: any): any;
+    destroy(error?: Error): this;
+  }
+  export class ServerResponse {
+    statusCode: number;
+    statusMessage: string;
+    headersSent: boolean;
+    setHeader(name: string, value: string | number | readonly string[]): this;
+    getHeader(name: string): string | number | string[] | undefined;
+    removeHeader(name: string): void;
+    writeHead(statusCode: number, headers?: Record<string, string | number | readonly string[]>): this;
+    write(chunk: string | Buffer, encoding?: string, callback?: () => void): boolean;
+    end(chunk?: string | Buffer, encoding?: string, callback?: () => void): this;
+    on(event: string, listener: (...args: any[]) => void): this;
+  }
+  export function createServer(requestListener?: (req: IncomingMessage, res: ServerResponse) => void): {
     listen(port?: number, hostname?: string, callback?: () => void): any;
     close(callback?: (err?: Error) => void): any;
     address(): { port: number; family: string; address: string } | string | null;
@@ -406,4 +433,60 @@ declare module 'url' {
   }
   export function parse(urlString: string, parseQueryString?: boolean): any;
   export function format(urlObject: any): string;
+}
+
+// ── events ───────────────────────────────────────────────────
+// v5.9.8: ConsciousnessExtension extends EventEmitter
+
+declare module 'events' {
+  class EventEmitter {
+    constructor(options?: { captureRejections?: boolean });
+    on(event: string | symbol, listener: (...args: any[]) => void): this;
+    once(event: string | symbol, listener: (...args: any[]) => void): this;
+    off(event: string | symbol, listener: (...args: any[]) => void): this;
+    emit(event: string | symbol, ...args: any[]): boolean;
+    addListener(event: string | symbol, listener: (...args: any[]) => void): this;
+    removeListener(event: string | symbol, listener: (...args: any[]) => void): this;
+    removeAllListeners(event?: string | symbol): this;
+    listeners(event: string | symbol): Function[];
+    listenerCount(event: string | symbol): number;
+    setMaxListeners(n: number): this;
+    getMaxListeners(): number;
+    prependListener(event: string | symbol, listener: (...args: any[]) => void): this;
+    eventNames(): (string | symbol)[];
+  }
+  export = EventEmitter;
+}
+
+// ── electron (optional runtime dep) ─────────────────────────
+// v5.9.8: EffectorRegistry conditional require
+
+declare module 'electron' {
+  export const app: any;
+  export const BrowserWindow: any;
+  export const ipcMain: any;
+  export const ipcRenderer: any;
+  export const dialog: any;
+  export const shell: any;
+  export const clipboard: any;
+  export const nativeTheme: any;
+  export const screen: any;
+  export const globalShortcut: any;
+  export class Notification {
+    constructor(options?: any);
+    static isSupported(): boolean;
+    show(): void;
+    on(event: string, listener: (...args: any[]) => void): this;
+  }
+}
+
+// ── cheerio / puppeteer (optional deps) ─────────────────────
+// v5.9.8: WebPerception conditional require
+
+declare module 'cheerio' {
+  export function load(html: string, options?: any): any;
+}
+
+declare module 'puppeteer' {
+  export function launch(options?: any): Promise<any>;
 }

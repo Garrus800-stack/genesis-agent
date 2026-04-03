@@ -74,6 +74,8 @@ class SessionPersistence {
 
     // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()
     // this._load();
+    /** @type {Array<Function>} */
+    this._unsubs = [];
     this._wireEvents();
   }
 
@@ -258,52 +260,54 @@ UNFINISHED: ...`;
   // ════════════════════════════════════════════════════════
 
   _wireEvents() {
-    this.bus.on('user:message', (data) => {
-      this.currentSession.messageCount++;
-    }, { source: 'SessionPersistence', priority: -10 });
+    this._unsubs.push(
+      this.bus.on('user:message', (data) => {
+        this.currentSession.messageCount++;
+      }, { source: 'SessionPersistence', priority: -10 }),
 
-    this.bus.on('intent:classified', (data) => {
-      if (data?.type && data.type !== 'general' && data.type !== 'greeting') {
-        // @ts-ignore — TS strict
-        if (!this.currentSession.topicsDiscussed.includes(data.type)) {
+      this.bus.on('intent:classified', (data) => {
+        if (data?.type && data.type !== 'general' && data.type !== 'greeting') {
           // @ts-ignore — TS strict
-          this.currentSession.topicsDiscussed.push(data.type);
+          if (!this.currentSession.topicsDiscussed.includes(data.type)) {
+            // @ts-ignore — TS strict
+            this.currentSession.topicsDiscussed.push(data.type);
+          }
         }
-      }
-    }, { source: 'SessionPersistence', priority: -10 });
+      }, { source: 'SessionPersistence', priority: -10 }),
 
-    this.bus.on('chat:error', (data) => {
-      this.currentSession.errorsEncountered.push(
-        // @ts-ignore — TS strict
-        (data?.message || 'unknown').slice(0, 100)
-      );
-    }, { source: 'SessionPersistence', priority: -10 });
+      this.bus.on('chat:error', (data) => {
+        this.currentSession.errorsEncountered.push(
+          // @ts-ignore — TS strict
+          (data?.message || 'unknown').slice(0, 100)
+        );
+      }, { source: 'SessionPersistence', priority: -10 }),
 
-    this.bus.on('agent-loop:started', (data) => {
-      if (data?.title) {
-        // @ts-ignore — TS strict
-        this.currentSession.goalsWorkedOn.push(data.title);
-      }
-    }, { source: 'SessionPersistence', priority: -10 });
+      this.bus.on('agent-loop:started', (data) => {
+        if (data?.title) {
+          // @ts-ignore — TS strict
+          this.currentSession.goalsWorkedOn.push(data.title);
+        }
+      }, { source: 'SessionPersistence', priority: -10 }),
 
-    // v4.12.5-fix: Was 'CODE_MODIFIED' — SelfModPipeline emits via EventStore.append(),
-    // which fires 'store:CODE_MODIFIED'. Also handle bulk file list.
-    this.bus.on('store:CODE_MODIFIED', (data) => {
-      if (data?.file) {
-        // @ts-ignore — TS strict
-        this.currentSession.codeFilesModified.push(data.file);
-      } else if (data?.files) {
-        // @ts-ignore — TS strict
-        this.currentSession.codeFilesModified.push(...data.files);
-      }
-    }, { source: 'SessionPersistence', priority: -10 });
+      // v4.12.5-fix: Was 'CODE_MODIFIED' — SelfModPipeline emits via EventStore.append(),
+      // which fires 'store:CODE_MODIFIED'. Also handle bulk file list.
+      this.bus.on('store:CODE_MODIFIED', (data) => {
+        if (data?.file) {
+          // @ts-ignore — TS strict
+          this.currentSession.codeFilesModified.push(data.file);
+        } else if (data?.files) {
+          // @ts-ignore — TS strict
+          this.currentSession.codeFilesModified.push(...data.files);
+        }
+      }, { source: 'SessionPersistence', priority: -10 }),
 
-    // Learn user profile from conversation
-    this.bus.on('memory:fact-stored', (data) => {
-      if (data?.key === 'user.name' && data?.value) {
-        this.updateUserProfile({ name: data.value });
-      }
-    }, { source: 'SessionPersistence', priority: -10 });
+      // Learn user profile from conversation
+      this.bus.on('memory:fact-stored', (data) => {
+        if (data?.key === 'user.name' && data?.value) {
+          this.updateUserProfile({ name: data.value });
+        }
+      }, { source: 'SessionPersistence', priority: -10 }),
+    );
   }
 
   _getSessionDuration() {
@@ -355,6 +359,14 @@ UNFINISHED: ...`;
         this.userProfile = { ...this.userProfile, ...profile };
       }
     } catch (err) { _log.debug('[SESSION] Load error:', err.message); }
+  }
+
+  // v5.9.9: Lifecycle compliance — unsubscribe listeners
+  stop() {
+    for (const unsub of this._unsubs) {
+      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
+    }
+    this._unsubs.length = 0;
   }
 }
 

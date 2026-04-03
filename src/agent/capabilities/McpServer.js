@@ -478,7 +478,7 @@ class McpServer {
    * @param {import('http').IncomingMessage} [req]
    */
   _corsHeaders(req) {
-    const origin = req?.headers?.origin || '';
+    const origin = /** @type {string} */ (req?.headers?.origin || '');
     let allowOrigin = '';
 
     // If corsOrigins contains '*', allow everything (explicit opt-in)
@@ -517,7 +517,7 @@ class McpServer {
     // Health endpoint bypasses auth
     if (req.method === 'GET' && req.url === '/health') return true;
 
-    const authHeader = req.headers.authorization || '';
+    const authHeader = /** @type {string} */ (req.headers.authorization || '');
     if (authHeader.startsWith('Bearer ')) {
       return authHeader.slice(7).trim() === this._apiKey;
     }

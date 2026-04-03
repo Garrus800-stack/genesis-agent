@@ -54,6 +54,8 @@ class ColonyOrchestrator {
     /** @type {Map<string, ColonyRun>} */
     this._runs = new Map();
     /** @type {boolean} */ this._stopped = false;
+    /** @type {Array<Function>} */
+    this._unsubs = [];
 
     // Metadata
     this.META = {
@@ -68,7 +70,9 @@ class ColonyOrchestrator {
   // ── Lifecycle ─────────────────────────────────────────────
 
   async boot() {
-    this.bus.on('colony:run-request', (data) => this._handleRunRequest(data));
+    this._unsubs.push(
+      this.bus.on('colony:run-request', (data) => this._handleRunRequest(data)),
+    );
     _log.info('[COLONY] ColonyOrchestrator ready (foundation mode)');
   }
 
@@ -80,6 +84,11 @@ class ColonyOrchestrator {
         run.status = 'failed';
       }
     }
+    // Unsubscribe listeners
+    for (const unsub of this._unsubs) {
+      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
+    }
+    this._unsubs.length = 0;
   }
 
   // ── Public API ────────────────────────────────────────────

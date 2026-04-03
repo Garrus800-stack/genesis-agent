@@ -81,7 +81,7 @@ class CognitiveWorkspace {
    * @param {string} key       - Semantic key (e.g., 'file-analysis', 'user-intent', 'error-pattern')
    * @param {*}      value     - Any serializable value
    * @param {number} [salience=0.7] - Initial importance (0-1)
-   * @returns {{ stored: boolean, evicted?: string|null, reason?: string }}
+   * @returns {{ stored: boolean, evicted?: { key: string, value: *, salience: number }|string|null, reason?: string }}
    */
   store(key, value, salience = 0.7) {
     // Update existing slot

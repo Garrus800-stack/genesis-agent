@@ -530,6 +530,12 @@ const EVENTS = Object.freeze({
     RATE_LIMITED:       'shell:rate-limited',
   }),
 
+  // ── Skill Registry (v5.9.8 V6-6) ──────────────────────────
+  SKILL_REGISTRY: Object.freeze({
+    INSTALLED:   'skill:installed',
+    UNINSTALLED: 'skill:uninstalled',
+  }),
+
   // ── Store (EventStore.append dynamic events) ────────────
   STORE: Object.freeze({
     AGENT_LOOP_COMPLETE: 'store:AGENT_LOOP_COMPLETE',

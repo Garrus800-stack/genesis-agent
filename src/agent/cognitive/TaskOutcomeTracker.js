@@ -269,7 +269,7 @@ class TaskOutcomeTracker {
     for (const o of relevant) {
       // ── By task type ──
       if (!byTaskType[o.taskType]) {
-        byTaskType[o.taskType] = { count: 0, successes: 0, totalTokens: 0, totalDurationMs: 0, errors: {} };
+        byTaskType[o.taskType] = { count: 0, successes: 0, totalTokens: 0, totalDurationMs: 0, errors: {}, successRate: 0, avgTokenCost: 0, avgDurationMs: 0 };
       }
       const tt = byTaskType[o.taskType];
       tt.count++;
@@ -282,7 +282,7 @@ class TaskOutcomeTracker {
 
       // ── By backend ──
       if (!byBackend[o.backend]) {
-        byBackend[o.backend] = { count: 0, successes: 0, totalTokens: 0 };
+        byBackend[o.backend] = { count: 0, successes: 0, totalTokens: 0, successRate: 0, avgTokenCost: 0 };
       }
       const be = byBackend[o.backend];
       be.count++;

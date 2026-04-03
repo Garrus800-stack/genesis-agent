@@ -98,31 +98,31 @@ class HealthServer {
     // Error aggregator
     let errorReport = null;
     if (c.has('errorAggregator')) {
-      try { errorReport = c.resolve('errorAggregator').getReport().summary; } catch (_e) { /* */ }
+      try { errorReport = c.resolve('errorAggregator').getReport().summary; } catch (_e) { /* optional service */ }
     }
 
     // Circuit breaker
     let circuit = null;
     if (c.has('circuitBreaker')) {
-      try { circuit = c.resolve('circuitBreaker').getStatus(); } catch (_e) { /* */ }
+      try { circuit = c.resolve('circuitBreaker').getStatus(); } catch (_e) { /* optional service */ }
     }
 
     // Telemetry
     let telemetry = null;
     if (c.has('telemetry')) {
-      try { telemetry = c.resolve('telemetry').getReport(); } catch (_e) { /* */ }
+      try { telemetry = c.resolve('telemetry').getReport(); } catch (_e) { /* optional service */ }
     }
 
     // Goals
     let activeGoals = 0;
     if (c.has('goalStack')) {
-      try { activeGoals = c.resolve('goalStack').getActiveGoals().length; } catch (_e) { /* */ }
+      try { activeGoals = c.resolve('goalStack').getActiveGoals().length; } catch (_e) { /* optional service */ }
     }
 
     // Kernel integrity
     let integrity = null;
     if (c.has('guard')) {
-      try { integrity = c.resolve('guard').verifyIntegrity(); } catch (_e) { /* */ }
+      try { integrity = c.resolve('guard').verifyIntegrity(); } catch (_e) { /* optional service */ }
     }
 
     return {

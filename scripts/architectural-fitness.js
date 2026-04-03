@@ -204,24 +204,76 @@ check('Shutdown Coverage', (r) => {
     const svc = m.match(/tryResolve\('([^']+)'\)/)?.[1];
     if (svc) stoppedServices.add(svc);
   }
+  // Also capture saveSync calls (worldState pattern)
+  const syncMatches = healthFile.match(/tryResolve\('([^']+)'\)\?\.saveSync\(\)/g) || [];
+  for (const m of syncMatches) {
+    const svc = m.match(/tryResolve\('([^']+)'\)/)?.[1];
+    if (svc) stoppedServices.add(svc);
+  }
 
-  const missing = [];
+  // ── Build set of all DI-managed service names ──
+  // Strategy: scan BOTH static containerConfig in source files AND
+  // manifest array entries ['serviceName', {...}] in manifest files.
+  // This catches services registered via either pattern.
+  const diServices = new Map(); // name → filename
+
   const srcFiles = walkJs(path.join(SRC, 'agent'));
 
   for (const file of srcFiles) {
     if (file.includes('AgentCore')) continue;
     const code = readSafe(file);
-    const nameMatch = code.match(/name:\s*'([^']+)'/);
-    const hasStop = /^\s*stop\s*\(\)/m.test(code);
+    const hasStop = /^\s*(async\s+)?stop\s*\(\)/m.test(code);
     const hasInterval = /setInterval|clearInterval/.test(code);
+    if (!hasStop && !hasInterval) continue;
 
-    if (nameMatch && (hasStop || hasInterval)) {
-      const svcName = nameMatch[1];
-      // Only flag services with containerConfig (DI-managed), not arbitrary name matches
-      const hasContainerConfig = /static containerConfig/.test(code);
-      if (hasContainerConfig && !stoppedServices.has(svcName)) {
-        missing.push(`${svcName} (${path.basename(file)}) — has stop()/interval but not in shutdown list`);
+    // Pattern 1: static containerConfig with name
+    const ccMatch = code.match(/static containerConfig[\s\S]*?name:\s*'([^']+)'/);
+    if (ccMatch) {
+      diServices.set(ccMatch[1], path.basename(file));
+      continue;
+    }
+
+    // Pattern 2: name from containerConfig without static (older pattern)
+    const nameMatch = code.match(/containerConfig[\s\S]{0,100}name:\s*'([^']+)'/);
+    if (nameMatch) {
+      diServices.set(nameMatch[1], path.basename(file));
+    }
+  }
+
+  // Pattern 3: manifest array entries — ['serviceName', { phase: N, ... }]
+  // Only add if the service has stop() AND is not already detected via Pattern 1/2
+  const manifestDir = path.join(SRC, 'agent', 'manifest');
+  const manifestFiles = fs.readdirSync(manifestDir).filter(f => f.endsWith('.js'));
+  for (const mf of manifestFiles) {
+    const mc = readSafe(path.join(manifestDir, mf));
+    const entries = mc.match(/\['(\w+)',\s*\{/g) || [];
+    for (const entry of entries) {
+      const svcName = entry.match(/\['(\w+)'/)?.[1];
+      if (!svcName || diServices.has(svcName) || stoppedServices.has(svcName)) continue;
+
+      // Find the factory require to identify source file
+      // Manifest pattern: factory: (c) => new (R('FileName').ClassName)(...)
+      const factoryRe = new RegExp("\\['" + svcName + "',[\\s\\S]*?R\\('([^']+)'\\)", 'm');
+      const factoryMatch = mc.match(factoryRe);
+      if (!factoryMatch) continue;
+
+      const moduleName = factoryMatch[1];
+      // Search for the actual file — exact basename match only
+      for (const sf of srcFiles) {
+        if (path.basename(sf, '.js') !== moduleName) continue;
+        const sc = readSafe(sf);
+        if (/^\s*(async\s+)?stop\s*\(\)/m.test(sc)) {
+          diServices.set(svcName, path.basename(sf));
+        }
+        break;
       }
+    }
+  }
+
+  const missing = [];
+  for (const [svcName, fileName] of diServices) {
+    if (!stoppedServices.has(svcName)) {
+      missing.push(`${svcName} (${fileName}) — has stop()/interval but not in shutdown list`);
     }
   }
 
@@ -431,6 +483,8 @@ check('EventBus Hygiene', (r) => {
     'deploy:request', 'colony:run-request',
     // Cross-service events that use PromptEvolution internal emitter
     'prompt-evolution:promoted',
+    // EventStore-routed: emitted via eventStore.append() → EVENT_STORE_BUS_MAP
+    'shell:complete',
   ]);
 
   const phantoms = [...listened]

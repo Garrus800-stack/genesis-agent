@@ -399,7 +399,7 @@ class McpServerConnection {
     const result = await this._send('initialize', {
       protocolVersion: '2025-03-26',
       capabilities: { roots: { listChanged: false } },
-      clientInfo: { name: 'genesis-agent', version: '5.9.8' },
+      clientInfo: { name: 'genesis-agent', version: '5.9.9' },
     });
 
     this.serverInfo = result.serverInfo || {};

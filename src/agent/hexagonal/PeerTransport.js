@@ -63,7 +63,7 @@ class PeerTransport {
           return;
         }
 
-        const url = new URL(req.url, `http://127.0.0.1:${this.port}`);
+        const url = new URL(/** @type {string} */ (req.url), `http://127.0.0.1:${this.port}`);
         const publicEndpoints = new Set(['/health', '/discover', '/handshake']);
 
         if (!publicEndpoints.has(url.pathname)) {

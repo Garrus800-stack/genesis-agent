@@ -55,6 +55,9 @@ class DeploymentManager {
     /** @type {Map<string, { backup: *, timestamp: number }>} */
     this._rollbackSnapshots = new Map();
 
+    /** @type {Array<Function>} */
+    this._unsubs = [];
+
     this.META = {
       id: 'deploymentManager',
       name: 'DeploymentManager',
@@ -67,12 +70,17 @@ class DeploymentManager {
   // ── Lifecycle ─────────────────────────────────────────────
 
   async boot() {
-    this.bus.on('deploy:request', (data) => this._handleDeployRequest(data));
+    this._unsubs.push(
+      this.bus.on('deploy:request', (data) => this._handleDeployRequest(data)),
+    );
     _log.info('[DEPLOY] DeploymentManager ready (foundation mode)');
   }
 
   async stop() {
-    // No persistent timers to clean up in foundation mode
+    for (const unsub of this._unsubs) {
+      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
+    }
+    this._unsubs.length = 0;
   }
 
   // ── Public API ────────────────────────────────────────────

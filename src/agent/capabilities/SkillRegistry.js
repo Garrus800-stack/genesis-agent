@@ -54,6 +54,12 @@ class SkillRegistry {
     /** @type {Map<string, InstalledSkillMeta>} */
     this._installed = new Map();
     this._metaPath = path.join(skillsDir, '.registry-meta.json');
+
+    // Late-bound by Container (phase 3 manifest)
+    /** @type {*} */
+    this.skillManager = null;
+    /** @type {*} */
+    this._settings = null;
   }
 
   static containerConfig = {
@@ -105,7 +111,7 @@ class SkillRegistry {
         return { success: false, error: fetchResult.error };
       }
 
-      const tmpDir = fetchResult.dir;
+      const tmpDir = /** @type {string} */ (fetchResult.dir);
 
       // ── 2. Validate manifest ──
       const manifestPath = path.join(tmpDir, 'skill-manifest.json');
@@ -147,7 +153,7 @@ class SkillRegistry {
 
       // ── 6. Reload in SkillManager ──
       if (this.skillManager) {
-        try { this.skillManager.loadSkills(); } catch (_e) { /* best effort */ }
+        try { this.skillManager.loadSkills(); } catch (_e) { _log.warn(`[REGISTRY] SkillManager reload failed after install: ${_e.message}`); }
       }
 
       this.bus.emit('skill:installed', { name, version: manifest.data.version, source });
@@ -184,7 +190,7 @@ class SkillRegistry {
       await this._saveMeta();
 
       if (this.skillManager) {
-        try { this.skillManager.loadSkills(); } catch (_e) { /* best effort */ }
+        try { this.skillManager.loadSkills(); } catch (_e) { _log.warn(`[REGISTRY] SkillManager reload failed after uninstall: ${_e.message}`); }
       }
 
       this.bus.emit('skill:uninstalled', { name });
