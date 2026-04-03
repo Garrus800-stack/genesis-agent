@@ -1665,6 +1665,237 @@ LLM generates code → CodeSafetyScanner validates → Sandbox tests → ToolReg
 
 ---
 
+## Module 13: TaskOutcomeTracker (V6-11 Data Layer) `v5.9.7`
+
+Records structured outcomes for every task Genesis executes. This is the data collection layer that feeds the CognitiveSelfModel.
+
+### How it Works
+
+TaskOutcomeTracker listens to four completion events:
+
+```
+agent-loop:complete  ──┐
+chat:completed       ──┼──→ _recordOutcome() → storage
+selfmod:success      ──┤         ↓
+shell:complete       ──┘   emit task-outcome:recorded
+```
+
+Each outcome record captures:
+```js
+{
+  taskType: 'code-gen',     // 12 types: code-gen, self-modify, analysis, chat, ...
+  backend: 'ollama',        // Which LLM handled it
+  success: true,            // Did it work?
+  tokenCost: 1247,          // Tokens consumed
+  durationMs: 3400,         // Wall-clock time
+  errorCategory: null,      // 'timeout', 'scope-underestimate', etc.
+  intent: 'code-gen',       // Original intent from IntentRouter
+  timestamp: 1712200000000
+}
+```
+
+### Core API
+
+```js
+// Get aggregate statistics (last 7 days)
+const stats = tracker.getAggregateStats({ windowMs: 7 * 24 * 3600_000 });
+// → { byTaskType: { 'code-gen': { successRate: 0.84, count: 12, avgTokenCost: 1200 } },
+//     byBackend: { 'ollama': { successRate: 0.78, count: 25 } },
+//     total: 47 }
+
+// Get raw outcomes (for SelfModel)
+const outcomes = tracker.getOutcomes({ taskType: 'refactoring', limit: 20 });
+```
+
+### Storage
+
+Outcomes persist to `~/.genesis/task-outcomes.json`. Capped at 2,000 records (prunes to 1,500). Debounced writes (10s), sync-write on shutdown.
+
+---
+
+## Module 14: CognitiveSelfModel (V6-11 Core) `v5.9.8`
+
+The agent's empirical model of its own capabilities, weaknesses, and failure patterns. **No competing framework has an equivalent.**
+
+### The Problem It Solves
+
+Without CognitiveSelfModel, Genesis hallucinates its own capabilities. When asked "how good are you at refactoring?", the LLM invents an answer. With CognitiveSelfModel, the answer comes from measured data: "62% success rate on refactoring, Wilson confidence floor 48%, common error: scope-underestimate."
+
+### Wilson Score Interval
+
+CognitiveSelfModel uses Wilson lower-bound confidence intervals instead of raw success rates. This prevents overconfidence on small samples:
+
+```
+3/3 successes  → raw: 100%  → Wilson: ~56%  (small sample penalty)
+10/10 successes → raw: 100% → Wilson: ~83%  (more data = more confidence)
+50/100 success  → raw: 50%  → Wilson: ~41%  (conservative floor)
+```
+
+The Wilson lower bound is the answer to: "What's the worst-case success rate given this sample size, at 90% confidence?"
+
+### Core API
+
+```js
+// Capability Profile — per-task success with confidence
+const profile = selfModel.getCapabilityProfile({ windowMs: 14 * 24 * 3600_000 });
+// → { 'code-gen': { successRate: 0.84, confidenceLower: 0.71, sampleSize: 12,
+//                    isWeak: false, isStrong: false, topErrors: [{category:'timeout',count:2}] },
+//     'refactoring': { successRate: 0.62, confidenceLower: 0.48, sampleSize: 8,
+//                      isWeak: true, isStrong: false, topErrors: [{category:'scope-underestimate',count:3}] } }
+
+// Backend Strength Map — which backend is best for what
+const map = selfModel.getBackendStrengthMap();
+// → { 'code-gen': { recommended: 'claude', alternatives: ['ollama'],
+//                    entries: [{ backend:'claude', confidence:0.89 }, { backend:'ollama', confidence:0.62 }] } }
+
+// Bias Detection — recurring failure patterns
+const biases = selfModel.getBiasPatterns();
+// → [{ name: 'error-repetition', severity: 'medium', evidence: 'timeout (5×)' },
+//    { name: 'backend-mismatch', severity: 'medium', evidence: 'code-gen: claude 92% vs ollama 61%' }]
+
+// Pre-task Confidence Assessment
+const conf = selfModel.getConfidence('refactoring', 'ollama');
+// → { taskType: 'refactoring', confidence: 'low', level: 0.48,
+//     risks: ['Low success rate: 62% (confidence floor: 48%)',
+//             'Suboptimal backend: claude outperforms ollama for refactoring'],
+//     recommendation: 'Allocate extra verification steps. Consider step-by-step breakdown.' }
+
+// Prompt context — injected into LLM system prompt before every task
+const ctx = selfModel.buildPromptContext('refactoring');
+// → '[Cognitive Self-Model] Capability floor (Wilson 90%): code-gen 71%↑ (n=12), chat 89%↑ (n=30).
+//     Weakness: refactoring (scope-underestimate). Apply extra verification.'
+```
+
+### Bias Detectors
+
+Four built-in pattern detectors scan recent outcomes:
+
+| Detector | Triggers when |
+|----------|---------------|
+| `scope-underestimate` | >40% failure rate on long tasks (>30s) |
+| `token-overuse` | Recent avg token cost >2× median for a task type |
+| `error-repetition` | Same error category appears 3+ times in last 20 failures |
+| `backend-mismatch` | >25% success gap between backends for same task type |
+
+### Dashboard Integration
+
+The dashboard panel shows:
+- **Capability radar bars** — Wilson floor per task type (green >80%, blue 60-80%, red <60%)
+- **Backend recommendation pills** — best backend per task type
+- **Bias alert cards** — active biases with severity coloring
+
+### Events
+
+- `task-outcome:recorded` — every new outcome
+- `task-outcome:stats-updated` — every 10 outcomes
+
+---
+
+## Module 15: ConversationCompressor (V6-5) `v5.9.7`
+
+LLM-based conversation history compression to prevent context window overflow.
+
+### The Problem
+
+ContextManager._compressHistory() truncated old messages to 80 characters — destroying context critical for multi-step tasks. A 7B model working on step 8 of a 12-step plan lost steps 1-4 entirely.
+
+### How it Works
+
+```
+ContextManager.buildAsync()
+  → checks if history exceeds budget threshold (80%)
+  → sends older messages to LLM with focused summarization prompt
+  → LLM returns <200 word summary preserving decisions, code refs, task state
+  → returns [summary_message, ...recent_messages]
+```
+
+### Fallback Chain
+
+1. **LLM summarization** — best quality, uses ConversationCompressor
+2. **Extractive fallback** — no LLM available → heuristic extraction of key sentences
+3. **Truncation** — last resort → existing 80-char truncation
+
+---
+
+## Module 16: SkillRegistry (V6-6) `v5.9.8`
+
+Install, uninstall, and manage third-party skills from external sources.
+
+### Usage Examples
+
+```js
+// Install from GitHub
+await registry.install('https://github.com/user/my-skill');
+
+// Install from npm
+await registry.install('npm:genesis-skill-docker');
+
+// Install from GitHub Gist
+await registry.install('https://gist.github.com/user/abc123');
+
+// List installed skills
+const skills = registry.list();
+// → [{ name: 'my-skill', version: '1.2.0', source: 'https://...', installedAt: '2026-04-03' }]
+
+// Update to latest
+await registry.update('my-skill');
+
+// Uninstall
+await registry.uninstall('my-skill');
+
+// Search registry (if configured)
+const available = await registry.search('docker');
+```
+
+### Security
+
+- Manifest validated against `skill-manifest.schema.json` BEFORE any code loads
+- Community skills run in existing sandbox with restricted permissions
+- Name pattern enforced: lowercase alphanumeric + hyphens only
+- Entry file must exist and match `.js` pattern
+
+---
+
+## Module 17: Agent Benchmarking Suite (V6-9) `v5.9.8`
+
+Standardized benchmarks to measure agent capability across versions and backends.
+
+### Task Suite
+
+| ID | Type | Task |
+|----|------|------|
+| cg-1 | code-gen | Generate fizzbuzz function |
+| cg-2 | code-gen | Generate binary search function |
+| cg-3 | code-gen | Generate Express REST endpoint |
+| bf-1 | bug-fix | Fix off-by-one error |
+| bf-2 | bug-fix | Fix async/await bug |
+| rf-1 | refactoring | Extract helpers from god function |
+| an-1 | analysis | Identify code smells |
+| ch-1 | chat | Explain Node.js event loop |
+
+### Usage
+
+```bash
+node scripts/benchmark-agent.js                      # full suite (8 tasks)
+node scripts/benchmark-agent.js --quick               # 3 tasks
+node scripts/benchmark-agent.js --backend ollama      # specific backend
+node scripts/benchmark-agent.js --baseline save       # save as baseline
+node scripts/benchmark-agent.js --baseline compare    # compare vs saved baseline
+```
+
+### Output
+
+```
+  ✅ cg-1 Generate a fizzbuzz function (2340ms, ~350 tok)
+  ✅ cg-2 Generate a binary search function (1890ms, ~280 tok)
+  ❌ rf-1 Extract helper from god function (4100ms) Only 2 function(s) — need ≥3
+
+  Result: 7/8 passed (88%)
+  Time: 18400ms  |  Avg: 2300ms/task  |  Tokens: ~2100
+```
+
+---
+
 ## What This Gives Genesis That Nobody Else Has
 
 1. **Predictive self-model** — Genesis doesn't just know what it *can* do (WorldState), it knows what will *probably happen* when it does it.
@@ -1680,5 +1911,11 @@ LLM generates code → CodeSafetyScanner validates → Sandbox tests → ToolReg
 6. **Architectural self-awareness** — Genesis can query its own architecture: "what depends on EventBus?", "show the dependency chain from AgentLoop to CognitiveWorkspace". This feeds into planning and self-modification decisions.
 
 7. **Tool creation** — When Genesis encounters a gap in its capabilities, it writes the missing tool, tests it, and registers it — no human intervention required.
+
+8. **Empirical cognitive self-awareness** (v5.9.8) — Genesis measures its own success rates with Wilson-calibrated confidence intervals, detects its own biases, recommends the optimal backend per task type, and discloses its confidence before every task. No other framework has this.
+
+9. **Community skill ecosystem** (v5.9.8) — Third-party skills can be installed from GitHub, npm, or direct URLs with manifest validation and sandbox isolation.
+
+10. **Standardized benchmarking** (v5.9.8) — Reproducible task suite with baseline comparison and regression detection. Genesis can prove its improvement across versions.
 
 **No open-source agent has this closed loop.** AutoGPT plans but doesn't predict. CrewAI delegates but doesn't learn from surprise. OpenDevin executes but doesn't dream. Genesis does all of it — and each part feeds the others.

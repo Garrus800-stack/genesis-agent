@@ -1,6 +1,6 @@
 # Genesis Agent — Capabilities Overview
 
-> v5.9.1 — What Genesis can do, organized by category.
+> v5.9.8 — What Genesis can do, organized by category.
 
 ---
 
@@ -306,3 +306,74 @@ Genesis can detect and recover from its own failures:
 | Peer impersonation | PBKDF2 session keys + HMAC authentication |
 | Runaway execution | Global 10 min timeout + step limits + approval gates |
 | Concurrent write corruption | WriteLock (per-file mutex) + atomic writes (temp + rename) |
+
+---
+
+## 15. Cognitive Self-Awareness (v5.9.8)
+
+Genesis is the first AI agent framework with **empirical cognitive self-awareness** — it measures its own performance and adjusts behavior based on data, not assumptions.
+
+| Feature | What it does |
+|---|---|
+| **CognitiveSelfModel** | Continuously updated model of the agent's capabilities, weaknesses, and failure patterns. Wilson-calibrated confidence intervals prevent overconfidence. |
+| **Capability Profile** | Per-task-type success rates with conservative confidence floors. `isWeak`/`isStrong` flags for automatic risk assessment. |
+| **Backend Strength Map** | Empirical matrix of which LLM backend performs best for each task type. Recommendations sorted by Wilson confidence, not raw rates. |
+| **Bias Detection** | Four pattern detectors: scope-underestimate, token-overuse, error-repetition, backend-mismatch. Active biases surfaced in dashboard and LLM prompts. |
+| **Proactive Disclosure** | Before every task: confidence level, known risks, and recommendation injected into the LLM system prompt. The agent knows its own limitations. |
+| **TaskOutcomeTracker** | Records structured outcomes (type, backend, success, cost, duration) from 4 event sources. Persists across sessions. Capped at 2,000 records. |
+
+**Example**: Before a refactoring task, the LLM prompt includes:
+```
+[Cognitive Self-Model] Capability floor (Wilson 90%): code-gen 71%↑ (n=12), chat 89%↑ (n=30).
+Weakness: refactoring (scope-underestimate). Apply extra verification.
+Current task (refactoring): confidence=low, risks: Low success rate 62% (confidence floor: 48%).
+```
+
+---
+
+## 16. Context Window Management (v5.9.7–v5.9.8)
+
+Automatic context budget tracking and compression to prevent token overflow.
+
+| Feature | What it does |
+|---|---|
+| **DynamicContextBudget** | Intent-based token allocation. Code-gen tasks get 55% code context, 15% conversation. Chat tasks get 40% conversation, 10% code. Learns from successful allocations. |
+| **ConversationCompressor** | LLM-based summarization of older conversation segments. Preserves decisions, code references, task state. Extractive fallback when no LLM available. |
+| **Backend-Aware Limits** | `configureForModel()` reads context window per backend (8K for Gemma, 128K for Claude) and scales budgets with sqrt scaling (diminishing returns). |
+| **CognitiveWorkspace onEvict** | When working memory slots are evicted, callers receive the evicted data via `onEvict(key, slot)` callback for persistence or summarization. |
+
+---
+
+## 17. Community Skill Ecosystem (v5.9.8)
+
+Third-party skills can be installed, updated, and managed from external sources.
+
+| Feature | What it does |
+|---|---|
+| **SkillRegistry** | Install skills from GitHub repos, GitHub Gists, npm packages, or direct archive URLs. |
+| **Manifest Validation** | Every skill validated against `skill-manifest.schema.json` before code loads. Name pattern, semver version, entry file existence. |
+| **Sandbox Isolation** | Community skills run in the same sandbox as built-in skills — VM isolation + Linux namespaces. |
+| **Version Tracking** | Registry metadata persists source URL, version, install date. `update(name)` re-fetches from original source. |
+
+**Example**:
+```bash
+# In Genesis CLI
+genesis install https://github.com/community/genesis-skill-docker
+genesis install npm:genesis-skill-kubernetes
+genesis skills --list
+genesis update genesis-skill-docker
+genesis uninstall genesis-skill-docker
+```
+
+---
+
+## 18. Agent Benchmarking (v5.9.8)
+
+Standardized, reproducible benchmarks to measure agent capability across versions and backends.
+
+| Feature | What it does |
+|---|---|
+| **8-task suite** | Code generation (3), bug fixing (2), refactoring (1), code analysis (1), chat (1). Each task has programmatic verification. |
+| **Baseline comparison** | Save a run as baseline, compare future runs. Detects per-task regressions and overall success rate changes. |
+| **Multi-backend** | Run the same suite against Ollama, Claude, OpenAI — compare empirically. |
+| **CI-ready** | `--json` output for pipeline integration. Exit code reflects pass/fail. |

@@ -1,28 +1,32 @@
 # Genesis Agent — Architecture Deep-Dive
 
-> Comprehensive technical analysis of Genesis Agent v5.9.1.
-> Last updated with the v5.9.1 release.
+> Comprehensive technical analysis of Genesis Agent v5.9.8.
+> Last updated with the v5.9.8 release.
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **216 JS source modules** across **~72,000 LOC** of production code, supported by **159 test suites** with coverage gates enforced in CI.
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **230 JS source modules** across **~79,000 LOC** of production code, supported by **180 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **empirical cognitive self-awareness** (CognitiveSelfModel, v5.9.8).
 
 ### Key Numbers
 
 | Metric | Value |
 |--------|-------|
-| Production LOC (src/) | ~57,000 |
-| Source Modules | 176 JS files |
-| Test Suites | 119 |
-| DI Services | 95 (72 resolvable, 255 bindings) |
+| Production LOC (src/) | ~62,000 |
+| Source Modules | 230 JS files |
+| Test Suites / Tests | 180 / ~3,100 |
+| DI Services | 123 (registered via manifest) |
 | Boot Phases | 13 (+ Phase 0 bootstrap) |
 | npm Dependencies | 5 production + 2 dev |
-| Event Types (catalogued) | 161+ |
-| IPC Channels | 39 invoke + 1 send + 6 receive |
+| Event Types (catalogued) | 180+ |
+| IPC Channels | 41 invoke + 2 send + 6 receive |
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
-| Coverage Gates | 60% lines, 50% branches, 55% functions |
+| Coverage Gates | 70% lines, 60% branches, 65% functions |
+| Fitness Score | 90/90 (100%) |
+| Circular Dependencies | 0 |
+| Cross-Layer Violations | 0 |
+| @ts-nocheck Files | 0 |
 
 ### Dependency Profile
 

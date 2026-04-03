@@ -58,6 +58,7 @@ const ALLOWED_INVOKE = [
   'agent:get-project-intel',
   'agent:get-tool-synthesis',
   'agent:get-task-outcomes',
+  'agent:get-selfmodel-report',
 ];
 
 const ALLOWED_SEND = [

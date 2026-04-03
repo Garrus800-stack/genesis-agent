@@ -293,6 +293,10 @@ class AgentCoreHealth {
       'taskOutcomeTracker',
       // v5.9.7 (V6-5): ConversationCompressor — clears cache
       'conversationCompressor',
+      // v5.9.8 (V6-11): CognitiveSelfModel — unsubscribes outcome listeners
+      'cognitiveSelfModel',
+      // v5.9.8 (V6-6): SkillRegistry — lifecycle compliance
+      'skillRegistry',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

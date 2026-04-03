@@ -638,6 +638,14 @@ const CHANNELS = {
     return tracker.getAggregateStats();
   },
 
+  // v5.9.8 (V6-11): CognitiveSelfModel — full diagnostic report
+  'agent:get-selfmodel-report': async () => {
+    if (!agent) return null;
+    const sm = agent.container.tryResolve('cognitiveSelfModel');
+    if (!sm) return null;
+    return sm.getReport();
+  },
+
   'agent:stream-chunk': null, // Agent -> UI (push only)
   'agent:stream-done': null,  // Agent -> UI (push only, stream complete)
   'agent:status-update': null, // Agent -> UI (push only)

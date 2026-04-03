@@ -54,11 +54,13 @@ class CognitiveWorkspace {
    * @param {number} [options.capacity=9] - Max slots (7±2)
    * @param {string} [options.goalId]     - Goal this workspace serves
    * @param {string} [options.goalTitle]  - Human-readable goal description
+   * @param {function} [options.onEvict]  - Callback(key, slot) called before eviction (v5.9.8)
    */
   constructor(options = {}) {
     this.capacity = options.capacity || DEFAULT_CAPACITY;
     this.goalId = options.goalId || null;
     this.goalTitle = options.goalTitle || null;
+    this._onEvict = options.onEvict || null;
 
     /** @type {Map<string, WorkspaceSlot>} */
     this._slots = new Map();
@@ -106,8 +108,14 @@ class CognitiveWorkspace {
         }
       }
       if (minKey && salience > minSalience) {
+        const evictedSlot = this._slots.get(minKey);
+        // v5.9.8: Notify before deletion so callers can summarize/persist
+        if (this._onEvict && evictedSlot) {
+          try { this._onEvict(minKey, evictedSlot); } catch (_e) { _log.debug('[catch] onEvict callback:', _e.message); }
+        }
         this._slots.delete(minKey);
-        evicted = minKey;
+        // v5.9.8: Return full evicted slot (key + value + salience) instead of just key
+        evicted = evictedSlot ? { key: minKey, value: evictedSlot.value, salience: minSalience } : minKey;
         this._totalEvictions++;
         _log.debug(`[WM] Evicted "${minKey}" (salience ${minSalience.toFixed(2)}) for "${key}" (${salience.toFixed(2)})`);
       } else {
@@ -192,7 +200,13 @@ class CognitiveWorkspace {
     }
 
     for (const key of toRemove) {
+      // v5.9.8: Notify before deletion
+      if (this._onEvict) {
+        const slot = this._slots.get(key);
+        if (slot) { try { this._onEvict(key, slot); } catch (_e) { /* best effort */ } }
+      }
       this._slots.delete(key);
+      this._totalEvictions++;
       _log.debug(`[WM] Auto-decayed "${key}" after ${this._stepCount} steps`);
     }
   }

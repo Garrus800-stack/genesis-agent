@@ -19,6 +19,21 @@ function phase3(ctx, R) {
       ),
     }],
 
+    // v5.9.8 (V6-6): SkillRegistry — install/uninstall/update from external sources
+    ['skillRegistry', {
+      phase: 3, deps: ['bus'], tags: ['capability', 'skills', 'v6-6'],
+      lateBindings: [
+        { prop: 'skillManager', service: 'skills', optional: true },
+        { prop: '_settings', service: 'settings', optional: true },
+      ],
+      factory: (c) => new (R('SkillRegistry').SkillRegistry)({
+        skillsDir: path.join(rootDir, 'src', 'skills'),
+        bus,
+        config: c.tryResolve('settings')
+          ?.get('skills.registry') || {},
+      }),
+    }],
+
     ['reflector', {
       phase: 3, deps: ['selfModel', 'llm', 'prompts', 'sandbox'], tags: ['capability'],
       factory: (c) => new (R('Reflector').Reflector)(

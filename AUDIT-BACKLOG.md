@@ -26,6 +26,18 @@ Resolved items are documented in CHANGELOG.md for traceability.
 | Async without await | ~70 methods (45 interface stubs, 25 procedural). Observation only. |
 | Hardcoded timeouts | 42 sites. Constants defined (GIT_OP, QUICK_CHECK, COMMAND_EXEC, TEST_INSTALL). |
 
+## v5.9.8 — Resolved (V6-5 Fully Wired + V6-11 CognitiveSelfModel)
+
+| ID     | Severity | Description |
+|--------|----------|-------------|
+| CW-1   | HIGH   | ConversationCompressor late-binding fix: `_compressor → conversationCompressor` added to `context` manifest entry in phase2-intelligence.js. ConversationCompressor (265 LOC, v5.9.7) was built and tested but never wired — `buildAsync()` always fell back to sync `build()`. Now live. |
+| WS-1   | MEDIUM | CognitiveWorkspace eviction data pipeline: `onEvict(key, slot)` callback (capacity + decay evictions), rich eviction return `{ key, value, salience }`, decay evictions counted in `totalEvictions`. 7 new tests (22 → 29). |
+| SM-1   | HIGH   | CognitiveSelfModel.js (530 LOC): V6-11 core service. Wilson-calibrated capability profiles, 4 bias detectors, backend strength map, confidence reports, prompt context injection. Phase 9 manifest. TO_STOP. IPC `agent:get-selfmodel-report`. Preload whitelisted. 29 tests. |
+| UI-4   | MEDIUM | SelfModel Dashboard Panel: `_renderSelfModel(report)` renderer (~70 LOC), capability radar bars with Wilson floor, backend recommendation pills, bias alert cards. IPC fetch, 23 CSS rules. |
+| BM-1   | MEDIUM | `scripts/benchmark-agent.js` (~230 LOC): V6-9 agent benchmarking suite. 8 tasks across 5 categories. Baseline save/compare, regression detection, JSON output. 13 tests. |
+| SR-1   | HIGH   | SkillRegistry.js (~320 LOC): V6-6 community skills. Install from GitHub/npm/URL, uninstall, update, search. Manifest validation, meta persistence, SkillManager reload. Phase 3 manifest. TO_STOP. 2 events. 13 tests. |
+| SB-1   | HIGH   | Sandbox.execute() timeout kill fix: `killSignal: 'SIGKILL'` for reliable process termination through unshare wrappers. Fixes legacy test suite hang (154 tests were unreachable). Full suite now 3105/0. |
+
 ## v5.9.7 — Resolved (SelfModel Data Layer + Context Overflow Protection)
 
 | ID     | Severity | Description |

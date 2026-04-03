@@ -247,6 +247,21 @@ function phase9(ctx, R) {
         bus,
       }),
     }],
+
+    // v5.9.8 (V6-11): CognitiveSelfModel — empirical capability self-awareness
+    ['cognitiveSelfModel', {
+      phase: 9, deps: ['bus'], tags: ['cognitive', 'selfmodel', 'v6-11'],
+      lateBindings: [
+        { prop: 'taskOutcomeTracker', service: 'taskOutcomeTracker', optional: true },
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
+        { prop: 'reasoningTracer', service: 'reasoningTracer', optional: true },
+      ],
+      factory: (c) => new (R('CognitiveSelfModel').CognitiveSelfModel)({
+        bus,
+        config: c.tryResolve('settings')
+          ?.get('cognitive.selfModel') || {},
+      }),
+    }],
   ];
 }
 

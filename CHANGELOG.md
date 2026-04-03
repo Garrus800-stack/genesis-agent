@@ -1,3 +1,79 @@
+## [5.9.8] — V6-5 Context Window Fully Wired + V6-11 CognitiveSelfModel
+
+**Focus: Activate the ConversationCompressor (built in v5.9.7 but never connected), complete the CognitiveWorkspace eviction data pipeline, and build the CognitiveSelfModel — the first empirical self-awareness service in any AI agent framework.**
+
+### CW-1: ConversationCompressor Late-Binding (V6-5 — Critical Wiring Fix)
+
+- **Root cause**: ConversationCompressor.js (265 LOC) was registered in phase10-agency.js but never wired to ContextManager. The `context` service in phase2-intelligence.js had a late-binding for `_dynamicBudget` but not for `_compressor`. Result: `ContextManager.buildAsync()` always fell back to `build()`, making the entire ConversationCompressor dead code.
+- **Fix**: Added `{ prop: '_compressor', service: 'conversationCompressor', optional: true }` to the `context` manifest entry in phase2-intelligence.js.
+- **Impact**: LLM-based conversation history compression is now live. Long multi-step tasks preserve semantic context instead of truncating to 80-char previews. ChatOrchestrator already calls `buildAsync()` — no other changes needed.
+- **Test**: Lifecycle integration test `context service has _compressor late-binding (V6-5)` now passes (was pre-written in v5.9.7, awaiting the wiring).
+
+### WS-1: CognitiveWorkspace Eviction Data Pipeline (V6-5 — Slot Integration)
+
+- **Problem**: When CognitiveWorkspace evicts a slot at capacity, the evicted value was lost. `store()` returned only the evicted key (string), not the value. No event, no callback, no way for downstream services to summarize or persist evicted content.
+- **`onEvict` callback** (v5.9.8): Constructor accepts optional `onEvict(key, slot)` callback, called before deletion. Works for both capacity eviction (`store()`) and salience decay eviction (`tick()`). Errors in callback are caught — never breaks store/tick.
+- **Rich eviction data**: `store()` now returns `{ stored, evicted: { key, value, salience } }` instead of `{ stored, evicted: 'key-string' }`. Callers can inspect evicted content.
+- **Decay evictions counted**: `tick()` auto-decay removals now increment `totalEvictions` counter (previously uncounted).
+- **Lightweight pattern preserved**: No bus dependency added. CognitiveWorkspace remains a per-goal instance (like CancellationToken). The callback is the extension point — the caller (AgentLoop, workspaceFactory) decides what to do with evicted data.
+- **Tests**: 7 new tests (cognitive-workspace.test.js: 22 → 29). Covers capacity eviction callback, decay eviction callback, callback error resilience, rich return data, eviction counting.
+
+### SM-1: CognitiveSelfModel (V6-11 — Core Service)
+
+- **CognitiveSelfModel.js** (530 LOC): Phase 9 cognitive service. The agent's empirical model of its own capabilities, weaknesses, and failure patterns. No competing framework (LangChain, CrewAI, AutoGen, Devin) has an equivalent.
+- **Wilson-calibrated Capability Profile**: `getCapabilityProfile()` computes per-task-type success rates with Wilson lower-bound confidence intervals. 3/3 successes = ~56% confident, not 100%. `isWeak` (confidence <60%, n≥3) and `isStrong` (confidence >80%, n≥5) flags. Top error categories per type.
+- **Backend Strength Map**: `getBackendStrengthMap()` builds per-backend empirical performance matrix. Sorted by Wilson confidence, not raw rates. Recommends optimal backend per task type.
+- **Bias Detection**: 4 pattern detectors — `scope-underestimate` (long task failure rate), `token-overuse` (recent avg vs median), `error-repetition` (repeated error categories), `backend-mismatch` (weak backend for task type). Each returns severity + evidence string.
+- **Proactive Disclosure**: `getConfidence(taskType, backend?)` returns pre-task risk report: confidence level, known risks, recommendation. Called by PromptBuilder before task execution.
+- **Prompt Integration**: `buildPromptContext(intent)` generates `[Cognitive Self-Model]` prompt section with capability floor, weakness flags, current-task confidence, and active bias warnings. PromptBuilder's `_taskPerformanceContext()` now prefers CognitiveSelfModel (falls back to raw TaskOutcomeTracker stats).
+- **Full Report API**: `getReport()` returns complete diagnostic for Dashboard and Colony sharing.
+- **Caching**: Profile and bias computations cached with 60s TTL, invalidated on `task-outcome:recorded` and `task-outcome:stats-updated` events.
+- **Phase 9 manifest**: Registered with late-bindings for TaskOutcomeTracker, LessonsStore, ReasoningTracer.
+- **TO_STOP**: Added to shutdown list.
+- **IPC**: `agent:get-selfmodel-report` handler in main.js. Preload whitelisted.
+- **Tests**: 29 tests (cognitive-selfmodel.test.js). Wilson score math, capability profile, backend map, bias detection, confidence reports, prompt context, lifecycle.
+
+### UI-4: SelfModel Dashboard Panel (V6-11 — Visualization)
+
+- **Dashboard section**: "Cognitive Self-Model" panel after Task Performance.
+- **`_renderSelfModel(report)`** renderer (~70 LOC): Capability profile bars with Wilson floor overlay (strong=green, mid=blue, weak=red), raw rate ghost bar behind confidence bar. Backend recommendation pills. Bias alert cards with severity-colored left border.
+- **IPC**: `agent:get-selfmodel-report` fetched in dashboard refresh() alongside existing data.
+- **CSS**: 23 new rules in DashboardStyles.js for radar bars, backend pills, bias cards.
+
+### BM-1: Agent Benchmarking Suite (V6-9)
+
+- **`scripts/benchmark-agent.js`** (~230 LOC): Standardized task suite for measuring agent capability.
+- **8 benchmark tasks** across 5 categories: code-gen (3), bug-fix (2), refactoring (1), analysis (1), chat (1). Each task has a programmatic `verify(output)` function.
+- **Modes**: `--quick` (3 tasks), `--backend <name>`, `--baseline save/compare`, `--json`.
+- **Baseline comparison**: Save a run as baseline, then compare future runs. Flags per-task regressions and overall success rate delta.
+- **Output**: Per-task pass/fail with duration + token estimate, aggregate success rate, avg duration, total tokens.
+- **Tests**: 13 tests (benchmark-agent.test.js). Task definitions, verify functions for all 8 tasks.
+
+### SR-1: Skill Registry (V6-6 — Community Skills)
+
+- **SkillRegistry.js** (~320 LOC): Install, uninstall, update, search for third-party skills from external sources.
+- **`install(source)`**: Fetches from GitHub Gist, GitHub repo, npm package (`npm:<name>`), direct archive URL (.zip/.tar.gz), or git clone. Validates manifest against skill-manifest.schema.json BEFORE loading any code. Replaces existing versions. Triggers SkillManager.loadSkills() after install.
+- **`uninstall(name)`**: Removes skill directory and registry metadata. Triggers SkillManager reload.
+- **`update(name)`**: Re-installs from original source URL.
+- **`search(query)`**: Queries an optional registry index URL for available skills.
+- **`list()`**: Returns installed skills with source, version, install date.
+- **Manifest validation**: Checks required fields (name, version, description, entry), name pattern (lowercase alphanumeric + hyphens), semver version, entry file existence.
+- **Meta persistence**: `.registry-meta.json` in skills dir tracks installed-via-registry skills.
+- **Events**: `skill:installed`, `skill:uninstalled` emitted on changes.
+- **Phase 3 manifest**: Registered with late-bindings for SkillManager + Settings.
+- **TO_STOP**: Added to shutdown list.
+- **Tests**: 13 tests (skill-registry.test.js). Constructor, manifest validation (5 cases), meta persistence, uninstall, search.
+
+### SB-1: Sandbox Timeout Kill Fix (Pre-existing Hang)
+
+- **Root cause**: `Sandbox.execute()` used default `SIGTERM` for timeout kills. When the sandbox is wrapped in `unshare --fork` (Linux namespace isolation), SIGTERM doesn't propagate through the process tree. The `while(true) {}` timeout test spawned an unkillable child process that kept the Node.js event loop alive, hanging the entire legacy test suite indefinitely.
+- **Fix**: Added `killSignal: 'SIGKILL'` to the `execFileAsync` options in `Sandbox.execute()`. SIGKILL is not catchable and reliably terminates unshare-wrapped process trees.
+- **Impact**: Legacy test suite now completes (154 tests, 0 failures). Full suite: **3105 passed, 0 failed** — first time with zero failures.
+
+### Version Housekeeping
+
+- package.json, package-lock.json, README badges (230 modules, 123 services, ~3100 tests), docs/banner.svg, McpTransport clientInfo → 5.9.8
+
 ## [5.9.7] — SelfModel Data Layer + Context Overflow Protection
 
 **Focus: V6-11 foundation (TaskOutcomeTracker) + V6-5 completion (ConversationCompressor). Data collection for future cognitive self-awareness, plus LLM-based conversation compression to prevent context window overflow.**

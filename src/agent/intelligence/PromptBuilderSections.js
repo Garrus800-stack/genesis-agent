@@ -383,6 +383,17 @@ const sections = {
 
   // v5.9.7 (V6-11): Task performance self-awareness — empirical stats from TaskOutcomeTracker
   _taskPerformanceContext() {
+    // v5.9.8 (V6-11): Prefer CognitiveSelfModel — Wilson-calibrated, bias-aware
+    if (this.cognitiveSelfModel) {
+      try {
+        return this.cognitiveSelfModel.buildPromptContext(this._currentIntent || null);
+      } catch (_e) {
+        _log.debug('[catch] cognitiveSelfModel context:', _e.message);
+        // Fall through to legacy path
+      }
+    }
+
+    // Legacy path: raw TaskOutcomeTracker stats (kept as fallback)
     if (!this.taskOutcomeTracker) return '';
     try {
       const stats = this.taskOutcomeTracker.getAggregateStats({ windowMs: 7 * 24 * 3600_000 }); // last 7 days

@@ -286,6 +286,41 @@ describe('Lifecycle Integration', () => {
       assert(map[mod], `autoMap contains ${mod} → ${map[mod]}`);
     }
   });
+
+  // v5.9.8: Verify ConversationCompressor is wired to ContextManager
+  test('context service has _compressor late-binding (V6-5)', () => {
+    setupTestEnv();
+    try {
+      const bus = new EventBus();
+      const guard = new MockSafeGuard();
+      const intervals = { register: () => {}, clear: () => {}, clearAll: () => {} };
+
+      const manifest = buildManifest({
+        rootDir: ROOT,
+        genesisDir: TEST_DIR,
+        bus,
+        guard,
+        intervals,
+        bootProfile: 'full',
+      });
+
+      const contextEntry = manifest.get('context');
+      assert(contextEntry, 'context service must exist in manifest');
+      assert(contextEntry.lateBindings, 'context must have lateBindings');
+
+      const compressorBinding = contextEntry.lateBindings.find(
+        b => b.prop === '_compressor' && b.service === 'conversationCompressor'
+      );
+      assert(compressorBinding, 'context must have _compressor → conversationCompressor late-binding');
+
+      const budgetBinding = contextEntry.lateBindings.find(
+        b => b.prop === '_dynamicBudget' && b.service === 'dynamicContextBudget'
+      );
+      assert(budgetBinding, 'context must have _dynamicBudget → dynamicContextBudget late-binding');
+    } finally {
+      cleanupTestEnv();
+    }
+  });
 });
 
 run();

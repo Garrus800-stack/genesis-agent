@@ -85,6 +85,8 @@ function phase2(ctx, R) {
         { prop: 'projectIntelligence', service: 'projectIntelligence', optional: true },
         // v5.9.7 (V6-11): Task outcome tracker — empirical performance data
         { prop: 'taskOutcomeTracker', service: 'taskOutcomeTracker', optional: true },
+        // v5.9.8 (V6-11): Cognitive self-model — replaces raw stats with calibrated self-awareness
+        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
       ],
       factory: (c) => new (R('PromptBuilder').PromptBuilder)({
         selfModel: c.resolve('selfModel'), model: c.resolve('llm'),
@@ -97,6 +99,8 @@ function phase2(ctx, R) {
       lateBindings: [
         // v4.10.0: DynamicContextBudget for intent-based allocation
         { prop: '_dynamicBudget', service: 'dynamicContextBudget', optional: true },
+        // v5.9.8 (V6-5): ConversationCompressor for LLM-based history summarization
+        { prop: '_compressor', service: 'conversationCompressor', optional: true },
       ],
       factory: (c) => {
         // FIX v3.5.4: Pass lang for accurate token estimation

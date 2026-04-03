@@ -184,6 +184,7 @@ class Sandbox {
         wrapped.args,
         {
           timeout,
+          killSignal: 'SIGKILL', // v5.9.8: SIGKILL ensures unshare-wrapped processes die on timeout
           encoding: 'utf-8',
           cwd: this.sandboxDir,
           env: safeEnv,

@@ -149,7 +149,30 @@ function applyStyles(Dashboard) {
     '.dash-taskperf-pct{min-width:28px;font-size:10px;font-weight:600;text-align:right}' +
     '.dash-taskperf-meta{font-size:9px;color:rgba(255,255,255,0.3);min-width:70px;text-align:right}' +
     '.dash-taskperf-backends{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}' +
-    '.dash-taskperf-backend{font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.05)}';
+    '.dash-taskperf-backend{font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.05)}' +
+
+    // v5.9.8: Cognitive Self-Model panel
+    '.dash-sm-radar{display:flex;flex-direction:column;gap:3px}' +
+    '.dash-sm-row{display:flex;align-items:center;gap:6px;font-size:11px}' +
+    '.dash-sm-label{min-width:100px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:10px;color:rgba(255,255,255,0.7)}' +
+    '.dash-sm-track{flex:1;height:10px;background:rgba(255,255,255,0.05);border-radius:5px;overflow:hidden;position:relative}' +
+    '.dash-sm-bar-raw{position:absolute;height:100%;border-radius:5px;background:rgba(255,255,255,0.08)}' +
+    '.dash-sm-bar{position:absolute;height:100%;border-radius:5px;transition:width 0.3s}' +
+    '.dash-sm-strong{background:linear-gradient(90deg,#1d9e75,#5dca80)}' +
+    '.dash-sm-mid{background:linear-gradient(90deg,#3b82f6,#60a5fa)}' +
+    '.dash-sm-weak{background:linear-gradient(90deg,#e24b4a,#d85a30)}' +
+    '.dash-sm-val{min-width:28px;font-size:10px;font-weight:600;text-align:right}' +
+    '.dash-sm-n{font-size:9px;color:rgba(255,255,255,0.3);min-width:35px;text-align:right}' +
+    '.dash-sm-backends{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}' +
+    '.dash-sm-rec{font-size:10px;padding:2px 8px;border-radius:3px;background:rgba(59,130,246,0.12);color:rgba(255,255,255,0.8)}' +
+    '.dash-sm-rec strong{color:#60a5fa;margin-right:2px}' +
+    '.dash-sm-biases{display:flex;flex-direction:column;gap:4px;margin-top:4px}' +
+    '.dash-sm-bias{font-size:10px;padding:4px 8px;border-radius:4px;border-left:3px solid}' +
+    '.dash-sm-bias strong{margin-right:4px}' +
+    '.dash-sm-bias-ev{color:rgba(255,255,255,0.5)}' +
+    '.dash-sm-bias-bad{background:rgba(226,75,74,0.1);border-color:#e24b4a}' +
+    '.dash-sm-bias-warn{background:rgba(239,159,39,0.1);border-color:#ef9f27}' +
+    '.dash-sm-bias-info{background:rgba(59,130,246,0.1);border-color:#3b82f6}';
   };
 }
 

@@ -8,11 +8,11 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-5.9.7-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-5.9.8-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <img src="https://img.shields.io/badge/tests-~2930%20passing-4ade80?style=flat-square" alt="Tests">
-  <img src="https://img.shields.io/badge/modules-227-e0e0e8?style=flat-square" alt="Modules">
-  <img src="https://img.shields.io/badge/services-121-fbbf24?style=flat-square" alt="Services">
+  <img src="https://img.shields.io/badge/tests-~3100%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/modules-230-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/services-123-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/phases-13-c084fc?style=flat-square" alt="Phases">
   <img src="https://img.shields.io/badge/events-318-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
@@ -562,6 +562,7 @@ No LangChain. No LlamaIndex. Everything self-written.
 |---|---|
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common problems and solutions — install, boot, LLM, self-modification, platform-specific |
 | [ROADMAP-v6.md](docs/ROADMAP-v6.md) | Development roadmap — completed phases, deferred proposals |
+| [SELF-ANALYSIS-AUDIT.md](docs/SELF-ANALYSIS-AUDIT.md) | Genesis self-critique vs reality — empirical validation of the agent's own architecture review |
 | [MCP-SERVER-SETUP.md](docs/MCP-SERVER-SETUP.md) | MCP server setup — IDE integration (VSCode, Cursor, Claude Desktop), headless CLI |
 | [AUDIT-BACKLOG.md](AUDIT-BACKLOG.md) | Architectural health tracking — resolved issues, monitor items, fitness metrics |
 

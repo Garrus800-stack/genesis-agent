@@ -1036,6 +1036,80 @@ function applyRenderers(Dashboard) {
 
     el.innerHTML = html;
   };
+
+  // ── v5.9.8 (V6-11): Cognitive Self-Model Panel ──────────────
+  proto._renderSelfModel = function(report) {
+    var el = document.getElementById('dash-selfmodel-body');
+    if (!el) return;
+    if (!report || !report.profile || Object.keys(report.profile).length === 0) {
+      el.innerHTML = '<span class="dash-muted">Noch keine Daten — CognitiveSelfModel sammelt…</span>';
+      return;
+    }
+
+    var html = '';
+
+    // ── Capability Radar (horizontal bars with Wilson floor) ──
+    var entries = Object.entries(report.profile)
+      .sort(function(a, b) { return b[1].sampleSize - a[1].sampleSize; })
+      .slice(0, 8);
+
+    if (entries.length > 0) {
+      html += '<div class="dash-section-sub">Capability Profile (Wilson 90%)</div>';
+      html += '<div class="dash-sm-radar">';
+      for (var i = 0; i < entries.length; i++) {
+        var type = entries[i][0];
+        var e = entries[i][1];
+        var floor = Math.round(e.confidenceLower * 100);
+        var raw = Math.round(e.successRate * 100);
+        var cls = e.isStrong ? 'strong' : e.isWeak ? 'weak' : 'mid';
+        var badge = e.isStrong ? ' ★' : e.isWeak ? ' ⚠' : '';
+        html += '<div class="dash-sm-row">' +
+          '<span class="dash-sm-label">' + this._esc(type) + badge + '</span>' +
+          '<div class="dash-sm-track">' +
+            '<div class="dash-sm-bar-raw" style="width:' + raw + '%"></div>' +
+            '<div class="dash-sm-bar dash-sm-' + cls + '" style="width:' + floor + '%"></div>' +
+          '</div>' +
+          '<span class="dash-sm-val">' + floor + '%</span>' +
+          '<span class="dash-sm-n">n=' + e.sampleSize + '</span>' +
+        '</div>';
+      }
+      html += '</div>';
+    }
+
+    // ── Backend Strength Map ──
+    var bm = report.backendMap || {};
+    var bmKeys = Object.keys(bm);
+    if (bmKeys.length > 0) {
+      html += '<div class="dash-section-sub">Backend Recommendations</div>';
+      html += '<div class="dash-sm-backends">';
+      for (var j = 0; j < Math.min(bmKeys.length, 6); j++) {
+        var task = bmKeys[j];
+        var rec = bm[task];
+        html += '<span class="dash-sm-rec">' +
+          '<strong>' + this._esc(task) + '</strong> → ' + this._esc(rec.recommended) +
+        '</span>';
+      }
+      html += '</div>';
+    }
+
+    // ── Bias Alerts ──
+    var biases = report.biases || [];
+    if (biases.length > 0) {
+      html += '<div class="dash-section-sub">Active Biases</div>';
+      html += '<div class="dash-sm-biases">';
+      for (var k = 0; k < biases.length; k++) {
+        var b = biases[k];
+        var sevCls = b.severity === 'high' ? 'bad' : b.severity === 'medium' ? 'warn' : 'info';
+        html += '<div class="dash-sm-bias dash-sm-bias-' + sevCls + '">' +
+          '<strong>' + this._esc(b.name) + '</strong> ' +
+          '<span class="dash-sm-bias-ev">' + this._esc(b.evidence) + '</span>' +
+        '</div>';
+      }
+      html += '</div>';
+    }
+
+    el.innerHTML = html;
+  };
 }
 
 // UI scripts don't use CommonJS in browser, but we export for testability

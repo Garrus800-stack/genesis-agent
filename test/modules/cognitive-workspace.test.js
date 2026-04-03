@@ -54,7 +54,9 @@ describe('CognitiveWorkspace — Capacity', () => {
     ws.store('c', 3, 0.7);
     const r = ws.store('d', 4, 0.85); // Should evict 'c' (0.7)
     assert(r.stored, 'Should store new item');
-    assertEqual(r.evicted, 'c');
+    // v5.9.8: evicted is now { key, value, salience } object
+    assertEqual(r.evicted.key, 'c');
+    assertEqual(r.evicted.value, 3);
     assert(!ws.has('c'), 'Evicted item gone');
     assert(ws.has('d'), 'New item stored');
   });
@@ -265,6 +267,77 @@ describe('NullWorkspace', () => {
     assertEqual(nw.getConsolidationCandidates().length, 0);
     assertEqual(nw.clear().itemsCleared, 0);
     assertEqual(nw.getStats().slots, 0);
+  });
+});
+
+// ── v5.9.8: onEvict Callback ────────────────────────────────
+
+describe('CognitiveWorkspace — onEvict (v5.9.8)', () => {
+  test('onEvict called on capacity eviction with key and slot', () => {
+    const evictions = [];
+    const ws = new CognitiveWorkspace({
+      capacity: 2,
+      onEvict: (key, slot) => evictions.push({ key, value: slot.value, salience: slot.salience }),
+    });
+    ws.store('a', 'alpha', 0.9);
+    ws.store('b', 'beta', 0.3);
+    ws.store('c', 'gamma', 0.5); // Evicts 'b' (lowest)
+    assertEqual(evictions.length, 1);
+    assertEqual(evictions[0].key, 'b');
+    assertEqual(evictions[0].value, 'beta');
+  });
+
+  test('onEvict called on tick decay eviction', () => {
+    const evictions = [];
+    const ws = new CognitiveWorkspace({
+      onEvict: (key, slot) => evictions.push({ key, value: slot.value }),
+    });
+    ws.store('fading', 'will-decay', 0.1);
+    ws.tick(); // 0.05
+    ws.tick(); // 0.00 → auto-removed
+    assertEqual(evictions.length, 1);
+    assertEqual(evictions[0].key, 'fading');
+    assertEqual(evictions[0].value, 'will-decay');
+  });
+
+  test('onEvict error does not break store()', () => {
+    const ws = new CognitiveWorkspace({
+      capacity: 2,
+      onEvict: () => { throw new Error('callback crash'); },
+    });
+    ws.store('a', 1, 0.9);
+    ws.store('b', 2, 0.3);
+    const r = ws.store('c', 3, 0.5); // Should not throw
+    assert(r.stored, 'Store should succeed despite callback error');
+  });
+
+  test('evicted return includes full slot data', () => {
+    const ws = new CognitiveWorkspace({ capacity: 2 });
+    ws.store('keep', 'important', 0.9);
+    ws.store('lose', 'expendable', 0.2);
+    const r = ws.store('new', 'fresh', 0.5);
+    assert(r.evicted, 'Should have evicted data');
+    assertEqual(r.evicted.key, 'lose');
+    assertEqual(r.evicted.value, 'expendable');
+    assert(typeof r.evicted.salience === 'number');
+  });
+
+  test('tick decay evictions count in totalEvictions', () => {
+    const ws = new CognitiveWorkspace();
+    ws.store('a', 1, 0.08);
+    ws.tick(); // 0.03
+    ws.tick(); // -0.02 → removed
+    const stats = ws.getStats();
+    assert(stats.totalEvictions >= 1, 'Decay evictions should count');
+  });
+
+  test('no onEvict when no callback provided', () => {
+    const ws = new CognitiveWorkspace({ capacity: 2 });
+    ws.store('a', 1, 0.9);
+    ws.store('b', 2, 0.3);
+    const r = ws.store('c', 3, 0.5); // Should evict 'b' without error
+    assert(r.stored);
+    assert(r.evicted);
   });
 });
 
