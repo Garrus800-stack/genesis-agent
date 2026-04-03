@@ -134,7 +134,22 @@ function applyStyles(Dashboard) {
     '.dash-hotspot-hot{background:linear-gradient(90deg,#e24b4a,#ef9f27)}' +
     '.dash-hotspot-warm{background:linear-gradient(90deg,#ef9f27,#e8c547)}' +
     '.dash-hotspot-cool{background:linear-gradient(90deg,#1d9e75,#639922)}' +
-    '.dash-hotspot-count{min-width:50px;font-size:9px;color:rgba(255,255,255,0.4);text-align:right}';
+    '.dash-hotspot-count{min-width:50px;font-size:9px;color:rgba(255,255,255,0.4);text-align:right}' +
+    // v5.9.7: Task Performance panel
+    '.dash-taskperf-total{font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:6px}' +
+    '.dash-taskperf-total strong{color:rgba(255,255,255,0.8)}' +
+    '.dash-taskperf-list{display:flex;flex-direction:column;gap:3px}' +
+    '.dash-taskperf-row{display:flex;align-items:center;gap:6px;font-size:11px}' +
+    '.dash-taskperf-name{min-width:90px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:10px;color:rgba(255,255,255,0.7)}' +
+    '.dash-taskperf-bar-track{flex:1;height:8px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden}' +
+    '.dash-taskperf-bar{height:100%;border-radius:4px;transition:width 0.3s}' +
+    '.dash-taskperf-good{background:linear-gradient(90deg,#1d9e75,#5dca80)}' +
+    '.dash-taskperf-warn{background:linear-gradient(90deg,#ef9f27,#e8c547)}' +
+    '.dash-taskperf-bad{background:linear-gradient(90deg,#e24b4a,#d85a30)}' +
+    '.dash-taskperf-pct{min-width:28px;font-size:10px;font-weight:600;text-align:right}' +
+    '.dash-taskperf-meta{font-size:9px;color:rgba(255,255,255,0.3);min-width:70px;text-align:right}' +
+    '.dash-taskperf-backends{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}' +
+    '.dash-taskperf-backend{font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.05)}';
   };
 }
 

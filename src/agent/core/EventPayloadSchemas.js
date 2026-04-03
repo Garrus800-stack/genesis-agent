@@ -155,6 +155,14 @@ const SCHEMAS = {
   'deploy:failed':           { id: 'required', target: 'required', error: 'required' },
   'deploy:request':          { target: 'required' },
   'deploy:rollback':         { id: 'required', target: 'required', snapshot: 'required' },
+
+  // Task Outcomes (v5.9.7)
+  'task-outcome:recorded':      { taskType: 'required', backend: 'required', success: 'required' },
+  'task-outcome:stats-updated': { byTaskType: 'required', byBackend: 'required', total: 'required' },
+
+  // Context Compression (v5.9.7)
+  'context:compressed':         { originalTokens: 'required', compressedTokens: 'required', messagesCompressed: 'required', tokensSaved: 'required' },
+  'context:overflow-prevented': { totalTokens: 'required', budget: 'required', messagesCompressed: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

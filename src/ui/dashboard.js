@@ -97,7 +97,7 @@ class Dashboard {
   async refresh() {
     if (!this._visible || !window.genesis) return;
     try {
-      const [health, loopStatus, session, eventDebug, reasoningTraces, archSnapshot, projectProfile, toolSynthesis] = await Promise.all([
+      const [health, loopStatus, session, eventDebug, reasoningTraces, archSnapshot, projectProfile, toolSynthesis, taskOutcomes] = await Promise.all([
         window.genesis.invoke('agent:get-health').catch(err => { console.debug('[DASH] Health:', err.message); return null; }),
         window.genesis.invoke('agent:loop-status').catch(err => { console.debug('[DASH] Loop status:', err.message); return null; }),
         window.genesis.invoke('agent:get-session').catch(err => { console.debug('[DASH] Session:', err.message); return null; }),
@@ -106,6 +106,7 @@ class Dashboard {
         window.genesis.invoke('agent:get-architecture').catch(err => { console.debug('[DASH] Architecture:', err.message); return null; }),
         window.genesis.invoke('agent:get-project-intel').catch(err => { console.debug('[DASH] Project:', err.message); return null; }),
         window.genesis.invoke('agent:get-tool-synthesis').catch(err => { console.debug('[DASH] ToolSynth:', err.message); return null; }),
+        window.genesis.invoke('agent:get-task-outcomes').catch(err => { console.debug('[DASH] TaskOutcomes:', err.message); return null; }),
       ]);
       if (!health) {
         this._renderOfflineState();
@@ -126,6 +127,7 @@ class Dashboard {
       this._renderHotspotHeatmap();
       this._renderProjectIntel(projectProfile);
       this._renderToolSynthesis(toolSynthesis);
+      this._renderTaskOutcomes(taskOutcomes);
       this._renderEventFlow(eventDebug);
       this._renderSystem(health);
     } catch (err) {
@@ -168,6 +170,7 @@ class Dashboard {
         '<div class="dash-section"><div class="dash-section-head" id="dash-hotspot-toggle" style="cursor:pointer">Coupling Hotspots ▸</div><div id="dash-hotspot-body" class="dash-section-body" style="display:none"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Project</div><div id="dash-project-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Tool Synthesis</div><div id="dash-toolsynth-body" class="dash-section-body"></div></div>' +
+        '<div class="dash-section"><div class="dash-section-head">Task Performance</div><div id="dash-taskperf-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Memory</div><div id="dash-memory-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Event Flow</div><div id="dash-events-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">System</div><div id="dash-system-body" class="dash-section-body"></div></div>' +

@@ -125,11 +125,17 @@ class ChatOrchestrator {
       const systemPrompt = this.promptBuilder.buildAsync
         ? await this.promptBuilder.buildAsync()
         : this.promptBuilder.build();
-      const ctx = this.context.build({
-        task: message, intent: intent.type, history: this.history,
-        systemPrompt,
-        toolPrompt: this.tools.generateToolPrompt(),
-      });
+      const ctx = this.context.buildAsync
+        ? await this.context.buildAsync({
+          task: message, intent: intent.type, history: this.history,
+          systemPrompt,
+          toolPrompt: this.tools.generateToolPrompt(),
+        })
+        : this.context.build({
+          task: message, intent: intent.type, history: this.history,
+          systemPrompt,
+          toolPrompt: this.tools.generateToolPrompt(),
+        });
 
       let fullResponse = '';
 
@@ -208,10 +214,15 @@ class ChatOrchestrator {
       const systemPrompt = this.promptBuilder.buildAsync
         ? await this.promptBuilder.buildAsync()
         : this.promptBuilder.build();
-      const ctx = this.context.build({
-        task: message, intent: 'general', history: this.history,
-        systemPrompt, toolPrompt: this.nativeToolUse ? '' : this.tools.generateToolPrompt(),
-      });
+      const ctx = this.context.buildAsync
+        ? await this.context.buildAsync({
+          task: message, intent: 'general', history: this.history,
+          systemPrompt, toolPrompt: this.nativeToolUse ? '' : this.tools.generateToolPrompt(),
+        })
+        : this.context.build({
+          task: message, intent: 'general', history: this.history,
+          systemPrompt, toolPrompt: this.nativeToolUse ? '' : this.tools.generateToolPrompt(),
+        });
 
       // v3.5.0: ModelRouter auto-switching — DISABLED in v4.10.0.
       // The ModelRouter was silently switching the active model for every chat

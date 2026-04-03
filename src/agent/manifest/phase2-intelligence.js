@@ -83,6 +83,8 @@ function phase2(ctx, R) {
         { prop: 'architectureReflection', service: 'architectureReflection', optional: true },
         // v5.7.0: Project intelligence
         { prop: 'projectIntelligence', service: 'projectIntelligence', optional: true },
+        // v5.9.7 (V6-11): Task outcome tracker — empirical performance data
+        { prop: 'taskOutcomeTracker', service: 'taskOutcomeTracker', optional: true },
       ],
       factory: (c) => new (R('PromptBuilder').PromptBuilder)({
         selfModel: c.resolve('selfModel'), model: c.resolve('llm'),

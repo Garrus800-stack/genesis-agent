@@ -61,6 +61,21 @@ function phase10(ctx, R) {
       }),
     }],
 
+    // v5.9.7 (V6-5): ConversationCompressor — LLM-based context overflow protection
+    ['conversationCompressor', {
+      phase: 10,
+      deps: ['bus'],
+      tags: ['intelligence', 'context', 'compression'],
+      lateBindings: [
+        { prop: 'model', service: 'llm', optional: true },
+      ],
+      factory: (c) => new (R('ConversationCompressor').ConversationCompressor)({
+        bus,
+        config: c.tryResolve('settings')
+          ?.get('agency.conversationCompressor') || {},
+      }),
+    }],
+
     // ── EmotionalSteering ──
     ['emotionalSteering', {
       phase: 10,

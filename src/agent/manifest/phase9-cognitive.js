@@ -236,6 +236,17 @@ function phase9(ctx, R) {
           ?.get('cognitive.projectIntelligence') || {},
       }),
     }],
+
+    // v5.9.7 (V6-11): TaskOutcomeTracker — SelfModel data collection layer
+    ['taskOutcomeTracker', {
+      phase: 9, deps: ['bus'], tags: ['cognitive', 'learning', 'selfmodel'],
+      lateBindings: [
+        { prop: 'storage', service: 'storage', optional: true },
+      ],
+      factory: () => new (R('TaskOutcomeTracker').TaskOutcomeTracker)({
+        bus,
+      }),
+    }],
   ];
 }
 

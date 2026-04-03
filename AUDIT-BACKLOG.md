@@ -26,6 +26,22 @@ Resolved items are documented in CHANGELOG.md for traceability.
 | Async without await | ~70 methods (45 interface stubs, 25 procedural). Observation only. |
 | Hardcoded timeouts | 42 sites. Constants defined (GIT_OP, QUICK_CHECK, COMMAND_EXEC, TEST_INSTALL). |
 
+## v5.9.7 — Resolved (SelfModel Data Layer + Context Overflow Protection)
+
+| ID     | Severity | Description |
+|--------|----------|-------------|
+| TOT-1  | HIGH   | TaskOutcomeTracker.js (280 LOC): V6-11 SelfModel data collection layer. Records structured task outcomes (type, backend, success, cost, duration) from 4 event sources. Aggregate stats, persistence, pruning. Phase 9 manifest. 2 events. 21 tests. |
+| CC-1   | HIGH   | ConversationCompressor.js (265 LOC): V6-5 LLM-based history compression. Summarizes older conversation segments when budget exceeded. Extractive fallback, caching. ContextManager integration (now async). Phase 10 manifest. 2 events. 21 tests. |
+| COV-2  | LOW    | Coverage ratchet: 65/55/60 → 70/60/65. |
+| SA-1   | MEDIUM | Self-Awareness Prompt Injection: `_taskPerformanceContext()` in PromptBuilderSections. Empirical task performance injected into LLM system prompt. P3 priority, 250 char budget. Late-binding for TaskOutcomeTracker. |
+| UI-2   | MEDIUM | Task Performance Dashboard Panel: `_renderTaskOutcomes()` renderer (60 LOC), success-rate heat bars, backend comparison, IPC handler, preload whitelist, 15 CSS rules. |
+
+## v5.9.6 — Resolved (Organism Context Containment)
+
+- UX-1: Homeostasis.buildPromptContext() no longer exposes raw vitals to LLM — behavioral instructions only
+- UX-2: _organismContext() containment guard + _formatting() explicit prohibition of internal metric leakage
+- Version bumped across all tracked files
+
 ## v5.9.3 — Resolved (CI Fix + Quality Infrastructure)
 
 | ID       | Severity | Description |

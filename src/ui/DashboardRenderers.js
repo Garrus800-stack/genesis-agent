@@ -77,7 +77,7 @@ function applyRenderers(Dashboard) {
         '</div>' +
         '<div class="dash-mood-text">' +
           '<span class="dash-mood-label">' + this._esc(mood) + ' ' + trend + '</span>' +
-          '<span class="dash-muted">' + (emo.dominant ? 'Dominant: ' + this._esc(emo.dominant) : '') + '</span>' +
+          '<span class="dash-muted">' + (emo.dominant ? 'Dominant: ' + this._esc(emo.dominant.emotion || emo.dominant.name || String(emo.dominant)) + (emo.dominant.intensity != null ? ' (' + Math.round(emo.dominant.intensity * 100) + '%)' : '') : '') + '</span>' +
           '<span class="dash-muted">' + driveInfo + '</span>' +
         '</div>' +
       '</div>' +
@@ -621,7 +621,8 @@ function applyRenderers(Dashboard) {
 
     // Temporal Self — narrative chapter
     if (ts) {
-      const chapter = ts.currentChapter || ts.chapter || ts.phase || '—';
+      const chapterRaw = ts.currentChapter || ts.chapter || ts.phase || '—';
+      const chapter = typeof chapterRaw === 'object' ? (chapterRaw.title || chapterRaw.name || '—') : chapterRaw;
       const continuity = ts.continuityScore != null ? Math.round(ts.continuityScore * 100) + '%' : '—';
       html += '<div class="dash-consciousness-row">' +
         '<span class="dash-label">Chapter</span><span class="dash-value">' + this._esc(String(chapter)) + '</span>' +
@@ -972,6 +973,68 @@ function applyRenderers(Dashboard) {
     } catch (err) {
       container.innerHTML = '<span class="dash-muted">Graph-Fehler: ' + (err.message || 'unbekannt') + '</span>';
     }
+  };
+
+  // v5.9.7 (V6-11): Task Performance panel — empirical success rates
+  proto._renderTaskOutcomes = function(stats) {
+    var el = document.getElementById('dash-taskperf-body');
+    if (!el) return;
+    if (!stats || stats.total === 0) {
+      el.innerHTML = '<span class="dash-muted">Noch keine Daten — TaskOutcomeTracker sammelt…</span>';
+      return;
+    }
+
+    var html = '<div class="dash-taskperf-total">Gesamt: <strong>' + stats.total + '</strong> Aufgaben</div>';
+
+    // Per-task-type bars
+    var entries = Object.entries(stats.byTaskType)
+      .sort(function(a, b) { return b[1].count - a[1].count; })
+      .slice(0, 8);
+
+    if (entries.length > 0) {
+      html += '<div class="dash-section-sub">Nach Tasktyp</div>';
+      html += '<div class="dash-taskperf-list">';
+      for (var i = 0; i < entries.length; i++) {
+        var type = entries[i][0];
+        var s = entries[i][1];
+        var pct = Math.round(s.successRate * 100);
+        var heat = pct >= 80 ? 'good' : pct >= 60 ? 'warn' : 'bad';
+        var costLabel = s.avgTokenCost > 999
+          ? (s.avgTokenCost / 1000).toFixed(1) + 'k'
+          : s.avgTokenCost;
+        html += '<div class="dash-taskperf-row">' +
+          '<span class="dash-taskperf-name">' + this._esc(type) + '</span>' +
+          '<div class="dash-taskperf-bar-track">' +
+            '<div class="dash-taskperf-bar dash-taskperf-' + heat + '" style="width:' + pct + '%"></div>' +
+          '</div>' +
+          '<span class="dash-taskperf-pct">' + pct + '%</span>' +
+          '<span class="dash-taskperf-meta">n=' + s.count + ', ~' + costLabel + ' tok</span>' +
+        '</div>';
+      }
+      html += '</div>';
+    }
+
+    // Per-backend comparison
+    var backends = Object.entries(stats.byBackend)
+      .filter(function(e) { return e[1].count >= 2; })
+      .sort(function(a, b) { return b[1].count - a[1].count; });
+
+    if (backends.length > 0) {
+      html += '<div class="dash-section-sub">Nach Backend</div>';
+      html += '<div class="dash-taskperf-backends">';
+      for (var j = 0; j < backends.length; j++) {
+        var name = backends[j][0];
+        var bs = backends[j][1];
+        var bpct = Math.round(bs.successRate * 100);
+        var bheat = bpct >= 80 ? 'good' : bpct >= 60 ? 'warn' : 'bad';
+        html += '<span class="dash-taskperf-backend dash-taskperf-' + bheat + '">' +
+          this._esc(name) + ': ' + bpct + '% (n=' + bs.count + ')' +
+        '</span>';
+      }
+      html += '</div>';
+    }
+
+    el.innerHTML = html;
   };
 }
 

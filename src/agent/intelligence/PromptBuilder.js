@@ -59,6 +59,9 @@ class PromptBuilder {
     this.emotionalSteering = null;
     this.immuneSystem = null;
 
+    // v5.9.7 (V6-11): TaskOutcomeTracker — empirical performance data (late-bound)
+    this.taskOutcomeTracker = null;
+
     // v4.12.8: Safety context — selfmod circuit breaker + error trends
     this.selfModPipeline = null;
     this.errorAggregator = null;
@@ -99,6 +102,7 @@ class PromptBuilder {
       [2, 'safety',        250],   // v4.12.8: Circuit breaker + error trends — operationally critical
       [3, 'mcp',           400],
       [3, 'project',       300],   // v5.7.0: Project intelligence — stack, conventions, quality
+      [3, 'taskPerformance', 250],  // v5.9.7: Empirical task success rates — self-awareness
       [3, 'vectorMemory',  500],
       [4, 'knowledge',     600],
       [4, 'memory',        600],
@@ -178,6 +182,8 @@ class PromptBuilder {
       ['bodySchema',     this._bodySchemaContext()],
       // @ts-ignore — TS strict
       ['organism',       this._organismContext()],
+      // @ts-ignore — TS strict
+      ['taskPerformance', this._taskPerformanceContext()],
       // @ts-ignore — TS strict
       ['safety',         this._safetyContext()],
     ]);
@@ -296,6 +302,8 @@ class PromptBuilder {
     sections.push(['bodySchema',    this._bodySchemaContext()]);
     // @ts-ignore — TS strict
     sections.push(['organism',      this._organismContext()]);
+    // @ts-ignore — TS strict
+    sections.push(['taskPerformance', this._taskPerformanceContext()]);
     // @ts-ignore — TS strict
     sections.push(['safety',        this._safetyContext()]);
 

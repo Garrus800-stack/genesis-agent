@@ -1,6 +1,8 @@
 node_modules/
 sandbox/
 .genesis/
+.genesis-lessons/
+.genesis-tmp-*/
 dist/
 uploads/
 *.log

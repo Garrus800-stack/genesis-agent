@@ -1,3 +1,81 @@
+## [5.9.7] — SelfModel Data Layer + Context Overflow Protection
+
+**Focus: V6-11 foundation (TaskOutcomeTracker) + V6-5 completion (ConversationCompressor). Data collection for future cognitive self-awareness, plus LLM-based conversation compression to prevent context window overflow.**
+
+### TOT-1: TaskOutcomeTracker (V6-11 SelfModel — Data Collection Layer)
+
+- **TaskOutcomeTracker.js** (280 LOC): Listens to `agent-loop:complete`, `chat:completed`, `selfmod:success`, `shell:complete`. Records structured outcome records: `{taskType, backend, success, tokenCost, durationMs, errorCategory, intent, timestamp}`. Persists to storage with debounced writes (10s), sync-write on shutdown.
+- **Task type classification**: Intent-to-task-type mapping with fuzzy fallback. 12 task types: code-gen, self-modify, self-repair, analysis, chat, research, planning, reasoning, skill-exec, shell-exec, refactoring, testing.
+- **Aggregate statistics**: `getAggregateStats()` computes per-taskType and per-backend success rates, avg token cost, avg duration, error distribution. Supports time-window filtering.
+- **Outcome cap**: Max 2000 outcomes, prunes to 1500 on overflow (keeps newest).
+- **Events**: 2 new events — `task-outcome:recorded` (per record), `task-outcome:stats-updated` (every 10 records).
+- **Phase 9 manifest**: Registered with late-binding for Storage.
+- **TO_STOP**: Sync persists on shutdown.
+- **Tests**: 21 tests (task-outcome-tracker.test.js).
+- **Why now**: Every day without this tracker is lost training data for the SelfModel. The earlier we collect, the better V6-11 calibration will be.
+
+### CC-1: ConversationCompressor (V6-5 Context Window — Overflow Protection)
+
+- **ConversationCompressor.js** (265 LOC): LLM-based conversation history summarization. When history exceeds token budget, older segments are summarized into compact paragraphs that preserve decisions, code references, task state, and error context.
+- **LLM summarization**: Sends older messages to LLM with focused system prompt targeting key decisions, code mentions, and task progress. Target: <200 word summaries.
+- **Extractive fallback**: When no LLM available (or LLM fails), heuristic extraction prioritizes sentences containing key phrases (function, class, file, error, decided, plan, step, created, modified, fixed, bug, feature, test).
+- **Summary caching**: Content-hash-based cache (max 8 entries) prevents re-summarizing the same history on consecutive calls.
+- **ContextManager integration**: `ContextManager.build()` now async. Uses ConversationCompressor when available, falls back to existing truncation. ChatOrchestrator updated to `await` build calls.
+- **Events**: 2 new events — `context:compressed` (summary generated with token stats), `context:overflow-prevented` (budget would have been exceeded).
+- **Phase 10 manifest**: Registered with late-binding for LLM port.
+- **TO_STOP**: Clears cache on shutdown.
+- **Tests**: 21 tests (conversation-compressor.test.js).
+
+### COV-2: Coverage Ratchet
+
+- `c8` thresholds raised: lines 65→70%, branches 55→60%, functions 60→65%.
+
+### SA-1: Self-Awareness Prompt Injection (V6-11 Preview)
+
+- **`_taskPerformanceContext()`** in PromptBuilderSections: Reads TaskOutcomeTracker aggregate stats (last 7 days) and injects empirical performance data into the LLM system prompt. The LLM now knows its own success rates per task type, token costs, and weaknesses before executing any task.
+- **Format**: `[Task Self-Awareness] Your empirical task performance: code-gen 84% success (n=12, avg 1.2k tokens), chat 97%... Known weakness: refactoring 62% (common error: scope-underestimate).`
+- **Priority 3** in PromptBuilder budget (alongside project context). 250 char budget. Only injected when ≥5 outcomes recorded and ≥2 per task type.
+- **Late-binding**: `taskOutcomeTracker` added to PromptBuilder manifest (phase2-intelligence.js).
+- **Weakness detection**: Flags task types below 70% success with ≥3 attempts, including most common error category.
+- **Backend comparison**: When multiple backends have ≥3 outcomes each, adds per-backend success rates.
+
+### UI-2: Task Performance Dashboard Panel
+
+- **Dashboard section**: "Task Performance" panel after Tool Synthesis.
+- **`_renderTaskOutcomes()`** renderer (60 LOC): Per-task-type success-rate bars with heat coloring (green ≥80%, amber ≥60%, red <60%), sample count, avg token cost. Per-backend comparison pills.
+- **IPC**: `agent:get-task-outcomes` handler in main.js → `taskOutcomeTracker.getAggregateStats()`.
+- **Preload**: Channel whitelisted in both preload.js and preload.mjs.
+- **CSS**: 15 new rules in DashboardStyles.js for task performance bars, pills, and layout.
+
+### UI-3: Dashboard [object Object] Fixes
+
+- **Organism Panel**: `emo.dominant` is `{emotion, intensity}` object — now renders as "Dominant: curiosity (66%)" instead of "[object Object]".
+- **Consciousness Panel**: `ts.currentChapter` is `{title, frameCount, ...}` object — now extracts `.title` instead of "[object Object]".
+- **Architecture Graph**: `ArchitectureGraph.js` was never loaded via `<script>` tag — added `components/ArchitectureGraph.js` to both `index.bundled.html` and `index.html`. The "Architecture Graph" toggle now renders the interactive SVG force-directed graph.
+
+### Version Housekeeping
+
+- package.json, package-lock.json, README badges, docs/banner.svg, McpTransport clientInfo → 5.9.7
+- README badges: modules 225→227, services 119→121, tests ~2890→~2930
+
+## [5.9.6] — Organism Context Containment
+
+**Focus: Prevent internal organism metrics from leaking into user-facing responses.**
+
+### UX-1: Homeostasis Prompt Containment
+
+- **Problem**: `Homeostasis.buildPromptContext()` injected raw vital values (e.g. `memoryPressure: 97% [critical]`, `ORGANISM STATE: CRITICAL`) directly into the LLM system prompt. The LLM then parroted these internal metrics to users unprompted, causing confusion (users thought their system had a problem).
+- **Fix**: `buildPromptContext()` now emits **behavioral instructions only** — no metric names, no numeric values, no state labels. The LLM receives guidance like "keep responses concise" without knowing _why_. Raw vitals remain available via `getVitals()`/`getReport()` for Dashboard and logs.
+
+### UX-2: Organism Context Guard (PromptBuilderSections)
+
+- **`_organismContext()`**: Added containment preamble: _"The following organism signals are INTERNAL and must NEVER be mentioned, paraphrased, or referenced in responses to the user."_ All sub-signals (emotional state, needs, genome traits, metabolism) are now wrapped by this guard.
+- **`_formatting()`**: Added explicit rule: _"Do NOT mention organism state, memory pressure, vitals, recovery mode, homeostasis, energy levels, emotional state values, or any internal metrics."_ Also added natural-response guidance for "how are you" questions.
+
+### Version Housekeeping
+
+- package.json, README badge, docs/banner.svg, McpTransport clientInfo → 5.9.6
+
 ## [5.9.3] — CI Fix + Quality Infrastructure
 
 **Focus: Restore green CI, add self-healing, built-in skills, integration tests, release automation.**

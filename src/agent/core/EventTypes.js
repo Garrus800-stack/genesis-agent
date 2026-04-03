@@ -188,6 +188,10 @@ const EVENTS = Object.freeze({
   // ── Context ────────────────────────────────────────────
   CONTEXT: Object.freeze({
     BUILT: 'context:built',
+    /** @payload {{ originalTokens: number, compressedTokens: number, messagesCompressed: number, tokensSaved: number }} */
+    COMPRESSED:         'context:compressed',
+    /** @payload {{ totalTokens: number, budget: number, messagesCompressed: number }} */
+    OVERFLOW_PREVENTED: 'context:overflow-prevented',
   }),
 
   // ── Daemon ─────────────────────────────────────────────
@@ -403,6 +407,14 @@ const EVENTS = Object.freeze({
     REQUEST:    'deploy:request',
     /** @payload {{ id: string, target: string, snapshot: number }} */
     ROLLBACK:   'deploy:rollback',
+  }),
+
+  // ── Task Outcomes (v5.9.7) ──────────────────────────────
+  TASK_OUTCOME: Object.freeze({
+    /** @payload {{ taskType: string, backend: string, success: boolean, tokenCost: number, durationMs: number, intent: string|null }} */
+    RECORDED:      'task-outcome:recorded',
+    /** @payload {{ byTaskType: object, byBackend: object, total: number }} */
+    STATS_UPDATED: 'task-outcome:stats-updated',
   }),
 
   // ── Memory ─────────────────────────────────────────────

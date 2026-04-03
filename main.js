@@ -630,6 +630,14 @@ const CHANNELS = {
     return dts.getStats();
   },
 
+  // v5.9.7 (V6-11): Task Outcome stats for Dashboard
+  'agent:get-task-outcomes': async () => {
+    if (!agent) return null;
+    const tracker = agent.container.tryResolve('taskOutcomeTracker');
+    if (!tracker) return null;
+    return tracker.getAggregateStats();
+  },
+
   'agent:stream-chunk': null, // Agent -> UI (push only)
   'agent:stream-done': null,  // Agent -> UI (push only, stream complete)
   'agent:status-update': null, // Agent -> UI (push only)

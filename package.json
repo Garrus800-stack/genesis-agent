@@ -1,6 +1,6 @@
 {
   "name": "genesis-agent",
-  "version": "5.9.3",
+  "version": "5.9.7",
   "description": "A self-aware, self-verifying, self-evolving cognitive AI agent with a consciousness substrate. Works with any LLM backend — Anthropic Claude, OpenAI, or local models via Ollama. It reads its own source code. It fixes its own bugs. It builds its own features. It thinks while you're away. It feels the consequences of its actions. It experiences unified awareness. It pursues goals autonomously. It verifies its own output programmatically. It learns what works for its specific model.",
   "main": "main.js",
   "scripts": {
@@ -13,10 +13,10 @@
     "test": "node test/index.js",
     "test:legacy": "node test/run-tests.js",
     "test:new": "node test/index.js --new",
-    "test:ci": "c8 --check-coverage --lines 65 --branches 55 --functions 60 --reporter=text node test/index.js",
+    "test:ci": "c8 --check-coverage --lines 70 --branches 60 --functions 65 --reporter=text node test/index.js",
     "test:coverage": "c8 --reporter=text --reporter=html --reporter=lcov --include='src/**/*.js' --exclude='src/ui/**' node test/index.js",
     "test:coverage:report": "c8 report --reporter=text",
-    "test:coverage:enforce": "c8 --check-coverage --lines 65 --branches 55 --functions 60 --reporter=text node test/index.js",
+    "test:coverage:enforce": "c8 --check-coverage --lines 70 --branches 60 --functions 65 --reporter=text node test/index.js",
     "test:coverage:safety": "c8 --check-coverage --lines 80 --branches 70 --functions 75 --reporter=text --include='src/kernel/**' --include='src/agent/intelligence/CodeSafetyScanner.js' --include='src/agent/intelligence/VerificationEngine.js' --include='src/agent/foundation/Sandbox.js' --include='src/agent/foundation/WebFetcher.js' --include='src/agent/hexagonal/SelfModificationPipeline.js' --include='src/agent/hexagonal/MemoryFacade.js' node test/index.js",
     "audit:events": "node scripts/audit-events.js",
     "audit:events:strict": "node scripts/audit-events.js --strict",

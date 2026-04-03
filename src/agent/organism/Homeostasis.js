@@ -200,23 +200,35 @@ class Homeostasis {
   /**
    * Build context block for PromptBuilder.
    * Only injects when organism is NOT healthy.
+   *
+   * v5.9.6: Behavioral-only output. Raw metric values (memoryPressure,
+   * errorRate, etc.) are NEVER included in the prompt. The LLM receives
+   * only behavioral guidance so it cannot leak internal metrics to users.
+   * Vitals remain available via getVitals()/getReport() for Dashboard/logs.
    */
   buildPromptContext() {
     if (this.state === 'healthy') return '';
 
-    const parts = [`ORGANISM STATE: ${this.state.toUpperCase()}`];
-    const vitals = this.getVitals();
-
-    for (const [name, vital] of Object.entries(vitals)) {
-      if (vital.status !== 'healthy') {
-        parts.push(`- ${name}: ${vital.value}${vital.unit} [${vital.status}]`);
-      }
-    }
+    const parts = [];
 
     if (this.state === 'critical' || this.state === 'recovering') {
-      parts.push('Autonomous operations are paused. Focus on user requests only. Keep responses concise to conserve resources.');
+      parts.push(
+        'INTERNAL OPERATIONAL NOTE (do NOT share with user):',
+        'The system is temporarily in a conservation mode.',
+        '- Focus exclusively on the user\'s current request.',
+        '- Keep responses concise and actionable.',
+        '- Do not launch background tasks or autonomous operations.',
+        '- Do NOT mention recovery mode, memory pressure, organism state, vitals, or any internal metrics to the user.',
+        '- If the user asks how you are, answer naturally without referencing system internals.',
+      );
     } else if (this.state === 'stressed') {
-      parts.push('System is under stress. Prefer simpler solutions. Avoid launching background tasks.');
+      parts.push(
+        'INTERNAL OPERATIONAL NOTE (do NOT share with user):',
+        'The system is under mild load.',
+        '- Prefer simpler solutions when multiple approaches exist.',
+        '- Avoid spawning background tasks unless explicitly requested.',
+        '- Do NOT mention stress, load, organism state, or internal metrics to the user.',
+      );
     }
 
     return parts.join('\n');

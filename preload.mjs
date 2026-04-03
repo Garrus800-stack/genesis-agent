@@ -55,6 +55,7 @@ const ALLOWED_INVOKE = [
   'agent:get-architecture-graph',
   'agent:get-project-intel',
   'agent:get-tool-synthesis',
+  'agent:get-task-outcomes',
 ];
 
 const ALLOWED_SEND = [

@@ -8,11 +8,11 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-5.9.3-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-5.9.7-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <img src="https://img.shields.io/badge/tests-~2890%20passing-4ade80?style=flat-square" alt="Tests">
-  <img src="https://img.shields.io/badge/modules-225-e0e0e8?style=flat-square" alt="Modules">
-  <img src="https://img.shields.io/badge/services-119-fbbf24?style=flat-square" alt="Services">
+  <img src="https://img.shields.io/badge/tests-~2930%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/modules-227-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/services-121-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/phases-13-c084fc?style=flat-square" alt="Phases">
   <img src="https://img.shields.io/badge/events-318-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
@@ -180,7 +180,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Thirteen layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked. Everything else is fair game for self-modification. v5.9.3: zero cross-layer violations, zero orphans, zero phantom late-bindings. TypeScript CI enforced. Self-Preservation Invariants prevent safety regression during self-modification.
+Thirteen layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked. Everything else is fair game for self-modification. v5.9.7: zero cross-layer violations, zero orphans, zero phantom late-bindings. TypeScript CI enforced. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

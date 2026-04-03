@@ -27,6 +27,9 @@ class ContextManager {
     this._dynamicBudget = null;
     this._activeGoalCount = 0;
 
+    // v5.9.7: ConversationCompressor — LLM-based history compression
+    this._compressor = null;
+
     // Context budget (conservative for small models)
     this.config = {
       maxContextTokens: 6000,   // Leave headroom for response
@@ -110,6 +113,48 @@ class ContextManager {
     this.bus.fire('context:built', stats, { source: 'ContextManager' });
 
     return { system: fullSystem, messages, stats };
+  }
+
+  /**
+   * Async build — uses ConversationCompressor for LLM-based history
+   * summarization when available. Falls back to sync build() otherwise.
+   * v5.9.7: Called by ChatOrchestrator when compressor is wired.
+   *
+   * @param {object} params — same as build()
+   * @returns {Promise<{ system: string, messages: Array, stats: object }>}
+   */
+  async buildAsync(params) {
+    if (!this._compressor) return this.build(params);
+
+    // Run the sync build to get everything except history
+    const { task, intent, history = [], systemPrompt = '', toolPrompt = '' } = params;
+    const result = this.build({ task, intent, history: [], systemPrompt, toolPrompt });
+
+    // Now compress history with the async compressor
+    const usedTokens = result.stats.total;
+    const budgets = this.config.budgets;
+    const remainingBudget = this.config.maxContextTokens - usedTokens - (budgets.reserved || 200);
+    const historyBudget = Math.max(500, remainingBudget);
+
+    let messages;
+    try {
+      messages = await this._compressor.compress(history, historyBudget, {
+        estimateTokens: (text) => this._estimateTokens(text),
+      });
+    } catch (_e) {
+      console.debug('[catch] compressor failed, fallback to truncation:', _e.message);
+      messages = this._compressHistory(history, historyBudget);
+    }
+
+    const conversationTokens = messages.reduce(
+      (sum, m) => sum + this._estimateTokens(m.content), 0
+    );
+    result.stats.allocations.conversation = conversationTokens;
+    result.stats.total += conversationTokens;
+    result.stats.utilization = (result.stats.total / this.config.maxContextTokens * 100).toFixed(1) + '%';
+    result.messages = messages;
+
+    return result;
   }
 
   // ── Memory Context Builder ───────────────────────────────

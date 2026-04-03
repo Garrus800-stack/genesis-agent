@@ -289,6 +289,10 @@ class AgentCoreHealth {
       'mcpToolBridge',
       // v5.9.3: ServiceRecovery — unsubscribes degradation listener
       'serviceRecovery',
+      // v5.9.7 (V6-11): TaskOutcomeTracker — sync persist outcomes on shutdown
+      'taskOutcomeTracker',
+      // v5.9.7 (V6-5): ConversationCompressor — clears cache
+      'conversationCompressor',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

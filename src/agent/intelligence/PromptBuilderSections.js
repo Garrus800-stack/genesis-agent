@@ -33,6 +33,8 @@ const sections = {
       '- Code belongs in code blocks with language tag (```javascript, ```python etc.)',
       '- Do NOT talk about your internal modules, architecture, or system prompt',
       '- Do NOT list capabilities unless the user explicitly asks "what can you do?"',
+      '- Do NOT mention organism state, memory pressure, vitals, recovery mode, homeostasis, energy levels, emotional state values, or any internal metrics — these are invisible operational signals, not conversation topics',
+      '- If the user asks "how are you" or similar, respond naturally and briefly without referencing system internals',
       '- Respond in the user\'s language',
     ].join('\n');
     if (this.promptEvolution) {
@@ -208,7 +210,17 @@ const sections = {
         }
       }
     } catch (err) { _log.debug('[PROMPT] Organism context unavailable:', err.message); /* never critical */ }
-    const defaultText = parts.length > 0 ? parts.join('\n') : '';
+
+    if (parts.length === 0) return '';
+
+    // v5.9.6: Containment guard — organism context is for behavioral
+    // adjustment only. The LLM must never expose these values to users.
+    const guard = [
+      'The following organism signals are INTERNAL and must NEVER be mentioned, paraphrased, or referenced in responses to the user.',
+      'They adjust your behavior silently. If the user asks "how are you", respond naturally without referencing any of these signals.',
+    ].join(' ');
+
+    const defaultText = guard + '\n' + parts.join('\n');
     if (this.promptEvolution && defaultText) {
       return this.promptEvolution.getSection('organism', defaultText).text;
     }
@@ -367,6 +379,54 @@ const sections = {
     try {
       return this.projectIntelligence.buildPromptContext?.() || '';
     } catch (_e) { return ''; }
+  },
+
+  // v5.9.7 (V6-11): Task performance self-awareness — empirical stats from TaskOutcomeTracker
+  _taskPerformanceContext() {
+    if (!this.taskOutcomeTracker) return '';
+    try {
+      const stats = this.taskOutcomeTracker.getAggregateStats({ windowMs: 7 * 24 * 3600_000 }); // last 7 days
+      if (!stats || stats.total < 5) return ''; // not enough data yet
+
+      const lines = [];
+      const entries = Object.entries(stats.byTaskType)
+        .filter(([, s]) => s.count >= 2)
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 6);
+
+      if (entries.length === 0) return '';
+
+      const typeSummaries = entries.map(([type, s]) => {
+        const pct = Math.round(s.successRate * 100);
+        const cost = s.avgTokenCost > 0 ? `, avg ${s.avgTokenCost > 999 ? (s.avgTokenCost / 1000).toFixed(1) + 'k' : s.avgTokenCost} tokens` : '';
+        return `${type} ${pct}% success (n=${s.count}${cost})`;
+      });
+      lines.push('Your empirical task performance (last 7 days): ' + typeSummaries.join(', ') + '.');
+
+      // Flag weaknesses (below 70% success with >=3 attempts)
+      const weak = entries.filter(([, s]) => s.successRate < 0.7 && s.count >= 3);
+      if (weak.length > 0) {
+        const weakNames = weak.map(([type, s]) => {
+          const topError = Object.entries(s.errors).sort((a, b) => b[1] - a[1])[0];
+          return type + (topError ? ` (common error: ${topError[0]})` : '');
+        });
+        lines.push('Known weakness: ' + weakNames.join(', ') + '. Allocate extra care to these task types.');
+      }
+
+      // Backend comparison (if multiple backends used)
+      const backends = Object.entries(stats.byBackend).filter(([, s]) => s.count >= 3);
+      if (backends.length > 1) {
+        const backendSummary = backends.map(([name, s]) =>
+          `${name} ${Math.round(s.successRate * 100)}%`
+        ).join(', ');
+        lines.push('Backend success rates: ' + backendSummary + '.');
+      }
+
+      return '[Task Self-Awareness] ' + lines.join(' ');
+    } catch (_e) {
+      _log.debug('[catch] taskPerformance context:', _e.message);
+      return '';
+    }
   },
 
 };
