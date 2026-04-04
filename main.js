@@ -715,6 +715,23 @@ const CHANNELS = {
     return au.checkForUpdate();
   },
 
+  // v6.0.2: Adaptation meta-cognitive loop
+  'agent:get-adaptation-report': async () => {
+    if (!agent) return null;
+    const strategy = agent.container.tryResolve('adaptiveStrategy');
+    return strategy?.getReport() || null;
+  },
+
+  'agent:run-adaptation-cycle': async () => {
+    if (!agent) return null;
+    const strategy = agent.container.tryResolve('adaptiveStrategy');
+    if (!strategy) return null;
+    const result = await strategy.runCycle();
+    // Strip non-serializable revert function
+    if (result) { const { revert, ...rest } = result; return rest; }
+    return null;
+  },
+
   'agent:stream-chunk': null, // Agent -> UI (push only)
   'agent:stream-done': null,  // Agent -> UI (push only, stream complete)
   'agent:status-update': null, // Agent -> UI (push only)

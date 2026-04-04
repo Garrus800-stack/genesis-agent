@@ -289,6 +289,13 @@ const PHASE9 = {
   /** FIX v4.0.0: Max LLM calls per narrative update.
    *  A single narrative refresh should not consume more than this. */
   NARRATIVE_MAX_LLM_CALLS: 3,
+
+  // AdaptiveStrategy (v6.0.2 V6-12)
+  ADAPTATION_COOLDOWN_MS: 30 * 60 * 1000,
+  ADAPTATION_MIN_OUTCOMES: 10,
+  ADAPTATION_REGRESSION_THRESHOLD: -0.05,
+  ADAPTATION_NOISE_MARGIN: 0.02,
+  QUICK_BENCHMARK_BUDGET_FLOOR: 0.20,
 };
 
 // ── Phase 10: Persistent Agency ─────────────────────────────

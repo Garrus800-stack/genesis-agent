@@ -195,6 +195,8 @@ class IdleMind {
         // @ts-ignore — TS strict
         case 'consolidate':  result = await this._consolidateMemory(); break;
         // @ts-ignore — TS strict
+        case 'calibrate':   result = await this._calibrate(); break;
+        // @ts-ignore — TS strict
         default:             result = await this._reflect();
       }
 
@@ -285,11 +287,18 @@ class IdleMind {
     // v6.0.0: consolidate always available — MemoryConsolidator handles deps
     candidates.push('consolidate');
 
+    // v6.0.2: calibrate available when AdaptiveStrategy is registered
+    try {
+      if (this.bus._container?.resolve?.('adaptiveStrategy')) {
+        candidates.push('calibrate');
+      }
+    } catch (_e) { /* no adaptiveStrategy */ }
+
     // ── Static weight table ─────────────────────────────
     const STATIC_WEIGHTS = {
       reflect: 1.5, plan: 1.0, explore: 1.2, ideate: 0.8,
       tidy: 0.6, journal: 0.5, 'mcp-explore': 1.0, dream: 2.0,
-      consolidate: 1.3,
+      consolidate: 1.3, calibrate: 1.5,
     };
 
     // ── Initialize scores ───────────────────────────────
@@ -326,6 +335,7 @@ class IdleMind {
         if (scores['mcp-explore'] !== undefined) scores['mcp-explore'] *= curMul;
         if (scores.dream !== undefined)          scores.dream          *= conMul;
         if (scores.consolidate !== undefined)    scores.consolidate    *= conMul;
+        if (scores.calibrate !== undefined)     scores.calibrate      *= conMul;
         if (scores.tidy !== undefined)           scores.tidy           *= conMul;
       },
     ];

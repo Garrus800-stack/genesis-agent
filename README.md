@@ -12,9 +12,9 @@
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/tests-~3100%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/modules-230-e0e0e8?style=flat-square" alt="Modules">
-  <img src="https://img.shields.io/badge/services-128-fbbf24?style=flat-square" alt="Services">
+  <img src="https://img.shields.io/badge/services-138-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/phases-13-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-343-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/events-355-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">
@@ -463,17 +463,17 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 235 JS files in src/ |
+| Source modules | 237 JS files in src/ |
 | Lines of code | ~81k src + ~43k test |
 | Manifest phases | 13 (+ Phase 0 bootstrap) |
-| DI services | 128 (manifest-registered) |
+| DI services | 138 at runtime (130 manifest + 8 kernel) |
 | Late-bindings | 197 cross-phase property injections |
-| Test suites | 247 files, ~3500 tests (coverage gates: 70/60/65) |
+| Test suites | 250 files, ~3500 tests (coverage gates: 70/60/65) |
 | Dependencies | 4 production + 3 optional + 5 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | Anthropic models | 3 (Opus 4, Sonnet 4, Haiku 4.5) |
 | IPC channels | 50 invoke + 2 send + 6 receive = 58 (rate-limited, all in sync) |
-| Event types | 348 across 88 namespaces (catalogued in EventTypes.js) |
+| Event types | 355 across 89 namespaces (catalogued in EventTypes.js) |
 | Cross-layer event flows | ~290 emitted events, ~65 listeners (via EventBus, no direct imports — run `npm run audit:events` for exact counts) |
 | Hexagonal ports | 6 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace) |
 | Cognitive modules | 17 (ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence, CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder) |

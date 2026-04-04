@@ -298,6 +298,32 @@ function phase9(ctx, R) {
         bus,
       }),
     }],
+
+    // v6.0.2 (V6-12): QuickBenchmark — in-process validation for adaptation loop
+    ['quickBenchmark', {
+      phase: 9, deps: ['bus', 'storage'], tags: ['cognitive', 'benchmark', 'v6-0-2'],
+      lateBindings: [
+        { prop: 'costGuard', service: 'costGuard', optional: true },
+      ],
+      factory: (c) => new (R('QuickBenchmark').QuickBenchmark)({
+        bus, storage: c.resolve('storage'),
+      }),
+    }],
+
+    // v6.0.2 (V6-12): AdaptiveStrategy — meta-cognitive feedback loop
+    ['adaptiveStrategy', {
+      phase: 9, deps: ['bus', 'storage'], tags: ['cognitive', 'metacognition', 'v6-0-2'],
+      lateBindings: [
+        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
+        { prop: 'promptEvolution',    service: 'promptEvolution',    optional: true },
+        { prop: 'modelRouter',        service: 'modelRouter',        optional: true },
+        { prop: 'onlineLearner',      service: 'onlineLearner',      optional: true },
+        { prop: 'quickBenchmark',     service: 'quickBenchmark',     optional: true },
+      ],
+      factory: (c) => new (R('AdaptiveStrategy').AdaptiveStrategy)({
+        bus, storage: c.resolve('storage'),
+      }),
+    }],
   ];
 }
 

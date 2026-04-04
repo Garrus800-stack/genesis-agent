@@ -111,7 +111,7 @@ genesis-agent/
 │   │   ├── autonomy/          # IdleMind, HealthMonitor, ErrorAggregator, HealthServer
 │   │   ├── organism/          # EmotionalState, Homeostasis, NeedsSystem, Metabolism, ImmuneSystem, BodySchema
 │   │   ├── revolution/        # AgentLoop, FormalPlanner, NativeToolUse, ModelRouter, FailureAnalyzer
-│   │   ├── cognitive/         # CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder, ReasoningTracer, DreamCycle, LessonsStore + 10 more
+│   │   ├── cognitive/         # CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder, AdaptiveStrategy, ReasoningTracer, DreamCycle, LessonsStore + 12 more
 │   │   ├── consciousness/     # PhenomenalField, TemporalSelf, IntrospectionEngine,
 │   │   │                      # AttentionalGate, ConsciousnessExtension (7 subsystems)
 │   │   └── ports/             # Hexagonal architecture port adapters

@@ -521,6 +521,8 @@ const EVENTS = Object.freeze({
   // ── Router ─────────────────────────────────────────────
   ROUTER: Object.freeze({
     ROUTED: 'router:routed',
+    /** @payload {{ taskTypes: number }} */
+    EMPIRICAL_STRENGTH_INJECTED: 'router:empirical-strength-injected',
   }),
 
   // ── Shell ──────────────────────────────────────────────
@@ -852,6 +854,22 @@ const EVENTS = Object.freeze({
     EXPERIMENT_COMPLETED: 'prompt-evolution:experiment-completed',
     /** @payload {{ section: string, generation: number }} */
     ROLLBACK:             'prompt-evolution:rollback',
+  }),
+
+  // ── Adaptive Strategy (v6.0.2 V6-12) ───────────────────────
+  ADAPTATION: Object.freeze({
+    /** @payload {{ id: string, type: string, bias: string|null, section: string|null, hypothesis: string|null }} */
+    PROPOSED:             'adaptation:proposed',
+    /** @payload {{ id: string, type: string, revertAvailable: boolean }} */
+    APPLIED:              'adaptation:applied',
+    /** @payload {{ id: string, type: string, baselineScore: number, postScore: number, delta: number, decision: string }} */
+    VALIDATED:            'adaptation:validated',
+    /** @payload {{ id: string, type: string, reason: string, lessonStored: boolean }} */
+    ROLLED_BACK:          'adaptation:rolled-back',
+    /** @payload {{ id: string, reason: string }} */
+    VALIDATION_DEFERRED:  'adaptation:validation-deferred',
+    /** @payload {{ outcome: string, cyclesRun: number }} */
+    CYCLE_COMPLETE:       'adaptation:cycle-complete',
   }),
 
   // ── Value Store (v5.6.0 DA-2) ─────────────────────────────

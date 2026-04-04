@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 6.0.1 · Last verified: all checks green (~3100 tests, TSC 0, fitness 90/90)
+> Version: 6.0.2 · Last verified: all checks green (~3150 tests, TSC 0, fitness 90/90)
 
 ---
 
@@ -11,7 +11,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a consciousness layer that models attention, memory, and temporal identity.
 
-The codebase is ~78k LOC of JavaScript (CommonJS), 230 source modules, 123 DI-managed services, with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~80k LOC of JavaScript (CommonJS), 237 source modules, 138 DI-managed services (130 manifest + 8 kernel), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -194,6 +194,39 @@ Homeostasis monitors memory pressure, token costs, and error rates. When stresse
 EmotionalState tracks success/failure patterns. After repeated failures, the "frustration" signal causes the prompt to include "try a fundamentally different approach". After sustained success, "confidence" allows more autonomous multi-step plans.
 
 **Empirical validation (v5.9.9):** The A/B benchmark (`npm run benchmark:agent:ab`) tested 8 tasks (now 12 in v6.0.0) with and without Organism signals using kimi-k2.5:cloud. Result: **50% success rate with Organism (4/8) vs. 13% without (1/8)** — a 37 percentage-point improvement. The Organism layer helped on 4 code-gen and bug-fix tasks, hurt on 1 async task, and was neutral on 3. This is the first empirical evidence that bio-inspired self-regulation improves AI agent task performance. Full results in `.genesis/benchmark-ab.json`.
+
+---
+
+### 4.4 The Meta-Cognitive Loop (v6.0.2)
+
+The missing piece between Phase 9 (cognitive self-awareness) and Phase 8 (model routing): a closed feedback loop where Genesis acts on its own self-diagnosis.
+
+```
+CognitiveSelfModel ─────▶ AdaptiveStrategy ─────▶ QuickBenchmark
+  biases[]                   Propose                  Validate
+  backendMap                 Apply                    Compare
+  capabilityProfile          Rollback                 Baseline
+       │                        │                        │
+       │                 ┌──────▼──────┐                 │
+       │                 │ Adaptation  │◀────────────────┘
+       │                 │ Registry    │
+       │                 └──────┬──────┘
+       ▼                        ▼
+  PromptEvolution         ModelRouter
+  OnlineLearner           LessonsStore
+```
+
+Three adaptation types, each closing a specific gap:
+
+**Prompt Mutation**: `scope-underestimate` bias → PromptEvolution experiment on `solutions` section with hypothesis "break tasks into sub-steps". The experiment alternates control/variant for 25+ trials, then promotes or discards. AdaptiveStrategy provides the what; PromptEvolution provides the how.
+
+**Backend Routing**: Empirical BackendStrengthMap injected into ModelRouter as a scoring bonus. When CognitiveSelfModel shows Claude outperforms Ollama on code-gen by 40pp, ModelRouter adds +0.3 to Claude's score for code-gen tasks. Data-driven routing replaces heuristic-only routing.
+
+**Temperature Signal**: Weak task types (Wilson floor < 60%) get a 0.85× temperature multiplier via OnlineLearner, reducing creative variance on tasks Genesis struggles with. Strong types get 1.10× for more exploration.
+
+Every adaptation is validated by QuickBenchmark (3 tasks, ~3 LLM calls). Regression > 5pp → automatic rollback. Every outcome is stored as a lesson in LessonsStore, feeding future self-awareness.
+
+**Key safety constraint**: Max 1 adaptation per cycle, 30-minute cooldown per type, minimum 10 outcomes before any adaptation triggers. PromptEvolution's `EVOLVABLE_SECTIONS` whitelist prevents modification of safety or identity prompt sections.
 
 ---
 
@@ -455,7 +488,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~3100 tests across 178 suites |
+| Tests | `node test/index.js` | ~3150 tests across 250 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |

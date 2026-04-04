@@ -357,6 +357,16 @@ class OnlineLearner {
       return; // No adjustment needed
     }
 
+    // v6.0.2: Apply weakness signal multiplier from AdaptiveStrategy
+    if (this._weaknessSignals?.[outcome.actionType]) {
+      const signal = this._weaknessSignals[outcome.actionType];
+      // Expire signals after 4 hours
+      if (Date.now() - signal.receivedAt < 4 * 3600_000) {
+        newTemp *= signal.multiplier;
+        newTemp = Math.max(this._config.tempMin, Math.min(this._config.tempMax, newTemp));
+      }
+    }
+
     if (Math.abs(newTemp - currentTemp) < 0.01) return;
 
     this._stats.tempAdjustments++;
@@ -428,6 +438,28 @@ class OnlineLearner {
       this._adaptations = this._adaptations.slice(-100);
     }
     this._stats.adaptationsMade++;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // v6.0.2: WEAKNESS SIGNALS FROM ADAPTIVE STRATEGY
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Receive weakness signal from CognitiveSelfModel via AdaptiveStrategy.
+   * Adjusts temperature for weak/strong task types.
+   *
+   * @param {string} taskType - e.g. 'code-gen', 'analysis'
+   * @param {boolean} isWeak  - true = lower temp (conservative), false = reset
+   */
+  receiveWeaknessSignal(taskType, isWeak) {
+    if (!taskType) return;
+    if (!this._weaknessSignals) this._weaknessSignals = {};
+    this._weaknessSignals[taskType] = {
+      multiplier: isWeak ? 0.85 : 1.10,
+      receivedAt: Date.now(),
+    };
+    this._stats.weaknessSignalsReceived = (this._stats.weaknessSignalsReceived || 0) + 1;
+    _log.debug(`[ONLINE-LEARN] Weakness signal: ${taskType} isWeak=${isWeak}`);
   }
 
   // ════════════════════════════════════════════════════════

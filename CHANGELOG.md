@@ -1,3 +1,51 @@
+## [6.0.2] — Meta-Cognitive Feedback Loop (V6-12)
+
+**Focus: Close the gap between self-diagnosis and self-correction. CognitiveSelfModel detects weaknesses → AdaptiveStrategy proposes compensating adaptations → QuickBenchmark validates → confirmed or rolled back. Genesis now prescribes, not just diagnoses.**
+
+### AdaptiveStrategy — Meta-Cognitive Loop Engine (NEW)
+- `src/agent/cognitive/AdaptiveStrategy.js` (~400 LOC): Three adaptation strategies driven by CognitiveSelfModel data
+- **Prompt Mutation**: Bias pattern → hypothesis → PromptEvolution experiment. Mapping: `scope-underestimate` → solutions, `token-overuse` → formatting, `error-repetition` → metacognition, `backend-mismatch` → optimizer
+- **Backend Routing Injection**: Empirical BackendStrengthMap → ModelRouter scoring bonus (+0.3 max). Data-driven model selection replaces pure heuristics
+- **Temperature Signal**: Capability profile weakness → OnlineLearner temp multiplier (0.85× for weak, 1.10× for strong task types)
+- Every adaptation follows: `PROPOSED → APPLIED → VALIDATING → CONFIRMED | ROLLED_BACK`
+- Safety: Max 1 concurrent adaptation, 30-min cooldown per type, min 10 outcomes before adapting, recently-rolled-back skip
+- Persistence: `~/.genesis/adaptive-strategy.json` — history, cooldowns, stats
+- Events: `adaptation:proposed`, `:applied`, `:validated`, `:rolled-back`, `:validation-deferred`, `:cycle-complete`
+- CLI: `/adapt` (manual cycle), `/adaptations` (history with status icons ✓✗⏳)
+
+### QuickBenchmark — Adaptation Validation Engine (NEW)
+- `src/agent/cognitive/QuickBenchmark.js` (~200 LOC): Wraps existing `benchmark-agent.js` in `--quick` mode (3 tasks)
+- Baseline caching (4h TTL, disk-persisted). Compare logic: confirm (≥-2pp), rollback (<-5pp), inconclusive (between)
+- CostGuard integration: Defers validation when budget < 20%. Marks adaptation as `APPLIED_UNVALIDATED`
+- No child process — direct function import from `scripts/benchmark-agent.js`
+
+### Wiring Patches (6 existing modules extended)
+- **ModelRouter.js**: `injectEmpiricalStrength(strengthMap)` method + Step 4 scoring bonus in `_scoreModel()`. Empirical data expires after 7 days
+- **OnlineLearner.js**: `receiveWeaknessSignal(taskType, isWeak)` method + weakness multiplier applied in `_adjustTemperature()`. Signals expire after 4 hours
+- **IdleMindActivities.js**: `_calibrate()` activity — triggers `AdaptiveStrategy.runCycle()` during idle time
+- **IdleMind.js**: `calibrate` registered as candidate (weight 1.5), dispatched in switch, genome consolidation trait applied
+- **PromptBuilder** (existing integration): CognitiveSelfModel already flows via `buildPromptContext()` (v5.9.8). Now AdaptiveStrategy closes the loop by acting on the data
+
+### LessonsStore Integration
+- Every confirmed or rolled-back adaptation stores a lesson via `lesson:learned` event
+- Category: `meta-adaptation`. Tags: `[adaptation, type, confirmed|rolled-back]`
+- Lessons feed back into future SelfModel evaluations — true closed-loop learning
+
+### Infrastructure
+- `EventTypes.js`: +7 events (6× ADAPTATION, 1× ROUTER.EMPIRICAL_STRENGTH_INJECTED). Total: 355
+- `EventPayloadSchemas.js`: +7 schemas. Total: 97
+- `Constants.js`: +5 PHASE9 constants (ADAPTATION_COOLDOWN_MS, ADAPTATION_MIN_OUTCOMES, ADAPTATION_REGRESSION_THRESHOLD, ADAPTATION_NOISE_MARGIN, QUICK_BENCHMARK_BUDGET_FLOOR)
+- `preload.js` + `preload.mjs`: +2 IPC channels whitelisted
+- `main.js`: +2 IPC handlers (`agent:get-adaptation-report`, `agent:run-adaptation-cycle`)
+- `cli.js`: +2 commands (`/adapt`, `/adaptations`), help text updated
+- `phase9-cognitive.js`: +2 service registrations (quickBenchmark, adaptiveStrategy)
+- 3 new test suites: AdaptiveStrategy (21 tests), QuickBenchmark (18 tests), MetaCognitiveLoop (12 tests)
+- Source files: 235 → 237 (+2 new JS modules)
+- Test suites: 247 → 250 (+3)
+- Version: `package.json` bumped to 6.0.2
+
+---
+
 ## [6.0.1] — Safety Infrastructure + Documentation Audit
 
 **Focus: Five non-roadmap gaps closed — LLM cost cap, data backup, crash logging, update checker, skill security docs. Full documentation audit: 7 files fixed, all German LLM prompts translated to English, all stale metrics corrected.**

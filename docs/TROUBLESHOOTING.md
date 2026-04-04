@@ -189,8 +189,9 @@ This reduces polling frequency by ~75% and disables DreamEngine LLM calls.
 **Mitigations (all automatic):**
 - EventBus uses a ring buffer (capped at 500 entries)
 - ExperienceFrames use a circular buffer (capped at 200 frames)
-- AdaptiveMemory applies intelligent forgetting
-- StorageService LRU cache (capped at 200 entries, v4.12.7)
+- MemoryConsolidator prunes stale KG nodes and archives old lessons (v6.0.0)
+- StorageService LRU cache (capped at 200 entries)
+- `/consolidate` CLI command triggers manual memory cleanup
 - Restart Genesis for a clean slate
 
 ### A tool or service seems to be disabled / quarantined
@@ -208,6 +209,22 @@ This reduces polling frequency by ~75% and disables DreamEngine LLM calls.
 settings.set('health.httpEnabled', true)
 ```
 Then access `http://127.0.0.1:9477/health` for basic status or `/health/full` for full diagnostics. Localhost-only binding — not accessible from the network.
+
+---
+
+## Diagnostic CLI Commands (v6.0.1–v6.0.2)
+
+Use these in the CLI REPL (`node cli.js`) for quick diagnostics:
+
+| Command | When to use |
+|---|---|
+| `/health` | Check service health, memory, uptime |
+| `/crashlog` | View the last crash log entries (ring buffer, last 1000 entries) |
+| `/budget` | Check CostGuard token budget — are autonomous LLM calls being blocked? |
+| `/replays` | Review task execution recordings — find where a goal went wrong |
+| `/adaptations` | Check if the Meta-Cognitive Loop has adapted (and whether adaptations helped) |
+| `/consolidate` | Force memory cleanup if responses seem to slow down |
+| `/update` | Check if a newer Genesis version is available |
 
 ---
 

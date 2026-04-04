@@ -8,7 +8,8 @@
 
 const { TIMEOUTS } = require('../core/Constants');
 class CommandHandlers {
-  constructor({ lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient}) {
+  constructor({ bus, lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient}) {
+    this.bus = bus || null;
     this.lang = lang || { t: (k) => k, detect: () => {}, current: 'en' };
     this.sandbox = sandbox;
     this.fp = fileProcessor;
@@ -43,6 +44,10 @@ class CommandHandlers {
     orchestrator.registerHandler('mcp', (msg) => this.mcpControl(msg));
     // v5.9.1: Run installed skill
     orchestrator.registerHandler('run-skill', (msg) => this.runSkill(msg));
+    // v6.0.2: Trust level control via chat
+    orchestrator.registerHandler('trust-control', (msg) => this.trustControl(msg));
+    // v6.0.2: Open folder/file in OS file explorer
+    orchestrator.registerHandler('open-path', (msg) => this.openPath(msg));
   }
 
   // ── Code Execution ───────────────────────────────────────
@@ -503,6 +508,114 @@ class CommandHandlers {
         return this.lang.t('agent.undo_conflict');
       }
       return `**${this.lang.t('agent.undo_failed', { error: msg })}**`;
+    }
+  }
+
+  // ── Open Path (v6.0.2) ───────────────────────────────────
+
+  async openPath(message) {
+    if (!this.shell) return this.lang.t('agent.shell_unavailable');
+
+    // Extract path from message — look for quoted paths, Windows paths, Unix paths
+    const pathMatch = message.match(
+      /["']([^"']+)["']/ ||                       // "quoted path"
+      /([A-Za-z]:\\[^\s"']+)/ ||                   // C:\path\to\folder
+      /(~\/[^\s"']+|\/[^\s"']+)/                   // ~/path or /path
+    );
+
+    let targetPath = null;
+    if (pathMatch) {
+      targetPath = pathMatch[1];
+    } else {
+      // Try to find any path-like string
+      const parts = message.match(/([A-Za-z]:\\[^\s"']+)/i) ||
+                    message.match(/["']([^"']+)["']/) ||
+                    message.match(/(\/[^\s"']{2,})/);
+      if (parts) targetPath = parts[1];
+    }
+
+    if (!targetPath) {
+      return 'Welchen Ordner oder welche Datei soll ich öffnen? Gib mir den Pfad an.';
+    }
+
+    // Determine OS-specific open command
+    const platform = process.platform;
+    let cmd;
+    if (platform === 'win32') {
+      cmd = `explorer "${targetPath}"`;
+    } else if (platform === 'darwin') {
+      cmd = `open "${targetPath}"`;
+    } else {
+      cmd = `xdg-open "${targetPath}"`;
+    }
+
+    try {
+      const result = await this.shell.run(cmd, 'read');
+      if (result.ok || result.exitCode === 0 || result.exitCode === 1) {
+        // explorer returns exit 1 even on success sometimes
+        return `Ordner geöffnet: \`${targetPath}\``;
+      }
+      return `Konnte den Pfad nicht öffnen: ${result.stderr || 'unbekannter Fehler'}`;
+    } catch (err) {
+      return `Fehler beim Öffnen: ${err.message}`;
+    }
+  }
+
+  // ── Trust Level Control (v6.0.2) ────────────────────────
+
+  async trustControl(message) {
+    // Resolve TrustLevelSystem via container
+    const trustSystem = this.bus?._container?.resolve?.('trustLevelSystem');
+    if (!trustSystem) return 'Trust level system not available.';
+
+    const current = trustSystem.getLevel();
+    const NAMES = { 0: 'SANDBOX', 1: 'ASSISTED', 2: 'AUTONOMOUS', 3: 'FULL' };
+    const currentName = NAMES[current] || `Level ${current}`;
+
+    // Parse desired level from message
+    const msg = message.toLowerCase();
+    let target = null;
+
+    if (/sandbox|stufe\s*0|level\s*0/.test(msg)) target = 0;
+    else if (/assisted|stufe\s*1|level\s*1/.test(msg)) target = 1;
+    else if (/autonom|stufe\s*2|level\s*2/.test(msg)) target = 2;
+    else if (/full|voll|stufe\s*3|level\s*3/.test(msg)) target = 3;
+    else if (/(?:freigeb|enabl|erlaub|gewähr|grant|hoch|up|erhöh|more)/.test(msg)) {
+      target = Math.min(3, current + 1);
+    } else if (/(?:einschränk|reduz|lower|runter|weniger|restrict)/.test(msg)) {
+      target = Math.max(0, current - 1);
+    }
+
+    // No target parsed → show current status
+    if (target === null) {
+      const lines = [
+        `**Trust Level:** ${currentName} (${current}/3)`,
+        '',
+        '| Level | Name | What Genesis can do |',
+        '|-------|------|---------------------|',
+        `| 0 | SANDBOX | ${current === 0 ? '◀' : ''} Read-only analysis, no file writes |`,
+        `| 1 | ASSISTED | ${current === 1 ? '◀' : ''} Write with approval, self-modification with safety checks |`,
+        `| 2 | AUTONOMOUS | ${current === 2 ? '◀' : ''} Independent file operations, auto-approved safe actions |`,
+        `| 3 | FULL | ${current === 3 ? '◀' : ''} Full self-modification, shell access, deployment |`,
+        '',
+        'Change with: "trust level 2", "autonomie freigeben", "trust autonomous"',
+      ];
+      return lines.join('\n');
+    }
+
+    // Same level → no change needed
+    if (target === current) {
+      return `Already at ${NAMES[target]} (level ${target}).`;
+    }
+
+    // Apply change
+    const targetName = NAMES[target] || `Level ${target}`;
+    try {
+      const result = await trustSystem.setLevel(target);
+      const direction = target > current ? '⬆' : '⬇';
+      return `${direction} **Trust Level changed:** ${NAMES[result.from]} → **${NAMES[result.to]}**\n\nGenesis ${target >= 2 ? 'can now act autonomously.' : 'will ask for approval before making changes.'}`;
+    } catch (err) {
+      return `Trust level change failed: ${err.message}`;
     }
   }
 }

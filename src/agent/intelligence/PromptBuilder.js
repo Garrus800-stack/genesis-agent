@@ -95,10 +95,11 @@ class PromptBuilder {
       // v4.12.8: Reorganized priorities. P1-P4 are essential for task quality.
       // P5-P7 are nice-to-have context. P8+ are dropped first on budget pressure.
       // Removed bodySchema from default (no measurable task impact).
+      // v6.0.2: formatting + capabilities expanded for code-gen workflow + conversation quality
       [1, 'identity',      300],
-      [1, 'formatting',    200],
+      [1, 'formatting',    1200],
       [2, 'session',       500],
-      [2, 'capabilities',  300],
+      [2, 'capabilities',  1300],
       [2, 'safety',        250],   // v4.12.8: Circuit breaker + error trends — operationally critical
       [3, 'mcp',           400],
       [3, 'project',       300],   // v5.7.0: Project intelligence — stack, conventions, quality

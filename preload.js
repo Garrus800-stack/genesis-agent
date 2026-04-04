@@ -71,6 +71,9 @@ const ALLOWED_INVOKE = [
   'agent:import-data',
   'agent:get-crash-log',
   'agent:check-update',
+  // v6.0.2: Meta-cognitive adaptation loop
+  'agent:get-adaptation-report',
+  'agent:run-adaptation-cycle',
 ];
 
 const ALLOWED_SEND = [

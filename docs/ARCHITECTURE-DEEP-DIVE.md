@@ -1,13 +1,13 @@
 # Genesis Agent — Architecture Deep-Dive
 
-> Comprehensive technical analysis of Genesis Agent v5.9.8.
-> Last updated with the v5.9.8 release.
+> Comprehensive technical analysis of Genesis Agent v6.0.2.
+> Last updated with the v6.0.2 release (Meta-Cognitive Loop).
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **230 JS source modules** across **~79,000 LOC** of production code, supported by **180 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **empirical cognitive self-awareness** (CognitiveSelfModel, v5.9.8).
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **237 JS source modules** across **~81,000 LOC** of production code, supported by **250 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** — empirical self-awareness (CognitiveSelfModel) feeding into autonomous adaptation (AdaptiveStrategy, v6.0.2).
 
 ### Key Numbers
 
@@ -53,7 +53,7 @@ Phase 1: Bootstrap
   └── Register non-manifest instances: rootDir, guard, bus, storage, lang, logger
 
 Phase 2: Manifest
-  └── Register all 95 services from 13 phase files via ContainerManifest
+  └── Register all 130 services from 13 phase files via ContainerManifest (+8 kernel = 138 runtime)
       └── Auto-discovery scans src/agent/ → builds filename→directory map
 
 Phase 3: Resolve & Init
@@ -225,7 +225,9 @@ Perceive (WorldState) → Plan (FormalPlanner) → Act → Verify → Learn → 
 ```
 Max 20 steps per goal (+10 after user approval), 3 consecutive error limit, 10-minute global timeout.
 
-### Phase 9: Cognitive (6 files, 2,665 LOC)
+### Phase 9: Cognitive (20 files, ~7,500 LOC)
+
+Expectation, surprise, learning, self-model, adaptation. The cognitive substrate that makes Genesis self-aware and self-improving. Includes CognitiveSelfModel (empirical capability tracking), AdaptiveStrategy (closed-loop self-correction), OnlineLearner (real-time behavioral adaptation), PromptEvolution (A/B prompt optimization), MemoryConsolidator (KG/Lessons hygiene), and TaskRecorder (execution replay).
 
 Anticipation and identity: ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker.
 

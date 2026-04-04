@@ -147,6 +147,7 @@ Genesis.UI.markdown = (() => {
       return '<div class="code-block-wrapper"><button class="code-to-editor-btn" data-lang="' + esc(lang) + '" data-idx="' + idx + '">' + t('ui.open_in_editor') + '</button><pre><code class="language-' + esc(lang) + '">' + esc(code) + '</code></pre></div>';
     });
   }
+
   return { render, renderWithButtons, esc };
 })();
 
@@ -260,7 +261,9 @@ Genesis.UI.chat = (() => {
   function _attachBtns(el) {
     if (!el) return;
     el.querySelectorAll('.code-to-editor-btn').forEach(btn => { btn.addEventListener('click', function() {
-      const w = this.closest('.code-block-wrapper'), cEl = w?.querySelector('code'); if (!cEl) return;
+      const w = this.closest('.code-block-wrapper');
+      const cEl = w?.querySelector('code');
+      if (!cEl) return;
       const code = cEl.textContent, lang = this.getAttribute('data-lang')||'plaintext';
       if ($('#editor-panel').classList.contains('hidden')) togglePanel('editor-panel');
       const ext = {javascript:'.js',python:'.py',shell:'.sh',bat:'.bat',php:'.php',html:'.html',css:'.css',json:'.json',typescript:'.ts'}[lang]||'.txt';

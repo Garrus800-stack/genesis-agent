@@ -191,6 +191,15 @@ const SCHEMAS = {
 
   // Idle (v6.0.1)
   'idle:consolidate-memory': {},
+
+  // Adaptation (v6.0.2 — V6-12 Meta-Cognitive Loop)
+  'adaptation:proposed':            { id: 'required', type: 'required' },
+  'adaptation:applied':             { id: 'required', type: 'required', revertAvailable: 'required' },
+  'adaptation:validated':           { id: 'required', type: 'required', baselineScore: 'required', postScore: 'required', delta: 'required', decision: 'required' },
+  'adaptation:rolled-back':         { id: 'required', type: 'required', reason: 'required', lessonStored: 'required' },
+  'adaptation:validation-deferred': { id: 'required', reason: 'required' },
+  'adaptation:cycle-complete':      { outcome: 'required', cyclesRun: 'required' },
+  'router:empirical-strength-injected': { taskTypes: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

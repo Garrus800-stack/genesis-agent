@@ -1,6 +1,6 @@
 # Genesis Agent — Event Flow Architecture
 
-> v5.4.0 — Auto-generated event flow documentation.
+> v6.0.2 — Event flow documentation. Last updated with Meta-Cognitive Loop (V6-12).
 > This document maps which modules emit and consume which EventBus events.
 
 ## System Overview
@@ -25,6 +25,7 @@ graph TB
         SelfModel["SelfModel"]
         ModelBridge["ModelBridge"]
         LLMPort["LLMPort (Adapter)"]
+        CostGuard["CostGuard"]
         Sandbox["Sandbox"]
         Memory["ConversationMemory"]
         EventStore["EventStore"]
@@ -39,6 +40,7 @@ graph TB
         TrustLevelSystem_f["TrustLevelSystem"]
         LLMCache["LLMCache"]
         LinuxSandboxHelper["LinuxSandboxHelper"]
+        CrashLog["CrashLog"]
     end
 
     subgraph INTELLIGENCE["🧠 Intelligence (Phase 2)"]
@@ -62,6 +64,7 @@ graph TB
     subgraph CAPABILITIES["🔧 Capabilities (Phase 3)"]
         ShellAgent["ShellAgent"]
         SkillManager["SkillManager"]
+        SkillRegistry["SkillRegistry"]
         FileProcessor["FileProcessor"]
         McpClient["McpClient"]
         McpServer["McpServer"]
@@ -72,6 +75,8 @@ graph TB
         EffectorRegistry["EffectorRegistry"]
         WebPerception["WebPerception"]
         SelfSpawner["SelfSpawner"]
+        BackupManager["BackupManager"]
+        AutoUpdater["AutoUpdater"]
     end
 
     subgraph PLANNING["📋 Planning (Phase 4)"]
@@ -104,6 +109,8 @@ graph TB
         CognitiveMonitor["CognitiveMonitor"]
         ErrorAggregator["ErrorAggregator"]
         HealthServer["HealthServer"]
+        ServiceRecovery["ServiceRecovery"]
+        DeploymentManager["DeploymentManager"]
     end
 
     subgraph ORGANISM["🧬 Organism (Phase 7)"]
@@ -137,6 +144,20 @@ graph TB
         DreamCycle["DreamCycle"]
         SelfNarrative["SelfNarrative"]
         CognitiveHealthTracker["CognitiveHealthTracker"]
+        OnlineLearner["OnlineLearner"]
+        CognitiveSelfModel["CognitiveSelfModel"]
+        TaskOutcomeTracker["TaskOutcomeTracker"]
+        MemoryConsolidator["MemoryConsolidator"]
+        TaskRecorder["TaskRecorder"]
+        AdaptiveStrategy["AdaptiveStrategy"]
+        QuickBenchmark["QuickBenchmark"]
+        ArchitectureReflection["ArchitectureReflection"]
+        DynamicToolSynthesis["DynamicToolSynthesis"]
+        ProjectIntelligence["ProjectIntelligence"]
+        ReasoningTracer["ReasoningTracer"]
+        CognitiveWorkspace["CognitiveWorkspace"]
+        LessonsStore["LessonsStore"]
+        PromptEvolution["PromptEvolution"]
     end
 
     subgraph CONSCIOUSNESS["✨ Consciousness (Phase 13)"]
@@ -293,7 +314,7 @@ graph LR
     frustration --> homeo
 ```
 
-## Event Flow: Rate Limiting (v3.5.0)
+## Event Flow: Rate Limiting (v3.5.0 + v6.0.1 CostGuard)
 
 ```mermaid
 graph TD
@@ -303,14 +324,17 @@ graph TD
         Idle["IdleMind<br/>priority: 1 (IDLE)"]
     end
 
-    subgraph RateLimit["LLMPort Rate Limiter"]
-        Bucket["TokenBucket<br/>capacity: 60<br/>refill: 30/min"]
-        Budget["HourlyBudget<br/>chat: 200/hr<br/>autonomous: 80/hr<br/>idle: 40/hr"]
+    subgraph RateLimit["LLMPort Rate Limiter (3 steps)"]
+        Bucket["Step 1: TokenBucket<br/>capacity: 60<br/>refill: 30/min"]
+        Budget["Step 2: HourlyBudget<br/>chat: 200/hr<br/>autonomous: 80/hr<br/>idle: 40/hr"]
+        CostG["Step 3: CostGuard (v6.0.1)<br/>session: 500k tokens<br/>daily: 2M tokens"]
     end
 
     subgraph Events["Events"]
         limited["llm:rate-limited"]
         warning["llm:budget-warning"]
+        costWarn["llm:cost-warning (80%)"]
+        costCap["llm:cost-cap-reached (100%)"]
     end
 
     Chat -->|"bypasses budget<br/>(priority >= 10)"| Bucket
@@ -318,9 +342,67 @@ graph TD
     Idle --> Bucket
     Bucket -->|"burst OK"| Budget
     Bucket -->|"burst exceeded"| limited
-    Budget -->|"budget OK"| LLM["ModelBridge"]
+    Budget -->|"budget OK"| CostG
     Budget -->|"budget exceeded"| limited
     Budget -->|"≥80% used"| warning
+    CostG -->|"under cap"| LLM["ModelBridge"]
+    CostG -->|"at cap"| costCap
+    CostG -->|"≥80%"| costWarn
+```
+
+## Event Flow: Meta-Cognitive Loop (v6.0.2)
+
+```mermaid
+sequenceDiagram
+    participant SM as CognitiveSelfModel
+    participant AS as AdaptiveStrategy
+    participant PE as PromptEvolution
+    participant MR as ModelRouter
+    participant OL as OnlineLearner
+    participant QB as QuickBenchmark
+    participant LS as LessonsStore
+
+    Note over AS: IdleMind calibrate or CLI /adapt
+
+    AS->>SM: getBiasPatterns()
+    SM-->>AS: [scope-underestimate: high]
+    AS->>SM: getBackendStrengthMap()
+    SM-->>AS: {code-gen: claude 85%}
+    AS->>SM: getCapabilityProfile()
+    SM-->>AS: {code-gen: isWeak}
+
+    Note over AS: PROPOSE: bias → hypothesis
+
+    AS->>AS: emit adaptation:proposed
+
+    alt Prompt Mutation
+        AS->>PE: startExperiment(solutions, text, hypothesis)
+        PE-->>AS: {variantId: solutions-gen1}
+    else Backend Routing
+        AS->>MR: injectEmpiricalStrength(strengthMap)
+    else Temperature Signal
+        AS->>OL: receiveWeaknessSignal(code-gen, true)
+    end
+
+    AS->>AS: emit adaptation:applied
+
+    Note over AS: VALIDATE
+
+    AS->>QB: getOrRunBaseline()
+    QB-->>AS: {successRate: 0.67}
+    AS->>QB: run()
+    QB-->>AS: {successRate: 0.75}
+    AS->>QB: compare(baseline, post)
+    QB-->>AS: {decision: confirm, delta: +0.08}
+
+    alt Confirmed
+        AS->>AS: emit adaptation:validated
+        AS->>LS: emit lesson:learned (confirmed)
+    else Rolled Back
+        AS->>AS: revert()
+        AS->>AS: emit adaptation:rolled-back
+        AS->>LS: emit lesson:learned (rolled-back)
+    end
 ```
 
 ## Event Flow: Safety & Security
@@ -453,3 +535,32 @@ graph TD
 | `model:ollama-unavailable` | AgentCore | UI |
 | `daemon:cycle-complete` | AutonomousDaemon | — |
 | `worldstate:file-changed` | WorldState | FormalPlanner |
+| **Cognitive (v5.3.0–v5.9.8)** | | |
+| `expectation:compared` | ExpectationEngine | OnlineLearner, SurpriseAccumulator |
+| `surprise:processed` | SurpriseAccumulator | OnlineLearner |
+| `online-learning:streak-detected` | OnlineLearner | IdleMind |
+| `online-learning:escalation-needed` | OnlineLearner | ModelRouter |
+| `online-learning:temp-adjusted` | OnlineLearner | — |
+| `online-learning:calibration-drift` | OnlineLearner | — |
+| `online-learning:novelty-shift` | OnlineLearner | — |
+| `prompt-evolution:experiment-started` | PromptEvolution | — |
+| `prompt-evolution:experiment-completed` | PromptEvolution | — |
+| `task-outcome:recorded` | TaskOutcomeTracker | CognitiveSelfModel, AdaptiveStrategy |
+| `task-outcome:stats-updated` | TaskOutcomeTracker | CognitiveSelfModel |
+| `workspace:slot-evicted` | CognitiveWorkspace (via factory) | MemoryConsolidator |
+| `idle:consolidate-memory` | IdleMind | MemoryConsolidator |
+| **Safety (v5.5.0–v6.0.1)** | | |
+| `preservation:invariant-violated` | PreservationInvariants | HealthMonitor, EventStore |
+| `llm:cost-cap-reached` | CostGuard | LLMPort |
+| `llm:cost-warning` | CostGuard | LLMPort |
+| `backup:exported` | BackupManager | — |
+| `backup:imported` | BackupManager | — |
+| `update:available` | AutoUpdater | UI |
+| **Meta-Cognitive Loop (v6.0.2)** | | |
+| `adaptation:proposed` | AdaptiveStrategy | — |
+| `adaptation:applied` | AdaptiveStrategy | — |
+| `adaptation:validated` | AdaptiveStrategy | LessonsStore (via lesson:learned) |
+| `adaptation:rolled-back` | AdaptiveStrategy | LessonsStore (via lesson:learned) |
+| `adaptation:validation-deferred` | AdaptiveStrategy | — |
+| `adaptation:cycle-complete` | AdaptiveStrategy | — |
+| `router:empirical-strength-injected` | ModelRouter | — |

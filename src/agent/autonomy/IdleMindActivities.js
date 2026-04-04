@@ -255,6 +255,31 @@ const activities = {
       : 'Memory consolidation: no changes needed';
   },
 
+  // v6.0.2 (V6-12): Meta-cognitive adaptation cycle
+  async _calibrate() {
+    const strategy = this.bus._container?.resolve?.('adaptiveStrategy');
+    if (!strategy) return 'AdaptiveStrategy not available.';
+
+    try {
+      const result = await strategy.runCycle();
+      if (!result) {
+        const summary = 'Calibration: no adaptation needed — all metrics stable.';
+        this._journal('calibrate', summary);
+        return summary;
+      }
+
+      const summary = `Calibration: ${result.type} adaptation (${result.status}). ` +
+        `Evidence: ${result.evidence || 'n/a'}` +
+        (result.delta != null ? `. Delta: ${result.delta >= 0 ? '+' : ''}${Math.round(result.delta * 100)}pp` : '');
+
+      this._journal('calibrate', summary);
+      return summary;
+    } catch (err) {
+      _log.warn('[IDLE-MIND] Calibration failed:', err.message);
+      return `Calibration failed: ${err.message}`;
+    }
+  },
+
   _journal(activity, content) {
     const entry = {
       timestamp: new Date().toISOString(),

@@ -194,7 +194,7 @@ async function runREPL(agent) {
   const health = agent.getHealth();
   const model = health?.model?.active || 'unknown';
   console.log(`[CLI] Model: ${model}`);
-  console.log('[CLI] Type your message. Commands: /health, /goals, /status, /skills, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /quit\n');
+  console.log('[CLI] Type your message. Commands: /health, /goals, /status, /skills, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /adapt, /adaptations, /quit\n');
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -508,7 +508,68 @@ async function runREPL(agent) {
         return;
       }
 
-      console.log('  Unknown command. Available: /health, /goals, /status, /skills, /skill install|uninstall|update, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /quit\n');
+      // v6.0.2: Manual adaptation cycle
+      if (input === '/adapt') {
+        const strategy = agent.container.tryResolve('adaptiveStrategy');
+        if (!strategy) {
+          console.log('\n  AdaptiveStrategy not available.\n');
+        } else {
+          console.log('\n  Running adaptation cycle...');
+          try {
+            const result = await strategy.runCycle();
+            if (result) {
+              const icon = result.status === 'confirmed' ? '✓' : result.status === 'rolled-back' ? '✗' : '⏳';
+              console.log(`  ${icon} ${result.type}: ${result.evidence || 'n/a'}`);
+              if (result.delta != null) {
+                console.log(`    Delta: ${result.delta >= 0 ? '+' : ''}${Math.round(result.delta * 100)}pp`);
+              }
+              console.log(`    Status: ${result.status}\n`);
+            } else {
+              console.log('  No adaptation needed — all metrics stable.\n');
+            }
+          } catch (err) {
+            console.log(`  ✗ Adaptation failed: ${err.message}\n`);
+          }
+        }
+        rl.prompt();
+        return;
+      }
+
+      // v6.0.2: Adaptation history
+      if (input === '/adaptations') {
+        const strategy = agent.container.tryResolve('adaptiveStrategy');
+        if (!strategy) {
+          console.log('\n  AdaptiveStrategy not available.\n');
+        } else {
+          const report = strategy.getReport();
+          console.log(`\n  Adaptations — proposed: ${report.stats.proposed}, applied: ${report.stats.applied}, ` +
+            `confirmed: ${report.stats.confirmed}, rolled back: ${report.stats.rolledBack}`);
+
+          if (report.active.length > 0) {
+            console.log('  Active:');
+            for (const a of report.active) {
+              console.log(`    ⏳ ${a.type}: ${a.evidence || a.hypothesis || 'n/a'} (${a.status})`);
+            }
+          }
+
+          const recent = report.history.slice(-10);
+          if (recent.length > 0) {
+            console.log('  Recent:');
+            for (const a of recent) {
+              const icon = a.status === 'confirmed' ? '✓' : a.status === 'rolled-back' ? '✗' : '○';
+              const delta = a.delta != null ? ` ${a.delta >= 0 ? '+' : ''}${Math.round(a.delta * 100)}pp` : '';
+              console.log(`    ${icon} ${a.type}: ${a.evidence || 'n/a'}${delta}`);
+            }
+          } else if (report.active.length === 0) {
+            console.log('  No adaptations recorded yet.');
+          }
+          console.log();
+        }
+        rl.prompt();
+        return;
+      }
+
+      console.log('  Unknown command. Available: /health, /goals, /status, /skills, /skill install|uninstall|update, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /adapt, /adaptations, /quit\n');
       rl.prompt();
       return;
     }

@@ -2,6 +2,8 @@
 
 **The evolution from agent to mind.**
 
+> **Note (v6.0.2):** This document covers the original 6 Phase 9 modules designed in v5.8. Since then, Phase 9 has grown to 20 modules including OnlineLearner (v5.3.0), CognitiveSelfModel (v5.9.8), MemoryConsolidator (v6.0.0), TaskRecorder (v6.0.0), AdaptiveStrategy (v6.0.2), and QuickBenchmark (v6.0.2). See CHANGELOG.md and CAPABILITIES.md for details on newer modules.
+
 Genesis is an agent that plans, acts, verifies, and learns.
 Phase 9 turns it into a system that **anticipates, simulates, dreams, and builds an identity**.
 

@@ -105,11 +105,29 @@ class SkillManager {
 
     const response = await this.model.chat(prompt, [], 'code');
 
-    // Step 2: Extract manifest and code
-    const manifestMatch = response.match(/```(?:json)?\n(\{[\s\S]*?"name"[\s\S]*?\})\n```/);
-    const codeMatch = response.match(/```(?:javascript|js)\n([\s\S]+?)```/);
+    // Step 2: Extract manifest and code — with fallback strategies
+    let manifestMatch = response.match(/```(?:json)?\n(\{[\s\S]*?"name"[\s\S]*?\})\n```/);
+    let codeMatch = response.match(/```(?:javascript|js)\n([\s\S]+?)```/);
 
-    if (!manifestMatch || !codeMatch) {
+    // Fallback: try any code block if javascript-tagged one not found
+    if (!codeMatch) {
+      codeMatch = response.match(/```\w*\n([\s\S]+?)```/);
+    }
+
+    // If we have code but no manifest, generate a manifest from the description
+    if (codeMatch && !manifestMatch) {
+      const autoName = description.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '').trim()
+        .split(/\s+/).slice(0, 3).join('-') || 'custom-skill';
+      manifestMatch = [null, JSON.stringify({
+        name: autoName,
+        version: '1.0.0',
+        description: description.slice(0, 200),
+        entry: 'index.js',
+      })];
+    }
+
+    if (!codeMatch) {
       return '❌ Could not create skill — model returned incomplete result. Try a more detailed description.';
     }
 

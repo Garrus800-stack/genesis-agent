@@ -251,26 +251,46 @@ class SelfModificationPipeline {
     const health = this.guard.verifyIntegrity();
     const modules = sm.getModuleSummary();
 
-    // Categorize modules instead of listing each one
+    // Categorize modules by their src/agent/<layer>/ directory
     const categories = {};
+    let testCount = 0, scriptCount = 0;
     for (const m of modules) {
-      const parts = m.file.split('/');
-      const cat = parts.length >= 3 ? parts[2] : (parts[1] || 'root');
-      categories[cat] = (categories[cat] || 0) + 1;
+      const parts = m.file.replace(/\\/g, '/').split('/');
+      // Detect src/agent/<layer>/ pattern
+      if (parts[0] === 'src' && parts[1] === 'agent' && parts.length >= 4) {
+        const layer = parts[2]; // e.g. 'cognitive', 'autonomy', 'core'
+        categories[layer] = (categories[layer] || 0) + 1;
+      } else if (parts[0] === 'test') {
+        testCount++;
+      } else if (parts[0] === 'scripts') {
+        scriptCount++;
+      } else {
+        categories['root'] = (categories['root'] || 0) + 1;
+      }
     }
+
+    // Build concise summary — only src/agent layers, sorted by count
+    const layerSummary = Object.entries(categories)
+      .filter(([k]) => k !== 'root')
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${k} (${v})`)
+      .join(', ');
+
+    const srcCount = Object.values(categories).reduce((s, v) => s + v, 0);
 
     const lines = [
       `**${this.lang.t('inspect.title')}**`, '',
       `**${this.lang.t('inspect.identity')}:** ${model.identity} v${model.version}`,
-      `**${this.lang.t('inspect.modules')}:** ${Object.keys(model.modules).length} (${Object.keys(model.files).length} ${this.lang.t('inspect.files')})`,
+      `**Source:** ${srcCount} modules across ${Object.keys(categories).length} layers`,
       `**${this.lang.t('inspect.kernel')}:** ${health.ok ? this.lang.t('inspect.kernel_intact') : this.lang.t('inspect.kernel_compromised')}`,
       `**${this.lang.t('inspect.capabilities')}:** ${model.capabilities.join(', ')}`,
       `**${this.lang.t('inspect.skills')}:** ${this.skills.listSkills().map(s => s.name).join(', ') || this.lang.t('inspect.none')}`,
       `**${this.lang.t('inspect.tools')}:** ${this.tools.listTools().length} ${this.lang.t('inspect.tools_registered')}`,
       `**${this.lang.t('inspect.model')}:** ${this.model.activeModel || this.lang.t('health.none')}`,
       '',
-      `**Architektur:** ${Object.entries(categories).map(([k, v]) => `${k} (${v})`).join(', ')}`,
-    ];
+      `**Layers:** ${layerSummary}`,
+      testCount > 0 ? `**Tests:** ${testCount} suites` : '',
+    ].filter(Boolean);
     return lines.join('\n');
   }
 

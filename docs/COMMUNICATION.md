@@ -1,6 +1,6 @@
 # Genesis Agent — Communication Architecture
 
-> v5.4.0 — How Genesis instances communicate with each other and the outside world.
+> v6.0.2 — How Genesis instances communicate with each other and the outside world.
 
 ---
 
@@ -78,7 +78,7 @@ The Electron renderer (UI) communicates with the Agent (main process) through a 
 
 | Direction | Channels | Examples |
 |-----------|----------|---------|
-| UI → Agent (invoke) | 39 | `agent:chat`, `agent:save-file`, `agent:switch-model` |
+| UI → Agent (invoke) | 52 | `agent:chat`, `agent:save-file`, `agent:switch-model`, `agent:get-adaptation-report` |
 | UI → Agent (fire-and-forget) | 1 | `agent:request-stream` |
 | Agent → UI (push) | 6 | `agent:stream-chunk`, `agent:status-update`, `agent:loop-progress` |
 

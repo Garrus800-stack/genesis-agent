@@ -377,3 +377,20 @@ Standardized, reproducible benchmarks to measure agent capability across version
 | **Baseline comparison** | Save a run as baseline, compare future runs. Detects per-task regressions and overall success rate changes. |
 | **Multi-backend** | Run the same suite against Ollama, Claude, OpenAI — compare empirically. |
 | **CI-ready** | `--json` output for pipeline integration. Exit code reflects pass/fail. |
+
+---
+
+## 19. Closed-Loop Self-Improvement (v6.0.2)
+
+Autonomous self-correction: Genesis detects its own weaknesses and acts to fix them, with empirical validation and automatic rollback.
+
+No competing framework (LangChain, CrewAI, AutoGen, Devin) has this. They may log errors, but none prescribe and validate corrective action autonomously.
+
+| Feature | What it does |
+|---|---|
+| **Bias-driven adaptation** | CognitiveSelfModel detects patterns (scope-underestimate, token-overuse, error-repetition, backend-mismatch). AdaptiveStrategy maps each bias to a concrete compensation: prompt mutation, backend routing change, or temperature adjustment. |
+| **Empirical backend routing** | ModelRouter receives real performance data (Wilson-calibrated confidence per backend per task type) as a scoring bonus. The best backend for code-gen might differ from the best for analysis — now Genesis knows and routes accordingly. |
+| **Benchmark validation** | Every adaptation is validated by QuickBenchmark (3 tasks). Regression > 5pp → automatic rollback. No blind changes. |
+| **Lesson storage** | Every confirmed or rolled-back adaptation is stored as a lesson. Future self-awareness includes past adaptation outcomes — Genesis learns what works for itself. |
+| **Safety guards** | Max 1 concurrent adaptation. 30-minute cooldown per type. Minimum 10 outcomes before adapting. Identity/safety prompt sections are immutable. |
+| **Autonomous operation** | IdleMind `calibrate` activity runs the full cycle during idle time. No human intervention needed. CLI `/adapt` for manual trigger. |

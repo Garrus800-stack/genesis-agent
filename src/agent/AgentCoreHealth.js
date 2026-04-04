@@ -313,6 +313,8 @@ class AgentCoreHealth {
       'memoryConsolidator',
       // v6.0.0 (V6-8): TaskRecorder — finalizes active recordings
       'taskRecorder',
+      // v6.0.2 (V6-12): AdaptiveStrategy — persists adaptation state
+      'adaptiveStrategy',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

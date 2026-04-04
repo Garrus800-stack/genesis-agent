@@ -80,4 +80,11 @@ function getEditor() { return monacoEditor; }
 function getCurrentFile() { return currentFile; }
 function setCurrentFile(f) { currentFile = f; }
 
-module.exports = { initMonaco, openFile, saveCurrentFile, runInSandbox, getEditor, getCurrentFile, setCurrentFile };
+// v6.0.2: Set editor content directly from chat code buttons
+function setEditorContent(content, lang) {
+  if (monacoEditor && typeof monaco !== 'undefined') {
+    monacoEditor.setModel(monaco.editor.createModel(content, lang || 'plaintext'));
+  }
+}
+
+module.exports = { initMonaco, openFile, saveCurrentFile, runInSandbox, getEditor, getCurrentFile, setCurrentFile, setEditorContent };

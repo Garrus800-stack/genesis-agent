@@ -66,6 +66,10 @@ class ModelRouter {
 
     // ── Routing stats ─────────────────────────────────────
     this._stats = { routed: 0, fallbacks: 0 };
+
+    // v6.0.2: Empirical strength data from CognitiveSelfModel via AdaptiveStrategy
+    this._empiricalStrength = null;
+    this._empiricalStrengthAt = 0;
   }
 
   // ════════════════════════════════════════════════════════
@@ -164,6 +168,21 @@ class ModelRouter {
     };
   }
 
+  /**
+   * v6.0.2: Inject empirical backend strength data from CognitiveSelfModel.
+   * Called by AdaptiveStrategy when backend-mismatch bias detected.
+   * Adds a scoring bonus to _scoreModel() based on real outcome data.
+   *
+   * @param {Record<string, {recommended: string, entries: Array<{backend: string, confidence: number}>}>} strengthMap
+   */
+  injectEmpiricalStrength(strengthMap) {
+    this._empiricalStrength = strengthMap;
+    this._empiricalStrengthAt = Date.now();
+    this.bus.emit('router:empirical-strength-injected', {
+      taskTypes: Object.keys(strengthMap).length,
+    }, { source: 'ModelRouter' });
+  }
+
   getStats() { return { ...this._stats }; }
 
   // ════════════════════════════════════════════════════════
@@ -197,6 +216,19 @@ class ModelRouter {
     // 3. Active model bonus (avoids model switching overhead)
     if (this.modelBridge?.activeModel === modelName) {
       score += 1; // Small bonus for the already-loaded model
+    }
+
+    // 4. v6.0.2: Empirical strength bonus (from CognitiveSelfModel via AdaptiveStrategy)
+    if (this._empiricalStrength && (Date.now() - this._empiricalStrengthAt < 7 * 86400_000)) {
+      const rec = this._empiricalStrength[taskCategory];
+      if (rec && rec.entries) {
+        const entry = rec.entries.find(e =>
+          e.backend === modelName || modelName.includes(e.backend)
+        );
+        if (entry) {
+          score += entry.confidence * 0.3; // Max +0.3 bonus from empirical data
+        }
+      }
     }
 
     return score;

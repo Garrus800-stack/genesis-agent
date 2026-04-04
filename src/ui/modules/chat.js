@@ -101,7 +101,18 @@ function attachCodeButtons(messageEl) {
       if (action === 'copy') {
         navigator.clipboard.writeText(code).catch(e => console.debug('[UI] Clipboard copy failed:', e.message));
       } else if (action === 'edit') {
-        window.genesis.send?.('agent:open-in-editor', { content: code, language: 'javascript' });
+        // v6.0.2: Open directly in editor panel (no IPC needed — editor is in same process)
+        const editorPanel = document.getElementById('editor-panel');
+        if (editorPanel && editorPanel.classList.contains('hidden')) {
+          editorPanel.classList.remove('hidden');
+        }
+        try {
+          const { setEditorContent } = require('./editor');
+          setEditorContent(code, 'javascript');
+        } catch (_e) {
+          // Fallback: copy to clipboard
+          navigator.clipboard.writeText(code).catch(() => {});
+        }
       } else if (action === 'run') {
         window.genesis.invoke('agent:run-in-sandbox', code).then(result => {
           const output = result?.output || result?.error || JSON.stringify(result);

@@ -219,9 +219,24 @@ class SelfModel {
       }
     }
 
-    // Extract requires
-    const reqMatches = code.matchAll(/require\(['"]([^'"]+)['"]\)/g);
-    for (const m of reqMatches) info.requires.push(m[1]);
+    // Extract requires — skip those inside string literals (e.g. benchmark task inputs)
+    // Strategy: strip string contents per line, then check if require() is at code level
+    const lines = code.split('\n');
+    for (const line of lines) {
+      // Remove string contents (replace with empty) to detect code-level require()
+      // This handles: 'string with require("x")' → '...' (require disappears)
+      // But keeps: const x = require("./db") → const x = require("") (require stays)
+      const stripped = line
+        .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+        .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+        .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+
+      // If require() survives stripping, it's a real code-level call
+      if (/\brequire\s*\(/.test(stripped)) {
+        const lineReqs = line.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g);
+        for (const m of lineReqs) info.requires.push(m[1]);
+      }
+    }
 
     // Extract exports
     const expMatch = code.match(/module\.exports\s*=\s*{([^}]+)}/);

@@ -60,7 +60,8 @@ const INTENT_DEFINITIONS = [
 
   ['create-skill', [
     /skill.*erstell/i, /erstell.*skill/i, /neuen? skill/i, /create.*skill/i, /build.*skill/i,
-  ], 15, ['skill', 'erstellen', 'faehigkeit', 'plugin', 'erweiterung', 'create']],
+    /(?:neue|add|hinzufueg).*(?:faehigkeit|capability|erweiterung|plugin)/i,
+  ], 15, ['skill', 'faehigkeit', 'plugin', 'erweiterung']],
 
   ['clone', [
     /klon/i, /clone/i, /replizi/i, /neuen.*agent/i,
@@ -100,6 +101,21 @@ const INTENT_DEFINITIONS = [
   ['daemon', [
     /daemon/i, /hintergrund/i, /autonom/i,
   ], 10, ['daemon', 'hintergrund', 'autonom']],
+
+  ['trust-control', [
+    /trust.?level/i, /vertrauens?.?stufe/i,
+    /(?:set|change|ändere?|setze?).*trust/i,
+    /(?:autonomie|autonomy).*(?:freigeb|enabl|erlaub|gewähr|grant)/i,
+    /(?:freigabe|genehmig).*(?:selbst|self|autonom)/i,
+    /trust.*(?:assisted|autonomous|full|sandbox)/i,
+  ], 12, ['trust', 'vertrauen', 'stufe', 'level', 'autonomie', 'freigabe', 'genehmigung']],
+
+  ['open-path', [
+    /(?:oeffne|öffne|open)\s+(?:den\s+)?(?:ordner|folder|verzeichnis|dir|pfad|path|datei|file)\s*/i,
+    /(?:oeffne|öffne|open)\s+["']?[A-Za-z]:\\/i,
+    /(?:oeffne|öffne|open)\s+["']?[~/]\S+/i,
+    /(?:zeig|show)\s+(?:mir\s+)?(?:den\s+)?(?:ordner|folder|inhalt|content)/i,
+  ], 15, ['öffnen', 'oeffnen', 'ordner', 'folder', 'verzeichnis', 'datei', 'pfad', 'explorer']],
 
   ['mcp', [
     /\bmcp\b/i, /mcp.?server/i, /mcp.?status/i, /mcp.?tool/i,

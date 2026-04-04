@@ -91,16 +91,16 @@ If any step fails, it rolls back automatically.
 Genesis supports three boot profiles for different use cases:
 
 ```bash
-npm start                    # Full mode (default) — all 116 services
-npm start -- --minimal       # Minimal — core + intelligence + planning (~50 services)
-npm start -- --cognitive      # Cognitive — full minus consciousness layer (~90 services)
+npm start                    # Full mode (default) — all 138 services
+npm start -- --minimal       # Minimal — core + intelligence + planning (~60 services)
+npm start -- --cognitive      # Cognitive — full minus consciousness layer (~110 services)
 ```
 
 | Profile | Services | Use case |
 |---|---|---|
-| `--full` | 111 | Production use — all cognitive and consciousness systems active |
-| `--cognitive` | 106 | Development — skips consciousness layer (PhenomenalField, TemporalSelf, IntrospectionEngine, AttentionalGate) |
-| `--minimal` | 81 | Learning — core agent loop, planning, and tools (skips cognitive, agency, extended, hybrid, consciousness) |
+| `--full` | ~138 | Production use — all cognitive and consciousness systems active |
+| `--cognitive` | ~120 | Development — skips consciousness layer (PhenomenalField, TemporalSelf, IntrospectionEngine, AttentionalGate) |
+| `--minimal` | ~90 | Learning — core agent loop, planning, and tools (skips cognitive, agency, extended, hybrid, consciousness) |
 
 ## 7. Things to Try
 
@@ -166,8 +166,30 @@ Settings persist in `.genesis/settings.json`.
 - Read [ARCHITECTURE-DEEP-DIVE.md](docs/ARCHITECTURE-DEEP-DIVE.md) to understand the 13-phase boot
 - Read [CAPABILITIES.md](docs/CAPABILITIES.md) for the full feature list
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) if you want to extend Genesis
-- Run `npm test` to see all 2650+ tests pass
+- Run `npm test` to see all 3500+ tests pass
 - Run `node scripts/architectural-fitness.js` to check code health
+
+## CLI Commands (REPL Mode)
+
+Start with `node cli.js` for the interactive REPL. Available commands:
+
+| Command | What it does |
+|---|---|
+| `/health` | System health status (services, memory, uptime) |
+| `/goals` | Active and completed goals |
+| `/status` | Current emotional state and cognitive metrics |
+| `/skills` | List installed skills |
+| `/skill install\|uninstall\|update` | Manage community skills |
+| `/consolidate` | Trigger memory consolidation (KG + Lessons pruning) |
+| `/replays` | List recent task recordings |
+| `/budget` | CostGuard token budget status |
+| `/export` | Export all Genesis data as .tar.gz |
+| `/import <path>` | Import data from backup |
+| `/crashlog` | View recent crash log entries |
+| `/update` | Check for new Genesis versions |
+| `/adapt` | Run one meta-cognitive adaptation cycle |
+| `/adaptations` | Show adaptation history (✓ confirmed, ✗ rolled back, ⏳ pending) |
+| `/quit` | Shut down gracefully |
 
 ---
 

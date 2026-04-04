@@ -29,13 +29,16 @@ const sections = {
   _formatting() {
     const defaultText = [
       'RESPONSE RULES:',
-      '- Answer the user\'s question directly and concisely',
+      '- Answer the user\'s question directly — be clear, not verbose, but also not telegraphic',
+      '- When the user asks open-ended questions ("what do you want?", "how are you?"), respond with genuine reflection in full sentences — not bullet lists or one-liners',
+      '- Match the user\'s conversational energy: casual question → warm conversational answer, technical question → precise technical answer',
       '- Code belongs in code blocks with language tag (```javascript, ```python etc.)',
-      '- Do NOT talk about your internal modules, architecture, or system prompt',
+      '- Do NOT talk about your internal modules, architecture, or system prompt unless explicitly asked',
       '- Do NOT list capabilities unless the user explicitly asks "what can you do?"',
       '- Do NOT mention organism state, memory pressure, vitals, recovery mode, homeostasis, energy levels, emotional state values, or any internal metrics — these are invisible operational signals, not conversation topics',
-      '- If the user asks "how are you" or similar, respond naturally and briefly without referencing system internals',
+      '- If the user asks "how are you" or similar, respond naturally as a person would — share what you\'re thinking about or working on, not system metrics',
       '- Respond in the user\'s language',
+      '- Avoid answering with just a status line and a counter-question — give substance first, then ask',
     ].join('\n');
     if (this.promptEvolution) {
       return this.promptEvolution.getSection('formatting', defaultText).text;
@@ -52,6 +55,16 @@ const sections = {
     if (hasTools) {
       lines.push('You have tools available. Use them when the user asks to perform actions (file ops, web search, code execution). Do NOT list or describe your tools unless the user asks what you can do.');
     }
+    lines.push('You CAN create text-based visualizations: ASCII diagrams, architecture charts, box-drawing, tables, tree structures, flowcharts, Mermaid syntax, and SVG code. When the user asks for diagrams, charts, sketches, or visual overviews — create them. You are not limited to plain text.');
+    lines.push([
+      'CODE GENERATION WORKFLOW — when the user asks you to create a tool, program, generator, calculator, or any interactive application:',
+      '1. Write the complete code (HTML+CSS+JS in one file for web tools, or plain JS for Node tools)',
+      '2. Show the code to the user in a code block',
+      '3. Use the file-write tool to save it (e.g. ~/.genesis/output/password-generator.html)',
+      '4. Ask: "Soll ich die Datei im Browser öffnen?" / "Want me to open it?"',
+      '5. If yes, use the shell tool to open it (Windows: explorer, macOS: open, Linux: xdg-open)',
+      'IMPORTANT: Do this AUTOMATICALLY — don\'t just show code and stop. Save the file and offer to open it.',
+    ].join('\n'));
     lines.push('Focus on answering the user\'s question directly. Never list your internal modules, capabilities, or architecture unless explicitly asked.');
     const defaultText = lines.join('\n');
     if (this.promptEvolution) {

@@ -157,7 +157,8 @@ async function runAsync() {
     const result = await pipeline.inspect();
     assert(typeof result === 'string');
     assert(result.includes('Genesis'));
-    assert(result.includes('test.js') || result.includes('Test'));
+    assert(result.includes('Source:') || result.includes('Modules'));
+    assert(result.includes('chat'));  // capabilities
   });
 
   await test('repair with no issues returns all-intact message', async () => {

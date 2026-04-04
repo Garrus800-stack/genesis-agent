@@ -168,7 +168,7 @@ test('N-5: all 23 intents are registered', () => {
   const expected = [
     'self-inspect', 'self-reflect', 'self-modify', 'self-repair',
     'self-repair-reset', 'create-skill', 'clone', 'analyze-code',
-    'run-skill', 'execute-code', 'execute-file', 'peer', 'daemon', 'mcp',
+    'run-skill', 'execute-code', 'execute-file', 'peer', 'daemon', 'trust-control', 'open-path', 'mcp',
     'journal', 'plans', 'goals', 'settings', 'web-lookup',
     'undo', 'shell-task', 'shell-run', 'project-scan', 'retry', 'greeting',
   ];

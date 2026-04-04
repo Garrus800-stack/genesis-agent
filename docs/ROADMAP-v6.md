@@ -8,10 +8,10 @@
 
 | Metric | Value |
 |--------|-------|
-| Source Files / LOC | 235 / ~80.8k |
-| Test Suites / Tests | 247 / ~3500 |
+| Source Files / LOC | 237 / ~81.5k |
+| Test Suites / Tests | 250 / ~3550 |
 | Boot Phases | 13 |
-| Registered Services | 128 |
+| Registered Services | 138 (130 manifest + 8 kernel) |
 | Circular Dependencies | 0 |
 | Cross-Layer Violations | 0 |
 | Shutdown Integrity | ✅ All 56 services, sync writes |
@@ -43,6 +43,8 @@
 | v5.9.8  | V6-5 + V6-11 + V6-9 + V6-6: ConversationCompressor wiring fix, CognitiveWorkspace onEvict, CognitiveSelfModel (Wilson-calibrated), SelfModel Dashboard, Benchmarking Suite (8 tasks), SkillRegistry (install/uninstall/update), Sandbox SIGKILL fix (0 failures) |
 | v5.9.9  | Stabilization + CI Green: TSC-1/TSC-2 (TypeScript 6 fix), 4 listener leaks fixed (LEAK-1–4), fitness scanner upgrade (FIT-2), A/B Organism Validation (+37pp), headless --once mode |
 | v6.0.0  | V6-5 complete (eviction pipeline), V6-7 MemoryConsolidator, V6-8 TaskRecorder, V6-6 CLI commands, V6-9 benchmark expansion (12 tasks + --ab-matrix) |
+| v6.0.1  | Safety Infrastructure: CostGuard (LLM budget cap), BackupManager, CrashLog, AutoUpdater, SKILL-SECURITY.md, documentation audit (7 files), 0 magic numbers, V6-9 benchmark README |
+| v6.0.2  | **V6-12 Meta-Cognitive Loop**: AdaptiveStrategy (bias→adaptation→validation→confirm/rollback), QuickBenchmark, ModelRouter empirical injection, OnlineLearner weakness signals, IdleMind calibrate activity |
 
 ### Completed SA Items
 
@@ -216,6 +218,20 @@ A continuously updated internal model of the agent's own capabilities, weaknesse
 - **Prerequisite**: TaskOutcomeTracker ✅, ReasoningTracer ✅, LessonsStore ✅, CognitiveWorkspace ✅, PreservationInvariants ✅, OnlineLearner ✅
 - **Effort**: Low (remaining — calibrated estimation + dashboard rendering + colony integration)
 - **Priority**: Critical — unique differentiator with no equivalent in any competing framework (LangChain, CrewAI, AutoGen, Devin). Genesis is the only project with the cognitive substrate to implement this.
+
+### V6-12: Meta-Cognitive Feedback Loop — ✅ Complete (v6.0.2)
+
+Closed-loop self-improvement: CognitiveSelfModel diagnoses → AdaptiveStrategy prescribes → QuickBenchmark validates → LessonsStore records.
+
+- **✅ AdaptiveStrategy Service (v6.0.2)**: Phase 9 cognitive service (~400 LOC). Three adaptation strategies: prompt mutation (bias → PromptEvolution experiment), backend routing injection (strength map → ModelRouter scoring bonus), temperature signal (weakness → OnlineLearner multiplier). Full lifecycle: PROPOSED → APPLIED → VALIDATING → CONFIRMED | ROLLED_BACK. Persistence, cooldowns, safety guards (max 1 concurrent, 30-min cooldown, min 10 outcomes). 6 events, CLI `/adapt` + `/adaptations`.
+- **✅ QuickBenchmark Service (v6.0.2)**: Phase 9 cognitive service (~200 LOC). Wraps `benchmark-agent.js --quick` (3 tasks) for in-process validation. Baseline caching (4h TTL). Compare: confirm (≥-2pp), rollback (<-5pp), inconclusive. CostGuard budget floor check.
+- **✅ ModelRouter Patch (v6.0.2)**: `injectEmpiricalStrength()` + Step 4 scoring bonus in `_scoreModel()`. Max +0.3 bonus from empirical data. 7-day expiry.
+- **✅ OnlineLearner Patch (v6.0.2)**: `receiveWeaknessSignal()` + weakness multiplier in `_adjustTemperature()`. 0.85× for weak, 1.10× for strong. 4-hour expiry.
+- **✅ IdleMind Integration (v6.0.2)**: `calibrate` activity (weight 1.5). Triggers `AdaptiveStrategy.runCycle()` during idle. Genome consolidation trait applied.
+- **✅ LessonsStore Integration (v6.0.2)**: Every confirmed/rolled-back adaptation stored as lesson (category: `meta-adaptation`). Feeds future SelfModel evaluations.
+- **✅ 3 Test Suites (v6.0.2)**: AdaptiveStrategy (21), QuickBenchmark (18), MetaCognitiveLoop integration (12). Total: 51 tests.
+- **Prerequisite**: CognitiveSelfModel ✅, PromptEvolution ✅, ModelRouter ✅, OnlineLearner ✅, benchmark-agent.js ✅, CostGuard ✅
+- **Significance**: No competing framework has a closed-loop self-improvement cycle. Genesis is the first AI agent that diagnoses its own weaknesses AND autonomously acts to fix them with empirical validation.
 
 ---
 
