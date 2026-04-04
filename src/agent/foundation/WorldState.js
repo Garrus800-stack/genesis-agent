@@ -305,13 +305,14 @@ class WorldState {
   async _pollGitStatus() {
     const opts = { cwd: this.rootDir, encoding: 'utf-8', timeout: TIMEOUTS.QUICK_CHECK, windowsHide: true };
     try {
-      const [branchResult, statusResult] = await Promise.all([
+      // FIX v6.0.3 (M-3): Use allSettled so branch failure doesn't lose status data
+      const [branchResult, statusResult] = await Promise.allSettled([
         execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], opts),
         execFileAsync('git', ['status', '--porcelain'], opts),
       ]);
 
-      const branch = branchResult.stdout.trim();
-      const status = statusResult.stdout.trim();
+      const branch = branchResult.status === 'fulfilled' ? branchResult.value.stdout.trim() : 'unknown';
+      const status = statusResult.status === 'fulfilled' ? statusResult.value.stdout.trim() : '';
 
       let lastCommitMsg = '';
       try {

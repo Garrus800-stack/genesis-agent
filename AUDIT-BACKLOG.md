@@ -30,6 +30,59 @@ Resolved items are documented in CHANGELOG.md for traceability.
 | Prototype pollution | `__proto__` filtered in WorldState.js. No `for...in` eliminates the primary attack vector. |
 | console.log | 1 in SkillManager.js:85 — runs in Sandbox child process where _log unavailable. Design-correct (v5.9.1 FIX-5). |
 
+## v6.0.3 — Resolved (Security Audit Hardening + Stabilization)
+
+### Security Hardening
+
+| ID   | Severity | Description |
+|------|----------|-------------|
+| H-1  | HIGH   | `agent:import-data` IPC: Missing `_validateStr` + no path scope restriction. Compromised renderer could pass arbitrary filesystem path to BackupManager.import(). Fixed: `_validateStr` + home directory scope check. |
+| H-2  | HIGH   | `agent:get-replay-diff` IPC: `idA`/`idB` passed to TaskRecorder.diff() without validation. Fixed: `_validateStr` with 200-char max. |
+| H-3  | HIGH   | `agent:clone` IPC: Config object passed without structural validation. Fixed: `typeof === 'object'` + `Array.isArray` guard. |
+| M-1  | MEDIUM | 6 IPC handlers missing `_validateStr`: `mcp-remove-server`, `mcp-reconnect`, `loop-reject`, `import-data`, `get-replay-diff`, `clone`. All fixed — IPC validation now 100% consistent. |
+| M-3  | MEDIUM | WorldState._pollGitStatus(): `Promise.all` → `Promise.allSettled`. Git branch parse failure no longer loses status data. |
+| M-5  | MEDIUM | Sandbox.executeExternal() (Python, Ruby, etc.): Added `_linuxWrap()` for Linux namespace isolation. Also added `killSignal: 'SIGKILL'` for reliable timeout kill. |
+| M-6  | MEDIUM | Sandbox FS intercept: Added `fs.cp`/`cpSync` to blocked list, `fs.appendFile`/`appendFileSync` intercepted with `_checkWritePath()`. |
+| L-1  | LOW    | `agent:set-setting` value type guard: Rejects `function` and `symbol` types (non-serializable). |
+| L-6  | LOW    | McpServer keyless-mode: Added startup warning when no API key configured. docs/MCP-SERVER-SETUP.md: API key authentication section with config example. |
+| M-7  | MEDIUM | Sandbox VM `safeCopy()`: Prototype chain now fully independent via `Object.create(null)` + property copy. Previously `Object.create(Ctor.prototype)` shared original `__proto__`. 2 new tests verify host prototype isolation. |
+| L-4  | LOW    | ShellAgent `_sanitizeCommand()`: Added NFKC Unicode normalization. Fullwidth confusables (`ｒｍ` → `rm`) now caught by blocklist regex. 4 new tests. |
+| L-7  | LOW    | `main.js` uncaughtException handler: Documented rationale for no `process.exit()` — Electron lifecycle management, CrashLog captures, shutdown sequence preservation. |
+| L-3  | LOW    | `global.gc()` in HomeostasisEffectors + ImmuneSystem: Reviewed, code correct (`if (global.gc)` + try/catch). No change needed. |
+
+### SA-P Audit Completion
+
+| ID    | Severity | Description |
+|-------|----------|-------------|
+| SA-P3 | MEDIUM | **ArchitectureReflection**: Audit complete — clean. Pure read-only observer, no side effects, no state mutation. _scanEmitters does fs.readFileSync on src/agent/ (read-only). BFS in getDependencyChain uses visited Set (no infinite loops). 12 new tests. |
+| SA-P4 | MEDIUM | **EmbodiedPerception**: Audit found listener leak — `bus.on('ui:heartbeat')` not tracked in `_unsubs`. Fixed: `_unsubs[]` init + tracked subscription + `stop()` cleanup. 15 new tests. |
+| SA-P8 | MEDIUM | **DynamicToolSynthesis**: Audit complete — clean. Good safety pipeline (LLM → parse → safety scan → syntax check → sandbox test → register). Regex+AST dual scan. Generated tools run in sandbox (no fs, no net). Max 20 tools with LRU eviction. Existing 337-line test suite adequate. |
+| L-5   | LOW    | ARCHITECTURE.md: Test count corrected from "~3150" to "~3370 tests, 252 suites". |
+
+### Stabilization — Test Coverage Expansion
+
+| Area | Tests Added | Modules Covered |
+|------|-------------|-----------------|
+| EmbodiedPerception | 15 | heartbeat processing, engagement transitions, prompt context, event emission, listener lifecycle |
+| ArchitectureReflection | 12 | graph building, service queries, dependency chains, coupling detection, phase/layer maps, NL query |
+| CostGuard | 5 | budget enforcement, autonomous blocking, user chat bypass (priority>=10), usage tracking, disabled mode |
+| HomeostasisEffectors | 3 | construction, stats tracking, start/stop lifecycle |
+| EmotionalSteering | 5 | construction, thresholds, signals, stats, disabled mode |
+| ImmuneSystem | 5 | construction, report, quarantine check, prompt context, start/stop lifecycle |
+| DesktopPerception | 3 | construction, start/stop lifecycle, safe stop before start |
+| IPC validation | 18 | H-1/H-2/H-3 path scope, ID validation, config structure, M-1 type checks, L-1 value guard |
+| Sandbox security | 5 | fs.cp blocked, fs.cpSync blocked, appendFile write-path, appendFile inside sandbox |
+| Sandbox external | 3 | env stripping, timeout, CWD restriction |
+| WorldState | 2 | allSettled partial failure, branch fallback |
+
+### Re-evaluated (No Fix Needed)
+
+| ID   | Severity | Conclusion |
+|------|----------|------------|
+| M-2  | MEDIUM | StorageService.flush() — Each write has individual `.catch()` before `Promise.all`. Error propagation impossible. Safe as-is. |
+| M-4  | MEDIUM | MemoryConsolidator race condition — `_consolidateKG()` and `_consolidateLessons()` are synchronous. JS event loop makes `_running` flag race impossible. Safe as-is. |
+| L-2  | LOW    | Dashboard `Promise.all` — Each IPC invoke has individual `.catch(() => null)`. `Promise.all` never rejects. Safe as-is. |
+
 ## v6.0.1 — Resolved (Safety Infrastructure + Documentation Audit)
 
 | ID          | Severity | Description |

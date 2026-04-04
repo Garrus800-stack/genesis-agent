@@ -137,6 +137,13 @@ class McpServer {
         const addr = server.address();
         this._serverPort = (typeof addr === 'object' && addr) ? addr.port : port;
         _log.info(`[MCP-SERVER] Genesis serving on port ${this._serverPort} (HTTP + SSE)`);
+        // FIX v6.0.3 (L-6): Warn when running without API key authentication.
+        // CORS restricts to localhost, but port-forwarding or tunnel tools
+        // (ngrok, ssh -R, etc.) could expose the server to remote access.
+        if (!this._apiKey) {
+          _log.warn('[MCP-SERVER] ⚠ Running WITHOUT API key authentication. Any localhost client can connect.');
+          _log.warn('[MCP-SERVER]   Set mcp.serve.apiKey in Settings to require Bearer token auth.');
+        }
         this.bus.fire('mcp:server-started', { port: this._serverPort }, { source: 'McpServer' });
         resolve(this._serverPort);
       });

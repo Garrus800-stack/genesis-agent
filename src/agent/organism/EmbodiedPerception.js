@@ -69,6 +69,8 @@ class EmbodiedPerception {
     this._recentInteractions = [];  // timestamps of active heartbeats
     this._maxRecentInteractions = 30;
 
+    /** @type {Array<Function>} */
+    this._unsubs = [];
     this._wireEvents();
   }
 
@@ -80,7 +82,11 @@ class EmbodiedPerception {
     _log.info('[EMBODIED] Active — perceiving UI state');
   }
 
-  stop() {}
+  // FIX v6.0.3 (SA-P4): Cleanup listener on stop — prevents accumulation on hot-reload
+  stop() {
+    for (const unsub of this._unsubs) unsub();
+    this._unsubs = [];
+  }
   async asyncLoad() {}
 
   // ════════════════════════════════════════════════════════
@@ -243,9 +249,12 @@ class EmbodiedPerception {
   /** @private */
   _wireEvents() {
     // Listen for UI heartbeats forwarded from main.js IPC bridge
-    this.bus.on('ui:heartbeat', (data) => {
-      this.processHeartbeat(data);
-    }, { source: 'EmbodiedPerception', priority: -10 });
+    // FIX v6.0.3 (SA-P4): Track subscription for cleanup in stop()
+    this._unsubs.push(
+      this.bus.on('ui:heartbeat', (data) => {
+        this.processHeartbeat(data);
+      }, { source: 'EmbodiedPerception', priority: -10 })
+    );
   }
 }
 

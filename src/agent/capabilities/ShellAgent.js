@@ -542,7 +542,11 @@ Respond ONLY with a JSON list:
     // Newlines can inject additional commands in shell mode
     const cleaned = command.replace(/[\r\n]+/g, ' ').trim();
     if (!cleaned) return { ok: false, error: 'Empty command' };
-    return { ok: true, command: cleaned };
+    // FIX v6.0.3 (L-4): NFKC normalization — converts Unicode confusables
+    // (fullwidth ｒｍ → rm, homoglyphs, etc.) so blocklist regex can match.
+    // Without this, `ｒｍ -rf /` bypasses the \brm\b pattern.
+    const normalized = cleaned.normalize('NFKC');
+    return { ok: true, command: normalized };
   }
 
   _adaptCommand(cmd) {

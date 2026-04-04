@@ -19,6 +19,30 @@ Open Genesis → Settings → set:
 }
 ```
 
+### Security: API Key Authentication (Recommended)
+
+By default, the MCP server accepts all localhost connections without authentication. While CORS restricts access to localhost origins, tools like SSH tunnels, ngrok, or Docker port mappings can expose the server to remote clients. **Set an API key to require Bearer token authentication:**
+
+```json
+{
+  "mcp": {
+    "serve": {
+      "enabled": true,
+      "port": 3580,
+      "apiKey": "your-secret-key-here"
+    }
+  }
+}
+```
+
+Clients must then include `Authorization: Bearer your-secret-key-here` or `x-api-key: your-secret-key-here` in every request. The `/health` endpoint is exempt (useful for monitoring probes).
+
+**Built-in protections (always active, regardless of API key):**
+- CORS: localhost-only by default
+- Rate limiter: 120 requests/minute per IP (sliding window)
+- Body size cap: 1MB maximum
+- Session tracking via `Mcp-Session-Id` header
+
 Genesis starts the MCP server automatically on next boot.
 
 ### Option B: Dashboard Toggle

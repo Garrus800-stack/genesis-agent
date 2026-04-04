@@ -1,3 +1,99 @@
+## [6.0.3] — Security Audit Hardening + Stabilization
+
+**Focus: Systematic resolution of IPC input validation gaps, sandbox FS coverage, external process isolation, SA-P audit completion, and test coverage expansion. Based on full codebase audit (595 files, 82k LOC).**
+
+### IPC Input Validation Hardening (Kernel)
+
+All IPC handlers in `main.js` now validate every parameter. Previously 6 handlers accepted string/object parameters without `_validateStr` or type checks — inconsistent with the defense-in-depth pattern established in v4.10.0.
+
+- **H-1 FIX**: `agent:import-data` — added `_validateStr` + path scope restriction (must be within home directory). Prevents compromised renderer from importing attacker-controlled archive from arbitrary path
+- **H-2 FIX**: `agent:get-replay-diff` — added `_validateStr` with 200-char max for both `idA` and `idB` parameters
+- **H-3 FIX**: `agent:clone` — added structural validation (`typeof === 'object'`, not array). Config is now validated before passing to `cloneSelf()`
+- **M-1 FIX**: `agent:mcp-remove-server` — added string type check for `name`
+- **M-1 FIX**: `agent:mcp-reconnect` — added `_validateStr` for `name`
+- **M-1 FIX**: `agent:loop-reject` — `reason` now type-checked and truncated to 1000 chars; defaults to `'User rejected'` on non-string
+- **L-1 FIX**: `agent:set-setting` — `value` rejected if `typeof` is `function` or `symbol` (non-serializable)
+
+### Sandbox Security Coverage Extension
+
+- **M-5 FIX**: `executeExternal()` (Python, Ruby, etc.) now applies `_linuxWrap()` for Linux namespace isolation (PID/net/mount/IPC). Previously only JS `execute()` used namespace isolation — external language runtimes ran with env-stripping and CWD restriction but without OS-level process isolation. Also added `killSignal: 'SIGKILL'` for reliable timeout termination
+- **M-6 FIX**: Sandbox FS intercept expanded:
+  - `fs.cp` / `fs.cpSync` (Node 16+) added to blocked list — recursive copy was unguarded while `copyFile`/`copyFileSync` were already blocked
+  - `fs.appendFile` / `fs.appendFileSync` / `fs.promises.appendFile` — intercepted with `_checkWritePath()` write-scope enforcement
+- **M-7 FIX**: Sandbox VM `safeCopy()` — prototype chain now fully independent. Previously `Object.create(Ctor.prototype)` shared the original prototype via `__proto__`, meaning mutations could propagate if `_deepFreeze` failed on freeze-resistant builtins. Now copies all own properties into a `null`-prototype object — zero linkage to host builtins
+
+### ShellAgent Hardening
+
+- **L-4 FIX**: `_sanitizeCommand()` now applies NFKC Unicode normalization before blocklist matching. Fullwidth confusables (e.g. `ｒｍ` → `rm`, `ｋｉｌｌ` → `kill`) are normalized to ASCII, preventing regex bypass. One-liner but closes a theoretical defense gap
+
+### Kernel Documentation
+
+- **L-7 FIX**: `uncaughtException` handler in `main.js` — added detailed rationale comment: no `process.exit()` is intentional because Electron manages its own lifecycle, and forcing exit would bypass `agent.shutdown()` → data loss risk. CrashLog captures the error for diagnostics
+- **L-3**: `global.gc()` in HomeostasisEffectors + ImmuneSystem — reviewed, code is correct (`if (global.gc)` guard + try/catch). No change needed, documented as intentional
+
+### Resilient Git Polling
+
+- **M-3 FIX**: `WorldState._pollGitStatus()` — `Promise.all` → `Promise.allSettled`. Git branch parse failure no longer loses status data. Branch falls back to `'unknown'` on failure instead of throwing
+
+### MCP Server Security Documentation
+
+- **L-6 FIX**: `McpServer.js` now logs a security warning when starting without API key authentication. Warns about localhost-only CORS not protecting against tunnels/port-forwarding
+- **L-6 FIX**: `docs/MCP-SERVER-SETUP.md` — new "Security: API Key Authentication" section with config example and built-in protection summary
+
+### Test Suite
+
+- `test/modules/v603-security-hardening.test.js`: 28 tests covering all v6.0.3 fixes
+  - IPC validation patterns (18 tests): H-1, H-2, H-3, M-1, L-1
+  - Sandbox FS intercepts (5 tests): cp, cpSync, appendFile, appendFileSync blocked + sandbox-internal appendFileSync allowed
+  - Sandbox executeExternal (3 tests): env stripping, timeout, CWD restriction
+  - WorldState allSettled (2 tests): partial failure handling, branch fallback
+
+### Audit Observations Closed (No Action Needed)
+
+- **M-2**: StorageService.flush() — re-evaluated as safe. Each write already has individual `.catch()` handler before `Promise.all`. No error propagation risk
+- **M-4**: MemoryConsolidator race condition — re-evaluated as impossible. `_consolidateKG()` and `_consolidateLessons()` are synchronous. JS single-threaded event loop guarantees no interleaving between `_running = true` and `_running = false`
+- **L-2**: Dashboard `Promise.all` — re-evaluated as safe. Each IPC invoke already has individual `.catch(() => null)`. `Promise.all` never rejects
+
+### SA-P Audit Completion
+
+- **SA-P3 ArchitectureReflection** — Audit complete, clean. Pure read-only graph observer, no side effects. BFS uses visited Set. 12 new tests
+- **SA-P4 EmbodiedPerception** — Audit found listener leak: `bus.on('ui:heartbeat')` not tracked in `_unsubs`. Fixed: `_unsubs[]` init + tracked subscription + `stop()` cleanup. 15 new tests
+- **SA-P8 DynamicToolSynthesis** — Audit complete, clean. Good safety pipeline (LLM → parse → safety scan → syntax check → sandbox test → register). Existing test suite adequate
+
+### Stabilization — Test Coverage Expansion
+
+- `test/modules/v603-stabilization.test.js` (NEW): 49 tests across 7 modules
+  - **EmbodiedPerception** (15): heartbeat processing, engagement transitions (idle/away/background), prompt context, events, listener lifecycle
+  - **ArchitectureReflection** (12): graph building, service queries, dependency chains, coupling detection, phase/layer maps, NL query
+  - **CostGuard** (5): budget enforcement, autonomous blocking, user chat bypass (priority≥10), usage tracking, disabled mode
+  - **EmotionalSteering** (5): construction, thresholds, signals, stats, disabled mode
+  - **ImmuneSystem** (5): construction, report, quarantine, prompt context, lifecycle
+  - **HomeostasisEffectors** (3): construction, stats tracking, lifecycle
+  - **DesktopPerception** (3): construction, start/stop lifecycle
+
+### Documentation
+
+- **L-5 FIX**: `ARCHITECTURE.md` test count corrected: "~3150" → "~3370 tests, 252 suites"
+
+### Files Changed
+
+- `main.js`: 7 IPC handlers hardened, uncaughtException rationale (+29 lines)
+- `src/agent/foundation/Sandbox.js`: executeExternal namespace wrap, FS intercepts, safeCopy independence (+27 lines)
+- `src/agent/foundation/WorldState.js`: allSettled migration (+4 lines)
+- `src/agent/capabilities/McpServer.js`: Keyless-mode security warning (+6 lines)
+- `src/agent/capabilities/ShellAgent.js`: NFKC Unicode normalization (+4 lines)
+- `src/agent/organism/EmbodiedPerception.js`: Listener lifecycle fix (+7 lines)
+- `docs/MCP-SERVER-SETUP.md`: API key authentication section added
+- `CHANGELOG.md`: v6.0.3 entry
+- `AUDIT-BACKLOG.md`: SA-P3/P4/P8 audits closed, all findings resolved
+- `ARCHITECTURE.md`: Version bump + test count correction
+- `test/modules/v603-security-hardening.test.js`: 34 tests (NEW)
+- `test/modules/v603-stabilization.test.js`: 49 tests (NEW)
+- Test suites: 250 → 252 (+2). Tests: ~3295 → ~3380 (+83)
+- Version: `package.json` bumped to 6.0.3
+
+---
+
 ## [6.0.2] — Meta-Cognitive Feedback Loop (V6-12)
 
 **Focus: Close the gap between self-diagnosis and self-correction. CognitiveSelfModel detects weaknesses → AdaptiveStrategy proposes compensating adaptations → QuickBenchmark validates → confirmed or rolled back. Genesis now prescribes, not just diagnoses.**

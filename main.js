@@ -364,8 +364,10 @@ const CHANNELS = {
     return agent.listModels();
   },
 
+  // FIX v6.0.3 (H-3): Validate config structure before passing to cloneSelf()
   'agent:clone': async (event, config) => {
     if (!agent) return { error: 'Agent not booted' };
+    if (!config || typeof config !== 'object' || Array.isArray(config)) return { error: 'config must be a plain object' };
     return agent.cloneSelf(config);
   },
 
@@ -432,6 +434,8 @@ const CHANNELS = {
     const { key, value } = payload;
     const err = _validateStr(key, 'key');
     if (err) return { error: err };
+    // FIX v6.0.3 (L-1): Reject non-serializable value types
+    if (typeof value === 'function' || typeof value === 'symbol') return { error: 'value must be serializable' };
     agent.container.resolve('settings').set(key, value);
     // If API key changed, reconfigure model bridge
     if (key === 'models.anthropicApiKey' && value) {
@@ -506,13 +510,18 @@ const CHANNELS = {
     return mcp.addServer(config);
   },
 
+  // FIX v6.0.3 (M-1): Validate name parameter
   'agent:mcp-remove-server': async (event, name) => {
     if (!agent) return false;
+    if (typeof name !== 'string' || !name) return false;
     return agent.container.tryResolve('mcpClient')?.removeServer(name) ?? false;
   },
 
+  // FIX v6.0.3 (M-1): Validate name parameter
   'agent:mcp-reconnect': async (event, name) => {
     if (!agent) return { error: 'MCP not available' };
+    const err = _validateStr(name, 'name');
+    if (err) return { error: err };
     const mcp = agent.container.tryResolve('mcpClient');
     if (!mcp) return { error: 'MCP not available' };
     return mcp.reconnect(name);
@@ -549,11 +558,12 @@ const CHANNELS = {
     return { ok: true };
   },
 
+  // FIX v6.0.3 (M-1): Validate reason parameter
   'agent:loop-reject': async (event, reason) => {
     if (!agent) return { ok: false };
     const loop = agent.container.tryResolve('agentLoop');
     if (!loop) return { ok: false };
-    loop.reject(reason);
+    loop.reject(typeof reason === 'string' ? reason.slice(0, 1000) : 'User rejected');
     return { ok: true };
   },
 
@@ -669,8 +679,13 @@ const CHANNELS = {
     return tr.getReport();
   },
 
+  // FIX v6.0.3 (H-2): Validate replay diff IDs
   'agent:get-replay-diff': async (_event, idA, idB) => {
     if (!agent) return null;
+    const e1 = _validateStr(idA, 'idA', 200);
+    if (e1) return { error: e1 };
+    const e2 = _validateStr(idB, 'idB', 200);
+    if (e2) return { error: e2 };
     const tr = agent.container.tryResolve('taskRecorder');
     if (!tr) return null;
     return tr.diff(idA, idB);
@@ -692,8 +707,16 @@ const CHANNELS = {
     return bm.export();
   },
 
+  // FIX v6.0.3 (H-1): Validate filePath + restrict to home directory scope
   'agent:import-data': async (_event, filePath) => {
     if (!agent) return null;
+    const err = _validateStr(filePath, 'filePath');
+    if (err) return { error: err };
+    const resolved = require('path').resolve(filePath);
+    const homeDir = require('os').homedir();
+    if (!resolved.startsWith(homeDir + require('path').sep) && resolved !== homeDir) {
+      return { error: 'Import path must be within home directory' };
+    }
     const bm = agent.container.tryResolve('backupManager');
     if (!bm) return null;
     return bm.import(filePath);
@@ -806,5 +829,11 @@ app.on('before-quit', (e) => {
 
 process.on('uncaughtException', (err) => {
   console.error('[KERNEL] Uncaught exception:', err);
-  // Don't exit — let Electron's default handler decide
+  // FIX v6.0.3 (L-7): INTENTIONAL — no process.exit() here.
+  // Node.js docs recommend exit after uncaughtException, but Electron manages
+  // its own lifecycle (dialog, crash reporter, GPU process supervision).
+  // Forcing exit here would bypass Electron's shutdown sequence and skip
+  // agent.shutdown() → data loss risk. The CrashLog service captures the error
+  // for diagnostics. If the process is truly unrecoverable, Electron will
+  // terminate via its own crash handler.
 });

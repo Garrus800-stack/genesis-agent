@@ -297,7 +297,20 @@ class Sandbox {
       for (const key of Object.getOwnPropertyNames(Ctor)) {
         try { copy[key] = Ctor[key]; } catch (_e) { _log.debug('[catch] skip:', _e.message); }
       }
-      copy.prototype = Object.create(Ctor.prototype);
+      // FIX v6.0.3 (M-7): Create fully independent prototype — not linked to original.
+      // Previous: Object.create(Ctor.prototype) — shared __proto__ chain meant
+      // mutations could propagate if _deepFreeze failed on certain builtins.
+      // Now: copy all own properties into a null-prototype object.
+      const proto = Object.create(null);
+      try {
+        for (const key of Object.getOwnPropertyNames(Ctor.prototype)) {
+          try {
+            const desc = Object.getOwnPropertyDescriptor(Ctor.prototype, key);
+            if (desc) Object.defineProperty(proto, key, desc);
+          } catch (_e) { _log.debug('[catch] proto skip:', _e.message); }
+        }
+      } catch (_e) { _log.debug('[catch] proto iter:', _e.message); }
+      copy.prototype = proto;
       _deepFreeze(copy);
       return copy;
     };
@@ -484,8 +497,16 @@ class Sandbox {
     const fullArgs = [...binaryArgs, sandboxCopy, ...args];
 
     try {
-      const { stdout, stderr } = await execFileAsync(binary, fullArgs, {
+      // FIX v6.0.3 (M-5): Apply Linux namespace isolation to external language execution.
+      // Same isolation as JS execute() — PID/net/mount/IPC namespaces on supported kernels.
+      const wrapped = _linuxWrap(binary, fullArgs, { network: false });
+      if (wrapped.isolated) {
+        _log.debug(`[SANDBOX] External (${language}) namespace isolation: ${wrapped.namespaces.join(', ')}`);
+      }
+
+      const { stdout, stderr } = await execFileAsync(wrapped.binary, wrapped.args, {
         timeout,
+        killSignal: 'SIGKILL',
         encoding: 'utf-8',
         cwd: this.sandboxDir,  // CWD = sandbox dir, not project root
         env: safeEnv,
@@ -695,11 +716,21 @@ if (_fs.promises) {
   if (_promMkdir) _fs.promises.mkdir = function(p, ...a) { _checkWritePath(p); return _promMkdir.call(this, p, ...a); };
 }
 
-const _blockedFs = ['copyFile', 'copyFileSync', 'rename', 'renameSync', 'symlink', 'symlinkSync', 'link', 'linkSync'];
+// FIX v6.0.3 (M-6): Added cp, cpSync (Node 16+), appendFile, appendFileSync
+const _blockedFs = ['copyFile', 'copyFileSync', 'cp', 'cpSync', 'rename', 'renameSync', 'symlink', 'symlinkSync', 'link', 'linkSync'];
 for (const method of _blockedFs) {
   if (typeof _fs[method] === 'function') {
     _fs[method] = function() { throw new Error('[SANDBOX] ' + method + ' is blocked'); };
   }
+}
+// FIX v6.0.3 (M-6): Intercept appendFile/appendFileSync with write-path checks
+const _origAppendFileSync = _fs.appendFileSync;
+const _origAppendFile = _fs.appendFile;
+if (_origAppendFileSync) _fs.appendFileSync = function(p, ...a) { _checkWritePath(p); return _origAppendFileSync.call(this, p, ...a); };
+if (_origAppendFile) _fs.appendFile = function(p, ...a) { _checkWritePath(p); return _origAppendFile.call(this, p, ...a); };
+if (_fs.promises && _fs.promises.appendFile) {
+  const _promAppendFile = _fs.promises.appendFile;
+  _fs.promises.appendFile = function(p, ...a) { _checkWritePath(p); return _promAppendFile.call(this, p, ...a); };
 }
 ` : ''}
 
