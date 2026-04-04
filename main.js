@@ -676,6 +676,45 @@ const CHANNELS = {
     return tr.diff(idA, idB);
   },
 
+  // v6.0.1: CostGuard — budget status
+  'agent:get-cost-budget': async () => {
+    if (!agent) return null;
+    const cg = agent.container.tryResolve('costGuard');
+    if (!cg) return null;
+    return cg.getUsage();
+  },
+
+  // v6.0.1: BackupManager — export/import
+  'agent:export-data': async () => {
+    if (!agent) return null;
+    const bm = agent.container.tryResolve('backupManager');
+    if (!bm) return null;
+    return bm.export();
+  },
+
+  'agent:import-data': async (_event, filePath) => {
+    if (!agent) return null;
+    const bm = agent.container.tryResolve('backupManager');
+    if (!bm) return null;
+    return bm.import(filePath);
+  },
+
+  // v6.0.1: CrashLog — recent entries
+  'agent:get-crash-log': async () => {
+    if (!agent) return null;
+    const cl = agent.container.tryResolve('crashLog');
+    if (!cl) return null;
+    return { entries: cl.getRecent(50), stats: cl.getStats() };
+  },
+
+  // v6.0.1: AutoUpdater — check for updates
+  'agent:check-update': async () => {
+    if (!agent) return null;
+    const au = agent.container.tryResolve('autoUpdater');
+    if (!au) return null;
+    return au.checkForUpdate();
+  },
+
   'agent:stream-chunk': null, // Agent -> UI (push only)
   'agent:stream-done': null,  // Agent -> UI (push only, stream complete)
   'agent:status-update': null, // Agent -> UI (push only)

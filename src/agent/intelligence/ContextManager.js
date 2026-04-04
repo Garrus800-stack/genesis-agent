@@ -184,7 +184,7 @@ class ContextManager {
     // Procedural: relevant patterns
     const pattern = this.memory.recallPattern(task);
     if (pattern && pattern.successRate > 0.5) {
-      parts.push(`BEWÄHRTES VORGEHEN: ${pattern.action} (${Math.round(pattern.successRate * 100)}% Erfolg)`);
+      parts.push(`PROVEN APPROACH: ${pattern.action} (${Math.round(pattern.successRate * 100)}% success)`);
     }
 
     return parts.join('\n');
@@ -206,9 +206,9 @@ class ContextManager {
         const cat = m.file.split('/')[2] || 'other'; // e.g. 'core', 'foundation', etc.
         categories[cat] = (categories[cat] || 0) + 1;
       }
-      return `ARCHITEKTUR-ÜBERSICHT: ${modules.length} Module in ${Object.keys(categories).length} Kategorien: ${
+      return `ARCHITECTURE OVERVIEW: ${modules.length} modules in ${Object.keys(categories).length} categories: ${
         Object.entries(categories).map(([k, v]) => `${k} (${v})`).join(', ')
-      }.\nAntworte in natürlicher Sprache. Liste NICHT einzelne Module auf.`;
+      }.\nRespond in natural language. Do NOT list individual modules.`;
     }
 
     // Include full code of most relevant module, summaries of others
@@ -309,7 +309,7 @@ class ContextManager {
 
     const summary = {
       role: 'system',
-      content: `GESPRÄCHSVERLAUF (zusammengefasst):\n${summaryParts.join('\n')}`,
+      content: `CONVERSATION HISTORY (summarized):\n${summaryParts.join('\n')}`,
     };
 
     const summaryTokens = this._estimateTokens(summary.content);

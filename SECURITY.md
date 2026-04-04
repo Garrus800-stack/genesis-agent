@@ -4,9 +4,9 @@
 
 | Version | Supported |
 |---------|-----------|
-| 4.12.x | ✅ Active |
-| 4.11.x | ⚠️ Critical fixes only |
-| < 4.11 | ❌ Unsupported |
+| 6.0.x  | ✅ Active |
+| 5.9.x  | ⚠️ Critical fixes only |
+| < 5.9  | ❌ Unsupported |
 
 ## Reporting a Vulnerability
 
@@ -116,4 +116,4 @@ Monitors self-modification patterns for anomalies. Detects unusual file change f
 This security policy covers the Genesis Agent application. It does **not** cover:
 - The security of LLM backends (Anthropic, OpenAI, Ollama)
 - The security of the host operating system
-- Third-party plugins/skills installed by the user
+- Third-party plugins/skills installed by the user (see [SKILL-SECURITY.md](docs/SKILL-SECURITY.md) for sandbox boundaries)

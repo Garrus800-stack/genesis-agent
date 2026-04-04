@@ -65,6 +65,12 @@ const ALLOWED_INVOKE = [
   // v6.0.0 (V6-8): TaskRecorder
   'agent:get-replay-report',
   'agent:get-replay-diff',
+  // v6.0.1: CostGuard, Backup, CrashLog, AutoUpdater
+  'agent:get-cost-budget',
+  'agent:export-data',
+  'agent:import-data',
+  'agent:get-crash-log',
+  'agent:check-update',
 ];
 
 const ALLOWED_SEND = [

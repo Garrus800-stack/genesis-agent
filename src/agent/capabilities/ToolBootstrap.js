@@ -19,10 +19,9 @@ class ToolBootstrap {
     const tools = container.resolve('tools');
     const lang = container.resolve('lang');
     const fp = container.resolve('fileProcessor');
-    // FIX v5.1.0 (A-2): Route through MemoryFacade instead of direct knowledgeGraph.
-    // Eliminates the "Memory Silo Bypass" flagged by the fitness check.
-    // ToolBootstrap.register() is called post-phase-5 so memoryFacade is always available.
-    const memFacade = container.resolve('memoryFacade');
+    // v6.0.1: Route through KnowledgePort (registered as 'kg').
+    // Direct knowledgeGraph access triggers Memory Silo Bypass in fitness check.
+    const kg = container.resolve('kg');
     const es = container.resolve('eventStore');
     const web = container.resolve('webFetcher');
 
@@ -41,14 +40,14 @@ class ToolBootstrap {
     }, (input) => fp.executeFile(input.path), 'builtin');
 
     // ── Knowledge Graph Tools ───────────────────────────
-    // FIX v5.1.0 (A-2): Uses MemoryFacade pass-through.
+    // v6.0.1: Direct KnowledgeGraph access (was MemoryFacade pass-through)
 
     tools.register('knowledge-search', {
       description: lang.t('tool.knowledge_search'),
       input: { query: 'string' },
       output: { results: 'array' },
     }, (input) => ({
-      results: memFacade.knowledgeSearch(input.query, 5),
+      results: kg.search(input.query, 5),
     }), 'builtin');
 
     tools.register('knowledge-connect', {
@@ -56,7 +55,7 @@ class ToolBootstrap {
       input: { from: 'string', relation: 'string', to: 'string' },
       output: { edgeId: 'string' },
     }, (input) => ({
-      edgeId: memFacade.knowledgeConnect(input.from, input.relation, input.to),
+      edgeId: kg.connect(input.from, input.relation, input.to),
     }), 'builtin');
 
     // ── Event Store Tools ───────────────────────────────

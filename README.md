@@ -8,13 +8,13 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-6.0.0-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-6.0.1-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/tests-~3100%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/modules-230-e0e0e8?style=flat-square" alt="Modules">
-  <img src="https://img.shields.io/badge/services-123-fbbf24?style=flat-square" alt="Services">
+  <img src="https://img.shields.io/badge/services-128-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/phases-13-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-318-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/events-343-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">
@@ -82,7 +82,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (6 evolvable traits), epigenetic conditioning, immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). **Empirically validated: +37pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.0).
 
-**Infrastructure** — 13-phase DI boot, EventBus (308 events), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), 12-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules).
+**Infrastructure** — 13-phase DI boot, EventBus (343 events), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules).
 
 > **For the full feature list with version history**, see [CAPABILITIES.md](docs/CAPABILITIES.md).
 
@@ -135,7 +135,7 @@ Run Ollama locally AND configure a cloud API key. Genesis uses cloud for complex
 Genesis supports three boot profiles for different complexity levels:
 
 ```bash
-npm start                      # Full — all 116 services, all cognitive systems
+npm start                      # Full — all 128 services, all cognitive systems
 npm start -- --cognitive       # Cognitive — skip consciousness (~90 services)
 npm start -- --minimal         # Minimal — core agent loop only (~50 services)
 ```
@@ -463,27 +463,27 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 218 JS files in src/ |
-| Lines of code | ~73.5k src + ~38k test |
+| Source modules | 235 JS files in src/ |
+| Lines of code | ~81k src + ~43k test |
 | Manifest phases | 13 (+ Phase 0 bootstrap) |
-| DI services | 116 (manifest-registered) |
+| DI services | 128 (manifest-registered) |
 | Late-bindings | 197 cross-phase property injections |
-| Test suites | 163 files, ~2842 tests (coverage gates: 60/50/55) |
+| Test suites | 247 files, ~3500 tests (coverage gates: 70/60/65) |
 | Dependencies | 4 production + 3 optional + 5 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | Anthropic models | 3 (Opus 4, Sonnet 4, Haiku 4.5) |
-| IPC channels | 38 invoke + 2 send + 6 receive = 46 (rate-limited, all in sync) |
-| Event types | 308 across 86 namespaces (catalogued in EventTypes.js) |
-| Cross-layer event flows | 273 emitted events, 58 listeners (via EventBus, no direct imports) |
+| IPC channels | 50 invoke + 2 send + 6 receive = 58 (rate-limited, all in sync) |
+| Event types | 348 across 88 namespaces (catalogued in EventTypes.js) |
+| Cross-layer event flows | ~290 emitted events, ~65 listeners (via EventBus, no direct imports — run `npm run audit:events` for exact counts) |
 | Hexagonal ports | 6 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace) |
-| Cognitive modules | 14 (ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence, McpServerToolBridge) |
+| Cognitive modules | 17 (ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence, CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder) |
 | Consciousness modules | 14 (PhenomenalField, TemporalSelf, IntrospectionEngine, AttentionalGate, EchoicMemory, PredictiveCoder, NeuroModulators, SalienceGate, DreamEngine, ConsciousnessState + 3 adapters/delegates) |
 | Organism | 5 emotional dimensions + homeostasis + allostasis + 4 needs + steering + metabolism + immune system + heritable genome + epigenetic conditioning + fitness evaluation + body schema + embodied perception |
-| Safety layers | 12 (kernel lock → hash-lock → preservation invariants → AST scan → port → sandbox → worker → circuit breaker → immune → trust → validateWrite → blocklist) |
+| Safety layers | 10 (kernel lock → hash-lock → AST scan → capability tokens → IPC whitelist → CSP → sandbox → worker isolation → circuit breaker → immune system) |
 | Trust levels | 4 (supervised → full autonomy) |
 | Languages | EN primary (+ DE, FR, ES via i18n) |
 | Architectural fitness | 90/90 (100%) — 0 cross-layer violations, 0 orphans, 0 phantoms, 0 TSC errors, 0 @ts-nocheck |
-| TypeScript checking | 218/218 files checked — 0 errors, 0 @ts-nocheck |
+| TypeScript checking | 210/210 files checked — 0 errors, 0 @ts-nocheck |
 
 ---
 
@@ -536,6 +536,15 @@ No LangChain. No LlamaIndex. Everything self-written.
 
 ---
 
+<!-- BENCHMARK-START -->
+### Agent Benchmark Results
+
+> Run `npm run benchmark:agent` then `npm run benchmark:readme` to update this section automatically.
+
+<!-- BENCHMARK-END -->
+
+---
+
 ## Documentation
 
 ### Architecture & Design
@@ -564,6 +573,7 @@ No LangChain. No LlamaIndex. Everything self-written.
 | [ROADMAP-v6.md](docs/ROADMAP-v6.md) | Development roadmap — completed phases, deferred proposals |
 | [SELF-ANALYSIS-AUDIT.md](docs/SELF-ANALYSIS-AUDIT.md) | Genesis self-critique vs reality — empirical validation of the agent's own architecture review |
 | [MCP-SERVER-SETUP.md](docs/MCP-SERVER-SETUP.md) | MCP server setup — IDE integration (VSCode, Cursor, Claude Desktop), headless CLI |
+| [SKILL-SECURITY.md](docs/SKILL-SECURITY.md) | Skill security model — sandbox boundaries, allowed/blocked modules, trust model |
 | [AUDIT-BACKLOG.md](AUDIT-BACKLOG.md) | Architectural health tracking — resolved issues, monitor items, fitness metrics |
 
 ### Contributing & Security
@@ -571,7 +581,7 @@ No LangChain. No LlamaIndex. Everything self-written.
 | Document | What it covers |
 |---|---|
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute — conventions, security rules, PR process, service templates |
-| [SECURITY.md](SECURITY.md) | Security policy — 7-layer defense model, threat model, vulnerability reporting |
+| [SECURITY.md](SECURITY.md) | Security policy — 10-layer defense model, threat model, vulnerability reporting |
 | [CHANGELOG.md](CHANGELOG.md) | Version history with detailed per-release notes |
 
 ### Schemas & Configuration

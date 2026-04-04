@@ -194,7 +194,7 @@ async function runREPL(agent) {
   const health = agent.getHealth();
   const model = health?.model?.active || 'unknown';
   console.log(`[CLI] Model: ${model}`);
-  console.log('[CLI] Type your message. Commands: /health, /goals, /status, /skills, /consolidate, /replays, /quit\n');
+  console.log('[CLI] Type your message. Commands: /health, /goals, /status, /skills, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /quit\n');
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -404,7 +404,111 @@ async function runREPL(agent) {
     }
 
     if (input.startsWith('/')) {
-      console.log('  Unknown command. Available: /health, /goals, /status, /skills, /skill install|uninstall|update, /consolidate, /replays, /quit\n');
+      // ── v6.0.1: Budget, Backup, CrashLog, Update CLI commands ──
+
+      if (input === '/budget') {
+        const cg = agent.container.tryResolve('costGuard');
+        if (!cg) {
+          console.log('\n  CostGuard not available.\n');
+        } else {
+          const u = cg.getUsage();
+          console.log('\n  LLM Budget:');
+          console.log(`    Session: ${u.session.pct}% used (${u.session.tokens} / ${u.session.limit} tokens, ${u.session.calls} calls)`);
+          console.log(`    Daily:   ${u.daily.pct}% used (${u.daily.tokens} / ${u.daily.limit} tokens, ${u.daily.calls} calls)`);
+          console.log(`    Blocked: ${u.blocked} calls | Uptime: ${u.sessionUptime} min\n`);
+        }
+        rl.prompt();
+        return;
+      }
+
+      if (input === '/export') {
+        const { BackupManager } = require('./src/agent/capabilities/BackupManager');
+        const bm = new BackupManager(agent._genesisDir || require('path').join(require('os').homedir(), '.genesis'), { bus: agent.bus });
+        console.log('\n  Exporting data...');
+        try {
+          const result = await bm.export();
+          if (result.success) {
+            console.log(`  ✓ Exported ${result.stats.files} files → ${result.path}`);
+            console.log(`    Size: ${(result.stats.archiveSize / 1024).toFixed(0)} KB\n`);
+          } else {
+            console.log(`  ✗ Export failed: ${result.error}\n`);
+          }
+        } catch (err) {
+          console.log(`  ✗ Export failed: ${err.message}\n`);
+        }
+        rl.prompt();
+        return;
+      }
+
+      if (input.startsWith('/import ')) {
+        const filePath = input.slice(8).trim();
+        if (!filePath) {
+          console.log('\n  Usage: /import <path-to-backup.tar.gz>\n');
+        } else {
+          const { BackupManager } = require('./src/agent/capabilities/BackupManager');
+          const bm = new BackupManager(agent._genesisDir || require('path').join(require('os').homedir(), '.genesis'), { bus: agent.bus });
+          console.log(`\n  Importing from ${filePath}...`);
+          try {
+            const result = await bm.import(filePath);
+            if (result.success) {
+              console.log(`  ✓ Imported ${result.stats.imported} files, skipped ${result.stats.skipped}\n`);
+            } else {
+              console.log(`  ✗ Import failed: ${result.error}\n`);
+            }
+          } catch (err) {
+            console.log(`  ✗ Import failed: ${err.message}\n`);
+          }
+        }
+        rl.prompt();
+        return;
+      }
+
+      if (input === '/crashlog') {
+        const cl = agent.container.tryResolve('crashLog');
+        if (!cl) {
+          console.log('\n  CrashLog not available.\n');
+        } else {
+          const stats = cl.getStats();
+          const entries = cl.getRecent(20);
+          console.log(`\n  Crash Log (${stats.totalEntries} entries: ${stats.errors} errors, ${stats.warns} warnings):`);
+          if (entries.length === 0) {
+            console.log('    No entries.\n');
+          } else {
+            for (const e of entries) {
+              const time = e.ts.slice(11, 19);
+              const icon = e.level === 'error' ? '✗' : '⚠';
+              console.log(`    ${icon} ${time} [${e.module}] ${e.msg.slice(0, 100)}`);
+            }
+            console.log();
+          }
+        }
+        rl.prompt();
+        return;
+      }
+
+      if (input === '/update') {
+        const au = agent.container.tryResolve('autoUpdater');
+        if (!au) {
+          console.log('\n  AutoUpdater not available.\n');
+        } else {
+          console.log('\n  Checking for updates...');
+          try {
+            const result = await au.checkForUpdate();
+            if (result.available) {
+              console.log(`  ✓ New version available: v${result.latest} (current: v${result.current})`);
+              console.log(`    Download: ${result.url}\n`);
+            } else {
+              console.log(`  ✓ Up to date (v${result.current})\n`);
+            }
+          } catch (err) {
+            console.log(`  ✗ Check failed: ${err.message}\n`);
+          }
+        }
+        rl.prompt();
+        return;
+      }
+
+      console.log('  Unknown command. Available: /health, /goals, /status, /skills, /skill install|uninstall|update, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /quit\n');
       rl.prompt();
       return;
     }

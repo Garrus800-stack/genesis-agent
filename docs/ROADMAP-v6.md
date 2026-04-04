@@ -8,13 +8,13 @@
 
 | Metric | Value |
 |--------|-------|
-| Source Files / LOC | 231 / ~79.9k |
-| Test Suites / Tests | 180 / ~3100 |
+| Source Files / LOC | 235 / ~80.8k |
+| Test Suites / Tests | 247 / ~3500 |
 | Boot Phases | 13 |
-| Registered Services | 125 |
+| Registered Services | 128 |
 | Circular Dependencies | 0 |
 | Cross-Layer Violations | 0 |
-| Shutdown Integrity | ✅ All 54 services, sync writes |
+| Shutdown Integrity | ✅ All 56 services, sync writes |
 | Fitness Score | 90/90 (100%) |
 | TypeScript CI | ✅ Strict mode, 0 errors |
 | @ts-nocheck files | 0 (was 25) |
@@ -179,7 +179,7 @@ Standardized benchmarks to measure agent capability across versions and backends
 - **✅ Modes**: `--quick` (3 tasks), `--backend <n>`, `--json` output. (v5.9.8)
 - **✅ Extended Task Suite (v6.0.0)**: 4 new tasks (8 → 12): async rate limiter, async error handling, strategy pattern, API design review. Coverage across 5 categories.
 - **✅ `--ab-matrix` mode (v6.0.0)**: Runs A/B comparison across ALL configured backends. Auto-discovers backends from settings.json. Per-backend delta + aggregate average. Results saved to `.genesis/benchmark-ab-matrix.json`.
-- **Remaining**: README auto-generation of benchmark table
+- **✅ README Auto-Gen (v6.0.1)**: `scripts/benchmark-readme.js` reads `.genesis/benchmark-latest.json`, generates markdown table, injects into README.md between `<!-- BENCHMARK-START/END -->` markers. npm script: `benchmark:readme`.
 - **Prerequisite**: SkillManager ✅, LLMPort ✅, Sandbox ✅
 - **Effort**: Low (remaining)
 - **Priority**: Medium — provides hard numbers for competitive positioning

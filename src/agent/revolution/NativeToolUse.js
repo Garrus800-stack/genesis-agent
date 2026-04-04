@@ -23,6 +23,7 @@
 // ============================================================
 
 const { NullBus } = require('../core/EventBus');
+const { TIMEOUTS } = require('../core/Constants');
 const { safeJsonParse } = require('../core/utils');
 
 class NativeToolUse {
@@ -450,7 +451,7 @@ class NativeToolUse {
         });
       });
 
-      req.setTimeout(60000, () => { req.destroy(); reject(new Error('Timeout')); });
+      req.setTimeout(TIMEOUTS.NATIVE_TOOL_HTTP, () => { req.destroy(); reject(new Error('Timeout')); });
       req.on('error', reject);
       req.write(postData);
       req.end();

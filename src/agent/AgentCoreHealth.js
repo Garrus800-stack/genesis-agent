@@ -293,6 +293,10 @@ class AgentCoreHealth {
       'taskOutcomeTracker',
       // v5.9.7 (V6-5): ConversationCompressor — clears cache
       'conversationCompressor',
+      // v6.0.1: CostGuard — clears warning state
+      'costGuard',
+      // v6.0.1: AutoUpdater — clears check interval
+      'autoUpdater',
       // v5.9.8 (V6-11): CognitiveSelfModel — unsubscribes outcome listeners
       'cognitiveSelfModel',
       // v5.9.8 (V6-6): SkillRegistry — lifecycle compliance
@@ -362,6 +366,9 @@ class AgentCoreHealth {
       _log.info('[GENESIS] Clean shutdown complete.');
     }
     this._bus.fire('agent:shutdown', { errors }, { source: 'AgentCore' });
+
+    // v6.0.1: CrashLog — stop last so it captures all shutdown logs
+    safe('crashLog', () => { c.tryResolve('crashLog')?.stop(); });
   }
 }
 

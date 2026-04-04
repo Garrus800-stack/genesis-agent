@@ -23,7 +23,7 @@ function phase12(ctx, R) {
       }),
     }],
 
-    // ── AdaptiveMemory ──
+    // ── AdaptiveMemory (@deprecated v6.0.1 — use UnifiedMemory. Kept for backwards compat) ──
     ['adaptiveMemory', {
       phase: 12,
       deps: ['storage', 'eventStore'],

@@ -188,6 +188,15 @@ function phase1(ctx, R) {
       phase: 1, deps: [], tags: ['safety', 'core'],
       factory: () => new (R('PreservationInvariants').PreservationInvariants)({ bus }),
     }],
+
+    // v6.0.1: CostGuard — session/daily LLM token budget cap
+    ['costGuard', {
+      phase: 1, deps: [], tags: ['safety', 'cost'],
+      lateBindings: [
+        { prop: '_settings', service: 'settings', optional: true },
+      ],
+      factory: () => new (R('CostGuard').CostGuard)({ bus }),
+    }],
   ];
 }
 

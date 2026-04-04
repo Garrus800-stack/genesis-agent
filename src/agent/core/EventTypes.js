@@ -329,6 +329,8 @@ const EVENTS = Object.freeze({
     THOUGHT_COMPLETE: 'idle:thought-complete',
     /** v5.7.0: Proactive insight shared with user @payload {{ activity: string, insight: string }} */
     PROACTIVE_INSIGHT: 'idle:proactive-insight',
+    /** v6.0.1: Trigger memory consolidation from idle activity @payload {{}} */
+    CONSOLIDATE_MEMORY: 'idle:consolidate-memory',
   }),
 
   // ── Intent Router ──────────────────────────────────────
@@ -360,6 +362,10 @@ const EVENTS = Object.freeze({
     RATE_LIMITED:  'llm:rate-limited',
     /** @payload {{ bucket: string, used: number, budget: number }} */
     BUDGET_WARNING: 'llm:budget-warning',
+    /** @payload {{ scope: string, used: number, limit: number, taskType: string }} */
+    COST_CAP_REACHED: 'llm:cost-cap-reached',
+    /** @payload {{ scope: string, pct: number, used: number, limit: number }} */
+    COST_WARNING: 'llm:cost-warning',
   }),
 
   // ── MCP ────────────────────────────────────────────────
@@ -854,6 +860,20 @@ const EVENTS = Object.freeze({
     STORED:      'value:stored',
     /** @payload {{ name: string, newWeight: number, reason: string }} */
     REINFORCED:  'value:reinforced',
+  }),
+
+  // ── Backup (v6.0.1) ──────────────────────────────────
+  BACKUP: Object.freeze({
+    /** @payload {{ path: string, files: number, rawSize: number, archiveSize: number }} */
+    EXPORTED:  'backup:exported',
+    /** @payload {{ source: string, imported: number, skipped: number, manifest: object }} */
+    IMPORTED:  'backup:imported',
+  }),
+
+  // ── Update (v6.0.1) ──────────────────────────────────
+  UPDATE: Object.freeze({
+    /** @payload {{ current: string, latest: string, url: string, changelog?: string, publishedAt?: string }} */
+    AVAILABLE: 'update:available',
   }),
 });
 

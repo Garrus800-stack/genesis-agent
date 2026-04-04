@@ -76,6 +76,15 @@ class AgentCoreBoot {
     Logger.setLevel(logLevel);
     c.registerInstance('logger', Logger);
 
+    // v6.0.1: CrashLog — rotating error/warn file sink
+    try {
+      const { CrashLog } = require('./core/CrashLog');
+      const crashLog = new CrashLog(core.genesisDir);
+      crashLog.start();
+      Logger.setSink((entry) => crashLog.capture(entry));
+      c.registerInstance('crashLog', crashLog);
+    } catch (_e) { /* CrashLog is best-effort */ }
+
     // Event payload validation (dev-mode)
     try {
       const { installPayloadValidation } = require('./core/EventPayloadSchemas');
@@ -191,7 +200,6 @@ class AgentCoreBoot {
     const ESSENTIAL = new Set([
       'chatOrchestrator', 'selfModPipeline', 'commandHandlers', 'agentLoop',
       'goalStack', 'unifiedMemory', 'episodicMemory', 'learningService',
-      'memoryFacade',
     ]);
     for (const name of ESSENTIAL) {
       if (c.has(name)) c.resolve(name);
@@ -209,7 +217,7 @@ class AgentCoreBoot {
       'goalPersistence', 'failureTaxonomy', 'dynamicContextBudget',
       'emotionalSteering', 'localClassifier',
       'trustLevelSystem', 'effectorRegistry', 'webPerception',
-      'graphReasoner', 'adaptiveMemory',
+      'graphReasoner',
     ];
 
     const degraded = [];

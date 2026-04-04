@@ -2,6 +2,11 @@
 // ============================================================
 // GENESIS — AdaptiveMemory.js (Phase 12 — Symbolic+Neural Hybrid)
 //
+// @deprecated v6.0.1 — Scheduled for removal. Only 3 external
+// references remain. Use UnifiedMemory for retrieval and
+// MemoryConsolidator for decay/pruning. See SELF-ANALYSIS-AUDIT.md
+// Claim 2 for rationale.
+//
 // PROBLEM: VectorMemory has uniform decay (500 entries, FIFO).
 // ConversationMemory stores everything linearly. DreamCycle
 // uses a single decay rate. But memories are NOT equal:

@@ -112,7 +112,7 @@ test('_pickActivity returns valid activity name', () => {
     storage: mockStorage(),
   });
 
-  const valid = ['reflect', 'plan', 'explore', 'ideate', 'tidy', 'journal', 'mcp-explore'];
+  const valid = ['reflect', 'plan', 'explore', 'ideate', 'tidy', 'journal', 'mcp-explore', 'consolidate'];
   const picked = idle._pickActivity();
   assert.ok(valid.includes(picked), `unexpected activity: ${picked}`);
 });

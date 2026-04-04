@@ -13,6 +13,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { INTERVALS } = require('../core/Constants');
 const _log = createLogger('AutonomousDaemon');
 
 class AutonomousDaemon {
@@ -64,7 +65,7 @@ class AutonomousDaemon {
 
     // Run first cycle after boot has settled (30 seconds)
     // FIX v5.0.0: Store timer handle so stop() can cancel it
-    this._bootTimer = setTimeout(() => this._runCycle(), 30000);
+    this._bootTimer = setTimeout(() => this._runCycle(), INTERVALS.DAEMON_BOOT_DELAY);
 
     // Schedule recurring cycles (via IntervalManager if available)
     if (this._intervals) {
@@ -286,7 +287,7 @@ class AutonomousDaemon {
     if (hotEvents.length > 0) {
       suggestions.push({
         type: 'performance',
-        detail: `Häufige Events (mögliche Bottlenecks): ${hotEvents.join(', ')}`,
+        detail: `Frequent events (potential bottlenecks): ${hotEvents.join(', ')}`,
       });
     }
 

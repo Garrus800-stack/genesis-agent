@@ -16,6 +16,7 @@
 'use strict';
 
 const { createLogger } = require('../core/Logger');
+const { TIMEOUTS } = require('../core/Constants');
 const _log = createLogger('DeploymentManager');
 
 /**
@@ -304,7 +305,7 @@ class DeploymentManager {
       }
       // External health check would use shell/http here
       if (i < checks - 1) {
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, TIMEOUTS.DEPLOY_STEP_DELAY));
       }
     }
   }

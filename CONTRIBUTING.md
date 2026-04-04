@@ -111,7 +111,7 @@ genesis-agent/
 │   │   ├── autonomy/          # IdleMind, HealthMonitor, ErrorAggregator, HealthServer
 │   │   ├── organism/          # EmotionalState, Homeostasis, NeedsSystem, Metabolism, ImmuneSystem, BodySchema
 │   │   ├── revolution/        # AgentLoop, FormalPlanner, NativeToolUse, ModelRouter, FailureAnalyzer
-│   │   ├── cognitive/         # ExpectationEngine, MentalSimulator, DreamCycle, SelfNarrative, CognitiveHealthTracker
+│   │   ├── cognitive/         # CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder, ReasoningTracer, DreamCycle, LessonsStore + 10 more
 │   │   ├── consciousness/     # PhenomenalField, TemporalSelf, IntrospectionEngine,
 │   │   │                      # AttentionalGate, ConsciousnessExtension (7 subsystems)
 │   │   └── ports/             # Hexagonal architecture port adapters
@@ -120,7 +120,7 @@ genesis-agent/
 ├── test/
 │   ├── harness.js             # Shared async-safe test framework
 │   ├── index.js               # Test runner v2 (parallel, async)
-│   └── modules/               # Per-module test files (135 suites)
+│   └── modules/               # Per-module test files (178 suites)
 ├── schemas/                   # JSON Schemas (skill-manifest)
 ├── types/                     # TypeScript type definitions (.d.ts)
 ├── scripts/                   # Tooling (audit-events, benchmark, build-bundle)

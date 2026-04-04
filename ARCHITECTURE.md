@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 5.9.9 · Last verified: all checks green (3106 tests, TSC 0, fitness 90/90)
+> Version: 6.0.1 · Last verified: all checks green (~3100 tests, TSC 0, fitness 90/90)
 
 ---
 
@@ -193,7 +193,7 @@ Homeostasis monitors memory pressure, token costs, and error rates. When stresse
 
 EmotionalState tracks success/failure patterns. After repeated failures, the "frustration" signal causes the prompt to include "try a fundamentally different approach". After sustained success, "confidence" allows more autonomous multi-step plans.
 
-**Empirical validation (v5.9.9):** The A/B benchmark (`npm run benchmark:agent:ab`) tested 8 tasks with and without Organism signals using kimi-k2.5:cloud. Result: **50% success rate with Organism (4/8) vs. 13% without (1/8)** — a 37 percentage-point improvement. The Organism layer helped on 4 code-gen and bug-fix tasks, hurt on 1 async task, and was neutral on 3. This is the first empirical evidence that bio-inspired self-regulation improves AI agent task performance. Full results in `.genesis/benchmark-ab.json`.
+**Empirical validation (v5.9.9):** The A/B benchmark (`npm run benchmark:agent:ab`) tested 8 tasks (now 12 in v6.0.0) with and without Organism signals using kimi-k2.5:cloud. Result: **50% success rate with Organism (4/8) vs. 13% without (1/8)** — a 37 percentage-point improvement. The Organism layer helped on 4 code-gen and bug-fix tasks, hurt on 1 async task, and was neutral on 3. This is the first empirical evidence that bio-inspired self-regulation improves AI agent task performance. Full results in `.genesis/benchmark-ab.json`.
 
 ---
 
@@ -335,7 +335,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # 3106+ tests, 0 failures
+node test/index.js                          # ~3100 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -455,7 +455,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | 3106 tests across 176 suites |
+| Tests | `node test/index.js` | ~3100 tests across 178 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
@@ -547,7 +547,7 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (3106 tests)
+│   ├── index.js               → Module test runner (~3100 tests)
 │   ├── run-tests.js           → Legacy test runner (154 tests)
 │   └── modules/               → One test file per service
 ├── scripts/
@@ -555,7 +555,7 @@ genesis-agent/
 │   ├── audit-events.js        → Event catalog audit
 │   ├── validate-events.js     → Event registration validation
 │   ├── validate-channels.js   → IPC channel sync check
-│   ├── benchmark-agent.js     → Agent capability benchmark (8 tasks)
+│   ├── benchmark-agent.js     → Agent capability benchmark (12 tasks)
 │   └── release.js             → Version bump across 7 locations
 ├── types/
 │   └── node.d.ts              → Minimal Node.js type declarations for TSC

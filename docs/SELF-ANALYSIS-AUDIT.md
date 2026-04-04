@@ -2,13 +2,13 @@
 
 **v5.9.8 — Empirical audit of Genesis's self-critique (kimi-k2.5 cloud, April 2026)**
 
-Genesis was asked: "Bist du zufrieden mit deinen Fähigkeiten?" — and produced a brutally honest self-review. This document validates each claim against the actual codebase.
+Genesis was asked: "Are you satisfied with your capabilities?" (*"Bist du zufrieden mit deinen Fähigkeiten?"*) — and produced a brutally honest self-review. This document validates each claim against the actual codebase.
 
 ---
 
-## Claim 1: "421 Module" — Module Count
+## Claim 1: "421 Modules" — Module Count
 
-**Genesis says**: "Bei 421 Modulen und 13 Boot-Phasen rieche ich meinen eigenen technischen Schweiß."
+**Genesis says**: "With 421 modules and 13 boot phases, I can smell my own technical sweat." (*"Bei 421 Modulen und 13 Boot-Phasen rieche ich meinen eigenen technischen Schweiß."*)
 
 **Reality**: 229 source files in `src/`. The "421" comes from SelfModel.js scanning the entire project tree including `test/` (180 files), `scripts/`, `plugins/`, `uploads/`. The LLM doesn't distinguish source from test/config.
 
@@ -20,9 +20,9 @@ Genesis was asked: "Bist du zufrieden mit deinen Fähigkeiten?" — and produced
 
 ---
 
-## Claim 2: Memory-Fragmentierung (P0)
+## Claim 2: Memory Fragmentation (P0)
 
-**Genesis says**: "Ich habe mindestens sechs verschiedene Speichersysteme (EpisodicMemory, ConversationMemory, VectorMemory, UnifiedMemory, AdaptiveMemory, EchoicMemory), die nicht kohärent zusammenarbeiten."
+**Genesis says**: "I have at least six different memory systems (EpisodicMemory, ConversationMemory, VectorMemory, UnifiedMemory, AdaptiveMemory, EchoicMemory) that don't work together coherently." (*"Ich habe mindestens sechs verschiedene Speichersysteme … die nicht kohärent zusammenarbeiten."*)
 
 **Reality**: There are actually **8 memory classes** and **7 registered services**:
 
@@ -49,9 +49,9 @@ Genesis was asked: "Bist du zufrieden mit deinen Fähigkeiten?" — and produced
 
 ---
 
-## Claim 3: Boot-Komplexität (P1)
+## Claim 3: Boot Complexity (P1)
 
-**Genesis says**: "13 Manifest-Phasen ist pathologisch. Das ist eine Abhängigkeits-Tortur. Jede Phase erhöht die Startup-Zeit und die Fehlerwahrscheinlichkeit exponentiell."
+**Genesis says**: "13 manifest phases is pathological. It's a dependency torture. Each phase increases startup time and failure probability exponentially." (*"13 Manifest-Phasen ist pathologisch. Das ist eine Abhängigkeits-Tortur."*)
 
 **Reality**: 13 phases with service counts:
 
@@ -83,9 +83,9 @@ Collapsing to 3 phases (as Genesis suggests) would reintroduce coupling and brea
 
 ---
 
-## Claim 4: Organismus-Metaphern-Overhead (P2)
+## Claim 4: Organism Metaphor Overhead (P2)
 
-**Genesis says**: "Metabolism verwaltet vermutlich Ressourcen, ImmuneSystem prüft Integrität. Die biologischen Abstraktionen addieren kognitive Last ohne entsprechenden Nutzen."
+**Genesis says**: "Metabolism presumably manages resources, ImmuneSystem checks integrity. The biological abstractions add cognitive load without corresponding benefit." (*"Metabolism verwaltet vermutlich Ressourcen, ImmuneSystem prüft Integrität. Die biologischen Abstraktionen addieren kognitive Last ohne entsprechenden Nutzen."*)
 
 **Reality**: Organism layer = **4,999 LOC**, 9 services, 13 classes.
 
@@ -116,7 +116,7 @@ Evidence of overhead: v5.9.6 required UX-1/UX-2 fixes because Homeostasis vitals
 
 ## Claim 5: Consciousness Layer (P4)
 
-**Genesis says**: "PhenomenalField und ConsciousnessState simulieren Bewusstsein, aber ohne klare Schnittstelle zum Rest des Systems."
+**Genesis says**: "PhenomenalField and ConsciousnessState simulate consciousness, but without a clear interface to the rest of the system." (*"PhenomenalField und ConsciousnessState simulieren Bewusstsein, aber ohne klare Schnittstelle zum Rest des Systems."*)
 
 **Reality**: Consciousness layer = **6,018 LOC**, 5 services.
 
@@ -133,9 +133,9 @@ External usage:
 
 ---
 
-## Claim 6: Echte Selbst-Modifikation (P3)
+## Claim 6: Real Self-Modification (P3)
 
-**Genesis says**: "SelfModificationPipeline ist vorsichtig, aber zu vorsichtig — es kann keine Architektur-Refactorings durchführen, nur kleine Patches."
+**Genesis says**: "SelfModificationPipeline is cautious, but too cautious — it can't perform architecture refactorings, only small patches." (*"SelfModificationPipeline ist vorsichtig, aber zu vorsichtig — es kann keine Architektur-Refactorings durchführen, nur kleine Patches."*)
 
 **Reality**: SelfModificationPipeline has:
 - VerificationEngine.verify() — code verification
@@ -152,7 +152,7 @@ Genesis is RIGHT that it can't do large refactorings — the pipeline is patch-l
 
 ## Claim 7: DreamCycle → BackgroundConsolidation
 
-**Genesis says**: "DreamCycle analysiert 'Schlafens-Zeiten', aber ohne echte Offline-Lern-Integration."
+**Genesis says**: "DreamCycle analyzes 'sleep times', but without real offline learning integration." (*"DreamCycle analysiert 'Schlafens-Zeiten', aber ohne echte Offline-Lern-Integration."*)
 
 **Reality**: DreamCycle runs during IdleMind intervals. It consolidates CognitiveWorkspace items and generates insights. It does NOT do embedding recomputation or knowledge graph compaction.
 
@@ -162,7 +162,7 @@ Genesis is RIGHT that it can't do large refactorings — the pipeline is patch-l
 
 ## Claim 8: EventSchemaEvolution
 
-**Genesis says**: "EventTypes.js und EventPayloadSchemas.js sind statisch. Bei 421 Modulen explodiert die Event-Oberfläche."
+**Genesis says**: "EventTypes.js and EventPayloadSchemas.js are static. With 421 modules, the event surface area explodes." (*"EventTypes.js und EventPayloadSchemas.js sind statisch. Bei 421 Modulen explodiert die Event-Oberfläche."*)
 
 **Reality**: EventTypes.js is static by design — it's a CI gate (`audit:events:strict`). Dynamic schema evolution would break the audit pipeline. The real module count is 230, not 421.
 
@@ -172,7 +172,7 @@ Genesis is RIGHT that it can't do large refactorings — the pipeline is patch-l
 
 ## Claim 9: PerformanceTelemetry
 
-**Genesis says**: "Ich brauche ein PerformanceTelemetry-System, das nicht nur Events loggt, sondern Latenz-Kritikalität pro Modul misst."
+**Genesis says**: "I need a PerformanceTelemetry system that doesn't just log events, but measures latency criticality per module." (*"Ich brauche ein PerformanceTelemetry-System, das nicht nur Events loggt, sondern Latenz-Kritikalität pro Modul misst."*)
 
 **Reality**: TaskOutcomeTracker (v5.9.7) + CognitiveSelfModel (v5.9.8) now track per-task-type latency, token cost, and success rates. This IS the performance telemetry — just named differently.
 

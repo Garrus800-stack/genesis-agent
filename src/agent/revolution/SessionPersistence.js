@@ -27,6 +27,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { TIMEOUTS } = require('../core/Constants');
 const _log = createLogger('SessionPersistence');
 
 class SessionPersistence {
@@ -335,7 +336,7 @@ UNFINISHED: ...`;
 
   _debouncedSave() {
     if (this._saveTimer) clearTimeout(this._saveTimer);
-    this._saveTimer = setTimeout(() => this._save(), 3000);
+    this._saveTimer = setTimeout(() => this._save(), TIMEOUTS.PERSIST_DEBOUNCE);
   }
 
   /**

@@ -30,6 +30,29 @@ Resolved items are documented in CHANGELOG.md for traceability.
 | Prototype pollution | `__proto__` filtered in WorldState.js. No `for...in` eliminates the primary attack vector. |
 | console.log | 1 in SkillManager.js:85 — runs in Sandbox child process where _log unavailable. Design-correct (v5.9.1 FIX-5). |
 
+## v6.0.1 — Resolved (Safety Infrastructure + Documentation Audit)
+
+| ID          | Severity | Description |
+|-------------|----------|-------------|
+| COST-1      | HIGH   | CostGuard.js (~230 LOC): Session (500k) + daily (2M) token budget cap. Blocks autonomous calls at 100%, warns at 80%. User chat bypasses. Wired into LLMPort._checkRateLimit() step 3 + post-call recording. Late-bound via Container. Phase 1 manifest. 2 events, 2 schemas. CLI: /budget. 12 tests. |
+| BACKUP-1    | HIGH   | BackupManager.js (~240 LOC): Export/import ~/.genesis/ as tar.gz with manifest. 10 data files + 2 directories. Import merges, preserves settings. Phase 6 manifest. 2 events, 2 schemas. CLI: /export, /import. 9 tests. |
+| CRASH-1     | MEDIUM | CrashLog.js (~230 LOC): Rotating error/warn log. Ring buffer 1000 entries → crash.log. Flush 5s or immediate on errors. Rotation at 500KB. Wired via Logger.setSink() in AgentCoreBoot. Shutdown in AgentCoreHealth. CLI: /crashlog. 12 tests. |
+| UPDATE-1    | MEDIUM | AutoUpdater.js (~240 LOC): GitHub Releases API checker. Boot check (10s delay), periodic 24h. Notifies only — no auto-install. Phase 6 manifest. TO_STOP. 1 event, 1 schema. CLI: /update. 11 tests. |
+| SKILL-DOC-1 | MEDIUM | docs/SKILL-SECURITY.md: Complete sandbox boundary documentation for skill authors. Allowed/blocked modules, AST rules, trust model. Linked from README + SECURITY.md. |
+| DOC-1       | LOW    | SECURITY.md: Version table 4.12.x → 6.0.x. SKILL-SECURITY.md link added. |
+| DOC-2       | LOW    | README.md: 11 stale metrics corrected (badges, service counts, event counts, layer counts, IPC channels, TSC file count). SKILL-SECURITY.md link added. |
+| DOC-3       | LOW    | ARCHITECTURE.md: Version 5.9.9 → 6.0.1. Test counts, benchmark count, A/B text clarified. |
+| DOC-4       | LOW    | CONTRIBUTING.md: cognitive/ listing 5 → 17 modules. Test suites 135 → 178. |
+| DOC-5       | LOW    | SELF-ANALYSIS-AUDIT.md: 9 German Genesis quotes translated to English (originals in italics). 4 German section headers translated. |
+| I18N-1      | LOW    | ContextManager.js: 4 German LLM prompt strings → English (BEWÄHRTES VORGEHEN, ARCHITEKTUR-ÜBERSICHT, Antworte in natürlicher Sprache, GESPRÄCHSVERLAUF). |
+| I18N-2      | LOW    | AutonomousDaemon.js: 1 German suggestion string → English (Häufige Events). |
+| INFRA-2     | LOW    | EventTypes +5 events (348 total), EventPayloadSchemas +5 schemas (90 total), TO_STOP +2 (56 total), IPC +6 handlers, preload +5, CLI +5 commands. |
+| SEC-2       | MEDIUM | BackupManager: `execSync` string interpolation → `execFileSync` array args. Shell injection vector eliminated. |
+| CONST-1     | LOW    | Constants.js: +11 constants (9 timeouts + 2 intervals). 10 files patched — 0 hardcoded magic numbers remaining. |
+| DEPR-1      | LOW    | AdaptiveMemory + MemoryFacade: `@deprecated v6.0.1` markers added. ConsciousnessExtension: `@note` (0 external refs, kept by design). |
+| DEPR-2      | LOW    | ToolBootstrap.js: MemoryFacade dependency removed → KnowledgeGraph direct. 2 fewer external MemoryFacade refs. |
+| TEST-2      | MEDIUM | 12 new test suites: model-router (10), correlation-context (14), dynamic-context-budget (14), language (9), local-classifier (9), meta-learning (9), value-store (10), error-aggregator (10), prompt-evolution (10), event-store (11), body-schema (6), immune-system (6). Test suites 182 → 194. Untested: 91 → 79. |
+
 ## v6.0.0 — Resolved (Memory Consolidation + Task Replay + Benchmark Matrix)
 
 | ID          | Severity | Description |

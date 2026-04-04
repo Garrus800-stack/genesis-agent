@@ -17,6 +17,7 @@
 const http = require('http');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { TIMEOUTS } = require('../core/Constants');
 const _log = createLogger('EmbeddingService');
 const PREFERRED_MODELS = [
   'nomic-embed-text',
@@ -195,7 +196,7 @@ class EmbeddingService {
           catch (_e) { _log.debug('[catch] JSON parse:', _e.message); reject(new Error('Invalid JSON')); }
         });
       });
-      req.setTimeout(5000, () => { req.destroy(); reject(new Error('Timeout')); });
+      req.setTimeout(TIMEOUTS.EMBEDDING_LOCAL, () => { req.destroy(); reject(new Error('Timeout')); });
       req.on('error', reject);
     });
   }
@@ -217,7 +218,7 @@ class EmbeddingService {
           catch (_e) { _log.debug('[catch] JSON parse:', _e.message); reject(new Error('Invalid JSON')); }
         });
       });
-      req.setTimeout(10000, () => { req.destroy(); reject(new Error('Timeout')); });
+      req.setTimeout(TIMEOUTS.EMBEDDING_REMOTE, () => { req.destroy(); reject(new Error('Timeout')); });
       req.on('error', reject);
       req.write(body);
       req.end();

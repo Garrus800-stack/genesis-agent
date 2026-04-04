@@ -1,3 +1,73 @@
+## [6.0.1] — Safety Infrastructure + Documentation Audit
+
+**Focus: Five non-roadmap gaps closed — LLM cost cap, data backup, crash logging, update checker, skill security docs. Full documentation audit: 7 files fixed, all German LLM prompts translated to English, all stale metrics corrected.**
+
+### CostGuard — LLM Budget Cap (NEW)
+- `src/agent/ports/CostGuard.js` (~230 LOC): Session (500k) and daily (2M) token limits for autonomous LLM calls
+- Blocks autonomous calls at 100%, warns at 80%. User chat never blocked (priority >= 10 bypasses)
+- Daily auto-reset at midnight. Configurable via `settings.json → llm.costGuard`
+- Wired into `LLMPort._checkRateLimit()` as step 3. Late-bound via Container
+- Events: `llm:cost-cap-reached`, `llm:cost-warning`. CLI: `/budget`
+
+### BackupManager — Export/Import (NEW)
+- `src/agent/capabilities/BackupManager.js` (~240 LOC): Export/import all `~/.genesis/` data as `.tar.gz`
+- Exports 10 data files + 2 directories (replays, lesson archives) with manifest
+- Import merges — preserves existing settings by default
+- Events: `backup:exported`, `backup:imported`. CLI: `/export`, `/import <path>`
+
+### CrashLog — Rotating Error Log (NEW)
+- `src/agent/core/CrashLog.js` (~230 LOC): Ring buffer of last 1000 warn/error entries → `~/.genesis/crash.log`
+- Flush every 5s or immediately on errors. Rotation at 500KB (keeps 1 old file)
+- Wired via `Logger.setSink()` in `AgentCoreBoot._bootstrapInstances()` — captures from first boot message
+- CLI: `/crashlog`
+
+### AutoUpdater — GitHub Release Checker (NEW)
+- `src/agent/capabilities/AutoUpdater.js` (~240 LOC): Checks GitHub Releases API for newer versions
+- Boot check (10s delay), periodic check (24h). Notifies only — no auto-install
+- Event: `update:available`. CLI: `/update`
+
+### SKILL-SECURITY.md — Security Boundary Docs (NEW)
+- `docs/SKILL-SECURITY.md`: Complete documentation of skill sandbox boundaries
+- Covers: allowed/blocked modules, AST scanner rules, execution environment, trust model, timeout behavior
+- Linked from README doc table and SECURITY.md
+
+### Documentation Audit
+- **SECURITY.md**: Version table `4.12.x` → `6.0.x`. Added SKILL-SECURITY.md link
+- **README.md**: 11 corrections — badges (services 123→125, events 318→343), infrastructure (events 308→343, layers 12→10), metrics table (DI 116→125, cognitive 14→17, safety 12→10, TSC 218→210), SECURITY.md link (7→10-layer), SKILL-SECURITY.md link added
+- **ARCHITECTURE.md**: Version 5.9.9→6.0.1, test counts updated (3106→~3100, 176→178 suites), benchmark 8→12 tasks, A/B text version fix
+- **CONTRIBUTING.md**: cognitive/ listing 5→17 modules, test suites 135→178
+- **SELF-ANALYSIS-AUDIT.md**: All 9 German Genesis quotes translated to English (originals in italics), 4 German section headers translated
+- **ContextManager.js**: 4 German LLM prompt strings → English (`BEWÄHRTES VORGEHEN`, `ARCHITEKTUR-ÜBERSICHT`, `Antworte in natürlicher Sprache`, `GESPRÄCHSVERLAUF`)
+- **AutonomousDaemon.js**: 1 German suggestion string → English
+
+### Code Quality (Deep Analysis Fixes)
+- **V6-9 Complete**: `scripts/benchmark-readme.js` (~130 LOC) — reads `.genesis/benchmark-latest.json`, generates per-task markdown table with category breakdown, injects into README.md between `<!-- BENCHMARK-START/END -->` markers. npm scripts: `benchmark:readme`, `benchmark:readme:dry`. V6-9 is now 100% done.
+- **BackupManager.js**: `execSync` with string interpolation → `execFileSync` with array args. Shell injection vector eliminated
+- **Constants.js**: +9 timeout constants (EMBEDDING_LOCAL/REMOTE, GITHUB_API, NATIVE_TOOL_HTTP, DEPLOY_STEP_DELAY, PERSIST_DEBOUNCE, VECTOR_SAVE_DEBOUNCE, UPDATE_BOOT_DELAY, BACKUP_TAR) + 2 interval constants (DAEMON_BOOT_DELAY, LEARNING_SAVE)
+- **10 files patched**: EmbeddingService, GitHubEffector, NativeToolUse, AutonomousDaemon, DeploymentManager, SessionPersistence, VectorMemory, LearningService, AutoUpdater, BackupManager — all hardcoded timeouts replaced with Constants references. 0 magic numbers remaining
+- **AdaptiveMemory.js**: `@deprecated v6.0.1` — 3 external refs, scheduled for removal. Use UnifiedMemory instead
+- **MemoryFacade.js**: `@deprecated v6.0.1` — 4 external refs, scheduled for removal. Use UnifiedMemory directly
+- **ConsciousnessExtension.js**: `@note` added — 0 external functional refs, kept by design (see Roadmap Explicitly Deferred)
+- **AgentCoreHealth.js**: CrashLog.stop() added as final shutdown step — captures all shutdown errors before exit
+- **ToolBootstrap.js**: MemoryFacade dependency removed — knowledge-search/connect tools now use KnowledgeGraph directly (MemoryFacade was a pure pass-through)
+- **3 new test suites**: model-router (10 tests), correlation-context (14 tests), dynamic-context-budget (14 tests)
+- **9 more test suites**: language (9), local-classifier (9), meta-learning (9), value-store (10), error-aggregator (10), prompt-evolution (10), event-store (11), body-schema (6), immune-system (6). Untested critical modules: 91 → 79
+
+### Infrastructure
+- `EventTypes.js`: +5 events (COST_CAP_REACHED, COST_WARNING, BACKUP.EXPORTED, BACKUP.IMPORTED, UPDATE.AVAILABLE). Total: 348
+- `EventPayloadSchemas.js`: +5 schemas. Total: 90
+- `preload.js`: +5 IPC channels whitelisted
+- `main.js`: +6 IPC handlers (cost-budget, export, import, crash-log, check-update)
+- `cli.js`: +5 commands (/budget, /export, /import, /crashlog, /update), help text updated
+- `phase1-foundation.js`: CostGuard registered (phase 1, safety tag)
+- `phase6-autonomy.js`: BackupManager + AutoUpdater registered
+- `AgentCoreBoot.js`: CrashLog wired into Logger.setSink()
+- `LLMPort.js`: CostGuard late-binding + _checkRateLimit() step 3 + post-call token recording
+- Source files: 231 → 235 (+4 new JS modules)
+- Version: `package.json` bumped to 6.0.1
+
+---
+
 ## [6.0.0] — Memory Consolidation + Task Replay + Benchmark Matrix
 
 **Focus: Complete three V6 roadmap items (V6-5, V6-7, V6-8), expand benchmark suite to 12 tasks with multi-backend A/B matrix validation, add CLI skill management commands, wire workspace eviction pipeline.**

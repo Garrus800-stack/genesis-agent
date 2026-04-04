@@ -109,6 +109,21 @@ function phase6(ctx, R) {
       ],
       factory: () => new (R('DeploymentManager').DeploymentManager)({ bus }),
     }],
+
+    // v6.0.1: BackupManager — export/import ~/.genesis/ data
+    ['backupManager', {
+      phase: 6, deps: [], tags: ['autonomy', 'backup'],
+      factory: () => new (R('BackupManager').BackupManager)(genesisDir, { bus }),
+    }],
+
+    // v6.0.1: AutoUpdater — GitHub release checker
+    ['autoUpdater', {
+      phase: 6, deps: [], tags: ['autonomy', 'update'],
+      lateBindings: [
+        { prop: '_settings', service: 'settings', optional: true },
+      ],
+      factory: () => new (R('AutoUpdater').AutoUpdater)({ bus, intervals }),
+    }],
   ];
 }
 

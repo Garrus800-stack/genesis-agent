@@ -47,6 +47,24 @@ const TIMEOUTS = {
   COMMAND_EXEC: 10000,
   /** v5.7.0: Long-running test/install (ms) */
   TEST_INSTALL: 120000,
+  /** v6.0.1: Embedding service — local model HTTP timeout (ms) */
+  EMBEDDING_LOCAL: 5000,
+  /** v6.0.1: Embedding service — remote model HTTP timeout (ms) */
+  EMBEDDING_REMOTE: 10000,
+  /** v6.0.1: GitHub API HTTP timeout (ms) */
+  GITHUB_API: 15000,
+  /** v6.0.1: Native tool use — external HTTP call timeout (ms) */
+  NATIVE_TOOL_HTTP: 60000,
+  /** v6.0.1: Deployment step delay between rolling updates (ms) */
+  DEPLOY_STEP_DELAY: 2000,
+  /** v6.0.1: Debounced persist delay for session/vector data (ms) */
+  PERSIST_DEBOUNCE: 3000,
+  /** v6.0.1: Vector memory debounced save delay (ms) */
+  VECTOR_SAVE_DEBOUNCE: 5000,
+  /** v6.0.1: Auto-update check delay after boot (ms) */
+  UPDATE_BOOT_DELAY: 10000,
+  /** v6.0.1: Backup tar operation timeout (ms) */
+  BACKUP_TAR: 30000,
 };
 
 const LIMITS = {
@@ -105,6 +123,10 @@ const INTERVALS = {
   HEALTH_FULL: 5 * 60 * 1000,
   /** Health tick push to UI (ms) */
   HEALTH_PUSH: 30000,
+  /** v6.0.1: AutonomousDaemon first-cycle delay after boot (ms) */
+  DAEMON_BOOT_DELAY: 30000,
+  /** v6.0.1: LearningService metrics persist interval (ms) */
+  LEARNING_SAVE: 5 * 60 * 1000,
 };
 
 const PRIORITIES = {
@@ -313,7 +335,7 @@ const PHASE12 = {
   GRAPH_MAX_TRAVERSAL_DEPTH: 10,
   GRAPH_MAX_RESULTS: 50,
 
-  // AdaptiveMemory
+  // AdaptiveMemory (@deprecated v6.0.1 — constants kept for backwards compat)
   MEMORY_PRUNE_THRESHOLD: 0.15,
   MEMORY_COMPRESS_THRESHOLD: 0.30,
   MEMORY_MAX_RETENTION_ENTRIES: 5000,

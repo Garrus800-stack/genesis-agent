@@ -29,6 +29,7 @@ const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { TIMEOUTS } = require('../core/Constants');
 const _log = createLogger('VectorMemory');
 
 class VectorMemory {
@@ -323,7 +324,7 @@ class VectorMemory {
 
   _debouncedSave() {
     if (this._saveTimer) clearTimeout(this._saveTimer);
-    this._saveTimer = setTimeout(() => this._save(), 5000);
+    this._saveTimer = setTimeout(() => this._save(), TIMEOUTS.VECTOR_SAVE_DEBOUNCE);
   }
 
   /**

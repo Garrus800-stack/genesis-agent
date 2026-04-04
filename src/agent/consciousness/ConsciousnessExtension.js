@@ -2,6 +2,10 @@
 /**
  * ConsciousnessExtension.js
  * ─────────────────────────
+ * @note v6.0.1: 0 external functional references outside consciousness/.
+ * Influences behavior only indirectly via prompt injection. 544 LOC.
+ * Kept by design — see Roadmap "Explicitly Deferred" for rationale.
+ *
  * Master orchestrator that wires all four subsystems into one closed loop:
  *
  *   Perception → Prediction → Surprise → Emotion → Attention → Perception

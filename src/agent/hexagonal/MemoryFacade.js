@@ -2,6 +2,12 @@
 // ============================================================
 // GENESIS — MemoryFacade.js (v4.13.1 — Audit P3)
 //
+// @deprecated v6.0.1 — Scheduled for removal. Only 4 external
+// references remain. Use UnifiedMemory directly for retrieval.
+// MemoryFacade adds a layer without adding value — UnifiedMemory
+// already aggregates all memory backends. See SELF-ANALYSIS-AUDIT.md
+// Claim 2 for rationale.
+//
 // PROBLEM: 7 parallel memory systems (ConversationMemory,
 // EpisodicMemory, UnifiedMemory, VectorMemory, EchoicMemory,
 // KnowledgeGraph, SelfNarrative) with duplicated data and

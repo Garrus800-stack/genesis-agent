@@ -177,6 +177,20 @@ const SCHEMAS = {
 
   // Task Recorder (v6.0.0 V6-8)
   'replay:recording-complete': { id: 'required', goalId: 'required', steps: 'required', durationMs: 'required' },
+
+  // CostGuard (v6.0.1)
+  'llm:cost-cap-reached': { scope: 'required', used: 'required', limit: 'required', taskType: 'required' },
+  'llm:cost-warning':     { scope: 'required', pct: 'required', used: 'required', limit: 'required' },
+
+  // Backup (v6.0.1)
+  'backup:exported': { path: 'required', files: 'required', rawSize: 'required', archiveSize: 'required' },
+  'backup:imported': { source: 'required', imported: 'required', skipped: 'required' },
+
+  // Update (v6.0.1)
+  'update:available': { current: 'required', latest: 'required', url: 'required' },
+
+  // Idle (v6.0.1)
+  'idle:consolidate-memory': {},
 };
 
 // ── Stats ─────────────────────────────────────────────────

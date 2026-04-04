@@ -181,7 +181,7 @@ class GitHubEffector {
       });
 
       req.on('error', reject);
-      req.setTimeout(15000, () => { req.destroy(); reject(new Error('GitHub API timeout')); });
+      req.setTimeout(TIMEOUTS.GITHUB_API, () => { req.destroy(); reject(new Error('GitHub API timeout')); });
 
       if (body) req.write(JSON.stringify(body));
       req.end();

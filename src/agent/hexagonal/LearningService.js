@@ -18,6 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { INTERVALS } = require('../core/Constants');
 const _log = createLogger('LearningService');
 
 class LearningService {
@@ -112,7 +113,7 @@ class LearningService {
       // v4.12.1 [P2-04]: Clear any existing timer before setting a new one.
       // Prevents timer leak if start() is called twice without stop().
       if (this._saveInterval) clearInterval(this._saveInterval);
-      this._saveInterval = setInterval(() => this._saveMetrics(), 5 * 60 * 1000);
+      this._saveInterval = setInterval(() => this._saveMetrics(), INTERVALS.LEARNING_SAVE);
     }
 
     _log.info('[LEARNING] v2 Service active — outcome tracking + pattern detection');

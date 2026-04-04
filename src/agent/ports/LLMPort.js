@@ -164,7 +164,9 @@ class ModelBridgeAdapter extends LLMPort {
     phase: 1,
     deps: ['model'],
     tags: ['port', 'foundation'],
-    lateBindings: [],
+    lateBindings: [
+      { prop: '_costGuard', service: 'costGuard', optional: true },
+    ],
     factory: (c) => new ModelBridgeAdapter(c.resolve('model'), c.resolve('bus')),
   };
 
@@ -226,6 +228,15 @@ class ModelBridgeAdapter extends LLMPort {
       }, { source: 'LLMPort' });
     }
 
+    // 3. Cost guard (session/daily token cap) — v6.0.1
+    if (this._costGuard) {
+      const costCheck = this._costGuard.checkBudget(taskType, 0, options);
+      if (!costCheck.allowed) {
+        this._metrics.rateLimited++;
+        return false;
+      }
+    }
+
     return true;
   }
 
@@ -254,6 +265,11 @@ class ModelBridgeAdapter extends LLMPort {
         messages.reduce((s, m) => s + estimateTokens(m.content, taskType), 0);
       const responseTokens = estimateTokens(result, taskType);
       this._metrics.totalTokensEstimated += promptTokens + responseTokens;
+
+      // v6.0.1: Record actual token usage in CostGuard
+      if (this._costGuard) {
+        this._costGuard.checkBudget(taskType, promptTokens + responseTokens, options);
+      }
 
       this.bus.emit('llm:call-complete', {
         taskType, backend: this._bridge.activeBackend,

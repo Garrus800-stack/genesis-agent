@@ -40,7 +40,7 @@ const SKIP_SERVICES = new Set([
 /** @type {Set<string>} Services where asyncLoad() is the recovery path */
 const REINIT_SERVICES = new Set([
   'knowledgeGraph', 'lessonsStore', 'sessionPersistence',
-  'vectorMemory', 'episodicMemory', 'adaptiveMemory',
+  'vectorMemory', 'episodicMemory',
   'userModel', 'promptEvolution', 'goalStack',
 ]);
 

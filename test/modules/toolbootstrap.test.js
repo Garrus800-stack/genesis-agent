@@ -30,6 +30,8 @@ function createMockContainer(opts = {}) {
   services.set('lang', { t: (k) => k, detect: () => {}, current: 'en' });
   services.set('fileProcessor', { getFileInfo: () => ({}), executeFile: () => '' });
   services.set('knowledgeGraph', { search: () => [], connect: () => 'edge1' });
+  // v6.0.1: ToolBootstrap resolves 'kg' (KnowledgePort) instead of 'knowledgeGraph' directly.
+  services.set('kg', { search: () => [], connect: () => 'edge1' });
   // FIX v5.1.0: ToolBootstrap now resolves memoryFacade instead of knowledgeGraph directly.
   services.set('memoryFacade', {
     knowledgeSearch: (q, limit) => services.get('knowledgeGraph').search(q, limit),
@@ -125,7 +127,7 @@ test('registers all tools when all services available', () => {
 
 // ── Handler execution ───────────────────────────────────
 
-test('knowledge-search handler calls knowledgeGraph.search via memoryFacade', () => {
+test('knowledge-search handler calls knowledgeGraph.search via KnowledgePort', () => {
   let searchCalled = false;
   const container = createMockContainer();
   // Override the mock
@@ -141,11 +143,8 @@ test('knowledge-search handler calls knowledgeGraph.search via memoryFacade', ()
   services.set('fileProcessor', { getFileInfo: () => ({}), executeFile: () => '' });
   const mockKg = { search: (q, n) => { searchCalled = true; return [{ label: 'test' }]; }, connect: () => 'e1' };
   services.set('knowledgeGraph', mockKg);
-  // FIX v5.1.0: ToolBootstrap now resolves memoryFacade instead of knowledgeGraph
-  services.set('memoryFacade', {
-    knowledgeSearch: (q, limit) => mockKg.search(q, limit),
-    knowledgeConnect: (from, rel, to) => mockKg.connect(from, rel, to),
-  });
+  // v6.0.1: ToolBootstrap resolves 'kg' (KnowledgePort) instead of memoryFacade
+  services.set('kg', mockKg);
   services.set('eventStore', { query: () => [] });
   services.set('webFetcher', { fetchText: () => ({}), npmSearch: () => ({}), ping: () => ({}) });
   services.set('lang', { t: (k) => k, detect: () => {}, current: 'en' });
@@ -153,7 +152,7 @@ test('knowledge-search handler calls knowledgeGraph.search via memoryFacade', ()
   ToolBootstrap.register(c2);
 
   const result = container._ksHandler({ query: 'test' });
-  assert(searchCalled, 'knowledgeGraph.search should have been called via memoryFacade');
+  assert(searchCalled, 'knowledgeGraph.search should have been called via KnowledgePort');
   assert(Array.isArray(result.results), 'Should return results array');
 });
 

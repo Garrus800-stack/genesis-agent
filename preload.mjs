@@ -57,6 +57,17 @@ const ALLOWED_INVOKE = [
   'agent:get-tool-synthesis',
   'agent:get-task-outcomes',
   'agent:get-selfmodel-report',
+  // v6.0.0: Memory consolidation + Replay
+  'agent:get-consolidation-report',
+  'agent:trigger-consolidation',
+  'agent:get-replay-report',
+  'agent:get-replay-diff',
+  // v6.0.1: Safety infrastructure
+  'agent:get-cost-budget',
+  'agent:export-data',
+  'agent:import-data',
+  'agent:get-crash-log',
+  'agent:check-update',
 ];
 
 const ALLOWED_SEND = [

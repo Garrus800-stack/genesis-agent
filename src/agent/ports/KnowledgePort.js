@@ -42,6 +42,13 @@ class KnowledgeGraphAdapter extends KnowledgePort {
     return this._kg.search(query, limit);
   }
 
+  connect(sourceLabel, relation, targetLabel) {
+    this._metrics.triples++;
+    return this._kg.connect
+      ? this._kg.connect(sourceLabel, relation, targetLabel)
+      : this.addTriple(sourceLabel, relation, targetLabel);
+  }
+
   query(pattern) {
     this._metrics.queries++;
     return this._kg.query ? this._kg.query(pattern) : [];

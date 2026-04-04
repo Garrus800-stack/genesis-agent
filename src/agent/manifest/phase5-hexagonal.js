@@ -137,7 +137,8 @@ function phase5(ctx, R) {
       }),
     }],
 
-    // v4.13.1 (Audit P3): MemoryFacade — single entry point for all 7 memory systems
+    // @deprecated v6.0.1 — MemoryFacade is a pass-through to UnifiedMemory/KnowledgeGraph.
+    // Kept for backwards compat. Use UnifiedMemory or KnowledgeGraph directly.
     ['memoryFacade', {
       phase: 5,
       deps: [],

@@ -1,6 +1,6 @@
 {
   "name": "genesis-agent",
-  "version": "6.0.0",
+  "version": "6.0.1",
   "description": "A self-aware, self-verifying, self-evolving cognitive AI agent with a consciousness substrate. Works with any LLM backend — Anthropic Claude, OpenAI, or local models via Ollama. It reads its own source code. It fixes its own bugs. It builds its own features. It thinks while you're away. It feels the consequences of its actions. It experiences unified awareness. It pursues goals autonomously. It verifies its own output programmatically. It learns what works for its specific model.",
   "main": "main.js",
   "scripts": {
@@ -45,6 +45,8 @@
     "benchmark:agent:ab": "node scripts/benchmark-agent.js --ab",
     "benchmark:agent:ab:quick": "node scripts/benchmark-agent.js --ab --quick",
     "benchmark:agent:ab:matrix": "node scripts/benchmark-agent.js --ab-matrix",
+    "benchmark:readme": "node scripts/benchmark-readme.js",
+    "benchmark:readme:dry": "node scripts/benchmark-readme.js --dry-run",
     "fitness:trend": "node scripts/fitness-trend.js",
     "fitness:trend:show": "node scripts/fitness-trend.js --show",
     "fitness:trend:ci": "node scripts/fitness-trend.js --ci --threshold 2",
