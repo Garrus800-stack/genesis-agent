@@ -1,6 +1,6 @@
 # Genesis Agent — Capabilities Overview
 
-> v6.0.7 — What Genesis can do, organized by category.
+> v6.0.8 — What Genesis can do, organized by category.
 
 ---
 

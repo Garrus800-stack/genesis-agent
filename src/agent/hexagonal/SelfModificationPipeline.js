@@ -67,6 +67,8 @@ class SelfModificationPipeline {
     // v5.0.0: Genome + Metabolism — late-bound from Container.
     this._genome = null;
     this._metabolism = null;
+    // v6.0.8: Consciousness gate — coherence-gated self-modification
+    this._phenomenalField = null;
     // v5.5.0: PreservationInvariants — late-bound from Container.
     // Semantic safety: detects modifications that weaken safety systems.
     this._preservation = null;
@@ -370,6 +372,20 @@ Be specific. Reference actual module names and actual limitations. Think like a 
       return `⛔ **Self-modification is frozen** — ${this._consecutiveFailures} consecutive failures.\n\n` +
         `Reason: ${this._frozenReason}\n\n` +
         `To resume: say "/self-repair-reset" or restart Genesis.`;
+    }
+
+    // v6.0.8: Consciousness gate — don't modify self when fragmented
+    if (this._phenomenalField) {
+      try {
+        const coherence = this._phenomenalField.getCoherence?.();
+        if (typeof coherence === 'number' && coherence < 0.4) {
+          _log.warn(`[SELFMOD] Blocked: consciousness coherence too low (${coherence.toFixed(2)})`);
+          this.bus.emit('selfmod:consciousness-blocked', {
+            coherence: Math.round(coherence * 100) / 100,
+          }, { source: 'SelfModPipeline' });
+          return `⚠ **Self-modification deferred** — internal coherence is low (${(coherence * 100).toFixed(0)}%).\n\nGenesis is in a fragmented state. Self-modification is safer when coherence recovers above 40%. Try again shortly.`;
+        }
+      } catch (_e) { /* consciousness optional — never block on error */ }
     }
 
     // v5.0.0: Metabolism energy gating — self-mod is expensive

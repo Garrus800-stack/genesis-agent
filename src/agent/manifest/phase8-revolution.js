@@ -51,6 +51,8 @@ function phase8(ctx, R) {
         { prop: '_createWorkspace', service: 'workspaceFactory', optional: true },
         // v6.0.7: Earned Autonomy — trust-gated approval bypass
         { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
+        // v6.0.8: Symbolic resolution — bypass LLM for known solutions
+        { prop: '_symbolicResolver', service: 'symbolicResolver', optional: true },
       ],
       factory: (c) => new (R('AgentLoop').AgentLoop)({
         bus, model: c.resolve('llm'), goalStack: c.resolve('goalStack'),

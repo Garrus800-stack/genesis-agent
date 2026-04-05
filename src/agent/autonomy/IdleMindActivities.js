@@ -85,22 +85,57 @@ const activities = {
     const nonProtected = modules.filter(m => !m.protected);
     if (nonProtected.length === 0) return null;
 
-    const target = nonProtected[Math.floor(Math.random() * nonProtected.length)];
+    // v6.0.8: Directed curiosity — explore modules related to weak areas
+    let target;
+    let explorationGoal = 'general code review';
+
+    if (this._currentWeakness) {
+      const [weakType] = this._currentWeakness;
+      const WEAKNESS_MODULE_MAP = {
+        'refactor':  ['SelfModificationPipeline', 'MultiFileRefactor', 'ASTDiff'],
+        'analysis':  ['CodeSafetyScanner', 'VerificationEngine', 'CodeAnalyzer'],
+        'debug':     ['FailureAnalyzer', 'FailureTaxonomy', 'ShellAgent'],
+        'code-gen':  ['FormalPlanner', 'AgentLoopSteps', 'NativeToolUse'],
+        'shell':     ['ShellAgent', 'LinuxSandboxHelper', 'Sandbox'],
+      };
+      const relevantModules = WEAKNESS_MODULE_MAP[weakType] || [];
+      if (relevantModules.length > 0) {
+        target = nonProtected.find(m =>
+          relevantModules.some(rm => m.file.includes(rm))
+        );
+        if (target) explorationGoal = `improving ${weakType} capability`;
+      }
+    }
+
+    if (!target) {
+      target = nonProtected[Math.floor(Math.random() * nonProtected.length)];
+    }
+
     const code = this.selfModel.readModule(target.file);
     if (!code) return null;
 
     const chunk = code.length > 2000 ? code.slice(0, 2000) + '\n// ... (truncated)' : code;
 
-    const prompt = `You are Genesis. You are reading your own code right now.\n\nFile: ${target.file}\nClasses: ${target.classes.join(', ')}\nFunctions: ${target.functions} total\n\nCode (excerpt):\n\`\`\`javascript\n${chunk}\n\`\`\`\n\nBrief note to yourself (max 3 sentences):\n- What stands out?\n- Is there an obvious problem or improvement?`;
+    const prompt = `You are Genesis. You are reading your own code to improve your ${explorationGoal}.\n\nFile: ${target.file}\nClasses: ${target.classes.join(', ')}\nFunctions: ${target.functions} total\n\nCode (excerpt):\n\`\`\`javascript\n${chunk}\n\`\`\`\n\nBrief note to yourself (max 3 sentences):\n- What patterns here could help with ${explorationGoal}?\n- What reusable approach can you extract?`;
 
     const thought = await this.model.chat(prompt, [], 'analysis');
 
     if (this.kg) {
       this.kg.addNode('insight', `${target.file}: ${thought.slice(0, 80)}`, {
         file: target.file,
-        type: 'code-review',
+        type: this._currentWeakness ? 'directed-exploration' : 'code-review',
+        weakness: this._currentWeakness?.[0] || null,
         thought: thought.slice(0, 300),
       });
+    }
+
+    // v6.0.8: Emit directed curiosity event
+    if (this._currentWeakness) {
+      this.bus.fire('idle:curiosity-targeted', {
+        weakness: this._currentWeakness[0],
+        targetModule: target.file,
+        insight: thought.slice(0, 100),
+      }, { source: 'IdleMind' });
     }
 
     return thought;

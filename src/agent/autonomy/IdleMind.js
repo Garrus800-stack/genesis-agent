@@ -46,6 +46,9 @@ class IdleMind {
     // v5.0.0: Genome traits influence activity selection; Metabolism gates energy
     this._genome = null;
     this._metabolism = null;
+    // v6.0.8: Directed curiosity — explore weak areas
+    this._cognitiveSelfModel = null;
+    this._currentWeakness = null; // { taskType, successRate, sampleSize }
 
     this.running = false;
     this.intervalHandle = null;
@@ -337,6 +340,20 @@ class IdleMind {
         if (scores.consolidate !== undefined)    scores.consolidate    *= conMul;
         if (scores.calibrate !== undefined)     scores.calibrate      *= conMul;
         if (scores.tidy !== undefined)           scores.tidy           *= conMul;
+      },
+      // v6.0.8: Directed curiosity — boost explore when weak areas exist
+      () => {
+        if (!this._cognitiveSelfModel) return;
+        try {
+          const profile = this._cognitiveSelfModel.getCapabilityProfile();
+          const weakAreas = Object.entries(profile).filter(([, p]) => p.isWeak);
+          if (weakAreas.length > 0) {
+            if (scores.explore !== undefined) scores.explore *= (1 + weakAreas.length * 0.5);
+            // Store weakest area for targeted exploration
+            this._currentWeakness = weakAreas
+              .sort((a, b) => (a[1].successRate || 0) - (b[1].successRate || 0))[0];
+          }
+        } catch (_e) { /* optional */ }
       },
     ];
 

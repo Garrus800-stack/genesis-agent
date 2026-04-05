@@ -131,6 +131,9 @@ class AgentLoop {
     // v6.0.7: Earned Autonomy — trust-gated approval bypass
     this.trustLevelSystem = null; // late-bound from phase 11
 
+    // v6.0.8: Symbolic resolution — bypass LLM for known solutions
+    this._symbolicResolver = null; // late-bound from phase 2
+
     // v3.8.0: Composition delegates (replace prototype mixins)
     this.planner = new AgentLoopPlannerDelegate(this);
     this.steps = new AgentLoopStepsDelegate(this);

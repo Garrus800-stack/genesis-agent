@@ -43,6 +43,8 @@ function phase6(ctx, R) {
         // v5.0.0: Genome traits + Metabolism energy gating
         { prop: '_genome', service: 'genome', optional: true },
         { prop: '_metabolism', service: 'metabolism', optional: true },
+        // v6.0.8: Directed curiosity — explore weak areas
+        { prop: '_cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
       ],
       factory: (c) => new (R('IdleMind').IdleMind)({
         bus, model: c.resolve('llm'), prompts: c.resolve('prompts'),

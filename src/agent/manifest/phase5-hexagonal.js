@@ -66,6 +66,8 @@ function phase5(ctx, R) {
         { prop: '_codeSafety', service: 'codeSafety' },
         // v5.5.0: Self-Preservation Invariants — semantic safety analysis
         { prop: '_preservation', service: 'preservation', optional: true },
+        // v6.0.8: Consciousness gate — coherence-gated self-modification
+        { prop: '_phenomenalField', service: 'phenomenalField', optional: true },
       ],
       factory: (c) => {
         const { lang } = R('Language');

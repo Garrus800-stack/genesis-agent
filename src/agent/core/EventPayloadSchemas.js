@@ -228,6 +228,15 @@ const SCHEMAS = {
   // Earned Autonomy (v6.0.7)
   'autonomy:earned':  { actionType: 'required', wilsonLower: 'required', samples: 'required', successes: 'required' },
   'autonomy:revoked': { actionType: 'required', wilsonLower: 'required', samples: 'required', reason: 'required' },
+
+  // Symbolic Resolution (v6.0.8)
+  'symbolic:resolved': { level: 'required', stepType: 'required', confidence: 'required', source: 'required' },
+
+  // Consciousness Gate (v6.0.8)
+  'selfmod:consciousness-blocked': { coherence: 'required' },
+
+  // Directed Curiosity (v6.0.8)
+  'idle:curiosity-targeted': { weakness: 'required', targetModule: 'required', insight: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

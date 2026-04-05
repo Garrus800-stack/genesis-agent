@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 6.0.7 · Last verified: all checks green (~3855 tests, 270 suites, TSC 0, fitness 90/90)
+> Version: 6.0.8 · Last verified: all checks green (~3865 tests, 271 suites, TSC 0, fitness 90/90)
 
 ---
 
@@ -11,7 +11,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a consciousness layer that models attention, memory, and temporal identity.
 
-The codebase is ~85k LOC of JavaScript (CommonJS), 242 source modules, 139 DI-managed services (131 manifest + 8 kernel), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~85k LOC of JavaScript (CommonJS), 243 source modules, 139 DI-managed services (131 manifest + 8 kernel), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -368,7 +368,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # ~3855 tests, 0 failures
+node test/index.js                          # ~3865 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -407,7 +407,7 @@ Every event emitted must be:
 
 The `audit:events:strict` CI step enforces this. Unregistered events fail the build.
 
-**Current stats:** 370 catalogued events, 113 payload schemas.
+**Current stats:** 374 catalogued events, 116 payload schemas.
 
 ### 6.3 EventStore
 

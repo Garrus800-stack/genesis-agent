@@ -14,8 +14,10 @@
 // ============================================================
 
 const { TIMEOUTS } = require('../core/Constants');
+const { createLogger } = require('../core/Logger');
 const path = require('path');
 const fs = require('fs');
+const _log = createLogger('AgentLoopSteps');
 
 class AgentLoopStepsDelegate {
   /**
@@ -27,29 +29,74 @@ class AgentLoopStepsDelegate {
 
   async _executeStep(step, context, onProgress) {
     const start = Date.now();
+    const loop = this.loop;
+
+    // v6.0.8: Symbolic resolution — check if we already know the answer
+    let enrichedContext = context;
+    let symbolicResult = null;
+    if (loop._symbolicResolver) {
+      try {
+        symbolicResult = loop._symbolicResolver.resolve(
+          step.type, step.description, step.target,
+          { model: loop.model?.activeModel, goalId: loop.currentGoalId }
+        );
+
+        if (symbolicResult.level === 'direct' && symbolicResult.lesson) {
+          // DIRECT: bypass LLM entirely — use known solution
+          const lesson = symbolicResult.lesson;
+          const output = lesson.strategy?.command
+            ? `[SYMBOLIC-DIRECT] Applying known fix: ${lesson.insight}`
+            : `[SYMBOLIC-DIRECT] ${lesson.insight}`;
+
+          // Execute the known command if available
+          if (lesson.strategy?.command && step.type === 'SHELL' && loop.shell) {
+            try {
+              const shellResult = await loop.shell.run(lesson.strategy.command);
+              loop._symbolicResolver.recordOutcome('direct', lesson.id, !shellResult.error);
+              return { output: shellResult.output || output, error: shellResult.error || null, durationMs: Date.now() - start, symbolic: 'direct' };
+            } catch (err) {
+              loop._symbolicResolver.recordOutcome('direct', lesson.id, false);
+              // Fall through to normal LLM pipeline
+            }
+          } else {
+            // For non-shell DIRECT, return the insight as the analysis
+            loop._symbolicResolver.recordOutcome('direct', lesson.id, true);
+            return { output, error: null, durationMs: Date.now() - start, symbolic: 'direct' };
+          }
+        }
+
+        if (symbolicResult.level === 'guided' && symbolicResult.directive) {
+          // GUIDED: enrich the context with the directive
+          enrichedContext = symbolicResult.directive + '\n\n' + context;
+        }
+      } catch (err) {
+        // Symbolic resolution should never block the pipeline
+        _log.debug('[STEPS] Symbolic resolution error:', err.message);
+      }
+    }
 
     try {
       switch (step.type) {
         case 'ANALYZE':
-          return { ...(await this._stepAnalyze(step, context)), durationMs: Date.now() - start };
+          return { ...(await this._stepAnalyze(step, enrichedContext)), durationMs: Date.now() - start };
 
         case 'CODE':
-          return { ...(await this._stepCode(step, context, onProgress)), durationMs: Date.now() - start };
+          return { ...(await this._stepCode(step, enrichedContext, onProgress)), durationMs: Date.now() - start };
 
         case 'SANDBOX':
-          return { ...(await this._stepSandbox(step, context)), durationMs: Date.now() - start };
+          return { ...(await this._stepSandbox(step, enrichedContext)), durationMs: Date.now() - start };
 
         case 'SHELL':
-          return { ...(await this._stepShell(step, context, onProgress)), durationMs: Date.now() - start };
+          return { ...(await this._stepShell(step, enrichedContext, onProgress)), durationMs: Date.now() - start };
 
         case 'SEARCH':
-          return { ...(await this._stepSearch(step, context)), durationMs: Date.now() - start };
+          return { ...(await this._stepSearch(step, enrichedContext)), durationMs: Date.now() - start };
 
         case 'ASK':
           return { ...(await this._stepAsk(step, onProgress)), durationMs: Date.now() - start };
 
         case 'DELEGATE':
-          return { ...(await this._stepDelegate(step, context, onProgress)), durationMs: Date.now() - start };
+          return { ...(await this._stepDelegate(step, enrichedContext, onProgress)), durationMs: Date.now() - start };
 
         default:
           return { output: `Unknown step type: ${step.type}`, error: null, durationMs: Date.now() - start };

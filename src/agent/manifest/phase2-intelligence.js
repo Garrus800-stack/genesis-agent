@@ -202,6 +202,16 @@ function phase2(ctx, R) {
         return new (R('AdaptivePromptStrategy').AdaptivePromptStrategy)({ bus, config });
       },
     }],
+
+    // v6.0.8: Symbolic resolution — bypass LLM for known solutions
+    ['symbolicResolver', {
+      phase: 2, deps: [], tags: ['intelligence', 'optimization'],
+      lateBindings: [
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
+        { prop: 'schemaStore', service: 'schemaStore', optional: true },
+      ],
+      factory: () => new (R('SymbolicResolver').SymbolicResolver)({ bus }),
+    }],
   ];
 }
 

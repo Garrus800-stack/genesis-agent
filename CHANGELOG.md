@@ -1,3 +1,38 @@
+## [6.0.8] — The Learning Flywheel
+
+**Focus: Genesis thinks before it calls the LLM. Three isolated systems become one feedback loop.**
+
+### Symbolic Resolution (NEW)
+
+- `SymbolicResolver.js` (~230 LOC): Before every AgentLoop step calls model.chat(), checks LessonsStore + SchemaStore for known solutions. Three levels: DIRECT (bypass LLM, execute known fix), GUIDED (inject lesson as directive into prompt), PASS (normal flow).
+- Wired into `AgentLoopSteps._executeStep()` — single injection point before the step-type switch.
+- DIRECT only for safe actions (ANALYZE, SHELL, SEARCH) with high confidence (>0.85), proven track record (useCount > 3), and recent success (< 7 days). CODE and SELF_MODIFY can never be DIRECT.
+- GUIDED mode prepends lessons as DIRECTIVE (not context) — stronger signal than PromptBuilder injection.
+- Outcome recording feeds back: success boosts confidence, failure penalizes. Creates a learning flywheel.
+- Phase 2 manifest. Late-bound to LessonsStore + SchemaStore. 20 tests.
+
+### Directed Curiosity
+
+- `IdleMind._pickActivity()`: New scorer queries `CognitiveSelfModel.getCapabilityProfile()` for weak task types. Boosts `explore` score proportionally to weakness count.
+- `IdleMind._explore()`: When weakness is known, targets modules related to the weak area (WEAKNESS_MODULE_MAP) instead of random exploration. Generates targeted insights.
+- Late-binding: `cognitiveSelfModel` → IdleMind (phase 6 manifest).
+- Event: `idle:curiosity-targeted` with weakness, targetModule, insight.
+
+### Consciousness Gate
+
+- `SelfModificationPipeline.modify()`: Checks `PhenomenalField.getCoherence()` before allowing self-modification. Coherence < 0.4 → modification deferred with user-facing message.
+- First real consciousness→action coupling in Genesis. The consciousness layer now has a measurable job.
+- Late-binding: `phenomenalField` → SelfModPipeline (phase 5 manifest).
+- Event: `selfmod:consciousness-blocked` with coherence score.
+
+### Infrastructure
+
+- EventTypes: +4 events (symbolic:resolved, symbolic:fallback, selfmod:consciousness-blocked, idle:curiosity-targeted).
+- EventPayloadSchemas: +3 schemas.
+- Source: 243 files, ~85k LOC. Tests: 271 files, ~3865 passing.
+
+---
+
 ## [6.0.7] — Earned Autonomy + Model-Aware Prompt Gating
 
 **Focus: Close the trust feedback loop — Genesis earns the right to act without asking.**

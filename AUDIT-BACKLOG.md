@@ -3,6 +3,15 @@
 Tracking sheet for open findings and monitor items.
 Resolved items are documented in CHANGELOG.md for traceability.
 
+## v6.0.8 — The Learning Flywheel
+
+| ID          | Severity | Description |
+|-------------|----------|-------------|
+| SYM-1       | HIGH   | SymbolicResolver.js (~230 LOC): Pre-LLM knowledge lookup. DIRECT/GUIDED/PASS resolution from LessonsStore + SchemaStore. Phase 2 manifest. 2 events, 1 schema. 20 tests. |
+| CURIO-1     | MEDIUM | DirectedCuriosity: IdleMind._pickActivity() weakness-aware scorer + _explore() targets weak areas via WEAKNESS_MODULE_MAP. Late-binding: cognitiveSelfModel → IdleMind. 1 event, 1 schema. |
+| CONSC-1     | MEDIUM | ConsciousnessGate: SelfModPipeline.modify() checks PhenomenalField.getCoherence() < 0.4 → blocks modification. First consciousness→action coupling. Late-binding: phenomenalField → SelfModPipeline. 1 event, 1 schema. |
+| INFRA-4     | LOW    | EventTypes +4, EventPayloadSchemas +3. Manifests: phase2 (+symbolicResolver), phase5 (+phenomenalField→SelfMod), phase6 (+cognitiveSelfModel→IdleMind), phase8 (+symbolicResolver→AgentLoop). |
+
 ## v6.0.7 — Earned Autonomy
 
 | ID          | Severity | Description |

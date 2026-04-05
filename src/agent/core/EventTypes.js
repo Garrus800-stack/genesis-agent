@@ -158,6 +158,8 @@ const EVENTS = Object.freeze({
     FROZEN:        'selfmod:frozen',
     /** @payload {{}} */
     CIRCUIT_RESET: 'selfmod:circuit-reset',
+    /** @payload {{ coherence: number }} */
+    CONSCIOUSNESS_BLOCKED: 'selfmod:consciousness-blocked',
   }),
 
   // ── Cognitive Monitor ──────────────────────────────────
@@ -337,6 +339,8 @@ const EVENTS = Object.freeze({
     PROACTIVE_INSIGHT: 'idle:proactive-insight',
     /** v6.0.1: Trigger memory consolidation from idle activity @payload {{}} */
     CONSOLIDATE_MEMORY: 'idle:consolidate-memory',
+    /** v6.0.8: Directed curiosity — weakness-targeted exploration @payload {{ weakness: string, targetModule: string, insight: string }} */
+    CURIOSITY_TARGETED: 'idle:curiosity-targeted',
   }),
 
   // ── Intent Router ──────────────────────────────────────
@@ -774,6 +778,12 @@ const EVENTS = Object.freeze({
     EARNED:  'autonomy:earned',
     REVOKED: 'autonomy:revoked',
     STATUS:  'autonomy:status',
+  }),
+
+  // v6.0.8: Symbolic resolution + Consciousness gate + Directed curiosity
+  SYMBOLIC: Object.freeze({
+    RESOLVED: 'symbolic:resolved',
+    FALLBACK: 'symbolic:fallback',
   }),
 
   EFFECTOR: Object.freeze({
