@@ -3,6 +3,17 @@
 Tracking sheet for open findings and monitor items.
 Resolved items are documented in CHANGELOG.md for traceability.
 
+## v6.0.7 — Earned Autonomy
+
+| ID          | Severity | Description |
+|-------------|----------|-------------|
+| EA-1        | HIGH   | EarnedAutonomy.js (~230 LOC): Per-action-type Wilson score confidence tracker. Promotes action types when wilson_lower > 0.85 (30+ samples). Auto-revokes below 0.70. Phase 11 manifest. 2 events, 2 schemas. CLI: /autonomy. IPC: agent:get-autonomy-report. Preload whitelisted. |
+| TRUST-WIRE  | HIGH   | AgentLoop._requestApproval(): Now consults TrustLevelSystem.checkApproval() before asking user. Auto-approved actions skip user prompt, emit agent-loop:auto-approved. Late-binding: trustLevelSystem → AgentLoop (phase 8). |
+| TRUST-STEP  | MEDIUM | AgentLoop: New agent-loop:step-failed event for EarnedAutonomy failure tracking. |
+| REACT-1     | MEDIUM | OnlineLearner._checkStreak(): Streak detection now triggers AdaptiveStrategy.runCycle() immediately. Closes feedback gap from hours (IdleMind calibrate) to seconds. Late-binding: adaptiveStrategy → OnlineLearner. |
+| DAEMON-1    | MEDIUM | AutonomousDaemon._healthCheck(): Trust-gated repair scope. Level 0-1: syntax only. Level 2+: syntax + style + optimization. Late-binding: trustLevelSystem → daemon. |
+| INFRA-3     | LOW    | EventTypes +5 events (STEP_FAILED, AUTO_APPROVED, autonomy:earned/revoked/status). EventPayloadSchemas +5 schemas (step-failed, auto-approved, trust level/upgrade events, autonomy earned/revoked). IPC +1 (get-autonomy-report). Preload +1. CLI +1 (/autonomy). |
+
 ## Monitor Items
 
 | ID   | Severity | Status   | Note |

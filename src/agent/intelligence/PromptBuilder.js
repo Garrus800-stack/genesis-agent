@@ -132,6 +132,7 @@ class PromptBuilder {
     // GENESIS_AB_MODE=no-consciousness → disables consciousness only
     // GENESIS_DISABLED_SECTIONS=organism,consciousness → explicit list
     this._disabledSections = new Set();
+    this._modelGatingApplied = false; // v6.0.7: track model-gating state for re-enable on failover
     const abMode = process.env.GENESIS_AB_MODE || '';
     if (abMode === 'baseline') {
       ['organism', 'consciousness', 'selfAwareness', 'bodySchema', 'taskPerformance'].forEach(s => this._disabledSections.add(s));
@@ -183,8 +184,55 @@ class PromptBuilder {
     return this._tokenBudget; // Default: small local (9B)
   }
 
+  /**
+   * v6.0.7: Model-aware prompt section gating.
+   *
+   * Benchmark data (v6.0.7 A/B on qwen2.5:7b):
+   *   Full prompt:     avg 43277ms/task, 100% success
+   *   Without organism: avg 10548ms/task, 100% success → 4x faster, same quality
+   *
+   * For local models (≤16K context), organism/consciousness/selfAwareness/bodySchema
+   * are auto-disabled. These sections consume ~800-1200 chars of prompt budget
+   * that could be used for task-relevant context (knowledge, perception, memory).
+   *
+   * Cloud models (Claude, GPT) keep everything — their large context windows
+   * make these sections negligible in cost.
+   *
+   * The services themselves keep running (EventBus, DreamCycle, etc.) —
+   * only the prompt injection is suppressed. Dashboard and CLI still work.
+   */
+  _applyModelGating() {
+    const modelName = this.model?.activeModel || '';
+    if (!modelName) return; // No model configured (test mode) — don't gate
+
+    const isCloud = modelName.includes('claude') || modelName.includes('gpt')
+      || modelName.includes('anthropic') || modelName.includes('openai');
+    // v6.0.7: Only gate known local model patterns. Unknown models are NOT gated.
+    const isLocal = /\b(llama|qwen|gemma|mistral|phi|deepseek|codellama|yi-|solar|vicuna|orca|wizardcoder|starcoder|ollama)/i.test(modelName);
+
+    if (isLocal && !this._modelGatingApplied) {
+      const gated = ['organism', 'consciousness', 'selfAwareness', 'bodySchema'];
+      for (const s of gated) this._disabledSections.add(s);
+      this._modelGatingApplied = true;
+      _log.info(`[PROMPT] Model-gated: local model "${modelName}" → skipping ${gated.join(', ')}`);
+    } else if ((isCloud || !isLocal) && this._modelGatingApplied) {
+      // Cloud or unknown model detected → re-enable
+      for (const s of ['organism', 'consciousness', 'selfAwareness', 'bodySchema']) {
+        this._disabledSections.delete(s);
+      }
+      this._modelGatingApplied = false;
+      _log.info(`[PROMPT] Model-gated: model "${modelName}" → all sections enabled`);
+    }
+  }
+
   /** Build the full system prompt with token budget */
   build() {
+    // v6.0.7: Model-aware section gating — local models (≤16K context)
+    // get organism/consciousness stripped automatically. Benchmarks show
+    // these sections cause 4x latency with 0% quality gain on Ollama.
+    // Cloud models keep everything (128K+ context makes them negligible).
+    this._applyModelGating();
+
     return this._buildWithBudget([
       // @ts-ignore — TS strict
       ['identity',       this._identity()],
@@ -324,6 +372,8 @@ class PromptBuilder {
    * Falls back to separate memory+KG calls if UnifiedMemory not wired.
    */
   async buildAsync() {
+    this._applyModelGating(); // v6.0.7
+
     const sections = [
       // @ts-ignore — TS strict
       ['identity',     this._identity()],

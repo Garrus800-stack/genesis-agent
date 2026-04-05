@@ -128,6 +128,9 @@ class AgentLoop {
     this.episodicMemory = null;  // EpisodicMemory — temporal memory
     this.metaLearning = null;    // MetaLearning — prompt strategy optimization
 
+    // v6.0.7: Earned Autonomy — trust-gated approval bypass
+    this.trustLevelSystem = null; // late-bound from phase 11
+
     // v3.8.0: Composition delegates (replace prototype mixins)
     this.planner = new AgentLoopPlannerDelegate(this);
     this.steps = new AgentLoopStepsDelegate(this);
@@ -562,6 +565,14 @@ class AgentLoop {
         this.consecutiveErrors++;
         onProgress({ phase: 'error', step: i + 1, detail: result.error });
 
+        // v6.0.7: Emit step-failed for EarnedAutonomy tracking
+        this.bus.emit('agent-loop:step-failed', {
+          goalId: this.currentGoalId,
+          stepIndex: i,
+          type: step.type,
+          error: (result.error || '').slice(0, 200),
+        }, { source: 'AgentLoop' });
+
         // FIX v5.1.0 (SA-O2): FailureTaxonomy classification extracted
         const recovery = await this._classifyAndRecover(step, result, i, onProgress);
         if (recovery.action === 'retry') {
@@ -885,8 +896,26 @@ Was this goal achieved? Respond with: SUCCESS or PARTIAL or FAILED, followed by 
   /**
    * Request user approval. Pauses the loop until approved/rejected.
    * If no response within 60s, auto-reject (safety).
+   *
+   * v6.0.7: Consults TrustLevelSystem first. If the action is auto-approved
+   * at the current trust level, the user is never asked.
    */
   _requestApproval(action, description) {
+    // v6.0.7: Trust-gated bypass — skip user prompt if auto-approved
+    if (this.trustLevelSystem) {
+      const trust = this.trustLevelSystem.checkApproval(action);
+      if (trust.approved) {
+        _log.info(`[TRUST] Auto-approved "${action}" — ${trust.reason}`);
+        this.bus.fire('agent-loop:auto-approved', {
+          action,
+          description,
+          reason: trust.reason,
+          goalId: this.currentGoalId,
+        }, { source: 'AgentLoop' });
+        return Promise.resolve(true);
+      }
+    }
+
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         this._pendingApproval = null;

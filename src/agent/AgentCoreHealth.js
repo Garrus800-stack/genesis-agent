@@ -323,6 +323,8 @@ class AgentCoreHealth {
       'adaptivePromptStrategy',
       // v6.0.5 (V6-10): NetworkSentinel — stops probe timer, clears subscriptions
       'networkSentinel',
+      // v6.0.7: EarnedAutonomy — persists action outcomes + unsubscribes step listeners
+      'earnedAutonomy',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

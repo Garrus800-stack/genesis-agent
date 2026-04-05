@@ -29,7 +29,9 @@ const SCHEMAS = {
   'agent-loop:complete':        { goalId: 'required', title: 'required', steps: 'required', success: 'required' },
   // v4.12.5-fix: Schema now matches AgentLoop.js emission (stepIndex, result, type)
   'agent-loop:step-complete':   { goalId: 'required', stepIndex: 'required', type: 'required' },
+  'agent-loop:step-failed':     { goalId: 'required', stepIndex: 'required', type: 'required', error: 'required' },
   'agent-loop:approval-needed': { action: 'required', description: 'required' },
+  'agent-loop:auto-approved':   { action: 'required', description: 'required', reason: 'required' },
   'agent-loop:needs-input':     { goalId: 'required', question: 'required' },
 
   // Agent System
@@ -217,6 +219,15 @@ const SCHEMAS = {
   'replay:started':   { id: 'required', totalEvents: 'required' },
   'replay:event':     { recordingId: 'required', index: 'required', kind: 'required' },
   'replay:completed': { id: 'required', eventsReplayed: 'required' },
+
+  // Trust (v6.0.7 — Earned Autonomy)
+  'trust:level-changed':      { from: 'required', to: 'required' },
+  'trust:upgrades-available': { count: 'required', actions: 'required' },
+  'trust:upgrade-accepted':   { actionType: 'required', newLevel: 'required' },
+
+  // Earned Autonomy (v6.0.7)
+  'autonomy:earned':  { actionType: 'required', wilsonLower: 'required', samples: 'required', successes: 'required' },
+  'autonomy:revoked': { actionType: 'required', wilsonLower: 'required', samples: 'required', reason: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

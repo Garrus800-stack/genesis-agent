@@ -26,6 +26,20 @@ function phase11(ctx, R) {
       }),
     }],
 
+    // ── EarnedAutonomy — Wilson-score per-action trust tracker ──
+    ['earnedAutonomy', {
+      phase: 11,
+      deps: ['storage'],
+      tags: ['autonomy', 'trust'],
+      lateBindings: [
+        { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
+      ],
+      factory: (c) => new (R('EarnedAutonomy').EarnedAutonomy)({
+        bus,
+        storage: c.resolve('storage'),
+      }),
+    }],
+
     // ── EffectorRegistry ──
     ['effectorRegistry', {
       phase: 11,

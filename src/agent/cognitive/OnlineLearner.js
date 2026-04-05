@@ -82,6 +82,8 @@ class OnlineLearner {
     this.promptEvolution = null;   // PromptEvolution - for variant feedback
     this.modelRouter = null;       // ModelRouter - for escalation signals
     this.emotionalState = null;    // EmotionalState - for frustration signals
+    // v6.0.7: Reactive prescription bridge
+    this.adaptiveStrategy = null;  // AdaptiveStrategy - for immediate adaptation cycles
   }
 
   static get containerConfig() {
@@ -95,6 +97,8 @@ class OnlineLearner {
         { prop: 'promptEvolution', service: 'promptEvolution', optional: true },
         { prop: 'modelRouter', service: 'modelRouter', optional: true },
         { prop: 'emotionalState', service: 'emotionalState', optional: true },
+        // v6.0.7: Reactive prescription — streak triggers immediate adaptation
+        { prop: 'adaptiveStrategy', service: 'adaptiveStrategy', optional: true },
       ],
     };
   }
@@ -208,6 +212,14 @@ class OnlineLearner {
         consecutiveFailures: streak.count,
         suggestion: alternative,
       }, { source: 'OnlineLearner' });
+
+      // v6.0.7: Reactive prescription — trigger immediate adaptation cycle
+      // Closes the gap from hours (wait for IdleMind calibrate) to seconds.
+      if (this.adaptiveStrategy?.runCycle) {
+        this.adaptiveStrategy.runCycle().catch((err) => {
+          _log.debug('[ONLINE-LEARN] Reactive adaptation failed:', err.message);
+        });
+      }
 
       _log.info(`[ONLINE-LEARN] Streak: ${streak.count}× ${type} failures → suggesting ${alternative.promptStyle} @ temp ${alternative.temperature}`);
 

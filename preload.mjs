@@ -75,6 +75,8 @@ const ALLOWED_INVOKE = [
   'agent:get-network-status',
   'agent:force-network-probe',
   'agent:get-provenance-report',
+  // v6.0.7: Earned Autonomy
+  'agent:get-autonomy-report',
 ];
 
 const ALLOWED_SEND = [

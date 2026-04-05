@@ -1,3 +1,44 @@
+## [6.0.7] — Earned Autonomy + Model-Aware Prompt Gating
+
+**Focus: Close the trust feedback loop — Genesis earns the right to act without asking.**
+
+### Earned Autonomy (NEW)
+
+- `EarnedAutonomy.js` (~230 LOC): Per-action-type Wilson score confidence tracker. Records outcomes from `agent-loop:step-complete` / `agent-loop:step-failed`. When wilson_lower > 0.85 (30+ samples), auto-promotes action type to TrustLevelSystem. Auto-revokes below 0.70.
+- `AgentLoop._requestApproval()`: Now consults `TrustLevelSystem.checkApproval()` **before** asking the user. Auto-approved actions skip the user prompt entirely, emit `agent-loop:auto-approved`.
+- Late-binding: `trustLevelSystem` → AgentLoop (phase 8 manifest).
+- CLI `/autonomy`: Per-action confidence bars, trust level, earned overrides.
+- IPC `agent:get-autonomy-report`. Preload whitelisted. 21 tests.
+
+### Reactive Prescription
+
+- `OnlineLearner._checkStreak()`: Streak detection (3+ consecutive failures) now triggers `AdaptiveStrategy.runCycle()` immediately. Closes feedback gap from hours (IdleMind calibrate schedule) to seconds.
+- Late-binding: `adaptiveStrategy` → OnlineLearner (phase 9).
+
+### Trust-Gated Daemon
+
+- `AutonomousDaemon._healthCheck()`: Repair scope now depends on trust level. Level 0-1: syntax only (safe). Level 2+: syntax + style + optimization.
+- Late-binding: `trustLevelSystem` → daemon (phase 6 manifest).
+
+### Model-Aware Prompt Gating
+
+- `PromptBuilder._applyModelGating()`: Local models (llama, qwen, gemma, mistral, deepseek, phi, etc.) auto-skip organism/consciousness/selfAwareness/bodySchema prompt sections. Cloud models (Claude, GPT) keep everything. Failover-aware — re-enables on model switch.
+- **Benchmark result**: 4x latency reduction on local models with 0% quality loss (A/B validated).
+
+### Cognitive Boot Default
+
+- Default boot profile changed from `full` to `cognitive` (phases 1-12). Phase 13 (consciousness) benchmarked at 0pp success rate impact. Opt-in via `--boot-profile full`.
+
+### Infrastructure
+
+- EventTypes: +5 events (`agent-loop:step-failed`, `agent-loop:auto-approved`, `autonomy:earned`, `autonomy:revoked`, `autonomy:status`).
+- EventPayloadSchemas: +7 schemas (step-failed, auto-approved, 3 trust events, 2 autonomy events).
+- IPC: +1 channel (`agent:get-autonomy-report`).
+- Shutdown: `earnedAutonomy` added to TO_STOP.
+- All audits green: fitness 90/90, events ✅, channels 64/64 in sync.
+
+---
+
 ## [6.0.6] — Replay + KG Offline-Cache + SelfModel Dashboard + Colony Live
 
 **Focus: Deterministic task replay, complete offline operation, visible self-awareness, and real multi-instance colony proof.**

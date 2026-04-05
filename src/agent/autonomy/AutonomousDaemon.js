@@ -28,6 +28,8 @@ class AutonomousDaemon {
     this.sandbox = sandbox;
     this.guard = guard;
     this._intervals = intervals || null;
+    // v6.0.7: Trust-gated optimization
+    this.trustLevelSystem = null; // late-bound
 
     this.running = false;
     this.intervalHandle = null;
@@ -161,17 +163,25 @@ class AutonomousDaemon {
     // 3. Auto-repair if enabled
     let repaired = [];
     if (this.config.autoRepair && diagnosis.issues.length > 0) {
+      // v6.0.7: Trust-gated repair scope
+      // Level 0-1: syntax only (safe). Level 2+: syntax + style + optimization.
+      const trustLevel = this.trustLevelSystem?.getLevel?.() ?? 0;
+      const allowedTypes = trustLevel >= 2
+        ? ['syntax', 'style', 'optimization']
+        : ['syntax'];
+
       const repairableIssues = diagnosis.issues
-        .filter(i => i.type === 'syntax' && i.severity !== 'critical')
+        .filter(i => allowedTypes.includes(i.type) && i.severity !== 'critical')
         .slice(0, this.config.maxAutoRepairs);
 
       if (repairableIssues.length > 0) {
-        this._log('info', `Auto-repariere ${repairableIssues.length} Problem(e)...`);
+        this._log('info', `Auto-repariere ${repairableIssues.length} Problem(e)... (trust=${trustLevel})`);
         repaired = await this.reflector.repair(repairableIssues);
 
         this.bus.fire('daemon:auto-repair', {
           issues: repairableIssues.length,
           fixed: repaired.filter(r => r.fixed).length,
+          trustLevel,
         }, { source: 'AutonomousDaemon' });
       }
     }

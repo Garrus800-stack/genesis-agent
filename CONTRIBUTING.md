@@ -29,7 +29,7 @@ git clone https://github.com/Garrus800-stack/genesis-agent.git
 cd genesis-agent
 npm install
 npm start          # Launch the Electron app
-npm test           # Run all tests (135 suites)
+npm test           # Run all tests (270 suites)
 ```
 
 ### Useful Commands
@@ -37,11 +37,11 @@ npm test           # Run all tests (135 suites)
 | Command | Description |
 |---------|-------------|
 | `npm start` | Launch Electron app |
-| `npm test` | Run full test suite (legacy + per-module, 135 suites) |
+| `npm test` | Run full test suite (legacy + per-module, 270 suites) |
 | `npm run test:new` | Run only per-module tests |
 | `npm run test:legacy` | Run only legacy suite |
 | `npm run test:coverage` | Run tests with c8 coverage report |
-| `npm run test:ci` | Run tests with coverage enforcement (60/50/55) |
+| `npm run test:ci` | Run tests with coverage enforcement (77/72/72) |
 | `npm run ci` | Full CI: tests + event audit + channel audit + fitness gate |
 | `node scripts/audit-events.js` | Audit EventBus event flow |
 | `node scripts/audit-events.js --strict` | Audit with exit code on warnings |
@@ -120,7 +120,7 @@ genesis-agent/
 ├── test/
 │   ├── harness.js             # Shared async-safe test framework
 │   ├── index.js               # Test runner v2 (parallel, async)
-│   └── modules/               # Per-module test files (178 suites)
+│   └── modules/               # Per-module test files (270 suites)
 ├── schemas/                   # JSON Schemas (skill-manifest)
 ├── types/                     # TypeScript type definitions (.d.ts)
 ├── scripts/                   # Tooling (audit-events, benchmark, build-bundle)

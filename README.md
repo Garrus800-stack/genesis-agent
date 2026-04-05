@@ -8,13 +8,13 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-6.0.4-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-6.0.7-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <img src="https://img.shields.io/badge/tests-~3100%20passing-4ade80?style=flat-square" alt="Tests">
-  <img src="https://img.shields.io/badge/modules-230-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/tests-~3855%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/modules-242-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-138-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/phases-13-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-355-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/events-370-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">
@@ -83,7 +83,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (6 evolvable traits), epigenetic conditioning, immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). **Empirically validated: +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4, kimi-k2.5:cloud).
 
-**Infrastructure** — 13-phase DI boot, EventBus (343 events), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules).
+**Infrastructure** — 13-phase DI boot, EventBus (370 events, 113 schemas), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules).
 
 > **For the full feature list with version history**, see [CAPABILITIES.md](docs/CAPABILITIES.md).
 
@@ -163,7 +163,7 @@ npm start -- --minimal                 # Minimal — core agent loop only (~50 s
 npm start -- --skip-phase 7            # Custom — skip specific phases (6-13)
 ```
 
-Use `--minimal` to learn the architecture without cognitive overhead. Use `--cognitive` for development. Use `--full` (default) for production.
+Use `--minimal` to learn the architecture without cognitive overhead. Use `--cognitive` (default) for development and production. Use `--full` to opt into consciousness (Phase 13) for experimentation.
 
 Requires **Node.js 20+** (tested on 20, 22) and **Git**. Ollama is optional if a cloud API is configured. On Windows, double-click `Genesis-Start.bat` instead.
 

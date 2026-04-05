@@ -1,6 +1,6 @@
 # Genesis — v6 Roadmap
 
-> **v6.0.6 — All 12 roadmap items complete.** Remaining items deferred to v7.
+> **v6.0.7 — All 12 roadmap items complete. Earned Autonomy added.** Remaining items deferred to v7.
 
 ---
 
@@ -56,6 +56,7 @@
 | v6.0.4 | Proportional Intelligence: CognitiveBudget, ExecutionProvenance, AdaptivePromptStrategy, Smart Model Ranking, Consciousness A/B (0pp → cognitive default), Organism A/B (+33pp) |
 | v6.0.5 | Offline-First: NetworkSentinel, intelligence pipeline integration tests (16), colony convergence proof (17), CC>30 SA-O1 closed, event warnings 2→0, coverage sweep (functions 69.6→75.2%), ratchet 77/72/72 |
 | v6.0.6 | V6-8 Replay complete, V6-10 KG Offline-Cache, V6-11 Dashboard + CLI, V6-3 Deploy strategies enhanced, V6-1 Colony peer verification |
+| v6.0.7 | Earned Autonomy (Wilson-score per-action trust), AgentLoop trust-gated approval, OnlineLearner→AdaptiveStrategy reactive bridge, model-aware prompt gating, cognitive boot default |
 
 ---
 

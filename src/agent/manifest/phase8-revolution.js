@@ -49,6 +49,8 @@ function phase8(ctx, R) {
         { prop: 'cognitiveHealthTracker', service: 'cognitiveHealthTracker', optional: true },
         // v5.5.0: Workspace factory via port — eliminates cross-phase import
         { prop: '_createWorkspace', service: 'workspaceFactory', optional: true },
+        // v6.0.7: Earned Autonomy — trust-gated approval bypass
+        { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
       ],
       factory: (c) => new (R('AgentLoop').AgentLoop)({
         bus, model: c.resolve('llm'), goalStack: c.resolve('goalStack'),

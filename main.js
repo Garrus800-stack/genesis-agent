@@ -789,6 +789,18 @@ const CHANNELS = {
     };
   },
 
+  // v6.0.7: Earned Autonomy — per-action trust report
+  'agent:get-autonomy-report': async () => {
+    if (!agent) return null;
+    const ea = agent.container.tryResolve('earnedAutonomy');
+    const trust = agent.container.tryResolve('trustLevelSystem');
+    return {
+      report: ea?.getReport() || [],
+      stats: ea?.getStats() || {},
+      trustStatus: trust?.getStatus() || null,
+    };
+  },
+
   'agent:stream-chunk': null, // Agent -> UI (push only)
   'agent:stream-done': null,  // Agent -> UI (push only, stream complete)
   'agent:status-update': null, // Agent -> UI (push only)

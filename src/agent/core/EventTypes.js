@@ -28,10 +28,14 @@ const EVENTS = Object.freeze({
     COMPLETE:         'agent-loop:complete',
     /** @payload {{ goalId: string, stepIndex: number, result: string, type: string }} */
     STEP_COMPLETE:    'agent-loop:step-complete',
+    /** @payload {{ goalId: string, stepIndex: number, type: string, error: string }} */
+    STEP_FAILED:      'agent-loop:step-failed',
     /** @payload {{ goalId: string, step: number, peerId: string }} */
     STEP_DELEGATING:  'agent-loop:step-delegating',
     /** @payload {{ action: string, description: string }} */
     APPROVAL_NEEDED:  'agent-loop:approval-needed',
+    /** @payload {{ action: string, description: string, reason: string, goalId: string }} */
+    AUTO_APPROVED:    'agent-loop:auto-approved',
     /** @payload {{ goalId: string, question: string }} */
     NEEDS_INPUT:      'agent-loop:needs-input',
     /** @payload {{ goalId: string, elapsedMs: number }} */
@@ -763,6 +767,13 @@ const EVENTS = Object.freeze({
     LEVEL_CHANGED:     'trust:level-changed',
     UPGRADES_AVAILABLE:'trust:upgrades-available',
     UPGRADE_ACCEPTED:  'trust:upgrade-accepted',
+  }),
+
+  // v6.0.7: Earned Autonomy
+  AUTONOMY: Object.freeze({
+    EARNED:  'autonomy:earned',
+    REVOKED: 'autonomy:revoked',
+    STATUS:  'autonomy:status',
   }),
 
   EFFECTOR: Object.freeze({

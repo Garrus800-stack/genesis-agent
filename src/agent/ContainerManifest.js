@@ -109,10 +109,14 @@ function buildManifest(ctx) {
 
   // ── Boot profiles ──────────────────────────────────────
   // v5.2.0: Skip higher phases based on profile.
-  //   full      → all 13 phases (default)
-  //   cognitive → phases 1-12 (skip consciousness)
+  //   full      → all 13 phases
+  //   cognitive → phases 1-12, skip consciousness (default since v6.0.7)
   //   minimal   → phases 1-8 (core agent loop only)
-  const profile = ctx.bootProfile || 'full';
+  //
+  // v6.0.7: Default changed from 'full' to 'cognitive'. A/B benchmarks
+  // show consciousness (phase 13) adds 0pp success rate improvement with
+  // variable latency overhead. Use --boot-profile full to opt back in.
+  const profile = ctx.bootProfile || 'cognitive';
 
   const PHASE_MAP = {
     full:      [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8, phase9, phase10, phase11, phase12, phase13],

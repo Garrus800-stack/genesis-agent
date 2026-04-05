@@ -11,6 +11,10 @@ function phase6(ctx, R) {
       phase: 6,
       deps: ['reflector', 'selfModel', 'memory', 'llm', 'prompts', 'skills', 'sandbox'],
       tags: ['autonomy'],
+      // v6.0.7: Trust-gated repair scope
+      lateBindings: [
+        { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
+      ],
       factory: (c) => new (R('AutonomousDaemon').AutonomousDaemon)({
         bus, reflector: c.resolve('reflector'), selfModel: c.resolve('selfModel'),
         memory: c.resolve('memory'), model: c.resolve('llm'),

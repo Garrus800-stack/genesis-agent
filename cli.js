@@ -832,7 +832,45 @@ async function runREPL(agent) {
         return;
       }
 
-      console.log('  Unknown command. Available: /health, /goals, /network, /trace, /traces, /replay <id>, /selfmodel, /status, /skills, /skill install|uninstall|update, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /adapt, /adaptations, /quit\n');
+      // v6.0.7: Earned Autonomy report
+      if (input === '/autonomy') {
+        const ea = agent.container.tryResolve('earnedAutonomy');
+        const trust = agent.container.tryResolve('trustLevelSystem');
+        if (!ea) {
+          console.log('\n  EarnedAutonomy not available.\n');
+        } else {
+          const report = ea.getReport();
+          const stats = ea.getStats();
+          const trustStatus = trust?.getStatus?.();
+
+          console.log('\n  ── Earned Autonomy ──');
+          if (trustStatus) {
+            console.log(`  Trust level: ${trustStatus.levelName} (${trustStatus.level})`);
+            console.log(`  Auto-approves: ${trustStatus.autoApproves.join(', ') || 'none'}`);
+            const overrides = Object.keys(trustStatus.overrides);
+            if (overrides.length > 0) {
+              console.log(`  Earned overrides: ${overrides.join(', ')}`);
+            }
+          }
+
+          if (report.length > 0) {
+            console.log('\n  Per-Action Confidence (Wilson score lower bound):');
+            for (const r of report) {
+              const bar = '█'.repeat(Math.round(r.wilsonLower / 10)).padEnd(10, '░');
+              const status = r.promoted ? ' ✓ EARNED' : '';
+              console.log(`    ${r.actionType.padEnd(18)} ${bar} ${r.wilsonLower}% (${r.successes}/${r.samples})${status}`);
+            }
+          } else {
+            console.log('\n  No action data yet — needs task executions.');
+          }
+
+          console.log(`\n  Stats: ${stats.recorded} recorded, ${stats.promotions} promotions, ${stats.revocations} revocations\n`);
+        }
+        rl.prompt();
+        return;
+      }
+
+      console.log('  Unknown command. Available: /health, /goals, /network, /trace, /traces, /replay <id>, /selfmodel, /status, /skills, /skill install|uninstall|update, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /adapt, /adaptations, /autonomy, /quit\n');
       rl.prompt();
       return;
     }
