@@ -1,7 +1,7 @@
 # Genesis Agent — Architecture Deep-Dive
 
-> Comprehensive technical analysis of Genesis Agent v6.0.5.
-> Last updated with Offline-First (V6-10), Intelligence Pipeline, and Consolidation.
+> Comprehensive technical analysis of Genesis Agent v6.0.6.
+> Last updated with Replay, Deploy Strategies, SelfModel Dashboard, and complete v6 roadmap.
 
 ---
 

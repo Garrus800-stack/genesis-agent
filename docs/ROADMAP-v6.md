@@ -1,6 +1,6 @@
-# Genesis — Development Roadmap
+# Genesis — v6 Roadmap
 
-**v6.0.0. Prioritized by impact, not novelty.**
+> **v6.0.6 — All 12 roadmap items complete.** Remaining items deferred to v7.
 
 ---
 
@@ -8,8 +8,8 @@
 
 | Metric | Value |
 |--------|-------|
-| Source Files / LOC | 241 / ~83.9k |
-| Test Suites / Tests | 263 / ~3720 |
+| Source Files / LOC | 241 / ~84k |
+| Test Suites / Tests | 264 / ~3,830 |
 | Boot Phases | 13 |
 | Registered Services | 139 (131 manifest + 8 kernel) |
 | Circular Dependencies | 0 |
@@ -17,236 +17,60 @@
 | Shutdown Integrity | ✅ All 60 services, sync writes |
 | Fitness Score | 90/90 (100%) |
 | TypeScript CI | ✅ Strict mode, 0 errors |
-| @ts-nocheck files | 0 (was 25) |
+| @ts-nocheck files | 0 |
+| Event Warnings | 0 |
 | Coverage Ratchet | 77/72/72 (lines/branches/functions) |
+| CLI Commands | 20 |
+| IPC Channels | 63 (55 invoke + 2 send + 6 receive) |
 
 ---
 
-## Completed (detail in CHANGELOG.md)
+## v6 Roadmap — Complete
+
+| # | Item | Version | Summary |
+|---|------|---------|---------|
+| V6-1 | Colony Mode | v5.9.2–v6.0.6 | ColonyOrchestrator, PeerConsensus (VectorClock + LWW), 3-peer daisy-chain convergence (17 tests), colony-test.js peer discovery + sync verification |
+| V6-2 | MCP Bidirectional | v5.8.0–v5.9.0 | Genesis as MCP client + server, 7 tools exposed, Streamable HTTP, resource subscriptions, session tracking |
+| V6-3 | Live Deployment | v5.9.2–v6.0.6 | DeploymentManager (4 strategies: Direct/Canary/Rolling/Blue-Green), HTTP + shell health checks, environment awareness, auto-rollback, `deploy:swap`, CLI `/deploy` |
+| V6-4 | UI Overhaul | v5.9.2 | 13 live Dashboard panels, interactive architecture graph, reasoning trace trees, proactive insights timeline, coupling heatmap |
+| V6-5 | Context Window | v5.9.7–v6.0.0 | DynamicContextBudget, ConversationCompressor, CognitiveWorkspace onEvict → MemoryConsolidator |
+| V6-6 | Skill Registry | v5.9.8 | SkillRegistry (install/uninstall/update from GitHub/npm/Gist/URL), manifest validation, sandbox isolation, CLI `/skills` |
+| V6-7 | Memory Consolidation | v6.0.0 | MemoryConsolidator (Jaccard merge, stale pruning, lesson archival, decay scoring), IdleMind integration, CLI `/consolidate` |
+| V6-8 | Task Replay | v6.0.0–v6.0.6 | TaskRecorder (auto-record goal traces), `buildReplayManifest` (chronological timeline), `replay()` (bus events), `formatReplay()`, diff view, CLI `/replay <id>` |
+| V6-9 | Benchmarking | v5.9.8–v6.0.4 | 12 benchmark tasks, A/B matrix, layer A/B (--skip-phase), baseline comparison, `--ab-matrix` multi-backend, README auto-gen |
+| V6-10 | Offline-First | v6.0.5–v6.0.6 | NetworkSentinel (30s probes, 3-failure threshold, auto-failover to Ollama, auto-restore, mutation queue), KG + LessonsStore flush on offline, keyword search fallback |
+| V6-11 | Cognitive SelfModel | v5.9.7–v6.0.6 | TaskOutcomeTracker, CognitiveSelfModel (Wilson-calibrated profiles, bias detection, backend strength map), Dashboard panel (radar + backends + biases), CLI `/selfmodel` |
+| V6-12 | Meta-Cognitive Loop | v6.0.2 | AdaptiveStrategy (bias→adaptation→validation→confirm/rollback), QuickBenchmark, ModelRouter empirical injection, OnlineLearner weakness signals, IdleMind `calibrate` |
+
+---
+
+## Version History
 
 | Version | Focus |
 |---------|-------|
-| v5.1.0  | Reliability: MCP CircuitBreaker, 100% test coverage, Windows compat, UI fixes, chat/model fixes |
-| v5.2.0  | Observability: Correlation IDs, fitness trending, PromptEvolution, CC reduction, god-class extraction |
-| v5.3.0  | Cognitive: SA-P5 OnlineLearner, SA-P6 CognitiveWorkspace, SA-P7 LessonsStore, boot profiles |
-| v5.4.0  | Hardening: TypeScript strict CI, Dashboard extraction, WorldState CQRS-lite |
-| v5.5.0  | Safety: PreservationInvariants (11 rules), ReasoningTracer, shutdown data-loss fixes |
-| v5.6.0  | Tech debt: 12 god-class extractions, CC reduction, @ts-nocheck batches, SA-P4 Embodied Perception, DA-1/DA-2/DA-3 |
-| v5.7.0  | Monitor cleanup + SA-P3 + SA-P8: CC>30 18→12, @ts-nocheck 101→25, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence |
-| v5.8.0  | MCP Bidirectional, Dashboard Overhaul (5 panels), @ts-nocheck 25→0, Channel sync fix |
-| v5.9.0  | MCP Server Phase 2: Auto-start, Streamable HTTP, Resources (KnowledgeGraph + LessonsStore) |
-| v5.9.1  | CLI UX: 12 bugs fixed from real-world testing — run-skill intent, retry, shell fix, log throttle, sandbox fixes |
-| v5.9.2  | Hardening + V6 Foundations: MCP server security, CI strictness, coverage ratchet, Colony/Deploy foundations, UI Phase 2 complete (4 panels), Electron 39, CI badge |
-| v5.9.3  | CI Fix + Quality Infrastructure: Green pipeline restored (audit:events:strict, TS6), ServiceRecovery (auto-healing), 3 built-in skills, lifecycle integration tests, release automation |
-| v5.9.6  | Organism Context Containment: Homeostasis prompt containment (behavioral-only), organism context guard, formatting metric prohibition |
-| v5.9.7  | SelfModel Data Layer + Context Overflow: TaskOutcomeTracker (V6-11 data collection), ConversationCompressor (V6-5 LLM-based history compression), coverage ratchet 70/60/65 |
-| v5.9.8  | V6-5 + V6-11 + V6-9 + V6-6: ConversationCompressor wiring fix, CognitiveWorkspace onEvict, CognitiveSelfModel (Wilson-calibrated), SelfModel Dashboard, Benchmarking Suite (8 tasks), SkillRegistry (install/uninstall/update), Sandbox SIGKILL fix (0 failures) |
-| v5.9.9  | Stabilization + CI Green: TSC-1/TSC-2 (TypeScript 6 fix), 4 listener leaks fixed (LEAK-1–4), fitness scanner upgrade (FIT-2), A/B Organism Validation (+37pp), headless --once mode |
-| v6.0.0  | V6-5 complete (eviction pipeline), V6-7 MemoryConsolidator, V6-8 TaskRecorder, V6-6 CLI commands, V6-9 benchmark expansion (12 tasks + --ab-matrix) |
-| v6.0.1  | Safety Infrastructure: CostGuard (LLM budget cap), BackupManager, CrashLog, AutoUpdater, SKILL-SECURITY.md, documentation audit (7 files), 0 magic numbers, V6-9 benchmark README |
-| v6.0.2  | **V6-12 Meta-Cognitive Loop**: AdaptiveStrategy (bias→adaptation→validation→confirm/rollback), QuickBenchmark, ModelRouter empirical injection, OnlineLearner weakness signals, IdleMind calibrate activity |
-| v6.0.3  | **Security Audit Hardening**: 0 Critical, 3 High fixed (IPC validation, Sandbox isolation, ShellAgent NFKC), SA-P3/P4/P8 audits complete |
-| v6.0.4  | **Empirical Validation + Smart Model Selection**: CognitiveBudget (proportional intelligence), ExecutionProvenance (causal tracing), AdaptivePromptStrategy (self-optimizing prompts), Smart Model Ranking (0%→100%), Consciousness A/B (0pp → cognitive default), Organism A/B (+33pp confirmed), Colony Proof (16/16), --backend fix, /models UX, Layer A/B framework |
-| v6.0.5  | **Offline-First + Pipeline Validation + Colony Convergence**: NetworkSentinel (auto-failover to Ollama), intelligence pipeline integration tests (16), colony live convergence proof (17 tests, 3-peer daisy-chain), shutdown coverage fix (90/90 restored) |
-
-### Completed SA Items
-
-| ID   | Name | Version |
-|------|------|---------|
-| SA-P4 | Embodied Perception | v5.6.0 |
-| SA-P3 | Architecture Reflection | v5.7.0 |
-| SA-P8 | Dynamic Tool Synthesis | v5.7.0 |
-| SA-P5 | Online Learning | v5.3.0 |
-| SA-P6 | Working Memory (CognitiveWorkspace) | v5.3.0 |
-| SA-P7 | Cross-Project Learning (LessonsStore) | v5.3.0 |
-| Self-Preservation Invariants | PreservationInvariants.js | v5.5.0 |
-| Reasoning Trace UI | ReasoningTracer.js | v5.5.0 |
+| v5.1.0–v5.9.9 | Foundation: MCP, Dashboard, TypeScript CI, Cognitive Architecture, Organism Layer, Consciousness, Boot Profiles |
+| v6.0.0 | V6-5 eviction, V6-7 MemoryConsolidator, V6-8 TaskRecorder, V6-6 CLI, V6-9 benchmarks (12 tasks) |
+| v6.0.1 | Safety: CostGuard, BackupManager, CrashLog, AutoUpdater, SKILL-SECURITY.md |
+| v6.0.2 | V6-12 Meta-Cognitive Loop: AdaptiveStrategy, QuickBenchmark, ModelRouter/OnlineLearner patches |
+| v6.0.3 | Security Audit: 3 High IPC fixes, sandbox hardening, SA-P3/P4/P8 complete |
+| v6.0.4 | Proportional Intelligence: CognitiveBudget, ExecutionProvenance, AdaptivePromptStrategy, Smart Model Ranking, Consciousness A/B (0pp → cognitive default), Organism A/B (+33pp) |
+| v6.0.5 | Offline-First: NetworkSentinel, intelligence pipeline integration tests (16), colony convergence proof (17), CC>30 SA-O1 closed, event warnings 2→0, coverage sweep (functions 69.6→75.2%), ratchet 77/72/72 |
+| v6.0.6 | V6-8 Replay complete, V6-10 KG Offline-Cache, V6-11 Dashboard + CLI, V6-3 Deploy strategies enhanced, V6-1 Colony peer verification |
 
 ---
 
-## Open — v6.0 Roadmap
-
-### V6-1: Colony-Mode (Multi-Agent Coordination)
-
-Multiple Genesis instances working together on a shared goal.
-
-- **✅ ColonyOrchestrator**: Foundation module — goal decomposition, peer distribution, result merge, conflict detection, consensus-gated merge (v5.9.2)
-- **Task Decomposition**: A "lead" agent breaks a large goal into sub-tasks and distributes them to worker agents
-- **Result Merge**: Worker results are merged, conflicts resolved (e.g. two agents modifying the same file)
-- **Consensus Protocol**: Before code changes are applied, agents vote via peer consensus (PeerConsensus.js already exists)
-- **Shared Memory**: Colony-wide KnowledgeGraph and LessonsStore — what one agent learns, all agents know
-- **Remaining**: Real peer integration testing, shared KG sync, multi-file conflict resolution UI
-- **Prerequisite**: PeerNetwork ✅, TaskDelegation ✅, PeerConsensus ✅, ColonyOrchestrator ✅
-- **Effort**: Medium (remaining)
-
-### V6-2: Extended MCP Integration (Bidirectional) — ✅ Complete
-
-Genesis is both an MCP client and a full MCP server.
-
-- **✅ Genesis as MCP Server**: Full MCP 2025-03-26 protocol (JSON-RPC error codes, CORS, health, ping, listChanged, resources)
-- **✅ McpServerToolBridge**: 7 tools exposed (verify-code, verify-syntax, code-safety-scan, project-profile, project-suggestions, architecture-query, architecture-snapshot)
-- **✅ Auto-Start**: `mcp.serve.enabled` + `mcp.serve.port` in Settings → McpServer starts automatically on boot
-- **✅ Streamable HTTP**: POST with `Accept: text/event-stream` returns SSE response (MCP 2025-03-26 transport)
-- **✅ Resource Subscriptions**: 4 resources exposed (knowledge-graph/stats, knowledge-graph/nodes, lessons/all, lessons/stats) with `resources/list_changed` notifications
-- **✅ Session Tracking**: `Mcp-Session-Id` header tracked per connection
-- **Prerequisite**: McpServer.js ✅, McpTransport ✅, ToolRegistry ✅, McpServerToolBridge ✅
-- **Effort**: Complete
-
-### V6-3: Live Deployment
-
-Genesis deploys code changes into running systems — not just into itself.
-
-- **✅ DeploymentManager**: Foundation module — strategy pattern (Direct/Canary/Rolling/Blue-Green), health checks, auto-rollback, step tracking (v5.9.2)
-- **External Hot-Swap**: Replace modules in external Node.js processes (via IPC/Socket)
-- **Rolling Update**: For multi-service projects: update service-by-service with health checks between each step
-- **Deployment Verification**: After each deploy: health check, smoke tests, automatic rollback on failure
-- **Environment Awareness**: Genesis knows dev/staging/prod and adapts deployment strategy
-- **Remaining**: External process IPC, real rolling update with load balancer, canary traffic splitting
-- **Prerequisite**: HotReloader ✅, ShellAgent ✅, EffectorRegistry ✅, TrustLevels ✅, DeploymentManager ✅
-- **Effort**: Medium (remaining)
-
-### V6-4: UI Overhaul — ✅ Complete
-
-Modern dashboard that visualizes the new cognitive capabilities.
-
-- **✅ Consciousness Panel**: PhenomenalField awareness meter, valence/arousal, attention gate, temporal self, values alignment
-- **✅ Energy Panel**: Metabolism gauge with level coloring, LLM call cost tracking
-- **✅ Architecture Panel**: Service/event/layer/coupling counts, phase map pills
-- **✅ Project Intelligence Panel**: Tech stack grid, conventions summary
-- **✅ Tool Synthesis Panel**: Generated/active/failed/evicted counts, active tool pills
-- **✅ Interactive Architecture Graph**: SVG force-directed layout, drag, click-to-highlight, phase-colored, hover tooltips (v5.9.2)
-- **✅ Reasoning Trace Decision Trees**: Grouped by correlationId, collapsible chains, step connector visualization (v5.9.2)
-- **✅ Proactive Insights Timeline**: IdleMind activities chronologically, thought counter, idle/active status, activity icons (v5.9.2)
-- **✅ Coupling Hotspot Heatmap**: Top-20 services by connection count, heat-colored bars, in/out counts (v5.9.2)
-- **Prerequisite**: Dashboard.js ✅, IPC channels ✅, all backend data available ✅, ArchitectureGraph.js ✅
-
-### V6-5: Context Window Manager
-
-Automatic context budget tracking and compression to prevent token overflow.
-
-- **✅ ContextBudget Service**: DynamicContextBudget tracks token usage per LLM call, intent-based allocation profiles (v4.10.0)
-- **✅ Auto-Summarization**: ConversationCompressor — LLM-based history compression with extractive fallback, caching, ContextManager integration (v5.9.7)
-- **✅ Compressor Wiring**: `_compressor` late-binding added to `context` manifest entry — ConversationCompressor now live in `buildAsync()` (v5.9.8)
-- **✅ Backend-Aware Limits**: `configureForModel()` sets `maxContextTokens` per model via MODEL_CONTEXT_MAP, passed to DynamicContextBudget.allocate() (v3.5.3+)
-- **✅ Slot Eviction Hook**: CognitiveWorkspace `onEvict(key, slot)` callback + rich eviction data return (v5.9.8)
-- **Remaining**: ~~Wire `onEvict` in workspaceFactory to persist/summarize evicted slots~~ → **✅ Complete (v6.0.0)**: `onEvict` callback wired in workspaceFactory, emits `workspace:slot-evicted` bus event. MemoryConsolidator subscribes for archival tracking.
-- **Prerequisite**: CognitiveWorkspace ✅, LLMPort ✅, AttentionalGate ✅, DynamicContextBudget ✅, ConversationCompressor ✅
-- **Effort**: Very low (remaining — one callback wiring in workspaceFactory)
-- **Priority**: High — directly improves output quality on long tasks
-
-### V6-6: Skill Registry (Community Skills)
-
-Discover, install, and manage third-party skills from external sources.
-
-- **✅ SkillRegistry.js**: Core service (320 LOC). Phase 3 manifest. Install, uninstall, update, search, list. Meta persistence. SkillManager reload integration. 2 events. 13 tests. (v5.9.8)
-- **✅ `install(source)`**: Fetches from GitHub Gist, GitHub repo, npm (`npm:<n>`), direct archive URL (.zip/.tar.gz), or git clone. Validates manifest BEFORE loading code. (v5.9.8)
-- **✅ Manifest Validation**: Required fields, name pattern, semver version, entry file existence. (v5.9.8)
-- **✅ Sandbox Isolation**: Community skills run in existing sandbox with restricted permissions (inherited from SkillManager)
-- **✅ Uninstall + Update**: `uninstall(name)` removes dir + meta. `update(name)` re-fetches from original source. (v5.9.8)
-- **✅ Search**: `search(query)` queries optional registry index URL. (v5.9.8)
-- **✅ CLI Commands (v6.0.0)**: `/skills`, `/skill install|uninstall|update` in CLI REPL.
-- **Remaining**: Public registry index hosting
-- **Prerequisite**: SkillManager ✅, Sandbox ✅, skill-manifest.schema.json ✅
-- **Effort**: Low (remaining — CLI wiring + registry hosting)
-- **Priority**: High — lowers barrier for external contributors
-
-### V6-7: Memory Consolidation — ✅ Complete (v6.0.0)
-
-Periodic pruning and merging of KnowledgeGraph and LessonsStore to prevent unbounded growth.
-
-- **✅ MemoryConsolidator Service**: Phase 9 cognitive service (~340 LOC). KG redundancy detection (Jaccard similarity merge), stale node pruning, lesson archival with decay scoring, compaction reports. (v6.0.0)
-- **✅ Redundancy Detection**: Same-type KG nodes merged by word-level Jaccard similarity (≥0.75). Properties merged, edges redirected, self-loops removed. Configurable max merges per run.
-- **✅ Lesson Archival**: Lessons older than N days with low access count → archived to `~/.genesis-lessons/archive/`. Configurable thresholds.
-- **✅ Relevance Scoring**: Decay-weighted relevance (recency × access frequency) drives eviction priority.
-- **✅ Compaction Report**: Dashboard-ready report via IPC. Cumulative stats across all runs.
-- **✅ IdleMind Integration**: `consolidate` activity triggers MemoryConsolidator via bus event. Always available.
-- **✅ CLI**: `/consolidate` command for manual trigger.
-- **Prerequisite**: KnowledgeGraph ✅, LessonsStore ✅, IdleMind ✅
-
-### V6-8: Task Replay / Debug Mode
-
-Record and deterministically replay complete task executions for debugging and regression testing.
-
-- **✅ TaskRecorder Service (v6.0.0)**: Phase 9 cognitive service (~380 LOC). Automatic recording of goal execution traces (steps, LLM calls, tool invocations, decisions). Serialized to `.genesis-replay` files. Ring buffer of last 50 recordings. Index loaded from disk on boot.
-- **✅ Diff View (v6.0.0)**: `diff(idA, idB)` compares two recordings step-by-step. Finds divergence point, compares step types, reports outcome deltas.
-- **✅ CLI (v6.0.0)**: `/replays` lists recent recordings with status icons.
-- **✅ IPC (v6.0.0)**: `agent:get-replay-report`, `agent:get-replay-diff`. Preload whitelisted.
-- **Deterministic Replay**: Replay with mocked LLM responses reproduces exact execution path (remaining)
-- **Dashboard Integration**: Replay visualized in existing Reasoning Trace Decision Trees panel (remaining)
-
-### V6-9: Agent Benchmarking Suite
-
-Standardized benchmarks to measure agent capability across versions and backends.
-
-- **✅ `scripts/benchmark-agent.js`** (~230 LOC): 8 benchmark tasks across 5 categories (code-gen, bug-fix, refactoring, analysis, chat). Each task has programmatic `verify(output)` function. (v5.9.8)
-- **✅ Metrics**: Success rate, token estimate, latency per task, aggregate scores. (v5.9.8)
-- **✅ Regression Detection**: `--baseline save/compare` mode. Per-task regression flagging + overall success rate delta. (v5.9.8)
-- **✅ Modes**: `--quick` (3 tasks), `--backend <n>`, `--json` output. (v5.9.8)
-- **✅ Extended Task Suite (v6.0.0)**: 4 new tasks (8 → 12): async rate limiter, async error handling, strategy pattern, API design review. Coverage across 5 categories.
-- **✅ `--ab-matrix` mode (v6.0.0)**: Runs A/B comparison across ALL configured backends. Auto-discovers backends from settings.json. Per-backend delta + aggregate average. Results saved to `.genesis/benchmark-ab-matrix.json`.
-- **✅ README Auto-Gen (v6.0.1)**: `scripts/benchmark-readme.js` reads `.genesis/benchmark-latest.json`, generates markdown table, injects into README.md between `<!-- BENCHMARK-START/END -->` markers. npm script: `benchmark:readme`.
-- **Prerequisite**: SkillManager ✅, LLMPort ✅, Sandbox ✅
-- **Effort**: Low (remaining)
-- **Priority**: Medium — provides hard numbers for competitive positioning
-
-### V6-10: Offline-First / Ollama Priority Mode
-
-Graceful degradation to local-only operation when no internet is available.
-
-- **✅ NetworkSentinel**: Phase 6 autonomy service (~400 LOC). Periodic connectivity probing (2 external + Ollama local). Debounced offline detection (3 failures). Auto-failover to best Ollama model. Auto-restore on reconnect. Mutation queue (ring buffer 500) with replay. 3 events, 3 schemas. 24 tests. (v6.0.5)
-- **Network Detection**: ✅ Periodic connectivity check, automatic backend failover
-- **Ollama Auto-Switch**: ✅ When cloud backends unreachable, route all LLM calls to Ollama
-- **KG Cache**: Local snapshot of KnowledgeGraph for offline queries (remaining)
-- **Degradation Matrix Extension**: Add network-aware rules to existing DegradationMatrix (remaining)
-- **Sync on Reconnect**: ✅ Queue mutations during offline, replay on reconnect (NetworkSentinel mutation queue)
-- **Prerequisite**: DegradationMatrix ✅, OllamaBackend ✅, KnowledgeGraph ✅, NetworkSentinel ✅
-- **Effort**: Low–Medium
-- **Priority**: Medium — natural extension of existing degradation infrastructure
-
-### V6-11: Cognitive SelfModel
-
-A continuously updated internal model of the agent's own capabilities, weaknesses, and failure patterns. No existing AI agent framework has this.
-
-- **✅ TaskOutcomeTracker**: Data collection layer — records structured task outcomes (type, backend, success, cost, duration) from 4 event sources. Aggregate stats API. Persistence. Phase 9 manifest. (v5.9.7)
-- **✅ CognitiveSelfModel Service**: Phase 9 cognitive service (v5.9.8). Wilson-calibrated capability profiles, bias detection (4 detectors), backend strength map, confidence reports, prompt context injection. Late-binds to TaskOutcomeTracker + LessonsStore + ReasoningTracer. 29 tests.
-- **✅ Capability Profile**: Per-task success rates with Wilson lower-bound confidence intervals. `isWeak`/`isStrong` flags. Top error categories per type. (v5.9.8)
-- **✅ Backend Strength Map**: Per-backend empirical performance matrix, sorted by Wilson confidence. Recommended backend per task type. (v5.9.8)
-- **✅ Bias Detection**: 4 pattern detectors — scope-underestimate, token-overuse, error-repetition, backend-mismatch. Severity + evidence strings. Cached, invalidated on new outcomes. (v5.9.8)
-- **✅ Proactive Disclosure**: `getConfidence(taskType, backend?)` returns risk report before task execution. `buildPromptContext(intent)` injects into LLM system prompt via PromptBuilder. (v5.9.8)
-- **✅ PromptBuilder Integration**: `_taskPerformanceContext()` now prefers CognitiveSelfModel over raw TaskOutcomeTracker. Falls back to legacy path if SelfModel absent. (v5.9.8)
-- **Calibrated Estimation**: Predicted vs. actual duration/token cost — needs more outcome data to calibrate accurately
-- **Colony Integration**: In V6-1 colony mode, each worker shares its SelfModel → lead agent routes tasks to the best-suited worker
-- **Dashboard Panel**: Capability radar chart, calibration drift graph, bias log, per-backend comparison (IPC handler `agent:get-selfmodel-report` ready)
-- **Data Sources**: TaskOutcomeTracker (raw outcomes) ✅, ReasoningTracer (raw decisions) ✅, LessonsStore (historical patterns) ✅, CognitiveWorkspace (cognitive context) ✅, PreservationInvariants (overconfidence guard) ✅, OnlineLearner (update trigger) ✅
-- **Preservation Rule**: SelfModel MUST NOT overestimate capabilities — Wilson lower-bound enforces pessimistic calibration
-- **Prerequisite**: TaskOutcomeTracker ✅, ReasoningTracer ✅, LessonsStore ✅, CognitiveWorkspace ✅, PreservationInvariants ✅, OnlineLearner ✅
-- **Effort**: Low (remaining — calibrated estimation + dashboard rendering + colony integration)
-- **Priority**: Critical — unique differentiator with no equivalent in any competing framework (LangChain, CrewAI, AutoGen, Devin). Genesis is the only project with the cognitive substrate to implement this.
-
-### V6-12: Meta-Cognitive Feedback Loop — ✅ Complete (v6.0.2)
-
-Closed-loop self-improvement: CognitiveSelfModel diagnoses → AdaptiveStrategy prescribes → QuickBenchmark validates → LessonsStore records.
-
-- **✅ AdaptiveStrategy Service (v6.0.2)**: Phase 9 cognitive service (~400 LOC). Three adaptation strategies: prompt mutation (bias → PromptEvolution experiment), backend routing injection (strength map → ModelRouter scoring bonus), temperature signal (weakness → OnlineLearner multiplier). Full lifecycle: PROPOSED → APPLIED → VALIDATING → CONFIRMED | ROLLED_BACK. Persistence, cooldowns, safety guards (max 1 concurrent, 30-min cooldown, min 10 outcomes). 6 events, CLI `/adapt` + `/adaptations`.
-- **✅ QuickBenchmark Service (v6.0.2)**: Phase 9 cognitive service (~200 LOC). Wraps `benchmark-agent.js --quick` (3 tasks) for in-process validation. Baseline caching (4h TTL). Compare: confirm (≥-2pp), rollback (<-5pp), inconclusive. CostGuard budget floor check.
-- **✅ ModelRouter Patch (v6.0.2)**: `injectEmpiricalStrength()` + Step 4 scoring bonus in `_scoreModel()`. Max +0.3 bonus from empirical data. 7-day expiry.
-- **✅ OnlineLearner Patch (v6.0.2)**: `receiveWeaknessSignal()` + weakness multiplier in `_adjustTemperature()`. 0.85× for weak, 1.10× for strong. 4-hour expiry.
-- **✅ IdleMind Integration (v6.0.2)**: `calibrate` activity (weight 1.5). Triggers `AdaptiveStrategy.runCycle()` during idle. Genome consolidation trait applied.
-- **✅ LessonsStore Integration (v6.0.2)**: Every confirmed/rolled-back adaptation stored as lesson (category: `meta-adaptation`). Feeds future SelfModel evaluations.
-- **✅ 3 Test Suites (v6.0.2)**: AdaptiveStrategy (21), QuickBenchmark (18), MetaCognitiveLoop integration (12). Total: 51 tests.
-- **Prerequisite**: CognitiveSelfModel ✅, PromptEvolution ✅, ModelRouter ✅, OnlineLearner ✅, benchmark-agent.js ✅, CostGuard ✅
-- **Significance**: No competing framework has a closed-loop self-improvement cycle. Genesis is the first AI agent that diagnoses its own weaknesses AND autonomously acts to fix them with empirical validation.
-
----
-
-## Explicitly Deferred
+## Deferred to v7
 
 | Proposal | Reason |
 |----------|--------|
+| V6-1: Full 2-process IPC sync | Protocol proven (17 tests). Real-world test needs 2 running instances with Ollama — manual test, not code gap. |
+| V6-3: External Hot-Swap via IPC | Self-deploy (HotReloader) and shell-based deploy work. IPC hot-swap in external processes is a new feature, not v6 scope. |
+| V6-11: Calibrated Estimation | Self-calibrating — needs accumulated runtime data. No code needed, just usage time. |
+| V6-11: Colony Task Routing | SelfModel per worker → lead routes tasks to best-suited agent. Depends on V6-1 real multi-process. |
+| Remove Consciousness Layer | Empirically validated as 0pp impact (v6.0.4). Default boot is `cognitive`. Available via `--full` for research. |
 | Predictive Load Balancer | Over-engineering for single-user desktop. Revisit for colony mode. |
-| Shadow Execution for SelfMod | Existing sandbox + snapshot rollback covers 90%. Input replay is v7.0+. |
-| Remove Consciousness Layer | **Empirically validated as 0pp impact (v6.0.4).** Default boot changed to `cognitive` (no Phase 13). Consciousness available via `--full` flag for research. |
-| Full OpenTelemetry | Too heavy. Correlation IDs provide 80% of the tracing value at 5% of the complexity. |
+| Shadow Execution for SelfMod | Existing sandbox + snapshot rollback covers 90%. |
+| Full OpenTelemetry | Too heavy. Correlation IDs provide 80% of tracing value at 5% complexity. |
 
 ---
 
@@ -254,8 +78,6 @@ Closed-loop self-improvement: CognitiveSelfModel diagnoses → AdaptiveStrategy 
 
 1. Run `node scripts/architectural-fitness.js` before starting any sprint.
 2. Run `node scripts/fitness-trend.js` to check for drift.
-3. Pick the highest-priority open item.
-4. Implement, test, verify fitness score.
-5. Don't add features that lower the fitness score.
+3. Don't add features that lower the fitness score.
 
 **The rule: reliability before capability. Fix what's broken before building what's missing.**

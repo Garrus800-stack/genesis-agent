@@ -415,6 +415,8 @@ const EVENTS = Object.freeze({
     REQUEST:    'deploy:request',
     /** @payload {{ id: string, target: string, snapshot: number }} */
     ROLLBACK:   'deploy:rollback',
+    /** @payload {{ target: string, from: string, to: string }} v6.0.6 Blue-Green swap */
+    SWAP:       'deploy:swap',
   }),
 
   // ── Task Outcomes (v5.9.7) ──────────────────────────────
@@ -572,6 +574,13 @@ const EVENTS = Object.freeze({
   TASK_RECORDER: Object.freeze({
     /** @payload {{ id: string, goalId: string, steps: number, llmCalls: number, durationMs: number }} */
     RECORDING_COMPLETE: 'replay:recording-complete',
+    // v6.0.5 (V6-8): Deterministic replay events
+    /** @payload {{ id: string, goalDescription: string, totalEvents: number }} */
+    STARTED:            'replay:started',
+    /** @payload {{ recordingId: string, index: number, total: number, kind: string, offset: number }} */
+    EVENT:              'replay:event',
+    /** @payload {{ id: string, eventsReplayed: number, replayDurationMs: number }} */
+    COMPLETED:          'replay:completed',
   }),
 
   // ── Store (EventStore.append dynamic events) ────────────

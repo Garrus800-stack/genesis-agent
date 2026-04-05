@@ -251,7 +251,7 @@ async function runREPL(agent) {
     console.log(`[CLI] Model: ${activeModel}`);
   }
 
-  console.log('[CLI] Commands: /models, /model <name>, /health, /status, /goals, /skills, /network, /trace, /traces, /quit\n');
+  console.log('[CLI] Commands: /models, /model <name>, /health, /status, /goals, /skills, /network, /trace, /traces, /replay <id>, /selfmodel, /quit\n');
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -502,6 +502,31 @@ async function runREPL(agent) {
       return;
     }
 
+    if (input.startsWith('/replay ')) {
+      const tr = agent.container.tryResolve('taskRecorder');
+      if (!tr) {
+        console.log('\n  TaskRecorder not available.\n');
+      } else {
+        const recordingId = input.slice(8).trim();
+        const manifest = tr.buildReplayManifest(recordingId);
+        if (!manifest) {
+          // Try partial match
+          const recent = tr.list(50);
+          const match = recent.find(r => r.id.startsWith(recordingId));
+          if (match) {
+            const m = tr.buildReplayManifest(match.id);
+            console.log('\n' + tr.formatReplay(m) + '\n');
+          } else {
+            console.log(`\n  Recording "${recordingId}" not found. Run /replays to see available.\n`);
+          }
+        } else {
+          console.log('\n' + tr.formatReplay(manifest) + '\n');
+        }
+      }
+      rl.prompt();
+      return;
+    }
+
     if (input.startsWith('/')) {
       // ── v6.0.5: Network status + Provenance trace ──
 
@@ -669,6 +694,83 @@ async function runREPL(agent) {
         return;
       }
 
+      // v6.0.6: SelfModel Dashboard — CLI view of cognitive self-awareness
+      if (input === '/selfmodel') {
+        const sm = agent.container.tryResolve('cognitiveSelfModel');
+        if (!sm) {
+          console.log('\n  CognitiveSelfModel not available.\n');
+        } else {
+          const report = sm.getReport();
+          console.log('\n  ── Cognitive Self-Model ──');
+
+          // Capability Profile
+          const profile = report.profile || {};
+          const types = Object.keys(profile);
+          if (types.length > 0) {
+            console.log('\n  Capability Profile:');
+            for (const type of types) {
+              const p = profile[type];
+              const bar = '█'.repeat(Math.round((p.successRate || 0) * 10)).padEnd(10, '░');
+              const weak = p.isWeak ? ' ⚠ WEAK' : p.isStrong ? ' ★ STRONG' : '';
+              console.log(`    ${type.padEnd(15)} ${bar} ${Math.round((p.successRate || 0) * 100)}%${weak}`);
+            }
+          } else {
+            console.log('\n  No capability data yet — needs more task outcomes.');
+          }
+
+          // Backend Strength Map
+          const backends = report.backendMap || {};
+          const bKeys = Object.keys(backends);
+          if (bKeys.length > 0) {
+            console.log('\n  Backend Strength:');
+            for (const bk of bKeys) {
+              const b = backends[bk];
+              console.log(`    ${bk.padEnd(20)} score: ${b.score?.toFixed(2) || '?'}  tasks: ${b.tasks || 0}`);
+            }
+          }
+
+          // Bias Patterns
+          const biases = report.biases || [];
+          if (biases.length > 0) {
+            console.log('\n  Detected Biases:');
+            for (const bias of biases) {
+              console.log(`    ⚠ ${bias.type}: ${bias.description || bias.evidence || ''}`);
+            }
+          }
+
+          console.log(`\n  Stats: ${report.stats?.outcomesProcessed || 0} outcomes processed`);
+          console.log();
+        }
+        rl.prompt();
+        return;
+      }
+
+      // v6.0.6: Deployment status + history
+      if (input === '/deploy') {
+        const dm = agent.container.tryResolve('deploymentManager');
+        if (!dm) {
+          console.log('\n  DeploymentManager not available.\n');
+        } else {
+          const health = dm.getHealth();
+          const recent = dm.listDeployments(5);
+          console.log('\n  ── Deployments ──');
+          console.log(`  Total: ${health.total} | Active: ${health.active} | Succeeded: ${health.succeeded} | Failed: ${health.failed} | Rolled back: ${health.rolledBack}`);
+          if (recent.length > 0) {
+            console.log('\n  Recent:');
+            for (const d of recent) {
+              const icon = d.status === 'done' ? '✓' : d.status === 'failed' ? '✗' : d.status === 'rolled-back' ? '↩' : '·';
+              const dur = d.completedAt ? `${d.completedAt - d.startedAt}ms` : 'running';
+              console.log(`    ${icon} ${d.id.slice(0, 12)} [${d.strategy}] ${d.target} → ${d.status} (${dur})`);
+            }
+          } else {
+            console.log('\n  No deployments yet.');
+          }
+          console.log();
+        }
+        rl.prompt();
+        return;
+      }
+
       // v6.0.2: Manual adaptation cycle
       if (input === '/adapt') {
         const strategy = agent.container.tryResolve('adaptiveStrategy');
@@ -730,7 +832,7 @@ async function runREPL(agent) {
         return;
       }
 
-      console.log('  Unknown command. Available: /health, /goals, /network, /trace, /traces, /status, /skills, /skill install|uninstall|update, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /adapt, /adaptations, /quit\n');
+      console.log('  Unknown command. Available: /health, /goals, /network, /trace, /traces, /replay <id>, /selfmodel, /status, /skills, /skill install|uninstall|update, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /adapt, /adaptations, /quit\n');
       rl.prompt();
       return;
     }

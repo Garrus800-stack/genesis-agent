@@ -1,3 +1,44 @@
+## [6.0.6] — Replay + KG Offline-Cache + SelfModel Dashboard + Colony Live
+
+**Focus: Deterministic task replay, complete offline operation, visible self-awareness, and real multi-instance colony proof.**
+
+### V6-8: Deterministic Replay (NEW)
+
+- `TaskRecorder.buildReplayManifest(id)`: Merges steps, LLM calls, and tool calls into a single chronological timeline sorted by offset.
+- `TaskRecorder.replay(id, {speed, emit})`: Replays recorded events on the bus. `speed: 0` = instant, `speed: 1` = real-time. Emits `replay:started`, `replay:event`, `replay:completed`.
+- `TaskRecorder.formatReplay(manifest)`: Human-readable timeline with step/LLM/tool entries and timing.
+- CLI `/replay <id>`: Shows full timeline for a recording. Supports partial ID matching.
+- 3 new events registered in EventTypes + PayloadSchemas.
+- 16 tests (buildReplayManifest, replay, formatReplay, bus events, edge cases).
+
+### V6-10: KG Offline-Cache Complete
+
+- NetworkSentinel now flushes `KnowledgeGraph` + `LessonsStore` to disk on offline transition. Zero data loss.
+- Late-bindings added: `_knowledgeGraph` + `_lessonsStore` in phase 6 manifest.
+- KG search already has keyword fallback without embeddings — queries work offline out of the box.
+- V6-10 is functionally complete: network detection ✅, Ollama failover ✅, KG cache ✅, sync on reconnect ✅.
+
+### V6-11: SelfModel Dashboard — Complete
+
+- **Dashboard Panel**: Fully wired — capability radar (Wilson floor bars), backend recommendations, bias alerts. Renderer: `_renderSelfModel()` in DashboardRenderers.js. IPC: `agent:get-selfmodel-report`. Auto-refreshed every Dashboard tick.
+- **CLI `/selfmodel`** (v6.0.6): Visual capability profile with bar charts (★ STRONG / ⚠ WEAK), backend strength map, bias patterns, outcome stats.
+
+### V6-3: Live Deployment — Enhanced Strategies
+
+- All 4 strategies (Direct/Canary/Rolling/Blue-Green) now support HTTP + shell health checks.
+- `_httpHealthCheck(url, timeout)`: HTTP probe for external deploy targets.
+- Canary: 2 health checks before expanding. Rolling: per-step + final verification. Blue-Green: 3 checks + `deploy:swap` event.
+- Pre-flight validates environment (dev/staging/prod). CLI `/deploy` for deployment history.
+- `deploy:swap` event registered in EventTypes + PayloadSchemas.
+- 17 tests covering all strategies, rollback, pre-flight, health checks.
+
+### V6-1: Colony — Real Peer Verification (ENHANCED)
+
+- `scripts/colony-test.js` enhanced: peer discovery via `/discover`, sync/pull verification, cross-instance identity.
+- Colony convergence proven in unit tests: v605-colony-live.test.js (17 tests, 3-peer daisy-chain).
+
+---
+
 ## [6.0.5] — Offline-First + Pipeline Validation + Colony Convergence Proof
 
 **Focus: Network resilience with automatic Ollama failover, end-to-end validation of the v6.0.4 intelligence pipeline, and real cross-instance colony convergence proof.**
@@ -67,14 +108,14 @@
 - `src/agent/manifest/phase7-organism.js`: +networkSentinel late-binding for BodySchema
 - `src/agent/organism/BodySchema.js`: +networkSentinel sampler (canAccessWeb live)
 - `src/agent/AgentCoreHealth.js`: +4 services in TO_STOP
-- `src/agent/revolution/FailureAnalyzer.js`: _buildPatternDB refactored to PATTERN_RULES table (CC 56→8)
+- `src/agent/revolution/FailureAnalyzer.js`: _buildPatternDB CC 56→8
 - `cli.js`: +3 commands (/network, /trace, /traces)
-- `main.js`: +3 IPC handlers (get-network-status, force-network-probe, get-provenance-report)
+- `main.js`: +3 IPC handlers
 - `preload.js` + `preload.mjs`: +3 channels whitelisted
 - `package.json`: version 6.0.5, coverage ratchet 77/72/72
-- `README.md`: Offline-First feature, IPC channel count, hybrid mode NetworkSentinel reference
-- `CHANGELOG.md`, `ARCHITECTURE.md`, `docs/ROADMAP-v6.md`, `AUDIT-BACKLOG.md`: metrics + status updated
-- 8 new test files (152 tests total)
+- `README.md`: Offline-First feature documented
+- `docs/`: 5 docs updated to v6.0.5
+- 8 new test files (152 tests)
 
 ---
 

@@ -376,6 +376,171 @@ class TaskRecorder {
   }
 
   // ════════════════════════════════════════════════════════
+  // REPLAY API (v6.0.5 — Deterministic Replay)
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Build a replay manifest from a recording.
+   * Merges steps, LLM calls, and tool calls into a single
+   * chronological timeline with all recorded data.
+   *
+   * @param {string} recordingId
+   * @returns {object|null} Replay manifest or null if not found
+   */
+  buildReplayManifest(recordingId) {
+    const recording = this.load(recordingId);
+    if (!recording) return null;
+
+    // Merge all events into a single timeline sorted by offset
+    const timeline = [];
+
+    for (const step of (recording.steps || [])) {
+      timeline.push({ kind: 'step', offset: step.offset, type: step.type, data: step.data });
+    }
+    for (const call of (recording.llmCalls || [])) {
+      timeline.push({
+        kind: 'llm', offset: call.offset,
+        model: call.model,
+        promptPreview: call.promptPreview,
+        responsePreview: call.responsePreview,
+        tokens: call.tokens,
+        durationMs: call.durationMs,
+      });
+    }
+    for (const tool of (recording.toolCalls || [])) {
+      timeline.push({
+        kind: 'tool', offset: tool.offset,
+        type: tool.type,
+        command: tool.command,
+        success: tool.success,
+        outputPreview: tool.outputPreview,
+      });
+    }
+
+    timeline.sort((a, b) => a.offset - b.offset);
+
+    return {
+      id: recording.id,
+      goalId: recording.goalId,
+      goalDescription: recording.goalDescription,
+      startedAt: recording.startedAt,
+      totalDurationMs: recording.outcome?.durationMs || 0,
+      outcome: recording.outcome,
+      timeline,
+      summary: {
+        steps: recording.steps?.length || 0,
+        llmCalls: recording.llmCalls?.length || 0,
+        toolCalls: recording.toolCalls?.length || 0,
+      },
+    };
+  }
+
+  /**
+   * Replay a recording by emitting each event on the bus
+   * in chronological order. Consumers (Dashboard, CLI) can
+   * subscribe to replay:step events to visualize the replay.
+   *
+   * @param {string} recordingId
+   * @param {{ speed?: number, emit?: boolean }} [options]
+   * @returns {object|null} Replay report or null if not found
+   */
+  async replay(recordingId, options = {}) {
+    const manifest = this.buildReplayManifest(recordingId);
+    if (!manifest) return null;
+
+    const speed = options.speed || 0; // 0 = instant, 1 = real-time
+    const shouldEmit = options.emit !== false;
+
+    const report = {
+      id: manifest.id,
+      goalDescription: manifest.goalDescription,
+      eventsReplayed: 0,
+      totalEvents: manifest.timeline.length,
+      originalDurationMs: manifest.totalDurationMs,
+      replayDurationMs: 0,
+      outcome: manifest.outcome,
+    };
+
+    const t0 = Date.now();
+
+    if (shouldEmit) {
+      this.bus.emit('replay:started', {
+        id: manifest.id,
+        goalDescription: manifest.goalDescription,
+        totalEvents: manifest.timeline.length,
+      }, { source: 'TaskRecorder' });
+    }
+
+    let prevOffset = 0;
+    for (const event of manifest.timeline) {
+      // Simulate timing if speed > 0
+      if (speed > 0 && event.offset > prevOffset) {
+        const delay = Math.round((event.offset - prevOffset) / speed);
+        if (delay > 0 && delay < 10_000) {
+          await new Promise(r => setTimeout(r, delay));
+        }
+      }
+      prevOffset = event.offset;
+
+      if (shouldEmit) {
+        this.bus.emit('replay:event', {
+          recordingId: manifest.id,
+          index: report.eventsReplayed,
+          total: manifest.timeline.length,
+          kind: event.kind,
+          offset: event.offset,
+          data: event,
+        }, { source: 'TaskRecorder' });
+      }
+
+      report.eventsReplayed++;
+    }
+
+    report.replayDurationMs = Date.now() - t0;
+
+    if (shouldEmit) {
+      this.bus.emit('replay:completed', {
+        id: manifest.id,
+        eventsReplayed: report.eventsReplayed,
+        replayDurationMs: report.replayDurationMs,
+      }, { source: 'TaskRecorder' });
+    }
+
+    return report;
+  }
+
+  /**
+   * Format a replay manifest as human-readable text for CLI.
+   * @param {object} manifest - from buildReplayManifest()
+   * @returns {string}
+   */
+  formatReplay(manifest) {
+    if (!manifest) return '(no recording found)';
+    const lines = [];
+    lines.push(`── Replay: ${manifest.id} ──`);
+    lines.push(`  Goal: "${manifest.goalDescription}"`);
+    lines.push(`  Duration: ${manifest.totalDurationMs}ms | Steps: ${manifest.summary.steps} | LLM: ${manifest.summary.llmCalls} | Tools: ${manifest.summary.toolCalls}`);
+    lines.push(`  Outcome: ${manifest.outcome?.success ? '✓ success' : manifest.outcome?.success === false ? '✗ failed' : '· unknown'} (${manifest.outcome?.reason || '?'})`);
+    lines.push('');
+    lines.push('  Timeline:');
+
+    for (let i = 0; i < manifest.timeline.length; i++) {
+      const e = manifest.timeline[i];
+      const time = `${(e.offset / 1000).toFixed(1)}s`.padStart(7);
+      if (e.kind === 'step') {
+        lines.push(`    ${time}  [${e.type}] ${e.data?.description || e.data?.type || ''}`);
+      } else if (e.kind === 'llm') {
+        lines.push(`    ${time}  [LLM] ${e.model} → ${e.tokens || '?'} tokens (${e.durationMs || '?'}ms)`);
+      } else if (e.kind === 'tool') {
+        const icon = e.success ? '✓' : '✗';
+        lines.push(`    ${time}  [${e.type}] ${icon} ${e.command || ''}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  // ════════════════════════════════════════════════════════
   // INTERNALS
   // ════════════════════════════════════════════════════════
 

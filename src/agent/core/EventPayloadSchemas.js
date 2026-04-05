@@ -155,6 +155,7 @@ const SCHEMAS = {
   'deploy:failed':           { id: 'required', target: 'required', error: 'required' },
   'deploy:request':          { target: 'required' },
   'deploy:rollback':         { id: 'required', target: 'required', snapshot: 'required' },
+  'deploy:swap':             { target: 'required', from: 'required', to: 'required' },
 
   // Task Outcomes (v5.9.7)
   'task-outcome:recorded':      { taskType: 'required', backend: 'required', success: 'required' },
@@ -211,6 +212,11 @@ const SCHEMAS = {
 
   // Prompt Strategy (v6.0.4 — AdaptivePromptStrategy)
   'prompt:strategy-updated': { intents: 'required', recommendations: 'required' },
+
+  // Replay (v6.0.5 — V6-8 Deterministic Replay)
+  'replay:started':   { id: 'required', totalEvents: 'required' },
+  'replay:event':     { recordingId: 'required', index: 'required', kind: 'required' },
+  'replay:completed': { id: 'required', eventsReplayed: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

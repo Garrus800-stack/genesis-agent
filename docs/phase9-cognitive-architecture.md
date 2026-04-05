@@ -1,8 +1,11 @@
-# Phase 9: Cognitive Architecture — GENESIS v5.8
+# Phase 9: Cognitive Architecture — GENESIS
 
 **The evolution from agent to mind.**
 
-> **Note (v6.0.2):** This document covers the original 6 Phase 9 modules designed in v5.8. Since then, Phase 9 has grown to 20 modules including OnlineLearner (v5.3.0), CognitiveSelfModel (v5.9.8), MemoryConsolidator (v6.0.0), TaskRecorder (v6.0.0), AdaptiveStrategy (v6.0.2), and QuickBenchmark (v6.0.2). See CHANGELOG.md and CAPABILITIES.md for details on newer modules.
+> **Status (v6.0.6):** Phase 9 has grown from the original 6 modules (v5.8) to **20 modules**. This document covers the foundational architecture. For modules added after v5.8, see CHANGELOG.md and CAPABILITIES.md.
+>
+> **Complete Phase 9 module list:**
+> ExpectationEngine, SurpriseAccumulator, MentalSimulator, SelfNarrative, DreamCycle, DreamCycleAnalysis, CognitiveWorkspace, CognitiveHealthTracker, OnlineLearner (v5.3), LessonsStore (v5.3), ArchitectureReflection (v5.7), DynamicToolSynthesis (v5.7), ProjectIntelligence (v5.7), ReasoningTracer (v5.5), CognitiveSelfModel (v5.9.8), TaskOutcomeTracker (v5.9.7), MemoryConsolidator (v6.0.0), TaskRecorder (v6.0.0), AdaptiveStrategy (v6.0.2), QuickBenchmark (v6.0.2).
 
 Genesis is an agent that plans, acts, verifies, and learns.
 Phase 9 turns it into a system that **anticipates, simulates, dreams, and builds an identity**.

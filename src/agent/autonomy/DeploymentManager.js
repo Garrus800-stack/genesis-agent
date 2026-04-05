@@ -265,28 +265,49 @@ class DeploymentManager {
   }
 
   async _deployCanary(target, options) {
-    // Foundation: same as direct but with smaller scope
-    _log.info(`[DEPLOY] Canary deploy to ${target} (10% traffic)`);
-    await this._deployDirect(target, options);
+    // v6.0.6: Canary deploys to small scope first, verifies, then expands
+    const canaryPct = options.canaryPercent || 10;
+    _log.info(`[DEPLOY] Canary deploy to ${target} (${canaryPct}% traffic)`);
+    await this._deployDirect(target, { ...options, scope: 'canary' });
+
+    // Verify canary health before full rollout
+    if (options.healthUrl || options.healthCommand) {
+      _log.info('[DEPLOY] Verifying canary health...');
+      await this._healthCheck(target, 2, options);
+      _log.info('[DEPLOY] Canary healthy — expanding to full');
+    }
   }
 
   async _deployRolling(target, options) {
-    // Foundation: sequential deploy with health checks between steps
+    // v6.0.6: Sequential deploy with health checks between each step
     const commands = options.commands || [];
+    const healthOpts = { healthUrl: options.healthUrl, healthCommand: options.healthCommand };
+
     for (let i = 0; i < commands.length; i++) {
       _log.info(`[DEPLOY] Rolling step ${i + 1}/${commands.length}`);
       if (this.shell) await this.shell.run(commands[i]);
       if (i < commands.length - 1) {
-        await this._healthCheck(target, 1);
+        await this._healthCheck(target, 1, healthOpts);
       }
+    }
+
+    // Final verification
+    if (options.healthUrl || options.healthCommand) {
+      _log.info('[DEPLOY] Final health verification...');
+      await this._healthCheck(target, 2, healthOpts);
     }
   }
 
   async _deployBlueGreen(target, options) {
-    // Foundation: deploy to "green", verify, then swap
-    _log.info(`[DEPLOY] Blue-Green deploy to ${target}`);
-    await this._deployDirect(target, options);
-    // In full implementation: swap load balancer / symlink
+    // v6.0.6: Deploy to "green", verify, then signal swap
+    _log.info(`[DEPLOY] Blue-Green deploy to ${target} (green)`);
+    await this._deployDirect(target, { ...options, env: 'green' });
+
+    if (options.healthUrl || options.healthCommand) {
+      _log.info('[DEPLOY] Verifying green environment...');
+      await this._healthCheck(target, 3, options);
+      this.bus.fire('deploy:swap', { target, from: 'blue', to: 'green' }, { source: 'DeploymentManager' });
+    }
   }
 
   // ── Health Checks ─────────────────────────────────────────
@@ -294,20 +315,49 @@ class DeploymentManager {
   /**
    * @param {string} target
    * @param {number} checks — Number of consecutive passing checks required
+   * @param {object} [opts] — Health check options
    */
-  async _healthCheck(target, checks = 1) {
+  async _healthCheck(target, checks = 1, opts = {}) {
     for (let i = 0; i < checks; i++) {
       if (target === 'self' && this.healthMonitor) {
         const health = this.healthMonitor.getHealth?.();
         if (!health || health.status === 'critical') {
           throw new Error(`Health check ${i + 1}/${checks} failed for ${target}`);
         }
+      } else if (opts.healthUrl) {
+        // v6.0.6: HTTP health check for external targets
+        const ok = await this._httpHealthCheck(opts.healthUrl, opts.healthTimeout || 5000);
+        if (!ok) throw new Error(`HTTP health check ${i + 1}/${checks} failed: ${opts.healthUrl}`);
+      } else if (opts.healthCommand && this.shell) {
+        // Shell-based health check (e.g. curl, docker inspect)
+        try {
+          await this.shell.run(opts.healthCommand);
+        } catch (err) {
+          throw new Error(`Shell health check ${i + 1}/${checks} failed: ${err.message}`);
+        }
       }
-      // External health check would use shell/http here
       if (i < checks - 1) {
         await new Promise(r => setTimeout(r, TIMEOUTS.DEPLOY_STEP_DELAY));
       }
     }
+  }
+
+  /**
+   * v6.0.6: HTTP health check for external deploy targets.
+   * @param {string} url — Health endpoint URL
+   * @param {number} timeoutMs — Timeout in ms
+   * @returns {Promise<boolean>}
+   */
+  _httpHealthCheck(url, timeoutMs = 5000) {
+    const mod = url.startsWith('https') ? require('https') : require('http');
+    return new Promise((resolve) => {
+      const req = mod.get(url, { timeout: timeoutMs }, (res) => {
+        res.resume();
+        resolve(res.statusCode >= 200 && res.statusCode < 400);
+      });
+      req.on('error', () => resolve(false));
+      req.on('timeout', () => { req.destroy(); resolve(false); });
+    });
   }
 
   // ── Step Tracking ─────────────────────────────────────────

@@ -129,8 +129,10 @@ function phase6(ctx, R) {
     ['networkSentinel', {
       phase: 6, deps: [], tags: ['autonomy', 'network', 'resilience'],
       lateBindings: [
-        { prop: '_modelBridge', service: 'llm',      optional: true },
-        { prop: '_settings',    service: 'settings', optional: true },
+        { prop: '_modelBridge',    service: 'llm',            optional: true },
+        { prop: '_settings',       service: 'settings',       optional: true },
+        { prop: '_knowledgeGraph', service: 'knowledgeGraph', optional: true },
+        { prop: '_lessonsStore',   service: 'lessonsStore',   optional: true },
       ],
       factory: () => new (R('NetworkSentinel').NetworkSentinel)({ bus, intervals }),
     }],

@@ -266,6 +266,33 @@ class NetworkSentinel {
       if (this._ollamaAvailable) {
         this._failoverToOllama();
       }
+
+      // v6.0.5: Flush KG + LessonsStore to ensure nothing is lost
+      this._flushPersistentData();
+    }
+  }
+
+  /**
+   * Flush KnowledgeGraph and LessonsStore before going offline.
+   * Ensures all in-memory data is persisted to disk.
+   */
+  async _flushPersistentData() {
+    try {
+      if (this._knowledgeGraph?.flush) {
+        await this._knowledgeGraph.flush();
+        _log.info('[NET] KnowledgeGraph flushed to disk');
+      }
+    } catch (err) {
+      _log.error(`[NET] KG flush failed: ${err.message}`);
+    }
+
+    try {
+      if (this._lessonsStore?.flush) {
+        await this._lessonsStore.flush();
+        _log.info('[NET] LessonsStore flushed to disk');
+      }
+    } catch (err) {
+      _log.error(`[NET] LessonsStore flush failed: ${err.message}`);
     }
   }
 

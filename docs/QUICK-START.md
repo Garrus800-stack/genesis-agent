@@ -211,6 +211,8 @@ Start with `node cli.js` for the interactive REPL. Available commands:
 | `/network` | Network status — online/offline, failover state, Ollama availability, queue |
 | `/trace` | Last execution provenance trace (budget, intent, model, outcome) |
 | `/traces` | Last 5 traces as compact overview |
+| `/replay <id>` | Full timeline replay of a recorded task (partial ID match) |
+| `/selfmodel` | Capability profile, backend strength map, detected biases |
 | `/models` | Available models with quality scores |
 | `/model <n>` | Switch to model by number (auto-saved) |
 | `/quit` | Shut down gracefully |

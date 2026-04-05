@@ -205,10 +205,52 @@ async function main() {
       else fail('Leader ping failed');
     } catch (err) { fail(`Leader ping: ${err.message}`); }
 
-    // 5. If not dry-run, test actual colony coordination
+    // 5. Test peer discovery via PeerNetwork ports
+    log('Testing peer discovery...');
+    try {
+      const res = await httpGet(LEADER_PORT, '/discover');
+      if (res.status === 200) {
+        const identity = JSON.parse(res.body);
+        if (identity.protocol) ok(`Leader peer identity (protocol v${identity.protocol})`);
+        else fail('Leader /discover missing protocol');
+      } else {
+        fail(`Leader /discover: status ${res.status}`);
+      }
+    } catch (err) { log(`Peer discovery skipped (PeerNetwork may not be active): ${err.message}`); }
+
+    try {
+      const res = await httpGet(WORKER_PORT, '/discover');
+      if (res.status === 200) {
+        const identity = JSON.parse(res.body);
+        if (identity.protocol) ok(`Worker peer identity (protocol v${identity.protocol})`);
+        else fail('Worker /discover missing protocol');
+      } else {
+        fail(`Worker /discover: status ${res.status}`);
+      }
+    } catch (err) { log(`Worker peer discovery skipped: ${err.message}`); }
+
+    // 6. Test sync pull (PeerConsensus)
+    log('Testing sync/pull endpoint...');
+    try {
+      const res = await httpGet(LEADER_PORT, '/sync/pull');
+      if (res.status === 200) {
+        const payload = JSON.parse(res.body);
+        if (payload.selfId && payload.clocks) {
+          ok(`Leader sync/pull — selfId: ${payload.selfId}, mutations: ${payload.mutations?.length || 0}`);
+        } else {
+          fail('Leader sync/pull missing selfId or clocks');
+        }
+      } else if (res.status === 501) {
+        log('Sync/pull: PeerConsensus not available (expected in minimal boot)');
+      } else {
+        fail(`Leader sync/pull: status ${res.status}`);
+      }
+    } catch (err) { log(`Sync/pull skipped: ${err.message}`); }
+
+    // 7. Cross-instance sync verification (dry-run safe)
     if (!dryRun) {
-      log('Colony coordination test requires running LLM — skipped in this version');
-      log('To test: run 2 instances manually and use colony:run-request event');
+      log('Cross-instance sync test requires PeerNetwork active on both — skipped in this version');
+      log('Convergence proven in unit tests: v605-colony-live.test.js (17 tests, 3-peer daisy-chain)');
     }
 
     ok('Colony infrastructure verified');

@@ -1,6 +1,6 @@
 # Skill Security Model
 
-**v6.0.1 — What community skills can and cannot do.**
+**v6.0.6 — What community skills can and cannot do.**
 
 Genesis runs all community skills inside a security sandbox. This document defines the exact boundary — what your skill has access to, what it doesn't, and why.
 
@@ -53,7 +53,7 @@ Community skills run in a **restricted child process** via `Sandbox.execute()`. 
 
 | Module | Status |
 |--------|--------|
-| `fs` | Not available. Skills cannot read or write files directly |
+| `fs` | Not available. Skills cannot read or write files directly. `fs.cp`, `fs.cpSync`, `fs.appendFile`, `fs.appendFileSync` are explicitly intercepted (v6.0.3). |
 | `http` / `https` | Not available. Skills cannot make network requests |
 | `require()` | Available only for allowed modules. Dynamic `require()` of arbitrary paths is blocked |
 

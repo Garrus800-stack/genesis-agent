@@ -1,5 +1,7 @@
 # Consciousness Extension — Architecture Deep Dive
 
+> **Note (v6.0.4):** The Consciousness layer (Phase 13) is **opt-in** since v6.0.4. A/B benchmarking showed 0pp task success impact. Default boot profile is `cognitive` (phases 1–12). Use `--full` to enable Phase 13 for research. The architecture described here remains unchanged but is no longer loaded by default.
+
 ## 1. The Closed Perceptual Loop
 
 The four subsystems are not independent modules — they form a single
