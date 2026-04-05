@@ -228,11 +228,32 @@ class IntentRouter {
 
   /** Synchronous classify — regex + fuzzy only */
   classify(message) {
+    // v6.0.5: Code-generation guard — common coding requests should NEVER be
+    // routed to create-skill. "Write a function" ≠ "Create a Genesis skill".
+    // Without this, LLM classifiers misroute coding tasks to the skill builder.
+    if (this._isCodeGenRequest(message)) {
+      return { type: 'general', confidence: 0.95, match: 'codegen-guard' };
+    }
+
     const regex = this._regexClassify(message);
     if (regex.confidence >= 0.9) return regex;
     const fuzzy = this._fuzzyClassify(message);
     if (fuzzy.confidence >= 0.6) return fuzzy;
     return regex.confidence > fuzzy.confidence ? regex : fuzzy;
+  }
+
+  /**
+   * v6.0.5: Detect common code generation requests that should be treated
+   * as general chat, NOT as skill creation or self-modification.
+   * @param {string} message
+   * @returns {boolean}
+   */
+  _isCodeGenRequest(message) {
+    // Only trigger if the message does NOT mention "skill" explicitly
+    if (/\bskill\b/i.test(message)) return false;
+
+    return /\b(?:write|create|generate|build|implement|code|make)\b.*\b(?:function|class|component|module|script|program|api|endpoint|server|handler|middleware|route|hook|test|util)\b/i.test(message)
+        || /\b(?:schreib|erstell|bau|implementier|generier|programmier)\b.*\b(?:funktion|klasse|komponente|modul|script|programm|server|handler|test)\b/i.test(message);
   }
 
   /** Async classify — includes local classifier + LLM fallback */
@@ -271,6 +292,24 @@ class IntentRouter {
   // ── Phase 1: Regex ────────────────────────────────────────
 
   _regexClassify(message) {
+    // v6.0.5: Code-generation guard — "Write a function/class/component" is CHAT,
+    // not create-skill. Without this, the LLM fallback misclassifies code requests
+    // as skill creation, which creates empty skill files instead of generating code.
+    if (/^(?:write|create|build|implement|make|generate|code)\s+(?:a|an|me|the)\s+(?:\w+\s+)*(?:function|class|component|module|script|program|endpoint|route|handler|api|server|app|algorithm|method)/i.test(message)) {
+      return { type: 'general', confidence: 0.95, match: 'code-gen-request' };
+    }
+    // German equivalent
+    if (/^(?:schreib|erstell|bau|implementier|generier|programmier)\s+(?:eine?n?|mir|die|das)\s+(?:\w+\s+)*(?:funktion|klasse|komponente|modul|skript|programm|endpunkt|route|handler|api|server|app|algorithmus|methode)/i.test(message)) {
+      return { type: 'general', confidence: 0.95, match: 'code-gen-request-de' };
+    }
+
+    // v6.0.4: Visual/diagram guard — "Zeig mir ein Diagramm deiner Architektur"
+    // should go to LLM (general) not to self-inspect (which returns text-only report).
+    // Without this, users have to ask twice: first gets text report, second gets diagram.
+    if (/(?:diagramm|skizze|zeichn|bild|visualisier|graph|chart|draw|diagram|sketch|illustr)/i.test(message)) {
+      return { type: 'general', confidence: 0.90, match: 'visual-request' };
+    }
+
     for (const route of this.routes) {
       for (const pattern of route.patterns) {
         const match = message.match(pattern);
@@ -313,6 +352,12 @@ class IntentRouter {
     const intentList = this.routes.map(r => r.name).join(', ');
     const prompt = `Classify the following user message into EXACTLY ONE of these categories:
 ${intentList}, general
+
+IMPORTANT RULES:
+- "general" = any question, explanation, or CODE GENERATION request (write a function, create a class, etc.)
+- "create-skill" = ONLY when user explicitly asks to create a GENESIS SKILL/PLUGIN, not general code
+- "self-modify" = ONLY when user asks Genesis to modify ITS OWN code
+- "execute-code" = ONLY when user provides code to RUN, not to WRITE
 
 MESSAGE: "${message.slice(0, 500)}"
 

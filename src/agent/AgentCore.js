@@ -35,7 +35,7 @@ const { AgentCoreHealth } = require('./AgentCoreHealth');
 const _log = createLogger('AgentCore');
 
 class AgentCore {
-  constructor({ rootDir, guard, window, bootProfile }) {
+  constructor({ rootDir, guard, window, bootProfile, skipPhases }) {
     this.rootDir   = rootDir;
     this.guard     = guard;
     this.window    = window;
@@ -48,8 +48,11 @@ class AgentCore {
     this._bootStart      = 0;
     this.genesisDir      = null;
 
-    // v5.2.0: Boot profile — 'full' (default), 'cognitive', 'minimal'
-    this.bootProfile = bootProfile || 'full';
+    // v5.2.0: Boot profile — 'cognitive' (default since v6.0.4), 'full', 'minimal'
+    // v6.0.4: Consciousness A/B benchmark showed 0pp impact → cognitive is default
+    this.bootProfile = bootProfile || 'cognitive';
+    // v6.0.4: Skip specific phases for A/B benchmarking
+    this.skipPhases = skipPhases || [];
 
     // Delegates — created here so health/wire are available to boot
     this._boot   = new AgentCoreBoot(this);

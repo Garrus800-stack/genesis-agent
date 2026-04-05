@@ -87,6 +87,10 @@ function phase2(ctx, R) {
         { prop: 'taskOutcomeTracker', service: 'taskOutcomeTracker', optional: true },
         // v5.9.8 (V6-11): Cognitive self-model — replaces raw stats with calibrated self-awareness
         { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
+        // v6.0.4: Adaptive prompt optimization — skip/boost sections based on provenance data
+        { prop: '_adaptiveStrategy', service: 'adaptivePromptStrategy', optional: true },
+        // v6.0.4: Proportional intelligence — skip sections for trivial requests
+        { prop: '_cognitiveBudget', service: 'cognitiveBudget', optional: true },
       ],
       factory: (c) => new (R('PromptBuilder').PromptBuilder)({
         selfModel: c.resolve('selfModel'), model: c.resolve('llm'),
@@ -160,6 +164,42 @@ function phase2(ctx, R) {
       factory: () => {
         const { CodeSafetyAdapter } = require('../ports/CodeSafetyPort');
         return CodeSafetyAdapter.fromScanner(R('CodeSafetyScanner'));
+      },
+    }],
+
+    // v6.0.4: Proportional intelligence — skip unnecessary services for simple requests
+    ['cognitiveBudget', {
+      phase: 2, deps: [], tags: ['intelligence', 'optimization'],
+      factory: () => {
+        const settings = ctx.settings;
+        const config = settings?.get?.('intelligence.cognitiveBudget') || {};
+        return new (R('CognitiveBudget').CognitiveBudget)({ bus, config });
+      },
+    }],
+
+    // v6.0.4: Causal traceability — every response has a provenance chain
+    ['executionProvenance', {
+      phase: 2, deps: [], tags: ['intelligence', 'observability'],
+      lateBindings: [
+        { prop: 'cognitiveBudget', service: 'cognitiveBudget', optional: true },
+      ],
+      factory: () => {
+        const settings = ctx.settings;
+        const config = settings?.get?.('intelligence.provenance') || {};
+        return new (R('ExecutionProvenance').ExecutionProvenance)({ bus, config });
+      },
+    }],
+
+    // v6.0.4: Self-optimizing prompts — adjusts sections based on empirical success data
+    ['adaptivePromptStrategy', {
+      phase: 2, deps: [], tags: ['intelligence', 'optimization', 'adaptive'],
+      lateBindings: [
+        { prop: '_provenance', service: 'executionProvenance', optional: true },
+        { prop: '_storage', service: 'storage', optional: true },
+      ],
+      factory: () => {
+        const config = ctx.settings?.get?.('intelligence.adaptivePrompt') || {};
+        return new (R('AdaptivePromptStrategy').AdaptivePromptStrategy)({ bus, config });
       },
     }],
   ];

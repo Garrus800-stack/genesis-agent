@@ -45,6 +45,8 @@
 | v6.0.0  | V6-5 complete (eviction pipeline), V6-7 MemoryConsolidator, V6-8 TaskRecorder, V6-6 CLI commands, V6-9 benchmark expansion (12 tasks + --ab-matrix) |
 | v6.0.1  | Safety Infrastructure: CostGuard (LLM budget cap), BackupManager, CrashLog, AutoUpdater, SKILL-SECURITY.md, documentation audit (7 files), 0 magic numbers, V6-9 benchmark README |
 | v6.0.2  | **V6-12 Meta-Cognitive Loop**: AdaptiveStrategy (bias→adaptation→validation→confirm/rollback), QuickBenchmark, ModelRouter empirical injection, OnlineLearner weakness signals, IdleMind calibrate activity |
+| v6.0.3  | **Security Audit Hardening**: 0 Critical, 3 High fixed (IPC validation, Sandbox isolation, ShellAgent NFKC), SA-P3/P4/P8 audits complete |
+| v6.0.4  | **Empirical Validation + Smart Model Selection**: CognitiveBudget (proportional intelligence), ExecutionProvenance (causal tracing), AdaptivePromptStrategy (self-optimizing prompts), Smart Model Ranking (0%→100%), Consciousness A/B (0pp → cognitive default), Organism A/B (+33pp confirmed), Colony Proof (16/16), --backend fix, /models UX, Layer A/B framework |
 
 ### Completed SA Items
 
@@ -241,7 +243,7 @@ Closed-loop self-improvement: CognitiveSelfModel diagnoses → AdaptiveStrategy 
 |----------|--------|
 | Predictive Load Balancer | Over-engineering for single-user desktop. Revisit for colony mode. |
 | Shadow Execution for SelfMod | Existing sandbox + snapshot rollback covers 90%. Input replay is v7.0+. |
-| Remove Consciousness Layer | Integration exists and is tested. Indirect influence via prompt context is the intended design. |
+| Remove Consciousness Layer | **Empirically validated as 0pp impact (v6.0.4).** Default boot changed to `cognitive` (no Phase 13). Consciousness available via `--full` flag for research. |
 | Full OpenTelemetry | Too heavy. Correlation IDs provide 80% of the tracing value at 5% of the complexity. |
 
 ---

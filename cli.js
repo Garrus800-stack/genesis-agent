@@ -31,6 +31,7 @@ const flags = {
   serve:     args.includes('--serve') || args.includes('--daemon'),
   minimal:   args.includes('--minimal'),
   cognitive: args.includes('--cognitive'),
+  full:      args.includes('--full'),
   quiet:     !args.includes('--verbose'),
   noBoot:    args.includes('--no-boot-log'),
   help:      args.includes('--help') || args.includes('-h'),
@@ -43,6 +44,12 @@ const flags = {
     const idx = args.indexOf('--port');
     return idx >= 0 && args[idx + 1] ? parseInt(args[idx + 1], 10) : 3580;
   })(),
+  // v6.0.4: --skip-phase N[,N] for layer A/B benchmarking
+  skipPhases: (() => {
+    const idx = args.indexOf('--skip-phase');
+    if (idx < 0 || !args[idx + 1]) return [];
+    return args[idx + 1].split(',').map(Number).filter(n => n >= 6 && n <= 13);
+  })(),
 };
 
 if (flags.help) {
@@ -54,7 +61,10 @@ Usage:
   node cli.js --serve        MCP server daemon (no chat)
   node cli.js --port 4000    Custom MCP server port (default: 3580)
   node cli.js --minimal      Minimal boot profile (~50 services)
-  node cli.js --cognitive    Cognitive profile (~90 services)
+  node cli.js --cognitive    Cognitive profile — default (~120 services, no consciousness)
+  node cli.js --full         Full profile (~130 services, includes consciousness)
+  node cli.js --skip-phase 13      Skip specific phases (6-13) for A/B testing
+  node cli.js --skip-phase 7,13    Skip multiple phases
   node cli.js --verbose      Show all Genesis logs (default: warn only)
   node cli.js --no-boot-log  Suppress boot messages (for scripts)
   node cli.js --once "msg"   Send one message, print response, exit
@@ -114,7 +124,8 @@ async function boot() {
   ]);
 
   // Boot profile
-  const bootProfile = flags.minimal ? 'minimal' : flags.cognitive ? 'cognitive' : 'full';
+  // v6.0.4: Default changed to cognitive — consciousness A/B showed 0pp impact
+  const bootProfile = flags.minimal ? 'minimal' : flags.full ? 'full' : 'cognitive';
   if (!flags.noBoot) console.log(`[CLI] Boot profile: ${bootProfile}`);
 
   // Create AgentCore without window
@@ -123,6 +134,7 @@ async function boot() {
     guard,
     window: null,  // Headless — no BrowserWindow
     bootProfile,
+    skipPhases: flags.skipPhases,
   });
 
   // Apply environment overrides before boot
@@ -130,6 +142,21 @@ async function boot() {
 
   await agent.boot();
   if (!flags.noBoot) console.log('[CLI] Agent booted successfully.\n');
+
+  // FIX v6.0.4: --backend flag was parsed but never applied.
+  // switchModel() must be called AFTER boot (ModelBridge needs Ollama model list).
+  // Format: --backend ollama:model-name → strip prefix, switchTo expects just model name.
+  if (flags.backend) {
+    try {
+      const modelName = flags.backend.includes(':')
+        ? flags.backend.replace(/^(ollama|anthropic|openai):/, '')
+        : flags.backend;
+      await agent.switchModel(modelName);
+      if (!flags.noBoot) console.log(`[CLI] Switched to backend: ${modelName}`);
+    } catch (err) {
+      console.warn(`[CLI] Failed to switch to ${flags.backend}: ${err.message}`);
+    }
+  }
 
   // v5.9.1: Suppress info logs in CLI to keep output clean
   if (flags.quiet || flags.noBoot) {
@@ -192,9 +219,39 @@ async function runREPL(agent) {
   }
 
   const health = agent.getHealth();
-  const model = health?.model?.active || 'unknown';
-  console.log(`[CLI] Model: ${model}`);
-  console.log('[CLI] Type your message. Commands: /health, /goals, /status, /skills, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /adapt, /adaptations, /quit\n');
+  const modelBridge = agent.container.tryResolve('model');
+  const settings = agent.container.tryResolve('settings');
+  const activeModel = health?.model?.active || 'unknown';
+  const preferred = settings?.get?.('models.preferred');
+
+  // v6.0.5: First-run detection — help user pick a good model
+  if (!preferred && modelBridge) {
+    const ranked = modelBridge.getRankedModels();
+    const score = modelBridge._scoreModel(activeModel);
+
+    if (ranked.length > 1 && score < 50) {
+      // Currently using a weak model — suggest better alternatives
+      console.log(`\n  ⚠  Current model: ${activeModel} (quality: ${score}/100 — not recommended for code tasks)`);
+      const better = ranked.filter(m => m.score > score).slice(0, 3);
+      if (better.length > 0) {
+        console.log('  Better models available:');
+        for (const m of better) {
+          console.log(`    → /model ${m.name}  (${m.note}, score: ${m.score})`);
+        }
+      }
+      console.log('  Run /models for full list. Your choice is saved automatically.\n');
+    } else if (ranked.length === 0) {
+      console.log('\n  ⚠  No models found. Start Ollama or set an API key:');
+      console.log('     ollama serve                         (start Ollama)');
+      console.log('     Anthropic API-Key: sk-ant-...        (in chat)\n');
+    } else {
+      console.log(`[CLI] Model: ${activeModel} (score: ${score}/100)`);
+    }
+  } else {
+    console.log(`[CLI] Model: ${activeModel}`);
+  }
+
+  console.log('[CLI] Commands: /models, /model <name>, /health, /status, /goals, /skills, /quit\n');
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -257,6 +314,48 @@ async function runREPL(agent) {
       console.log(`  Goals:    ${h.goals?.active || 0} active`);
       console.log(`  Circuit:  ${h.circuit?.state || 'unknown'}`);
       console.log(`  Memory:   ${h.memory?.conversations || 0} conversations\n`);
+      rl.prompt();
+      return;
+    }
+
+    // ── v6.0.5: Model management ──────────────────────────
+    if (input === '/models') {
+      const model = agent.container.tryResolve('model');
+      if (!model) { console.log('\n  ModelBridge not available.\n'); rl.prompt(); return; }
+      const ranked = model.getRankedModels();
+      if (ranked.length === 0) {
+        console.log('\n  No models available. Start Ollama or configure an API key.\n');
+      } else {
+        console.log('\n  Available models (ranked by capability):\n');
+        for (const m of ranked) {
+          const marker = m.active ? ' ← active' : '';
+          const bar = '█'.repeat(Math.round(m.score / 10)) + '░'.repeat(10 - Math.round(m.score / 10));
+          console.log(`    ${bar} ${String(m.score).padStart(3)} ${m.name} (${m.backend})${marker}`);
+          console.log(`${''.padStart(16)}${m.note}`);
+        }
+        console.log(`\n  Switch: /model <name>   Example: /model qwen2.5:7b\n`);
+      }
+      rl.prompt();
+      return;
+    }
+
+    if (input.startsWith('/model ')) {
+      const modelName = input.slice('/model '.length).trim();
+      if (!modelName) { console.log('\n  Usage: /model <name>\n'); rl.prompt(); return; }
+      try {
+        await agent.switchModel(modelName);
+        const model = agent.container.tryResolve('model');
+        console.log(`\n  ✅ Switched to: ${model.activeModel} (${model.activeBackend})`);
+        // Save as preferred
+        const settings = agent.container.tryResolve('settings');
+        if (settings) {
+          settings.set('models.preferred', modelName);
+          console.log(`  Saved as preferred model.\n`);
+        }
+      } catch (err) {
+        console.log(`\n  ❌ ${err.message}`);
+        console.log('  Run /models to see available models.\n');
+      }
       rl.prompt();
       return;
     }
@@ -602,12 +701,12 @@ async function runREPL(agent) {
 
 async function runOnce(agent) {
   // Collect message from remaining args (after flags)
-  const skipFlags = new Set(['--once', '--no-boot-log', '--minimal', '--cognitive', '--verbose', '--backend', '--ab-mode']);
+  const skipFlags = new Set(['--once', '--no-boot-log', '--minimal', '--cognitive', '--full', '--verbose', '--backend', '--ab-mode', '--skip-phase']);
   const msgParts = [];
   let skipNext = false;
   for (const arg of args) {
     if (skipNext) { skipNext = false; continue; }
-    if (skipFlags.has(arg)) { if (arg === '--backend' || arg === '--ab-mode') skipNext = true; continue; }
+    if (skipFlags.has(arg)) { if (arg === '--backend' || arg === '--ab-mode' || arg === '--skip-phase') skipNext = true; continue; }
     if (arg.startsWith('--')) continue;
     msgParts.push(arg);
   }

@@ -8,7 +8,7 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-6.0.1-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-6.0.4-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/tests-~3100%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/modules-230-e0e0e8?style=flat-square" alt="Modules">
@@ -80,7 +80,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Cognition & consciousness** — ExpectationEngine (quantitative predictions), SurpriseAccumulator (information-theoretic), PhenomenalField (unified awareness every 2s), TemporalSelf (past/future continuity), IntrospectionEngine (3-level meta-awareness), CognitiveWorkspace (9-slot transient working memory), ArchitectureReflection (live queryable self-model of own architecture), DynamicToolSynthesis (generates new tools on demand via LLM + sandbox).
 
-**Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (6 evolvable traits), epigenetic conditioning, immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). **Empirically validated: +37pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.0).
+**Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (6 evolvable traits), epigenetic conditioning, immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). **Empirically validated: +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4, kimi-k2.5:cloud).
 
 **Infrastructure** — 13-phase DI boot, EventBus (343 events), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules).
 
@@ -117,7 +117,7 @@ Then open Settings → paste your **Anthropic API key** or **OpenAI API key**. G
 **Option B — Local with Ollama (fully offline, private):**
 
 ```bash
-ollama pull qwen2.5:7b   # or gemma2:9b, deepseek-r1:8b, llama3.1:8b, etc.
+ollama pull qwen2.5:7b   # or gemma2:9b, deepseek-coder:6.7b, llama3:8b, etc.
 ollama serve
 
 git clone https://github.com/Garrus800-stack/genesis-agent.git
@@ -126,18 +126,40 @@ npm install
 npm start
 ```
 
+Genesis automatically selects the best available model using Smart Ranking (35 tiers, score 0-100). No manual configuration needed.
+
 **Option C — Hybrid (best of both):**
 
 Run Ollama locally AND configure a cloud API key. Genesis uses cloud for complex reasoning tasks and auto-failovers to local when cloud is unavailable.
 
-### Boot profiles
+### Model selection
 
-Genesis supports three boot profiles for different complexity levels:
+Genesis picks the best model automatically, but you stay in control:
 
 ```bash
-npm start                      # Full — all 128 services, all cognitive systems
-npm start -- --cognitive       # Cognitive — skip consciousness (~90 services)
-npm start -- --minimal         # Minimal — core agent loop only (~50 services)
+# In the CLI REPL:
+/models                              # Show all models ranked by capability
+/model qwen2.5:7b                   # Switch + save permanently
+
+# Via CLI flag (per session):
+node cli.js --backend ollama:kimi-k2.5:cloud
+
+# Via settings file (permanent):
+# ~/.genesis/settings.json
+# { "models": { "preferred": "kimi-k2.5:cloud" } }
+```
+
+Priority: Your choice → Cloud API → Smart Ranking → First available.
+
+### Boot profiles
+
+Genesis defaults to `cognitive` profile (phases 1-12, ~120 services). Consciousness (Phase 13) was empirically validated as 0pp impact on task success.
+
+```bash
+npm start                              # Cognitive — default (~120 services)
+npm start -- --full                    # Full — all 13 phases (~135 services)
+npm start -- --minimal                 # Minimal — core agent loop only (~50 services)
+npm start -- --skip-phase 7            # Custom — skip specific phases (6-13)
 ```
 
 Use `--minimal` to learn the architecture without cognitive overhead. Use `--cognitive` for development. Use `--full` (default) for production.

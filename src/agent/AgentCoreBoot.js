@@ -108,6 +108,7 @@ class AgentCoreBoot {
       bus:          this._bus,
       intervals:    this._intervals,
       bootProfile:  core.bootProfile,
+      skipPhases:   core.skipPhases,
     });
 
     let count = 0;

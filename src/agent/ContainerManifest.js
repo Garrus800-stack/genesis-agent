@@ -30,6 +30,8 @@
 
 const path = require('path');
 const fs = require('fs');
+const { createLogger } = require('./core/Logger');
+const _log = createLogger('ContainerManifest');
 
 const { phase1 } = require('./manifest/phase1-foundation');
 const { phase2 } = require('./manifest/phase2-intelligence');
@@ -118,7 +120,25 @@ function buildManifest(ctx) {
     minimal:   [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8],
   };
 
-  const phases = PHASE_MAP[profile] || PHASE_MAP.full;
+  let phases = PHASE_MAP[profile] || PHASE_MAP.full;
+
+  // v6.0.4: --skip-phase N[,N] — skip specific phases for A/B benchmarking.
+  // Usage: node cli.js --skip-phase 13        (skip consciousness)
+  //        node cli.js --skip-phase 7,13      (skip organism + consciousness)
+  // Phases 1-5 cannot be skipped (core infrastructure).
+  if (ctx.skipPhases && Array.isArray(ctx.skipPhases)) {
+    const PHASE_FN_MAP = { 1: phase1, 2: phase2, 3: phase3, 4: phase4, 5: phase5, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10, 11: phase11, 12: phase12, 13: phase13 };
+    const skippable = ctx.skipPhases.filter(p => p >= 6); // Phases 1-5 are required
+    if (skippable.length > 0) {
+      phases = phases.filter(fn => {
+        for (const p of skippable) {
+          if (PHASE_FN_MAP[p] === fn) return false;
+        }
+        return true;
+      });
+      _log.info(`[MANIFEST] Skipping phases: ${skippable.join(', ')}`);
+    }
+  }
 
   // Compose selected phases
   const entries = [];

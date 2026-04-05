@@ -53,7 +53,7 @@ Phase 1: Bootstrap
   └── Register non-manifest instances: rootDir, guard, bus, storage, lang, logger
 
 Phase 2: Manifest
-  └── Register all 130 services from 13 phase files via ContainerManifest (+8 kernel = 138 runtime)
+  └── Register all ~135 services from 13 phase files via ContainerManifest (+8 kernel = ~143 runtime, cognitive default: ~120)
       └── Auto-discovery scans src/agent/ → builds filename→directory map
 
 Phase 3: Resolve & Init

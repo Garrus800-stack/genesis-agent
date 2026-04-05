@@ -34,6 +34,9 @@ function phase5(ctx, R) {
         { prop: 'nativeToolUse', service: 'nativeToolUse', optional: true },
         { prop: 'modelRouter', service: 'modelRouter', optional: true },
         { prop: 'episodicMemory', service: 'episodicMemory', optional: true },
+        // v6.0.5: Wire proportional intelligence + causal tracing into hot path
+        { prop: '_cognitiveBudget', service: 'cognitiveBudget', optional: true },
+        { prop: '_provenance', service: 'executionProvenance', optional: true },
       ],
       factory: (c) => {
         const { lang } = R('Language');

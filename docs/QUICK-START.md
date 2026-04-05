@@ -13,15 +13,34 @@ npm start
 
 Genesis boots in ~5 seconds. You'll see a chat window — that's your interface.
 
-**Optional — configure an LLM:**
+**Model selection — Genesis picks the best model automatically:**
 
-Genesis works out of the box with a local Ollama model. For best results, open Settings and add an **Anthropic API key** or **OpenAI API key**. Genesis auto-selects the best available model.
+Genesis uses Smart Ranking (35 tiers, score 0-100) to auto-select the best available model from your Ollama installation. No manual configuration needed.
 
-If you want fully offline operation:
 ```bash
-ollama pull gemma2:9b   # or any model you prefer
-ollama serve            # Genesis auto-detects it
+# If you have Ollama running with models:
+ollama pull qwen2.5:7b        # Score: 80 — good for most tasks
+ollama pull deepseek-coder:6.7b  # Score: 92 — excellent for code
+ollama serve                  # Genesis auto-detects and picks the best
 ```
+
+**Change the model anytime:**
+
+```bash
+# In the Genesis CLI (node cli.js):
+/models                       # Show all models ranked by capability
+/model qwen2.5:7b            # Switch + permanently save
+
+# Via CLI flag:
+node cli.js --backend ollama:kimi-k2.5:cloud
+
+# Via settings file (~/.genesis/settings.json):
+{ "models": { "preferred": "kimi-k2.5:cloud" } }
+```
+
+**Cloud APIs (optional, for best results):**
+
+Open Settings → paste your **Anthropic API key** or **OpenAI API key**. Cloud models (Claude, GPT-4o) score 95-100 and are auto-preferred over local models.
 
 ## 2. Your First Conversation
 

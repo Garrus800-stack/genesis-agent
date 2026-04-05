@@ -62,10 +62,17 @@ class ChatOrchestrator {
     // FIX v3.5.0: Non-critical telemetry events use fire() (non-blocking)
     this.bus.fire('user:message', { length: message.length }, { source: 'ChatOrchestrator' });
 
+    // v6.0.4: Cognitive budget + provenance (same as handleStream)
+    const budget = this._cognitiveBudget?.assess?.(message) || null;
+    const traceId = this._provenance?.beginTrace?.(message) || '';
+    if (traceId && budget) this._provenance.recordBudget(traceId, budget);
+    const t0 = Date.now();
+
     try {
       // Async classification: regex → fuzzy → LLM
       const intent = await this.router.classifyAsync(message);
       this.bus.fire('intent:classified', { type: intent.type, confidence: intent.confidence }, { source: 'ChatOrchestrator' });
+      if (traceId) this._provenance.recordIntent(traceId, { type: intent.type, confidence: intent.confidence || 0.5, method: intent.method || 'regex' });
 
       let response;
       const handler = this.handlers.get(intent.type);
@@ -73,6 +80,9 @@ class ChatOrchestrator {
       if (handler) {
         response = await handler(message, { history: this.history, intent });
       } else {
+        // v6.0.4: Pass intent + budget to PromptBuilder
+        if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
+        if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
         response = await this._generalChat(message);
       }
 
@@ -86,8 +96,15 @@ class ChatOrchestrator {
       // @ts-ignore — TS strict
       this._recordEpisode(message, response, intent.type);
       this.bus.fire('chat:completed', { message, response, intent: intent.type, success: !response.startsWith('**' + this.lang.t('agent.error')) }, { source: 'ChatOrchestrator' });
+      // v6.0.4: End provenance trace — success
+      if (traceId) {
+        this._provenance.recordModel(traceId, { name: this.model.activeModel || 'unknown', backend: this.model.activeBackend || 'unknown' });
+        this._provenance.endTrace(traceId, { tokens: Math.ceil(response.length / 3.5), latencyMs: Date.now() - t0, outcome: 'success' });
+      }
       return { text: response, intent: intent.type };
     } catch (err) {
+      // v6.0.4: End provenance trace — error
+      if (traceId) this._provenance.endTrace(traceId, { latencyMs: Date.now() - t0, error: err.message });
       const errMsg = this.lang.t('chat.error', { message: err.message });
       this.history.push({ role: 'assistant', content: errMsg });
       this._saveHistory();
@@ -104,10 +121,22 @@ class ChatOrchestrator {
     this.lang.detect(message);
     this.bus.fire('user:message', { length: message.length }, { source: 'ChatOrchestrator' });
 
+    // v6.0.5: Cognitive budget — assess complexity before doing work
+    const budget = this._cognitiveBudget?.assess?.(message) || null;
+
+    // v6.0.5: Execution provenance — begin causal trace
+    const traceId = this._provenance?.beginTrace?.(message) || '';
+    if (traceId && budget) {
+      this._provenance.recordBudget(traceId, budget);
+    }
+
+    const t0 = Date.now();
+
     try {
       // Async intent — still fast for regex matches, LLM only if uncertain
       const intent = await this.router.classifyAsync(message);
       this.bus.fire('intent:classified', { type: intent.type }, { source: 'ChatOrchestrator' });
+      if (traceId) this._provenance.recordIntent(traceId, { type: intent.type, confidence: intent.confidence || 0.5, method: intent.method || 'regex' });
 
       // Check for registered handler (non-streaming path)
       const handler = this.handlers.get(intent.type);
@@ -122,9 +151,18 @@ class ChatOrchestrator {
       }
 
       // Build context for streaming
+      // v6.0.4: Pass intent + budget to PromptBuilder for adaptive section optimization
+      if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
+      if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
       const systemPrompt = this.promptBuilder.buildAsync
         ? await this.promptBuilder.buildAsync()
         : this.promptBuilder.build();
+
+      // v6.0.4: Record prompt sections in provenance trace (closes the feedback loop)
+      if (traceId && this.promptBuilder._lastBuildMeta) {
+        this._provenance.recordPrompt(traceId, this.promptBuilder._lastBuildMeta);
+      }
+
       const ctx = this.context.buildAsync
         ? await this.context.buildAsync({
           task: message, intent: intent.type, history: this.history,
@@ -157,6 +195,12 @@ class ChatOrchestrator {
       this._saveHistory();
       this.bus.fire('chat:completed', { message, response: fullResponse, intent: intent.type, success: true }, { source: 'ChatOrchestrator' });
 
+      // v6.0.5: End provenance trace — success
+      if (traceId) {
+        this._provenance.recordModel(traceId, { name: this.model.activeModel || 'unknown', backend: this.model.activeBackend || 'unknown' });
+        this._provenance.endTrace(traceId, { tokens: Math.ceil(fullResponse.length / 3.5), latencyMs: Date.now() - t0, outcome: 'success' });
+      }
+
       // Route code blocks to editor
       // @ts-ignore — TS strict
       const codeBlocks = this._extractCodeBlocks(fullResponse);
@@ -167,6 +211,10 @@ class ChatOrchestrator {
 
       onDone();
     } catch (err) {
+      // v6.0.5: End provenance trace — error
+      if (traceId) {
+        this._provenance.endTrace(traceId, { latencyMs: Date.now() - t0, error: err.message });
+      }
       if (err.name !== 'AbortError') {
         onChunk(`\n\n**${this.lang.t('agent.error')}:** ${err.message}`);
         this.bus.fire('chat:error', { message: err.message }, { source: 'ChatOrchestrator' });

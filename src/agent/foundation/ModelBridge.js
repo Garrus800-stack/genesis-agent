@@ -211,7 +211,15 @@ class ModelBridge {
         if (chosen) _log.info(`[MODEL] Auto-selected cloud model: ${chosen.name} (${chosen.backend})`);
       }
 
-      // Priority 3: First local model
+      // Priority 3: v6.0.5 — Smart model ranking by known capability
+      // Instead of picking the first model Ollama returns (which is alphabetical
+      // and often a weak model like minimax-m2.7), rank by known quality tiers.
+      if (!chosen) {
+        chosen = this._selectBestModel(this.availableModels);
+        if (chosen) _log.info(`[MODEL] Auto-selected best available: ${chosen.name} (score: ${this._scoreModel(chosen.name)})`);
+      }
+
+      // Priority 4: Absolute fallback — first available
       if (!chosen) {
         chosen = this.availableModels[0];
         _log.info(`[MODEL] Using first available model: ${chosen.name} (${chosen.backend})`);
@@ -224,6 +232,113 @@ class ModelBridge {
     }
 
     return this.availableModels;
+  }
+
+  // ── v6.0.5: Smart Model Ranking ─────────────────────────
+  // Models are scored by known capability tiers. This replaces
+  // the blind "first available" selection that picked minimax-m2.7.
+  //
+  // Scoring: higher = better. Patterns matched against model name.
+  // Unknown models get a neutral score (50) — never penalized.
+
+  /** @type {Array<{pattern: RegExp, score: number, note: string}>} */
+  static MODEL_TIERS = [
+    // Tier 1: Known excellent code models (score 90-100)
+    { pattern: /claude/i,                          score: 100, note: 'Anthropic Claude' },
+    { pattern: /gpt-4o|gpt-4-turbo/i,             score: 95,  note: 'OpenAI GPT-4' },
+    { pattern: /deepseek-coder|deepseek-v[23]/i,   score: 92,  note: 'DeepSeek Coder' },
+    { pattern: /qwen-?2\.5.*(?:72|32|14)b/i,       score: 90,  note: 'Qwen 2.5 large' },
+    { pattern: /qwen-?3.*coder/i,                  score: 90,  note: 'Qwen 3 Coder' },
+    { pattern: /qwen-?3(?!.*vl).*(?:235|110|32)b/i, score: 89, note: 'Qwen 3 large' },
+    { pattern: /kimi-k2/i,                         score: 88,  note: 'Kimi K2' },
+    { pattern: /llama-?3.*(?:70|405)b/i,           score: 88,  note: 'Llama 3 large' },
+    { pattern: /dolphin.*(?:70|405)b/i,            score: 87,  note: 'Dolphin large' },
+    { pattern: /codellama|code-?llama/i,           score: 85,  note: 'Code Llama' },
+    { pattern: /wizard.*coder/i,                   score: 85,  note: 'WizardCoder' },
+
+    // Tier 2: Good general models (score 70-84)
+    { pattern: /qwen-?2\.5.*(?:7b|3b)/i,          score: 80,  note: 'Qwen 2.5 medium' },
+    { pattern: /qwen-?3(?!.*coder).*(?:8|14)b/i,  score: 80,  note: 'Qwen 3 medium' },
+    { pattern: /llama-?3.*8b/i,                    score: 78,  note: 'Llama 3 8B' },
+    { pattern: /llama-?3(?::latest)?$/i,           score: 78,  note: 'Llama 3' },
+    { pattern: /dolphin.*(?:8b)/i,                 score: 77,  note: 'Dolphin 8B' },
+    { pattern: /gemma-?2/i,                        score: 78,  note: 'Gemma 2' },
+    { pattern: /mistral.*nemo/i,                   score: 76,  note: 'Mistral Nemo' },
+    { pattern: /mistral(?::latest)?$/i,            score: 75,  note: 'Mistral' },
+    { pattern: /mistral.*(?:7b)/i,                 score: 75,  note: 'Mistral 7B' },
+    { pattern: /phi-?[34]/i,                       score: 75,  note: 'Microsoft Phi' },
+    { pattern: /qwen-?3.*vl/i,                     score: 74,  note: 'Qwen 3 Vision (limited code)' },
+    { pattern: /llama-?3\.2/i,                     score: 73,  note: 'Llama 3.2' },
+    { pattern: /yi-/i,                             score: 72,  note: 'Yi' },
+    { pattern: /command-r/i,                       score: 70,  note: 'Cohere Command-R' },
+    { pattern: /glm-?4/i,                          score: 70,  note: 'GLM-4' },
+    { pattern: /wizard.*(?:30|13)b/i,              score: 70,  note: 'Wizard large' },
+
+    // Tier 3: Smaller / older models (score 40-69)
+    { pattern: /qwen-?2\.5.*(?:1\.5|0\.5)b/i,     score: 60,  note: 'Qwen 2.5 small' },
+    { pattern: /llama-?2/i,                        score: 55,  note: 'Llama 2 (older)' },
+    { pattern: /vicuna|wizard(?!.*coder)/i,        score: 55,  note: 'Vicuna/Wizard' },
+    { pattern: /gemma.*2b/i,                       score: 50,  note: 'Gemma 2B (small)' },
+    { pattern: /tinyllama|phi-?2|orca-?mini|stablelm/i, score: 40, note: 'Tiny model' },
+
+    // Tier 4: Known weak for code tasks (score 10-39)
+    { pattern: /gpt-oss/i,                         score: 20,  note: 'GPT-OSS (unstable)' },
+    { pattern: /minimax/i,                         score: 15,  note: 'MiniMax (weak at code)' },
+  ];
+
+  /**
+   * Score a model by name. Unknown models get size-based scoring.
+   * @param {string} name
+   * @returns {number}
+   */
+  _scoreModel(name) {
+    for (const tier of ModelBridge.MODEL_TIERS) {
+      if (tier.pattern.test(name)) return tier.score;
+    }
+    // v6.0.5: Size-based fallback for unknown models.
+    // Larger models are generally more capable — score by parameter count.
+    const sizeMatch = name.match(/(\d+)b/i);
+    if (sizeMatch) {
+      const params = parseInt(sizeMatch[1], 10);
+      if (params >= 70)  return 65; // Large unknown model — probably decent
+      if (params >= 13)  return 55; // Medium unknown model
+      if (params >= 7)   return 50; // Small-medium
+      return 40;                     // Small unknown model
+    }
+    return 50; // No size info — neutral
+  }
+
+  /**
+   * Select the best model from a list by score.
+   * @param {Array<{name: string, backend: string}>} models
+   * @returns {object|null}
+   */
+  _selectBestModel(models) {
+    if (!models || models.length === 0) return null;
+    let best = null;
+    let bestScore = -1;
+    for (const m of models) {
+      const score = this._scoreModel(m.name);
+      if (score > bestScore) {
+        best = m;
+        bestScore = score;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Get a ranked list of available models with scores.
+   * @returns {Array<{name: string, backend: string, score: number, note: string}>}
+   */
+  getRankedModels() {
+    return this.availableModels
+      .map(m => {
+        const score = this._scoreModel(m.name);
+        const tier = ModelBridge.MODEL_TIERS.find(t => t.pattern.test(m.name));
+        return { ...m, score, note: tier?.note || 'Unknown model', active: m.name === this.activeModel };
+      })
+      .sort((a, b) => b.score - a.score);
   }
 
   async switchTo(modelName) {

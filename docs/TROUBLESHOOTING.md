@@ -84,7 +84,20 @@ curl https://api.anthropic.com/v1/messages \
 
 ### Model keeps resetting to a different model
 
-**Fixed in v4.10.0.** If you're on an older version, update. The periodic health check was overwriting the user's model selection. Now `detectAvailable()` preserves the active model.
+**Fixed in v4.10.0.** The periodic health check was overwriting the user's model selection. Now `detectAvailable()` preserves the active model.
+
+**v6.0.4:** Genesis uses Smart Ranking to auto-select the best model. If you want a specific model:
+
+```bash
+# In CLI REPL:
+/models                    # See all models ranked by capability
+/model qwen2.5:7b         # Switch + save permanently
+
+# Or via settings (~/.genesis/settings.json):
+{ "models": { "preferred": "qwen2.5:7b" } }
+```
+
+Your `preferred` model always wins over Smart Ranking.
 
 ### Responses are slow with Ollama
 

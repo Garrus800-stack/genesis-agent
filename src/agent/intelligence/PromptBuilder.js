@@ -84,6 +84,11 @@ class PromptBuilder {
     this.episodicMemory = null;
 
     this._recentQuery = '';
+    // v6.0.4: Adaptive prompt strategy — optimizes sections based on provenance data
+    this._currentIntent = 'general';
+    /** @type {*} */ this._adaptiveStrategy = null; // late-bound
+    /** @type {*} */ this._cognitiveBudget = null;  // late-bound
+    this._currentBudget = null; // set per-request by ChatOrchestrator
 
     // FIX v3.5.0: Token budget prevents prompt bloat.
     // For 9B local models with ~4K effective context, system prompt
@@ -147,6 +152,24 @@ class PromptBuilder {
   /** Set the most recent user query (for context relevance) */
   setQuery(query) {
     this._recentQuery = query;
+  }
+
+  /**
+   * v6.0.4: Set the current intent type for adaptive prompt optimization.
+   * Called by ChatOrchestrator before build().
+   * @param {string} intentType
+   */
+  setIntent(intentType) {
+    this._currentIntent = intentType || 'general';
+  }
+
+  /**
+   * v6.0.4: Set the cognitive budget for proportional prompt assembly.
+   * Trivial requests skip organism/consciousness sections entirely.
+   * @param {{ tier: object, tierName: string }} budget
+   */
+  setBudget(budget) {
+    this._currentBudget = budget || null;
   }
 
   /**
@@ -221,30 +244,77 @@ class PromptBuilder {
     const budget = this._getTokenBudget();
     const priorityMap = new Map(this._sectionPriority.map(([p, n, m]) => [n, { priority: p, maxChars: m }]));
 
+    // v6.0.4: Adaptive prompt strategy — skip/boost sections based on provenance data
+    const strategy = this._adaptiveStrategy;
+    const cogBudget = this._cognitiveBudget;
+    const intent = this._currentIntent || 'general';
+    const skippedByStrategy = [];
+    const skippedByBudget = [];
+    const boostedByStrategy = [];
+
     // Sort sections by priority (lower number = higher priority)
     const sorted = sections
-      .filter(([name, content]) => content && !this._disabledSections.has(name))
+      .filter(([name, content]) => {
+        if (!content) return false;
+        if (this._disabledSections.has(name)) return false;
+        // v6.0.4: CognitiveBudget — skip organism/consciousness for trivial requests
+        if (cogBudget && this._currentBudget) {
+          if (!cogBudget.shouldIncludeSection(name, this._currentBudget)) {
+            skippedByBudget.push(name);
+            return false;
+          }
+        }
+        // v6.0.4: AdaptivePromptStrategy — skip/boost based on provenance data
+        if (strategy) {
+          const advice = strategy.getSectionAdvice(intent, name);
+          if (advice === 'skip') { skippedByStrategy.push(name); return false; }
+          if (advice === 'boost') { boostedByStrategy.push(name); }
+        }
+        return true;
+      })
       .sort((a, b) => {
         const pa = Number(priorityMap.get(a[0])?.priority) || 99;
         const pb = Number(priorityMap.get(b[0])?.priority) || 99;
-        return pa - pb;
+        // Boosted sections get priority -1 (promoted one tier)
+        const paAdj = boostedByStrategy.includes(a[0]) ? pa - 1 : pa;
+        const pbAdj = boostedByStrategy.includes(b[0]) ? pb - 1 : pb;
+        return paAdj - pbAdj;
       });
+
+    if (skippedByStrategy.length > 0) {
+      _log.debug(`[PROMPT] Adaptive skip for "${intent}": ${skippedByStrategy.join(', ')}`);
+    }
+    if (skippedByBudget.length > 0) {
+      _log.debug(`[PROMPT] Budget skip (${this._currentBudget?.tierName || '?'}): ${skippedByBudget.join(', ')}`);
+    }
 
     const parts = [];
     let totalChars = 0;
+    const activeSections = [];
+    const droppedByBudget = [];
 
     for (const [name, content] of sorted) {
       const maxChars = priorityMap.get(name)?.maxChars || 400;
       const truncated = content.length > maxChars ? content.slice(0, maxChars) + '...' : content;
 
       if (totalChars + truncated.length > budget) {
-        // Budget exceeded — skip remaining lower-priority sections
-        break;
+        droppedByBudget.push(name);
+        continue;
       }
 
       parts.push(truncated);
       totalChars += truncated.length;
+      activeSections.push(name);
     }
+
+    // v6.0.4: Store last build metadata for provenance recording
+    this._lastBuildMeta = {
+      active: activeSections,
+      skipped: [...skippedByBudget, ...skippedByStrategy, ...droppedByBudget],
+      boosted: boostedByStrategy,
+      totalTokens: Math.ceil(totalChars / 4),
+      tier: this._currentBudget?.tierName || null,
+    };
 
     return parts.join('\n\n');
   }

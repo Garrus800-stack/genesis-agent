@@ -203,11 +203,18 @@ app.whenReady().then(async () => {
   });
 
   // Phase 3: Boot Agent Core
-  // v5.2.0: Boot profiles — --minimal (core only), --cognitive (no consciousness), --full (default)
+  // v5.2.0: Boot profiles — --minimal (core only), --cognitive (no consciousness), --full (all phases)
+  // v6.0.4: Default changed to 'cognitive' — consciousness layer has 0pp impact (A/B validated)
   const bootProfile = process.argv.includes('--minimal') ? 'minimal'
-    : process.argv.includes('--cognitive') ? 'cognitive'
-    : 'full';
-  if (bootProfile !== 'full') console.log(`[KERNEL] Boot profile: ${bootProfile}`);
+    : process.argv.includes('--full') ? 'full'
+    : 'cognitive';
+  if (bootProfile !== 'cognitive') console.log(`[KERNEL] Boot profile: ${bootProfile}`);
+
+  // v6.0.4: --skip-phase N[,N] — skip specific phases for A/B benchmarking
+  const skipPhaseArg = process.argv.find(a => a.startsWith('--skip-phase'));
+  const skipPhases = skipPhaseArg
+    ? (process.argv[process.argv.indexOf(skipPhaseArg) + 1] || '').split(',').map(Number).filter(n => n >= 6 && n <= 13)
+    : [];
 
   try {
     agent = new AgentCore({
@@ -215,6 +222,7 @@ app.whenReady().then(async () => {
       guard,
       window: mainWindow,
       bootProfile,
+      skipPhases,
     });
     await agent.boot();
     console.log('[KERNEL] Agent booted successfully.');
