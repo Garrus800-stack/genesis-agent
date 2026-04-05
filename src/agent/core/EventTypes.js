@@ -70,6 +70,8 @@ const EVENTS = Object.freeze({
     RECORDED:           'lessons:recorded',
     /** @payload {{ category: string, count: number }} */
     RECALLED:           'lessons:recalled',
+    /** @payload {{ category: string, title: string, content: string, tags: string[] }} */
+    LEARNED:            'lesson:learned',
   }),
 
   // ── Self-Preservation ────────────────────────────────────
@@ -441,6 +443,14 @@ const EVENTS = Object.freeze({
   META: Object.freeze({
     OUTCOME_RECORDED:       'meta:outcome-recorded',
     RECOMMENDATIONS_UPDATED: 'meta:recommendations-updated',
+  }),
+
+  // ── Network (v6.0.5 — V6-10 Offline-First) ─────────────
+  NETWORK: Object.freeze({
+    STATUS:    'network:status',
+    FAILOVER:  'network:failover',
+    RESTORED:  'network:restored',
+    ERROR:     'network:error',
   }),
 
   // ── Model ──────────────────────────────────────────────
@@ -854,6 +864,12 @@ const EVENTS = Object.freeze({
     EXPERIMENT_COMPLETED: 'prompt-evolution:experiment-completed',
     /** @payload {{ section: string, generation: number }} */
     ROLLBACK:             'prompt-evolution:rollback',
+  }),
+
+  // ── Adaptive Prompt Strategy (v6.0.4) ─────────────────────
+  PROMPT_STRATEGY: Object.freeze({
+    /** @payload {{ intents: number, recommendations: object }} */
+    UPDATED:              'prompt:strategy-updated',
   }),
 
   // ── Adaptive Strategy (v6.0.2 V6-12) ───────────────────────

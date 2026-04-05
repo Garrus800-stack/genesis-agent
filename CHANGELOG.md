@@ -1,3 +1,83 @@
+## [6.0.5] — Offline-First + Pipeline Validation + Colony Convergence Proof
+
+**Focus: Network resilience with automatic Ollama failover, end-to-end validation of the v6.0.4 intelligence pipeline, and real cross-instance colony convergence proof.**
+
+### V6-10: NetworkSentinel — Offline-First (NEW)
+
+- `src/agent/autonomy/NetworkSentinel.js` (~400 LOC): Periodic connectivity monitoring with automatic failover to local Ollama models.
+- Probes 2 external endpoints + Ollama local health. Debounced: 3 consecutive failures → offline.
+- **Auto-Failover**: On network loss, saves current cloud model, switches to best available Ollama model via `ModelBridge._selectBestModel()`. Zero manual intervention.
+- **Auto-Restore**: On reconnect, restores previous cloud model. Emits `network:restored`.
+- **Mutation Queue**: Ring buffer (500 entries) for deferred sync events. Replayed on reconnect with `_replayed` flag.
+- Events: `network:status`, `network:failover`, `network:restored` (all in EventTypes catalog + PayloadSchemas).
+- Phase 6 manifest, late-bound `_modelBridge` + `_settings`. `TO_STOP` registered.
+- 24 tests.
+
+### Intelligence Pipeline Integration Validation (NEW)
+
+- `test/modules/v605-intelligence-pipeline.test.js` (16 tests): First end-to-end validation of the v6.0.4 closed loop.
+- Validates: `CognitiveBudget.assess()` → `ExecutionProvenance.beginTrace/record*/endTrace` → `AdaptivePromptStrategy.analyze()` → `getSectionAdvice()`.
+- Budget filtering: TRIVIAL skips organism/consciousness, COMPLEX keeps everything.
+- 10-iteration convergence test: advice is deterministic (no oscillation).
+- Per-intent advice: code vs chat produce independent section recommendations.
+- Edge cases: empty provenance, disabled budget, ring buffer eviction.
+
+### Colony Live Convergence Proof (NEW)
+
+- `test/modules/v605-colony-live.test.js` (17 tests): Real cross-instance convergence with two `PeerConsensus` instances.
+- Unidirectional A→B, bidirectional A↔B, idempotent re-sync.
+- LWW conflict resolution on concurrent edits (wall-clock timestamp wins).
+- Multi-round catch-up: 10 missed mutations recovered in 1 sync.
+- **3-peer daisy-chain**: Alpha↔Beta↔Gamma converges to identical state.
+- Multi-domain: settings + knowledge + schemas sync independently with per-domain vector clocks.
+
+### Shutdown Coverage Fix
+
+- 4 services added to `TO_STOP` in AgentCoreHealth: `cognitiveBudget`, `executionProvenance`, `adaptivePromptStrategy`, `networkSentinel`.
+- Restores fitness score from 80/90 → 90/90 (100%).
+
+### Consolidation — Event Catalog + CC Reduction
+
+- **Event warnings: 2 → 0**: `lesson:learned` (AdaptiveStrategy) and `prompt:strategy-updated` (AdaptivePromptStrategy) added to EventTypes catalog + PayloadSchemas. CI event validation now fully clean.
+- **CC>30 reduction**: `FailureAnalyzer._buildPatternDB` refactored from inline match() lambdas (CC=56) to declarative `PATTERN_RULES` table (CC=8). 29 tests pass unchanged.
+- **SA-O1 closed**: Remaining 9 CC>30 functions documented as intentional (core loops, safety-critical, consciousness rules). No further action.
+- **BodySchema wiring**: NetworkSentinel late-bound into BodySchema (phase 7). `canAccessWeb` now reflects real connectivity status instead of static effector presence.
+- **Coverage sweep**: 32 new tests covering constructors + public APIs of 20 modules across 2 sweep files. Ports (KnowledgePort, MemoryPort, SandboxPort, WorkspacePort), cognitive (IntrospectionEngine, ConsciousnessExtensionAdapter), planning (Anticipator, Reflector, SelfOptimizer, SolutionAccumulator, GoalPersistence), revolution (SessionPersistence, NativeToolUse, ReasoningEngine, VectorMemory, ModuleRegistry), hexagonal (CommandHandlers, LearningService).
+- **Coverage ratchet bumped**: 75/70/70 → **77/72/72** (lines/branches/functions). Functions went from 69.6% → 75.2% without vendor (+5.6pp). 4 sweep test files, 90 new tests total.
+
+### CLI Commands (NEW)
+
+- `/network`: NetworkSentinel status — online/offline, failover state, Ollama availability, probe stats, mutation queue size.
+- `/trace`: Last ExecutionProvenance trace — budget tier, intent, prompt sections, model, response metrics.
+- `/traces`: Last 5 traces as compact overview (tier, duration, outcome).
+
+### IPC Channels (NEW)
+
+- `agent:get-network-status`: Returns NetworkSentinel.getStatus() for Dashboard.
+- `agent:force-network-probe`: Triggers immediate connectivity probe.
+- `agent:get-provenance-report`: Returns ExecutionProvenance stats + recent traces + last trace.
+- Channels: 60 → **63** (55 invoke + 2 send + 6 receive). All in sync.
+
+### Files Changed
+
+- `src/agent/autonomy/NetworkSentinel.js` (NEW, ~400 LOC)
+- `src/agent/core/EventTypes.js`: +6 events (NETWORK + LESSONS.LEARNED + PROMPT_STRATEGY.UPDATED)
+- `src/agent/core/EventPayloadSchemas.js`: +5 schemas
+- `src/agent/manifest/phase6-autonomy.js`: +networkSentinel registration
+- `src/agent/manifest/phase7-organism.js`: +networkSentinel late-binding for BodySchema
+- `src/agent/organism/BodySchema.js`: +networkSentinel sampler (canAccessWeb live)
+- `src/agent/AgentCoreHealth.js`: +4 services in TO_STOP
+- `src/agent/revolution/FailureAnalyzer.js`: _buildPatternDB refactored to PATTERN_RULES table (CC 56→8)
+- `cli.js`: +3 commands (/network, /trace, /traces)
+- `main.js`: +3 IPC handlers (get-network-status, force-network-probe, get-provenance-report)
+- `preload.js` + `preload.mjs`: +3 channels whitelisted
+- `package.json`: version 6.0.5, coverage ratchet 77/72/72
+- `README.md`: Offline-First feature, IPC channel count, hybrid mode NetworkSentinel reference
+- `CHANGELOG.md`, `ARCHITECTURE.md`, `docs/ROADMAP-v6.md`, `AUDIT-BACKLOG.md`: metrics + status updated
+- 8 new test files (152 tests total)
+
+---
+
 ## [6.0.4] — Proportional Intelligence + Empirical Validation + Smart Model Selection
 
 **Focus: Proportional cognitive effort, causal traceability, empirically validated architecture, verified consensus, and a first-run experience that actually works.**

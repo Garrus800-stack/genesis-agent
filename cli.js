@@ -251,7 +251,7 @@ async function runREPL(agent) {
     console.log(`[CLI] Model: ${activeModel}`);
   }
 
-  console.log('[CLI] Commands: /models, /model <name>, /health, /status, /goals, /skills, /quit\n');
+  console.log('[CLI] Commands: /models, /model <name>, /health, /status, /goals, /skills, /network, /trace, /traces, /quit\n');
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -503,6 +503,68 @@ async function runREPL(agent) {
     }
 
     if (input.startsWith('/')) {
+      // ── v6.0.5: Network status + Provenance trace ──
+
+      if (input === '/network') {
+        const ns = agent.container.tryResolve('networkSentinel');
+        if (!ns) {
+          console.log('\n  NetworkSentinel not available.\n');
+        } else {
+          const s = ns.getStatus();
+          const icon = s.online ? '🟢' : '🔴';
+          console.log(`\n  Network: ${icon} ${s.online ? 'ONLINE' : 'OFFLINE'}`);
+          if (s.failoverActive) console.log(`  Failover: active → local Ollama (was: ${s.previousModel})`);
+          console.log(`  Ollama local: ${s.ollamaAvailable ? 'available' : 'not detected'}`);
+          console.log(`  Probes: ${s.stats.probes} total, ${s.stats.failures} failed`);
+          console.log(`  Failovers: ${s.stats.failovers} | Restores: ${s.stats.restores}`);
+          if (s.queueSize > 0) console.log(`  Mutation queue: ${s.queueSize} pending`);
+          console.log();
+        }
+        rl.prompt();
+        return;
+      }
+
+      if (input === '/trace') {
+        const ep = agent.container.tryResolve('executionProvenance');
+        if (!ep) {
+          console.log('\n  ExecutionProvenance not available.\n');
+        } else {
+          const last = ep.getLastTrace();
+          if (!last) {
+            console.log('\n  No traces recorded yet.\n');
+          } else {
+            console.log('\n' + ep.formatTrace(last) + '\n');
+          }
+        }
+        rl.prompt();
+        return;
+      }
+
+      if (input === '/traces') {
+        const ep = agent.container.tryResolve('executionProvenance');
+        if (!ep) {
+          console.log('\n  ExecutionProvenance not available.\n');
+        } else {
+          const recent = ep.getRecentTraces(5);
+          if (recent.length === 0) {
+            console.log('\n  No traces recorded yet.\n');
+          } else {
+            console.log(`\n  Recent traces (${recent.length}):\n`);
+            for (const t of recent) {
+              const msg = (t.input?.message || '').slice(0, 50);
+              const tier = t.budget?.tier || '?';
+              const ms = t.duration || 0;
+              const outcome = t.response?.outcome || '·';
+              const icon = outcome === 'success' ? '✓' : outcome === 'error' ? '✗' : '·';
+              console.log(`    ${icon} [${tier}] ${ms}ms  "${msg}"`);
+            }
+            console.log();
+          }
+        }
+        rl.prompt();
+        return;
+      }
+
       // ── v6.0.1: Budget, Backup, CrashLog, Update CLI commands ──
 
       if (input === '/budget') {
@@ -668,7 +730,7 @@ async function runREPL(agent) {
         return;
       }
 
-      console.log('  Unknown command. Available: /health, /goals, /status, /skills, /skill install|uninstall|update, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /adapt, /adaptations, /quit\n');
+      console.log('  Unknown command. Available: /health, /goals, /network, /trace, /traces, /status, /skills, /skill install|uninstall|update, /consolidate, /replays, /budget, /export, /import, /crashlog, /update, /adapt, /adaptations, /quit\n');
       rl.prompt();
       return;
     }

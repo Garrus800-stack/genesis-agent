@@ -763,6 +763,32 @@ const CHANNELS = {
     return null;
   },
 
+  // v6.0.5 (V6-10): NetworkSentinel — network status + force probe
+  'agent:get-network-status': async () => {
+    if (!agent) return null;
+    const ns = agent.container.tryResolve('networkSentinel');
+    return ns?.getStatus() || null;
+  },
+
+  'agent:force-network-probe': async () => {
+    if (!agent) return null;
+    const ns = agent.container.tryResolve('networkSentinel');
+    if (!ns) return null;
+    return ns.forceProbe();
+  },
+
+  // v6.0.5: ExecutionProvenance — trace report
+  'agent:get-provenance-report': async () => {
+    if (!agent) return null;
+    const ep = agent.container.tryResolve('executionProvenance');
+    if (!ep) return null;
+    return {
+      stats: ep.getStats(),
+      recentTraces: ep.getRecentTraces(10),
+      lastTrace: ep.getLastTrace(),
+    };
+  },
+
   'agent:stream-chunk': null, // Agent -> UI (push only)
   'agent:stream-done': null,  // Agent -> UI (push only, stream complete)
   'agent:status-update': null, // Agent -> UI (push only)

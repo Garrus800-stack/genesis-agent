@@ -71,6 +71,10 @@ const ALLOWED_INVOKE = [
   // v6.0.2: Meta-cognitive adaptation loop
   'agent:get-adaptation-report',
   'agent:run-adaptation-cycle',
+  // v6.0.5: Network + Provenance
+  'agent:get-network-status',
+  'agent:force-network-probe',
+  'agent:get-provenance-report',
 ];
 
 const ALLOWED_SEND = [

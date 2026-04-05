@@ -208,6 +208,11 @@ Start with `node cli.js` for the interactive REPL. Available commands:
 | `/update` | Check for new Genesis versions |
 | `/adapt` | Run one meta-cognitive adaptation cycle |
 | `/adaptations` | Show adaptation history (✓ confirmed, ✗ rolled back, ⏳ pending) |
+| `/network` | Network status — online/offline, failover state, Ollama availability, queue |
+| `/trace` | Last execution provenance trace (budget, intent, model, outcome) |
+| `/traces` | Last 5 traces as compact overview |
+| `/models` | Available models with quality scores |
+| `/model <n>` | Switch to model by number (auto-saved) |
 | `/quit` | Shut down gracefully |
 
 ---

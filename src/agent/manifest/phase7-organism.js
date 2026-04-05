@@ -54,6 +54,8 @@ function phase7(ctx, R) {
         { prop: 'model', service: 'llm', optional: true },
         { prop: 'effectorRegistry', service: 'effectorRegistry', optional: true },
         { prop: 'embodiedPerception', service: 'embodiedPerception', optional: true },
+        // v6.0.5 (V6-10): Real connectivity status from NetworkSentinel
+        { prop: 'networkSentinel', service: 'networkSentinel', optional: true },
       ],
       factory: (c) => new (R('BodySchema').BodySchema)({
         bus, storage: c.resolve('storage'),

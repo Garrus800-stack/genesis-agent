@@ -124,6 +124,16 @@ function phase6(ctx, R) {
       ],
       factory: () => new (R('AutoUpdater').AutoUpdater)({ bus, intervals }),
     }],
+
+    // v6.0.5: NetworkSentinel — connectivity monitoring + Ollama failover
+    ['networkSentinel', {
+      phase: 6, deps: [], tags: ['autonomy', 'network', 'resilience'],
+      lateBindings: [
+        { prop: '_modelBridge', service: 'llm',      optional: true },
+        { prop: '_settings',    service: 'settings', optional: true },
+      ],
+      factory: () => new (R('NetworkSentinel').NetworkSentinel)({ bus, intervals }),
+    }],
   ];
 }
 

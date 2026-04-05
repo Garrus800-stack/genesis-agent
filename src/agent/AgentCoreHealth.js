@@ -315,6 +315,14 @@ class AgentCoreHealth {
       'taskRecorder',
       // v6.0.2 (V6-12): AdaptiveStrategy — persists adaptation state
       'adaptiveStrategy',
+      // v6.0.4: CognitiveBudget — clears stats
+      'cognitiveBudget',
+      // v6.0.4: ExecutionProvenance — unsubscribes event listeners
+      'executionProvenance',
+      // v6.0.4: AdaptivePromptStrategy — persists effectiveness data
+      'adaptivePromptStrategy',
+      // v6.0.5 (V6-10): NetworkSentinel — stops probe timer, clears subscriptions
+      'networkSentinel',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

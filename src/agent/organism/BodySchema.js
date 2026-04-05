@@ -111,6 +111,20 @@ const SUBSYSTEM_SAMPLERS = [
       if (level < 1) constraints.push('Trust Level 0 — supervised mode, all actions need approval');
     },
   },
+  // v6.0.5 (V6-10): NetworkSentinel — real connectivity status
+  {
+    prop: 'networkSentinel',
+    sample: (src, caps, _self, constraints) => {
+      const status = src.getStatus?.() || {};
+      caps.networkOnline = status.online !== false;
+      if (!caps.networkOnline) {
+        caps.canAccessWeb = false;
+        constraints.push(status.failoverActive
+          ? 'OFFLINE — running on local Ollama (auto-failover active)'
+          : 'OFFLINE — network unavailable, cloud backends unreachable');
+      }
+    },
+  },
 ];
 
 class BodySchema {

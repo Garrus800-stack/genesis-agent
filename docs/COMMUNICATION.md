@@ -1,6 +1,7 @@
 # Genesis Agent — Communication Architecture
 
-> v6.0.2 — How Genesis instances communicate with each other and the outside world.
+> v6.0.5 — How Genesis instances communicate with each other and the outside world.
+> Updated with NetworkSentinel (V6-10 Offline-First) and Intelligence Pipeline IPC channels.
 
 ---
 
@@ -78,7 +79,7 @@ The Electron renderer (UI) communicates with the Agent (main process) through a 
 
 | Direction | Channels | Examples |
 |-----------|----------|---------|
-| UI → Agent (invoke) | 52 | `agent:chat`, `agent:save-file`, `agent:switch-model`, `agent:get-adaptation-report` |
+| UI → Agent (invoke) | 55 | `agent:chat`, `agent:save-file`, `agent:switch-model`, `agent:get-network-status`, `agent:get-provenance-report` |
 | UI → Agent (fire-and-forget) | 1 | `agent:request-stream` |
 | Agent → UI (push) | 6 | `agent:stream-chunk`, `agent:status-update`, `agent:loop-progress` |
 
@@ -237,3 +238,41 @@ Which component talks to what, and how:
 | Genesis → LLM (Ollama) | HTTP | Plaintext (localhost) | No | Yes (semaphore, 3 concurrent) |
 | Genesis → LLM (Cloud) | HTTPS | TLS | Yes | Yes (semaphore + rate limit) |
 | Genesis → Workers | Node IPC (fork) | In-process | N/A | Yes (max 3 workers) |
+| NetworkSentinel → External | HTTP HEAD probes | TLS (dns.google, 1.1.1.1) | Yes | Every 30s |
+| NetworkSentinel → Ollama | HTTP GET /api/tags | Plaintext (localhost) | No | Every 30s |
+| NetworkSentinel → ModelBridge | In-process switchTo() | N/A | N/A | On failover/restore |
+
+---
+
+## Network Resilience (v6.0.5)
+
+NetworkSentinel provides automatic offline detection and LLM failover:
+
+```
+             ┌─────────────────┐
+             │ NetworkSentinel │  30s probes
+             │  (Phase 6)      │────────────► dns.google / 1.1.1.1
+             └────────┬────────┘
+                      │
+          ┌───────────┼───────────┐
+          │ ONLINE    │ OFFLINE   │
+          ▼           ▼           │
+    (no action)  emit network:    │
+                 status {false}   │
+                      │           │
+                 ┌────▼────┐      │
+                 │ Failover │     │
+                 │ to Ollama│     │
+                 └────┬────┘     │
+                      │          │
+                 Queue mutations │
+                      │          │
+              ┌───────▼──────┐   │
+              │  RECONNECT   │◄──┘
+              │  Restore     │
+              │  cloud model │
+              │  Flush queue │
+              └──────────────┘
+```
+
+Consumers: BodySchema (canAccessWeb), ImmuneSystem (health:degradation), ErrorAggregator (network:error).

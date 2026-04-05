@@ -200,6 +200,17 @@ const SCHEMAS = {
   'adaptation:validation-deferred': { id: 'required', reason: 'required' },
   'adaptation:cycle-complete':      { outcome: 'required', cyclesRun: 'required' },
   'router:empirical-strength-injected': { taskTypes: 'required' },
+
+  // Network (v6.0.5 — V6-10 Offline-First)
+  'network:status':   { online: 'required' },
+  'network:failover': { from: 'required', to: 'required', reason: 'required' },
+  'network:restored': { model: 'required', backend: 'required' },
+
+  // Lesson (v6.0.2 — AdaptiveStrategy)
+  'lesson:learned': { category: 'required', title: 'required', content: 'required' },
+
+  // Prompt Strategy (v6.0.4 — AdaptivePromptStrategy)
+  'prompt:strategy-updated': { intents: 'required', recommendations: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

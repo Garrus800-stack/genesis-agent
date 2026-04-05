@@ -26,6 +26,126 @@
 const path = require('path');
 const fs = require('fs');
 
+// ── Pattern Rules Table ───────────────────────────────────
+// Declarative regex→confidence rules per failure category.
+// Each entry: [regex, confidence]. First match wins.
+// v6.0.5: Extracted from inline match() lambdas (CC=56→~12).
+const PATTERN_RULES = [
+  {
+    category: 'CROSS_PLATFORM',
+    rules: [
+      [/\/etc\/|\/tmp\/|\/bin\/|\/dev\//, 0.95],
+      [/ENOENT.*[\/\\](?:etc|tmp|bin)/, 0.9],
+      [/path\.sep|path separator|backslash/, 0.8],
+      [/wmic|Get-CimInstance|PowerShell/, 0.7],
+      [/cmd\.exe|\.bat\b/, 0.6],
+    ],
+    rootCause: (f) => {
+      if (/\/etc\//.test(f.message)) return 'Hardcoded Unix path /etc/';
+      if (/\/tmp\//.test(f.message)) return 'Hardcoded Unix path /tmp/';
+      return 'OS-specific path or command';
+    },
+    extractFile: (f) => {
+      const m = (f.context || '').match(/at\s+.*?\((.+?):\d+:\d+\)/);
+      return m ? m[1] : null;
+    },
+  },
+  {
+    category: 'ASYNC_TIMING',
+    rules: [
+      [/unhandled.*promise|unresolved|not a function.*then/, 0.9],
+      [/fire.and.forget|ghost.*test|0 passed.*0 failed/, 0.85],
+      [/race\s*condition|concurrent/, 0.7],
+      [/timeout|ETIMEDOUT|timed?\s*out/, 0.6],
+    ],
+    rootCause: (f) => {
+      if (/timeout/i.test(f.message)) return 'Test or operation timed out';
+      if (/promise/i.test(f.message)) return 'Unhandled promise rejection';
+      return 'Async timing issue';
+    },
+  },
+  {
+    category: 'DEPENDENCY',
+    typeMatch: 'npm', typeScore: 0.85,
+    rules: [
+      [/npm audit|vulnerabilit/i, 0.9],
+      [/Cannot find module|MODULE_NOT_FOUND/, 0.85],
+      [/version.*mismatch|peer.*dep|ERESOLVE/, 0.8],
+      [/ENOENT.*node_modules/, 0.7],
+    ],
+    rootCause: (f) => {
+      const m = f.message.match(/Cannot find module '([^']+)'/);
+      return m ? `Missing module: ${m[1]}` : 'Dependency issue';
+    },
+    extractFile: (f) => {
+      const m = f.message.match(/Cannot find module '([^']+)'/);
+      return m ? m[1] : null;
+    },
+  },
+  {
+    category: 'SYNTAX',
+    typeMatch: 'syntax', typeScore: 0.95,
+    rules: [
+      [/SyntaxError|Unexpected token|Unexpected end/, 0.9],
+      [/PARSE ERROR/, 0.85],
+    ],
+    rootCause: (f) => f.message,
+    extractFile: (f) => f.file || null,
+  },
+  {
+    category: 'IMPORT',
+    rules: [
+      [/circular.*dep/, 0.9],
+      [/Cannot find module/, 0.85],
+      [/is not exported/, 0.85],
+      [/is not a function.*require/, 0.8],
+    ],
+    rootCause: (f) => {
+      const m = f.message.match(/Cannot find module '([^']+)'/);
+      if (m) return `Module not found: ${m[1]}`;
+      if (/circular/i.test(f.message)) return 'Circular dependency';
+      return 'Import/require error';
+    },
+  },
+  {
+    category: 'ASSERTION',
+    rules: [
+      [/Expected.*got|Assertion failed|should.*but/, 0.85],
+    ],
+    ctxRule: (_msg, f) => {
+      if (/assertEqual|assertIncludes|assertThrows/.test(f.context || '')) return 0.7;
+      if (f.type === 'test') return 0.5;
+      return 0;
+    },
+    rootCause: (f) => f.message,
+  },
+  {
+    category: 'ENVIRONMENT',
+    rules: [
+      [/node.*version|ENGINE.*unsupported/, 0.9],
+      [/EACCES|permission denied/i, 0.8],
+      [/electron.*not found|display.*not found/, 0.75],
+    ],
+    ctxRule: (msg, _f, ctx) => {
+      if (/diagnostics_channel/.test(msg) && (ctx?.nodeVersion || 0) >= 22) return 0.9;
+      return 0;
+    },
+    rootCause: (f) => {
+      if (/diagnostics_channel/.test(f.message)) return 'Node 22+ module loader change';
+      if (/EACCES/.test(f.message)) return 'Permission denied';
+      return 'Environment incompatibility';
+    },
+  },
+  {
+    category: 'TIMEOUT',
+    rules: [
+      [/timed?\s*out|ETIMEDOUT|timeout/i, 0.85],
+      [/exceeded.*time|took too long/i, 0.8],
+    ],
+    rootCause: () => 'Operation exceeded time limit',
+  },
+];
+
 class FailureAnalyzer {
   /** @param {{ bus?: *, memory?: *, knowledgeGraph?: *, selfModel?: * }} [deps] */
   constructor({ bus, memory, knowledgeGraph, selfModel } = {}) {
@@ -240,147 +360,23 @@ class FailureAnalyzer {
   }
 
   _buildPatternDB() {
-    return [
-      // ── CROSS_PLATFORM ──
-      {
-        category: 'CROSS_PLATFORM',
-        match: (f) => {
-          const msg = f.message || '';
-          if (/\/etc\/|\/tmp\/|\/bin\/|\/dev\//.test(msg)) return 0.95;
-          if (/ENOENT.*[\/\\](?:etc|tmp|bin)/.test(msg)) return 0.9;
-          if (/path\.sep|path separator|backslash/.test(msg)) return 0.8;
-          if (/wmic|Get-CimInstance|PowerShell/.test(msg)) return 0.7;
-          if (/cmd\.exe|\.bat\b/.test(msg)) return 0.6;
-          return 0;
-        },
-        rootCause: (f) => {
-          if (/\/etc\//.test(f.message)) return 'Hardcoded Unix path /etc/';
-          if (/\/tmp\//.test(f.message)) return 'Hardcoded Unix path /tmp/';
-          return 'OS-specific path or command';
-        },
-        extractFile: (f) => {
-          const m = (f.context || '').match(/at\s+.*?\((.+?):\d+:\d+\)/);
-          return m ? m[1] : null;
-        },
+    return PATTERN_RULES.map(rule => ({
+      category: rule.category,
+      match: (f, ctx) => {
+        const msg = f.message || '';
+        // Type-based short-circuit
+        if (rule.typeMatch && f.type === rule.typeMatch) return rule.typeScore;
+        // Regex rules — first match wins
+        for (const [regex, score] of rule.rules) {
+          if (regex.test(msg)) return score;
+        }
+        // Context-aware rules (e.g. ENVIRONMENT checks nodeVersion)
+        if (rule.ctxRule) return rule.ctxRule(msg, f, ctx);
+        return 0;
       },
-
-      // ── ASYNC_TIMING ──
-      {
-        category: 'ASYNC_TIMING',
-        match: (f) => {
-          const msg = f.message || '';
-          if (/unhandled.*promise|unresolved|not a function.*then/.test(msg)) return 0.9;
-          if (/fire.and.forget|ghost.*test|0 passed.*0 failed/.test(msg)) return 0.85;
-          if (/timeout|ETIMEDOUT|timed?\s*out/.test(msg)) return 0.6;
-          if (/race\s*condition|concurrent/.test(msg)) return 0.7;
-          return 0;
-        },
-        rootCause: (f) => {
-          if (/timeout/i.test(f.message)) return 'Test or operation timed out';
-          if (/promise/i.test(f.message)) return 'Unhandled promise rejection';
-          return 'Async timing issue';
-        },
-      },
-
-      // ── DEPENDENCY ──
-      {
-        category: 'DEPENDENCY',
-        match: (f) => {
-          if (f.type === 'npm') return 0.85;
-          const msg = f.message || '';
-          if (/npm audit|vulnerabilit/i.test(msg)) return 0.9;
-          if (/Cannot find module|MODULE_NOT_FOUND/.test(msg)) return 0.85;
-          if (/version.*mismatch|peer.*dep|ERESOLVE/.test(msg)) return 0.8;
-          if (/ENOENT.*node_modules/.test(msg)) return 0.7;
-          return 0;
-        },
-        rootCause: (f) => {
-          const m = f.message.match(/Cannot find module '([^']+)'/);
-          if (m) return `Missing module: ${m[1]}`;
-          return 'Dependency issue';
-        },
-        extractFile: (f) => {
-          const m = f.message.match(/Cannot find module '([^']+)'/);
-          return m ? m[1] : null;
-        },
-      },
-
-      // ── SYNTAX ──
-      {
-        category: 'SYNTAX',
-        match: (f) => {
-          if (f.type === 'syntax') return 0.95;
-          const msg = f.message || '';
-          if (/SyntaxError|Unexpected token|Unexpected end/.test(msg)) return 0.9;
-          if (/PARSE ERROR/.test(msg)) return 0.85;
-          return 0;
-        },
-        rootCause: (f) => f.message,
-        extractFile: (f) => f.file || null,
-      },
-
-      // ── IMPORT ──
-      {
-        category: 'IMPORT',
-        match: (f) => {
-          const msg = f.message || '';
-          if (/Cannot find module/.test(msg) && !/node_modules/.test(msg)) return 0.85;
-          if (/is not a function.*require/.test(msg)) return 0.8;
-          if (/circular.*dep/.test(msg)) return 0.9;
-          if (/is not exported/.test(msg)) return 0.85;
-          return 0;
-        },
-        rootCause: (f) => {
-          const m = f.message.match(/Cannot find module '([^']+)'/);
-          if (m) return `Module not found: ${m[1]}`;
-          if (/circular/i.test(f.message)) return 'Circular dependency';
-          return 'Import/require error';
-        },
-      },
-
-      // ── ASSERTION ──
-      {
-        category: 'ASSERTION',
-        match: (f) => {
-          const msg = f.message || '';
-          if (/Expected.*got|Assertion failed|should.*but/.test(msg)) return 0.85;
-          if (/assertEqual|assertIncludes|assertThrows/.test(f.context || '')) return 0.7;
-          if (f.type === 'test') return 0.5; // Any test failure is at least somewhat assertion
-          return 0;
-        },
-        rootCause: (f) => f.message,
-      },
-
-      // ── ENVIRONMENT ──
-      {
-        category: 'ENVIRONMENT',
-        match: (f, ctx) => {
-          const msg = f.message || '';
-          if (/node.*version|ENGINE.*unsupported/.test(msg)) return 0.9;
-          if (/EACCES|permission denied/i.test(msg)) return 0.8;
-          if (/electron.*not found|display.*not found/.test(msg)) return 0.75;
-          if (/diagnostics_channel/.test(msg) && (ctx.nodeVersion || 0) >= 22) return 0.9;
-          return 0;
-        },
-        rootCause: (f) => {
-          if (/diagnostics_channel/.test(f.message)) return 'Node 22+ module loader change';
-          if (/EACCES/.test(f.message)) return 'Permission denied';
-          return 'Environment incompatibility';
-        },
-      },
-
-      // ── TIMEOUT ──
-      {
-        category: 'TIMEOUT',
-        match: (f) => {
-          const msg = f.message || '';
-          if (/timed?\s*out|ETIMEDOUT|timeout/i.test(msg)) return 0.85;
-          if (/exceeded.*time|took too long/i.test(msg)) return 0.8;
-          return 0;
-        },
-        rootCause: () => 'Operation exceeded time limit',
-      },
-    ];
+      rootCause: rule.rootCause,
+      extractFile: rule.extractFile || undefined,
+    }));
   }
 
   // ════════════════════════════════════════════════════════

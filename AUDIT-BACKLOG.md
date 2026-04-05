@@ -7,7 +7,7 @@ Resolved items are documented in CHANGELOG.md for traceability.
 
 | ID   | Severity | Status   | Note |
 |------|----------|----------|------|
-| SA-O1| Info     | Reduced  | CC>30: 12 → 7. _analyzeStack refactored to table-driven. Remaining: declarative tables, core loops, consciousness rules. No further action. |
+| SA-O1| Info     | Closed   | CC>30: 12 → 7 → 6 (v6.0.5). `_buildPatternDB` refactored to declarative PATTERN_RULES table (CC=56→8). Remaining 9 are intentional: core loops (_executeLoop CC=32, executeWithContext CC=34), recall pipelines (MemoryFacade CC=33, UnifiedMemory CC=31), security (registerSystemTools CC=31), activity scoring (_pickActivity CC=31), consciousness rules (_determineQualia CC=36), UI (applyRenderers CC=317, applyQueries CC=45). No further action — refactoring would obscure safety-critical logic or add indirection without benefit. |
 | SA-O2| Info     | Stable   | God classes (>20 methods): 24 files. Top: LLMPort (42, multi-class), EventBus (41, infrastructure). Extraction not beneficial. |
 | TS-1 | Info     | ✅ Done  | 0 @ts-nocheck files (was 25). All 25 cleaned via JSDoc + @ts-ignore + type casts. |
 | L-4x | Low      | Hardened | ShellAgent: _sanitizeCommand() + blocklist + execFile. Shell-spawn for pipes is intentional. |

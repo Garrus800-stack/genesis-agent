@@ -67,6 +67,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 | **Cognition** | Expectations, surprise, dreams, working memory, autobiographical identity, emotional steering | None |
 | **MCP Server** | Exposes 7 tools (verify, analyze, safety scan, architecture query) — external IDEs invoke Genesis directly | MCP client only |
 | **Observability** | 13-panel live dashboard — consciousness, energy, architecture graph, tool synthesis, event flow | Log files |
+| **Offline-First** | NetworkSentinel detects outages, auto-failovers to local Ollama, restores cloud model on reconnect, queues mutations | Crashes on network loss |
 
 ### Capabilities at a glance
 
@@ -82,7 +83,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (6 evolvable traits), epigenetic conditioning, immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). **Empirically validated: +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4, kimi-k2.5:cloud).
 
-**Infrastructure** — 13-phase DI boot, EventBus (343 events), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules).
+**Infrastructure** — 13-phase DI boot, EventBus (343 events), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules).
 
 > **For the full feature list with version history**, see [CAPABILITIES.md](docs/CAPABILITIES.md).
 
@@ -130,7 +131,7 @@ Genesis automatically selects the best available model using Smart Ranking (35 t
 
 **Option C — Hybrid (best of both):**
 
-Run Ollama locally AND configure a cloud API key. Genesis uses cloud for complex reasoning tasks and auto-failovers to local when cloud is unavailable.
+Run Ollama locally AND configure a cloud API key. Genesis uses cloud for complex reasoning tasks and auto-failovers to local when cloud is unavailable. NetworkSentinel (v6.0.5) monitors connectivity every 30s and switches automatically — no manual intervention needed.
 
 ### Model selection
 
@@ -485,16 +486,16 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 237 JS files in src/ |
+| Source modules | 241 JS files in src/ |
 | Lines of code | ~81k src + ~43k test |
 | Manifest phases | 13 (+ Phase 0 bootstrap) |
-| DI services | 138 at runtime (130 manifest + 8 kernel) |
+| DI services | 139 at runtime (131 manifest + 8 kernel) |
 | Late-bindings | 197 cross-phase property injections |
-| Test suites | 250 files, ~3500 tests (coverage gates: 70/60/65) |
+| Test suites | 263 files, ~3720 tests (coverage gates: 75/70/70) |
 | Dependencies | 4 production + 3 optional + 5 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | Anthropic models | 3 (Opus 4, Sonnet 4, Haiku 4.5) |
-| IPC channels | 50 invoke + 2 send + 6 receive = 58 (rate-limited, all in sync) |
+| IPC channels | 55 invoke + 2 send + 6 receive = 63 (rate-limited, all in sync) |
 | Event types | 355 across 89 namespaces (catalogued in EventTypes.js) |
 | Cross-layer event flows | ~290 emitted events, ~65 listeners (via EventBus, no direct imports — run `npm run audit:events` for exact counts) |
 | Hexagonal ports | 6 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace) |

@@ -1,28 +1,28 @@
 # Genesis Agent — Architecture Deep-Dive
 
-> Comprehensive technical analysis of Genesis Agent v6.0.2.
-> Last updated with the v6.0.2 release (Meta-Cognitive Loop).
+> Comprehensive technical analysis of Genesis Agent v6.0.5.
+> Last updated with Offline-First (V6-10), Intelligence Pipeline, and Consolidation.
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **237 JS source modules** across **~81,000 LOC** of production code, supported by **250 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** — empirical self-awareness (CognitiveSelfModel) feeding into autonomous adaptation (AdaptiveStrategy, v6.0.2).
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **241 JS source modules** across **~84,000 LOC** of production code, supported by **264 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
 
 ### Key Numbers
 
 | Metric | Value |
 |--------|-------|
-| Production LOC (src/) | ~62,000 |
-| Source Modules | 230 JS files |
-| Test Suites / Tests | 180 / ~3,100 |
-| DI Services | 123 (registered via manifest) |
+| Production LOC (src/) | ~83,700 |
+| Source Modules | 241 JS files |
+| Test Suites / Tests | 264 / ~3,815 |
+| DI Services | 139 (131 manifest + 8 kernel) |
 | Boot Phases | 13 (+ Phase 0 bootstrap) |
 | npm Dependencies | 5 production + 2 dev |
-| Event Types (catalogued) | 180+ |
-| IPC Channels | 41 invoke + 2 send + 6 receive |
+| Event Types (catalogued) | 356 |
+| IPC Channels | 55 invoke + 2 send + 6 receive = 63 |
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
-| Coverage Gates | 70% lines, 60% branches, 65% functions |
+| Coverage Gates | 77% lines, 72% branches, 72% functions |
 | Fitness Score | 90/90 (100%) |
 | Circular Dependencies | 0 |
 | Cross-Layer Violations | 0 |
@@ -372,7 +372,7 @@ The EventBus (497 LOC) is the nervous system of Genesis:
 
 ### Peer-to-Peer
 
-`PeerNetwork` (494 LOC) + `PeerTransport` + `PeerCrypto` + `PeerHealth` enable multi-agent communication. AES-256-GCM encryption, PBKDF2 session keys with LRU cache.
+`PeerNetwork` (494 LOC) + `PeerTransport` + `PeerCrypto` + `PeerHealth` enable multi-agent communication. AES-256-GCM encryption, PBKDF2 session keys with LRU cache. `PeerConsensus` provides LWW-register state synchronization with per-domain vector clocks (settings, knowledge, schemas).
 
 ### MCP (Model Context Protocol)
 
@@ -381,6 +381,10 @@ The EventBus (497 LOC) is the nervous system of Genesis:
 ### Task Delegation
 
 `TaskDelegation` (487 LOC) allows AgentLoop to delegate steps to peer agents.
+
+### Network Resilience (v6.0.5)
+
+`NetworkSentinel` (~400 LOC) monitors connectivity with periodic probes (30s interval, 2 external + Ollama local). On 3 consecutive failures: declares offline, auto-failovers to best local Ollama model via `ModelBridge._selectBestModel()`, queues mutations in a ring buffer (500 entries). On reconnect: restores previous cloud model, replays queued mutations. `BodySchema.canAccessWeb` reflects real connectivity status via late-bound sampler.
 
 ---
 
@@ -404,21 +408,21 @@ Plus `dashboard.js` (682 LOC) for the system overview panel, and a global error 
 ## 11. LOC Distribution by Directory
 
 ```
-  core/          11 files    3,328 LOC    (6.4%)
-  foundation/    28 files    8,228 LOC   (14.7%)
-  intelligence/  16 files    5,754 LOC   (11.0%)
-  capabilities/  16 files    4,984 LOC    (9.5%)
-  planning/       9 files    2,828 LOC    (5.4%)
-  hexagonal/     13 files    5,254 LOC    (9.4%)
-  autonomy/       6 files    2,479 LOC    (4.7%)
-  organism/       8 files    2,939 LOC    (5.6%)
-  revolution/    14 files    5,569 LOC   (10.6%)
-  cognitive/      6 files    2,665 LOC    (5.1%)
-  consciousness/ 12 files    5,793 LOC   (11.1%)
-  ports/          5 files      683 LOC    (1.3%)
-  manifest/      13 files    1,459 LOC    (2.8%)
+  core/             15 files    4,935 LOC    (5.9%)
+  foundation/       32 files    8,801 LOC   (10.5%)
+  intelligence/     21 files    7,970 LOC    (9.5%)
+  capabilities/     22 files    7,372 LOC    (8.8%)
+  planning/         11 files    2,976 LOC    (3.5%)
+  hexagonal/        16 files    6,178 LOC    (7.4%)
+  autonomy/         11 files    3,842 LOC    (4.6%)
+  organism/         14 files    5,036 LOC    (6.0%)
+  revolution/       15 files    6,203 LOC    (7.4%)
+  cognitive/        20 files    8,819 LOC   (10.5%)
+  consciousness/    14 files    6,036 LOC    (7.2%)
+  ports/             8 files    1,115 LOC    (1.3%)
+  manifest/         13 files    2,023 LOC    (2.4%)
   ─────────────────────────────────────────────
-  agent/ total  160 files  ~53,100 LOC
-  + UI/kernel     16 files  ~3,500 LOC
-  = src/ total   176 files  ~56,600 LOC
+  agent/ total     212 files  ~71,300 LOC
+  + UI/kernel       29 files  ~12,400 LOC
+  = src/ total     241 files  ~83,700 LOC
 ```

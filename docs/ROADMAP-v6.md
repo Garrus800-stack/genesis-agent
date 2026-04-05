@@ -8,17 +8,17 @@
 
 | Metric | Value |
 |--------|-------|
-| Source Files / LOC | 237 / ~81.5k |
-| Test Suites / Tests | 250 / ~3550 |
+| Source Files / LOC | 241 / ~83.9k |
+| Test Suites / Tests | 263 / ~3720 |
 | Boot Phases | 13 |
-| Registered Services | 138 (130 manifest + 8 kernel) |
+| Registered Services | 139 (131 manifest + 8 kernel) |
 | Circular Dependencies | 0 |
 | Cross-Layer Violations | 0 |
-| Shutdown Integrity | ✅ All 56 services, sync writes |
+| Shutdown Integrity | ✅ All 60 services, sync writes |
 | Fitness Score | 90/90 (100%) |
 | TypeScript CI | ✅ Strict mode, 0 errors |
 | @ts-nocheck files | 0 (was 25) |
-| Coverage Ratchet | 70/60/65 (lines/branches/functions) |
+| Coverage Ratchet | 77/72/72 (lines/branches/functions) |
 
 ---
 
@@ -47,6 +47,7 @@
 | v6.0.2  | **V6-12 Meta-Cognitive Loop**: AdaptiveStrategy (bias→adaptation→validation→confirm/rollback), QuickBenchmark, ModelRouter empirical injection, OnlineLearner weakness signals, IdleMind calibrate activity |
 | v6.0.3  | **Security Audit Hardening**: 0 Critical, 3 High fixed (IPC validation, Sandbox isolation, ShellAgent NFKC), SA-P3/P4/P8 audits complete |
 | v6.0.4  | **Empirical Validation + Smart Model Selection**: CognitiveBudget (proportional intelligence), ExecutionProvenance (causal tracing), AdaptivePromptStrategy (self-optimizing prompts), Smart Model Ranking (0%→100%), Consciousness A/B (0pp → cognitive default), Organism A/B (+33pp confirmed), Colony Proof (16/16), --backend fix, /models UX, Layer A/B framework |
+| v6.0.5  | **Offline-First + Pipeline Validation + Colony Convergence**: NetworkSentinel (auto-failover to Ollama), intelligence pipeline integration tests (16), colony live convergence proof (17 tests, 3-peer daisy-chain), shutdown coverage fix (90/90 restored) |
 
 ### Completed SA Items
 
@@ -192,12 +193,13 @@ Standardized benchmarks to measure agent capability across versions and backends
 
 Graceful degradation to local-only operation when no internet is available.
 
-- **Network Detection**: Periodic connectivity check, automatic backend failover
-- **Ollama Auto-Switch**: When cloud backends unreachable, route all LLM calls to Ollama
-- **KG Cache**: Local snapshot of KnowledgeGraph for offline queries
-- **Degradation Matrix Extension**: Add network-aware rules to existing DegradationMatrix
-- **Sync on Reconnect**: Queue mutations during offline, sync to cloud backends on reconnect
-- **Prerequisite**: DegradationMatrix ✅, OllamaBackend ✅, KnowledgeGraph ✅
+- **✅ NetworkSentinel**: Phase 6 autonomy service (~400 LOC). Periodic connectivity probing (2 external + Ollama local). Debounced offline detection (3 failures). Auto-failover to best Ollama model. Auto-restore on reconnect. Mutation queue (ring buffer 500) with replay. 3 events, 3 schemas. 24 tests. (v6.0.5)
+- **Network Detection**: ✅ Periodic connectivity check, automatic backend failover
+- **Ollama Auto-Switch**: ✅ When cloud backends unreachable, route all LLM calls to Ollama
+- **KG Cache**: Local snapshot of KnowledgeGraph for offline queries (remaining)
+- **Degradation Matrix Extension**: Add network-aware rules to existing DegradationMatrix (remaining)
+- **Sync on Reconnect**: ✅ Queue mutations during offline, replay on reconnect (NetworkSentinel mutation queue)
+- **Prerequisite**: DegradationMatrix ✅, OllamaBackend ✅, KnowledgeGraph ✅, NetworkSentinel ✅
 - **Effort**: Low–Medium
 - **Priority**: Medium — natural extension of existing degradation infrastructure
 

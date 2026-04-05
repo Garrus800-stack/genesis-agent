@@ -1,6 +1,6 @@
 # Genesis Agent — Event Flow Architecture
 
-> v6.0.2 — Event flow documentation. Last updated with Meta-Cognitive Loop (V6-12).
+> v6.0.5 — Event flow documentation. Last updated with Offline-First (V6-10) and Intelligence Pipeline.
 > This document maps which modules emit and consume which EventBus events.
 
 ## System Overview
@@ -403,6 +403,59 @@ sequenceDiagram
         AS->>AS: emit adaptation:rolled-back
         AS->>LS: emit lesson:learned (rolled-back)
     end
+```
+
+## Event Flow: Network Resilience (v6.0.5)
+
+```
+NetworkSentinel (30s probe interval)
+    │
+    ├── external probe OK ──→ _onOnline()
+    │                            ├── (was offline?) ──→ emit 'network:status' {online: true}
+    │                            │                      ├── _restoreModel() → ModelBridge.switchTo(previousModel)
+    │                            │                      │   └── emit 'network:restored' {model, backend}
+    │                            │                      └── _flushQueue() → replay queued mutations
+    │                            └── (was online?) ──→ no-op
+    │
+    └── external probe FAIL ──→ _onProbeFailure()
+                                 ├── consecutiveFailures < threshold ──→ wait
+                                 └── consecutiveFailures >= threshold ──→ OFFLINE
+                                      ├── emit 'network:status' {online: false}
+                                      ├── emit 'health:degradation' {reason: 'network-offline'}
+                                      └── (Ollama available?) ──→ _failoverToOllama()
+                                           ├── ModelBridge.switchTo(bestOllamaModel)
+                                           └── emit 'network:failover' {from, to, reason}
+
+Consumers:
+  BodySchema     ← (late-bound) NetworkSentinel.getStatus() → canAccessWeb, constraints
+  ErrorAggregator ← 'network:error'
+  ImmuneSystem   ← 'health:degradation'
+  NeedsSystem    ← 'health:degradation'
+```
+
+## Event Flow: Intelligence Pipeline (v6.0.4–v6.0.5)
+
+```
+ChatOrchestrator.handleStream(message)
+    │
+    ├── CognitiveBudget.assess(message) ──→ {tier, tierName, reason}
+    │
+    ├── ExecutionProvenance.beginTrace(message) ──→ traceId
+    │   ├── .recordBudget(traceId, budget)
+    │   ├── .recordIntent(traceId, intent)
+    │   ├── .recordPrompt(traceId, {active, skipped, boosted})
+    │   ├── .recordModel(traceId, {name, backend})
+    │   └── .endTrace(traceId, {tokens, latencyMs, outcome})
+    │
+    ├── PromptBuilder._buildWithBudget(sections)
+    │   ├── CognitiveBudget.shouldIncludeSection(name, budget)
+    │   └── AdaptivePromptStrategy.getSectionAdvice(intent, section)
+    │       └── returns 'boost' | 'skip' | 'neutral'
+    │
+    └── AdaptivePromptStrategy._analyze() (every 25 traces)
+        ├── reads ExecutionProvenance.getRecentTraces()
+        ├── computes per-intent section effectiveness
+        └── emit 'prompt:strategy-updated' {intents, recommendations}
 ```
 
 ## Event Flow: Safety & Security

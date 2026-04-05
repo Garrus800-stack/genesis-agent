@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 6.0.4 · Last verified: all checks green (~3524 tests, 257 suites, TSC 0, fitness 90/90)
+> Version: 6.0.5 · Last verified: all checks green (~3720 tests, 263 suites, TSC 0, fitness 90/90)
 
 ---
 
@@ -11,7 +11,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a consciousness layer that models attention, memory, and temporal identity.
 
-The codebase is ~80k LOC of JavaScript (CommonJS), 237 source modules, 138 DI-managed services (130 manifest + 8 kernel), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~84k LOC of JavaScript (CommonJS), 241 source modules, 139 DI-managed services (131 manifest + 8 kernel), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -368,7 +368,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # ~3100 tests, 0 failures
+node test/index.js                          # ~3720 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -488,7 +488,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~3150 tests across 250 suites |
+| Tests | `node test/index.js` | ~3720 tests across 263 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
@@ -580,7 +580,7 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (~3100 tests)
+│   ├── index.js               → Module test runner (~3720 tests)
 │   ├── run-tests.js           → Legacy test runner (154 tests)
 │   └── modules/               → One test file per service
 ├── scripts/

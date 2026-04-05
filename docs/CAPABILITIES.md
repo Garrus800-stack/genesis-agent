@@ -1,12 +1,12 @@
 # Genesis Agent — Capabilities Overview
 
-> v5.9.8 — What Genesis can do, organized by category.
+> v6.0.5 — What Genesis can do, organized by category.
 
 ---
 
 ## At a Glance
 
-Genesis is a desktop AI agent that can read, modify, and extend its own source code — while preventing itself from weakening its own safety checks. It works with any LLM backend (Anthropic Claude, OpenAI, local via Ollama) and runs as an Electron desktop app.
+Genesis is a desktop AI agent that can read, modify, and extend its own source code — while preventing itself from weakening its own safety checks. It works with any LLM backend (Anthropic Claude, OpenAI, local via Ollama), runs as an Electron desktop app, and automatically failovers to local models when the network drops.
 
 ---
 
@@ -394,3 +394,51 @@ No competing framework (LangChain, CrewAI, AutoGen, Devin) has this. They may lo
 | **Lesson storage** | Every confirmed or rolled-back adaptation is stored as a lesson. Future self-awareness includes past adaptation outcomes — Genesis learns what works for itself. |
 | **Safety guards** | Max 1 concurrent adaptation. 30-minute cooldown per type. Minimum 10 outcomes before adapting. Identity/safety prompt sections are immutable. |
 | **Autonomous operation** | IdleMind `calibrate` activity runs the full cycle during idle time. No human intervention needed. CLI `/adapt` for manual trigger. |
+
+---
+
+## 20. Security Audit Hardening (v6.0.3)
+
+Full security audit of all IPC handlers, sandbox isolation, and shell execution.
+
+| Feature | What it does |
+|---|---|
+| **IPC validation** | All 52+ IPC handlers validated: `_validateStr` on all string inputs, path scope restriction, config structure validation. |
+| **Sandbox isolation** | `fs.cp`/`cpSync` blocked, `appendFile` intercepted with write-path check, `safeCopy()` prototype chain fully independent via `Object.create(null)`. |
+| **Shell hardening** | NFKC Unicode normalization in `_sanitizeCommand()` — fullwidth confusables (`ｒｍ` → `rm`) caught by blocklist. |
+| **SA-P audit complete** | ArchitectureReflection (SA-P3), EmbodiedPerception (SA-P4), DynamicToolSynthesis (SA-P8) — all audited clean. |
+
+---
+
+## 21. Proportional Intelligence (v6.0.4)
+
+Not every request needs the full cognitive pipeline. Genesis now scales effort to complexity.
+
+| Feature | What it does |
+|---|---|
+| **CognitiveBudget** | Classifies requests into 4 tiers (TRIVIAL/MODERATE/COMPLEX/EXTREME). Greetings skip PromptBuilder entirely. Code tasks get the full pipeline. |
+| **ExecutionProvenance** | Every response gets a causal trace: input → budget tier → intent → prompt sections → model selection → response metrics. Ring buffer of 100 traces. CLI `/trace` to inspect. |
+| **AdaptivePromptStrategy** | Analyzes provenance traces to learn which prompt sections help per intent type. Automatically boosts effective sections and skips ineffective ones. Protected sections (identity, safety) are never skipped. |
+| **Smart Model Ranking** | 35-tier pattern scoring (Claude=100, DeepSeek=92, minimax=15). First-run auto-selects the strongest available model instead of alphabetical first. |
+| **Colony Consensus Proof** | 16/16 VectorClock + sync + conflict resolution tests. LWW conflict resolution verified. |
+| **Consciousness A/B** | Empirically validated: 0pp impact. Default boot changed from `full` to `cognitive` (Phase 13 disabled by default). |
+| **Organism A/B** | Empirically validated: +33pp task success with Organism active. Stays enabled in all profiles. |
+
+---
+
+## 22. Offline-First & Consolidation (v6.0.5)
+
+Network resilience, intelligence pipeline validation, and codebase consolidation.
+
+| Feature | What it does |
+|---|---|
+| **NetworkSentinel** | Periodic connectivity monitoring (30s probes). 3 consecutive failures → offline. Auto-failover to best local Ollama model. Auto-restore on reconnect. Mutation queue (500 entries) replayed on reconnect. |
+| **BodySchema live network** | `canAccessWeb` now reflects real connectivity from NetworkSentinel, not static effector presence. Constraints include failover status. |
+| **Intelligence pipeline proof** | 16 integration tests validate the full CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy closed loop. 10-iteration convergence test proves no oscillation. |
+| **Colony convergence proof** | 17 tests with real PeerConsensus cross-sync. Bidirectional A↔B, LWW conflicts, multi-round catch-up, 3-peer daisy-chain convergence. |
+| **CLI: /network** | Network status — online/offline, failover state, Ollama availability, probe stats, queue size. |
+| **CLI: /trace, /traces** | Provenance trace inspection — budget tier, intent, prompt sections, model, response metrics. |
+| **IPC: Dashboard channels** | `agent:get-network-status`, `agent:force-network-probe`, `agent:get-provenance-report` — Dashboard can display network + provenance data. |
+| **CC reduction** | `_buildPatternDB` refactored from CC=56 to CC=8 via declarative PATTERN_RULES table. SA-O1 closed. |
+| **Event catalog clean** | `lesson:learned` + `prompt:strategy-updated` registered. 0 warnings, 0 errors. |
+| **Coverage push** | Function coverage 69.6% → 75.2% (+5.6pp). 152 new tests. Ratchet 75/70/70 → 77/72/72. |
