@@ -1,0 +1,14 @@
+node_modules/
+sandbox/
+.genesis/
+.genesis-lessons/
+.genesis-tmp-*/
+dist/
+uploads/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+.fitness-history/
+coverage/
+.c8_output/

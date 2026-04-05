@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://genesis-agent.dev/schemas/skill-manifest.json",
+  "title": "Genesis Skill Manifest",
+  "description": "Schema for Genesis Agent skill/plugin manifests (skill-manifest.json)",
+  "type": "object",
+  "required": ["name", "version", "description", "entry"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique skill identifier (lowercase, alphanumeric + hyphens)",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "maxLength": 60
+    },
+    "version": {
+      "type": "string",
+      "description": "Semver version string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of what this skill does",
+      "maxLength": 500
+    },
+    "entry": {
+      "type": "string",
+      "description": "Entry point file relative to the skill directory",
+      "pattern": "^[a-zA-Z0-9._/-]+\\.js$"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name or 'genesis-self' for self-created skills",
+      "maxLength": 100
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier",
+      "default": "MIT"
+    },
+    "sandbox": {
+      "type": "boolean",
+      "description": "Whether this skill runs in the sandbox (true) or with full access (false)",
+      "default": true
+    },
+    "interface": {
+      "type": "object",
+      "description": "Input/output type definitions",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Map of parameter names to type strings",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "object", "array", "any"]
+          }
+        },
+        "output": {
+          "type": "object",
+          "description": "Map of return field names to type strings",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "object", "array", "any"]
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Required Genesis services (resolved from DI container)",
+      "additionalProperties": {
+        "type": "string",
+        "description": "Service name in the container"
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "description": "Required capability scopes",
+      "items": {
+        "type": "string",
+        "enum": [
+          "fs:read", "fs:write", "shell:execute",
+          "network:http", "network:mcp",
+          "model:chat", "model:structured",
+          "self:inspect", "self:modify"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "triggers": {
+      "type": "array",
+      "description": "Intent patterns that activate this skill",
+      "items": {
+        "type": "object",
+        "properties": {
+          "pattern": { "type": "string", "description": "Regex pattern" },
+          "keywords": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Keywords for intent matching"
+          },
+          "priority": { "type": "integer", "minimum": 0, "maximum": 100 }
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "Skill-specific configuration defaults",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

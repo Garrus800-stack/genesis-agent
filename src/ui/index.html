@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- v4.0.0 FIX F-01: Hardened CSP — removed 'unsafe-inline' and 'unsafe-eval' from script-src.
+       Aligned with index.bundled.html. Monaco 0.44 AMD loader works without unsafe-eval
+       when loaded via src attribute (no inline scripts). 'unsafe-inline' retained only for
+       style-src (Monaco injects style elements for syntax highlighting). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' data: https://cdnjs.cloudflare.com; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com http://127.0.0.1:*;">
+  <title>Genesis</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.min.css">
+</head>
+<body>
+  <header id="topbar">
+    <div class="topbar-left">
+      <span class="logo">◆ Genesis</span>
+      <span id="status-badge" class="badge badge-booting" data-i18n="ui.booting">Booting...</span>
+    </div>
+    <div class="topbar-center">
+      <button id="btn-toggle-editor" class="topbar-btn" title="Editor">⌨ <span data-i18n="ui.editor">Editor</span></button>
+      <button id="btn-toggle-tree" class="topbar-btn" title="Files">📁 <span data-i18n="ui.files">Files</span></button>
+      <select id="model-select" class="topbar-select" title="Model"><option>Loading...</option></select>
+    </div>
+    <div class="topbar-right">
+      <select id="lang-select" class="topbar-select topbar-lang" title="Language">
+        <option value="en">EN</option>
+        <option value="de">DE</option>
+        <option value="fr">FR</option>
+        <option value="es">ES</option>
+      </select>
+      <button id="btn-undo" class="topbar-btn topbar-btn-undo" title="Undo">↩ <span data-i18n="ui.undo">Undo</span></button>
+      <button id="btn-health" class="topbar-btn" title="Status"><span data-i18n="ui.status">Status</span></button>
+      <button id="btn-self-model" class="topbar-btn" title="Self-Model">Self</button>
+      <button id="btn-goals" class="topbar-btn" title="Goals">🎯 <span data-i18n="ui.goals">Goals</span></button>
+      <button id="btn-settings" class="topbar-btn" title="Settings">⚙ <span data-i18n="ui.settings">Settings</span></button>
+    </div>
+  </header>
+
+  <main id="main-layout">
+    <aside id="file-tree-panel" class="panel hidden">
+      <div class="panel-header">
+        <span data-i18n="ui.project_structure">Project structure</span>
+        <button class="btn-icon" id="btn-close-filetree">✕</button>
+      </div>
+      <div id="file-tree" class="file-tree"></div>
+    </aside>
+
+    <aside id="goals-panel" class="panel hidden">
+      <div class="panel-header">
+        <span data-i18n="ui.goals">Goals</span>
+        <button class="btn-icon" id="btn-close-goals">✕</button>
+      </div>
+      <div id="goal-tree" class="goal-tree"></div>
+    </aside>
+
+    <section id="editor-panel" class="panel hidden">
+      <div class="panel-header">
+        <span id="editor-filename" data-i18n="ui.no_file">No file open</span>
+        <div>
+          <button id="btn-save" class="btn-icon" title="Save (Ctrl+S)">💾</button>
+          <button id="btn-run-sandbox" class="btn-icon" title="Run in sandbox">▶</button>
+          <button class="btn-icon" id="btn-close-editor">✕</button>
+        </div>
+      </div>
+      <div id="monaco-container"></div>
+      <div id="sandbox-output" class="sandbox-output hidden">
+        <div class="panel-header">
+          <span>Sandbox Output</span>
+          <button class="btn-icon" id="btn-close-sandbox-output">✕</button>
+        </div>
+        <pre id="sandbox-result"></pre>
+      </div>
+    </section>
+
+    <section id="chat-panel" class="panel">
+      <div id="chat-messages" class="chat-messages"></div>
+      <div id="chat-input-area">
+        <textarea id="chat-input" data-i18n-placeholder="ui.placeholder" placeholder="Message to Genesis..." rows="1" autofocus></textarea>
+        <button id="btn-send" title="Send (Enter)">➤</button>
+        <button id="btn-stop" class="hidden" title="Stop">■</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-backdrop" id="settings-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 data-i18n="ui.settings_title">Settings</h3>
+        <button class="btn-icon" id="btn-close-settings">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label>Active Model</label>
+          <span id="settings-model-info" class="setting-info">Loading...</span>
+        </div>
+        <div class="setting-group">
+          <label>Preferred Model</label>
+          <select id="set-preferred-model" class="setting-input"><option value="">Auto-detect</option></select>
+        </div>
+        <div class="setting-group setting-divider">
+          <label class="setting-section-label">Model Roles</label>
+        </div>
+        <div class="setting-group">
+          <label>Chat</label>
+          <select id="set-role-chat" class="setting-input"><option value="">Default</option></select>
+        </div>
+        <div class="setting-group">
+          <label>Code</label>
+          <select id="set-role-code" class="setting-input"><option value="">Default</option></select>
+        </div>
+        <div class="setting-group">
+          <label>Analysis</label>
+          <select id="set-role-analysis" class="setting-input"><option value="">Default</option></select>
+        </div>
+        <div class="setting-group">
+          <label>Creative</label>
+          <select id="set-role-creative" class="setting-input"><option value="">Default</option></select>
+        </div>
+        <div class="setting-group setting-divider">
+          <label class="setting-section-label">Fallback</label>
+        </div>
+        <div class="setting-group">
+          <label>Fallback Models (tried in order if primary fails)</label>
+          <select id="set-fallback-chain" class="setting-input" multiple size="3"><option value="">None configured</option></select>
+          <span class="setting-hint">Hold Ctrl to select multiple</span>
+        </div>
+        <div class="setting-group setting-divider">
+          <label class="setting-section-label">API Keys</label>
+        </div>
+        <div class="setting-group">
+          <label>Anthropic API Key</label>
+          <input type="password" id="set-anthropic-key" placeholder="sk-ant-api03-..." class="setting-input">
+        </div>
+        <div class="setting-group">
+          <label>OpenAI-compatible API URL</label>
+          <input type="text" id="set-openai-url" placeholder="https://api.openai.com" class="setting-input">
+        </div>
+        <div class="setting-group">
+          <label>OpenAI API Key</label>
+          <input type="password" id="set-openai-key" placeholder="sk-..." class="setting-input">
+        </div>
+        <div class="setting-group">
+          <label data-i18n="ui.daemon">Daemon</label>
+          <select id="set-daemon" class="setting-input">
+            <option value="true" data-i18n="ui.active">Active</option>
+            <option value="false" data-i18n="ui.inactive">Off</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label data-i18n="ui.idle_mind">IdleMind</label>
+          <select id="set-idle" class="setting-input">
+            <option value="true" data-i18n="ui.active">Active</option>
+            <option value="false" data-i18n="ui.inactive">Off</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label data-i18n="ui.self_mod">Self-modification</label>
+          <select id="set-selfmod" class="setting-input">
+            <option value="true" data-i18n="ui.allowed">Allowed</option>
+            <option value="false" data-i18n="ui.blocked">Blocked</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-secondary" id="btn-settings-cancel" data-i18n="ui.cancel">Cancel</button>
+        <button class="modal-btn modal-btn-primary" id="btn-settings-save" data-i18n="ui.save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+  <script src="components/ArchitectureGraph.js"></script>
+  <script src="DashboardRenderers.js"></script>
+  <script src="DashboardStyles.js"></script>
+  <script src="dashboard.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

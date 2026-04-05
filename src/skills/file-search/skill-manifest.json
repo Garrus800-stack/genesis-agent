@@ -1,0 +1,25 @@
+{
+  "name": "file-search",
+  "version": "1.0.0",
+  "description": "Searches project files by name pattern, content grep, and/or extension filter",
+  "entry": "index.js",
+  "interface": {
+    "input": {
+      "cwd": "string (optional)",
+      "pattern": "string regex (optional, matches filename)",
+      "content": "string regex (optional, greps inside files)",
+      "ext": "string (optional, e.g. '.js')",
+      "maxResults": "number (optional, default 25)",
+      "maxDepth": "number (optional, default 10)"
+    },
+    "output": {
+      "cwd": "string",
+      "query": "object",
+      "resultCount": "number",
+      "truncated": "boolean",
+      "results": "array"
+    }
+  },
+  "author": "genesis-self",
+  "sandbox": false
+}

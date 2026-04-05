@@ -1,0 +1,23 @@
+{
+  "name": "git-status",
+  "version": "1.0.0",
+  "description": "Reports git repository status: branch, changes, recent commits, latest tag",
+  "entry": "index.js",
+  "interface": {
+    "input": { "cwd": "string (optional, defaults to process.cwd())" },
+    "output": {
+      "branch": "string",
+      "commitHash": "string",
+      "dirty": "boolean",
+      "staged": "number",
+      "modified": "number",
+      "untracked": "number",
+      "totalChanges": "number",
+      "recentCommits": "array",
+      "latestTag": "string",
+      "remoteUrl": "string"
+    }
+  },
+  "author": "genesis-self",
+  "sandbox": false
+}

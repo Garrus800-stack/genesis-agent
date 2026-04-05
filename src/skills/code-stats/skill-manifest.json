@@ -1,0 +1,26 @@
+{
+  "name": "code-stats",
+  "version": "1.0.0",
+  "description": "Analyzes project code metrics: LOC by extension, largest files, comment ratio, dependency count",
+  "entry": "index.js",
+  "interface": {
+    "input": {
+      "cwd": "string (optional)",
+      "maxDepth": "number (optional, default 10)"
+    },
+    "output": {
+      "totalFiles": "number",
+      "totalLOC": "number",
+      "codeLOC": "number",
+      "blankLines": "number",
+      "commentLines": "number",
+      "directories": "number",
+      "byExtension": "object",
+      "largestFiles": "array",
+      "dependencies": "number",
+      "devDependencies": "number"
+    }
+  },
+  "author": "genesis-self",
+  "sandbox": false
+}

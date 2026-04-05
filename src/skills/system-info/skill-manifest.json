@@ -1,0 +1,17 @@
+{
+  "name": "system-info",
+  "version": "1.0.0",
+  "description": "Collects system information: OS, CPU, RAM, GPU, Node.js version",
+  "entry": "index.js",
+  "interface": {
+    "input": {},
+    "output": {
+      "os": "object",
+      "cpu": "object",
+      "memory": "object",
+      "node": "string"
+    }
+  },
+  "author": "genesis-self",
+  "sandbox": false
+}
