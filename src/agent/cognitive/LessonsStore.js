@@ -235,7 +235,36 @@ class LessonsStore {
       relevance,
       category: lesson.category,
       source: lesson.source,
+      useCount: lesson.useCount || 0,
+      lastUsed: lesson.lastUsed || 0,
     }));
+  }
+
+  /**
+   * Update a lesson's confidence based on outcome feedback.
+   * Public API for SymbolicResolver and other consumers.
+   *
+   * @param {string} lessonId  — Lesson to update
+   * @param {boolean} success  — Whether the lesson application succeeded
+   * @param {{ confBoost?: number, confPenalty?: number }} [opts]
+   * @returns {boolean} Whether the lesson was found and updated
+   */
+  updateLessonOutcome(lessonId, success, opts = {}) {
+    const lesson = this._lessons.find(l => l.id === lessonId);
+    if (!lesson) return false;
+
+    const boost = opts.confBoost ?? 0.05;
+    const penalty = opts.confPenalty ?? 0.15;
+
+    if (success) {
+      lesson.useCount = (lesson.useCount || 0) + 1;
+      lesson.lastUsed = Date.now();
+      lesson.evidence.confidence = Math.min(lesson.evidence.confidence + boost, 0.99);
+    } else {
+      lesson.evidence.confidence = Math.max(lesson.evidence.confidence - penalty, 0.1);
+    }
+    this._dirty = true;
+    return true;
   }
 
   /**

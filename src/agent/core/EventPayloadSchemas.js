@@ -231,6 +231,7 @@ const SCHEMAS = {
 
   // Symbolic Resolution (v6.0.8)
   'symbolic:resolved': { level: 'required', stepType: 'required', confidence: 'required', source: 'required' },
+  'symbolic:fallback': { reason: 'required', stepType: 'required' },
 
   // Consciousness Gate (v6.0.8)
   'selfmod:consciousness-blocked': { coherence: 'required' },

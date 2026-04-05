@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 6.0.8 · Last verified: all checks green (~3865 tests, 271 suites, TSC 0, fitness 90/90)
+> Version: 6.0.9 · Last verified: all checks green (~3879 tests, 273 suites, TSC 0, fitness 90/90)
 
 ---
 
@@ -407,7 +407,7 @@ Every event emitted must be:
 
 The `audit:events:strict` CI step enforces this. Unregistered events fail the build.
 
-**Current stats:** 374 catalogued events, 116 payload schemas.
+**Current stats:** 374 catalogued events, 117 payload schemas.
 
 ### 6.3 EventStore
 

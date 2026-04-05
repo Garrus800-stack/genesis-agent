@@ -134,6 +134,15 @@ class AgentLoop {
     // v6.0.8: Symbolic resolution — bypass LLM for known solutions
     this._symbolicResolver = null; // late-bound from phase 2
 
+    // v6.0.8: Consciousness-driven step boost — productive tension extends patience
+    this._unsubs = [];
+    this._unsubs.push(this.bus.on('consciousness:insight', (insight) => {
+      if (insight?.type === 'productive-tension' && this.running) {
+        this.maxStepsPerGoal += LIMITS.AGENT_LOOP_STEP_EXTENSION;
+        _log.info(`[LOOP] Productive tension detected — step limit raised to ${this.maxStepsPerGoal}`);
+      }
+    }));
+
     // v3.8.0: Composition delegates (replace prototype mixins)
     this.planner = new AgentLoopPlannerDelegate(this);
     this.steps = new AgentLoopStepsDelegate(this);
@@ -415,6 +424,8 @@ class AgentLoop {
     this._aborted = true;
     this._cancelToken?.cancel('Stopped by user');
     this.running = false;
+    for (const unsub of this._unsubs) { if (typeof unsub === 'function') unsub(); }
+    this._unsubs = [];
     if (this._pendingApproval) {
       this._pendingApproval.reject(new Error('Agent loop stopped by user'));
       this._pendingApproval = null;

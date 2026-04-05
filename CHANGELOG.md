@@ -1,35 +1,74 @@
+## [6.0.9] — The Learning Flywheel (Hardened)
+
+**Focus: Deep audit of v6.0.8 — every finding resolved, DIRECT resolution live, full test coverage, zero red tests.**
+
+### Bug Fixes
+
+- **DIRECT Resolution live** (SR-BUG-1, HIGH): `LessonsStore.recall()` now returns `useCount` + `lastUsed` in its result shape. Previously missing — DIRECT path in SymbolicResolver was dead code. Mock divergence in tests corrected to match real `recall()` signature.
+- **BackupManager overwrite test** (BM-PRE-1): `tmpDir()` used `Date.now()` without uniqueness suffix — two calls in the same millisecond returned the same directory. Fixed with counter suffix. 9/9 green.
+
+### API Improvements
+
+- `LessonsStore.updateLessonOutcome(id, success, opts)`: New public API for confidence feedback. Replaces private `_lessons` array access in SymbolicResolver. Clean encapsulation.
+- `SymbolicResolver._pass()`: Now emits `symbolic:fallback` event with `{ reason, stepType }`. Previously registered but never emitted.
+- `EventPayloadSchemas`: +1 schema (`symbolic:fallback`). All 4 v6.0.8 events now have schemas.
+
+### New Wiring
+
+- **Productive Tension → Step Boost**: AgentLoop subscribes to `consciousness:insight`. When IntrospectionEngine detects productive tension, `maxStepsPerGoal` is raised by `AGENT_LOOP_STEP_EXTENSION`. Listener cleanup in `stop()` via `_unsubs`.
+
+### Test Coverage
+
+- SymbolicResolver: 20 → 24 tests (+4: fallback events, graceful missing lesson, DIRECT for ANALYZE).
+- DirectedCuriosity: 5 new tests (`directed-curiosity.test.js`) — weakness scorer, targeted explore, event emission, fallback to random.
+- ConsciousnessGate: 5 new tests (`consciousness-gate.test.js`) — block <0.4, allow ≥0.4, no PhenomenalField, event emission, error graceful.
+- BackupManager: 8/1 → 9/0. Zero flaky tests.
+
+### Stats
+
+- Source: 243 files, ~85k LOC. Tests: 273 files, 3879 passing, 0 failing.
+- Fitness: 90/90. Events audit: ✅. TSC: 0 errors.
+
+---
+
 ## [6.0.8] — The Learning Flywheel
 
 **Focus: Genesis thinks before it calls the LLM. Three isolated systems become one feedback loop.**
 
 ### Symbolic Resolution (NEW)
 
-- `SymbolicResolver.js` (~230 LOC): Before every AgentLoop step calls model.chat(), checks LessonsStore + SchemaStore for known solutions. Three levels: DIRECT (bypass LLM, execute known fix), GUIDED (inject lesson as directive into prompt), PASS (normal flow).
+- `SymbolicResolver.js` (~280 LOC): Before every AgentLoop step calls model.chat(), checks LessonsStore + SchemaStore for known solutions. Three levels: DIRECT (bypass LLM, execute known fix), GUIDED (inject lesson as directive into prompt), PASS (normal flow).
 - Wired into `AgentLoopSteps._executeStep()` — single injection point before the step-type switch.
 - DIRECT only for safe actions (ANALYZE, SHELL, SEARCH) with high confidence (>0.85), proven track record (useCount > 3), and recent success (< 7 days). CODE and SELF_MODIFY can never be DIRECT.
 - GUIDED mode prepends lessons as DIRECTIVE (not context) — stronger signal than PromptBuilder injection.
-- Outcome recording feeds back: success boosts confidence, failure penalizes. Creates a learning flywheel.
-- Phase 2 manifest. Late-bound to LessonsStore + SchemaStore. 20 tests.
+- Outcome recording via `LessonsStore.updateLessonOutcome()` — success boosts confidence, failure penalizes. Creates a learning flywheel.
+- Phase 2 manifest. Late-bound to LessonsStore + SchemaStore. 24 tests.
 
 ### Directed Curiosity
 
 - `IdleMind._pickActivity()`: New scorer queries `CognitiveSelfModel.getCapabilityProfile()` for weak task types. Boosts `explore` score proportionally to weakness count.
 - `IdleMind._explore()`: When weakness is known, targets modules related to the weak area (WEAKNESS_MODULE_MAP) instead of random exploration. Generates targeted insights.
 - Late-binding: `cognitiveSelfModel` → IdleMind (phase 6 manifest).
-- Event: `idle:curiosity-targeted` with weakness, targetModule, insight.
+- Event: `idle:curiosity-targeted` with weakness, targetModule, insight. 5 tests.
 
 ### Consciousness Gate
 
 - `SelfModificationPipeline.modify()`: Checks `PhenomenalField.getCoherence()` before allowing self-modification. Coherence < 0.4 → modification deferred with user-facing message.
 - First real consciousness→action coupling in Genesis. The consciousness layer now has a measurable job.
 - Late-binding: `phenomenalField` → SelfModPipeline (phase 5 manifest).
-- Event: `selfmod:consciousness-blocked` with coherence score.
+- Event: `selfmod:consciousness-blocked` with coherence score. 5 tests.
+
+### Productive Tension
+
+- `AgentLoop`: Subscribes to `consciousness:insight` — when IntrospectionEngine detects productive tension (frustration driving better solutions), temporarily raises `maxStepsPerGoal`. Listener cleanup in `stop()`.
 
 ### Infrastructure
 
 - EventTypes: +4 events (symbolic:resolved, symbolic:fallback, selfmod:consciousness-blocked, idle:curiosity-targeted).
-- EventPayloadSchemas: +3 schemas.
-- Source: 243 files, ~85k LOC. Tests: 271 files, ~3865 passing.
+- EventPayloadSchemas: +4 schemas (symbolic:resolved, symbolic:fallback, selfmod:consciousness-blocked, idle:curiosity-targeted).
+- `LessonsStore.recall()`: Now returns `useCount` + `lastUsed` in result shape.
+- `LessonsStore.updateLessonOutcome()`: New public API for confidence feedback (replaces private `_lessons` access).
+- Source: 243 files, ~85k LOC. Tests: 273 files, ~3879 passing.
 
 ---
 

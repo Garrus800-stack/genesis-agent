@@ -8,7 +8,7 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-6.0.8-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-6.0.9-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/tests-~3865%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/modules-243-e0e0e8?style=flat-square" alt="Modules">

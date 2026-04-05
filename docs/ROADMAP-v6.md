@@ -1,6 +1,6 @@
 # Genesis — v6 Roadmap
 
-> **v6.0.8 — All 12 roadmap items complete. Learning Flywheel added.** Remaining items deferred to v7.
+> **v6.0.9 — All 12 roadmap items complete. Learning Flywheel added.** Remaining items deferred to v7.
 
 ---
 

@@ -107,7 +107,7 @@ class SymbolicResolver {
     this._stats.queries++;
 
     if (!this.lessonsStore && !this.schemaStore) {
-      return this._pass('no knowledge stores available');
+      return this._pass('no knowledge stores available', stepType);
     }
 
     const category = STEP_TO_CATEGORY[stepType] || 'general';
@@ -128,7 +128,7 @@ class SymbolicResolver {
     const bestSource = lessonConf >= schemaConf ? bestLesson : bestSchema;
 
     if (bestConf < this._config.guidedThreshold) {
-      return this._pass('confidence below guided threshold');
+      return this._pass('confidence below guided threshold', stepType);
     }
 
     // ── Check for DIRECT eligibility ───────────────────────
@@ -173,19 +173,9 @@ class SymbolicResolver {
       else this._stats.directFailures++;
     }
 
-    // Boost or penalize lesson confidence in LessonsStore
-    if (this.lessonsStore && lessonId) {
-      const lesson = this.lessonsStore._lessons?.find(l => l.id === lessonId);
-      if (lesson) {
-        if (success) {
-          lesson.useCount++;
-          lesson.lastUsed = Date.now();
-          lesson.evidence.confidence = Math.min(lesson.evidence.confidence + 0.05, 0.99);
-        } else {
-          lesson.evidence.confidence = Math.max(lesson.evidence.confidence - 0.15, 0.1);
-        }
-        this.lessonsStore._dirty = true;
-      }
+    // Boost or penalize lesson confidence via public LessonsStore API
+    if (this.lessonsStore?.updateLessonOutcome && lessonId) {
+      this.lessonsStore.updateLessonOutcome(lessonId, success);
     }
   }
 
@@ -280,8 +270,16 @@ class SymbolicResolver {
   }
 
   /** @private */
-  _pass(reason) {
+  _pass(reason, stepType) {
     this._stats.passes++;
+
+    if (stepType) {
+      this.bus.emit('symbolic:fallback', {
+        reason,
+        stepType,
+      }, { source: 'SymbolicResolver' });
+    }
+
     return { level: LEVEL.PASS, confidence: 0, directive: '' };
   }
 }

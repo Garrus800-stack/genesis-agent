@@ -19,26 +19,53 @@ function mockBus() {
 }
 
 // ── Mock LessonsStore ────────────────────────────────────────
+// recall() returns the same shape as real LessonsStore.recall():
+// { id, insight, strategy, confidence, relevance, category, source, useCount, lastUsed }
 function mockLessonsStore(lessons = []) {
+  const internal = lessons.map(l => ({
+    id: l.id || 'l-1',
+    insight: l.insight,
+    strategy: l.strategy || null,
+    evidence: { confidence: l.confidence || 0.5 },
+    useCount: l.useCount || 0,
+    lastUsed: l.lastUsed || Date.now(),
+    category: l.category || 'general',
+    source: l.source || 'test',
+  }));
+
   return {
-    recall: (category, context, limit) => lessons.slice(0, limit),
-    _lessons: lessons.map(l => ({
-      id: l.id || 'l-1',
+    recall: (category, context, limit) => internal.slice(0, limit).map(l => ({
+      id: l.id,
       insight: l.insight,
-      strategy: l.strategy || null,
-      evidence: { confidence: l.confidence || 0.5 },
-      useCount: l.useCount || 0,
-      lastUsed: l.lastUsed || Date.now(),
+      strategy: l.strategy,
+      confidence: l.evidence.confidence,
+      relevance: 0.8,
+      category: l.category,
+      source: l.source,
+      useCount: l.useCount,
+      lastUsed: l.lastUsed,
     })),
-    _dirty: false,
+    updateLessonOutcome: (lessonId, success, opts = {}) => {
+      const lesson = internal.find(l => l.id === lessonId);
+      if (!lesson) return false;
+      const boost = opts.confBoost ?? 0.05;
+      const penalty = opts.confPenalty ?? 0.15;
+      if (success) {
+        lesson.useCount++;
+        lesson.lastUsed = Date.now();
+        lesson.evidence.confidence = Math.min(lesson.evidence.confidence + boost, 0.99);
+      } else {
+        lesson.evidence.confidence = Math.max(lesson.evidence.confidence - penalty, 0.1);
+      }
+      return true;
+    },
+    _internal: internal,
   };
 }
 
 // ── Mock SchemaStore ─────────────────────────────────────────
 function mockSchemaStore(schemas = []) {
-  return {
-    match: () => schemas,
-  };
+  return { match: () => schemas };
 }
 
 // ════════════════════════════════════════════════════════════
@@ -66,10 +93,7 @@ describe('SymbolicResolver — resolution levels', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
       lessonsStore: mockLessonsStore([{
-        id: 'l-1',
-        insight: 'Use step-by-step for code tasks',
-        confidence: 0.65,
-        useCount: 2,
+        id: 'l-1', insight: 'Use step-by-step for code tasks', confidence: 0.65, useCount: 2,
       }]),
     });
     const result = sr.resolve('CODE', 'generate a REST endpoint');
@@ -80,11 +104,7 @@ describe('SymbolicResolver — resolution levels', () => {
   test('PASS when confidence below guided threshold', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
-      lessonsStore: mockLessonsStore([{
-        id: 'l-1',
-        insight: 'some weak insight',
-        confidence: 0.3,
-      }]),
+      lessonsStore: mockLessonsStore([{ id: 'l-1', insight: 'weak', confidence: 0.3 }]),
     });
     const result = sr.resolve('CODE', 'generate code');
     if (result.level !== LEVEL.PASS) throw new Error(`Expected PASS, got ${result.level}`);
@@ -100,11 +120,9 @@ describe('SymbolicResolver — DIRECT resolution', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
       lessonsStore: mockLessonsStore([{
-        id: 'l-fix',
-        insight: 'npm install fixes missing module',
-        confidence: 0.90,
-        useCount: 5,
-        lastUsed: Date.now() - 1000 * 60 * 60, // 1 hour ago
+        id: 'l-fix', insight: 'npm install fixes missing module',
+        confidence: 0.90, useCount: 5,
+        lastUsed: Date.now() - 1000 * 60 * 60,
         strategy: { command: 'npm install' },
       }]),
     });
@@ -113,20 +131,28 @@ describe('SymbolicResolver — DIRECT resolution', () => {
     if (result.lesson.id !== 'l-fix') throw new Error('Wrong lesson');
   });
 
+  test('DIRECT for ANALYZE with proven lesson', () => {
+    const sr = new SymbolicResolver({
+      bus: mockBus(),
+      lessonsStore: mockLessonsStore([{
+        id: 'l-a', insight: 'Read package.json first',
+        confidence: 0.92, useCount: 8, lastUsed: Date.now() - 3600000,
+        strategy: { command: 'cat package.json' },
+      }]),
+    });
+    const result = sr.resolve('ANALYZE', 'check project structure');
+    if (result.level !== LEVEL.DIRECT) throw new Error(`Expected DIRECT, got ${result.level}`);
+  });
+
   test('NEVER DIRECT for CODE even with high confidence', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
       lessonsStore: mockLessonsStore([{
-        id: 'l-1',
-        insight: 'Always works',
-        confidence: 0.99,
-        useCount: 10,
-        lastUsed: Date.now(),
-        strategy: { promptStyle: 'step-by-step' },
+        id: 'l-1', insight: 'Always works', confidence: 0.99,
+        useCount: 10, lastUsed: Date.now(), strategy: { promptStyle: 'step-by-step' },
       }]),
     });
     const result = sr.resolve('CODE', 'generate code');
-    // Should be GUIDED, not DIRECT — CODE is in neverDirect
     if (result.level === LEVEL.DIRECT) throw new Error('CODE should never be DIRECT');
   });
 
@@ -134,12 +160,8 @@ describe('SymbolicResolver — DIRECT resolution', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
       lessonsStore: mockLessonsStore([{
-        id: 'l-1',
-        insight: 'Always works',
-        confidence: 0.99,
-        useCount: 10,
-        lastUsed: Date.now(),
-        strategy: {},
+        id: 'l-1', insight: 'Always works', confidence: 0.99,
+        useCount: 10, lastUsed: Date.now(), strategy: {},
       }]),
     });
     const result = sr.resolve('SELF_MODIFY', 'change code');
@@ -150,12 +172,8 @@ describe('SymbolicResolver — DIRECT resolution', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
       lessonsStore: mockLessonsStore([{
-        id: 'l-1',
-        insight: 'new insight',
-        confidence: 0.95,
-        useCount: 1, // too few
-        lastUsed: Date.now(),
-        strategy: { command: 'npm test' },
+        id: 'l-1', insight: 'new insight', confidence: 0.95,
+        useCount: 1, lastUsed: Date.now(), strategy: { command: 'npm test' },
       }]),
     });
     const result = sr.resolve('SHELL', 'run tests');
@@ -166,12 +184,8 @@ describe('SymbolicResolver — DIRECT resolution', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
       lessonsStore: mockLessonsStore([{
-        id: 'l-1',
-        insight: 'old fix',
-        confidence: 0.95,
-        useCount: 10,
-        lastUsed: Date.now() - 30 * 24 * 60 * 60 * 1000, // 30 days ago
-        strategy: { command: 'npm install' },
+        id: 'l-1', insight: 'old fix', confidence: 0.95, useCount: 10,
+        lastUsed: Date.now() - 30 * 24 * 60 * 60 * 1000, strategy: { command: 'npm install' },
       }]),
     });
     const result = sr.resolve('SHELL', 'fix dependency');
@@ -182,12 +196,8 @@ describe('SymbolicResolver — DIRECT resolution', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
       lessonsStore: mockLessonsStore([{
-        id: 'l-1',
-        insight: 'some insight',
-        confidence: 0.95,
-        useCount: 10,
-        lastUsed: Date.now(),
-        strategy: null, // no actionable strategy
+        id: 'l-1', insight: 'insight', confidence: 0.95,
+        useCount: 10, lastUsed: Date.now(), strategy: null,
       }]),
     });
     const result = sr.resolve('SHELL', 'do something');
@@ -203,10 +213,7 @@ describe('SymbolicResolver — directive building', () => {
   test('builds directive from lesson insight', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
-      lessonsStore: mockLessonsStore([{
-        insight: 'Use async/await pattern for error handling',
-        confidence: 0.7,
-      }]),
+      lessonsStore: mockLessonsStore([{ insight: 'Use async/await pattern for error handling', confidence: 0.7 }]),
     });
     const result = sr.resolve('CODE', 'fix error handling');
     if (!result.directive.includes('async/await')) throw new Error('Directive should include lesson insight');
@@ -217,10 +224,8 @@ describe('SymbolicResolver — directive building', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
       schemaStore: mockSchemaStore([{
-        name: 'error-pattern',
-        recommendation: 'Always wrap in try-catch',
-        confidence: 0.7,
-        successModifier: 0.3,
+        name: 'error-pattern', recommendation: 'Always wrap in try-catch',
+        confidence: 0.7, successModifier: 0.3,
       }]),
     });
     const result = sr.resolve('CODE', 'handle errors');
@@ -232,10 +237,8 @@ describe('SymbolicResolver — directive building', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
       schemaStore: mockSchemaStore([{
-        name: 'bad-pattern',
-        recommendation: 'Using eval is risky',
-        confidence: 0.6,
-        successModifier: -0.5,
+        name: 'bad-pattern', recommendation: 'Using eval is risky',
+        confidence: 0.6, successModifier: -0.5,
       }]),
     });
     const result = sr.resolve('CODE', 'evaluate expression');
@@ -248,28 +251,20 @@ describe('SymbolicResolver — directive building', () => {
 // ════════════════════════════════════════════════════════════
 
 describe('SymbolicResolver — outcome recording', () => {
-  test('boosts lesson confidence on success', () => {
-    const store = mockLessonsStore([{
-      id: 'l-1', insight: 'test', confidence: 0.7, useCount: 3,
-    }]);
+  test('boosts lesson confidence on success via updateLessonOutcome', () => {
+    const store = mockLessonsStore([{ id: 'l-1', insight: 'test', confidence: 0.7, useCount: 3 }]);
     const sr = new SymbolicResolver({ bus: mockBus(), lessonsStore: store });
-
     sr.recordOutcome('direct', 'l-1', true);
-
-    const lesson = store._lessons[0];
+    const lesson = store._internal[0];
     if (lesson.evidence.confidence <= 0.7) throw new Error('Confidence should increase on success');
     if (lesson.useCount !== 4) throw new Error(`Expected useCount 4, got ${lesson.useCount}`);
   });
 
-  test('penalizes lesson confidence on failure', () => {
-    const store = mockLessonsStore([{
-      id: 'l-1', insight: 'test', confidence: 0.7, useCount: 3,
-    }]);
+  test('penalizes lesson confidence on failure via updateLessonOutcome', () => {
+    const store = mockLessonsStore([{ id: 'l-1', insight: 'test', confidence: 0.7, useCount: 3 }]);
     const sr = new SymbolicResolver({ bus: mockBus(), lessonsStore: store });
-
     sr.recordOutcome('direct', 'l-1', false);
-
-    const lesson = store._lessons[0];
+    const lesson = store._internal[0];
     if (lesson.evidence.confidence >= 0.7) throw new Error('Confidence should decrease on failure');
   });
 
@@ -277,10 +272,16 @@ describe('SymbolicResolver — outcome recording', () => {
     const sr = new SymbolicResolver({ bus: mockBus() });
     sr.recordOutcome('direct', 'l-1', true);
     sr.recordOutcome('direct', 'l-2', false);
-
     const stats = sr.getStats();
     if (stats.directSuccesses !== 1) throw new Error(`Expected 1 success, got ${stats.directSuccesses}`);
     if (stats.directFailures !== 1) throw new Error(`Expected 1 failure, got ${stats.directFailures}`);
+  });
+
+  test('gracefully handles missing lesson in store', () => {
+    const store = mockLessonsStore([]);
+    const sr = new SymbolicResolver({ bus: mockBus(), lessonsStore: store });
+    sr.recordOutcome('direct', 'non-existent', true);
+    if (sr.getStats().directSuccesses !== 1) throw new Error('Stats should still track');
   });
 });
 
@@ -291,12 +292,8 @@ describe('SymbolicResolver — outcome recording', () => {
 describe('SymbolicResolver — events', () => {
   test('emits symbolic:resolved for GUIDED', () => {
     const bus = mockBus();
-    const sr = new SymbolicResolver({
-      bus,
-      lessonsStore: mockLessonsStore([{ insight: 'works', confidence: 0.7 }]),
-    });
+    const sr = new SymbolicResolver({ bus, lessonsStore: mockLessonsStore([{ insight: 'works', confidence: 0.7 }]) });
     sr.resolve('ANALYZE', 'check code');
-
     const events = bus.getEmitted('symbolic:resolved');
     if (events.length === 0) throw new Error('Should emit symbolic:resolved');
     if (events[0].payload.level !== 'guided') throw new Error('Should be guided level');
@@ -307,19 +304,36 @@ describe('SymbolicResolver — events', () => {
     const sr = new SymbolicResolver({
       bus,
       lessonsStore: mockLessonsStore([{
-        id: 'l-1',
-        insight: 'npm install',
-        confidence: 0.95,
-        useCount: 5,
-        lastUsed: Date.now(),
-        strategy: { command: 'npm install' },
+        id: 'l-1', insight: 'npm install', confidence: 0.95,
+        useCount: 5, lastUsed: Date.now(), strategy: { command: 'npm install' },
       }]),
     });
     sr.resolve('SHELL', 'fix modules');
-
     const events = bus.getEmitted('symbolic:resolved');
     if (events.length === 0) throw new Error('Should emit symbolic:resolved');
     if (events[0].payload.level !== 'direct') throw new Error('Should be direct level');
+  });
+
+  test('emits symbolic:fallback on PASS', () => {
+    const bus = mockBus();
+    const sr = new SymbolicResolver({ bus });
+    sr.resolve('ANALYZE', 'check code');
+    const events = bus.getEmitted('symbolic:fallback');
+    if (events.length === 0) throw new Error('Should emit symbolic:fallback');
+    if (events[0].payload.stepType !== 'ANALYZE') throw new Error('Should include stepType');
+    if (!events[0].payload.reason) throw new Error('Should include reason');
+  });
+
+  test('emits symbolic:fallback with reason on low confidence', () => {
+    const bus = mockBus();
+    const sr = new SymbolicResolver({
+      bus,
+      lessonsStore: mockLessonsStore([{ insight: 'weak', confidence: 0.3 }]),
+    });
+    sr.resolve('CODE', 'generate');
+    const events = bus.getEmitted('symbolic:fallback');
+    if (events.length === 0) throw new Error('Should emit symbolic:fallback');
+    if (!events[0].payload.reason.includes('threshold')) throw new Error('Should mention threshold');
   });
 });
 
@@ -333,7 +347,6 @@ describe('SymbolicResolver — stats', () => {
     sr.resolve('CODE', 'a');
     sr.resolve('SHELL', 'b');
     sr.resolve('ANALYZE', 'c');
-
     const stats = sr.getStats();
     if (stats.queries !== 3) throw new Error(`Expected 3 queries, got ${stats.queries}`);
     if (stats.passes !== 3) throw new Error(`Expected 3 passes, got ${stats.passes}`);
@@ -346,7 +359,6 @@ describe('SymbolicResolver — stats', () => {
     });
     sr.resolve('CODE', 'generate');
     sr.resolve('ANALYZE', 'check');
-
     const stats = sr.getStats();
     if (stats.guidedHits !== 2) throw new Error(`Expected 2 guided hits, got ${stats.guidedHits}`);
   });

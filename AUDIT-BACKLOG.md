@@ -3,14 +3,23 @@
 Tracking sheet for open findings and monitor items.
 Resolved items are documented in CHANGELOG.md for traceability.
 
+## v6.0.9 — The Learning Flywheel (Hardened)
+
+All v6.0.8 findings resolved. See CHANGELOG [6.0.9] for details.
+
 ## v6.0.8 — The Learning Flywheel
 
-| ID          | Severity | Description |
-|-------------|----------|-------------|
-| SYM-1       | HIGH   | SymbolicResolver.js (~230 LOC): Pre-LLM knowledge lookup. DIRECT/GUIDED/PASS resolution from LessonsStore + SchemaStore. Phase 2 manifest. 2 events, 1 schema. 20 tests. |
-| CURIO-1     | MEDIUM | DirectedCuriosity: IdleMind._pickActivity() weakness-aware scorer + _explore() targets weak areas via WEAKNESS_MODULE_MAP. Late-binding: cognitiveSelfModel → IdleMind. 1 event, 1 schema. |
-| CONSC-1     | MEDIUM | ConsciousnessGate: SelfModPipeline.modify() checks PhenomenalField.getCoherence() < 0.4 → blocks modification. First consciousness→action coupling. Late-binding: phenomenalField → SelfModPipeline. 1 event, 1 schema. |
-| INFRA-4     | LOW    | EventTypes +4, EventPayloadSchemas +3. Manifests: phase2 (+symbolicResolver), phase5 (+phenomenalField→SelfMod), phase6 (+cognitiveSelfModel→IdleMind), phase8 (+symbolicResolver→AgentLoop). |
+| ID          | Severity | Description | Status |
+|-------------|----------|-------------|--------|
+| SYM-1       | HIGH   | SymbolicResolver.js (~280 LOC): Pre-LLM knowledge lookup. DIRECT/GUIDED/PASS resolution from LessonsStore + SchemaStore. Phase 2 manifest. 2 events, 2 schemas. 24 tests. | ✅ Done |
+| SYM-BUG-1   | HIGH   | `LessonsStore.recall()` missing `useCount`/`lastUsed` in return — DIRECT resolution was dead code. Fixed: fields added to recall return shape. Mock divergence in tests corrected. | ✅ Fixed |
+| SYM-COUP-1  | LOW    | `recordOutcome()` accessed private `_lessons` array. Fixed: `LessonsStore.updateLessonOutcome()` public API added. SymbolicResolver uses public API. | ✅ Fixed |
+| SYM-EVT-1   | MEDIUM | `symbolic:fallback` registered but never emitted, no schema. Fixed: `_pass()` now emits event with reason + stepType. Schema added. | ✅ Fixed |
+| CURIO-1     | MEDIUM | DirectedCuriosity: IdleMind._pickActivity() weakness-aware scorer + _explore() targets weak areas via WEAKNESS_MODULE_MAP. Late-binding: cognitiveSelfModel → IdleMind. 1 event, 1 schema. 5 tests. | ✅ Done |
+| CONSC-1     | MEDIUM | ConsciousnessGate: SelfModPipeline.modify() checks PhenomenalField.getCoherence() < 0.4 → blocks modification. First consciousness→action coupling. Late-binding: phenomenalField → SelfModPipeline. 1 event, 1 schema. 5 tests. | ✅ Done |
+| TENSION-1   | LOW    | PRODUCTIVE_TENSION → maxStepsPerGoal: AgentLoop subscribes to `consciousness:insight`, boosts step limit on productive tension. Listener cleanup in `stop()`. | ✅ Done |
+| INFRA-4     | LOW    | EventTypes +4, EventPayloadSchemas +4. Manifests: phase2 (+symbolicResolver), phase5 (+phenomenalField→SelfMod), phase6 (+cognitiveSelfModel→IdleMind), phase8 (+symbolicResolver→AgentLoop). | ✅ Done |
+| BM-PRE-1    | INFO   | BackupManager test "import with overwrite" — `tmpDir()` race condition (`Date.now()` collision). Fixed: counter suffix for unique dirs. 9/9 green. | ✅ Fixed |
 
 ## v6.0.7 — Earned Autonomy
 

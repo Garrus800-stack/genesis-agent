@@ -8,8 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+let _tmpId = 0;
 function tmpDir() {
-  const dir = path.join(os.tmpdir(), `genesis-backup-test-${Date.now()}`);
+  const dir = path.join(os.tmpdir(), `genesis-backup-test-${Date.now()}-${_tmpId++}`);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
