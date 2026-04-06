@@ -31,6 +31,7 @@
 
 const https = require('https');
 const { createLogger } = require('../core/Logger');
+const { swallow } = require('../core/utils');
 const _log = createLogger('AutoUpdater');
 
 const DEFAULTS = {
@@ -79,13 +80,13 @@ class AutoUpdater {
     // Check on boot (non-blocking)
     if (this._checkOnBoot) {
       const { TIMEOUTS } = require('../core/Constants');
-      setTimeout(() => this.checkForUpdate().catch(() => {}), TIMEOUTS.UPDATE_BOOT_DELAY); // 10s after boot
+      setTimeout(() => swallow(this.checkForUpdate(), 'boot-update'), TIMEOUTS.UPDATE_BOOT_DELAY); // 10s after boot
     }
 
     // Periodic check
     if (this._intervals && this._checkIntervalHours > 0) {
       this._intervals.register('auto-update-check', () => {
-        this.checkForUpdate().catch(() => {});
+        swallow(this.checkForUpdate(), 'periodic-update');
       }, this._checkIntervalHours * 3600000);
     }
   }

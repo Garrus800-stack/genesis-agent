@@ -1,6 +1,6 @@
 # Genesis — v6 Roadmap
 
-> **v6.0.9 — All 12 roadmap items complete. Learning Flywheel added.** Remaining items deferred to v7.
+> **v6.1.0 — Observability release. All 12 roadmap items complete. Silent catches eliminated, consciousness measurable.** Remaining items deferred to v7.
 
 ---
 
@@ -8,10 +8,10 @@
 
 | Metric | Value |
 |--------|-------|
-| Source Files / LOC | 241 / ~84k |
-| Test Suites / Tests | 264 / ~3,830 |
+| Source Files / LOC | 243 / ~85k |
+| Test Suites / Tests | 275 / ~3,951 |
 | Boot Phases | 13 |
-| Registered Services | 139 (131 manifest + 8 kernel) |
+| Registered Services | 140 (131 manifest + 8 kernel + 1 runtime) |
 | Circular Dependencies | 0 |
 | Cross-Layer Violations | 0 |
 | Shutdown Integrity | ✅ All 60 services, sync writes |
@@ -19,9 +19,9 @@
 | TypeScript CI | ✅ Strict mode, 0 errors |
 | @ts-nocheck files | 0 |
 | Event Warnings | 0 |
-| Coverage Ratchet | 77/72/72 (lines/branches/functions) |
+| Coverage Ratchet | 77/73/73 (lines/branches/functions) |
 | CLI Commands | 20 |
-| IPC Channels | 63 (55 invoke + 2 send + 6 receive) |
+| IPC Channels | 64 (56 invoke + 2 send + 6 receive) |
 
 ---
 
@@ -58,6 +58,8 @@
 | v6.0.6 | V6-8 Replay complete, V6-10 KG Offline-Cache, V6-11 Dashboard + CLI, V6-3 Deploy strategies enhanced, V6-1 Colony peer verification |
 | v6.0.7 | Earned Autonomy (Wilson-score per-action trust), AgentLoop trust-gated approval, OnlineLearner→AdaptiveStrategy reactive bridge, model-aware prompt gating, cognitive boot default |
 | v6.0.8 | Learning Flywheel: SymbolicResolver (DIRECT/GUIDED/PASS pre-LLM lookup), DirectedCuriosity (weakness-targeted IdleMind exploration), ConsciousnessGate (coherence-gated self-modification) |
+| v6.0.9 | Learning Flywheel Hardened: DIRECT resolution live (recall shape fix), symbolic:fallback emitted+schema, public LessonsStore API, BackupManager tmpDir race fix, 34 feature tests |
+| v6.1.0 | Observability: swallow() silent-catch audit (10 sites), SelfModPipeline GateStats (consciousness measurable), coverage push (68 tests), EventSchema ratchet CI gate |
 
 ---
 

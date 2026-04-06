@@ -37,6 +37,7 @@
 'use strict';
 
 const { createLogger } = require('../core/Logger');
+const { swallow } = require('../core/utils');
 
 const _log = createLogger('TaskOutcomeTracker');
 
@@ -344,8 +345,8 @@ class TaskOutcomeTracker {
       if (typeof this.storage.writeSync === 'function') {
         this.storage.writeSync('task-outcomes', this._outcomes);
       } else if (typeof this.storage.write === 'function') {
-        // Best-effort async in sync context
-        this.storage.write('task-outcomes', this._outcomes).catch(() => {});
+        // v6.1.0: swallow() replaces silent catch — persist failures now visible in debug log
+        swallow(this.storage.write('task-outcomes', this._outcomes), 'outcome-persist');
       }
       this._dirty = false;
       this.stats.persisted++;

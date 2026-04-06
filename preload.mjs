@@ -57,6 +57,8 @@ const ALLOWED_INVOKE = [
   'agent:get-tool-synthesis',
   'agent:get-task-outcomes',
   'agent:get-selfmodel-report',
+  // v6.1.0: Self-modification gate statistics
+  'agent:get-gate-stats',
   // v6.0.0: Memory consolidation + Replay
   'agent:get-consolidation-report',
   'agent:trigger-consolidation',

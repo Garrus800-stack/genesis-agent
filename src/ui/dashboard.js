@@ -97,7 +97,7 @@ class Dashboard {
   async refresh() {
     if (!this._visible || !window.genesis) return;
     try {
-      const [health, loopStatus, session, eventDebug, reasoningTraces, archSnapshot, projectProfile, toolSynthesis, taskOutcomes, selfModelReport] = await Promise.all([
+      const [health, loopStatus, session, eventDebug, reasoningTraces, archSnapshot, projectProfile, toolSynthesis, taskOutcomes, selfModelReport, gateStats] = await Promise.all([
         window.genesis.invoke('agent:get-health').catch(err => { console.debug('[DASH] Health:', err.message); return null; }),
         window.genesis.invoke('agent:loop-status').catch(err => { console.debug('[DASH] Loop status:', err.message); return null; }),
         window.genesis.invoke('agent:get-session').catch(err => { console.debug('[DASH] Session:', err.message); return null; }),
@@ -108,6 +108,7 @@ class Dashboard {
         window.genesis.invoke('agent:get-tool-synthesis').catch(err => { console.debug('[DASH] ToolSynth:', err.message); return null; }),
         window.genesis.invoke('agent:get-task-outcomes').catch(err => { console.debug('[DASH] TaskOutcomes:', err.message); return null; }),
         window.genesis.invoke('agent:get-selfmodel-report').catch(err => { console.debug('[DASH] SelfModel:', err.message); return null; }),
+        window.genesis.invoke('agent:get-gate-stats').catch(err => { console.debug('[DASH] GateStats:', err.message); return null; }),
       ]);
       if (!health) {
         this._renderOfflineState();
@@ -118,7 +119,7 @@ class Dashboard {
       this._renderVitals(health);
       this._renderAgentLoop(loopStatus);
       this._renderCognitive(health?.cognitive, health?.cognitiveMonitor);
-      this._renderConsciousness(health?.consciousness);
+      this._renderConsciousness(health?.consciousness, gateStats);
       this._renderEnergy(health?.organism?.metabolism);
       this._renderReasoning(reasoningTraces);
       this._renderInsightsTimeline(health?.idleMind);

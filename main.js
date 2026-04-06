@@ -664,6 +664,13 @@ const CHANNELS = {
     return sm.getReport();
   },
 
+  // v6.1.0: Self-modification gate statistics
+  'agent:get-gate-stats': async () => {
+    if (!agent) return null;
+    const pipeline = agent.container.tryResolve('selfModPipeline');
+    return pipeline?.getGateStats?.() ?? null;
+  },
+
   // v6.0.0 (V6-7): MemoryConsolidator — compaction report + manual trigger
   'agent:get-consolidation-report': async () => {
     if (!agent) return null;

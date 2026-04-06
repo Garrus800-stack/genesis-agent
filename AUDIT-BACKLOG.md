@@ -3,6 +3,16 @@
 Tracking sheet for open findings and monitor items.
 Resolved items are documented in CHANGELOG.md for traceability.
 
+## v6.1.0 — Observability
+
+| ID | Severity | Description | Status |
+|----|----------|-------------|--------|
+| CATCH-1 | MEDIUM | 10× `.catch(() => {})` replaced with `swallow()` utility. TaskOutcomeTracker persist failure was silent — Learning Flywheel data integrity risk. | ✅ Fixed |
+| GATE-1 | MEDIUM | SelfModPipeline: `_gateStats` + `getGateStats()`. 4 gate counters (circuit breaker, consciousness, energy, pass). IPC + Dashboard. First empirical answer to "does ConsciousnessGate block anything?" | ✅ Done |
+| COV-1 | LOW | Coverage ratchet 77/72/72 → 78/73/73. 3 new test files (68 tests): PeerHealth, CorrelationContext, EventStore, ConversationMemory, BiologicalAliases, CostGuard, Ports, utils. | ✅ Done |
+| SCHEMA-1 | LOW | EventSchema ratchet in validate-events.js. `MINIMUM_SCHEMA_RATE = 0.25`. New CI gate prevents schema coverage erosion. | ✅ Done |
+| INFRA-5 | LOW | IPC +1 (get-gate-stats). Preload +1. Dashboard: consciousness panel extended. | ✅ Done |
+
 ## v6.0.9 — The Learning Flywheel (Hardened)
 
 All v6.0.8 findings resolved. See CHANGELOG [6.0.9] for details.

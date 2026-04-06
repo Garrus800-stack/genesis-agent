@@ -99,7 +99,24 @@ function safeJsonParse(text, fallback = null, source = '') {
  */
 function _round(v) { return Math.round((v || 0) * 1000) / 1000; }
 
-module.exports = { robustJsonParse, safeJsonParse, atomicWriteFile, atomicWriteFileSync, _round };
+/**
+ * Fire-and-forget promise wrapper with debug logging.
+ * Replaces bare `.catch(() => {})` — same semantics, but failures
+ * are visible in debug logs instead of silently swallowed.
+ *
+ * v6.1.0: Centralised fire-and-forget pattern. 10 call sites migrated.
+ *
+ * @param {Promise} promise - Promise to swallow
+ * @param {string} [label='swallow'] - Context label for debug output
+ * @returns {Promise<void>}
+ */
+function swallow(promise, label = 'swallow') {
+  return promise.then(() => {}, e => {
+    _log.debug(`[${label}] swallowed: ${e.message || e}`);
+  });
+}
+
+module.exports = { robustJsonParse, safeJsonParse, atomicWriteFile, atomicWriteFileSync, _round, swallow };
 
 // ── Atomic File Write Utilities (v4.10.0) ─────────────────
 // Write to temp file in same directory, then rename.

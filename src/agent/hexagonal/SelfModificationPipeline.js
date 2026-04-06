@@ -81,6 +81,18 @@ class SelfModificationPipeline {
     /** @type {string|null} */ this._pendingRetry = null; // v5.9.1: Last failed operation for retry
     /** @type {string|null} */ this._pendingRetryError = null;
     /** @type {number} */ this._retryCount = 0;
+
+    // v6.1.0: Gate statistics — makes all decision points measurable.
+    // Answers: "Does ConsciousnessGate actually block anything?"
+    this._gateStats = {
+      totalAttempts: 0,
+      consciousnessBlocked: 0,
+      energyBlocked: 0,
+      circuitBreakerBlocked: 0,
+      passed: 0,
+      lastBlockedAt: null,
+      lastCoherence: null,
+    };
   }
 
   /**
@@ -167,6 +179,24 @@ class SelfModificationPipeline {
       failures: this._consecutiveFailures,
       // @ts-ignore
       threshold: this._getCircuitBreakerThreshold(),
+    };
+  }
+
+  /**
+   * v6.1.0: Gate statistics — aggregated view of all self-modification gates.
+   * Answers: "Does ConsciousnessGate actually block anything?"
+   * @returns {{ totalAttempts: number, passed: number, blockRate: number, consciousnessBlockRate: number, consciousnessBlocked: number, energyBlocked: number, circuitBreakerBlocked: number, lastBlockedAt: number|null, lastCoherence: number|null }}
+   */
+  getGateStats() {
+    const { totalAttempts, consciousnessBlocked, passed } = this._gateStats;
+    return {
+      ...this._gateStats,
+      blockRate: totalAttempts > 0
+        ? Math.round((1 - passed / totalAttempts) * 10000) / 100
+        : 0,
+      consciousnessBlockRate: totalAttempts > 0
+        ? Math.round((consciousnessBlocked / totalAttempts) * 10000) / 100
+        : 0,
     };
   }
 
@@ -367,8 +397,11 @@ Be specific. Reference actual module names and actual limitations. Think like a 
   // ── MODIFY ───────────────────────────────────────────────
 
   async modify(message) {
+    this._gateStats.totalAttempts++;
+
     // FIX v4.12.8: Circuit breaker — refuse if frozen
     if (this._frozen) {
+      this._gateStats.circuitBreakerBlocked++;
       return `⛔ **Self-modification is frozen** — ${this._consecutiveFailures} consecutive failures.\n\n` +
         `Reason: ${this._frozenReason}\n\n` +
         `To resume: say "/self-repair-reset" or restart Genesis.`;
@@ -379,6 +412,9 @@ Be specific. Reference actual module names and actual limitations. Think like a 
       try {
         const coherence = this._phenomenalField.getCoherence?.();
         if (typeof coherence === 'number' && coherence < 0.4) {
+          this._gateStats.consciousnessBlocked++;
+          this._gateStats.lastBlockedAt = Date.now();
+          this._gateStats.lastCoherence = coherence;
           _log.warn(`[SELFMOD] Blocked: consciousness coherence too low (${coherence.toFixed(2)})`);
           this.bus.emit('selfmod:consciousness-blocked', {
             coherence: Math.round(coherence * 100) / 100,
@@ -390,11 +426,13 @@ Be specific. Reference actual module names and actual limitations. Think like a 
 
     // v5.0.0: Metabolism energy gating — self-mod is expensive
     if (this._metabolism && !this._metabolism.canAfford('selfModification')) {
+      this._gateStats.energyBlocked++;
       const level = this._metabolism.getEnergyLevel();
       return `⚡ **Insufficient energy for self-modification** (${level.current}/${level.max} AU).\n\nSelf-modification costs 50 AU. Wait for energy to regenerate or reduce activity.`;
     }
     if (this._metabolism) this._metabolism.consume('selfModification');
 
+    this._gateStats.passed++;
     this.bus.emit('agent:status', { state: 'self-modifying' }, { source: 'SelfModPipeline' });
 
     // Detect target file from message

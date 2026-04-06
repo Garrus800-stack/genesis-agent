@@ -582,16 +582,37 @@ function applyRenderers(Dashboard) {
 
   // ── v5.8.0: Consciousness Panel ─────────────────────────
   // PhenomenalField awareness, Attention gate, TemporalSelf, Values
-  proto._renderConsciousness = function(data) {
+  proto._renderConsciousness = function(data, gateStats) {
     const el = this._el('dash-consciousness-body');
-    if (!data) { el.innerHTML = '<span class="dash-muted">Keine Consciousness-Daten</span>'; return; }
+    if (!data && !gateStats) { el.innerHTML = '<span class="dash-muted">Keine Consciousness-Daten</span>'; return; }
 
-    const pf = data.phenomenalField;
-    const att = data.attention;
-    const ts = data.temporalSelf;
-    const vals = data.values;
+    const pf = data?.phenomenalField;
+    const att = data?.attention;
+    const ts = data?.temporalSelf;
+    const vals = data?.values;
 
     let html = '';
+
+    // v6.1.0: Self-Modification Gate Stats
+    if (gateStats && gateStats.totalAttempts > 0) {
+      const blockColor = gateStats.blockRate > 20 ? 'dash-gauge-danger' : 'dash-gauge-awareness';
+      html += '<div class="dash-consciousness-row" style="border-bottom:1px solid var(--dash-border);padding-bottom:4px;margin-bottom:4px">' +
+        '<span class="dash-label" style="font-weight:500">Self-Mod Gates</span>' +
+        '<span class="dash-value">' + gateStats.passed + '/' + gateStats.totalAttempts + ' passed</span>' +
+        '<span class="dash-label" style="margin-left:8px">Block</span>' +
+        '<span class="dash-value">' + gateStats.blockRate + '%</span>' +
+        '</div>';
+      if (gateStats.consciousnessBlocked > 0) {
+        html += '<div class="dash-consciousness-row">' +
+          '<span class="dash-label">Consciousness blocked</span><span class="dash-value">' + gateStats.consciousnessBlocked + '×</span>' +
+          '<span class="dash-label" style="margin-left:8px">Rate</span><span class="dash-value">' + gateStats.consciousnessBlockRate + '%</span>' +
+          '</div>';
+      }
+      if (gateStats.energyBlocked > 0) {
+        html += '<div class="dash-consciousness-row">' +
+          '<span class="dash-label">Energy blocked</span><span class="dash-value">' + gateStats.energyBlocked + '×</span></div>';
+      }
+    }
 
     // Phenomenal Field — awareness meter
     if (pf) {

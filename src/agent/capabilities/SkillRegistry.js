@@ -29,7 +29,7 @@ const fsp = require('fs').promises;
 const path = require('path');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
-const { safeJsonParse } = require('../core/utils');
+const { safeJsonParse, swallow } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
 
 const _log = createLogger('SkillRegistry');
@@ -276,7 +276,7 @@ class SkillRegistry {
           cwd: tmpDir, timeout: 10_000,
         });
         // Clean up tarball
-        await fsp.unlink(path.join(tmpDir, tarballs[0])).catch(() => {});
+        await swallow(fsp.unlink(path.join(tmpDir, tarballs[0])), 'skill-cleanup');
       } else if (source.includes('gist.github.com')) {
         // Clone gist
         const gistUrl = source.endsWith('.git') ? source : source + '.git';
@@ -296,7 +296,7 @@ class SkillRegistry {
         } else {
           await execFileAsync('tar', ['xzf', archivePath, '-C', tmpDir, '--strip-components=1'], { timeout: 10_000 });
         }
-        await fsp.unlink(archivePath).catch(() => {});
+        await swallow(fsp.unlink(archivePath), 'archive-cleanup');
       } else if (source.includes('github.com') && !source.endsWith('.git')) {
         // GitHub repo — clone
         const repoUrl = source.endsWith('.git') ? source : source + '.git';

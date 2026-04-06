@@ -25,6 +25,7 @@
 const http = require('http');
 const https = require('https');
 const { createLogger } = require('../core/Logger');
+const { swallow } = require('../core/utils');
 const _log = createLogger('NetworkSentinel');
 
 // ── Configuration Defaults ────────────────────────────────
@@ -101,25 +102,25 @@ class NetworkSentinel {
     this._sub('model:failover', (data) => {
       if (!this._online) return;
       // Cloud backend failed → might be network issue, probe immediately
-      this._probe().catch(() => {});
+      swallow(this._probe(), 'probe');
     });
 
     // Subscribe to health degradation
     this._sub('health:degradation', () => {
-      this._probe().catch(() => {});
+      swallow(this._probe(), 'probe');
     });
 
     // Initial probe (delayed to let boot settle)
     const delay = Math.min(this._config.intervalMs, 10_000);
     setTimeout(() => {
-      this._probe().catch(() => {});
+      swallow(this._probe(), 'probe');
     }, delay);
 
     // Periodic probing
     if (this._intervals?.register) {
-      this._intervals.register('network-probe', () => this._probe().catch(() => {}), this._config.intervalMs);
+      this._intervals.register('network-probe', () => swallow(this._probe(), 'probe'), this._config.intervalMs);
     } else {
-      this._probeTimer = setInterval(() => this._probe().catch(() => {}), this._config.intervalMs);
+      this._probeTimer = setInterval(() => swallow(this._probe(), 'probe'), this._config.intervalMs);
     }
 
     _log.info(`[NET] Sentinel started (interval: ${this._config.intervalMs}ms, threshold: ${this._config.failureThreshold})`);

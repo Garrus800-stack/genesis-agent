@@ -1,3 +1,41 @@
+## [6.1.0] — Observability
+
+**Focus: Every system that makes a decision must count it. Silent failures eliminated, consciousness layer made measurable, coverage pushed forward.**
+
+### Silent Catch Audit
+
+- **`swallow()` utility** (core/utils.js, ~17 LOC): Centralised fire-and-forget pattern. Replaces 10× bare `.catch(() => {})` across 5 modules with `swallow(promise, label)` — semantically identical, but failures are now visible in debug logs. Zero functional change.
+- **TaskOutcomeTracker** (CRITICAL): `storage.write()` failures no longer silently lost — Learning Flywheel data integrity depends on this path.
+- **NetworkSentinel** (5 sites), **AutoUpdater** (2 sites), **SkillRegistry** (2 sites): All migrated to `swallow()`.
+- **chat.js clipboard**: Intentionally kept as `.catch(() => {})` — UI layer, no Logger available.
+
+### Self-Modification Gate Statistics (NEW)
+
+- **`_gateStats`** in SelfModificationPipeline: 7 counters tracking every decision at all 4 gates (circuit breaker, consciousness, energy, pass). Answers the question: "Does ConsciousnessGate actually block anything?"
+- **`getGateStats()`**: Returns `blockRate`, `consciousnessBlockRate`, per-gate counts, last coherence value.
+- **IPC `agent:get-gate-stats`**: New endpoint. Preload whitelisted.
+- **Dashboard**: Consciousness panel now shows Self-Mod Gates block with pass/attempt ratio, consciousness block rate, energy blocks. Only visible when `totalAttempts > 0`.
+- 6 tests (initial state, circuit breaker, consciousness, energy, pass-through, mixed rate computation).
+
+### Coverage Push
+
+- **3 new test files** targeting previously untested modules:
+  - `v610-ports-coverage.test.js`: PeerHealth (10), CorrelationContext (10), NullWorkspace, SandboxPort, KnowledgePort, MemoryPort
+  - `v610-data-layer-coverage.test.js`: EventStore (10), ConversationMemory (10)
+  - `v610-wiring-coverage.test.js`: BiologicalAliases (4), CostGuard (6), utils._round, robustJsonParse, safeJsonParse
+- Coverage ratchet bumped: 77/72/72 → 77/73/73.
+
+### Event Schema Ratchet (NEW CI Gate)
+
+- `validate-events.js`: New Check 4 — Schema Coverage Ratchet. Enforces `MINIMUM_SCHEMA_RATE = 0.25` (25%). New events without schemas will be flagged before they can erode coverage below the floor.
+
+### Stats
+
+- Source: 243 files, ~85k LOC. Tests: 275 files, 3951 passing, 0 failing.
+- Fitness: 90/90. Events audit: ✅. TSC: 0 errors.
+
+---
+
 ## [6.0.9] — The Learning Flywheel (Hardened)
 
 **Focus: Deep audit of v6.0.8 — every finding resolved, DIRECT resolution live, full test coverage, zero red tests.**

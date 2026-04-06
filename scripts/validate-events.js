@@ -187,6 +187,20 @@ if (highTraffic.length === 0) {
   }
 }
 
+// ── v6.1.0: Schema Coverage Ratchet ──
+const MINIMUM_SCHEMA_RATE = 0.25; // 25% — hold current level, raise over time
+if (catalogEvents.size > 0 && schemaEvents.size > 0) {
+  const schemaRate = schemaEvents.size / catalogEvents.size;
+  console.log(`\n━━━ Check 4: Schema Coverage Ratchet ━━━`);
+  console.log(`  Schemas: ${schemaEvents.size} / ${catalogEvents.size} catalogued events (${(schemaRate * 100).toFixed(1)}%)`);
+  if (schemaRate < MINIMUM_SCHEMA_RATE) {
+    console.log(`  ✗ Schema coverage ${(schemaRate * 100).toFixed(1)}% below minimum ${(MINIMUM_SCHEMA_RATE * 100)}%`);
+    errors++;
+  } else {
+    console.log(`  ✓ Schema coverage above ${(MINIMUM_SCHEMA_RATE * 100)}% minimum`);
+  }
+}
+
 // ── Summary ──
 console.log('\n━━━ Summary ━━━');
 console.log(`  Warnings: ${warnings}`);
