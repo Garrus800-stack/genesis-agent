@@ -65,6 +65,17 @@ class AutonomousDaemon {
     this._log('info', 'Daemon started');
     this.bus.fire('daemon:started', {}, { source: 'AutonomousDaemon' });
 
+    // FIX v6.1.1: Listen for capability gaps detected by LearningService
+    // When Genesis says "I can't", queue it for skill creation on next cycle
+    this._dynamicGaps = [];
+    this.bus.on('learning:capability-gap', (data) => {
+      const topic = data.userRequest.slice(0, 100).replace(/[^a-zA-ZäöüÄÖÜß0-9\s-]/g, '').trim();
+      if (topic.length > 5 && this._dynamicGaps.length < 20) {
+        this._dynamicGaps.push({ id: `gap:user:${Date.now()}`, topic, type: 'user-request', request: data.userRequest });
+        this._log('info', `Capability gap detected from user: "${topic}"`);
+      }
+    }, { source: 'AutonomousDaemon' });
+
     // Run first cycle after boot has settled (30 seconds)
     // FIX v5.0.0: Store timer handle so stop() can cancel it
     this._bootTimer = setTimeout(() => this._runCycle(), INTERVALS.DAEMON_BOOT_DELAY);
@@ -319,7 +330,10 @@ class AutonomousDaemon {
     const gaps = [
       ...this._analyzeFailurePatterns(),
       ...this._checkDesiredCapabilities(),
+      ...(this._dynamicGaps || []),  // FIX v6.1.1: Include user-request gaps
     ];
+    // Clear dynamic gaps after processing
+    if (this._dynamicGaps) this._dynamicGaps = [];
 
     const newSkills = await this._attemptSkillBuilds(gaps);
     this.knownGaps = gaps;
@@ -368,16 +382,18 @@ class AutonomousDaemon {
     for (const gap of gaps) {
       const attempts = this.gapAttempts.get(gap.id) || 0;
       if (attempts >= 2) continue;
-      if (gap.type !== 'missing-capability' || !this.skills || !this.model) continue;
+      if (!['missing-capability', 'user-request'].includes(gap.type) || !this.skills || !this.model) continue;
 
       this._log('info', `Attempting to build skill for capability gap: ${gap.topic}`);
       this.gapAttempts.set(gap.id, attempts + 1);
       if (this.gapAttempts.size > 50) { const k = this.gapAttempts.keys().next().value; this.gapAttempts.delete(k); }
 
       try {
-        const result = await this.skills.createSkill(
-          `Create a skill named "${gap.topic}" that provides the "${gap.topic}" capability. Keep it simple and robust.`
-        );
+        // FIX v6.1.1: Use the actual user request for context when available
+        const description = gap.request
+          ? `The user asked: "${gap.request}". Create a skill that handles this. Use only allowed sandbox modules (path, fs, os, crypto, util).`
+          : `Create a skill named "${gap.topic}" that provides the "${gap.topic}" capability. Keep it simple and robust.`;
+        const result = await this.skills.createSkill(description);
         if (result.includes('✅')) {
           built++;
           this.bus.fire('daemon:skill-created', { skill: gap.topic, reason: 'capability-gap' }, { source: 'AutonomousDaemon' });

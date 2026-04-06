@@ -144,7 +144,11 @@ Genesis.UI.markdown = (() => {
   function renderWithButtons(text) {
     return _pipeline(text, (lang, code, idx) => {
       if (code.length < 20) return '<pre><code class="language-' + esc(lang) + '">' + esc(code) + '</code></pre>';
-      return '<div class="code-block-wrapper"><button class="code-to-editor-btn" data-lang="' + esc(lang) + '" data-idx="' + idx + '">' + t('ui.open_in_editor') + '</button><pre><code class="language-' + esc(lang) + '">' + esc(code) + '</code></pre></div>';
+      // FIX v6.1.1: Run button for JS (sandbox) and HTML (browser)
+      const isRunnable = ['javascript', 'js', 'node', 'html'].includes(lang.toLowerCase());
+      const runLabel = ['html'].includes(lang.toLowerCase()) ? '▶ Open' : '▶ Run';
+      const runBtn = isRunnable ? '<button class="code-run-btn" data-lang="' + esc(lang) + '" data-idx="' + idx + '">' + runLabel + '</button>' : '';
+      return '<div class="code-block-wrapper">' + runBtn + '<button class="code-to-editor-btn" data-lang="' + esc(lang) + '" data-idx="' + idx + '">' + t('ui.open_in_editor') + '</button><pre><code class="language-' + esc(lang) + '">' + esc(code) + '</code></pre></div>';
     });
   }
 
@@ -269,6 +273,37 @@ Genesis.UI.chat = (() => {
       const ext = {javascript:'.js',python:'.py',shell:'.sh',bat:'.bat',php:'.php',html:'.html',css:'.css',json:'.json',typescript:'.ts'}[lang]||'.txt';
       Genesis.UI.monaco.setModel(code, lang==='text'?'plaintext':lang, 'genesis_code'+ext);
       Genesis.UI.toast.show(t('ui.code_in_editor', { file: 'genesis_code'+ext }), 'success');
+    }); });
+    // FIX v6.1.1: Run button — JS → sandbox, HTML → browser
+    el.querySelectorAll('.code-run-btn').forEach(btn => { btn.addEventListener('click', async function() {
+      const w = this.closest('.code-block-wrapper');
+      const cEl = w?.querySelector('code');
+      if (!cEl) return;
+      const code = cEl.textContent;
+      const lang = (this.getAttribute('data-lang') || '').toLowerCase();
+
+      if (lang === 'html') {
+        // HTML with UI → save as temp file and open in system browser
+        this.textContent = '⏳ Opening...'; this.disabled = true;
+        try {
+          const tempPath = '~/.genesis/output/_preview_' + Date.now() + '.html';
+          await window.genesis.invoke('agent:save-file', { filePath: tempPath, content: code });
+          await window.genesis.invoke('agent:open-path', tempPath);
+        } catch (err) { Genesis.UI.toast.show('Open failed: ' + err.message, 'error'); }
+        this.textContent = '▶ Open'; this.disabled = false;
+        return;
+      }
+
+      // JS → run in sandbox
+      this.textContent = '⏳ Running...'; this.disabled = true;
+      try {
+        const r = await window.genesis.invoke('agent:run-in-sandbox', code);
+        const output = r.error ? 'ERROR: ' + r.error + (r.output ? '\n' + r.output : '') : r.output || '(no output)';
+        let outEl = w.querySelector('.code-run-output');
+        if (!outEl) { outEl = document.createElement('pre'); outEl.className = 'code-run-output'; w.appendChild(outEl); }
+        outEl.textContent = output; outEl.className = 'code-run-output' + (r.error ? ' error' : '');
+      } catch (err) { Genesis.UI.toast.show('Sandbox error: ' + err.message, 'error'); }
+      this.textContent = '▶ Run'; this.disabled = false;
     }); });
   }
   return { addMessage, appendChunk, finishStream, send, stop };

@@ -580,20 +580,17 @@ function applyRenderers(Dashboard) {
     el.innerHTML = html;
   };
 
-  // ── v5.8.0: Consciousness Panel ─────────────────────────
-  // PhenomenalField awareness, Attention gate, TemporalSelf, Values
+  // ── v7.6.0: Awareness Panel (replaces Consciousness) ────
   proto._renderConsciousness = function(data, gateStats) {
     const el = this._el('dash-consciousness-body');
-    if (!data && !gateStats) { el.innerHTML = '<span class="dash-muted">Keine Consciousness-Daten</span>'; return; }
+    if (!data && !gateStats) { el.innerHTML = '<span class="dash-muted">Keine Awareness-Daten</span>'; return; }
 
-    const pf = data?.phenomenalField;
-    const att = data?.attention;
-    const ts = data?.temporalSelf;
+    const aw = data?.awareness;
     const vals = data?.values;
 
     let html = '';
 
-    // v6.1.0: Self-Modification Gate Stats
+    // Self-Modification Gate Stats
     if (gateStats && gateStats.totalAttempts > 0) {
       const blockColor = gateStats.blockRate > 20 ? 'dash-gauge-danger' : 'dash-gauge-awareness';
       html += '<div class="dash-consciousness-row" style="border-bottom:1px solid var(--dash-border);padding-bottom:4px;margin-bottom:4px">' +
@@ -604,8 +601,15 @@ function applyRenderers(Dashboard) {
         '</div>';
       if (gateStats.consciousnessBlocked > 0) {
         html += '<div class="dash-consciousness-row">' +
-          '<span class="dash-label">Consciousness blocked</span><span class="dash-value">' + gateStats.consciousnessBlocked + '×</span>' +
+          '<span class="dash-label">Awareness blocked</span><span class="dash-value">' + gateStats.consciousnessBlocked + '×</span>' +
           '<span class="dash-label" style="margin-left:8px">Rate</span><span class="dash-value">' + gateStats.consciousnessBlockRate + '%</span>' +
+          '</div>';
+      } else if (gateStats.awarenessActive === false) {
+        // Gate is wired but NullAwareness is the implementation — counter is
+        // always 0 by design, not because nothing was blocked.
+        html += '<div class="dash-consciousness-row">' +
+          '<span class="dash-label">Awareness gate</span>' +
+          '<span class="dash-value dash-muted" style="font-style:italic">inactive (NullAwareness)</span>' +
           '</div>';
       }
       if (gateStats.energyBlocked > 0) {
@@ -614,40 +618,18 @@ function applyRenderers(Dashboard) {
       }
     }
 
-    // Phenomenal Field — awareness meter
-    if (pf) {
-      const awareness = Math.round((pf.awareness || pf.globalAwareness || 0) * 100);
-      const valence = pf.valence != null ? (pf.valence > 0 ? '+' : '') + pf.valence.toFixed(2) : '—';
-      const arousal = pf.arousal != null ? pf.arousal.toFixed(2) : '—';
+    // Awareness status
+    if (aw) {
+      const coherence = Math.round((aw.coherence || 0) * 100);
+      const mode = aw.mode || 'diffuse';
       html += '<div class="dash-consciousness-row">' +
-        '<span class="dash-label">Awareness</span>' +
-        '<div class="dash-gauge-track"><div class="dash-gauge-fill dash-gauge-awareness" style="width:' + awareness + '%"></div></div>' +
-        '<span class="dash-value">' + awareness + '%</span>' +
+        '<span class="dash-label">Coherence</span>' +
+        '<div class="dash-gauge-track"><div class="dash-gauge-fill dash-gauge-awareness" style="width:' + coherence + '%"></div></div>' +
+        '<span class="dash-value">' + coherence + '%</span>' +
         '</div>' +
         '<div class="dash-consciousness-row">' +
-        '<span class="dash-label">Valence</span><span class="dash-value">' + this._esc(valence) + '</span>' +
-        '<span class="dash-label" style="margin-left:12px">Arousal</span><span class="dash-value">' + this._esc(arousal) + '</span>' +
-        '</div>';
-    }
-
-    // Attention Gate
-    if (att) {
-      const focus = att.currentFocus || att.focus || '—';
-      const filtered = att.filteredCount != null ? att.filteredCount : '—';
-      html += '<div class="dash-consciousness-row">' +
-        '<span class="dash-label">Focus</span><span class="dash-value">' + this._esc(String(focus)) + '</span>' +
-        '<span class="dash-label" style="margin-left:12px">Filtered</span><span class="dash-value">' + filtered + '</span>' +
-        '</div>';
-    }
-
-    // Temporal Self — narrative chapter
-    if (ts) {
-      const chapterRaw = ts.currentChapter || ts.chapter || ts.phase || '—';
-      const chapter = typeof chapterRaw === 'object' ? (chapterRaw.title || chapterRaw.name || '—') : chapterRaw;
-      const continuity = ts.continuityScore != null ? Math.round(ts.continuityScore * 100) + '%' : '—';
-      html += '<div class="dash-consciousness-row">' +
-        '<span class="dash-label">Chapter</span><span class="dash-value">' + this._esc(String(chapter)) + '</span>' +
-        '<span class="dash-label" style="margin-left:12px">Continuity</span><span class="dash-value">' + continuity + '</span>' +
+        '<span class="dash-label">Mode</span><span class="dash-value">' + this._esc(mode) + '</span>' +
+        (aw.focus ? '<span class="dash-label" style="margin-left:12px">Focus</span><span class="dash-value">' + this._esc(String(aw.focus)) + '</span>' : '') +
         '</div>';
     }
 

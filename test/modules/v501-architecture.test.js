@@ -103,7 +103,7 @@ describe('AgentCoreWire — declarative STATUS_BRIDGE', () => {
     const events = wire._uiBridgeTable.map(m => m.event);
     // Spot-check domain coverage
     assert(events.some(e => e.startsWith('homeostasis:')), 'organism domain');
-    assert(events.some(e => e.startsWith('consciousness:')), 'consciousness domain');
+    // v7.6.0: consciousness domain removed — replaced by AwarenessPort
     assert(events.some(e => e.startsWith('health:')), 'health domain');
     assert(events.some(e => e.startsWith('agent-loop:')), 'agentloop domain');
     assert(events.some(e => e.startsWith('metabolism:')), 'metabolism domain');

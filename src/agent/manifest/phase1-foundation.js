@@ -197,6 +197,14 @@ function phase1(ctx, R) {
       ],
       factory: () => new (R('CostGuard').CostGuard)({ bus }),
     }],
+
+    // v7.6.0: AwarenessPort — lightweight replacement for 14-module
+    // Consciousness Layer. NullAwareness is the default no-op impl.
+    // A real implementation can be swapped in via DI.
+    ['awareness', {
+      phase: 1, deps: [], tags: ['foundation', 'awareness'],
+      factory: () => new (R('NullAwareness').NullAwareness)({ bus }),
+    }],
   ];
 }
 

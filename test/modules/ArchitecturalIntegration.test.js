@@ -65,13 +65,9 @@ function createBodySchema(overrides = {}) {
 // ═════════════════════════════════════════════════════════════
 
 describe('PromptBuilder — Consciousness Integration', () => {
-  test('has consciousness module slots', () => {
+  test('has awareness module slot', () => {
     const pb = createPromptBuilder();
-    assert(pb.phenomenalField === null, 'phenomenalField slot should exist');
-    assert(pb.attentionalGate === null, 'attentionalGate slot should exist');
-    assert(pb.temporalSelf === null, 'temporalSelf slot should exist');
-    assert(pb.introspectionEngine === null, 'introspectionEngine slot should exist');
-    assert(pb.consciousnessExtension === null, 'consciousnessExtension slot should exist');
+    assert(pb.awareness === null, 'awareness slot should exist');
   });
 
   test('has new module slots (values, userModel, bodySchema)', () => {
@@ -86,19 +82,17 @@ describe('PromptBuilder — Consciousness Integration', () => {
     assertEqual(pb._consciousnessContext(), '');
   });
 
-  test('_consciousnessContext aggregates wired modules', () => {
+  test('_consciousnessContext returns awareness context when wired', () => {
     const pb = createPromptBuilder();
-    pb.phenomenalField = { buildPromptContext: () => 'EXPERIENCE: test gestalt' };
-    pb.attentionalGate = { buildPromptContext: () => 'ATTENTION: focused on test' };
+    pb.awareness = { buildPromptContext: () => 'AWARENESS: coherence high' };
 
     const ctx = pb._consciousnessContext();
-    assert(ctx.includes('EXPERIENCE'), 'should include phenomenal field');
-    assert(ctx.includes('ATTENTION'), 'should include attentional gate');
+    assert(ctx.includes('AWARENESS'), 'should include awareness context');
   });
 
   test('_consciousnessContext gracefully handles module errors', () => {
     const pb = createPromptBuilder();
-    pb.phenomenalField = { buildPromptContext: () => { throw new Error('boom'); } };
+    pb.awareness = { buildPromptContext: () => { throw new Error('boom'); } };
 
     const ctx = pb._consciousnessContext();
     assertEqual(ctx, ''); // Should not throw
@@ -106,10 +100,10 @@ describe('PromptBuilder — Consciousness Integration', () => {
 
   test('build() includes consciousness section', () => {
     const pb = createPromptBuilder();
-    pb.phenomenalField = { buildPromptContext: () => 'EXPERIENCE: deep flow' };
+    pb.awareness = { buildPromptContext: () => 'AWARENESS: deep flow' };
 
     const prompt = pb.build();
-    assert(prompt.includes('EXPERIENCE'), 'full prompt should include consciousness');
+    assert(prompt.includes('AWARENESS'), 'full prompt should include awareness');
   });
 
   test('section priority has consciousness at level 8', () => {
@@ -124,22 +118,7 @@ describe('PromptBuilder — Consciousness Integration', () => {
 // 2. CONSCIOUSNESS EXTENSION BRIDGE
 // ═════════════════════════════════════════════════════════════
 
-describe('ConsciousnessExtensionAdapter — Bridge', () => {
-  test('module exports ConsciousnessExtensionAdapter', () => {
-    const { ConsciousnessExtensionAdapter } = require('../../src/agent/consciousness/ConsciousnessExtensionAdapter');
-    assert(ConsciousnessExtensionAdapter, 'should export');
-    assert(typeof ConsciousnessExtensionAdapter.prototype.buildPromptContext === 'function',
-      'should have buildPromptContext');
-  });
-
-  test('buildPromptContext returns empty when no engine', () => {
-    const { ConsciousnessExtensionAdapter } = require('../../src/agent/consciousness/ConsciousnessExtensionAdapter');
-    const adapter = new ConsciousnessExtensionAdapter({
-      bus: NullBus, storage: null, eventStore: null, intervals: null, config: {},
-    });
-    assertEqual(adapter.buildPromptContext(), '');
-  });
-});
+// v7.6.0: ConsciousnessExtensionAdapter removed — replaced by AwarenessPort
 
 // ═════════════════════════════════════════════════════════════
 // 3. VALUESTORE
@@ -202,17 +181,13 @@ describe('ValueStore — Conflict Recording', () => {
     assertEqual(crystallized.source, 'apprehension');
   });
 
-  test('listens to consciousness:apprehension events', () => {
+  test('consciousness:apprehension listener removed in v7.6.0', () => {
     const bus = new EventBus();
     const vs = createValueStore({ bus });
     vs.start();
-
-    bus.fire('consciousness:apprehension', {
-      pairs: [['needs', 'expectation']],
-      spread: 0.55,
-    });
-
-    assertEqual(vs._conflictHistory.length, 1);
+    // v7.6.0: listener removed — consciousness layer replaced by AwarenessPort
+    bus.fire('consciousness:apprehension', { pairs: [['a','b']], spread: 0.5 });
+    assertEqual(vs._conflictHistory.length, 0); // no longer listens
   });
 });
 
@@ -255,32 +230,33 @@ describe('AgentLoopCognition — consultConsciousness', () => {
     assertEqual(result.concerns.length, 0);
   });
 
-  test('pauses when attentionalGate is captured on ethical-conflict', () => {
+  test('pauses when awareness reports ethical conflict', () => {
     const delegate = new AgentLoopCognitionDelegate({
-      attentionalGate: {
-        getMode: () => 'captured',
-        getPrimaryFocus: () => 'ethical-conflict',
-        buildPromptContext: () => 'HALT — ethical conflict',
+      awareness: {
+        consult: () => ({
+          paused: true, concerns: ['ethical conflict detected'],
+          coherence: 0.3, mode: 'captured', qualia: 'apprehension',
+          focus: 'ethical-conflict', valueContext: '',
+        }),
       },
     });
-
     const result = delegate.consultConsciousness({ title: 'test', steps: [] });
     assertEqual(result.paused, true);
     assert(result.concerns.length > 0, 'should have concerns');
-    assert(result.concerns[0].includes('HALT') || result.concerns[0].includes('conflict'),
-      'concern should mention halt or conflict');
   });
 
-  test('adds concern when phenomenalField has apprehension qualia', () => {
+  test('adds concern when awareness reports apprehension', () => {
     const delegate = new AgentLoopCognitionDelegate({
-      phenomenalField: {
-        getQualia: () => 'apprehension',
-        getGestalt: () => 'Emotion and needs disagree',
+      awareness: {
+        consult: () => ({
+          paused: false, concerns: ['subsystems disagree'],
+          coherence: 0.6, mode: 'focused', qualia: 'apprehension',
+          focus: null, valueContext: '',
+        }),
       },
     });
-
     const result = delegate.consultConsciousness({ title: 'test', steps: [] });
-    assertEqual(result.paused, false); // apprehension alone doesn't pause
+    assertEqual(result.paused, false);
     assert(result.concerns.length > 0, 'should have concerns');
   });
 
@@ -519,14 +495,14 @@ describe('PromptBuilder — Full Integration', () => {
   test('build includes all new sections when wired', () => {
     const pb = createPromptBuilder();
 
-    pb.phenomenalField = { buildPromptContext: () => 'EXPERIENCE: flow state' };
+    pb.awareness = { buildPromptContext: () => 'AWARENESS: flow state' };
     pb.attentionalGate = { buildPromptContext: () => 'ATTENTION: focused' };
     pb.valueStore = { buildPromptContext: () => 'VALUES: thoroughness (80%)' };
     pb.userModel = { buildPromptContext: () => 'USER-ADAPTATION: terse style' };
     pb.bodySchema = { buildPromptContext: () => '' }; // No constraints = no output
 
     const prompt = pb.build();
-    assert(prompt.includes('EXPERIENCE'), 'should include consciousness');
+    assert(prompt.includes('AWARENESS'), 'should include awareness');
     assert(prompt.includes('VALUES'), 'should include values');
     assert(prompt.includes('USER-ADAPTATION'), 'should include user model');
     // bodySchema returns empty, so should not appear

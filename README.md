@@ -8,13 +8,13 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-6.1.0-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.0.0-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <img src="https://img.shields.io/badge/tests-~3865%20passing-4ade80?style=flat-square" alt="Tests">
-  <img src="https://img.shields.io/badge/modules-243-e0e0e8?style=flat-square" alt="Modules">
-  <img src="https://img.shields.io/badge/services-138-fbbf24?style=flat-square" alt="Services">
-  <img src="https://img.shields.io/badge/phases-13-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-374-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/tests-~4107%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/modules-232-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/services-140-fbbf24?style=flat-square" alt="Services">
+  <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
+  <img src="https://img.shields.io/badge/events-395-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">
@@ -66,7 +66,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 | **Autonomy** | Pursues multi-step goals, survives restarts, graduates its own trust level (0–3) | Single-turn responses |
 | **Cognition** | Expectations, surprise, dreams, working memory, autobiographical identity, emotional steering | None |
 | **MCP Server** | Exposes 7 tools (verify, analyze, safety scan, architecture query) — external IDEs invoke Genesis directly | MCP client only |
-| **Observability** | 13-panel live dashboard — consciousness, energy, architecture graph, tool synthesis, event flow | Log files |
+| **Observability** | 13-panel live dashboard — awareness, energy, architecture graph, tool synthesis, event flow | Log files |
 | **Offline-First** | NetworkSentinel detects outages, auto-failovers to local Ollama, restores cloud model on reconnect, queues mutations | Crashes on network loss |
 
 ### Capabilities at a glance
@@ -79,7 +79,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Memory & learning** — 5-layer memory (conversation, episodic, vector, unified, knowledge graph), adaptive forgetting (surprise amplifies retention 5×), DreamCycle consolidation during idle time, MetaLearning prompt optimization, PromptEvolution A/B testing, OnlineLearner real-time feedback (streak detection, model escalation, temperature tuning), LessonsStore cross-project persistent learning.
 
-**Cognition & consciousness** — ExpectationEngine (quantitative predictions), SurpriseAccumulator (information-theoretic), PhenomenalField (unified awareness every 2s), TemporalSelf (past/future continuity), IntrospectionEngine (3-level meta-awareness), CognitiveWorkspace (9-slot transient working memory), ArchitectureReflection (live queryable self-model of own architecture), DynamicToolSynthesis (generates new tools on demand via LLM + sandbox).
+**Cognition & awareness** — ExpectationEngine (quantitative predictions), SurpriseAccumulator (information-theoretic), AwarenessPort (lightweight coherence gating for self-modification), CognitiveWorkspace (9-slot transient working memory), ArchitectureReflection (live queryable self-model of own architecture), DynamicToolSynthesis (generates new tools on demand via LLM + sandbox).
 
 **Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (6 evolvable traits), epigenetic conditioning, immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). **Empirically validated: +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4, kimi-k2.5:cloud).
 
@@ -154,16 +154,16 @@ Priority: Your choice → Cloud API → Smart Ranking → First available.
 
 ### Boot profiles
 
-Genesis defaults to `cognitive` profile (phases 1-12, ~120 services). Consciousness (Phase 13) was empirically validated as 0pp impact on task success.
+Genesis boots 12 phases (~140 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
 
 ```bash
 npm start                              # Cognitive — default (~120 services)
-npm start -- --full                    # Full — all 13 phases (~135 services)
+# Phase 13 (Consciousness) removed in v7.0.0 — replaced by AwarenessPort
 npm start -- --minimal                 # Minimal — core agent loop only (~50 services)
 npm start -- --skip-phase 7            # Custom — skip specific phases (6-13)
 ```
 
-Use `--minimal` to learn the architecture without cognitive overhead. Use `--cognitive` (default) for development and production. Use `--full` to opt into consciousness (Phase 13) for experimentation.
+Use `--minimal` to learn the architecture without cognitive overhead. Use `--cognitive` (default) for development and production.
 
 Requires **Node.js 20+** (tested on 20, 22) and **Git**. Ollama is optional if a cloud API is configured. On Windows, double-click `Genesis-Start.bat` instead.
 
@@ -208,10 +208,6 @@ Thirteen layers with clear boundaries — star topology where every layer depend
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  🖥️  UI Layer          Chat + Monaco Editor + Dashboard(13)  │
-├─────────────────────────────────────────────────────────────┤
-│  🌌 Consciousness [P13] PhenomenalField · TemporalSelf      │
-│                         IntrospectionEngine · AttentionalGate│
-│                         ConsciousnessExtension (6 subsystems)│
 ├─────────────────────────────────────────────────────────────┤
 │  🔮 Hybrid [P12]       GraphReasoner · AdaptiveMemory       │
 ├─────────────────────────────────────────────────────────────┤
@@ -392,7 +388,7 @@ The Dashboard visualizes Genesis's internal state in real-time (2s polling):
 | Panel | What it shows |
 |---|---|
 | Organism | Mood ring, 5D emotion bars, sparkline, needs radar |
-| Consciousness | Awareness meter, valence/arousal, attention focus, temporal chapter, value alignment |
+| Awareness | Coherence, mode, self-mod gate stats, value alignment |
 | Energy | Metabolism gauge, LLM call cost, energy level |
 | Agent Loop | Current goal, step progress, approval queue |
 | Vitals | Homeostasis vital signs with status indicators |
@@ -476,7 +472,6 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Organism | 14 | ~4,980 | Emotions (5D), Homeostasis (6 vitals), Needs (4 drives), Metabolism, ImmuneSystem, Genome, Epigenetic, Fitness, BodySchema, EmbodiedPerception |
 | Revolution | 14 | ~5,710 | AgentLoop (+ Steps/Planner delegates), FormalPlanner, HTN, VectorMemory, NativeToolUse, ModelRouter |
 | Cognitive | 14 | ~5,760 | DreamCycle, ExpectationEngine, SurpriseAccumulator, MentalSimulator, SelfNarrative, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis |
-| Consciousness | 14 | ~6,000 | PhenomenalField (+ Computation delegate), TemporalSelf, IntrospectionEngine, AttentionalGate, EchoicMemory, DreamEngine |
 | Ports | 7 | ~860 | Hexagonal adapters (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace) |
 | **Total** | **218** | **~73,500** | **(all src/, incl. UI + kernel)** |
 
@@ -500,7 +495,6 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Cross-layer event flows | ~290 emitted events, ~65 listeners (via EventBus, no direct imports — run `npm run audit:events` for exact counts) |
 | Hexagonal ports | 6 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace) |
 | Cognitive modules | 17 (ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence, CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder) |
-| Consciousness modules | 14 (PhenomenalField, TemporalSelf, IntrospectionEngine, AttentionalGate, EchoicMemory, PredictiveCoder, NeuroModulators, SalienceGate, DreamEngine, ConsciousnessState + 3 adapters/delegates) |
 | Organism | 5 emotional dimensions + homeostasis + allostasis + 4 needs + steering + metabolism + immune system + heritable genome + epigenetic conditioning + fitness evaluation + body schema + embodied perception |
 | Safety layers | 10 (kernel lock → hash-lock → AST scan → capability tokens → IPC whitelist → CSP → sandbox → worker isolation → circuit breaker → immune system) |
 | Trust levels | 4 (supervised → full autonomy) |
@@ -586,7 +580,6 @@ No LangChain. No LlamaIndex. Everything self-written.
 | Document | What it covers |
 |---|---|
 | [phase9-cognitive-architecture.md](docs/phase9-cognitive-architecture.md) | Phase 9 design — DreamCycle, Expectations, SelfNarrative, MentalSimulator, ArchitectureReflection, DynamicToolSynthesis |
-| [consciousness-extension-architecture.md](docs/consciousness-extension-architecture.md) | Phase 12-13 — closed perceptual loop, EchoicMemory, PredictiveCoder, NeuroModulators, DreamEngine |
 
 ### Operations
 

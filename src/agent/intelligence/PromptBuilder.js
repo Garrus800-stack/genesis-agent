@@ -35,12 +35,8 @@ class PromptBuilder {
     // v3.5.0: Metacognitive layer (late-bound)
     this.cognitiveMonitor = null;
 
-    // v4.12.4: Phase 13 — Consciousness modules (late-bound)
-    this.phenomenalField = null;
-    this.attentionalGate = null;
-    this.temporalSelf = null;
-    this.introspectionEngine = null;
-    this.consciousnessExtension = null;
+    // v7.6.0: AwarenessPort (late-bound) — replaces 5 consciousness services
+    this.awareness = null;
     // v5.7.0 (SA-P3): Architecture self-reflection
     this.architectureReflection = null;
     // v5.7.0: Project intelligence
@@ -208,16 +204,18 @@ class PromptBuilder {
     const isCloud = modelName.includes('claude') || modelName.includes('gpt')
       || modelName.includes('anthropic') || modelName.includes('openai');
     // v6.0.7: Only gate known local model patterns. Unknown models are NOT gated.
-    const isLocal = /\b(llama|qwen|gemma|mistral|phi|deepseek|codellama|yi-|solar|vicuna|orca|wizardcoder|starcoder|ollama)/i.test(modelName);
+    // FIX v6.1.1: Also gate Ollama-served cloud models (kimi, mannix) — consciousness
+    // sections add noise without improving response quality for any model.
+    const isLocal = /\b(llama|qwen|gemma|mistral|phi|deepseek|codellama|yi-|solar|vicuna|orca|wizardcoder|starcoder|ollama|kimi|mannix)/i.test(modelName);
 
     if (isLocal && !this._modelGatingApplied) {
-      const gated = ['organism', 'consciousness', 'selfAwareness', 'bodySchema'];
+      const gated = ['organism', 'consciousness', 'selfAwareness', 'bodySchema', 'metacognition', 'values', 'anticipator', 'optimizer'];
       for (const s of gated) this._disabledSections.add(s);
       this._modelGatingApplied = true;
       _log.info(`[PROMPT] Model-gated: local model "${modelName}" → skipping ${gated.join(', ')}`);
     } else if ((isCloud || !isLocal) && this._modelGatingApplied) {
       // Cloud or unknown model detected → re-enable
-      for (const s of ['organism', 'consciousness', 'selfAwareness', 'bodySchema']) {
+      for (const s of ['organism', 'consciousness', 'selfAwareness', 'bodySchema', 'metacognition', 'values', 'anticipator', 'optimizer']) {
         this._disabledSections.delete(s);
       }
       this._modelGatingApplied = false;

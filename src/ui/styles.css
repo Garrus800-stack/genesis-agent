@@ -263,6 +263,19 @@ body {
   cursor: pointer; opacity: 0.7; transition: opacity 0.15s; font-family: var(--font-sans);
 }
 .code-to-editor-btn:hover { opacity: 1; }
+.code-run-btn {
+  position: absolute; top: 4px; right: 100px;
+  background: #2d6a4f; color: #fff; border: none;
+  border-radius: 4px; padding: 2px 8px; font-size: 10px;
+  cursor: pointer; opacity: 0.7; transition: opacity 0.15s; font-family: var(--font-sans);
+}
+.code-run-btn:hover { opacity: 1; background: #40916c; }
+.code-run-btn:disabled { opacity: 0.4; cursor: wait; }
+.code-run-output {
+  margin: 0; padding: 8px 12px; background: #0a0d12; color: #4ade80;
+  border-top: 1px solid #1a1d28; font-size: 12px; max-height: 200px; overflow: auto;
+}
+.code-run-output.error { color: #f87171; }
 .intent-tag {
   display: inline-block; font-size: 9px; padding: 1px 6px;
   border-radius: 3px; background: var(--accent-soft); color: var(--accent);

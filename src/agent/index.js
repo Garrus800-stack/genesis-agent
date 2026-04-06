@@ -222,12 +222,9 @@ Object.defineProperty(exports, "WorkerPool", { get() { return require("./intelli
 // ── foundation ──
 Object.defineProperty(exports, "WorldState", { get() { return require("./foundation/WorldState"); } });
 
-// ── consciousness (Phase 13) ──
-Object.defineProperty(exports, "PhenomenalField", { get() { return require("./consciousness/PhenomenalField"); } });
-Object.defineProperty(exports, "AttentionalGate", { get() { return require("./consciousness/AttentionalGate"); } });
-Object.defineProperty(exports, "TemporalSelf", { get() { return require("./consciousness/TemporalSelf"); } });
-Object.defineProperty(exports, "IntrospectionEngine", { get() { return require("./consciousness/IntrospectionEngine"); } });
-Object.defineProperty(exports, "ConsciousnessExtensionAdapter", { get() { return require("./consciousness/ConsciousnessExtensionAdapter"); } });
+// ── awareness (v7.6.0: replaces Phase 13 consciousness) ──
+Object.defineProperty(exports, "AwarenessPort", { get() { return require("./ports/AwarenessPort"); } });
+Object.defineProperty(exports, "NullAwareness", { get() { return require("./foundation/NullAwareness"); } });
 
 // ── root ──
 Object.defineProperty(exports, "AgentCore", { get() { return require("./AgentCore"); } });

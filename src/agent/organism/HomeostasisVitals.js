@@ -7,6 +7,15 @@
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('Homeostasis');
 
+// v7.6.0: Use V8 heap limit (actual max ~1.4-4GB) instead of dynamic heapTotal.
+// heapUsed/heapTotal naturally sits at 85-95% because V8 sizes heapTotal close
+// to heapUsed. This caused constant false alarms on machines with plenty of RAM.
+let _heapLimit = 0;
+try {
+  const v8 = require('v8');
+  _heapLimit = v8.getHeapStatistics().heap_size_limit;
+} catch { /* v8 module not available — fallback below */ }
+
 
 
 const vitals = {
@@ -78,9 +87,10 @@ const vitals = {
     // Error rate from sliding window
     this.vitals.errorRate.value = this._calculateErrorRate();
 
-    // Memory pressure
+    // Memory pressure — measured against V8 heap limit, not dynamic heapTotal
     const mem = process.memoryUsage();
-    this.vitals.memoryPressure.value = Math.round((mem.heapUsed / mem.heapTotal) * 100);
+    const limit = _heapLimit || mem.heapTotal; // fallback to heapTotal if v8 unavailable
+    this.vitals.memoryPressure.value = Math.round((mem.heapUsed / limit) * 100);
 
     // KG node count (set externally via event)
     // Circuit state (set externally via event)

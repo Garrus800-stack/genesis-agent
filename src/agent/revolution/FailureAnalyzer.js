@@ -25,6 +25,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const { THRESHOLDS } = require('../core/Constants');
 
 // ── Pattern Rules Table ───────────────────────────────────
 // Declarative regex→confidence rules per failure category.
@@ -195,8 +196,8 @@ class FailureAnalyzer {
       categories: this._summarizeCategories(classified),
       failures: classified,
       strategies,
-      autoFixable: strategies.filter(s => s.confidence >= 0.8).length,
-      needsHumanReview: strategies.filter(s => s.confidence < 0.5).length,
+      autoFixable: strategies.filter(s => s.confidence >= THRESHOLDS.FAILURE_AUTOFIX_CONFIDENCE).length,
+      needsHumanReview: strategies.filter(s => s.confidence < THRESHOLDS.FAILURE_HUMAN_REVIEW_CONFIDENCE).length,
     };
 
     // Learn from this analysis
@@ -238,7 +239,7 @@ class FailureAnalyzer {
       if (strategy.confidence < 0.3) continue; // Skip low-confidence
 
       steps.push({
-        priority: strategy.confidence >= 0.8 ? 'HIGH' : strategy.confidence >= 0.5 ? 'MEDIUM' : 'LOW',
+        priority: strategy.confidence >= THRESHOLDS.FAILURE_AUTOFIX_CONFIDENCE ? 'HIGH' : strategy.confidence >= THRESHOLDS.FAILURE_HUMAN_REVIEW_CONFIDENCE ? 'MEDIUM' : 'LOW',
         category: strategy.category,
         action: strategy.action,
         file: strategy.file,

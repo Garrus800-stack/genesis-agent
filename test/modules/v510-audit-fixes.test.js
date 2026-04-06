@@ -184,7 +184,7 @@ test('N-5: routing still works after refactor', () => {
   const { IntentRouter } = require('../../src/agent/intelligence/IntentRouter');
   const router = new IntentRouter({});
   const cases = [
-    ['was bist du?', 'self-inspect'],
+    ['was bist du?', 'general'],
     ['hallo!', 'greeting'],
     ['npm install', 'shell-task'],
     ['mcp server status', 'mcp'],
@@ -241,11 +241,7 @@ test('SA-3: StorageService read catches have graceful markers', () => {
   assert(matches.length >= 2, `StorageService must have >=2 graceful markers, got ${matches.length}`);
 });
 
-test('SA-3: DreamEngine selfTheory catch has graceful marker', () => {
-  const source = fs.readFileSync(path.join(SRC, 'consciousness/DreamEngine.js'), 'utf-8');
-  assert(source.includes('graceful: dream works without self-theory'),
-    'DreamEngine must have graceful marker');
-});
+// v7.6.0: DreamEngine test removed — consciousness layer replaced by AwarenessPort
 
 test('SA-3: innerHTML usage is sanitized via _esc()', () => {
   const dashboard = fs.readFileSync(

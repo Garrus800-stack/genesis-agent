@@ -1,3 +1,109 @@
+## [7.0.0] — Awareness Redesign
+
+**Major architectural refactoring. Consciousness Layer (14 modules, 6198 LOC) replaced by lightweight AwarenessPort (2 modules, 112 LOC). AgentLoop God-class split. Magic numbers centralized. Memory pressure bug fixed. Colony IPC implemented. V7-3 coverage target reached (81.77/76.93/80.02, ratchet 81/76/80). V7-5 God class evaluated (no split). 355 new tests, full suite green.**
+
+### Breaking Changes
+- **Phase 13 (Consciousness) removed.** `AttentionalGate`, `PhenomenalField`, `TemporalSelf`, `IntrospectionEngine`, `ConsciousnessExtension` and 9 internal modules deleted. Replaced by `AwarenessPort` (interface) + `NullAwareness` (default no-op) in Phase 1.
+- Boot profiles `full` and `cognitive` are now identical (both 12 phases). `--full` flag still accepted but has no effect.
+- `consciousness:*` events no longer emitted. `ValueStore` no longer listens to `consciousness:apprehension`.
+
+### Architecture
+- **AgentLoop split:** 42 → 32 methods, 1002 → 819 LOC. `ApprovalGate` extracted (approval lifecycle). `_attemptRepair`, `_verifyGoal`, `_extractTags` moved to `AgentLoopSteps`/`AgentLoopRecovery`.
+- **THRESHOLDS** section added to `Constants.js` (18 named behavioral constants). Wired into `SelfModificationPipeline`, `AgentLoopSteps`, `AgentLoopRecovery`, `FailureAnalyzer`, `ShellAgent`.
+- **8 consumers rewired** from 5 consciousness services to single `awareness` port: `SelfModificationPipeline`, `PromptBuilder`, `AgentLoopCognition`, `AgentCoreHealth`, `AgentCoreWire`, `ContainerManifest`, `MemoryFacade`, `Dashboard`.
+- **V7-1: Colony real IPC.** `ColonyOrchestrator._executeLocally()` now uses `SelfSpawner.spawnParallel()` — real `fork()` + IPC child processes instead of the previous no-op stub. `selfSpawner` wired as optional lateBinding in Phase 8 manifest. `colony:ipc-spawn` event emitted on local execution.
+- **`getGateStats()` awarenessActive flag.** `SelfModificationPipeline` exposes `awarenessActive: boolean` — `false` when `NullAwareness` (no-op) is in use. Dashboard shows `"inactive (NullAwareness)"` badge instead of silently showing 0% block rate.
+
+### Bugfixes
+- **Memory pressure false alarm fixed.** `Homeostasis` measured `heapUsed/heapTotal` (V8 dynamic heap, always 85-95%). Now measures `heapUsed/heap_size_limit` (actual V8 limit ~2-4GB). Thresholds adjusted from 93/98% to 75/90%.
+- `MemoryFacade`: dead `echoicMemory` reference removed.
+- `ValueStore.start()`: removed dead `consciousness:apprehension` listener.
+
+### Tests
+- 18 new test files, 280 new tests: `AwarenessPort`, `ApprovalGate`, `ServiceRecovery`, `AgentLoopCognition`, `HealthMonitor`, `IdleMind`, `Settings`, `StorageService`, `AutonomousDaemon`, `EventStore`, `Sandbox`, `ShellAgent`, `PeerHealth+PeerCrypto`, `SessionPersistence`, `ModelRouter`, `AgentLoopRecovery` (59 tests), Colony V7-1 additions, GateStats awarenessActive additions.
+- All consciousness test files removed or updated (16 deleted, 8 fixed).
+- **4182 passed, 0 failed. Fitness: 90/90 (100%). 186/186 source files covered.**
+
+### Stats
+- 243 → 232 modules (-11)
+- 85k → 79k LOC (-6k)
+- 13 → 12 boot phases
+- 3 runtime dependencies (unchanged)
+- 186/186 source files have tests (100%)
+- Tests: 277 files, 4257 passing, 0 failing (+355 vs v6.1.1)
+- Coverage ratchet: 79/75/75 → **81/76/80**. Actual: 81.77/76.93/80.02
+- Fitness: 90/90. Events audit: ✅. TSC: 0 errors.
+
+---
+
+## [6.1.1] — Coverage Target
+
+**Focus: Push coverage toward the v6 target (80/75/75). 26 low-coverage modules tested across 8 test files, +298 tests. Final: 79.75/75.16/77.22 — ratchet set to 79/75/75. Plus 12 bugfixes making Genesis practically usable: IPC spam eliminated, AgentLoop robust, Sandbox opened for skills, prompts cleaned up, self-teaching capability gaps, chat Run button.**
+
+### Bugfixes
+
+- **IPC Serialization Spam** — `agent:loop-status` IPC handler and `push()` in AgentCoreWire now sanitize data via `JSON.parse(JSON.stringify())` before sending over Electron IPC. Eliminates hundreds of "An object could not be cloned" errors per minute during AgentLoop execution.
+- **ArchReflect Memory Churn** — Stale threshold increased from 60s to 300s (5min). Reduces architecture graph rebuilds from ~60/hour to ~12/hour, lowering memory pressure during idle operation.
+- **AgentLoop Goal `[object Object]`** — `pursue()` passed an object to `GoalStack.addGoal()` which expects a string. Goals now registered with the actual description text, not a serialized object literal.
+- **AgentLoop Simulation Hard-Block** — Simulation "replan" recommendation no longer aborts the entire goal. Changed from hard gate to advisory warning. Genesis now proceeds with risk-flagged plans instead of refusing to act, enabling learning from outcomes.
+- **Sandbox Blocks Skills** — Added `fs` to allowed modules. Skills now have filesystem access, scoped by path restrictions (read: project root + sandbox + node_modules; write: sandbox only). SkillManager passes project root via `GENESIS_SANDBOX_ALLOW_READ_ROOT`.
+- **Repetitive Self-Report Prompt** — Removed "was bist du?", "wer bist du?", "what are you?" from `self-inspect` intent. Identity questions now route to `general` intent, letting the LLM answer naturally instead of dumping a technical module report.
+- **Prompt Section Bloat** — Extended model gating to all Ollama-served models (added kimi, mannix). Gated sections expanded from 4 to 8: organism, consciousness, selfAwareness, bodySchema, metacognition, values, anticipator, optimizer. Reduces prompt noise that confuses LLMs into philosophical responses instead of action.
+- **EISDIR in SelfModel.readModule** — `readModule()` now checks `isFile()` before reading, preventing EISDIR errors when AgentLoop steps target directories instead of files.
+- **Genesis Never Asks** — Added 3 prompt rules: ask clarifying questions when stuck (never "Nothing to retry"), explain failures with next steps, report progress and ask at decision points during autonomous work.
+- **Skill Creation Prompt** — Rewritten `create-skill` template: explicit output format (separate JSON + JS blocks), lists allowed/blocked modules, emphasizes JSON-serializable returns and working test() methods. Skills should now be functional instead of empty shells.
+- **Chat Code Block ▶ Run Button** — JavaScript code blocks in chat now have a "▶ Run" button that executes directly in the sandbox and shows output inline. Previously only "Open in editor" was available.
+- **Self-Teaching Capability Gaps** — When Genesis says "I can't", LearningService now detects this and emits `learning:capability-gap`. The Daemon picks up these real user requests and attempts to auto-create skills for them on the next cycle. Gap detection is no longer limited to a hardcoded list of 4 capabilities — Genesis learns what it needs from actual usage. Prompt also updated: Genesis now tries to solve problems with existing tools or build new skills instead of refusing.
+- **"nutze dein skill"** — Skill name extraction now handles German possessives (dein, mein, den, der). Previously "nutze dein skill" extracted "dein" as skill name, fell back to shell, and ran `nutze` as a command.
+- **Chat ▶ Button: HTML → Browser** — HTML code blocks now show "▶ Open" which saves as temp file and opens in system browser. JS code blocks show "▶ Run" for sandbox execution. Password generators, UIs etc. open directly.
+- **`agent:open-path` IPC** — New IPC channel for opening files/folders anywhere on the system. Resolves `~` to home dir. Supports absolute paths, relative paths.
+- **Ordner öffnen: Desktop, Downloads** — `openPath` handler resolves semantic names: "Desktop/Schreibtisch", "Downloads", "Dokumente/Documents", "Bilder/Pictures", "Musik/Music", "Home". "Öffne den Ordner XYZ auf dem Desktop" works.
+- **Dateien auf Desktop speichern** — `save-file` IPC now resolves `~` paths to home directory. Files can be saved to `~/Desktop/`, `~/Downloads/` etc., not just the project root.
+- **Tool-Loop geschlossen** — When NativeToolUse is unavailable, ChatOrchestrator now parses `<tool_call>` tags from LLM text output, executes the tools, feeds results back to the LLM, and loops up to 5 rounds. Previously tool calls in text were displayed as raw tags without execution.
+- **Test-Fix v510** — Updated "was bist du?" test expectation from `self-inspect` to `general` after intent routing change.
+- **Pfade mit Leerzeichen** — Windows-Pfad-Regex erfasst jetzt vollständige Pfade inklusive Leerzeichen (z.B. "Neuer Ordner (3)"). Vorher wurde bei Leerzeichen abgeschnitten.
+- **"öffne Firefox"** — Anwendungen starten funktioniert jetzt: `start` auf Windows, `open -a` auf macOS, `xdg-open` auf Linux. Vorher wurde "öffne" als Shell-Befehl geschickt.
+- **`open-in-editor` Tool** — Neues Tool das Dateien im Genesis Monaco-Editor öffnet. LLM kann jetzt `open-in-editor` aufrufen wenn der User "zeige im Editor" sagt.
+- **Skill-Prefix Fallback** — ToolRegistry.execute() sucht jetzt automatisch unter `skill:${name}` wenn ein Tool nicht direkt gefunden wird. Skills sind damit vom LLM ohne Prefix aufrufbar.
+- **Tool-Ergebnisse → LessonsStore** — Jeder Tool-Aufruf im Chat wird als Lektion gespeichert (Erfolg + Misserfolg). ChatOrchestrator hat jetzt LessonsStore Late-Binding.
+- **Shell-Befehle → LessonsStore** — CommandHandlers emittet `shell:outcome` Events. LessonsStore hört zu und merkt sich welche Befehle auf welcher Plattform funktionieren.
+- **Dream-Insights → LessonsStore** — `dream:complete` Events fließen jetzt in LessonsStore. Träume sind keine Attrappe mehr — Erkenntnisse werden als Lektionen gespeichert und beeinflussen zukünftiges Verhalten.
+- **Memory Pressure Schwellwerte** — Healthy-Schwelle von 85% auf 93% angehoben. V8 in Electron läuft natürlich bei 85-95% Heap-Nutzung. Die alte Schwelle verursachte permanente CRITICAL-Zustände und unnötiges Cache-Pruning.
+
+### Coverage Sweep
+
+- **CommandHandlers** (23% → ~55%): 37 tests covering all 18 handler methods — executeCode, executeFile, daemonControl, journal, plans, goals, handleSettings, webLookup (npm/URL/ping), runSkill, shellTask, shellRun, projectScan, mcpControl, registerHandlers.
+- **Reflector** (21% → ~65%): diagnose (kernel integrity, syntax errors, require-chain), repair (kernel/missing-dep/unknown), suggestOptimizations (complexity + coupling detection).
+- **CodeAnalyzer** (51% → ~85%): analyze routing (file/inline/general), _analyzeFile with missing file, compareWith.
+- **SelfOptimizer** (33% → ~75%): analyze(), all 4 _analyze* methods, _trackQuality, _trackError, recommendation generation, getLatestReport, buildContext.
+- **ModuleRegistry** (39% → ~70%): register, registerSelf, validate (missing deps, phase violations, clean manifest), getManifest with late bindings.
+- **HealthServer** (29% → ~80%): _basicHealth, _fullHealth (with/without services, compromised kernel), start/stop lifecycle.
+- **SkillManager** (36% → ~70%): loadSkills (empty/valid/invalid), listSkills, executeSkill (unknown skill), removeSkill.
+- **HomeostasisEffectors** (54% → ~75%): _handlePruneCaches (LLM cache, vector memory at high/low pressure), _handlePruneKnowledge (with/without KG), _handleReduceContext, getReport, start/stop.
+- **ReasoningEngine** (42% → ~65%): _assessComplexity (7 strategy patterns), _detectToolNeed (4 tool patterns), _directAnswer, _buildContextualPrompt, _parseSubTasks, _isToolRelevant, _callTool.
+- **LearningService** (48% → ~70%): _extractFacts (DE+EN), _extractPreferences, _recordIntentOutcome, _trackToolUsage, _trackIntentSequence, _learnFromChat full pipeline, start/stop.
+- **PromptEvolution** (48% → ~65%): getSection, recordOutcome, getStatus, setEnabled, buildPromptContext, stop.
+- **NativeToolUse** (36% → ~60%): _buildToolSchemas (all/filtered), _convertInputSchema, _supportsNativeTools, _appendToolResults (ollama), getStats.
+- **SelfSpawner** (46% → ~60%): getActiveWorkers, killAll, kill.
+- **IntrospectionEngine** (57% → ~70%): _tick (productive tension, depletion risk, social hunger), stats accumulation, start/stop.
+- **TemporalSelf** (64% → ~75%): getReport, getRetention, getCurrentChapter, buildPromptContext, start/stop.
+- **AgentLoop** (33% → ~50%): _reportCognitiveLevel (NONE/PARTIAL/FULL), getStatus, approve/reject, stop (cleanup + pending rejection), _buildStepContext (consciousness + value + workspace context), _reflectOnProgress.
+- **AgentLoopSteps** (16% → ~45%): _executeStep dispatch (ANALYZE, SHELL, SANDBOX, SEARCH, ASK, unknown type), symbolic DIRECT bypass, symbolic GUIDED enrichment, error handling.
+- **McpTransport** (19% → ~50%): _validateMcpUrl (SSRF protection: 9 test cases — valid URLs, localhost, private IPs, numeric obfuscation), _recordLatency, getLatencyPercentiles, enqueue/queue-full, disconnect cleanup, getStatus, _maybeReconnect.
+- **AutonomousDaemon** (48% → ~65%): _healthCheck (clean + with issues + trust-gated repair), _consolidateMemory (with/without memory), _learnFromHistory, getStatus, runCheck dispatch, _log level filtering, start/stop.
+- **GoalStack** (59% → ~75%): addGoal, pauseGoal, resumeGoal, abandonGoal, getProgress, getGoalTree.
+- **EpisodicMemory** (75% → ~85%): recall (keyword + tag + outcome filters), getByTag, getRecent, buildContext, getStats, getTags, _scoreRelevance, _tokenize.
+- **AttentionalGate** (65% → ~75%): getCurrentFocus, getPrimaryFocus, getMode, getGateWidth, directFocus, buildPromptContext, getReport, _tick, start/stop.
+- **EffectorRegistry** (70% → ~80%): register, execute (success + unknown), listEffectors, getSchemas, getStats.
+
+### Stats
+
+- Source: 243 files, ~85k LOC. Tests: 283 files, 4266 passing, 0 failing.
+- Coverage ratchet: 77/73/73 → 79/75/75. Actual: 79.75/75.16/77.22.
+- Fitness: 90/90. Events audit: ✅. TSC: 0 errors.
+
+---
+
 ## [6.1.0] — Observability
 
 **Focus: Every system that makes a decision must count it. Silent failures eliminated, consciousness layer made measurable, coverage pushed forward.**

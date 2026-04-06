@@ -297,7 +297,8 @@ class SelfModel {
     }
 
     const fullPath = path.join(this.rootDir, filePath);
-    if (fs.existsSync(fullPath)) {
+    // FIX v6.1.1: Guard against EISDIR — skip directories
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
       return fs.readFileSync(fullPath, 'utf-8');
     }
     return null;

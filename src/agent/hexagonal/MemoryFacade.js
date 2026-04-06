@@ -58,7 +58,6 @@ class MemoryFacade {
       { prop: 'conversationMemory', service: 'memory', optional: true },
       { prop: 'knowledgeGraph', service: 'knowledgeGraph', optional: true },
       { prop: 'selfNarrative', service: 'selfNarrative', optional: true },
-      // NOTE: echoicMemory is internal to ConsciousnessExtension, not a container service.
     ],
   };
 
@@ -73,7 +72,6 @@ class MemoryFacade {
     this.conversationMemory = null;
     this.knowledgeGraph = null;
     this.selfNarrative = null;
-    this.echoicMemory = null;
 
     this._stats = {
       queries: 0,
@@ -294,12 +292,10 @@ class MemoryFacade {
         conversation: !!this.conversationMemory,
         knowledgeGraph: !!this.knowledgeGraph,
         selfNarrative: !!this.selfNarrative,
-        echoic: !!this.echoicMemory,
       },
       activeCount: [
         this.unifiedMemory, this.episodicMemory, this.vectorMemory,
         this.conversationMemory, this.knowledgeGraph, this.selfNarrative,
-        this.echoicMemory,
       ].filter(Boolean).length,
     };
   }

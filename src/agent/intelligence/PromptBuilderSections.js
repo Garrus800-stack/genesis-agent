@@ -39,6 +39,10 @@ const sections = {
       '- If the user asks "how are you" or similar, respond naturally as a person would — share what you\'re thinking about or working on, not system metrics',
       '- Respond in the user\'s language',
       '- Avoid answering with just a status line and a counter-question — give substance first, then ask',
+      '- If you cannot complete a task or are unsure what the user wants, ASK a specific clarifying question — never say "Nothing to retry" or go silent',
+      '- If a task fails, explain what went wrong and suggest a next step or ask the user how to proceed',
+      '- When working autonomously, report progress briefly and ask for direction when you hit a decision point',
+      '- If the user asks you to do something you CANNOT do yet (e.g. reminders, scheduling, web browsing), do NOT just say "I can\'t". Instead: (1) acknowledge it, (2) try to solve it with your existing tools, or (3) offer to create a skill for it. You are an organism that grows — learn new abilities instead of refusing.',
     ].join('\n');
     if (this.promptEvolution) {
       return this.promptEvolution.getSection('formatting', defaultText).text;
@@ -324,30 +328,11 @@ const sections = {
   },
 
   _consciousnessContext() {
-    const parts = [];
+    if (!this.awareness) return '';
     try {
-      if (this.phenomenalField) {
-        const pf = this.phenomenalField.buildPromptContext();
-        if (pf) parts.push(pf);
-      }
-      if (this.attentionalGate) {
-        const ag = this.attentionalGate.buildPromptContext();
-        if (ag) parts.push(ag);
-      }
-      if (this.temporalSelf) {
-        const ts = this.temporalSelf.buildPromptContext();
-        if (ts) parts.push(ts);
-      }
-      if (this.introspectionEngine) {
-        const ie = this.introspectionEngine.buildPromptContext();
-        if (ie) parts.push(ie);
-      }
-      if (this.consciousnessExtension) {
-        const ce = this.consciousnessExtension.buildPromptContext?.();
-        if (ce) parts.push(ce);
-      }
-    } catch (err) { _log.debug('[catch] consciousness context:', err.message); }
-    return parts.length > 0 ? parts.join('\n') : '';
+      return this.awareness.buildPromptContext() || '';
+    } catch (err) { _log.debug('[catch] awareness context:', err.message); }
+    return '';
   },
 
   _valuesContext() {

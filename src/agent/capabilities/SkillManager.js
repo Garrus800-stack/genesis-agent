@@ -88,7 +88,11 @@ class SkillManager {
       }
     `;
 
-    return await this.sandbox.execute(execCode, { allowRequire: true });
+    return await this.sandbox.execute(execCode, {
+      allowRequire: true,
+      // FIX v6.1.1: Skills need read access to project files (fs path restrictions still enforced)
+      env: { GENESIS_SANDBOX_ALLOW_READ_ROOT: this.sandbox?.rootDir || process.cwd() },
+    });
   }
 
   /** Create a new skill from a natural language description */

@@ -340,7 +340,44 @@ const CHANNELS = {
     const e1 = _validateStr(filePath, 'filePath');
     if (e1) return { error: e1 };
     if (typeof content !== 'string') return { error: 'content must be a string' };
+    // FIX v6.1.1: Resolve ~ paths to home directory for user-requested saves
+    if (filePath.startsWith('~')) {
+      const os = require('os');
+      const path = require('path');
+      const fs = require('fs');
+      const resolved = filePath.replace(/^~[/\\]/, os.homedir() + path.sep);
+      const dir = path.dirname(resolved);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(resolved, content, 'utf-8');
+      return { ok: true, path: resolved };
+    }
     return agent.writeOwnFile(filePath, content);
+  },
+
+  // FIX v6.1.1: Open a file/folder in the system default application
+  'agent:open-path': async (event, filePath) => {
+    if (!agent) return { error: 'Agent not booted' };
+    const e = _validateStr(filePath, 'filePath');
+    if (e) return { error: e };
+    const path = require('path');
+    const os = require('os');
+    const fs = require('fs');
+    // Resolve ~ to home directory
+    let resolved = filePath
+      .replace(/^~[/\\]/, os.homedir() + path.sep)
+      .replace(/^~$/, os.homedir());
+    // If not absolute, try relative to project root
+    if (!path.isAbsolute(resolved)) {
+      resolved = path.resolve(agent.rootDir, resolved);
+    }
+    if (!fs.existsSync(resolved)) {
+      return { error: `Path not found: ${resolved}` };
+    }
+    try {
+      const { shell } = require('electron');
+      await shell.openPath(resolved);
+      return { ok: true, path: resolved };
+    } catch (err) { return { error: err.message }; }
   },
 
   'agent:run-in-sandbox': async (event, code) => {
@@ -555,7 +592,9 @@ const CHANNELS = {
   // v3.5.0: Agent Loop (autonomous goal execution)
   'agent:loop-status': async () => {
     if (!agent) return null;
-    return agent.container.tryResolve('agentLoop')?.getStatus() ?? null;
+    const status = agent.container.tryResolve('agentLoop')?.getStatus() ?? null;
+    // FIX v6.1.1: Sanitize for IPC structured clone — strip non-serializable values
+    try { return status ? JSON.parse(JSON.stringify(status)) : null; } catch { return null; }
   },
 
   'agent:loop-approve': async () => {

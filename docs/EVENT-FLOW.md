@@ -160,19 +160,7 @@ graph TB
         PromptEvolution["PromptEvolution"]
     end
 
-    subgraph CONSCIOUSNESS["✨ Consciousness (Phase 13)"]
-        PhenomenalField["PhenomenalField"]
-        AttentionalGate["AttentionalGate"]
-        TemporalSelf["TemporalSelf"]
-        IntrospectionEngine["IntrospectionEngine"]
-        ConsciousnessExt["ConsciousnessExtension"]
-        EchoicMemory["EchoicMemory"]
-        PredictiveCoder["PredictiveCoder"]
-        NeuroModulators["NeuroModulatorSystem"]
-        SalienceGate["SalienceGate"]
-        DreamEngine["DreamEngine"]
-        ConsciousnessState["ConsciousnessState"]
-    end
+    AwarenessPort["💡 AwarenessPort\n(v7.0.0 — replaces Phase 13)"]
 
     main --> Container
     Container --> EventBus

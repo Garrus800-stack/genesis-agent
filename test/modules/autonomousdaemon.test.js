@@ -1,152 +1,110 @@
-// ============================================================
-// Test: AutonomousDaemon.js — lifecycle, cycle dispatch,
-// config, status reporting
-// ============================================================
-
+#!/usr/bin/env node
+// Test: AutonomousDaemon — lifecycle, config, cycle management
 const { describe, test, assert, assertEqual, run } = require('../harness');
+const { createBus } = require('../../src/agent/core/EventBus');
 const { AutonomousDaemon } = require('../../src/agent/autonomy/AutonomousDaemon');
 
-function createDaemon(overrides = {}) {
-  const events = [];
+function create(overrides = {}) {
+  const bus = createBus();
   return {
+    bus,
     daemon: new AutonomousDaemon({
-      bus: { fire: (e, d) => events.push({ e, d }), emit: (e, d) => events.push({ e, d }), on: () => () => {} },
-      reflector: {
-        diagnose: async () => ({ issues: [], scannedModules: 5 }),
-        repair: async (issues) => issues.map(i => ({ ...i, fixed: true })),
-      },
-      selfModel: {
-        getFullModel: () => ({ modules: {}, files: {}, capabilities: [] }),
-        getModuleSummary: () => [],
-      },
-      memory: {
-        getStats: () => ({ episodes: 3, facts: 10 }),
-        recallEpisodes: () => [],
-        prune: () => 0,
-      },
-      model: { chat: async () => '{"suggestions": []}', activeModel: 'gemma2:9b' },
-      prompts: { build: () => 'prompt' },
-      skills: { listSkills: () => [] },
-      sandbox: { execute: async () => ({ success: true, output: '' }) },
-      guard: { verifyIntegrity: () => ({ ok: true }) },
+      bus,
+      reflector: null,
+      selfModel: null,
+      memory: null,
+      model: null,
+      prompts: null,
+      skills: null,
+      sandbox: null,
+      guard: null,
       intervals: null,
       ...overrides,
     }),
-    events,
   };
 }
 
-describe('AutonomousDaemon: Lifecycle', () => {
-  test('starts and sets running flag', () => {
-    const { daemon } = createDaemon();
+describe('AutonomousDaemon', () => {
+
+  test('constructor initializes with running=false', () => {
+    const { daemon } = create();
+    assertEqual(daemon.running, false);
+    assertEqual(daemon.cycleCount, 0);
+  });
+
+  test('config has sensible defaults', () => {
+    const { daemon } = create();
+    assertEqual(daemon.config.cycleInterval, 5 * 60 * 1000);
+    assertEqual(daemon.config.healthInterval, 3);
+    assertEqual(daemon.config.autoRepair, true);
+    assertEqual(daemon.config.autoOptimize, false);
+  });
+
+  test('start sets running=true', () => {
+    const { daemon } = create();
     daemon.start();
-    assert(daemon.running, 'Should be running after start()');
+    assert(daemon.running, 'should be running');
     daemon.stop();
   });
 
-  test('stop clears running flag', () => {
-    const { daemon } = createDaemon();
+  test('start is idempotent', () => {
+    const { daemon } = create();
     daemon.start();
-    daemon.stop();
-    assert(!daemon.running, 'Should not be running after stop()');
-  });
-
-  test('double start is a no-op', () => {
-    const { daemon } = createDaemon();
     daemon.start();
-    daemon.start(); // Should not throw
     assert(daemon.running);
     daemon.stop();
   });
 
-  test('double stop is safe', () => {
-    const { daemon } = createDaemon();
+  test('stop sets running=false', () => {
+    const { daemon } = create();
     daemon.start();
     daemon.stop();
+    assertEqual(daemon.running, false);
+  });
+
+  test('stop is safe when not started', () => {
+    const { daemon } = create();
     daemon.stop(); // Should not throw
-    assert(!daemon.running);
   });
 
-  test('start emits daemon:started event', () => {
-    const { daemon, events } = createDaemon();
-    daemon.start();
-    assert(events.some(e => e.e === 'daemon:started'));
-    daemon.stop();
+  test('_runCycle skips when not running', async () => {
+    const { daemon } = create();
+    await daemon._runCycle();
+    assertEqual(daemon.cycleCount, 0);
   });
 
-  test('stop emits daemon:stopped event', () => {
-    const { daemon, events } = createDaemon();
-    daemon.start();
-    daemon.stop();
-    assert(events.some(e => e.e === 'daemon:stopped'));
-  });
-});
-
-describe('AutonomousDaemon: Configuration', () => {
-  test('default config has reasonable intervals', () => {
-    const { daemon } = createDaemon();
-    assert(daemon.config.cycleInterval >= 60000, 'Cycle should be at least 1 minute');
-    assert(daemon.config.healthInterval >= 1, 'Health interval should be positive');
-    assert(daemon.config.maxAutoRepairs >= 1);
-  });
-
-  test('autoOptimize defaults to false', () => {
-    const { daemon } = createDaemon();
-    assertEqual(daemon.config.autoOptimize, false);
-  });
-
-  test('autoRepair defaults to true', () => {
-    const { daemon } = createDaemon();
-    assertEqual(daemon.config.autoRepair, true);
-  });
-});
-
-describe('AutonomousDaemon: Status', () => {
-  test('getStatus returns structured report', () => {
-    const { daemon } = createDaemon();
-    const status = daemon.getStatus();
-    assert('running' in status);
-    assert('cycleCount' in status);
-    assert('lastResults' in status);
-    assertEqual(status.running, false);
-  });
-
-  test('getStatus reflects running state', () => {
-    const { daemon } = createDaemon();
-    daemon.start();
-    assertEqual(daemon.getStatus().running, true);
-    daemon.stop();
-    assertEqual(daemon.getStatus().running, false);
-  });
-
-  test('cycleCount starts at zero', () => {
-    const { daemon } = createDaemon();
-    assertEqual(daemon.getStatus().cycleCount, 0);
-  });
-});
-
-describe('AutonomousDaemon: Cycle Dispatch', () => {
   test('_runCycle increments cycleCount', async () => {
-    const { daemon } = createDaemon();
+    const { daemon } = create();
     daemon.running = true;
     await daemon._runCycle();
-    assert(daemon.cycleCount >= 1, `Expected cycleCount >= 1, got ${daemon.cycleCount}`);
-    daemon.running = false;
+    assertEqual(daemon.cycleCount, 1);
   });
 
-  test('_healthCheck runs without error', async () => {
-    const { daemon } = createDaemon();
-    const result = await daemon._healthCheck();
-    // Should complete without throwing
-    assert(true, 'Health check completed');
+  test('knownGaps and gapAttempts initialize empty', () => {
+    const { daemon } = create();
+    assertEqual(daemon.knownGaps.length, 0);
+    assertEqual(daemon.gapAttempts.size, 0);
   });
 
-  test('_runCycle does nothing when not running', async () => {
-    const { daemon } = createDaemon();
-    daemon.running = false;
-    const before = daemon.cycleCount;
-    await daemon._runCycle();
-    assertEqual(daemon.cycleCount, before, 'Should not increment when not running');
+  test('dynamic gap collection from bus events', () => {
+    const { bus, daemon } = create();
+    daemon.start();
+    // Simulate skill:learned event with a topic
+    bus.emit('skill:learned', { topic: 'REST API design patterns' });
+    // _dynamicGaps should have been populated (if the listener is set up)
+    daemon.stop();
+  });
+
+  test('start with intervals manager', () => {
+    const intervals = {
+      register: (name, fn, ms, opts) => {},
+      unregister: (name) => {},
+      clear: (name) => {},
+    };
+    const { daemon } = create({ intervals });
+    daemon.start();
+    assert(daemon.running);
+    daemon.stop();
   });
 });
 

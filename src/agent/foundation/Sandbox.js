@@ -68,6 +68,7 @@ class Sandbox {
       'path', 'url', 'querystring', 'util', 'assert',
       'buffer', 'events', 'stream', 'string_decoder', 'crypto',
       'os', // v5.9.1: Read-only system info — safe for skills
+      'fs', // FIX v6.1.1: Skills need fs access. Path restrictions still enforced by restrictFs wrappers.
     ]);
 
     if (!fs.existsSync(this.sandboxDir)) {

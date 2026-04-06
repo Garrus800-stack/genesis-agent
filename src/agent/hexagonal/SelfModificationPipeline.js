@@ -13,6 +13,7 @@ const os = require('os');
 const crypto = require('crypto');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { THRESHOLDS } = require('../core/Constants');
 const _log = createLogger('SelfModificationPipeline');
 
 // ── Atomic Write Helper ──────────────────────────────────────
@@ -67,8 +68,8 @@ class SelfModificationPipeline {
     // v5.0.0: Genome + Metabolism — late-bound from Container.
     this._genome = null;
     this._metabolism = null;
-    // v6.0.8: Consciousness gate — coherence-gated self-modification
-    this._phenomenalField = null;
+    // v7.6.0: AwarenessPort — coherence-gated self-modification
+    this._awareness = null;
     // v5.5.0: PreservationInvariants — late-bound from Container.
     // Semantic safety: detects modifications that weaken safety systems.
     this._preservation = null;
@@ -185,10 +186,18 @@ class SelfModificationPipeline {
   /**
    * v6.1.0: Gate statistics — aggregated view of all self-modification gates.
    * Answers: "Does ConsciousnessGate actually block anything?"
-   * @returns {{ totalAttempts: number, passed: number, blockRate: number, consciousnessBlockRate: number, consciousnessBlocked: number, energyBlocked: number, circuitBreakerBlocked: number, lastBlockedAt: number|null, lastCoherence: number|null }}
+   * v7.0.0: Added awarenessActive — false when NullAwareness (no-op) is in use,
+   * so dashboard consumers can distinguish "gate active, nothing blocked" from
+   * "gate inactive, counter is always 0 by design".
+   * @returns {{ totalAttempts: number, passed: number, blockRate: number, consciousnessBlockRate: number, consciousnessBlocked: number, energyBlocked: number, circuitBreakerBlocked: number, lastBlockedAt: number|null, lastCoherence: number|null, awarenessActive: boolean }}
    */
   getGateStats() {
     const { totalAttempts, consciousnessBlocked, passed } = this._gateStats;
+    // Awareness is "active" when a real implementation is wired up.
+    // NullAwareness.getReport() returns { active: false } by contract.
+    const awarenessActive = this._awareness
+      ? (this._awareness.getReport?.()?.active ?? false)
+      : false;
     return {
       ...this._gateStats,
       blockRate: totalAttempts > 0
@@ -197,6 +206,7 @@ class SelfModificationPipeline {
       consciousnessBlockRate: totalAttempts > 0
         ? Math.round((consciousnessBlocked / totalAttempts) * 10000) / 100
         : 0,
+      awarenessActive,
     };
   }
 
@@ -407,21 +417,21 @@ Be specific. Reference actual module names and actual limitations. Think like a 
         `To resume: say "/self-repair-reset" or restart Genesis.`;
     }
 
-    // v6.0.8: Consciousness gate — don't modify self when fragmented
-    if (this._phenomenalField) {
+    // v7.6.0: Awareness gate — don't modify self when fragmented
+    if (this._awareness) {
       try {
-        const coherence = this._phenomenalField.getCoherence?.();
-        if (typeof coherence === 'number' && coherence < 0.4) {
+        const coherence = this._awareness.getCoherence();
+        if (typeof coherence === 'number' && coherence < THRESHOLDS.SELFMOD_COHERENCE_MIN) {
           this._gateStats.consciousnessBlocked++;
           this._gateStats.lastBlockedAt = Date.now();
           this._gateStats.lastCoherence = coherence;
-          _log.warn(`[SELFMOD] Blocked: consciousness coherence too low (${coherence.toFixed(2)})`);
+          _log.warn(`[SELFMOD] Blocked: awareness coherence too low (${coherence.toFixed(2)})`);
           this.bus.emit('selfmod:consciousness-blocked', {
             coherence: Math.round(coherence * 100) / 100,
           }, { source: 'SelfModPipeline' });
-          return `⚠ **Self-modification deferred** — internal coherence is low (${(coherence * 100).toFixed(0)}%).\n\nGenesis is in a fragmented state. Self-modification is safer when coherence recovers above 40%. Try again shortly.`;
+          return `⚠ **Self-modification deferred** — internal coherence is low (${(coherence * 100).toFixed(0)}%).\n\nGenesis is in a fragmented state. Self-modification is safer when coherence recovers above ${Math.round(THRESHOLDS.SELFMOD_COHERENCE_MIN * 100)}%. Try again shortly.`;
         }
-      } catch (_e) { /* consciousness optional — never block on error */ }
+      } catch (_e) { /* awareness optional — never block on error */ }
     }
 
     // v5.0.0: Metabolism energy gating — self-mod is expensive

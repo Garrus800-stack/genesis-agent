@@ -237,45 +237,48 @@ DESIRED SKILL: ${description}
 EXISTING SKILLS:
 ${existingSkills || 'None'}
 
-A skill is a standalone Node.js module with this structure:
+RULES:
+- Output EXACTLY two code blocks: first a \`\`\`json block with the manifest, then a \`\`\`javascript block with the code
+- The skill runs in a sandboxed Node.js environment
+- ALLOWED modules: path, url, util, assert, buffer, events, stream, crypto, os, fs (read-only to project root)
+- BLOCKED modules: child_process, net, http, https, cluster, worker_threads
+- The execute() method MUST return a plain object (JSON-serializable)
+- Include a working test() method that verifies the skill works
+- Keep the code simple and robust — handle errors gracefully
 
-EXAMPLE:
-\`\`\`javascript
-// skill-manifest.json
+OUTPUT FORMAT — follow this exactly:
+
+\`\`\`json
 {
-  "name": "example-skill",
+  "name": "skill-name",
   "version": "1.0.0",
-  "description": "What this skill does",
+  "description": "What this skill does in one sentence",
   "entry": "index.js",
   "interface": {
-    "input": { "param1": "string" },
-    "output": { "result": "string" }
+    "input": { "paramName": "type" },
+    "output": { "resultName": "type" }
   }
 }
+\`\`\`
 
-// index.js
-class ExampleSkill {
-  constructor() { this.name = 'example-skill'; }
+\`\`\`javascript
+class SkillName {
+  constructor() { this.name = 'skill-name'; }
   
   async execute(input) {
-    // Skill logic here
-    return { result: 'Result' };
+    // Skill logic here — use only allowed modules
+    return { result: 'value' };
   }
   
   test() {
-    // Self-test
-    const result = this.execute({ param1: 'test' });
-    return { passed: result !== null, detail: 'Basic test' };
+    const result = this.execute({});
+    return { passed: true, detail: 'Test passed' };
   }
 }
-module.exports = { ExampleSkill };
+module.exports = { SkillName };
 \`\`\`
 
-TASK: Create the skill. Output TWO files:
-1. skill-manifest.json
-2. index.js
-
-Ensure the skill has a test() method.`,
+Now create the skill.`,
 
       // ── CLONE IMPROVEMENT PLAN ────────────────────────
       'clone-plan': ({ selfModel, conversation, improvements }) =>

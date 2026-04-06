@@ -142,66 +142,6 @@ describe('CoverageSweep2 — WorkspacePort', () => {
   });
 });
 
-// ════════════════════════════════════════════════════════════
-// IntrospectionEngine
-// ════════════════════════════════════════════════════════════
-
-describe('CoverageSweep2 — IntrospectionEngine', () => {
-  const { IntrospectionEngine } = require('../../src/agent/consciousness/IntrospectionEngine');
-
-  function makeIE() {
-    return new IntrospectionEngine({ bus: mockBus(), storage: mockStorage(), eventStore: null, intervals: null });
-  }
-
-  test('all public getters', () => {
-    const ie = makeIE();
-    assert(typeof ie.getStateReport() === 'object');
-    assert(Array.isArray(ie.getActiveInsights()));
-    assert(typeof ie.getSelfTheory() === 'object');
-    assert(typeof ie.getSelfModel() === 'object');
-    assert(typeof ie.buildPromptContext() === 'string');
-    assert(typeof ie.getReport() === 'object');
-  });
-
-  test('start + _generateStateReport + stop', () => {
-    const ie = makeIE();
-    ie.start();
-    ie._generateStateReport();
-    ie.stop();
-  });
-});
-
-// ════════════════════════════════════════════════════════════
-// ConsciousnessExtensionAdapter
-// ════════════════════════════════════════════════════════════
-
-describe('CoverageSweep2 — ConsciousnessExtensionAdapter', () => {
-  const { ConsciousnessExtensionAdapter } = require('../../src/agent/consciousness/ConsciousnessExtensionAdapter');
-
-  test('construct + buildPromptContext + getSnapshot', () => {
-    const cea = new ConsciousnessExtensionAdapter({ bus: mockBus() });
-    assert(typeof cea.buildPromptContext() === 'string');
-    const snap = cea.getSnapshot();
-    assert(typeof snap === 'object');
-  });
-
-  test('start + stop', () => {
-    const cea = new ConsciousnessExtensionAdapter({ bus: mockBus() });
-    cea.start(); cea.stop();
-  });
-
-  test('health helpers return numbers', () => {
-    const cea = new ConsciousnessExtensionAdapter({ bus: mockBus() });
-    assert(typeof cea._getSystemHealth() === 'number');
-    assert(typeof cea._getTaskProgress() === 'number');
-    assert(typeof cea._getErrorRate() === 'number');
-    assert(typeof cea._getMemoryLoad() === 'number');
-  });
-});
-
-// ════════════════════════════════════════════════════════════
-// ModuleRegistry
-// ════════════════════════════════════════════════════════════
 
 describe('CoverageSweep2 — ModuleRegistry', () => {
   const { ModuleRegistry } = require('../../src/agent/revolution/ModuleRegistry');

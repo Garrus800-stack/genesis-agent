@@ -61,10 +61,10 @@ Usage:
   node cli.js --serve        MCP server daemon (no chat)
   node cli.js --port 4000    Custom MCP server port (default: 3580)
   node cli.js --minimal      Minimal boot profile (~50 services)
-  node cli.js --cognitive    Cognitive profile — default (~120 services, no consciousness)
-  node cli.js --full         Full profile (~130 services, includes consciousness)
-  node cli.js --skip-phase 13      Skip specific phases (6-13) for A/B testing
-  node cli.js --skip-phase 7,13    Skip multiple phases
+  node cli.js --cognitive    Cognitive profile — default (~140 services)
+  node cli.js --full         Full profile (same as cognitive since v7.0.0)
+  node cli.js --skip-phase 7       Skip specific phases (6-12) for A/B testing
+  node cli.js --skip-phase 7,9     Skip multiple phases
   node cli.js --verbose      Show all Genesis logs (default: warn only)
   node cli.js --no-boot-log  Suppress boot messages (for scripts)
   node cli.js --once "msg"   Send one message, print response, exit

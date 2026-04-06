@@ -45,7 +45,6 @@ const { phase9 } = require('./manifest/phase9-cognitive');
 const { phase10 } = require('./manifest/phase10-agency');
 const { phase11 } = require('./manifest/phase11-extended');
 const { phase12 } = require('./manifest/phase12-hybrid');
-const { phase13 } = require('./manifest/phase13-consciousness');
 
 // ── Auto-Discovery Module Resolver ──────────────────────
 // Scans src/agent/ subdirectories once at boot and builds
@@ -56,7 +55,6 @@ const SCAN_DIRS = [
   'planning', 'hexagonal', 'autonomy', 'organism',
   'revolution', 'ports',
   'cognitive',  // Phase 9: Cognitive Architecture
-  'consciousness',  // Phase 13: Bewusstseinssubstrat
   // Phase 10-12: Extended Agency
 ];
 
@@ -108,18 +106,15 @@ function buildManifest(ctx) {
   };
 
   // ── Boot profiles ──────────────────────────────────────
-  // v5.2.0: Skip higher phases based on profile.
-  //   full      → all 13 phases
-  //   cognitive → phases 1-12, skip consciousness (default since v6.0.7)
+  // v7.6.0: Phase 13 (Consciousness) removed — replaced by
+  // AwarenessPort in Phase 1. All profiles now cap at phase 12.
+  //   full      → all 12 phases
+  //   cognitive → phases 1-12 (same as full)
   //   minimal   → phases 1-8 (core agent loop only)
-  //
-  // v6.0.7: Default changed from 'full' to 'cognitive'. A/B benchmarks
-  // show consciousness (phase 13) adds 0pp success rate improvement with
-  // variable latency overhead. Use --boot-profile full to opt back in.
   const profile = ctx.bootProfile || 'cognitive';
 
   const PHASE_MAP = {
-    full:      [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8, phase9, phase10, phase11, phase12, phase13],
+    full:      [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8, phase9, phase10, phase11, phase12],
     cognitive: [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8, phase9, phase10, phase11, phase12],
     minimal:   [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8],
   };
@@ -127,11 +122,10 @@ function buildManifest(ctx) {
   let phases = PHASE_MAP[profile] || PHASE_MAP.full;
 
   // v6.0.4: --skip-phase N[,N] — skip specific phases for A/B benchmarking.
-  // Usage: node cli.js --skip-phase 13        (skip consciousness)
-  //        node cli.js --skip-phase 7,13      (skip organism + consciousness)
+  // Usage: node cli.js --skip-phase 7       (skip organism)
   // Phases 1-5 cannot be skipped (core infrastructure).
   if (ctx.skipPhases && Array.isArray(ctx.skipPhases)) {
-    const PHASE_FN_MAP = { 1: phase1, 2: phase2, 3: phase3, 4: phase4, 5: phase5, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10, 11: phase11, 12: phase12, 13: phase13 };
+    const PHASE_FN_MAP = { 1: phase1, 2: phase2, 3: phase3, 4: phase4, 5: phase5, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10, 11: phase11, 12: phase12 };
     const skippable = ctx.skipPhases.filter(p => p >= 6); // Phases 1-5 are required
     if (skippable.length > 0) {
       phases = phases.filter(fn => {

@@ -95,11 +95,7 @@ class AgentCoreHealth {
         healthTracker:  safe('cognitiveHealthTracker',cht => cht.getReport()),
       },
       consciousness: {
-        phenomenalField: safe('phenomenalField',       pf => pf.getReport()),
-        attention:       safe('attentionalGate',       ag => ag.getReport()),
-        temporalSelf:    safe('temporalSelf',          ts => ts.getReport()),
-        introspection:   safe('introspectionEngine',   ie => ie.getReport()),
-        extension:       safe('consciousnessExtension',ce => ({ state: ce.getState?.(), snapshot: !!ce.getSnapshot?.() })),
+        awareness:       safe('awareness',              aw => aw.getReport()),
         values:          safe('valueStore',            vs => vs.getReport()),
         userModel:       safe('userModel',             um => um.getReport()),
         bodySchema:      safe('bodySchema',            bs => bs.getReport()),
@@ -255,8 +251,8 @@ class AgentCoreHealth {
     const TO_STOP = [
       'desktopPerception', 'cognitiveMonitor', 'healthMonitor', 'needsSystem',
       'homeostasis', 'emotionalState', 'idleMind', 'daemon', 'learningService',
-      'introspectionEngine', 'temporalSelf', 'phenomenalField', 'attentionalGate',
-      'valueStore', 'userModel', 'bodySchema', 'consciousnessExtension',
+      'awareness',
+      'valueStore', 'userModel', 'bodySchema',
       'homeostasisEffectors', 'metabolism', 'immuneSystem',
       'genome', 'epigeneticLayer', 'fitnessEvaluator',
       // FIX D-1: Previously missing — these services have stop() methods that

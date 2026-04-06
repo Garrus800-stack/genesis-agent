@@ -13,7 +13,7 @@
 //   _extractSkills(description) → string[]
 // ============================================================
 
-const { TIMEOUTS } = require('../core/Constants');
+const { TIMEOUTS, THRESHOLDS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
 const path = require('path');
 const fs = require('fs');
@@ -368,6 +368,130 @@ class AgentLoopStepsDelegate {
     if (/(?:security|auth|encrypt|sicher)/.test(d)) skills.push('security');
     if (/(?:api|endpoint|rest|graphql)/.test(d)) skills.push('api');
     return skills;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // v7.6.0: Extracted from AgentLoop — repair, verification, tags
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Attempt to repair a failed step via LLM analysis + retry.
+   */
+  async attemptRepair(failedStep, failedResult, allResults, onProgress) {
+    const loop = this.loop;
+    onProgress({ phase: 'repairing', detail: `Attempting to fix: ${failedResult.error}` });
+
+    const prompt = `You are Genesis. A step in your autonomous execution failed.
+
+Failed step: ${failedStep.type} — ${failedStep.description}
+Error: ${failedResult.error}
+Output: ${(failedResult.output || '').slice(0, 500)}
+
+What went wrong and how can you fix it? Provide a corrected approach.
+If the error is unfixable (e.g., missing dependency, permission denied), say "UNFIXABLE: reason".`;
+
+    const analysis = await loop.model.chat(prompt, [], 'analysis');
+
+    if (analysis.includes('UNFIXABLE')) {
+      return { recovered: false, output: analysis };
+    }
+
+    const repairedStep = { ...failedStep };
+    const repairContext = `REPAIR ATTEMPT: Previous error was "${failedResult.error}". Fix: ${analysis.slice(0, 500)}`;
+    const retryResult = await this._executeStep(repairedStep, repairContext, onProgress);
+
+    return {
+      recovered: !retryResult.error,
+      output: retryResult.output,
+      error: retryResult.error,
+    };
+  }
+
+  /**
+   * Verify whether a goal was achieved based on step results.
+   */
+  async verifyGoal(plan, allResults) {
+    const loop = this.loop;
+    const errors = allResults.filter(r => r.error);
+    const successRate = (allResults.length - errors.length) / allResults.length;
+
+    const verified = allResults.filter(r => r.verification);
+    const programmaticPasses = verified.filter(r => r.verification.status === 'pass').length;
+    const programmaticFails = verified.filter(r => r.verification.status === 'fail').length;
+    const ambiguous = verified.filter(r => r.verification.status === 'ambiguous').length;
+
+    if (verified.length > 0 && programmaticFails === 0 && successRate >= THRESHOLDS.GOAL_SUCCESS_PROGRAMMATIC) {
+      return {
+        success: true,
+        summary: `Goal "${plan.title}" completed. ${allResults.length} steps: ${programmaticPasses} verified, ${ambiguous} ambiguous, ${errors.length} errors. Success rate: ${Math.round(successRate * 100)}%.`,
+        verificationMethod: 'programmatic',
+      };
+    }
+
+    if (successRate >= THRESHOLDS.GOAL_SUCCESS_HEURISTIC && programmaticFails === 0) {
+      return {
+        success: true,
+        summary: `Goal "${plan.title}" completed. ${allResults.length} steps, ${errors.length} errors. Success rate: ${Math.round(successRate * 100)}%.`,
+        verificationMethod: 'heuristic',
+      };
+    }
+
+    const verificationContext = verified.length > 0
+      ? `\nProgrammatic verification: ${programmaticPasses} pass, ${programmaticFails} fail, ${ambiguous} ambiguous`
+      : '';
+
+    const prompt = `Goal: "${plan.title}"
+Success criteria: ${plan.successCriteria || 'All steps complete'}
+Steps completed: ${allResults.length}
+Errors: ${errors.length}
+Error details: ${errors.map(e => e.error).join('; ')}${verificationContext}
+
+Was this goal achieved? Respond with: SUCCESS or PARTIAL or FAILED, followed by a brief explanation.`;
+
+    const evaluation = await loop.model.chat(prompt, [], 'analysis');
+
+    if (loop.episodicMemory) {
+      try {
+        const success = evaluation.toUpperCase().startsWith('SUCCESS');
+        loop.episodicMemory.recordEpisode({
+          topic: plan.title || 'Agent goal execution',
+          summary: evaluation.slice(0, 200),
+          outcome: success ? 'success' : 'failed',
+          toolsUsed: [...new Set(allResults.map(r => r.type).filter(Boolean))],
+          artifacts: allResults
+            .filter(r => r.target)
+            .map(r => ({ type: 'file-modified', path: r.target })),
+          tags: this.extractTags(plan.title + ' ' + (plan.successCriteria || '')),
+        });
+      } catch (_err) { /* episode recording optional */ }
+    }
+
+    return {
+      success: evaluation.toUpperCase().startsWith('SUCCESS'),
+      summary: evaluation.slice(0, 300),
+      verificationMethod: 'llm-fallback',
+    };
+  }
+
+  /** Extract topic tags from text for episodic memory. */
+  extractTags(text) {
+    const tags = [];
+    const lower = (text || '').toLowerCase();
+    const patterns = [
+      { pattern: /(?:test|spec|jest|mocha)/i, tag: 'testing' },
+      { pattern: /(?:refactor|clean|simplif)/i, tag: 'refactoring' },
+      { pattern: /(?:bug|fix|repair|error)/i, tag: 'bugfix' },
+      { pattern: /(?:feature|add|new|implement)/i, tag: 'feature' },
+      { pattern: /(?:security|auth|encrypt)/i, tag: 'security' },
+      { pattern: /(?:mcp|server|client|transport)/i, tag: 'mcp' },
+      { pattern: /(?:ui|render|display|css)/i, tag: 'ui' },
+      { pattern: /(?:memory|knowledge|embedding)/i, tag: 'memory' },
+      { pattern: /(?:api|endpoint|rest)/i, tag: 'api' },
+    ];
+    for (const { pattern, tag } of patterns) {
+      if (pattern.test(lower)) tags.push(tag);
+    }
+    return tags;
   }
 }
 

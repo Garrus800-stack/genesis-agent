@@ -285,14 +285,61 @@ class ChatOrchestrator {
 
       try {
         // FIX v3.5.0: Use NativeToolUse when available (was registered but never connected).
-        // Native tool use sends structured tool schemas to the LLM API instead of
-        // relying on regex-parsed <tool_call> tags in text output.
         if (this.nativeToolUse) {
           const result = await this.nativeToolUse.chat(ctx.system, ctx.messages, 'chat');
           return result.text;
         }
 
-        return this.model.chat(ctx.system, ctx.messages, 'chat');
+        // FIX v6.1.1: Fallback text-based tool loop — parse <tool_call> tags,
+        // execute tools, feed results back to LLM. Closes the tool loop.
+        let response = await this.model.chat(ctx.system, ctx.messages, 'chat');
+        let history = [...ctx.messages];
+        const MAX_TOOL_ROUNDS = 5;
+
+        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+          const parsed = this.tools.parseToolCalls(response);
+          if (parsed.toolCalls.length === 0) return response; // No tools → done
+
+          // Execute each tool call and LEARN from outcomes
+          const toolResults = [];
+          for (const call of parsed.toolCalls) {
+            try {
+              const result = await this.tools.execute(call.name, call.input);
+              toolResults.push(`[Tool: ${call.name}] Result: ${JSON.stringify(result).slice(0, 1500)}`);
+              // FIX v6.1.1: Record success in LessonsStore
+              if (this.lessonsStore) {
+                this.lessonsStore.record({
+                  category: 'tool-usage',
+                  insight: `Tool "${call.name}" with input ${JSON.stringify(call.input).slice(0, 100)} succeeded`,
+                  strategy: { tool: call.name, input: call.input },
+                  tags: ['tool', call.name],
+                  source: 'chat-tool-loop',
+                  evidence: { successRate: 1, confidence: 0.7, sampleSize: 1 },
+                });
+              }
+            } catch (err) {
+              toolResults.push(`[Tool: ${call.name}] Error: ${err.message}`);
+              // Record failure so Genesis learns what doesn't work
+              if (this.lessonsStore) {
+                this.lessonsStore.record({
+                  category: 'tool-failure',
+                  insight: `Tool "${call.name}" failed: ${err.message}`,
+                  strategy: { tool: call.name, input: call.input, error: err.message },
+                  tags: ['tool-failure', call.name],
+                  source: 'chat-tool-loop',
+                  evidence: { successRate: 0, confidence: 0.6, sampleSize: 1 },
+                });
+              }
+            }
+          }
+
+          // Feed results back to LLM for next response
+          history.push({ role: 'assistant', content: response });
+          history.push({ role: 'user', content: `Tool results:\n${toolResults.join('\n')}\n\nContinue based on these results. Do NOT repeat the tool calls.` });
+          response = await this.model.chat(ctx.system, history, 'chat');
+        }
+
+        return response;
       } catch (err) {
         throw err;
       }

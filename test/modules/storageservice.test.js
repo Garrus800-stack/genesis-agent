@@ -1,114 +1,116 @@
-// ============================================================
-// Test: StorageService — centralized persistence
-// ============================================================
+#!/usr/bin/env node
+// Test: StorageService — file-based JSON/text storage with caching
+const { describe, test, assert, assertEqual, run } = require('../harness');
 const path = require('path');
-const fs = require('fs');
 const os = require('os');
-let passed = 0, failed = 0;
-const failures = [];
-// v3.5.2: Fixed — queue-based async-safe test runner
-const _testQueue = [];
-function test(name, fn) { _testQueue.push({ name, fn }); }
-function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
+const fs = require('fs');
+
+const tmpDir = path.join(os.tmpdir(), `genesis-storage-test-${Date.now()}`);
+fs.mkdirSync(tmpDir, { recursive: true });
+
 const { StorageService } = require('../../src/agent/foundation/StorageService');
 
-const tmpDir = path.join(os.tmpdir(), 'genesis-test-storage-' + Date.now());
-console.log('\n  💾 StorageService');
+function create() { return new StorageService(tmpDir); }
 
-test('creates base directory', () => {
-  const s = new StorageService(tmpDir);
-  assert(fs.existsSync(tmpDir));
-});
-test('writeJSON + readJSON roundtrip', () => {
-  const s = new StorageService(tmpDir);
-  s.writeJSON('test1.json', { hello: 'world', n: 42 });
-  const data = s.readJSON('test1.json');
-  assert(data.hello === 'world' && data.n === 42);
-});
-test('readJSON returns default for missing file', () => {
-  const s = new StorageService(tmpDir);
-  assert(s.readJSON('nope.json', 'fallback') === 'fallback');
-});
-test('writeText + readText roundtrip', () => {
-  const s = new StorageService(tmpDir);
-  s.writeText('test.txt', 'hello 123');
-  assert(s.readText('test.txt') === 'hello 123');
-});
-test('readText returns default for missing', () => {
-  const s = new StorageService(tmpDir);
-  assert(s.readText('nope.txt', 'default') === 'default');
-});
-test('exists returns true/false', () => {
-  const s = new StorageService(tmpDir);
-  s.writeJSON('exists.json', {});
-  assert(s.exists('exists.json'));
-  assert(!s.exists('nope.json'));
-});
-test('delete removes file', () => {
-  const s = new StorageService(tmpDir);
-  s.writeJSON('del.json', { x: 1 });
-  assert(s.exists('del.json'));
-  s.delete('del.json');
-  assert(!s.exists('del.json'));
-});
-test('list returns files with prefix', () => {
-  const s = new StorageService(tmpDir);
-  s.writeJSON('prefix-a.json', {}); s.writeJSON('prefix-b.json', {}); s.writeJSON('other.json', {});
-  const list = s.list('prefix-');
-  assert(list.length === 2);
-});
-test('getPath returns resolved path', () => {
-  const s = new StorageService(tmpDir);
-  const p = s.getPath('foo.json');
-  assert(p.startsWith(tmpDir));
-});
-test('blocks path traversal', () => {
-  const s = new StorageService(tmpDir);
-  let threw = false;
-  try { s.readJSON('../../etc/passwd'); } catch { threw = true; }
-  assert(threw, 'Should throw on path traversal');
-});
-test('getStats returns correct info', () => {
-  const s = new StorageService(tmpDir);
-  s.writeJSON('stats.json', { data: true });
-  const stats = s.getStats();
-  assert(stats.fileCount > 0);
-  assert(stats.totalSizeKB >= 0);
-  assert(stats.baseDir === tmpDir);
-});
-test('cache returns cached data within TTL', () => {
-  const s = new StorageService(tmpDir);
-  s.writeJSON('cached.json', { v: 1 });
-  s.readJSON('cached.json'); // populate cache
-  // Overwrite file directly (bypass cache)
-  fs.writeFileSync(path.join(tmpDir, 'cached.json'), '{"v":2}');
-  // Should still return cached v:1
-  const data = s.readJSON('cached.json');
-  assert(data.v === 1, 'Should return cached value');
-});
-test('clearCache forces re-read', () => {
-  const s = new StorageService(tmpDir);
-  s.writeJSON('cc.json', { v: 1 });
-  s.readJSON('cc.json');
-  fs.writeFileSync(path.join(tmpDir, 'cc.json'), '{"v":99}');
-  s.clearCache();
-  const data = s.readJSON('cc.json');
-  assert(data.v === 99, `Expected 99, got ${data.v}`);
+describe('StorageService', () => {
+
+  test('constructor creates base directory', () => {
+    const dir = path.join(tmpDir, 'sub');
+    const s = new StorageService(dir);
+    assert(fs.existsSync(dir), 'should create dir');
+  });
+
+  test('writeJSON + readJSON roundtrip', () => {
+    const s = create();
+    s.writeJSON('test1.json', { hello: 'world', n: 42 });
+    const data = s.readJSON('test1.json');
+    assertEqual(data.hello, 'world');
+    assertEqual(data.n, 42);
+  });
+
+  test('readJSON returns default for missing file', () => {
+    const s = create();
+    const data = s.readJSON('missing.json', { fallback: true });
+    assertEqual(data.fallback, true);
+  });
+
+  test('readJSON returns null default for missing file', () => {
+    const s = create();
+    assertEqual(s.readJSON('missing2.json'), null);
+  });
+
+  test('writeText + readText roundtrip', () => {
+    const s = create();
+    s.writeText('test.txt', 'hello world');
+    assertEqual(s.readText('test.txt'), 'hello world');
+  });
+
+  test('readText returns default for missing file', () => {
+    const s = create();
+    assertEqual(s.readText('missing.txt', 'fallback'), 'fallback');
+  });
+
+  test('appendText appends content', () => {
+    const s = create();
+    s.writeText('append.txt', 'line1\n');
+    s.appendText('append.txt', 'line2\n');
+    const content = s.readText('append.txt');
+    assert(content.includes('line1'), 'should contain line1');
+    assert(content.includes('line2'), 'should contain line2');
+  });
+
+  test('writeJSON creates subdirectories', () => {
+    const s = create();
+    s.writeJSON('deep/nested/data.json', { ok: true });
+    const data = s.readJSON('deep/nested/data.json');
+    assertEqual(data.ok, true);
+  });
+
+  test('readJSON caches results', () => {
+    const s = create();
+    s.writeJSON('cached.json', { v: 1 });
+    const a = s.readJSON('cached.json');
+    // Modify file directly
+    fs.writeFileSync(path.join(tmpDir, 'cached.json'), '{"v":2}');
+    // Should return cached value (within TTL)
+    const b = s.readJSON('cached.json');
+    assertEqual(b.v, 1); // cached
+  });
+
+  test('async writeJSON + readJSON', async () => {
+    const s = create();
+    await s.writeJSONAsync('async.json', { async: true });
+    const data = await s.readJSONAsync('async.json');
+    assertEqual(data.async, true);
+  });
+
+  test('async readJSON returns default for missing', async () => {
+    const s = create();
+    const data = await s.readJSONAsync('missing-async.json', { d: 1 });
+    assertEqual(data.d, 1);
+  });
+
+  test('async writeText + readText', async () => {
+    const s = create();
+    await s.writeTextAsync('async.txt', 'async content');
+    const text = await s.readTextAsync('async.txt');
+    assertEqual(text, 'async content');
+  });
+
+  test('path traversal is rejected', () => {
+    const s = create();
+    let threw = false;
+    try { s.readJSON('../../../etc/passwd'); } catch { threw = true; }
+    assert(threw, 'should reject path traversal');
+  });
+
+  test('writeJSON overwrites existing file', () => {
+    const s = create();
+    s.writeJSON('overwrite.json', { v: 1 });
+    s.writeJSON('overwrite.json', { v: 2 });
+    assertEqual(s.readJSON('overwrite.json').v, 2);
+  });
 });
 
-// Cleanup
-try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-
-// v3.5.2: Async-safe runner — properly awaits all tests
-(async () => {
-  for (const t of _testQueue) {
-    try {
-      const r = t.fn(); if (r && r.then) await r;
-      passed++; console.log(`    ✅ ${t.name}`);
-    } catch (err) {
-      failed++; console.log(`    ❌ ${t.name}: ${err.message}`);
-    }
-  }
-  console.log(`\n    ${passed} passed, ${failed} failed`);
-  process.exit(failed > 0 ? 1 : 0);
-})();
+run();
+try { fs.rmSync(tmpDir, { recursive: true }); } catch { /* */ }

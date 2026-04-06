@@ -1,18 +1,25 @@
 // ============================================================
-// GENESIS — ColonyOrchestrator.js (v5.9.2 — V6-1 Foundation)
+// GENESIS — ColonyOrchestrator.js (v7.1.0 — V7-1 Real IPC)
 //
 // Multi-agent coordination layer. A "lead" agent decomposes a
 // high-level goal into subtasks, distributes them to worker
 // peers, merges results, and resolves conflicts.
 //
+// V7-1 upgrade: When no HTTP peers are available, subtasks are
+// executed in real child processes via SelfSpawner (fork + IPC)
+// instead of the former no-op stub. spawnParallel() runs all
+// subtasks concurrently; results flow back through Node IPC.
+//
 // Prerequisites (all ✅):
 //   - PeerNetwork (discovery, messaging, sync)
 //   - PeerConsensus (voting, vector clocks)
 //   - TaskDelegation (single-task dispatch)
+//   - SelfSpawner (fork + IPC worker processes)   ← V7-1 new
 //
 // This module adds:
 //   - Goal decomposition (via LLM)
 //   - Parallel work distribution across peers
+//   - Local IPC execution via SelfSpawner (V7-1)
 //   - Result collection with timeout + retry
 //   - Conflict detection (same-file edits)
 //   - Consensus-gated merge for critical changes
@@ -41,14 +48,15 @@ const COLONY_DEFAULTS = {
 
 class ColonyOrchestrator {
   /**
-   * @param {{ bus: *, peerNetwork: *, taskDelegation: *, peerConsensus: *, llm: *, config?: Partial<typeof COLONY_DEFAULTS> }} deps
+   * @param {{ bus: *, peerNetwork: *, taskDelegation: *, peerConsensus: *, llm: *, selfSpawner?: *, config?: Partial<typeof COLONY_DEFAULTS> }} deps
    */
-  constructor({ bus, peerNetwork, taskDelegation, peerConsensus, llm, config }) {
+  constructor({ bus, peerNetwork, taskDelegation, peerConsensus, llm, selfSpawner, config }) {
     /** @type {*} */ this.bus = bus;
     /** @type {*} */ this.peers = peerNetwork;
     /** @type {*} */ this.delegation = taskDelegation;
     /** @type {*} */ this.consensus = peerConsensus;
     /** @type {*} */ this.llm = llm;
+    /** @type {*|null} */ this.selfSpawner = selfSpawner || null;  // V7-1: IPC worker pool
     /** @type {typeof COLONY_DEFAULTS} */ this.config = { ...COLONY_DEFAULTS, ...config };
 
     /** @type {Map<string, ColonyRun>} */
@@ -61,7 +69,7 @@ class ColonyOrchestrator {
     this.META = {
       id: 'colonyOrchestrator',
       name: 'ColonyOrchestrator',
-      version: '5.9.2',
+      version: '7.1.0',
       phase: 8,
       tags: ['colony', 'multi-agent', 'coordination'],
     };
@@ -73,7 +81,9 @@ class ColonyOrchestrator {
     this._unsubs.push(
       this.bus.on('colony:run-request', (data) => this._handleRunRequest(data)),
     );
-    _log.info('[COLONY] ColonyOrchestrator ready (foundation mode)');
+    const ipcMode = this.selfSpawner ? 'IPC workers' : 'no local workers';
+    const peerMode = this.peers ? 'HTTP peers' : 'no peers';
+    _log.info(`[COLONY] ColonyOrchestrator v7.1.0 ready (${ipcMode}, ${peerMode})`);
   }
 
   async stop() {
@@ -182,6 +192,7 @@ class ColonyOrchestrator {
       peers: peers.length,
       activeRuns: activeRuns.length,
       totalRuns: this._runs.size,
+      ipcWorkers: this.selfSpawner ? (this.selfSpawner.getStats?.()?.active ?? true) : false,
       config: { ...this.config },
     };
   }
@@ -299,14 +310,14 @@ class ColonyOrchestrator {
       await this._sleep(2000);
     }
 
-    // Retry failed/timed-out subtasks locally
+    // Retry failed/timed-out subtasks locally via IPC (V7-1)
     for (const subtask of run.subtasks) {
       if (subtask.status === 'assigned' || subtask.status === 'pending') {
         if (subtask.retries < this.config.maxRetries) {
           subtask.retries++;
           _log.info(`[COLONY] Retrying subtask ${subtask.id.slice(0, 8)} locally (attempt ${subtask.retries})`);
           subtask.status = 'pending';
-          // Local execution would go here in full implementation
+          // Timed-out peer tasks fall back to _executeLocally on the next execute() call.
         } else {
           subtask.status = 'failed';
         }
@@ -387,20 +398,58 @@ class ColonyOrchestrator {
     };
   }
 
-  // ── Local Fallback ────────────────────────────────────────
+  // ── Local IPC Fallback (V7-1) ─────────────────────────────
 
   /**
-   * Execute all subtasks locally (no peers available).
+   * Execute all subtasks locally via SelfSpawner IPC workers.
+   * V7-1: Real child-process execution via fork() + IPC.
+   * Falls back to passthrough if SelfSpawner is not available.
    * @param {ColonyRun} run
    * @returns {Promise<ColonyRun>}
    */
   async _executeLocally(run) {
     run.status = 'running';
-    for (const subtask of run.subtasks) {
-      subtask.assignedTo = 'local';
-      subtask.status = 'done';
-      subtask.result = { local: true, description: subtask.description };
+
+    if (this.selfSpawner) {
+      // V7-1: Real IPC — spawn worker processes for each subtask in parallel.
+      const tasks = run.subtasks.map(s => ({
+        description: s.description,
+        type: 'generic',
+        context: { colonyRunId: run.id, subtaskId: s.id },
+        timeoutMs: this.config.subtaskTimeoutMs,
+      }));
+
+      _log.info(`[COLONY] Spawning ${tasks.length} IPC worker(s) for local execution`);
+      this.bus.fire('colony:ipc-spawn', {
+        runId: run.id, workerCount: tasks.length,
+      }, { source: 'ColonyOrchestrator' });
+
+      const results = await this.selfSpawner.spawnParallel(tasks);
+
+      for (let i = 0; i < run.subtasks.length; i++) {
+        const subtask = run.subtasks[i];
+        const workerResult = results[i] || { success: false, error: 'No result returned' };
+        subtask.assignedTo = 'local-ipc';
+        if (workerResult.success) {
+          subtask.status = 'done';
+          subtask.result = workerResult.result || { ipc: true, description: subtask.description };
+        } else {
+          subtask.status = 'failed';
+          subtask.result = { error: workerResult.error };
+          _log.warn(`[COLONY] IPC worker failed for subtask ${subtask.id.slice(0, 8)}: ${workerResult.error}`);
+        }
+      }
+    } else {
+      // No SelfSpawner available — passthrough (marks done, no actual execution).
+      // This path is used in tests and when SelfSpawner is explicitly absent.
+      _log.warn('[COLONY] No SelfSpawner available — passthrough mode (subtasks not executed)');
+      for (const subtask of run.subtasks) {
+        subtask.assignedTo = 'passthrough';
+        subtask.status = 'done';
+        subtask.result = { passthrough: true, description: subtask.description };
+      }
     }
+
     run.status = 'done';
     run.completedAt = Date.now();
     return run;

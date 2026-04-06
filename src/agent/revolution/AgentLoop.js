@@ -36,6 +36,10 @@ const { AgentLoopPlannerDelegate } = require('./AgentLoopPlanner');
 const { AgentLoopStepsDelegate } = require('./AgentLoopSteps');
 // v4.0: Phase 9 cognitive hooks (graceful degradation if services missing)
 const { AgentLoopCognitionDelegate } = require('./AgentLoopCognition');
+// v7.6.0: Error recovery, verification, reflection (extracted from AgentLoop)
+const { AgentLoopRecoveryDelegate } = require('./AgentLoopRecovery');
+// v7.6.0: Approval lifecycle (extracted from AgentLoop)
+const { ApprovalGate } = require('./ApprovalGate');
 const { createLogger } = require('../core/Logger');
 const { CorrelationContext } = require('../core/CorrelationContext');
 const { CancellationToken } = require('../core/CancellationToken');
@@ -111,9 +115,7 @@ class AgentLoop {
     this._currentStepPromise = null;
 
     // ── Approval Queue ───────────────────────────────────
-    // When the agent needs user approval, it pauses and emits an event.
-    // The UI can then show a confirmation dialog.
-    this._pendingApproval = null;  // { action, description, resolve, reject }
+    // v7.6.0: Approval lifecycle moved to ApprovalGate delegate
 
     // v3.5.0: Multi-agent delegation (late-bound by Container)
     this.taskDelegation = null;
@@ -134,19 +136,18 @@ class AgentLoop {
     // v6.0.8: Symbolic resolution — bypass LLM for known solutions
     this._symbolicResolver = null; // late-bound from phase 2
 
-    // v6.0.8: Consciousness-driven step boost — productive tension extends patience
     this._unsubs = [];
-    this._unsubs.push(this.bus.on('consciousness:insight', (insight) => {
-      if (insight?.type === 'productive-tension' && this.running) {
-        this.maxStepsPerGoal += LIMITS.AGENT_LOOP_STEP_EXTENSION;
-        _log.info(`[LOOP] Productive tension detected — step limit raised to ${this.maxStepsPerGoal}`);
-      }
-    }));
 
     // v3.8.0: Composition delegates (replace prototype mixins)
     this.planner = new AgentLoopPlannerDelegate(this);
     this.steps = new AgentLoopStepsDelegate(this);
     this.cognition = new AgentLoopCognitionDelegate(this); // v4.0: Phase 9
+    this.recovery = new AgentLoopRecoveryDelegate(this);   // v7.6.0: repair + verify
+    this.approval = new ApprovalGate({                     // v7.6.0: approval lifecycle
+      bus: this.bus,
+      trustLevelSystem: this.trustLevelSystem,
+      timeoutMs: this._approvalTimeoutMs,
+    });
   }
 
   // ════════════════════════════════════════════════════════
@@ -288,7 +289,7 @@ class AgentLoop {
           });
 
           if (!dryRun.valid) {
-            const proceed = await this._requestApproval(
+            const proceed = await this.approval.request(
               'plan-has-issues',
               `Plan has ${dryRun.validation.totalIssues} blockers:\n${dryRun.summary}`
             );
@@ -309,12 +310,14 @@ class AgentLoop {
       }
 
       // Register goal in GoalStack
-      this.currentGoalId = this.goalStack.addGoal({
-        title: plan.title || goalDescription.slice(0, 80),
-        description: goalDescription,
-        steps: plan.steps,
-        source: 'agent-loop',
-      });
+      // FIX v6.1.1: addGoal expects (description:string, source, priority, options) — not an object
+      const _registeredGoal = await this.goalStack.addGoal(
+        goalDescription.slice(0, 200),
+        'agent-loop',
+        'high',
+      );
+      this.currentGoalId = _registeredGoal?.id || `loop_${Date.now()}`;
+      this.approval.currentGoalId = this.currentGoalId;
 
       onProgress({
         phase: 'planned',
@@ -343,10 +346,10 @@ class AgentLoop {
       // ── Phase 1b: SIMULATE (Phase 9 cognitive hook) ────
       const cogResult = await this.cognition.preExecute(plan);
       if (!cogResult.proceed) {
-        onProgress({ phase: 'simulation-replan', detail: cogResult.reason, risk: cogResult.riskScore });
-        this.running = false;
-        _clearGlobalTimeout();
-        return { success: false, error: `Simulation recommends replan: ${cogResult.reason}`, simulation: cogResult.simulation };
+        // FIX v6.1.1: Simulation is advisory, not a hard gate.
+        // Genesis should TRY and learn from failure, not refuse to act.
+        _log.warn(`[AGENT-LOOP] Simulation flagged risk: ${cogResult.reason} (score: ${cogResult.riskScore}) — proceeding anyway`);
+        onProgress({ phase: 'simulation-warning', detail: `Risk flagged: ${cogResult.reason} — proceeding`, risk: cogResult.riskScore });
       }
 
       // ── Phase 1c: CONSCIOUSNESS CHECK (v4.12.4) ────────
@@ -426,9 +429,8 @@ class AgentLoop {
     this.running = false;
     for (const unsub of this._unsubs) { if (typeof unsub === 'function') unsub(); }
     this._unsubs = [];
-    if (this._pendingApproval) {
-      this._pendingApproval.reject(new Error('Agent loop stopped by user'));
-      this._pendingApproval = null;
+    if (this.approval.isPending) {
+      this.approval.cancel();
     }
     // Wait for in-flight step to complete (with timeout)
     if (this._currentStepPromise) {
@@ -442,18 +444,12 @@ class AgentLoop {
 
   /** Approve a pending action */
   approve() {
-    if (this._pendingApproval) {
-      this._pendingApproval.resolve(true);
-      this._pendingApproval = null;
-    }
+    this.approval.approve();
   }
 
   /** Reject a pending action */
   reject(reason = 'User rejected') {
-    if (this._pendingApproval) {
-      this._pendingApproval.resolve(false);
-      this._pendingApproval = null;
-    }
+    this.approval.reject(reason);
   }
 
   /** Get current status */
@@ -463,10 +459,7 @@ class AgentLoop {
       goalId: this.currentGoalId,
       stepCount: this.stepCount,
       consecutiveErrors: this.consecutiveErrors,
-      pendingApproval: this._pendingApproval ? {
-        action: this._pendingApproval.action,
-        description: this._pendingApproval.description,
-      } : null,
+      pendingApproval: this.approval.pendingAction,
       recentLog: this.executionLog.slice(-5),
     };
   }
@@ -495,7 +488,7 @@ class AgentLoop {
       if (this.stepCount >= this.maxStepsPerGoal) {
         // Safety limit — ask user to continue
         onProgress({ phase: 'limit', detail: `Reached ${this.maxStepsPerGoal} steps. Pausing.` });
-        const shouldContinue = await this._requestApproval(
+        const shouldContinue = await this.approval.request(
           'continue',
           `Goal has taken ${this.stepCount} steps. Continue?`
         );
@@ -597,7 +590,7 @@ class AgentLoop {
 
         if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
           // ── REFLECT: Too many errors — attempt self-repair ──
-          const repairResult = await this._attemptRepair(step, result, allResults, onProgress);
+          const repairResult = await this.recovery.attemptRepair(step, result, allResults, onProgress);
           if (repairResult.recovered) {
             this.consecutiveErrors = 0;
             allResults.push(repairResult);
@@ -654,7 +647,7 @@ class AgentLoop {
     }
 
     // ── Final verification ────────────────────────────────
-    const verification = await this._verifyGoal(plan, allResults);
+    const verification = await this.recovery.verifyGoal(plan, allResults);
 
     onProgress({
       phase: 'complete',
@@ -782,181 +775,6 @@ If no adjustment needed: { "adjust": false }`;
     } catch (_e) { _log.debug('[catch] FailureTaxonomy not available:', _e.message); }
 
     return { action: 'none' };
-  }
-
-  async _attemptRepair(failedStep, failedResult, allResults, onProgress) {
-    onProgress({ phase: 'repairing', detail: `Attempting to fix: ${failedResult.error}` });
-
-    const prompt = `You are Genesis. A step in your autonomous execution failed.
-
-Failed step: ${failedStep.type} — ${failedStep.description}
-Error: ${failedResult.error}
-Output: ${(failedResult.output || '').slice(0, 500)}
-
-What went wrong and how can you fix it? Provide a corrected approach.
-If the error is unfixable (e.g., missing dependency, permission denied), say "UNFIXABLE: reason".`;
-
-    const analysis = await this.model.chat(prompt, [], 'analysis');
-
-    if (analysis.includes('UNFIXABLE')) {
-      return { recovered: false, output: analysis };
-    }
-
-    // Try the step again with the repair context
-    const repairedStep = { ...failedStep };
-    const repairContext = `REPAIR ATTEMPT: Previous error was "${failedResult.error}". Fix: ${analysis.slice(0, 500)}`;
-
-    const retryResult = await this.steps._executeStep(repairedStep, repairContext, onProgress);
-    return {
-      recovered: !retryResult.error,
-      output: retryResult.output,
-      error: retryResult.error,
-    };
-  }
-
-  async _verifyGoal(plan, allResults) {
-    const errors = allResults.filter(r => r.error);
-    const successRate = (allResults.length - errors.length) / allResults.length;
-
-    // v3.5.0: Count programmatic verification results
-    const verified = allResults.filter(r => r.verification);
-    const programmaticPasses = verified.filter(r => r.verification.status === 'pass').length;
-    const programmaticFails = verified.filter(r => r.verification.status === 'fail').length;
-    const ambiguous = verified.filter(r => r.verification.status === 'ambiguous').length;
-
-    // If we have programmatic verification data, trust it over heuristics
-    if (verified.length > 0 && programmaticFails === 0 && successRate >= 0.7) {
-      const summary = [
-        `Goal "${plan.title}" completed.`,
-        `${allResults.length} steps: ${programmaticPasses} verified, ${ambiguous} ambiguous, ${errors.length} errors.`,
-        `Success rate: ${Math.round(successRate * 100)}%.`,
-      ].join(' ');
-      return { success: true, summary, verificationMethod: 'programmatic' };
-    }
-
-    // High success rate without verification data — trust the numbers
-    if (successRate >= 0.8 && programmaticFails === 0) {
-      return {
-        success: true,
-        summary: `Goal "${plan.title}" completed. ${allResults.length} steps, ${errors.length} errors. Success rate: ${Math.round(successRate * 100)}%.`,
-        verificationMethod: 'heuristic',
-      };
-    }
-
-    // Ambiguous: Ask LLM to evaluate (only for cases programmatic checks can't resolve)
-    const verificationContext = verified.length > 0
-      ? `\nProgrammatic verification: ${programmaticPasses} pass, ${programmaticFails} fail, ${ambiguous} ambiguous`
-      : '';
-
-    const prompt = `Goal: "${plan.title}"
-Success criteria: ${plan.successCriteria || 'All steps complete'}
-Steps completed: ${allResults.length}
-Errors: ${errors.length}
-Error details: ${errors.map(e => e.error).join('; ')}${verificationContext}
-
-Was this goal achieved? Respond with: SUCCESS or PARTIAL or FAILED, followed by a brief explanation.`;
-
-    const evaluation = await this.model.chat(prompt, [], 'analysis');
-
-    // v3.5.0: Record episode if EpisodicMemory is available
-    if (this.episodicMemory) {
-      try {
-        const success = evaluation.toUpperCase().startsWith('SUCCESS');
-        this.episodicMemory.recordEpisode({
-          topic: plan.title || 'Agent goal execution',
-          summary: evaluation.slice(0, 200),
-          outcome: success ? 'success' : 'failed',
-          toolsUsed: [...new Set(allResults.map(r => r.type).filter(Boolean))],
-          artifacts: allResults
-            .filter(r => r.target)
-            .map(r => ({ type: 'file-modified', path: r.target })),
-          tags: this._extractTags(plan.title + ' ' + (plan.successCriteria || '')),
-        });
-      } catch (err) { _log.debug('[AGENT-LOOP] Episode recording failed:', err.message); }
-    }
-
-    return {
-      success: evaluation.toUpperCase().startsWith('SUCCESS'),
-      summary: evaluation.slice(0, 300),
-      verificationMethod: 'llm-fallback',
-    };
-  }
-
-  /** Extract topic tags from text for episodic memory */
-  _extractTags(text) {
-    const tags = [];
-    const lower = (text || '').toLowerCase();
-    const patterns = [
-      { pattern: /(?:test|spec|jest|mocha)/i, tag: 'testing' },
-      { pattern: /(?:refactor|clean|simplif)/i, tag: 'refactoring' },
-      { pattern: /(?:bug|fix|repair|error)/i, tag: 'bugfix' },
-      { pattern: /(?:feature|add|new|implement)/i, tag: 'feature' },
-      { pattern: /(?:security|auth|encrypt)/i, tag: 'security' },
-      { pattern: /(?:mcp|server|client|transport)/i, tag: 'mcp' },
-      { pattern: /(?:ui|render|display|css)/i, tag: 'ui' },
-      { pattern: /(?:memory|knowledge|embedding)/i, tag: 'memory' },
-      { pattern: /(?:api|endpoint|rest)/i, tag: 'api' },
-    ];
-    for (const { pattern, tag } of patterns) {
-      if (pattern.test(lower)) tags.push(tag);
-    }
-    return tags;
-  }
-
-  // ════════════════════════════════════════════════════════
-  // APPROVAL MECHANISM
-  // ════════════════════════════════════════════════════════
-
-  /**
-   * Request user approval. Pauses the loop until approved/rejected.
-   * If no response within 60s, auto-reject (safety).
-   *
-   * v6.0.7: Consults TrustLevelSystem first. If the action is auto-approved
-   * at the current trust level, the user is never asked.
-   */
-  _requestApproval(action, description) {
-    // v6.0.7: Trust-gated bypass — skip user prompt if auto-approved
-    if (this.trustLevelSystem) {
-      const trust = this.trustLevelSystem.checkApproval(action);
-      if (trust.approved) {
-        _log.info(`[TRUST] Auto-approved "${action}" — ${trust.reason}`);
-        this.bus.fire('agent-loop:auto-approved', {
-          action,
-          description,
-          reason: trust.reason,
-          goalId: this.currentGoalId,
-        }, { source: 'AgentLoop' });
-        return Promise.resolve(true);
-      }
-    }
-
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        this._pendingApproval = null;
-        resolve(false); // Auto-reject after timeout
-      }, this._approvalTimeoutMs);
-
-      this._pendingApproval = {
-        action,
-        description,
-        resolve: (approved) => {
-          clearTimeout(timeout);
-          this._pendingApproval = null;
-          resolve(approved);
-        },
-        reject: () => {
-          clearTimeout(timeout);
-          this._pendingApproval = null;
-          resolve(false);
-        },
-      };
-
-      this.bus.fire('agent-loop:approval-needed', {
-        action,
-        description,
-        goalId: this.currentGoalId,
-      }, { source: 'AgentLoop' });
-    });
   }
 
   // ════════════════════════════════════════════════════════

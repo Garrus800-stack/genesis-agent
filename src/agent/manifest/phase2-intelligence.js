@@ -56,12 +56,8 @@ function phase2(ctx, R) {
         { prop: 'cognitiveMonitor', service: 'cognitiveMonitor', optional: true },
         // Phase 9: Self-narrative identity injection
         { prop: 'selfNarrative', service: 'selfNarrative', optional: true },
-        // Phase 13: Consciousness substrate
-        { prop: 'phenomenalField', service: 'phenomenalField', optional: true },
-        { prop: 'attentionalGate', service: 'attentionalGate', optional: true },
-        { prop: 'temporalSelf', service: 'temporalSelf', optional: true },
-        { prop: 'introspectionEngine', service: 'introspectionEngine', optional: true },
-        { prop: 'consciousnessExtension', service: 'consciousnessExtension', optional: true },
+        // v7.6.0: AwarenessPort — single lightweight replacement
+        { prop: 'awareness', service: 'awareness', optional: true },
         // v4.12.4: New cognitive modules
         { prop: 'valueStore', service: 'valueStore', optional: true },
         { prop: 'userModel', service: 'userModel', optional: true },

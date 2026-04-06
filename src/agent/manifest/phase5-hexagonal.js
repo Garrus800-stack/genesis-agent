@@ -37,6 +37,8 @@ function phase5(ctx, R) {
         // v6.0.5: Wire proportional intelligence + causal tracing into hot path
         { prop: '_cognitiveBudget', service: 'cognitiveBudget', optional: true },
         { prop: '_provenance', service: 'executionProvenance', optional: true },
+        // FIX v6.1.1: Wire learning — record tool outcomes for reuse
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
       ],
       factory: (c) => {
         const { lang } = R('Language');
@@ -66,8 +68,8 @@ function phase5(ctx, R) {
         { prop: '_codeSafety', service: 'codeSafety' },
         // v5.5.0: Self-Preservation Invariants — semantic safety analysis
         { prop: '_preservation', service: 'preservation', optional: true },
-        // v6.0.8: Consciousness gate — coherence-gated self-modification
-        { prop: '_phenomenalField', service: 'phenomenalField', optional: true },
+        // v7.6.0: AwarenessPort — coherence-gated self-modification
+        { prop: '_awareness', service: 'awareness', optional: true },
       ],
       factory: (c) => {
         const { lang } = R('Language');
@@ -155,8 +157,6 @@ function phase5(ctx, R) {
         { prop: 'conversationMemory', service: 'memory', optional: true },
         { prop: 'knowledgeGraph', service: 'knowledgeGraph', optional: true },
         { prop: 'selfNarrative', service: 'selfNarrative', optional: true },
-        // NOTE: echoicMemory is a subsystem of ConsciousnessExtension (created internally),
-        // not a standalone container service. MemoryFacade reports it in status but doesn't query it.
       ],
       factory: () => new (R('MemoryFacade').MemoryFacade)({ bus }),
     }],

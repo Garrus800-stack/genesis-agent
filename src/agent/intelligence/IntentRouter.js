@@ -19,11 +19,8 @@ const INTENT_DEFINITIONS = [
   ['self-inspect', [
     /zeig.*dein.*(code|quell|struktur|module)/i, /woraus bestehst/i,
     /architektur/i, /self.?model/i,
-    /was kannst du/i, /stell dich vor/i,
-    /was bist du/i, /wer bist du/i, /beschreib dich/i,
-    /erza.*(?:von|ueber) dir/i,
+    /stell dich vor/i,
     /(?:liste|zeig|nenn).*(?:deine? )?(?:module|skills?|tools?|faehigkeit)/i,
-    /what (?:can you|are you)/i, /tell me about yourself/i, /describe yourself/i,
     /(?:show|list|display).*(?:modules?|capabilities|skills?|tools?)/i,
   ], 20, ['struktur', 'aufbau', 'module', 'quellcode', 'architektur', 'bestehen']],
 

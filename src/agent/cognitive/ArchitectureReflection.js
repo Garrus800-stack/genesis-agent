@@ -47,7 +47,7 @@ const LAYER_PHASES = {
   organism:      7,
   revolution:    8,
   cognitive:     9,
-  consciousness: 13,
+  // v7.6.0: consciousness (phase 13) removed — replaced by AwarenessPort in phase 1
 };
 
 class ArchitectureReflection {
@@ -87,7 +87,7 @@ class ArchitectureReflection {
 
     this._lastBuildTs = 0;
     this._buildCount = 0;
-    this._staleThresholdMs = (config?.staleThresholdMs) || 60_000;
+    this._staleThresholdMs = (config?.staleThresholdMs) || 300_000;
   }
 
   // ═══════════════════════════════════════════════════════════

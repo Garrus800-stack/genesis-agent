@@ -349,4 +349,49 @@ const PHASE12 = {
   MEMORY_DECAY_RATE_PER_HOUR: 0.01,
 };
 
-module.exports = { TIMEOUTS, LIMITS, INTERVALS, PRIORITIES, RATE_LIMIT, WATCHDOG, SHELL, CIRCUIT, SAFETY, PHASE9, PHASE10, PHASE11, PHASE12 };
+// ── v7.6.0: Behavioral Thresholds ───────────────────────────
+// Decision-making parameters previously hardcoded as magic numbers.
+// Centralizing enables tuning without source changes.
+const THRESHOLDS = {
+  // SelfModificationPipeline: minimum coherence to allow self-modification
+  SELFMOD_COHERENCE_MIN: 0.4,
+  // SelfModificationPipeline: circuit breaker — max consecutive failures
+  SELFMOD_CIRCUIT_BREAKER: 3,
+
+  // AgentLoop / verifyGoal: success rate to consider goal achieved
+  GOAL_SUCCESS_PROGRAMMATIC: 0.7,  // with programmatic verification
+  GOAL_SUCCESS_HEURISTIC: 0.8,    // without programmatic verification
+
+  // FailureAnalyzer: confidence thresholds for auto-fix vs human review
+  FAILURE_AUTOFIX_CONFIDENCE: 0.8,
+  FAILURE_HUMAN_REVIEW_CONFIDENCE: 0.5,
+
+  // ArchitectureReflection: minimum interval between reflections (seconds)
+  ARCH_REFLECTION_INTERVAL_S: 300,
+
+  // ProjectIntelligence: file size warning threshold (LOC)
+  LARGE_FILE_LOC: 300,
+
+  // CognitiveBudget: sections skipped for trivial requests
+  TRIVIAL_REQUEST_SKIP: true,
+
+  // OnlineLearner: signal freshness window (ms) — 4 hours
+  LEARNER_SIGNAL_WINDOW_MS: 4 * 3600_000,
+
+  // VectorMemory: max entries per collection
+  VECTOR_MAX_PER_COLLECTION: 500,
+
+  // LessonsStore: max lessons before pruning
+  LESSONS_MAX: 500,
+  // LessonsStore: confidence bounds
+  LESSONS_CONFIDENCE_FLOOR: 0.1,
+  LESSONS_CONFIDENCE_CEIL: 0.99,
+  LESSONS_CONFIDENCE_BOOST: 0.1,
+
+  // ShellAgent: command length limit (chars)
+  SHELL_COMMAND_MAX_CHARS: 8192,
+  // ShellAgent: project scan cache TTL (ms)
+  SHELL_SCAN_CACHE_MS: 30000,
+};
+
+module.exports = { TIMEOUTS, LIMITS, INTERVALS, PRIORITIES, RATE_LIMIT, WATCHDOG, SHELL, CIRCUIT, SAFETY, PHASE9, PHASE10, PHASE11, PHASE12, THRESHOLDS };

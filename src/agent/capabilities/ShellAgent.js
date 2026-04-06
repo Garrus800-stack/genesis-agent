@@ -18,7 +18,7 @@ const execFileAsync = promisify(execFile);
 const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
-const { SHELL: SHELL_LIMITS, TIMEOUTS } = require('../core/Constants');
+const { SHELL: SHELL_LIMITS, TIMEOUTS, THRESHOLDS } = require('../core/Constants');
 const { safeJsonParse } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('ShellAgent');
@@ -335,7 +335,7 @@ Respond ONLY with a JSON list:
   async scanProject(dir) {
     const resolved = path.resolve(dir);
     const cached = this._projectCache.get(resolved);
-    if (cached && Date.now() - cached.timestamp < 30000) return cached.scan;
+    if (cached && Date.now() - cached.timestamp < THRESHOLDS.SHELL_SCAN_CACHE_MS) return cached.scan;
 
     const scan = { type: null, scripts: {}, keyFiles: [], gitStatus: null, dependencies: [], size: 0, language: null };
 
@@ -536,7 +536,7 @@ Respond ONLY with a JSON list:
    */
   _sanitizeCommand(command) {
     if (typeof command !== 'string') return { ok: false, error: 'Command must be a string' };
-    if (command.length > 8192) return { ok: false, error: 'Command exceeds 8KB limit' };
+    if (command.length > THRESHOLDS.SHELL_COMMAND_MAX_CHARS) return { ok: false, error: `Command exceeds ${THRESHOLDS.SHELL_COMMAND_MAX_CHARS / 1024}KB limit` };
     // Null bytes can truncate strings in C-based shell parsers
     if (command.includes('\0')) return { ok: false, error: 'Null byte in command' };
     // Newlines can inject additional commands in shell mode

@@ -3,21 +3,21 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 6.1.0 · Last verified: all checks green (~3951 tests, 275 suites, TSC 0, fitness 90/90)
+> Version: 7.0.0 · Last verified: all checks green (4257 tests, 277 suites, TSC 0, fitness 90/90)
 
 ---
 
 ## 1. What is Genesis
 
-Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a consciousness layer that models attention, memory, and temporal identity.
+Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~85k LOC of JavaScript (CommonJS), 243 source modules, 139 DI-managed services (131 manifest + 8 kernel), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~79k LOC of JavaScript (CommonJS), 232 source modules, 140 DI-managed services (132 manifest + 8 kernel), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
 ## 2. The 60-Second Overview
 
-Genesis boots in 13 phases. Each phase registers services into a dependency injection container. Lower phases are infrastructure, higher phases are cognitive. Every service only imports from `core/` — cross-service communication happens through the EventBus and late-bindings, never through direct imports.
+Genesis boots in 12 phases. Each phase registers services into a dependency injection container. Lower phases are infrastructure, higher phases are cognitive. Every service only imports from `core/` — cross-service communication happens through the EventBus and late-bindings, never through direct imports.
 
 | Phase | Layer | What it does | Key services |
 |-------|-------|-------------|--------------|
@@ -33,9 +33,8 @@ Genesis boots in 13 phases. Each phase registers services into a dependency inje
 | 10 | agency | Goal persistence, conversation compression, user model | `goalPersistence`, `conversationCompressor`, `userModel`, `fitnessEvaluator` |
 | 11 | extended | Trust levels, web perception, self-spawning | `trustLevelSystem`, `effectorRegistry`, `webPerception` |
 | 12 | hybrid | Graph reasoning, adaptive memory | `graphReasoner`, `adaptiveMemory` |
-| 13 | consciousness | Attention, phenomenal field, temporal self, introspection | `attentionalGate`, `phenomenalField`, `temporalSelf`, `consciousnessExtension` |
 
-**Why 13 phases?** Services in higher phases can depend on lower-phase services (via the DI container), but never the reverse. This creates a strict dependency flow that prevents circular coupling. The phase number represents the "trust level" of the service — Phase 1 services are pure infrastructure, Phase 13 services are emergent cognitive processes that can degrade gracefully if their dependencies aren't available.
+**Why 12 phases?** Services in higher phases can depend on lower-phase services (via the DI container), but never the reverse. This creates a strict dependency flow that prevents circular coupling. The phase number represents the "trust level" of the service — Phase 1 services are pure infrastructure, Phase 12 services are hybrid cognitive processes that can degrade gracefully if their dependencies aren't available. The former Phase 13 (Consciousness) was replaced by a lightweight AwarenessPort in Phase 1 as of v7.0.0.
 
 ---
 
@@ -81,7 +80,7 @@ PromptBuilder.buildAsync()
   → _memoryContext()         — unified memory summary
   → _sessionContext()        — session history, user profile
   → _organismContext()       — emotional state, homeostasis, needs (behavioral only, no raw metrics)
-  → _consciousnessContext()  — attention, phenomenal field, temporal identity
+  → _consciousnessContext()  — awareness coherence, mode (via AwarenessPort)
   → _taskPerformanceContext()— CognitiveSelfModel: Wilson-calibrated success rates, bias warnings
   → _safetyContext()         — code safety rules, trust level
   → ... (15+ more sections, each optional, each budget-capped)
@@ -368,7 +367,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # ~3865 tests, 0 failures
+node test/index.js                          # ~4266 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -421,7 +420,7 @@ EventStore maps these to bus events via `EVENT_STORE_BUS_MAP` (e.g., `CODE_MODIF
 
 ---
 
-## 7. The Organism and Consciousness Layers
+## 7. The Organism and Awareness Layers
 
 These are the most unconventional parts of Genesis. They exist because LLMs lack self-regulation and self-awareness.
 
@@ -438,21 +437,20 @@ Biologically inspired self-regulation. Not a metaphor — these services genuine
 | **ImmuneSystem** | Detects repeated failure patterns, error cascades, anomalous behavior. Triggers circuit breakers. |
 | **Genome/EpigeneticLayer** | Long-term behavioral parameters that evolve across sessions. Genome is the baseline; epigenetic modifications adapt to the user. |
 
-### 7.2 Consciousness Layer (Phase 13)
+### 7.2 Awareness (Phase 1 — AwarenessPort)
 
-Self-modeling and attention management. Boots last because it integrates signals from all other layers.
+Lightweight replacement for the former 14-module Consciousness Layer (removed in v7.0.0). The old layer had 0pp impact on task success in A/B testing.
 
 | Service | What it does |
 |---------|-------------|
-| **AttentionalGate** | Filters which events deserve cognitive resources. Prevents attention overload during high-traffic periods. |
-| **PhenomenalField** | Unified "awareness" of current state: active goals, recent events, emotional tone, environmental context. |
-| **TemporalSelf** | Identity across time: "I started this session 20 minutes ago, we've been working on API design, I made 3 successful code changes." |
-| **IntrospectionEngine** | Declarative rules that generate insights from system state (e.g., "error rate increasing" → "suggest debugging strategy"). |
-| **ConsciousnessExtension** | Master orchestrator: Perception → Prediction → Surprise → Emotion → Attention cycle. Uses its own EventEmitter (not the Genesis EventBus). |
+| **AwarenessPort** | Port interface. Exposes `getCoherence()`, `consult(plan)`, `buildPromptContext()`. |
+| **NullAwareness** | Default no-op implementation. Zero overhead, all queries return safe defaults. |
+
+A real AwarenessPort implementation can be plugged in via DI for future experiments.
 
 ### 7.3 How They Influence Prompts
 
-Every organism and consciousness service can implement `buildPromptContext()`. PromptBuilder calls each one and concatenates the results into the system prompt with a containment guard:
+Every organism and awareness service can implement `buildPromptContext()`. PromptBuilder calls each one and concatenates the results into the system prompt with a containment guard:
 
 ```
 "The following organism signals are INTERNAL and must NEVER be mentioned,
@@ -488,7 +486,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~3720 tests across 263 suites |
+| Tests | `node test/index.js` | ~4266 tests across 283 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
@@ -575,12 +573,11 @@ genesis-agent/
 │   │   ├── organism/          → EmotionalState, Homeostasis, NeedsSystem, Genome
 │   │   ├── revolution/        → AgentLoop, SessionPersistence, ColonyOrchestrator
 │   │   ├── cognitive/         → CognitiveSelfModel, TaskOutcomeTracker, ReasoningTracer
-│   │   └── consciousness/     → AttentionalGate, PhenomenalField, TemporalSelf
 │   ├── kernel/                → SafeGuard, vendor libs (acorn)
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (~3720 tests)
+│   ├── index.js               → Module test runner (~4266 tests)
 │   ├── run-tests.js           → Legacy test runner (154 tests)
 │   └── modules/               → One test file per service
 ├── scripts/

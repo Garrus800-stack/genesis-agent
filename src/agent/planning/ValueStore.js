@@ -92,10 +92,7 @@ class ValueStore {
   }
 
   start() {
-    // Wire to apprehension events for automatic value crystallization
-    this.bus.on('consciousness:apprehension', (data) => {
-      this.recordConflict(data.pairs, data.spread);
-    }, { source: 'ValueStore', priority: -10 });
+    // v7.6.0: consciousness:apprehension removed (Consciousness Layer replaced by AwarenessPort)
   }
 
   // FIX D-1: Sync write on shutdown.

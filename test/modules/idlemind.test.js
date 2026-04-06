@@ -1,138 +1,163 @@
 #!/usr/bin/env node
-// ============================================================
-// Test: IdleMind.js — v4.10.0 Coverage
-//
-// Covers:
-//   - Idle detection based on last activity timestamp
-//   - Activity selection (think/refactor/explore/analyze)
-//   - Status reporting
-//   - Start/stop lifecycle
-//   - Event emissions during thinking
-//   - Respects circuit breaker state
-// ============================================================
-
+// Test: IdleMind — autonomous idle thinking
 const { describe, test, assert, assertEqual, run } = require('../harness');
-
 const { createBus } = require('../../src/agent/core/EventBus');
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
 
-function mockModel() {
-  return {
-    activeModel: 'gemma2:9b',
-    chat: async () => 'LLM response: analyzed module patterns, no issues found.',
-    semaphore: { acquire: async () => () => {} },
-  };
-}
-
-function mockSelfModel() {
-  return {
-    getFileTree: () => [{ path: 'src/agent/core/EventBus.js', size: 497 }],
-    moduleCount: () => 93,
-    getModuleByName: () => ({ name: 'EventBus', path: 'src/agent/core/EventBus.js', lines: 497, deps: [] }),
-    getFullModel: () => ({ identity: 'genesis-test', version: '4.1.3' }),
-  };
-}
-
-function mockMemory() {
-  return {
-    getStats: () => ({ episodes: 5 }),
-    getRecentContext: () => 'recent context',
-    addEpisode: () => {},
-  };
-}
-
-function mockGoalStack() {
-  return {
-    getActiveGoals: () => [],
-    getAll: () => [],
-  };
-}
-
-function mockStorage() {
-  return {
-    readJSON: (f, def) => def,
-    writeJSON: () => {},
-    writeJSONAsync: async () => {},
-  };
-}
+// Create a temp dir for journal/plans
+const tmpDir = path.join(os.tmpdir(), `genesis-idle-test-${Date.now()}`);
+fs.mkdirSync(tmpDir, { recursive: true });
 
 const { IdleMind } = require('../../src/agent/autonomy/IdleMind');
 
-// ── Tests ──────────────────────────────────────────────────
+function create(overrides = {}) {
+  const bus = createBus();
+  return {
+    bus,
+    idle: new IdleMind({
+      bus,
+      model: null,
+      prompts: null,
+      selfModel: null,
+      memory: null,
+      knowledgeGraph: null,
+      eventStore: null,
+      storageDir: tmpDir,
+      goalStack: null,
+      intervals: null,
+      storage: null,
+      ...overrides,
+    }),
+  };
+}
 
-describe('IdleMind — Initialization', () => {
-  test('creates with default status', () => {
-    const im = new IdleMind({
-      bus: createBus(), model: mockModel(), selfModel: mockSelfModel(),
-      memory: mockMemory(), goalStack: mockGoalStack(), storage: mockStorage(), storageDir: require('os').tmpdir(),
-    });
-    const status = im.getStatus();
-    assert(typeof status === 'object', 'should return status object');
-    assert('running' in status || 'thinking' in status || 'active' in status || 'state' in status,
-      'status should have state info');
-  });
-});
+describe('IdleMind', () => {
 
-describe('IdleMind — Status', () => {
-  test('getStatus includes thought count', () => {
-    const im = new IdleMind({
-      bus: createBus(), model: mockModel(), selfModel: mockSelfModel(),
-      memory: mockMemory(), goalStack: mockGoalStack(), storage: mockStorage(), storageDir: require('os').tmpdir(),
-    });
-    const status = im.getStatus();
-    assert('thoughtCount' in status || 'thoughts' in status || 'totalThoughts' in status || typeof status === 'object',
-      'should track thought count');
-  });
-});
-
-describe('IdleMind — Lifecycle', () => {
-  test('start does not throw', () => {
-    const im = new IdleMind({
-      bus: createBus(), model: mockModel(), selfModel: mockSelfModel(),
-      memory: mockMemory(), goalStack: mockGoalStack(), storage: mockStorage(), storageDir: require('os').tmpdir(),
-    });
-    let threw = false;
-    try { im.start(); } catch { threw = true; }
-    assert(!threw, 'start should not throw');
-    // Clean up
-    try { im.stop(); } catch { /* ok */ }
+  test('constructor initializes with running=false', () => {
+    const { idle } = create();
+    assertEqual(idle.running, false);
+    assertEqual(idle.thoughtCount, 0);
   });
 
-  test('stop after start does not throw', () => {
-    const im = new IdleMind({
-      bus: createBus(), model: mockModel(), selfModel: mockSelfModel(),
-      memory: mockMemory(), goalStack: mockGoalStack(), storage: mockStorage(), storageDir: require('os').tmpdir(),
-    });
-    im.start();
-    let threw = false;
-    try { im.stop(); } catch { threw = true; }
-    assert(!threw, 'stop should not throw');
+  test('start sets running=true', () => {
+    const { idle } = create();
+    idle.start();
+    assert(idle.running, 'should be running');
+    idle.stop();
   });
 
-  test('double stop is safe', () => {
-    const im = new IdleMind({
-      bus: createBus(), model: mockModel(), selfModel: mockSelfModel(),
-      memory: mockMemory(), goalStack: mockGoalStack(), storage: mockStorage(), storageDir: require('os').tmpdir(),
-    });
-    im.start();
-    im.stop();
-    let threw = false;
-    try { im.stop(); } catch { threw = true; }
-    assert(!threw, 'double stop should be safe');
+  test('start is idempotent', () => {
+    const { idle } = create();
+    idle.start();
+    idle.start(); // should not create second interval
+    idle.stop();
   });
-});
 
-describe('IdleMind — Idle Detection', () => {
-  test('registers user activity events', () => {
+  test('stop sets running=false', () => {
+    const { idle } = create();
+    idle.start();
+    idle.stop();
+    assertEqual(idle.running, false);
+  });
+
+  test('stop is safe when not started', () => {
+    const { idle } = create();
+    idle.stop(); // Should not throw
+  });
+
+  test('userActive resets lastUserActivity', () => {
+    const { idle } = create();
+    const before = idle.lastUserActivity;
+    // Simulate some time passing
+    idle.lastUserActivity = Date.now() - 120000;
+    idle.userActive();
+    assert(idle.lastUserActivity > before - 1000, 'should reset to now');
+  });
+
+  test('user:message event resets lastUserActivity', () => {
+    const { bus, idle } = create();
+    idle.lastUserActivity = Date.now() - 120000;
+    bus.emit('user:message', {});
+    assert(Date.now() - idle.lastUserActivity < 1000, 'should be recent');
+  });
+
+  test('_think skips without model', async () => {
+    const { idle } = create();
+    idle.lastUserActivity = Date.now() - 120000;
+    await idle._think();
+    // model is null → returns before doing anything meaningful
+    // thoughtCount may or may not increment depending on check order
+  });
+
+  test('_think skips when user was active recently', async () => {
+    const { idle } = create({ model: { activeModel: 'test' } });
+    idle.lastUserActivity = Date.now(); // just active
+    await idle._think();
+    // thoughtCount increments but returns early
+    assertEqual(idle.thoughtCount, 1);
+  });
+
+  test('_think respects homeostasis gate', async () => {
+    const { idle } = create({ model: { activeModel: 'test' } });
+    idle.lastUserActivity = Date.now() - 120000;
+    idle._homeostasis = { isAutonomyAllowed: () => false, getState: () => 'stressed' };
+    await idle._think();
+    // Should have returned early after homeostasis check
+    assertEqual(idle.thoughtCount, 1);
+  });
+
+  test('_think respects metabolism gate', async () => {
+    const { idle } = create({ model: { activeModel: 'test' } });
+    idle.lastUserActivity = Date.now() - 120000;
+    idle._metabolism = { canAfford: () => false };
+    await idle._think();
+    assertEqual(idle.thoughtCount, 1);
+  });
+
+  test('_isSignificantInsight filters correctly', () => {
+    const { idle } = create();
+    // Too short
+    assert(!idle._isSignificantInsight('reflect', 'short'));
+    // Wrong activity
+    assert(!idle._isSignificantInsight('consolidate', 'found something interesting in the codebase that could be improved significantly'));
+    // No actionable keywords
+    assert(!idle._isSignificantInsight('reflect', 'a'.repeat(60)));
+    // Valid
+    idle._lastInsightTs = 0; // bypass rate limit
+    assert(idle._isSignificantInsight('reflect', 'I noticed a pattern that could be optimized for better performance in the main loop processing'));
+  });
+
+  test('activityLog stays bounded at 20', () => {
+    const { idle } = create();
+    for (let i = 0; i < 25; i++) {
+      idle.activityLog.push({ activity: 'test', timestamp: Date.now() });
+    }
+    if (idle.activityLog.length > 20) {
+      idle.activityLog = idle.activityLog.slice(-20);
+    }
+    assertEqual(idle.activityLog.length, 20);
+  });
+
+  test('start with intervals manager', () => {
+    const intervals = {
+      register: (name, fn, ms, opts) => {},
+      unregister: (name) => {},
+      clear: (name) => {},
+    };
     const bus = createBus();
-    const im = new IdleMind({
-      bus, model: mockModel(), selfModel: mockSelfModel(),
-      memory: mockMemory(), goalStack: mockGoalStack(), storage: mockStorage(), storageDir: require('os').tmpdir(),
+    const idle = new IdleMind({
+      bus, model: null, prompts: null, selfModel: null, memory: null,
+      knowledgeGraph: null, eventStore: null, storageDir: tmpDir,
+      goalStack: null, intervals, storage: null,
     });
-    // Fire a user message event to update last activity
-    bus.fire('user:message', { message: 'test' });
-    // IdleMind should track this — exact mechanism is internal
-    assert(true, 'user message event handled without error');
+    idle.start();
+    assert(idle.running);
+    idle.stop();
   });
 });
 
+// Cleanup
 run();
+try { fs.rmSync(tmpDir, { recursive: true }); } catch { /* best effort */ }

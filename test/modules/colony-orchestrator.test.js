@@ -104,13 +104,13 @@ describe('ColonyOrchestrator — Health', () => {
 });
 
 describe('ColonyOrchestrator — Local Fallback', () => {
-  test('executes locally when no peers', async () => {
+  test('executes locally when no peers (passthrough without selfSpawner)', async () => {
     const co = createOrchestrator();
     await co.boot();
     const run = await co.execute('Fix all bugs');
     assertEqual(run.status, 'done');
     assert(run.subtasks.length > 0, 'Should have subtasks');
-    assert(run.subtasks.every(s => s.assignedTo === 'local'), 'All should be local');
+    assert(run.subtasks.every(s => s.assignedTo === 'passthrough'), 'All should be passthrough');
     assert(run.completedAt > 0, 'Should have completedAt');
   });
 });
@@ -188,6 +188,170 @@ describe('ColonyOrchestrator — Event Handling', () => {
     });
     await co.boot();
     assert(typeof bus._handlers['colony:run-request'] === 'function');
+  });
+});
+
+// ── V7-1: IPC Worker Tests ─────────────────────────────────
+
+describe('ColonyOrchestrator — V7-1 IPC Workers', () => {
+
+  test('selfSpawner is null by default', () => {
+    const co = createOrchestrator();
+    assertEqual(co.selfSpawner, null);
+  });
+
+  test('selfSpawner wired when provided', () => {
+    const spawner = { spawnParallel: async () => [], getStats: () => ({}) };
+    const co = new ColonyOrchestrator({
+      bus: mockBus(), llm: mockLLM(),
+      peerNetwork: mockPeers(), taskDelegation: mockDelegation(),
+      peerConsensus: mockConsensus(), selfSpawner: spawner,
+    });
+    assert(co.selfSpawner === spawner);
+  });
+
+  test('version is 7.1.0', () => {
+    const co = createOrchestrator();
+    assertEqual(co.META.version, '7.1.0');
+  });
+
+  test('getHealth includes ipcWorkers:false without spawner', () => {
+    const co = createOrchestrator();
+    const h = co.getHealth();
+    assertEqual(h.ipcWorkers, false);
+  });
+
+  test('getHealth includes ipcWorkers truthy with spawner', () => {
+    const spawner = { spawnParallel: async () => [], getStats: () => ({ active: 0 }) };
+    const co = new ColonyOrchestrator({
+      bus: mockBus(), llm: mockLLM(),
+      peerNetwork: mockPeers(), taskDelegation: mockDelegation(),
+      peerConsensus: mockConsensus(), selfSpawner: spawner,
+    });
+    // ipcWorkers is truthy (getStats().active or true)
+    assert(co.getHealth().ipcWorkers !== false);
+  });
+
+  test('_executeLocally uses selfSpawner.spawnParallel when available', async () => {
+    let spawnedTasks = null;
+    const spawner = {
+      spawnParallel: async (tasks) => {
+        spawnedTasks = tasks;
+        return tasks.map(t => ({ success: true, result: { output: `done: ${t.description}` } }));
+      },
+    };
+    const co = new ColonyOrchestrator({
+      bus: mockBus(), llm: mockLLM(),
+      peerNetwork: mockPeers(), taskDelegation: mockDelegation(),
+      peerConsensus: mockConsensus(), selfSpawner: spawner,
+    });
+    await co.boot();
+    const run = await co.execute('Parallel refactor');
+
+    assert(spawnedTasks !== null, 'spawnParallel should have been called');
+    assertEqual(run.status, 'done');
+    assert(run.subtasks.every(s => s.assignedTo === 'local-ipc'), 'all should be local-ipc');
+    assert(run.subtasks.every(s => s.status === 'done'), 'all should succeed');
+  });
+
+  test('_executeLocally marks subtask failed when worker returns error', async () => {
+    const spawner = {
+      spawnParallel: async (tasks) =>
+        tasks.map(() => ({ success: false, error: 'worker crash' })),
+    };
+    const co = new ColonyOrchestrator({
+      bus: mockBus(), llm: mockLLM(),
+      peerNetwork: mockPeers(), taskDelegation: mockDelegation(),
+      peerConsensus: mockConsensus(), selfSpawner: spawner,
+    });
+    await co.boot();
+    const run = await co.execute('Failing task');
+
+    assertEqual(run.status, 'done'); // run itself completes
+    assert(run.subtasks.every(s => s.status === 'failed'), 'all subtasks should be failed');
+    assert(run.subtasks.every(s => s.result?.error === 'worker crash'));
+  });
+
+  test('_executeLocally mixes success and failure results', async () => {
+    const spawner = {
+      spawnParallel: async (tasks) =>
+        tasks.map((_, i) =>
+          i % 2 === 0
+            ? { success: true, result: { output: 'ok' } }
+            : { success: false, error: 'partial fail' }
+        ),
+    };
+    const co = new ColonyOrchestrator({
+      bus: mockBus(),
+      llm: { generate: async () => JSON.stringify([
+        { description: 'Task A' }, { description: 'Task B' },
+        { description: 'Task C' }, { description: 'Task D' },
+      ])},
+      peerNetwork: mockPeers(), taskDelegation: mockDelegation(),
+      peerConsensus: mockConsensus(), selfSpawner: spawner,
+    });
+    await co.boot();
+    const run = await co.execute('Mixed results');
+
+    const done = run.subtasks.filter(s => s.status === 'done');
+    const failed = run.subtasks.filter(s => s.status === 'failed');
+    assertEqual(done.length, 2);
+    assertEqual(failed.length, 2);
+  });
+
+  test('_executeLocally passthrough when no selfSpawner', async () => {
+    const co = createOrchestrator(); // no selfSpawner
+    await co.boot();
+    const run = await co.execute('No spawner task');
+
+    assertEqual(run.status, 'done');
+    assert(run.subtasks.every(s => s.assignedTo === 'passthrough'), 'should be passthrough');
+    assert(run.subtasks.every(s => s.result?.passthrough === true));
+  });
+
+  test('fires colony:ipc-spawn event when using selfSpawner', async () => {
+    const fired = [];
+    const bus = {
+      on: (e, fn) => {},
+      fire: (e, d) => fired.push(e),
+      emit: () => {},
+    };
+    const spawner = {
+      spawnParallel: async (tasks) =>
+        tasks.map(() => ({ success: true, result: {} })),
+    };
+    const co = new ColonyOrchestrator({
+      bus, llm: mockLLM(),
+      peerNetwork: mockPeers(), taskDelegation: mockDelegation(),
+      peerConsensus: mockConsensus(), selfSpawner: spawner,
+    });
+    await co.boot();
+    await co.execute('IPC event test');
+    assert(fired.includes('colony:ipc-spawn'), 'should fire colony:ipc-spawn');
+  });
+
+  test('spawnParallel receives correct task format', async () => {
+    let receivedTasks = null;
+    const spawner = {
+      spawnParallel: async (tasks) => {
+        receivedTasks = tasks;
+        return tasks.map(() => ({ success: true, result: {} }));
+      },
+    };
+    const co = new ColonyOrchestrator({
+      bus: mockBus(),
+      llm: { generate: async () => JSON.stringify([{ description: 'Subtask Alpha' }]) },
+      peerNetwork: mockPeers(), taskDelegation: mockDelegation(),
+      peerConsensus: mockConsensus(), selfSpawner: spawner,
+    });
+    await co.boot();
+    await co.execute('Format check');
+
+    assert(Array.isArray(receivedTasks));
+    assertEqual(receivedTasks[0].description, 'Subtask Alpha');
+    assertEqual(receivedTasks[0].type, 'generic');
+    assert('context' in receivedTasks[0], 'should include context');
+    assert('timeoutMs' in receivedTasks[0], 'should include timeoutMs');
   });
 });
 

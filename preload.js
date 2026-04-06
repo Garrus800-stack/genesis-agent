@@ -19,6 +19,7 @@ const ALLOWED_INVOKE = [
   'agent:get-self-model',
   'agent:get-file',
   'agent:save-file',
+  'agent:open-path',
   'agent:run-in-sandbox',
   'agent:get-file-tree',
   'agent:get-health',

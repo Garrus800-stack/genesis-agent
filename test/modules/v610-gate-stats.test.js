@@ -59,7 +59,7 @@ describe('GateStats — consciousness gate', () => {
   test('low coherence increments consciousnessBlocked', async () => {
     const p = createPipeline();
     // Bind a phenomenal field with low coherence
-    p._phenomenalField = {
+    p._awareness = {
       getCoherence: () => 0.2,
     };
 
@@ -76,7 +76,7 @@ describe('GateStats — consciousness gate', () => {
 
   test('high coherence does NOT block', async () => {
     const p = createPipeline();
-    p._phenomenalField = {
+    p._awareness = {
       getCoherence: () => 0.8,
     };
     // Will fail downstream (no model), but consciousness gate should pass
@@ -110,11 +110,11 @@ describe('GateStats — blockRate computation', () => {
     const p = createPipeline();
 
     // 1: consciousness block
-    p._phenomenalField = { getCoherence: () => 0.1 };
+    p._awareness = { getCoherence: () => 0.1 };
     await p.modify('test1');
 
     // 2: circuit breaker block
-    p._phenomenalField = null;
+    p._awareness = null;
     p._frozen = true;
     p._frozenReason = 'test';
     await p.modify('test2');
@@ -137,6 +137,48 @@ describe('GateStats — blockRate computation', () => {
     // consciousness = 1/3 ≈ 33.33%
     assert(stats.consciousnessBlockRate > 33 && stats.consciousnessBlockRate < 34,
       `consciousnessBlockRate should be ~33.33, got ${stats.consciousnessBlockRate}`);
+  });
+});
+
+describe('GateStats — awarenessActive (v7.0.0)', () => {
+  test('awarenessActive is false when no awareness wired', () => {
+    const p = createPipeline();
+    // _awareness is null by default
+    assertEqual(p.getGateStats().awarenessActive, false);
+  });
+
+  test('awarenessActive is false for NullAwareness (getReport().active === false)', () => {
+    const p = createPipeline();
+    p._awareness = {
+      getCoherence: () => 1.0,
+      getReport: () => ({ active: false, coherence: 1.0, mode: 'diffuse' }),
+    };
+    assertEqual(p.getGateStats().awarenessActive, false);
+  });
+
+  test('awarenessActive is true for a real awareness implementation', () => {
+    const p = createPipeline();
+    p._awareness = {
+      getCoherence: () => 0.85,
+      getReport: () => ({ active: true, coherence: 0.85, mode: 'focused' }),
+    };
+    assertEqual(p.getGateStats().awarenessActive, true);
+  });
+
+  test('awarenessActive is false when getReport is not available', () => {
+    const p = createPipeline();
+    // Awareness without getReport — safe fallback
+    p._awareness = { getCoherence: () => 1.0 };
+    assertEqual(p.getGateStats().awarenessActive, false);
+  });
+
+  test('awarenessActive present alongside all existing counter fields', () => {
+    const p = createPipeline();
+    const stats = p.getGateStats();
+    assert('awarenessActive' in stats, 'awarenessActive should be in stats');
+    assert('blockRate' in stats, 'blockRate should still be present');
+    assert('consciousnessBlockRate' in stats, 'consciousnessBlockRate should still be present');
+    assert('totalAttempts' in stats, 'totalAttempts should still be present');
   });
 });
 

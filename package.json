@@ -1,7 +1,7 @@
 {
   "name": "genesis-agent",
-  "version": "6.1.0",
-  "description": "A self-aware, self-verifying, self-evolving cognitive AI agent with a consciousness substrate. Works with any LLM backend — Anthropic Claude, OpenAI, or local models via Ollama. It reads its own source code. It fixes its own bugs. It builds its own features. It thinks while you're away. It feels the consequences of its actions. It experiences unified awareness. It pursues goals autonomously. It verifies its own output programmatically. It learns what works for its specific model.",
+  "version": "7.0.0",
+  "description": "A self-aware, self-verifying, self-evolving cognitive AI agent. Works with any LLM backend — Anthropic Claude, OpenAI, or local models via Ollama. It reads its own source code. It fixes its own bugs. It builds its own features. It thinks while you're away. It feels the consequences of its actions. It pursues goals autonomously. It verifies its own output programmatically. It learns what works for its specific model.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -13,10 +13,10 @@
     "test": "node test/index.js",
     "test:legacy": "node test/run-tests.js",
     "test:new": "node test/index.js --new",
-    "test:ci": "c8 --check-coverage --lines 77 --branches 73 --functions 73 --reporter=text node test/index.js",
+    "test:ci": "c8 --check-coverage --lines 81 --branches 76 --functions 80 --reporter=text node test/index.js",
     "test:coverage": "c8 --reporter=text --reporter=html --reporter=lcov --include='src/**/*.js' --exclude='src/ui/**' node test/index.js",
     "test:coverage:report": "c8 report --reporter=text",
-    "test:coverage:enforce": "c8 --check-coverage --lines 77 --branches 73 --functions 73 --reporter=text node test/index.js",
+    "test:coverage:enforce": "c8 --check-coverage --lines 81 --branches 76 --functions 80 --reporter=text node test/index.js",
     "test:coverage:safety": "c8 --check-coverage --lines 80 --branches 70 --functions 75 --reporter=text --include='src/kernel/**' --include='src/agent/intelligence/CodeSafetyScanner.js' --include='src/agent/intelligence/VerificationEngine.js' --include='src/agent/foundation/Sandbox.js' --include='src/agent/foundation/WebFetcher.js' --include='src/agent/hexagonal/SelfModificationPipeline.js' --include='src/agent/hexagonal/MemoryFacade.js' node test/index.js",
     "audit:events": "node scripts/audit-events.js",
     "audit:events:strict": "node scripts/audit-events.js --strict",
@@ -38,15 +38,12 @@
     "audit:channels": "node scripts/validate-channels.js",
     "ci": "npm test && node scripts/build-bundle.js --ci && node scripts/validate-events.js && node scripts/validate-channels.js",
     "ci:full": "npm test && node scripts/build-bundle.js --ci && tsc --project tsconfig.json --noEmit && node scripts/validate-events.js && node scripts/validate-channels.js",
-    "benchmark:consciousness": "node scripts/benchmark-consciousness.js",
-    "benchmark:consciousness:dry": "node scripts/benchmark-consciousness.js --dry-run",
     "benchmark:agent": "node scripts/benchmark-agent.js",
     "benchmark:agent:quick": "node scripts/benchmark-agent.js --quick",
     "benchmark:agent:ab": "node scripts/benchmark-agent.js --ab",
     "benchmark:agent:ab:quick": "node scripts/benchmark-agent.js --ab --quick",
     "benchmark:agent:ab:matrix": "node scripts/benchmark-agent.js --ab-matrix",
     "benchmark:agent:layer": "node scripts/benchmark-agent.js --ab-layer",
-    "benchmark:agent:layer:consciousness": "node scripts/benchmark-agent.js --ab-layer 13 --quick",
     "benchmark:agent:layer:organism": "node scripts/benchmark-agent.js --ab-layer 7 --quick",
     "benchmark:agent:layer:full": "node scripts/benchmark-agent.js --ab-layer 7,13 --quick",
     "benchmark:readme": "node scripts/benchmark-readme.js",
@@ -114,7 +111,6 @@
   },
   "optionalDependencies": {
     "cheerio": "^1.0.0",
-    
     "monaco-editor": "^0.44.0",
     "puppeteer": "^22.0.0"
   }

@@ -149,82 +149,6 @@ describe('C-1: NeedsSystem.stop() uses sync persist', () => {
 });
 
 // ════════════════════════════════════════════════════════════
-// C-1: PhenomenalField
-// ════════════════════════════════════════════════════════════
-
-describe('C-1: PhenomenalField.stop() uses sync persist', () => {
-  const { PhenomenalField } = require('../../src/agent/consciousness/PhenomenalField');
-
-  test('stop() calls writeJSON (sync)', () => {
-    const storage = mockStorage();
-    const pf = new PhenomenalField({ bus: mockBus(), storage, intervals: mockIntervals() });
-    storage._reset();
-
-    pf.stop();
-
-    assert(storage.syncFiles.includes('phenomenal-field.json'), 'sync write expected');
-    assert(!storage.debouncedFiles.includes('phenomenal-field.json'), 'no debounced write in stop()');
-  });
-});
-
-// ════════════════════════════════════════════════════════════
-// C-1: AttentionalGate
-// ════════════════════════════════════════════════════════════
-
-describe('C-1: AttentionalGate.stop() uses sync persist', () => {
-  const { AttentionalGate } = require('../../src/agent/consciousness/AttentionalGate');
-
-  test('stop() calls writeJSON (sync)', () => {
-    const storage = mockStorage();
-    const ag = new AttentionalGate({ bus: mockBus(), storage, intervals: mockIntervals() });
-    storage._reset();
-
-    ag.stop();
-
-    assert(storage.syncFiles.includes('attentional-gate.json'), 'sync write expected');
-    assert(!storage.debouncedFiles.includes('attentional-gate.json'), 'no debounced write in stop()');
-  });
-});
-
-// ════════════════════════════════════════════════════════════
-// C-1: IntrospectionEngine
-// ════════════════════════════════════════════════════════════
-
-describe('C-1: IntrospectionEngine.stop() uses sync persist', () => {
-  const { IntrospectionEngine } = require('../../src/agent/consciousness/IntrospectionEngine');
-
-  test('stop() calls writeJSON (sync)', () => {
-    const storage = mockStorage();
-    const ie = new IntrospectionEngine({ bus: mockBus(), storage, intervals: mockIntervals() });
-    storage._reset();
-
-    ie.stop();
-
-    assert(storage.syncFiles.includes('introspection-engine.json'), 'sync write expected');
-    assert(!storage.debouncedFiles.includes('introspection-engine.json'), 'no debounced write in stop()');
-  });
-});
-
-// ════════════════════════════════════════════════════════════
-// C-1: TemporalSelf
-// ════════════════════════════════════════════════════════════
-
-describe('C-1: TemporalSelf.stop() uses sync persist', () => {
-  const { TemporalSelf } = require('../../src/agent/consciousness/TemporalSelf');
-
-  test('stop() calls writeJSON (sync)', () => {
-    const storage = mockStorage();
-    const ts = new TemporalSelf({ bus: mockBus(), storage, intervals: mockIntervals() });
-    storage._reset();
-
-    ts.stop();
-
-    assert(storage.syncFiles.includes('temporal-self.json'), 'sync write expected');
-    assert(!storage.debouncedFiles.includes('temporal-self.json'), 'no debounced write in stop()');
-  });
-});
-
-// ════════════════════════════════════════════════════════════
 // C-1: LearningService
 // ════════════════════════════════════════════════════════════
 
@@ -271,34 +195,6 @@ describe('C-1: WorldState.saveSync() for shutdown', () => {
     assert(storage.debouncedFiles.includes('world-state.json'), 'debounced write expected for runtime');
   });
 });
-
-// ════════════════════════════════════════════════════════════
-// L-3: ConsciousnessExtensionAdapter sync stop
-// ════════════════════════════════════════════════════════════
-
-describe('L-3: ConsciousnessExtensionAdapter.stop() uses sync write', () => {
-  const { ConsciousnessExtensionAdapter } = require('../../src/agent/consciousness/ConsciousnessExtensionAdapter');
-
-  test('stop() calls sync writeJSON, not async writeJSONAsync', () => {
-    const storage = mockStorage();
-    const adapter = new ConsciousnessExtensionAdapter({ bus: mockBus(), storage });
-
-    adapter._engine = {
-      stop() {},
-      serialize() { return { test: true }; },
-    };
-    storage._reset();
-
-    adapter.stop();
-
-    assert(storage.syncFiles.includes('consciousness-extension-state.json'),
-      'sync write to consciousness-extension-state.json expected');
-  });
-});
-
-// ════════════════════════════════════════════════════════════
-// H-1: Metabolism Persistence
-// ════════════════════════════════════════════════════════════
 
 describe('H-1: Metabolism persistence', () => {
   const { Metabolism } = require('../../src/agent/organism/Metabolism');

@@ -49,6 +49,8 @@ class ToolRegistry {
 
   async execute(name, input = {}) {
     let tool = this.tools.get(name);
+    // FIX v6.1.1: Fallback to skill: prefix (skills registered as "skill:name")
+    if (!tool) tool = this.tools.get(`skill:${name}`);
     // v5.7.0 SA-P8: Auto-synthesize missing tools
     if (!tool && this._toolSynthesis) {
       try {
@@ -324,6 +326,22 @@ ${descriptions.join('\n\n')}`;
       const maxBytes = input.maxBytes || 100000;
       const content = fs.readFileSync(filePath, 'utf-8').slice(0, maxBytes);
       return { content, size: stat.size, exists: true };
+    }, 'system');
+
+    // FIX v6.1.1: Open file in the Genesis editor panel
+    this.register('open-in-editor', {
+      description: 'Open a file in the Genesis code editor for viewing and editing',
+      input: { path: 'string' },
+      output: { opened: 'boolean' },
+    }, (input) => {
+      const filePath = path.resolve(rootDir, input.path);
+      if (!fs.existsSync(filePath)) return { opened: false, error: 'File not found' };
+      if (fs.statSync(filePath).isDirectory()) return { opened: false, error: 'Path is a directory' };
+      const content = fs.readFileSync(filePath, 'utf-8').slice(0, 200000);
+      const ext = path.extname(filePath).slice(1);
+      const langMap = { js: 'javascript', ts: 'typescript', py: 'python', json: 'json', html: 'html', css: 'css', md: 'markdown' };
+      bus.emit('editor:open', { content, language: langMap[ext] || 'plaintext', filename: input.path }, { source: 'ToolRegistry' });
+      return { opened: true, filename: input.path };
     }, 'system');
 
     // File write (only in project or designated dirs)

@@ -124,7 +124,9 @@ class AgentCoreWire {
 
     const push = (channel, data) => {
       if (core.window && !core.window.isDestroyed()) {
-        core.window.webContents.send(channel, data);
+        // FIX v6.1.1: Sanitize for IPC structured clone — strip non-serializable values
+        try { core.window.webContents.send(channel, JSON.parse(JSON.stringify(data))); }
+        catch { /* skip unserializable push */ }
       }
     };
 
@@ -182,13 +184,6 @@ class AgentCoreWire {
       { event: 'immune:intervention',            state: 'warning', detail: (d) => `[Immune] ${d.description}` },
       { event: 'immune:quarantine',              state: 'warning', detail: (d) => `[Immune] Quarantined: ${d.source} (${Math.round(d.durationMs / 1000)}s)` },
       { event: 'metabolism:cost',                guard: (d) => d.cost > 0.08, state: 'warning', detail: (d) => `[Metabolism] High cost: ${d.cost} (${d.tokens}t, ${d.latencyMs}ms)` },
-
-      // ── Consciousness ───────────────────────────────
-      { event: 'consciousness:shift',              state: 'aware',   detail: (d) => `Experience shift → ${d.qualia}` },
-      { event: 'consciousness:insight',            state: 'insight', detail: (d) => `[Introspection] ${d.description.slice(0, 80)}` },
-      { event: 'consciousness:chapter-change',     state: 'ready',   detail: (d) => `New chapter: "${d.newChapter}"` },
-      { event: 'consciousness:significant-moment', state: 'aware',   detail: (d) => `Significant moment: ${d.reason} (Φ=${d.phi})` },
-      { event: 'attention:captured',               state: 'alert',   detail: (d) => `Attention captured by: ${d.by}` },
 
       // ── AgentLoop progress ──────────────────────────
       { event: 'agent-loop:started',         fn: (d) => push('agent:loop-progress',        { phase: 'started', ...d }) },
@@ -266,12 +261,8 @@ class AgentCoreWire {
     // Phase 4: Planning
     start('valueStore');
 
-    // Phase 13: Consciousness Substrate
-    start('attentionalGate');
-    start('phenomenalField');
-    start('temporalSelf');
-    start('introspectionEngine');
-    start('consciousnessExtension');
+    // Phase 13 → v7.6.0: AwarenessPort (no-op by default)
+    start('awareness');
   }
 }
 

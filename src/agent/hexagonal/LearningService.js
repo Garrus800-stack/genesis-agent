@@ -181,6 +181,9 @@ class LearningService {
 
     // 9. Detect repeated user requests (frustration)
     this._detectFrustration(message, intent);
+
+    // 10. FIX v6.1.1: Detect capability gaps — when Genesis says "I can't"
+    this._detectCapabilityGap(message, response);
   }
 
   // ════════════════════════════════════════════════════════
@@ -337,6 +340,24 @@ class LearningService {
           message: `User wiederholt sich (${Math.round(avgSim * 100)}% Aehnlichkeit).`,
         }, { source: 'LearningService' });
       }
+    }
+  }
+
+  // FIX v6.1.1: Detect when Genesis admits inability — signal to Daemon for skill creation
+  _detectCapabilityGap(message, response) {
+    if (!response) return;
+    const cannotPhrases = [
+      /(?:kann ich nicht|nicht möglich|habe keinen zugriff|nicht in der lage)/i,
+      /(?:I cannot|not possible|I don't have|unable to|I can't)/i,
+      /(?:nicht unterstützt|not supported|no access to)/i,
+    ];
+    const isAdmission = cannotPhrases.some(p => p.test(response));
+    if (isAdmission && message.length > 10) {
+      this.bus.emit('learning:capability-gap', {
+        userRequest: message.slice(0, 200),
+        response: response.slice(0, 200),
+        timestamp: Date.now(),
+      }, { source: 'LearningService' });
     }
   }
 

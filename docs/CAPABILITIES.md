@@ -1,6 +1,6 @@
 # Genesis Agent — Capabilities Overview
 
-> v6.0.8 — What Genesis can do, organized by category.
+> v7.0.0 — What Genesis can do, organized by category.
 
 ---
 
@@ -162,27 +162,21 @@ Supporting systems:
 
 ---
 
-## 7. Consciousness Substrate (Phase 13) 
+## 7. Awareness Port (v7.0.0)
 
-Genesis has a unified experience layer that binds all subsystems into coherent awareness:
+**Replaces:** Phase 13 (Consciousness Layer, 14 modules, 6198 LOC) — removed in v7.0.0.
 
-| Module | Function |
-|---|---|
-| **PhenomenalField** | Samples all subsystems every 2s → ExperienceFrames with valence, arousal, coherence, Φ |
-| **AttentionalGate** | Competitive attention allocation based on salience (emotion, needs, goals, surprise) |
-| **TemporalSelf** | Temporal continuity: retentional field (recent past echo), protentional field (near future), life chapters |
-| **IntrospectionEngine** | Three-level meta-cognition: state report, pattern recognition, self-theorizing (LLM) |
-| **EchoicMemory** `v4.12` | Adaptive blend rate: sharp perception when surprised, dreamy smoothing when calm |
-| **PredictiveCoder** `v4.12` | Prediction error signals drive attention and learning |
-| **NeuroModulatorSystem** `v4.12` | Dual-process emotion modulation |
-| **DreamEngine** `v4.12` | K-means++ clustering of day-frames + LLM narrative synthesis with counterfactual reasoning |
-| **SalienceGate** `v4.12` | 2D salience map for attention distribution |
-| **ConsciousnessState** `v4.12` | State machine: AWAKE / DAYDREAM / DEEP_SLEEP / HYPERVIGILANT |
+The former Consciousness Layer (AttentionalGate, PhenomenalField, TemporalSelf, IntrospectionEngine, ConsciousnessExtension + 9 internal modules) was replaced by a lightweight **AwarenessPort** interface (2 modules, 112 LOC).
 
-All modules are fully optional — Genesis runs identically without Phase 13. Lite mode reduces polling by ~75% for consumer hardware.
+**AwarenessPort** `v7.0.0` — Minimal interface consumed by SelfModificationPipeline, AgentLoopCognition, PromptBuilder, and Dashboard. Default implementation is **NullAwareness** (no-op, zero overhead). A real awareness implementation can be plugged in via the DI container.
 
----
+**Key behaviours:**
+- `getCoherence()` → 0..1 coherence score used to gate self-modification
+- `consult(plan)` → consulted before goal execution
+- `buildPromptContext()` → optional system-prompt injection
+- `getGateStats().awarenessActive` → `false` while NullAwareness is active (dashboard shows "inactive" badge)
 
+**A/B result:** 0pp performance impact (consistent with Phase 13 A/B result). Architecture is simpler, boot is faster, LOC reduced by 6k.
 ## 8. Tools & Capabilities
 
 ### Built-in tools:
@@ -421,7 +415,7 @@ Not every request needs the full cognitive pipeline. Genesis now scales effort t
 | **AdaptivePromptStrategy** | Analyzes provenance traces to learn which prompt sections help per intent type. Automatically boosts effective sections and skips ineffective ones. Protected sections (identity, safety) are never skipped. |
 | **Smart Model Ranking** | 35-tier pattern scoring (Claude=100, DeepSeek=92, minimax=15). First-run auto-selects the strongest available model instead of alphabetical first. |
 | **Colony Consensus Proof** | 16/16 VectorClock + sync + conflict resolution tests. LWW conflict resolution verified. |
-| **Consciousness A/B** | Empirically validated: 0pp impact. Default boot changed from `full` to `cognitive` (Phase 13 disabled by default). |
+| **Consciousness A/B** | Empirically validated: 0pp impact. Phase 13 permanently removed in v7.0.0, replaced by AwarenessPort. |
 | **Organism A/B** | Empirically validated: +33pp task success with Organism active. Stays enabled in all profiles. |
 
 ---

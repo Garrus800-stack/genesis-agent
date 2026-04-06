@@ -52,13 +52,10 @@ class Homeostasis {
       },
       memoryPressure: {
         value: 0, unit: '%',
-        // FIX v4.12.8: Raised from 75/90 to 85/95.
-        // V8 heapUsed/heapTotal naturally sits at 80-93% in Electron apps
-        // with 95+ services. The old 75% threshold triggered constant
-        // false-positive pruning on every tick. 85% is a more realistic
-        // baseline; allostasis will still adapt if genuinely constrained.
-        healthy: { min: 0, max: thresholds.memoryPressure?.healthy ?? 85 },
-        warning: { min: thresholds.memoryPressure?.healthy ?? 85, max: thresholds.memoryPressure?.warning ?? 95 },
+        // v7.6.0: Now measured against V8 heap_size_limit (~1.4-4GB) instead of
+        // dynamic heapTotal. Normal usage: 3-15%. Alarm only near actual OOM risk.
+        healthy: { min: 0, max: thresholds.memoryPressure?.healthy ?? 75 },
+        warning: { min: thresholds.memoryPressure?.healthy ?? 75, max: thresholds.memoryPressure?.warning ?? 90 },
         correction: 'prune-caches',
       },
       kgNodeCount: {

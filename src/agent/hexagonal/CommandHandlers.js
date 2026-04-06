@@ -314,10 +314,10 @@ class CommandHandlers {
 
     // Extract skill name from message
     const nameMatch = message.match(/([\w-]+-skill)\b/i) ||
-                      message.match(/(?:run|execute|use|start|starte?|nutze?|verwende?)\s+(?:the\s+|skill\s+)?["']?([\w-]+)["']?/i);
+                      message.match(/(?:run|execute|use|start|starte?|nutze?|verwende?)\s+(?:the\s+|skill\s+|(?:de[nr]|dein(?:en?)?|mein(?:en?)?)\s+)?["']?([\w-]+)["']?/i);
     const skillName = nameMatch ? (nameMatch[1] || nameMatch[2]) : null;
 
-    if (!skillName || skillName === 'skill' || skillName === 'skills') {
+    if (!skillName || skillName === 'skill' || skillName === 'skills' || /^(dein|mein|den|der|die|das|the|my)$/i.test(skillName)) {
       // List available skills
       const all = this.skillManager.listSkills();
       if (all.length === 0) return 'No skills installed. Use "create a skill..." to build one.';
@@ -367,6 +367,14 @@ class CommandHandlers {
     if (!cmd) return this.lang.t('agent.no_command');
 
     const result = await this.shell.run(cmd);
+    // FIX v6.1.1: Emit outcome for learning systems (LessonsStore, SymbolicResolver)
+    if (this.bus) {
+      this.bus.emit('shell:outcome', {
+        command: cmd, success: result.ok && !result.blocked,
+        error: result.blocked ? 'blocked' : result.stderr?.slice(0, 200) || null,
+        platform: process.platform,
+      }, { source: 'CommandHandlers' });
+    }
     const lines = [`**$ ${cmd}**`, ''];
     if (result.blocked) {
       lines.push(`**${this.lang.t('agent.blocked_command', { reason: result.stderr })}**`);
@@ -516,25 +524,64 @@ class CommandHandlers {
   async openPath(message) {
     if (!this.shell) return this.lang.t('agent.shell_unavailable');
 
-    // Extract path from message — look for quoted paths, Windows paths, Unix paths
-    const pathMatch = message.match(
-      /["']([^"']+)["']/ ||                       // "quoted path"
-      /([A-Za-z]:\\[^\s"']+)/ ||                   // C:\path\to\folder
-      /(~\/[^\s"']+|\/[^\s"']+)/                   // ~/path or /path
-    );
+    // FIX v6.1.1: Resolve semantic folder names (Desktop, Downloads, etc.)
+    const os = require('os');
+    const path = require('path');
+    const home = os.homedir();
+    const folderAliases = {
+      'desktop': path.join(home, 'Desktop'),
+      'schreibtisch': path.join(home, 'Desktop'),
+      'downloads': path.join(home, 'Downloads'),
+      'dokumente': path.join(home, 'Documents'),
+      'documents': path.join(home, 'Documents'),
+      'bilder': path.join(home, 'Pictures'),
+      'pictures': path.join(home, 'Pictures'),
+      'musik': path.join(home, 'Music'),
+      'music': path.join(home, 'Music'),
+      'home': home,
+    };
 
+    // Check for semantic folder reference first
+    const lower = message.toLowerCase();
     let targetPath = null;
-    if (pathMatch) {
-      targetPath = pathMatch[1];
-    } else {
-      // Try to find any path-like string
-      const parts = message.match(/([A-Za-z]:\\[^\s"']+)/i) ||
-                    message.match(/["']([^"']+)["']/) ||
-                    message.match(/(\/[^\s"']{2,})/);
-      if (parts) targetPath = parts[1];
+    for (const [alias, resolved] of Object.entries(folderAliases)) {
+      if (lower.includes(alias)) {
+        // Check if there's a subfolder/file mentioned after the alias
+        const afterAlias = message.slice(lower.indexOf(alias) + alias.length).trim();
+        const subMatch = afterAlias.match(/(?:ordner|folder|datei|file)?\s*[\"']?([^\s\"']+)[\"']?/i);
+        targetPath = subMatch && subMatch[1] ? path.join(resolved, subMatch[1]) : resolved;
+        break;
+      }
     }
 
     if (!targetPath) {
+      // Extract path from message — try quoted first, then Windows full path, then Unix
+      const quoted = message.match(/["']([^"']+)["']/);
+      // Windows path: grab everything from drive letter to end (may include spaces)
+      const winPath = message.match(/([A-Za-z]:\\[^\n"']+)/i);
+      const unixPath = message.match(/(~\/[^\s"']+|\/[^\s"']+)/);
+
+      if (quoted) {
+        targetPath = quoted[1].trim();
+      } else if (winPath) {
+        targetPath = winPath[1].trim().replace(/[.,;!?]+$/, ''); // strip trailing punctuation
+      } else if (unixPath) {
+        targetPath = unixPath[1];
+      }
+    }
+
+    if (!targetPath) {
+      // FIX v6.1.1: Detect application launch requests (öffne firefox, chrome, etc.)
+      const appMatch = message.match(/(?:oeffne|öffne|open|start|starte)\s+(?:den\s+|das\s+|die\s+)?(\w[\w\s.-]*\w)/i);
+      if (appMatch) {
+        const appName = appMatch[1].trim();
+        const platform = process.platform;
+        const cmd = platform === 'win32' ? `start "" "${appName}"` : platform === 'darwin' ? `open -a "${appName}"` : `xdg-open "${appName}" 2>/dev/null || ${appName}`;
+        try {
+          const result = await this.shell.run(cmd, 'read');
+          return `Anwendung gestartet: ${appName}`;
+        } catch (err) { return `Konnte "${appName}" nicht starten: ${err.message}`; }
+      }
       return 'Welchen Ordner oder welche Datei soll ich öffnen? Gib mir den Pfad an.';
     }
 

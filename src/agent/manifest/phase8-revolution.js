@@ -125,17 +125,18 @@ function phase8(ctx, R) {
       }),
     }],
 
-    // v5.9.2: Colony Mode foundation — multi-agent coordination
+    // v7.1.0: Colony Mode — multi-agent coordination with real IPC workers (V7-1)
     ['colonyOrchestrator', {
       phase: 8, deps: ['model'], tags: ['revolution', 'colony', 'multi-agent'],
       lateBindings: [
-        { prop: 'peers',      service: 'peerNetwork',     optional: true },
-        { prop: 'delegation', service: 'taskDelegation',  optional: true },
-        { prop: 'consensus',  service: 'peerConsensus',   optional: true },
+        { prop: 'peers',        service: 'peerNetwork',     optional: true },
+        { prop: 'delegation',   service: 'taskDelegation',  optional: true },
+        { prop: 'consensus',    service: 'peerConsensus',   optional: true },
+        { prop: 'selfSpawner',  service: 'selfSpawner',     optional: true },  // V7-1: IPC workers
       ],
       factory: (c) => new (R('ColonyOrchestrator').ColonyOrchestrator)({
         bus, llm: c.resolve('model'),
-        peerNetwork: null, taskDelegation: null, peerConsensus: null,
+        peerNetwork: null, taskDelegation: null, peerConsensus: null, selfSpawner: null,
       }),
     }],
   ];

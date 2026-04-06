@@ -110,6 +110,34 @@ class LessonsStore {
       this._capturePromptLesson(data);
     }, { source: 'LessonsStore' });
 
+    // FIX v6.1.1: Learn from shell command outcomes
+    this._unsub6 = this.bus.on('shell:outcome', (data) => {
+      if (!data.command) return;
+      this.record({
+        category: data.success ? 'shell-success' : 'shell-failure',
+        insight: data.success
+          ? `Command "${data.command}" works on ${data.platform}`
+          : `Command "${data.command}" failed on ${data.platform}: ${data.error || 'unknown'}`,
+        strategy: { command: data.command, platform: data.platform },
+        tags: ['shell', data.platform, data.success ? 'works' : 'fails'],
+        source: 'shell-outcome',
+        evidence: { successRate: data.success ? 1 : 0, confidence: 0.8, sampleSize: 1 },
+      });
+    }, { source: 'LessonsStore' });
+
+    // FIX v6.1.1: Wire dream insights into lessons — dreams are no longer an attrappe
+    this._unsub7 = this.bus.on('dream:complete', (data) => {
+      if (data.insights > 0 || data.newSchemas > 0) {
+        this.record({
+          category: 'dream-insight',
+          insight: `Dream #${data.dreamNumber}: ${data.insights} insights, ${data.newSchemas} new schemas, ${data.strengthened} strengthened memories`,
+          tags: ['dream', 'autonomous'],
+          source: 'dream-cycle',
+          evidence: { confidence: 0.5, sampleSize: 1, successRate: 0.5 },
+        });
+      }
+    }, { source: 'LessonsStore' });
+
     _log.info(`[LESSONS] Active - ${this._lessons.length} lessons loaded from ${this._globalDir}`);
   }
 
@@ -119,6 +147,8 @@ class LessonsStore {
     this._unsub3?.();
     this._unsub4?.();
     this._unsub5?.();
+    this._unsub6?.();
+    this._unsub7?.();
     if (this._dirty) this._save();
     _log.info(`[LESSONS] Stopped - ${this._stats.lessonsCreated} created, ${this._stats.lessonsRecalled} recalled`);
   }

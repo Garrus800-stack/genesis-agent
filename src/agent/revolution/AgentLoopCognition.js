@@ -171,28 +171,14 @@ class AgentLoopCognitionDelegate {
   }
 
   // ════════════════════════════════════════════════════════════
-  // v4.12.4: CONSCIOUSNESS CONSULTATION
+  // v7.6.0: AWARENESS CONSULTATION
   //
-  // Before executing a plan, check if the consciousness layer
-  // has concerns. This is the bridge between Phase 13's
-  // Apprehension mechanism and Phase 8's AgentLoop.
-  //
-  // Three checks:
-  //   1. AttentionalGate in CAPTURED mode on ethical-conflict
-  //      → INSERT PAUSE. The plan must articulate the tension
-  //        before proceeding.
-  //   2. PhenomenalField qualia = 'apprehension'
-  //      → WARN. Add conflict description to plan context.
-  //   3. ValueStore has relevant values for this action domain
-  //      → ENRICH. Add value context to the plan.
-  //
-  // This is NOT a veto — Genesis can still proceed after
-  // deliberation. The point is to force the hesitation,
-  // not to prevent the action.
+  // Delegates to AwarenessPort.consult() + ValueStore enrichment.
+  // AwarenessPort replaces the former 14-module Consciousness Layer.
   // ════════════════════════════════════════════════════════════
 
   /**
-   * Consult consciousness before plan execution.
+   * Consult awareness before plan execution.
    * Returns enrichment data that should be injected into the
    * plan's context for the LLM.
    *
@@ -200,52 +186,26 @@ class AgentLoopCognitionDelegate {
    * @returns {object} { paused, concerns, valueContext }
    */
   consultConsciousness(plan) {
-    const result = {
-      paused: false,
-      /** @type {string[]} */
-      concerns: [],
-      valueContext: '',
-    };
+    // v7.6.0: Delegate to AwarenessPort
+    const awareness = this._resolveOptional('awareness');
+    const result = awareness
+      ? { ...awareness.consult(plan) }
+      : { paused: false, concerns: [], valueContext: '' };
 
-    // ── 1. Check AttentionalGate for ethical-conflict capture ─
-    const gate = this._resolveOptional('attentionalGate');
-    if (gate) {
-      try {
-        const mode = gate.getMode?.();
-        const focus = gate.getPrimaryFocus?.();
-        if (mode === 'captured' && focus === 'ethical-conflict') {
-          result.paused = true;
-          const ctx = gate.buildPromptContext?.() || '';
-          result.concerns.push(ctx || 'Ethical conflict detected — deliberate before acting.');
-          _log.info('[COGNITION] Consciousness PAUSE — ethical-conflict capture active');
-        }
-      } catch (err) { _log.debug('[COGNITION] attentionalGate check failed:', err.message); }
-    }
-
-    // ── 2. Check PhenomenalField for apprehension qualia ─────
-    const field = this._resolveOptional('phenomenalField');
-    if (field && !result.paused) {
-      try {
-        const qualia = field.getQualia?.();
-        if (qualia === 'apprehension') {
-          const gestalt = field.getGestalt?.() || '';
-          result.concerns.push(gestalt || 'Subsystems disagree — consider the conflict.');
-          _log.info('[COGNITION] Consciousness concern — apprehension qualia active');
-        }
-      } catch (err) { _log.debug('[COGNITION] phenomenalField check failed:', err.message); }
-    }
-
-    // ── 3. Enrich with relevant values ───────────────────────
+    // ValueStore enrichment (planning layer, independent of awareness)
     const values = this._resolveOptional('valueStore');
     if (values) {
       try {
         const domain = this._inferDomain(plan);
         const relevant = values.getForDomain?.(domain) || [];
         if (relevant.length > 0) {
-          result.valueContext = relevant
+          const ctx = relevant
             .slice(0, 3)
             .map(v => `${v.name} (${Math.round(v.weight * 100)}%): ${v.description}`)
             .join('; ');
+          result.valueContext = result.valueContext
+            ? `${result.valueContext}; ${ctx}`
+            : ctx;
         }
       } catch (err) { _log.debug('[COGNITION] valueStore enrichment failed:', err.message); }
     }

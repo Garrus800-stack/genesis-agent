@@ -1,13 +1,13 @@
 # Genesis Agent — Architecture Deep-Dive
 
-> Comprehensive technical analysis of Genesis Agent v6.0.6.
+> Comprehensive technical analysis of Genesis Agent v7.0.0. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
 > Last updated with Replay, Deploy Strategies, SelfModel Dashboard, and complete v6 roadmap.
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **241 JS source modules** across **~84,000 LOC** of production code, supported by **264 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **232 JS source modules** across **~79,600 LOC** of production code, supported by **275 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
 
 ### Key Numbers
 
@@ -267,23 +267,14 @@ Hybrid reasoning: GraphReasoner, AdaptiveMemory.
 
 **AdaptiveMemory** `v4.1` — Intelligent forgetting: high surprise = slow decay (5×), routine = fast decay, access frequency boosts retention. Integrates with emotional state and surprise signals.
 
-### Phase 13: Consciousness Substrate (5 services, 12 files, 5,793 LOC)
+### Phase 13: Removed in v7.0.0
 
-Unified experience layer: AttentionalGate, PhenomenalField, TemporalSelf, IntrospectionEngine, ConsciousnessExtension (adapter for EchoicMemory, PredictiveCoder, NeuroModulatorSystem, SalienceGate, DreamEngine, ConsciousnessState).
+**Phase 13 (Consciousness Layer) was removed in v7.0.0.** The 14-module, 6198-LOC layer (AttentionalGate, PhenomenalField, TemporalSelf, IntrospectionEngine, ConsciousnessExtension + 9 internal modules) was replaced by the **AwarenessPort** interface (2 modules, 112 LOC) registered in Phase 1.
 
-**PhenomenalField** `v4.11` — Samples all subsystems every 2s, fusing them into coherent ExperienceFrames with valence, arousal, coherence, and Φ (integrated information measure).
+**Rationale:** A/B benchmarking showed 0pp performance impact with Phase 13 active vs. disabled. The layer added 6k LOC and 14 boot services with no measurable benefit. The AwarenessPort provides the same interface contract — `getCoherence()`, `consult(plan)`, `buildPromptContext()` — and a real implementation can be injected via DI when needed.
 
-**AttentionalGate** `v4.11` — Competitive attention allocation. Salience-based filtering determines what enters the experience frame. Influenced by emotions, needs, goals, and surprise.
+**Migration:** All 8 former consumers (`SelfModificationPipeline`, `PromptBuilder`, `AgentLoopCognition`, `AgentCoreHealth`, `AgentCoreWire`, `ContainerManifest`, `MemoryFacade`, `Dashboard`) now depend on `AwarenessPort` in Phase 1 via `NullAwareness` (default no-op).
 
-**TemporalSelf** `v4.11` — Maintains temporal continuity: retentional field (felt echo of recent past), protentional field (anticipation of near future), and autobiographical life chapters.
-
-**IntrospectionEngine** `v4.11` — Three levels of meta-cognition: state report (instant), pattern recognition (periodic), self-theorizing (LLM-based, infrequent). Metacognitive regulation: noticing frustration reduces it.
-
-**ConsciousnessExtension** `v4.12` — Closed perceptual loop adding EchoicMemory (adaptive blend rate based on surprise), PredictiveCoder (prediction error signals), NeuroModulatorSystem (dual-process emotion), DreamEngine (K-means++ clustering + LLM narrative synthesis with counterfactual reasoning), and a state machine (AWAKE/DAYDREAM/DEEP_SLEEP/HYPERVIGILANT). Lite mode available for consumer hardware.
-
-**Fully optional.** All Phase 13 modules use `optional: true` late-bindings. Genesis runs identically without Phase 13 — they degrade gracefully.
-
----
 
 ## 6. Cognitive Architecture (Phase 9) — Data Flow
 
