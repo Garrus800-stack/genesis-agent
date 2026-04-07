@@ -1,7 +1,7 @@
 # Genesis — Graceful Degradation Matrix
 
-Generated: 2026-03-23T22:32:57.857Z
-Services: 72 | Bindings: 255
+Generated: 2026-04-06T20:13:37.509Z
+Services: 74 | Bindings: 260
 
 ## Critical Services (removal breaks dependents)
 

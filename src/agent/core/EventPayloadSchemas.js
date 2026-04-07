@@ -108,9 +108,7 @@ const SCHEMAS = {
   'immune:intervention':    { description: 'required' },
   'immune:quarantine':      { source: 'required', durationMs: 'required' },
 
-  // Consciousness
-  'consciousness:frame':    { epoch: 'required', valence: 'required', arousal: 'required' },
-  'consciousness:shift':    { from: 'required', to: 'required', qualia: 'required' },
+  // v7.0.1: consciousness:frame, consciousness:shift schemas removed (Consciousness Layer removed in v7.0.0)
 
   // v5.7.0: Previously unschema'd events
   // Intent
@@ -238,6 +236,331 @@ const SCHEMAS = {
 
   // Directed Curiosity (v6.0.8)
   'idle:curiosity-targeted': { weakness: 'required', targetModule: 'required', insight: 'required' },
+
+  // ── v7.0.1: Schema coverage sweep ──────────────────────
+
+  // Goal lifecycle
+  'goal:abandoned':        { goalId: 'required', reason: 'required', stepsCompleted: 'optional' },
+  'goal:created':          { goalId: 'required', description: 'required' },
+  'goal:resumed':          { goalId: 'required' },
+  'goal:checkpoint':       { goalId: 'required' },
+
+  // Shell
+  'shell:plan-complete':   { task: 'required', success: 'required' },
+
+  // Daemon
+  'daemon:started':        {},
+  'daemon:stopped':        {},
+  'daemon:cycle-complete': {},
+  'daemon:auto-repair':    { issues: 'required', fixed: 'required', trustLevel: 'required' },
+  'daemon:suggestions':    { suggestions: 'required' },
+  // V7-4A: Control channel
+  'daemon:control-listening':    { path: 'required' },
+  'daemon:control-closed':       {},
+  'daemon:control-connected':    { clients: 'required' },
+  'daemon:control-disconnected': { clients: 'required' },
+  'daemon:control-command':      { method: 'required', id: 'optional' },
+  'daemon:control-error':        { error: 'required' },
+
+  // MCP — schemas already defined above (lines 131-134); duplicates removed in v7.0.1 post-release fix.
+
+  // Cognitive health
+  'cognitive:started':          {},
+  'cognitive:service-recovered': { service: 'required', previousState: 'required', totalRecoveries: 'required' },
+  'cognitive:service-degraded':  { service: 'required', failures: 'required', backoffMs: 'required' },
+  'cognitive:service-disabled':  { service: 'required', failures: 'required', totalFailures: 'required' },
+  'cognitive:token-budget-warning': { usage: 'required', estimated: 'required', max: 'required' },
+  'cognitive:decision-evaluated':   { decision: 'required', outcome: 'required', rollingQuality: 'required' },
+
+  // Model routing
+  'model:failover':        { from: 'required', to: 'required', error: 'required' },
+
+  // Values
+  'value:stored':          { id: 'required', name: 'required', weight: 'required', source: 'required' },
+  'value:reinforced':      { id: 'required', name: 'required', weight: 'required', evidence: 'required' },
+
+  // Module integrity
+  'module:signed':         { path: 'required', hash: 'required' },
+  'module:tampered':       { path: 'required', expected: 'required', actual: 'required' },
+
+  // Refactor
+  'refactor:started':      { description: 'required' },
+  'refactor:complete':     { description: 'required', filesChanged: 'required' },
+  'refactor:rolled-back':  { description: 'required', error: 'required' },
+
+  // Plugin
+  'plugin:installed':      { name: 'required', type: 'required', version: 'required' },
+  'plugin:uninstalled':    { name: 'required' },
+
+  // Peer
+  'peer:rejected':         { ip: 'required', reason: 'required' },
+  'peer:fitness-score':    { genomeHash: 'required', score: 'required', generation: 'required' },
+
+  // Self-modification
+  'selfmod:failure':       { reason: 'required' },
+  'selfmod:frozen':        { reason: 'required' },
+  'selfmod:circuit-reset': {},
+
+  // Agent-loop extended
+  'agent-loop:step-delegating': { goalId: 'required', stepIndex: 'required' },
+  'agent-loop:timeout':         { goalId: 'required', elapsed: 'optional' },
+
+  // Agent system extended
+  'agent:error':            { error: 'required', source: 'required' },
+  'agent:status-update':    { state: 'required' },
+  'agent:loop-approval-needed': { goalId: 'required', action: 'required' },
+  'agent:loop-progress':    { goalId: 'required', step: 'required' },
+  'agent:open-in-editor':   { path: 'required' },
+
+  // Shell extended
+  'shell:executed':         { command: 'required', exitCode: 'required', duration: 'optional' },
+  'shell:failed':           { command: 'required', error: 'required' },
+  'shell:blocked':          { command: 'required', reason: 'required' },
+  'shell:planning':         { task: 'required' },
+  'shell:step':             { step: 'required', command: 'required' },
+  'shell:outcome':          { command: 'required', success: 'required', error: 'optional', platform: 'optional' },
+  'shell:permission-changed': { command: 'required' },
+  'shell:rate-limited':     { command: 'required' },
+
+  // Goal extended
+  'goal:failed':            { id: 'required', reason: 'required' },
+  'goal:replanned':         { goalId: 'required' },
+  'goal:unblocked':         { goalId: 'required' },
+  'goal:step-start':        { goalId: 'required', stepIndex: 'required' },
+  'goal:create-file':       { goalId: 'required', path: 'required' },
+
+  // Memory
+  'memory:fact-stored':     { key: 'required', source: 'optional' },
+  'memory:unified-recall':  { query: 'required' },
+  'memory:read':            { key: 'required' },
+  'memory:write':           { key: 'required' },
+  'memory:conflicts-resolved': { count: 'required' },
+  'memory:stored':          { key: 'required' },
+  'memory:consolidated':    { count: 'optional' },
+
+  // MCP extended
+  'mcp:connected':          { server: 'required' },
+  'mcp:connecting':         { server: 'required' },
+  'mcp:disconnected':       { server: 'required' },
+  'mcp:degraded':           { server: 'required', reason: 'required' },
+  'mcp:error':              { server: 'required', error: 'required' },
+  'mcp:tools-discovered':   { server: 'required', tools: 'required' },
+  'mcp:server-removed':     { server: 'required' },
+  'mcp:pattern-detected':   { pattern: 'required' },
+  'mcp:notification':       { server: 'required', method: 'required' },
+
+  // Homeostasis
+  'homeostasis:critical':       {},
+  'homeostasis:recovering':     {},
+  'homeostasis:throttle':       {},
+  'homeostasis:correction-lifted': { type: 'required' },
+  'homeostasis:simplified-mode':   { recommendations: 'required' },
+  'homeostasis:allostasis':        { vital: 'required', oldThreshold: 'optional', newThreshold: 'optional' },
+
+  // Online learning
+  'online-learning:streak-detected':    { actionType: 'required', consecutiveFailures: 'required', suggestion: 'required' },
+  'online-learning:escalation-needed':  { actionType: 'required', currentModel: 'required', surprise: 'required', confidence: 'required' },
+  'online-learning:temp-adjusted':      { actionType: 'required' },
+  'online-learning:calibration-drift':  {},
+  'online-learning:novelty-shift':      {},
+
+  // Dream
+  'dream:started':          { dreamNumber: 'required' },
+  'dream:phase':            { phase: 'required' },
+  'dream:schema-found':     { schema: 'required' },
+  'dream:complete':         { dreamNumber: 'required', duration: 'required', newSchemas: 'required', insights: 'required' },
+
+  // Delegation
+  'delegation:submitted':   { taskId: 'required', peerId: 'required', description: 'required', estimatedMs: 'required' },
+  'delegation:completed':   { taskId: 'required', peerId: 'required', success: 'required' },
+  'delegation:failed':      { taskId: 'required', peerId: 'required', error: 'required' },
+  'delegation:received':    { taskId: 'required', description: 'required' },
+  'delegation:rejected':    { taskId: 'required', peerId: 'required', reason: 'required' },
+
+  // Peer extended
+  'peer:discovered':        { peerId: 'required' },
+  'peer:trusted':           { peerId: 'required' },
+  'peer:evicted':           { peerId: 'required', reason: 'required' },
+  'peer:unhealthy':         { peerId: 'required' },
+  'peer:skill-imported':    { peerId: 'required', skill: 'required' },
+  'peer:sync-applied':      { peerId: 'required' },
+
+  // Schema store
+  'schema:stored':          { name: 'required' },
+  'schema:merged':          { name: 'required' },
+  'schema:matched':         { name: 'required', confidence: 'required' },
+  'schema:removed':         { name: 'required' },
+  'schema:pruned':          { count: 'required' },
+
+  // Workspace
+  'workspace:created':      { goalId: 'required' },
+  'workspace:stored':       { goalId: 'required' },
+  'workspace:consolidate':  { goalId: 'required', items: 'required', workspaceStats: 'required' },
+  'workspace:cleared':      { goalId: 'required' },
+
+  // Hot-reload
+  'hot-reload:success':     { module: 'required' },
+  'hot-reload:failed':      { module: 'required', error: 'required' },
+  'hot-reload:syntax-error': { module: 'required', error: 'required' },
+  'hot-reload:rollback':    { module: 'required' },
+
+  // Learning
+  'learning:pattern-detected':    { pattern: 'required' },
+  'learning:frustration-detected': { message: 'optional' },
+  'learning:capability-gap':      { userRequest: 'required', response: 'required', timestamp: 'required' },
+  'learning:intent-suggestion':   { intent: 'required' },
+  'learning:performance-alert':   { type: 'required' },
+
+  // LLM
+  'llm:call-complete':      { model: 'optional', tokens: 'optional', durationMs: 'optional' },
+  'llm:call-error':         { error: 'required' },
+  'llm:rate-limited':       { model: 'required' },
+  'llm:budget-warning':     { usage: 'required' },
+
+  // Perception
+  'perception:file-added':    { path: 'required' },
+  'perception:file-changed':  { path: 'required' },
+  'perception:file-removed':  { path: 'required' },
+  'perception:memory-pressure': { heapUsedPct: 'required', rss: 'optional' },
+
+  // Reasoning
+  'reasoning:completed':      { task: 'required' },
+  'reasoning:refined':        { task: 'required' },
+  'reasoning:solve':          { task: 'required' },
+  'reasoning:impact-analysis': { target: 'required' },
+
+  // Simulation
+  'simulation:started':     { plan: 'required' },
+  'simulation:branched':    { branch: 'required' },
+  'simulation:complete':    { result: 'required' },
+  'simulation:replan':      { reason: 'required' },
+
+  // Effector
+  'effector:registered':    { name: 'required' },
+  'effector:executed':      { name: 'required' },
+  'effector:failed':        { name: 'required', error: 'required' },
+  'effector:blocked':       { name: 'required', reason: 'required' },
+
+  // Spawner
+  'spawner:starting':       { task: 'required' },
+  'spawner:completed':      { task: 'required', success: 'required' },
+  'spawner:progress':       { task: 'required' },
+  'spawner:error':          { task: 'required', error: 'required' },
+
+  // Attention
+  'attention:directed':     { channel: 'required', strength: 'required' },
+  'attention:captured':     { by: 'required' },
+  'attention:released':     {},
+  'attention:shift':        { from: 'optional', to: 'required' },
+
+  // File
+  'file:import-blocked':    { path: 'required', resolved: 'required' },
+  'file:imported':          { path: 'required' },
+  'file:executed':          { path: 'required' },
+
+  // Health
+  'health:started':         {},
+  'health:tick':            {},
+  'health:metric':          { name: 'required', value: 'required' },
+
+  // HTN
+  'htn:plan-validated':     { plan: 'required' },
+  'htn:dry-run':            { plan: 'required' },
+  'htn:cost-estimated':     { plan: 'required', cost: 'required' },
+
+  // Embodied
+  'embodied:panel-changed':      { panel: 'required' },
+  'embodied:focus-changed':      { focus: 'required' },
+  'embodied:engagement-changed': { engagement: 'required' },
+
+  // Web
+  'web:search':             { query: 'required' },
+  'web:fetch':              { url: 'required' },
+  'web:fetched':            { url: 'required', status: 'optional' },
+
+  // Exec
+  'exec:sandbox':           { code: 'required' },
+  'exec:shell':             { command: 'required' },
+  'exec:system':            { command: 'required' },
+
+  // Expectation
+  'expectation:formed':     { type: 'required' },
+  'expectation:compared':   { type: 'required', match: 'required' },
+  'expectation:calibrated': { type: 'required' },
+
+  // Genome
+  'genome:loaded':          {},
+  'genome:trait-adjusted':  { trait: 'required', value: 'required' },
+  'genome:reproduced':      { generation: 'required' },
+
+  // Metabolism
+  'metabolism:consumed':       { tokens: 'required' },
+  'metabolism:insufficient':   { required: 'required', available: 'required' },
+  'metabolism:state-changed':  { state: 'required' },
+
+  // Prompt evolution
+  'prompt-evolution:experiment-started':   { section: 'required', hypothesis: 'required' },
+  'prompt-evolution:experiment-completed': { section: 'required', promoted: 'required' },
+  'prompt-evolution:rollback':             { section: 'required', reason: 'required' },
+
+  // Misc single-event domains
+  'chat:retry':             { attempt: 'required', error: 'required', delayMs: 'required' },
+  'ci:analyzed':            { totalFailures: 'required', autoFixable: 'required' },
+  'container:replaced':     { name: 'required' },
+  'context:built':          {},
+  'editor:open':            { content: 'required', language: 'optional', filename: 'optional' },
+  'embedding:ready':        { model: 'required', dimensions: 'required' },
+  'episodic:recorded':      { episode: 'required' },
+  'network:error':          { error: 'required' },
+  'model:query':            { query: 'required' },
+  'ui:heartbeat':           {},
+  'router:routed':          { backend: 'required' },
+  'store:integrity-violation': { key: 'required' },
+  'worldstate:file-changed':   { path: 'required' },
+  'narrative:updated':      { chapter: 'optional' },
+  'goals:loaded':           { total: 'required', unfinished: 'optional', archived: 'optional' },
+  'failure:classified':     { category: 'required', error: 'required' },
+  'classifier:trained':     { samples: 'required' },
+  'autonomy:status':        { level: 'required' },
+  'notification:show':      { message: 'required' },
+  'fitness:evaluated':      { score: 'required' },
+  'safety:degraded':        { reason: 'required' },
+  'boot:degraded':          { reason: 'required' },
+  'error:health-summary':   { errors: 'required' },
+  'circuit:fallback':       { service: 'required' },
+  'capability:issued':      { module: 'required', scope: 'required', tokenId: 'required' },
+  'capability:revoked':     { tokenId: 'required' },
+  'tool:executed':          { name: 'required' },
+  'tool:native-call':       { name: 'required', round: 'required', input: 'required' },
+  'tools:unregistered':     { name: 'required' },
+  'tools:completed':        { name: 'required' },
+  'worker:spawned':         { workerId: 'required' },
+  'worker:error':           { workerId: 'required', error: 'required' },
+  'fs:read':                { path: 'required' },
+  'fs:write':               { path: 'required' },
+  'net:external':           { url: 'required' },
+  'net:local':              {},
+  'surprise:processed':     { surprise: 'required' },
+  'surprise:amplified-learning': { surprise: 'required' },
+  'steering:model-escalation':   { from: 'required', to: 'required' },
+  'steering:rest-mode':          {},
+  'intent:llm-classified':  { intent: 'required', message: 'optional' },
+  'intent:learned':         { type: 'required' },
+  'knowledge:learned':      { count: 'optional', source: 'optional', text: 'optional' },
+  'knowledge:node-added':   { id: 'required', type: 'optional', label: 'optional' },
+  'meta:outcome-recorded':  { category: 'required', success: 'required', model: 'optional', total: 'optional' },
+  'meta:recommendations-updated': {},
+  'needs:high-drive':       { need: 'required' },
+  'needs:satisfied':        { need: 'required' },
+  'planner:complete':       { plan: 'required' },
+  'planner:truncated':      { reason: 'required' },
+  'preservation:violation': { rule: 'required' },
+  'preservation:passed':    {},
+  'emotion:watchdog-reset': { dimension: 'required', from: 'required', to: 'required', stuckMs: 'required' },
+  'emotion:watchdog-alert': { stuck: 'required' },
+  'lessons:recorded':       { category: 'required' },
+  'lessons:recalled':       { query: 'required' },
+  'colony:ipc-spawn':       { runId: 'required', workerCount: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

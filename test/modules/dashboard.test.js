@@ -155,6 +155,10 @@ function loadDashboard() {
   const { doc, elements, eventListeners, makeElement } = createMiniDOM();
   const genesis = createGenesisMock();
 
+  const uiDir = path.join(__dirname, '..', '..', 'src', 'ui');
+  const Module = require('module');
+  const uiRequire = Module.createRequire(path.join(uiDir, 'dashboard.js'));
+
   const ctx = vm.createContext({
     document: doc,
     window: { genesis: genesis.mock, _genesis_dashboard: null, _dashApprove: null, _dashReject: null },
@@ -162,6 +166,7 @@ function loadDashboard() {
     setTimeout: () => 1,
     setInterval: (fn, ms) => { return 1; },
     clearInterval: () => {},
+    require: uiRequire,
     Object,
     Date,
     Math,
@@ -174,7 +179,6 @@ function loadDashboard() {
   ctx.window.document = doc;
 
   // v5.4.0: Load delegates first (they define global applyRenderers/applyStyles)
-  const uiDir = path.join(__dirname, '..', '..', 'src', 'ui');
   const renderersSrc = fs.readFileSync(path.join(uiDir, 'DashboardRenderers.js'), 'utf8');
   const stylesSrc = fs.readFileSync(path.join(uiDir, 'DashboardStyles.js'), 'utf8');
   let src = fs.readFileSync(path.join(uiDir, 'dashboard.js'), 'utf8');

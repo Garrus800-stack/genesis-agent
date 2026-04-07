@@ -25,6 +25,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('HomeostasisEffectors');
 
 class HomeostasisEffectors {
@@ -72,7 +73,7 @@ class HomeostasisEffectors {
     this._kgPruneAgeDays = cfg.kgPruneAgeDays || 5;
     this._kgEmergencyAgeDays = cfg.kgEmergencyAgeDays || 2;
     this._contextPressureReduction = cfg.contextPressureReduction || 0.7; // 70% of normal budget
-    this._contextPressureDurationMs = cfg.contextPressureDurationMs || 120000; // 2 min pressure window
+    this._contextPressureDurationMs = cfg.contextPressureDurationMs || ORGANISM.EFFECTOR_CONTEXT_PRESSURE_MS; // 2 min pressure window
     this._contextPressureActive = false;
     this._contextPressureTimeout = null;
 
@@ -178,7 +179,7 @@ class HomeostasisEffectors {
 
     try {
       // Standard prune: nodes older than 5 days without access
-      const ageDays = nodeCount > 4000
+      const ageDays = nodeCount > ORGANISM.EFFECTOR_LARGE_PROJECT_NODES
         ? this._kgEmergencyAgeDays   // Emergency: aggressive prune
         : this._kgPruneAgeDays;      // Normal: conservative prune
 

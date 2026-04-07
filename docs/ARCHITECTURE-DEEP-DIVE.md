@@ -1,28 +1,28 @@
 # Genesis Agent — Architecture Deep-Dive
 
-> Comprehensive technical analysis of Genesis Agent v7.0.0. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated with Replay, Deploy Strategies, SelfModel Dashboard, and complete v6 roadmap.
+> Comprehensive technical analysis of Genesis Agent v7.0.1. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
+> Last updated for v7.0.1: 12 boot phases, AwarenessPort, 231 modules, 4232 tests, ratchet 81/76/80.
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **232 JS source modules** across **~79,600 LOC** of production code, supported by **275 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **231 JS source modules** across **~79,000 LOC** of production code, supported by **277 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
 
 ### Key Numbers
 
 | Metric | Value |
 |--------|-------|
-| Production LOC (src/) | ~83,700 |
-| Source Modules | 241 JS files |
-| Test Suites / Tests | 264 / ~3,815 |
-| DI Services | 139 (131 manifest + 8 kernel) |
-| Boot Phases | 13 (+ Phase 0 bootstrap) |
-| npm Dependencies | 5 production + 2 dev |
+| Production LOC (src/) | ~79,000 |
+| Source Modules | 230 JS files |
+| Test Suites / Tests | 277 / 4232 |
+| DI Services | 140 (132 manifest + 8 kernel) |
+| Boot Phases | 12 (+ Phase 0 bootstrap) |
+| npm Dependencies | 3 production + 2 dev |
 | Event Types (catalogued) | 356 |
 | IPC Channels | 55 invoke + 2 send + 6 receive = 63 |
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
-| Coverage Gates | 77% lines, 72% branches, 72% functions |
+| Coverage Gates | 81% lines, 76% branches, 80% functions |
 | Fitness Score | 90/90 (100%) |
 | Circular Dependencies | 0 |
 | Cross-Layer Violations | 0 |
@@ -53,7 +53,7 @@ Phase 1: Bootstrap
   └── Register non-manifest instances: rootDir, guard, bus, storage, lang, logger
 
 Phase 2: Manifest
-  └── Register all ~135 services from 13 phase files via ContainerManifest (+8 kernel = ~143 runtime, cognitive default: ~120)
+  └── Register all ~132 services from 12 phase files via ContainerManifest (+8 kernel = ~140 runtime, cognitive default: ~120)
       └── Auto-discovery scans src/agent/ → builds filename→directory map
 
 Phase 3: Resolve & Init
@@ -402,18 +402,17 @@ Plus `dashboard.js` (682 LOC) for the system overview panel, and a global error 
   core/             15 files    4,935 LOC    (5.9%)
   foundation/       32 files    8,801 LOC   (10.5%)
   intelligence/     21 files    7,970 LOC    (9.5%)
-  capabilities/     22 files    7,372 LOC    (8.8%)
-  planning/         11 files    2,976 LOC    (3.5%)
-  hexagonal/        16 files    6,178 LOC    (7.4%)
-  autonomy/         11 files    3,842 LOC    (4.6%)
-  organism/         14 files    5,036 LOC    (6.0%)
-  revolution/       15 files    6,203 LOC    (7.4%)
-  cognitive/        20 files    8,819 LOC   (10.5%)
-  consciousness/    14 files    6,036 LOC    (7.2%)
-  ports/             8 files    1,115 LOC    (1.3%)
-  manifest/         13 files    2,023 LOC    (2.4%)
+  capabilities/     22 files    7,355 LOC    (9.3%)
+  planning/         11 files    2,962 LOC    (3.7%)
+  hexagonal/        16 files    6,337 LOC    (8.0%)
+  autonomy/         11 files    3,987 LOC    (5.0%)
+  organism/         12 files    4,522 LOC    (5.7%)
+  revolution/       17 files    6,583 LOC    (8.3%)
+  cognitive/        20 files    9,036 LOC   (11.4%)
+  ports/             9 files    1,200 LOC    (1.5%)
+  manifest/         12 files    1,863 LOC    (2.4%)
   ─────────────────────────────────────────────
-  agent/ total     212 files  ~71,300 LOC
-  + UI/kernel       29 files  ~12,400 LOC
-  = src/ total     241 files  ~83,700 LOC
+  agent/ total     207 files  ~68,100 LOC
+  + UI/kernel       23 files  ~11,000 LOC
+  = src/ total     231 agent modules  ~79,000 LOC
 ```

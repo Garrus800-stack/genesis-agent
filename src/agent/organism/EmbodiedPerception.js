@@ -27,6 +27,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('EmbodiedPerception');
 
 class EmbodiedPerception {
@@ -63,11 +64,11 @@ class EmbodiedPerception {
     };
 
     // ── Configuration ───────────────────────────────────
-    this._idleThresholdMs = cfg.idleThresholdMs || 30000;     // 30s → idle
-    this._awayThresholdMs = cfg.awayThresholdMs || 300000;    // 5min → away
-    this._heartbeatTimeoutMs = cfg.heartbeatTimeoutMs || 15000; // no heartbeat → assume background
+    this._idleThresholdMs = cfg.idleThresholdMs || ORGANISM.PERCEPTION_IDLE_THRESHOLD_MS;     // 30s → idle
+    this._awayThresholdMs = cfg.awayThresholdMs || ORGANISM.PERCEPTION_AWAY_THRESHOLD_MS;    // 5min → away
+    this._heartbeatTimeoutMs = cfg.heartbeatTimeoutMs || ORGANISM.PERCEPTION_HEARTBEAT_TIMEOUT_MS; // no heartbeat → assume background
     this._recentInteractions = [];  // timestamps of active heartbeats
-    this._maxRecentInteractions = 30;
+    this._maxRecentInteractions = ORGANISM.PERCEPTION_MAX_RECENT;
 
     /** @type {Array<Function>} */
     this._unsubs = [];

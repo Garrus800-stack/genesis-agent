@@ -32,6 +32,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('NeedsSystem');
 
 class NeedsSystem {
@@ -48,7 +49,7 @@ class NeedsSystem {
     const growthRates = cfg.growthRates || {};
     const weights = cfg.weights || {};
     const satisfyAmounts = cfg.satisfyAmounts || {};
-    this._growthIntervalMs = cfg.growthIntervalMs || 120000;
+    this._growthIntervalMs = cfg.growthIntervalMs || ORGANISM.NEEDS_GROWTH_INTERVAL_MS;
 
     // ── Need Definitions ────────────────────────────────────
     this.needs = {

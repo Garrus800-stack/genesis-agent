@@ -15,21 +15,21 @@ Genesis boots in ~5 seconds. You'll see a chat window — that's your interface.
 
 **Model selection — Genesis picks the best model automatically:**
 
-Genesis uses Smart Ranking (35 tiers, score 0-100) to auto-select the best available model from your Ollama installation. No manual configuration needed.
+Genesis uses Smart Ranking (35 tiers, score 0–100) to auto-select the best available model from your Ollama installation. No manual configuration needed.
 
 ```bash
 # If you have Ollama running with models:
-ollama pull qwen2.5:7b        # Score: 80 — good for most tasks
+ollama pull qwen2.5:7b           # Score: 80 — good for most tasks
 ollama pull deepseek-coder:6.7b  # Score: 92 — excellent for code
-ollama serve                  # Genesis auto-detects and picks the best
+ollama serve                     # Genesis auto-detects and picks the best
 ```
 
 **Change the model anytime:**
 
 ```bash
 # In the Genesis CLI (node cli.js):
-/models                       # Show all models ranked by capability
-/model qwen2.5:7b            # Switch + permanently save
+/models                          # Show all models ranked by capability
+/model qwen2.5:7b                # Switch + permanently save
 
 # Via CLI flag:
 node cli.js --backend ollama:kimi-k2.5:cloud
@@ -40,7 +40,7 @@ node cli.js --backend ollama:kimi-k2.5:cloud
 
 **Cloud APIs (optional, for best results):**
 
-Open Settings → paste your **Anthropic API key** or **OpenAI API key**. Cloud models (Claude, GPT-4o) score 95-100 and are auto-preferred over local models.
+Open Settings → paste your **Anthropic API key** or **OpenAI API key**. Cloud models (Claude, GPT-4o) score 95–100 and are auto-preferred over local models.
 
 ## 2. Your First Conversation
 
@@ -94,7 +94,7 @@ Add a new command that shows memory statistics in a formatted table.
 ```
 
 Genesis will:
-1. Read its own CommandHandlers.js
+1. Read its own `CommandHandlers.js`
 2. Plan the modification
 3. Write the code in a sandbox
 4. Run AST safety scanning (blocks eval, process.exit, etc.)
@@ -110,15 +110,15 @@ If any step fails, it rolls back automatically.
 Genesis supports three boot profiles for different use cases:
 
 ```bash
-npm start                    # Full mode (default) — all 138 services
-npm start -- --minimal       # Minimal — core + intelligence + planning (~60 services)
-npm start -- --cognitive      # Cognitive — all 12 phases (~140 services, default)
+npm start                        # Full mode (default) — all 12 phases, ~139 services
+npm start -- --minimal           # Minimal — core + intelligence + planning (~90 services)
+npm start -- --cognitive         # Cognitive — all 12 phases (~139 services, identical to default)
 ```
 
 | Profile | Services | Use case |
 |---|---|---|
-| `--full` | ~140 | All 12 phases active (identical to `--cognitive` in v7.0.0) |
-| `--cognitive` | ~140 | Default — all 12 phases. Phase 13 (Consciousness) removed in v7.0.0, replaced by lightweight AwarenessPort. |
+| `--full` | ~139 | All 12 phases active (identical to `--cognitive` as of v7.0.0) |
+| `--cognitive` | ~139 | Default — all 12 phases. Phase 13 (Consciousness) removed in v7.0.0, replaced by lightweight AwarenessPort. |
 | `--minimal` | ~90 | Learning — core agent loop, planning, and tools (phases 1–8 only) |
 
 ## 7. Things to Try
@@ -182,10 +182,10 @@ Settings persist in `.genesis/settings.json`.
 
 ## 10. What's Next?
 
-- Read [ARCHITECTURE-DEEP-DIVE.md](docs/ARCHITECTURE-DEEP-DIVE.md) to understand the 13-phase boot
+- Read [ARCHITECTURE-DEEP-DIVE.md](docs/ARCHITECTURE-DEEP-DIVE.md) to understand the 12-phase boot
 - Read [CAPABILITIES.md](docs/CAPABILITIES.md) for the full feature list
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) if you want to extend Genesis
-- Run `npm test` to see all 3500+ tests pass
+- Run `npm test` to see all 4232 tests pass
 - Run `node scripts/architectural-fitness.js` to check code health
 
 ## CLI Commands (REPL Mode)

@@ -14,8 +14,7 @@
 //
 // Responsibilities:
 //   Phase 0: _bootstrapInstances()  — non-manifest singletons
-//   Phase M: _registerFromManifest() — 95 DI services
-//   Phase V: _registerBiologicalAliases() — alias map → Container
+//   Phase M: _registerFromManifest() — 131 DI services
 //   Phase 3: _resolveAndInit()      — topological resolve + bootAll
 //   Phase 4: _wireAndStart()        — late-bindings + handler reg
 // ============================================================
@@ -57,6 +56,15 @@ class AgentCoreBoot {
     c.registerInstance('rootDir', core.rootDir);
     c.registerInstance('guard',   core.guard);
     c.registerInstance('bus',     this._bus);
+
+    // v7.0.1: Typed Event Facades — reduce direct EventBus coupling
+    const { OrganismEvents }  = require('./organism/OrganismEvents');
+    const { CognitiveEvents } = require('./cognitive/CognitiveEvents');
+    const { AutonomyEvents }  = require('./autonomy/AutonomyEvents');
+    c.registerInstance('organismEvents',  new OrganismEvents(this._bus));
+    c.registerInstance('cognitiveEvents', new CognitiveEvents(this._bus));
+    c.registerInstance('autonomyEvents',  new AutonomyEvents(this._bus));
+
     c.registerInstance('storage', new StorageService(core.genesisDir));
 
     // Language
@@ -130,31 +138,6 @@ class AgentCoreBoot {
     this._c.registerInstance('moduleRegistry', registry);
 
     _log.info(`  [M] Manifest: ${count} services registered`);
-  }
-
-  // ════════════════════════════════════════════════════════
-  // PHASE V: Register biological name aliases in Container
-  // ════════════════════════════════════════════════════════
-  // Makes container.resolve('morphogenesis') === container.resolve('selfModPipeline').
-  // Aliases are registered after manifest so all primaries exist.
-  // Safe to call even if BiologicalAliases is not available.
-
-  _registerBiologicalAliases() {
-    try {
-      const { SERVICE_ALIAS_MAP } = require('./organism/BiologicalAliases');
-      let registered = 0;
-      for (const [alias, primary] of Object.entries(SERVICE_ALIAS_MAP)) {
-        if (this._c.has(primary) && !this._c.has(alias)) {
-          this._c.alias(alias, primary);
-          registered++;
-        }
-      }
-      if (registered > 0) {
-        _log.info(`  [V] Biological aliases: ${registered} registered`);
-      }
-    } catch (_e) {
-      _log.debug('[boot] BiologicalAliases not available:', _e.message);
-    }
   }
 
   // ════════════════════════════════════════════════════════

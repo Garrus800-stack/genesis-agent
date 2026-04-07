@@ -46,6 +46,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('BodySchema');
 
 // ── Subsystem Sampling Table ─────────────────────────────
@@ -183,7 +184,7 @@ class BodySchema {
     this._mcpServers = 0;        // Connected MCP server count
     this._constraints = [];      // Active constraint descriptions
     this._lastUpdate = 0;
-    this._updateIntervalMs = (config?.updateIntervalMs) || 5000;
+    this._updateIntervalMs = (config?.updateIntervalMs) || ORGANISM.BODY_UPDATE_INTERVAL_MS;
 
     this._wireEvents();
   }

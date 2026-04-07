@@ -1,6 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.0.0 — What Genesis can do, organized by category.
+> v7.0.1 — What Genesis can do, organized by category.
+> Last updated: coverage ratchet 81/76/80, 4232 tests, 12 boot phases.
 
 ---
 
@@ -127,7 +128,7 @@ Bio-inspired cognitive modules that run during idle time and influence behavior:
 | **MCP Resources** `v5.9` | MCP bidirectional | 4 resources exposed: KnowledgeGraph stats/nodes, Lessons all/stats. Streamable HTTP transport |
 | **Event Schemas** `v5.9` | Reliability | All high-traffic events (27+ emit sites) now have payload schemas. Zero unschema'd high-traffic events |
 | **Run-Skill Intent** `v5.9.1` | UX | "run <skill-name>" executes installed skills directly. Retry with error context on failure (max 3). Shell fallback for non-skill commands |
-| **CLI Log Throttle** `v5.9.1` | UX | AttentionalGate 1x/60s, ConsciousnessExt 1x/30s, HomeostasisEffectors 1x/2min. Logger warn after boot, --verbose flag |
+| **CLI Log Throttle** `v5.9.1` | UX | HomeostasisEffectors 1x/2min. Logger warn after boot, `--verbose` flag for full output |
 | **Sandbox Hardening** `v5.9.1` | Safety | +os module whitelist, _log→console.log fix, stderr diagnostics, system-info skill sandbox-safe rewrite |
 | **PromptEvolution** | A/B testing | Controlled experiments on prompt sections, auto-promotes statistically significant improvements |
 
@@ -157,7 +158,7 @@ Supporting systems:
 - **Metabolism** `v4.12.5` — real energy accounting from token count, latency, and heap delta. Passive recovery during idle
 - **ImmuneSystem** `v4.12.5` — three-level self-repair (inflammation, targeted repair, adaptive immunity). Persisted across sessions
 - **BodySchema** — abstract representation of the agent's computational substrate
-- **EmbodiedPerception** `v5.6` — UI events as embodied state: user engagement (active/idle/away/background), panel focus, typing detection. Feeds BodySchema → PhenomenalField
+- **EmbodiedPerception** `v5.6` — UI events as embodied state: user engagement (active/idle/away/background), panel focus, typing detection. Feeds BodySchema → AwarenessPort
 - **Watchdog** — forces reset if a dimension stays extreme for >10 minutes
 
 ---
@@ -236,12 +237,12 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **145 test suites** | ~2590 tests, coverage gates: 60% lines, 50% branches, 55% functions |
+| **277 test suites** | 4232 tests, coverage gates: 81% lines, 76% branches, 80% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |
 | **Hot reload** | File watcher re-injects changed modules without restart |
-| **Boot profiles** `v5.3` | `--full` (112), `--cognitive` (107), `--minimal` (84) — zero-overhead phase skipping |
+| **Boot profiles** `v5.3` | `--full` (~139), `--cognitive` (~139), `--minimal` (~90) — zero-overhead phase skipping |
 | **Fitness trend tracking** `v5.2` | Per-commit JSON history + CI regression detection |
 
 ---
@@ -415,7 +416,7 @@ Not every request needs the full cognitive pipeline. Genesis now scales effort t
 | **AdaptivePromptStrategy** | Analyzes provenance traces to learn which prompt sections help per intent type. Automatically boosts effective sections and skips ineffective ones. Protected sections (identity, safety) are never skipped. |
 | **Smart Model Ranking** | 35-tier pattern scoring (Claude=100, DeepSeek=92, minimax=15). First-run auto-selects the strongest available model instead of alphabetical first. |
 | **Colony Consensus Proof** | 16/16 VectorClock + sync + conflict resolution tests. LWW conflict resolution verified. |
-| **Consciousness A/B** | Empirically validated: 0pp impact. Phase 13 permanently removed in v7.0.0, replaced by AwarenessPort. |
+| **Awareness A/B** | Empirically validated: 0pp impact. Phase 13 (Consciousness) permanently removed in v7.0.0, replaced by lightweight AwarenessPort (2 modules, 112 LOC). |
 | **Organism A/B** | Empirically validated: +33pp task success with Organism active. Stays enabled in all profiles. |
 
 ---
@@ -435,4 +436,4 @@ Network resilience, intelligence pipeline validation, and codebase consolidation
 | **IPC: Dashboard channels** | `agent:get-network-status`, `agent:force-network-probe`, `agent:get-provenance-report` — Dashboard can display network + provenance data. |
 | **CC reduction** | `_buildPatternDB` refactored from CC=56 to CC=8 via declarative PATTERN_RULES table. SA-O1 closed. |
 | **Event catalog clean** | `lesson:learned` + `prompt:strategy-updated` registered. 0 warnings, 0 errors. |
-| **Coverage push** | Function coverage 69.6% → 75.2% (+5.6pp). 152 new tests. Ratchet 75/70/70 → 77/72/72. |
+| **Coverage push** | Function coverage 69.6% → 80.0% (+10.4pp over v6.0.5). 355 new tests in v7.0.0. Ratchet 75/70/70 → 81/76/80. |

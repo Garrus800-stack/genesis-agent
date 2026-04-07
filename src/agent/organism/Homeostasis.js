@@ -29,6 +29,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('Homeostasis');
 
 class Homeostasis {
@@ -81,14 +82,14 @@ class Homeostasis {
     // ── Organism State ──────────────────────────────────────
     this.state = 'healthy';
     this._errorWindow = [];
-    this._errorWindowMs = cfg.maxErrorWindowMs || 60000;
+    this._errorWindowMs = cfg.maxErrorWindowMs || ORGANISM.HOMEOSTASIS_ERROR_WINDOW_MS;
     this._corrections = [];
-    this._maxCorrections = 50;
+    this._maxCorrections = ORGANISM.HOMEOSTASIS_MAX_CORRECTIONS;
 
     // ── Thresholds for state transitions ────────────────────
     this._criticalThreshold = cfg.criticalThreshold || 2;
-    this._recoveryDuration = cfg.recoveryDurationMs || 300000;
-    this._tickIntervalMs = cfg.tickIntervalMs || 30000;
+    this._recoveryDuration = cfg.recoveryDurationMs || ORGANISM.HOMEOSTASIS_RECOVERY_MS;
+    this._tickIntervalMs = cfg.tickIntervalMs || ORGANISM.HOMEOSTASIS_TICK_INTERVAL_MS;
     this._recoveryStarted = null;
 
     // ── Allostasis (v4.12.5) ────────────────────────────────
@@ -104,7 +105,7 @@ class Homeostasis {
     // bounded by _allostasisMaxShift to prevent runaway drift.
     const allo = cfg.allostasis || {};
     this._allostasisEnabled = allo.enabled !== false;
-    this._allostasisWindowMs = allo.windowMs || 600000;    // 10 min sustained
+    this._allostasisWindowMs = allo.windowMs || ORGANISM.HOMEOSTASIS_ALLOSTASIS_WINDOW_MS;    // 10 min sustained
     this._allostasisShiftRate = allo.shiftRate || 0.10;    // 10% toward current
     this._allostasisMaxShift = allo.maxShift || 0.30;      // Max 30% above original
     this._allostasisState = {};  // vitalName → { warningStart, originalMax, shifts }

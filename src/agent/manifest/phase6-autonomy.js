@@ -105,6 +105,25 @@ function phase6(ctx, R) {
       },
     }],
 
+    // V7-4A: External daemon control via Unix Socket / Named Pipe
+    ['daemonController', {
+      phase: 6, deps: ['daemon'], tags: ['autonomy', 'control'],
+      lateBindings: [
+        { prop: 'agentLoop', service: 'agentLoop', optional: true },
+      ],
+      factory: (c) => {
+        const settings = c.has('settings') ? c.resolve('settings') : null;
+        const enabled = settings?.get?.('daemon.controlEnabled') ?? true;
+        if (!enabled) return null;
+        const socketPath = settings?.get?.('daemon.socketPath') || undefined;
+        const ctrl = new (R('DaemonController').DaemonController)({
+          bus, daemon: c.resolve('daemon'), container: c, socketPath,
+        });
+        ctrl.start();
+        return ctrl;
+      },
+    }],
+
     // v5.9.2: Deployment Manager foundation — strategy-based deploys with rollback
     ['deploymentManager', {
       phase: 6, deps: [], tags: ['autonomy', 'deployment', 'devops'],

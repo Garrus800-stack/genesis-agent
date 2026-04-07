@@ -23,7 +23,7 @@
 // ============================================================
 
 const { NullBus } = require('../core/EventBus');
-const { WATCHDOG } = require('../core/Constants');
+const { WATCHDOG, ORGANISM } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('EmotionalState');
 
@@ -35,8 +35,8 @@ class EmotionalState {
 
     // v3.5.0: Tunable parameters — overridable via Settings.organism.emotions
     const cfg = config || {};
-    this._decayIntervalMs = cfg.decayIntervalMs || 60000;
-    this._lonelinessIntervalMs = cfg.lonelinessIntervalMs || 300000;
+    this._decayIntervalMs = cfg.decayIntervalMs || ORGANISM.EMOTION_DECAY_INTERVAL_MS;
+    this._lonelinessIntervalMs = cfg.lonelinessIntervalMs || ORGANISM.LONELINESS_INTERVAL_MS;
     this._lonelinessGrowth = cfg.lonelinessGrowth || 0.008;
     this._significantShift = cfg.significantShift || 0.05;
 
@@ -54,7 +54,7 @@ class EmotionalState {
 
     // ── Mood History (for trend detection) ───────────────────
     this._moodHistory = [];       // { timestamp, snapshot }
-    this._maxHistory = 200;
+    this._maxHistory = ORGANISM.EMOTION_MAX_HISTORY;
     this._moodTrend = 'stable';   // rising | falling | stable
 
     // ── Watchdog (v3.5.0) ────────────────────────────────────

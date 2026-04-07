@@ -254,7 +254,7 @@ class AgentCoreHealth {
       'awareness',
       'valueStore', 'userModel', 'bodySchema',
       'homeostasisEffectors', 'metabolism', 'immuneSystem',
-      'genome', 'epigeneticLayer', 'fitnessEvaluator',
+      'genome', 'fitnessEvaluator',
       // FIX D-1: Previously missing — these services have stop() methods that
       // persist state (sync write) or clear intervals / unsubscribe events.
       'emotionalSteering', 'errorAggregator',

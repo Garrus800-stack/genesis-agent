@@ -342,11 +342,6 @@ const PHASE12 = {
   GRAPH_MAX_TRAVERSAL_DEPTH: 10,
   GRAPH_MAX_RESULTS: 50,
 
-  // AdaptiveMemory (@deprecated v6.0.1 — constants kept for backwards compat)
-  MEMORY_PRUNE_THRESHOLD: 0.15,
-  MEMORY_COMPRESS_THRESHOLD: 0.30,
-  MEMORY_MAX_RETENTION_ENTRIES: 5000,
-  MEMORY_DECAY_RATE_PER_HOUR: 0.01,
 };
 
 // ── v7.6.0: Behavioral Thresholds ───────────────────────────
@@ -394,4 +389,73 @@ const THRESHOLDS = {
   SHELL_SCAN_CACHE_MS: 30000,
 };
 
-module.exports = { TIMEOUTS, LIMITS, INTERVALS, PRIORITIES, RATE_LIMIT, WATCHDOG, SHELL, CIRCUIT, SAFETY, PHASE9, PHASE10, PHASE11, PHASE12, THRESHOLDS };
+// ============================================================
+// ORGANISM — timing, caps and thresholds for the biological layer
+// v7.0.1: Extracted magic numbers from organism modules.
+// ============================================================
+const ORGANISM = {
+  /** BodySchema: health-check push interval (ms) */
+  BODY_UPDATE_INTERVAL_MS:          5_000,
+  /** EmbodiedPerception: recent interaction buffer size */
+  PERCEPTION_MAX_RECENT:               30,
+  /** EmotionalState: emotion decay tick (ms) */
+  EMOTION_DECAY_INTERVAL_MS:       60_000,
+  /** EmotionalState: loneliness growth interval (ms) */
+  LONELINESS_INTERVAL_MS:         300_000,
+  /** EmotionalState: mood history ring-buffer size */
+  EMOTION_MAX_HISTORY:                200,
+  /** Genome: adjustment log cap */
+  GENOME_MAX_ADJUSTMENT_LOG:          100,
+  /** Genome: persist debounce (ms) */
+  GENOME_PERSIST_DEBOUNCE_MS:       2_000,
+  /** Genome: SHA-256 fingerprint length (hex chars) */
+  GENOME_HASH_LENGTH:                  16,
+  /** Homeostasis: error window (ms) */
+  HOMEOSTASIS_ERROR_WINDOW_MS:     60_000,
+  /** Homeostasis: max correction entries */
+  HOMEOSTASIS_MAX_CORRECTIONS:         50,
+  /** Homeostasis: recovery duration (ms) */
+  HOMEOSTASIS_RECOVERY_MS:        300_000,
+  /** Homeostasis: vitals tick interval (ms) */
+  HOMEOSTASIS_TICK_INTERVAL_MS:    30_000,
+  /** HomeostasisEffectors: large-project node-count threshold */
+  EFFECTOR_LARGE_PROJECT_NODES:     4_000,
+  /** ImmuneSystem: incident log cap */
+  IMMUNE_MAX_LOG:                     100,
+  /** Metabolism: energy recovery interval (ms) */
+  METABOLISM_RECOVERY_MS:          60_000,
+  /** Metabolism: default max energy */
+  METABOLISM_MAX_ENERGY:              500,
+  /** Metabolism: energy history ring-buffer size */
+  METABOLISM_MAX_ENERGY_HISTORY:      200,
+  /** Metabolism: recent cost buffer size */
+  METABOLISM_MAX_RECENT_COSTS:         20,
+  /** Metabolism: min time between LLM calls before regen (ms) */
+  METABOLISM_CALL_COOLDOWN_MS:     30_000,
+  /** Metabolism: idle bonus threshold (ms) */
+  METABOLISM_IDLE_THRESHOLD_MS:   300_000,
+  /** Metabolism: initial max energy (pre-configure) */
+  METABOLISM_INITIAL_MAX_ENERGY:      100,
+  /** NeedsSystem: need growth tick (ms) */
+  NEEDS_GROWTH_INTERVAL_MS:       120_000,
+  /** EmbodiedPerception: idle detection threshold (ms) */
+  PERCEPTION_IDLE_THRESHOLD_MS:    30_000,
+  /** EmbodiedPerception: away detection threshold (ms) */
+  PERCEPTION_AWAY_THRESHOLD_MS:   300_000,
+  /** EmbodiedPerception: heartbeat timeout (ms) */
+  PERCEPTION_HEARTBEAT_TIMEOUT_MS: 15_000,
+  /** Homeostasis: allostasis sustained-pressure window (ms) */
+  HOMEOSTASIS_ALLOSTASIS_WINDOW_MS: 600_000,
+  /** HomeostasisEffectors: context pressure duration (ms) */
+  EFFECTOR_CONTEXT_PRESSURE_MS:   120_000,
+  /** ImmuneSystem: error sliding window (ms) */
+  IMMUNE_ERROR_WINDOW_MS:         120_000,
+  /** ImmuneSystem: scan interval (ms) */
+  IMMUNE_SCAN_INTERVAL_MS:         30_000,
+  /** ImmuneSystem: cooldown map cap */
+  IMMUNE_MAX_COOLDOWNS:               200,
+  /** ImmuneSystem: immune memory map cap */
+  IMMUNE_MAX_MEMORY:                  500,
+};
+
+module.exports = { TIMEOUTS, LIMITS, INTERVALS, PRIORITIES, RATE_LIMIT, WATCHDOG, SHELL, CIRCUIT, SAFETY, PHASE9, PHASE10, PHASE11, PHASE12, THRESHOLDS, ORGANISM };

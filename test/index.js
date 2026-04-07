@@ -28,7 +28,7 @@ const CONCURRENCY = 4;
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════╗');
-  console.log('║       GENESIS TEST SUITE v7.0.0          ║');
+  console.log('║       GENESIS TEST SUITE v7.0.1          ║');
   console.log('╚══════════════════════════════════════════╝\n');
 
   let totalPassed = 0;
@@ -75,14 +75,19 @@ async function main() {
             const filePath = path.join(testDir, file);
             const moduleName = file.replace('.test.js', '');
             try {
-              const { stdout } = await execFileAsync('node', [filePath], {
+              // boot-integration/headless-boot use node:test which hangs on open handles
+              const isNodeTest = ['boot-integration', 'headless-boot'].includes(moduleName);
+              const nodeArgs = isNodeTest ? ['--test-force-exit', filePath] : [filePath];
+              const { stdout } = await execFileAsync('node', nodeArgs, {
                 cwd: path.join(__dirname, '..'),
                 encoding: 'utf-8',
                 timeout: 30000,
               });
               return { moduleName, stdout, error: null };
             } catch (err) {
-              return { moduleName, stdout: err.stdout || '', error: err.stderr || err.message };
+              const out = err.stdout || '';
+              const hasContent = out.includes('TAP version') || out.includes(' passed') || out.includes(' failed');
+              return { moduleName, stdout: out, error: hasContent ? null : (err.stderr || err.message) };
             }
           })
         );
@@ -91,8 +96,10 @@ async function main() {
           const { moduleName, stdout, error } = result.status === 'fulfilled' ? result.value : { moduleName: '?', stdout: '', error: result.reason?.message || 'Unknown error' };
           const passMatch = stdout.match(/(\d+) passed/);
           const failMatch = stdout.match(/(\d+) failed/) || (error ? [null, '0'] : null);
-          const p = passMatch ? parseInt(passMatch[1]) : 0;
-          const f = failMatch ? parseInt(failMatch[1]) : 0;
+          const tapPass = !passMatch && stdout.includes('TAP version') ? stdout.match(/^ok \d+/mg) : null;
+          const tapFail = !passMatch && stdout.includes('TAP version') ? stdout.match(/^not ok \d+/mg) : null;
+          const p = passMatch ? parseInt(passMatch[1]) : (tapPass ? tapPass.length : 0);
+          const f = failMatch ? parseInt(failMatch[1]) : (tapFail ? tapFail.length : 0);
           totalPassed += p;
 
           if (error && p === 0) {

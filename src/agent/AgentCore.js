@@ -98,8 +98,6 @@ class AgentCore {
       _time('bootstrap', () => this._boot._bootstrapInstances());
       _time('manifest',  () => this._boot._registerFromManifest());
 
-      _time('aliases', () => this._boot._registerBiologicalAliases());
-
       _time('validate', () => {
         const v = this.container.validateRegistrations();
         if (!v.valid) {

@@ -30,7 +30,7 @@ function setupTestDir() {
   // Write minimal settings so boot doesn't error on missing config
   fs.writeFileSync(
     path.join(TEST_GENESIS_DIR, 'settings.json'),
-    JSON.stringify({ logging: { level: 'error' } }),
+    JSON.stringify({ logging: { level: 'error' }, daemon: { controlEnabled: false } }),
     'utf-8'
   );
 }

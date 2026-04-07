@@ -36,6 +36,8 @@ const flags = {
   noBoot:    args.includes('--no-boot-log'),
   help:      args.includes('--help') || args.includes('-h'),
   once:      args.includes('--once'),
+  // V7-4A: Control channel client mode
+  ctl:       args.includes('ctl'),
   backend:   (() => {
     const idx = args.indexOf('--backend');
     return idx >= 0 && args[idx + 1] ? args[idx + 1] : null;
@@ -69,12 +71,23 @@ Usage:
   node cli.js --no-boot-log  Suppress boot messages (for scripts)
   node cli.js --once "msg"   Send one message, print response, exit
   node cli.js --backend X    Use specific backend (ollama, anthropic, openai)
+  node cli.js ctl <cmd>      Control a running Genesis instance (no boot)
   node cli.js --help         Show this help
+
+Control commands (ctl):
+  node cli.js ctl ping                  Check if daemon is reachable
+  node cli.js ctl status                Show daemon status
+  node cli.js ctl goal "description"    Push a goal to the agent loop
+  node cli.js ctl check health          Run a daemon check (health|optimize|gaps|consolidate|learn)
+  node cli.js ctl config                Show daemon config
+  node cli.js ctl config key value      Set daemon config key
+  node cli.js ctl stop                  Stop the daemon gracefully
 
 Environment:
   GENESIS_API_KEY            Anthropic API key (optional)
   GENESIS_OPENAI_KEY         OpenAI API key (optional)
   GENESIS_MODEL              Preferred model name (optional)
+  GENESIS_SOCKET             Custom socket path for control channel (optional)
   GENESIS_AB_MODE            A/B test mode: baseline, no-organism, no-consciousness
 `);
   process.exit(0);
@@ -936,9 +949,92 @@ async function runOnce(agent) {
   process.exit(0);
 }
 
+// ── Control Channel Client (V7-4A) ─────────────────────────
+
+async function runCtl() {
+  const net = require('net');
+  const { resolveSocketPath } = require('./src/agent/autonomy/DaemonController');
+  const socketPath = resolveSocketPath(process.env.GENESIS_SOCKET);
+
+  // Parse: node cli.js ctl <method> [arg1] [arg2]
+  const ctlIdx = args.indexOf('ctl');
+  const ctlArgs = args.slice(ctlIdx + 1).filter(a => !a.startsWith('--'));
+  const method = ctlArgs[0];
+
+  if (!method) {
+    console.error('Usage: node cli.js ctl <method> [params]\nMethods: ping, status, goal, check, config, stop, clients');
+    process.exit(1);
+  }
+
+  // Build params based on method
+  let params = {};
+  if (method === 'goal') {
+    params = { description: ctlArgs.slice(1).join(' ') };
+  } else if (method === 'check') {
+    params = { type: ctlArgs[1] || 'health' };
+  } else if (method === 'config' && ctlArgs[1]) {
+    params = ctlArgs[2] !== undefined
+      ? { key: ctlArgs[1], value: isNaN(ctlArgs[2]) ? ctlArgs[2] : Number(ctlArgs[2]) }
+      : { key: ctlArgs[1] };
+  }
+
+  const id = String(Date.now());
+  const req = JSON.stringify({ id, method, params }) + '\n';
+
+  return new Promise((resolve) => {
+    const client = net.createConnection(socketPath, () => {
+      client.write(req);
+    });
+
+    let buf = '';
+    client.on('data', (chunk) => {
+      buf += chunk.toString();
+      const nl = buf.indexOf('\n');
+      if (nl !== -1) {
+        const line = buf.slice(0, nl);
+        client.destroy();
+        try {
+          const res = JSON.parse(line);
+          if (res.error) {
+            console.error(`Error: ${res.error.message} (code ${res.error.code})`);
+            process.exit(1);
+          } else {
+            console.log(JSON.stringify(res.result, null, 2));
+            process.exit(0);
+          }
+        } catch (e) {
+          console.error('Invalid response:', line);
+          process.exit(1);
+        }
+      }
+    });
+
+    client.on('error', (err) => {
+      if (err.code === 'ENOENT' || err.code === 'ECONNREFUSED') {
+        console.error(`Cannot connect to Genesis at ${socketPath}\nIs Genesis running with the control channel enabled?`);
+      } else {
+        console.error(`Connection error: ${err.message}`);
+      }
+      process.exit(1);
+    });
+
+    setTimeout(() => {
+      client.destroy();
+      console.error('Timeout: no response within 10s');
+      process.exit(1);
+    }, 10000);
+  });
+}
+
 // ── Main ────────────────────────────────────────────────────
 
 (async () => {
+  // V7-4A: ctl mode runs without booting the agent
+  if (flags.ctl) {
+    await runCtl();
+    return;
+  }
+
   try {
     const agent = await boot();
     if (flags.serve) {

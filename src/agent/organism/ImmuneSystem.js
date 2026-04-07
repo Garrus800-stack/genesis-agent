@@ -38,6 +38,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('ImmuneSystem');
 
 // ── Failure Signature Patterns ──────────────────────────────
@@ -111,20 +112,20 @@ class ImmuneSystem {
 
     // ── Configuration ────────────────────────────────────
     const cfg = config || {};
-    this._errorWindowMs = cfg.errorWindowMs || 120000;  // 2 min sliding window
-    this._scanIntervalMs = cfg.scanIntervalMs || 30000; // Scan every 30s
+    this._errorWindowMs = cfg.errorWindowMs || ORGANISM.IMMUNE_ERROR_WINDOW_MS;  // 2 min sliding window
+    this._scanIntervalMs = cfg.scanIntervalMs || ORGANISM.IMMUNE_SCAN_INTERVAL_MS; // Scan every 30s
     this._signatures = { ...SIGNATURES, ...cfg.signatures };
 
     // ── State ────────────────────────────────────────────
     this._errorWindow = [];          // Recent errors for pattern matching
     this._quarantined = new Map();   // source → quarantine expiry
-    this._cooldowns = new Map(); this._maxCooldowns = 200;     // signatureId → last applied timestamp
+    this._cooldowns = new Map(); this._maxCooldowns = ORGANISM.IMMUNE_MAX_COOLDOWNS;     // signatureId → last applied timestamp
     this._interventionLog = [];      // History of all interventions
-    this._maxLog = 100;
+    this._maxLog = ORGANISM.IMMUNE_MAX_LOG;
 
     // ── Adaptive Memory ─────────────────────────────────
     // Tracks which interventions worked (error rate dropped after)
-    this._immuneMemory = new Map(); this._maxImmuneMemory = 500;  // signatureId → { successes, failures, lastApplied }
+    this._immuneMemory = new Map(); this._maxImmuneMemory = ORGANISM.IMMUNE_MAX_MEMORY;  // signatureId → { successes, failures, lastApplied }
 
     this._wireEvents();
   }

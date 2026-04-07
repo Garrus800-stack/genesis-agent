@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.0.0 · Last verified: all checks green (4257 tests, 277 suites, TSC 0, fitness 90/90)
+> Version: 7.0.1 · Last verified: all checks green (4232 tests, 277 suites, TSC 0, fitness 90/90)
 
 ---
 
@@ -11,7 +11,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~79k LOC of JavaScript (CommonJS), 232 source modules, 140 DI-managed services (132 manifest + 8 kernel), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~79k LOC of JavaScript (CommonJS), 231 source modules, 137 DI-managed services (129 manifest + 8 kernel), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -25,14 +25,14 @@ Genesis boots in 12 phases. Each phase registers services into a dependency inje
 | 2 | intelligence | Intent routing, prompt building, context management | `intentRouter`, `promptBuilder`, `context`, `tools`, `codeSafety` |
 | 3 | capabilities | Skills, shell, MCP, plugins, hot-reload | `skills`, `shellAgent`, `mcpClient`, `skillRegistry`, `hotReloader` |
 | 4 | planning | Goal stack, anticipation, meta-learning | `goalStack`, `metaLearning`, `schemaStore`, `valueStore` |
-| 5 | hexagonal | Memory façade, chat orchestration, self-modification | `chatOrchestrator`, `unifiedMemory`, `selfModPipeline`, `episodicMemory` |
-| 6 | autonomy | Health monitoring, daemon, error aggregation, service recovery | `daemon`, `healthMonitor`, `serviceRecovery`, `deploymentManager` |
+| 5 | hexagonal | Chat orchestration, unified memory, self-modification | `chatOrchestrator`, `unifiedMemory`, `selfModPipeline`, `episodicMemory` |
+| 6 | autonomy | Health monitoring, daemon, error aggregation, service recovery, external control | `daemon`, `daemonController`, `healthMonitor`, `serviceRecovery`, `deploymentManager` |
 | 7 | organism | Emotional state, homeostasis, needs, metabolism, immune system | `emotionalState`, `homeostasis`, `needsSystem`, `genome` |
 | 8 | revolution | Agent loop, session persistence, colony orchestration | `agentLoop`, `sessionPersistence`, `vectorMemory`, `colonyOrchestrator` |
 | 9 | cognitive | Self-model, reasoning traces, dream cycle, architecture reflection | `cognitiveSelfModel`, `taskOutcomeTracker`, `reasoningTracer`, `projectIntelligence` |
 | 10 | agency | Goal persistence, conversation compression, user model | `goalPersistence`, `conversationCompressor`, `userModel`, `fitnessEvaluator` |
 | 11 | extended | Trust levels, web perception, self-spawning | `trustLevelSystem`, `effectorRegistry`, `webPerception` |
-| 12 | hybrid | Graph reasoning, adaptive memory | `graphReasoner`, `adaptiveMemory` |
+| 12 | hybrid | Graph reasoning | `graphReasoner` |
 
 **Why 12 phases?** Services in higher phases can depend on lower-phase services (via the DI container), but never the reverse. This creates a strict dependency flow that prevents circular coupling. The phase number represents the "trust level" of the service — Phase 1 services are pure infrastructure, Phase 12 services are hybrid cognitive processes that can degrade gracefully if their dependencies aren't available. The former Phase 13 (Consciousness) was replaced by a lightweight AwarenessPort in Phase 1 as of v7.0.0.
 
@@ -367,7 +367,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # ~4266 tests, 0 failures
+node test/index.js                          # ~4232 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -406,7 +406,7 @@ Every event emitted must be:
 
 The `audit:events:strict` CI step enforces this. Unregistered events fail the build.
 
-**Current stats:** 374 catalogued events, 117 payload schemas.
+**Current stats:** 339 catalogued events, 341 payload schemas.
 
 ### 6.3 EventStore
 
@@ -435,7 +435,7 @@ Biologically inspired self-regulation. Not a metaphor — these services genuine
 | **NeedsSystem** | Maslow-inspired hierarchy: safety (no crashes) → competence (task success) → exploration (proactive learning). Priorities shift based on state. |
 | **Metabolism** | Token budget management. Converts "energy" (available tokens) into "work" (LLM calls). Conservation mode under scarcity. |
 | **ImmuneSystem** | Detects repeated failure patterns, error cascades, anomalous behavior. Triggers circuit breakers. |
-| **Genome/EpigeneticLayer** | Long-term behavioral parameters that evolve across sessions. Genome is the baseline; epigenetic modifications adapt to the user. |
+| **Genome** | Long-term behavioral parameters (traits like riskTolerance, curiosity). Used by SelfMod, IdleMind, and CloneFactory for trait-based decisions and offspring mutation. |
 
 ### 7.2 Awareness (Phase 1 — AwarenessPort)
 
@@ -486,7 +486,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~4266 tests across 283 suites |
+| Tests | `node test/index.js` | ~4232 tests across 277 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
@@ -498,7 +498,7 @@ These tools are your safety net. Run them before every commit.
 
 **The fitness check is the most important one.** It catches:
 - Circular dependencies
-- Memory silo bypass (all memory access must go through MemoryFacade)
+- Memory silo bypass (all memory access must go through UnifiedMemory)
 - Missing shutdown entries (all services with `stop()` must be in TO_STOP)
 - Synchronous writes in shutdown paths
 - Test coverage gaps (every source file must have tests)
@@ -562,14 +562,14 @@ genesis-agent/
 ├── src/
 │   ├── agent/
 │   │   ├── core/              → Logger, EventBus, Container, Constants, utils
-│   │   ├── manifest/          → 13 phase manifest files (service registration)
+│   │   ├── manifest/          → 12 phase manifest files (service registration)
 │   │   ├── ports/             → LLMPort (interface to LLM backends)
 │   │   ├── foundation/        → Storage, Sandbox, ModelBridge, KnowledgeGraph
 │   │   ├── intelligence/      → IntentRouter, PromptBuilder, ContextManager, ToolRegistry
 │   │   ├── capabilities/      → ShellAgent, McpClient, SkillManager, HotReloader
 │   │   ├── planning/          → GoalStack, Anticipator, MetaLearning
 │   │   ├── hexagonal/         → ChatOrchestrator, UnifiedMemory, SelfModPipeline
-│   │   ├── autonomy/          → HealthMonitor, AutonomousDaemon, ServiceRecovery
+│   │   ├── autonomy/          → HealthMonitor, AutonomousDaemon, DaemonController, ServiceRecovery
 │   │   ├── organism/          → EmotionalState, Homeostasis, NeedsSystem, Genome
 │   │   ├── revolution/        → AgentLoop, SessionPersistence, ColonyOrchestrator
 │   │   ├── cognitive/         → CognitiveSelfModel, TaskOutcomeTracker, ReasoningTracer
@@ -577,8 +577,7 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (~4266 tests)
-│   ├── run-tests.js           → Legacy test runner (154 tests)
+│   ├── index.js               → Module test runner (~4232 tests)
 │   └── modules/               → One test file per service
 ├── scripts/
 │   ├── architectural-fitness.js → 90/90 fitness score (9 checks)
@@ -600,7 +599,7 @@ genesis-agent/
 
 Decisions that aren't obvious from reading the code.
 
-**Why CommonJS, not ESM?** Genesis predates Node.js stable ESM. The codebase uses `require()` consistently. Migration would touch 230 files with no functional benefit. The `.mjs` extension is used only for the preload bridge (Electron requirement).
+**Why CommonJS, not ESM?** Genesis predates Node.js stable ESM. The codebase uses `require()` consistently. Migration would touch 227 files with no functional benefit. The `.mjs` extension is used only for the preload bridge (Electron requirement).
 
 **Why no TypeScript source?** The project uses JavaScript with JSDoc type annotations + `tsc --checkJs`. This gives type safety without a build step. The developer experience is: edit → run → test, no compilation. The `types/node.d.ts` file provides minimal declarations for Node.js built-ins.
 

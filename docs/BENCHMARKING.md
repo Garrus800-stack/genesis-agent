@@ -8,12 +8,11 @@
 
 | Command | What it does | Duration |
 |---------|-------------|----------|
-| `npm test` | Run all ~3480 tests | ~30s |
-| `npm run test:ci` | Tests + coverage enforcement (75/70/70) | ~45s |
+| `npm test` | Run all 4232 tests | ~30s |
+| `npm run test:ci` | Tests + coverage enforcement (81/76/80) | ~45s |
 | `npm run benchmark:agent --quick` | 3-task capability benchmark | ~2 min |
-| `npm run benchmark:agent:layer:consciousness` | A/B: full vs without consciousness | ~5 min |
 | `npm run benchmark:agent:layer:organism` | A/B: full vs without organism | ~5 min |
-| `npm run benchmark:agent:ab` | A/B: full vs baseline (no organism/consciousness) | ~10 min |
+| `npm run benchmark:agent:ab` | A/B: full vs baseline (no organism) | ~10 min |
 | `npm run test:colony` | Colony infrastructure test (2 instances) | ~1 min |
 
 ---
@@ -23,7 +22,7 @@
 ### Run all tests
 
 ```bash
-npm test                    # Full suite (~3480 tests)
+npm test                    # Full suite (4232 tests)
 npm run test:new            # Only per-module test files
 npm run test:legacy         # Only monolithic legacy suite
 ```
@@ -39,7 +38,7 @@ node test/modules/v604-colony-proof.test.js
 
 ```bash
 npm run test:coverage              # HTML + text report
-npm run test:coverage:enforce      # Enforce ratchet (75/70/70)
+npm run test:coverage:enforce      # Enforce ratchet (81/76/80)
 npm run test:coverage:safety       # Safety-critical modules only (80/70/75)
 ```
 
@@ -47,7 +46,7 @@ The coverage ratchet is enforced in CI. Current thresholds:
 
 | Scope | Lines | Branches | Functions |
 |-------|-------|----------|-----------|
-| Global | 75% | 70% | 70% |
+| Global | 81% | 76% | 80% |
 | Safety-critical | 80% | 70% | 75% |
 
 Safety-critical modules: `src/kernel/**`, `CodeSafetyScanner`, `VerificationEngine`, `Sandbox`, `WebFetcher`, `SelfModificationPipeline`, `MemoryFacade`.
@@ -88,9 +87,9 @@ node scripts/benchmark-agent.js --baseline compare
 
 The most important benchmarks: empirically validate whether a cognitive layer actually improves agent performance. Each test runs the same tasks twice — once with all phases, once with specific phases skipped — and compares results.
 
-### Consciousness A/B (Phase 13)
+### Awareness A/B (Phase 13 — removed in v7.0.0)
 
-**Question:** Does the consciousness layer (AttentionalGate, PhenomenalField, TemporalSelf, IntrospectionEngine, ConsciousnessExtension) improve task success?
+**Result:** Phase 13 (Consciousness Layer) was empirically validated at **0pp** impact and removed in v7.0.0. Replaced by lightweight AwarenessPort (2 modules, 112 LOC). The benchmark commands below remain available to validate the AwarenessPort interface.
 
 ```bash
 # Quick mode (recommended first run)
@@ -110,7 +109,7 @@ node scripts/benchmark-agent.js --ab-layer 13 --quick --backend ollama:qwen2.5:7
 
 ### Organism A/B (Phase 7)
 
-**Question:** Does the organism layer (EmotionalState, Homeostasis, NeedsSystem, Metabolism, Genome) improve task success? Previous result (v5.9.9): **+37pp** (50% vs 13%).
+**Question:** Does the organism layer (EmotionalState, Homeostasis, NeedsSystem, Metabolism, Genome) improve task success? Result: **+33pp** (task success with organism active vs. disabled).
 
 ```bash
 npm run benchmark:agent:layer:organism
@@ -121,7 +120,7 @@ node scripts/benchmark-agent.js --ab-layer 7 --quick
 
 **Results saved to:** `.genesis/benchmark-ab-layer-7.json`
 
-### Combined A/B (Organism + Consciousness)
+### Combined A/B (Organism + Awareness)
 
 ```bash
 npm run benchmark:agent:layer:full
@@ -156,7 +155,7 @@ node scripts/benchmark-agent.js --ab-layer 11,12,13 --quick
 
 ### Legacy Organism A/B
 
-The original A/B mode (v5.9.9) uses `GENESIS_AB_MODE` environment variable to disable prompt sections:
+The A/B mode uses `GENESIS_AB_MODE` environment variable to disable prompt sections:
 
 ```bash
 # Original mode: disables organism/consciousness sections in PromptBuilder
@@ -200,7 +199,7 @@ npm run test:colony:dry          # Dry run — infrastructure only, no LLM
 
 ---
 
-## 5. Consciousness Benchmark
+## 5. Awareness Benchmark (Phase 13 removed — historical reference)
 
 Standalone benchmark for consciousness subsystem performance:
 
@@ -251,19 +250,19 @@ node scripts/benchmark-agent.js --quick --backend ollama:kimi-k2.5:cloud
 
 ## 8. Boot Profiles for Testing
 
-Genesis defaults to `cognitive` profile (phases 1-12). Consciousness (Phase 13) was empirically validated as 0pp impact.
+Genesis defaults to `cognitive` profile (phases 1–12). Phase 13 (Consciousness) was empirically validated as 0pp impact and removed in v7.0.0.
 
 ```bash
 # Cognitive (default): phases 1-12, ~120 services
 node cli.js
 
-# Full: all 13 phases, ~135 services (includes consciousness)
+# Full: all 12 phases, ~139 services
 node cli.js --full
 
 # Minimal: phases 1-8, core agent only (~80 services)
 node cli.js --minimal
 
-# Custom: skip specific phases (v6.0.4)
+# Custom: skip specific phases
 node cli.js --skip-phase 13         # Skip consciousness
 node cli.js --skip-phase 7,13       # Skip organism + consciousness
 node cli.js --skip-phase 9,10,11    # Skip cognitive + agency + extended

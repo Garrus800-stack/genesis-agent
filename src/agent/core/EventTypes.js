@@ -210,6 +210,13 @@ const EVENTS = Object.freeze({
     SUGGESTIONS:   'daemon:suggestions',
     AUTO_REPAIR:   'daemon:auto-repair',
     SKILL_CREATED: 'daemon:skill-created',
+    // V7-4A: External control channel
+    CONTROL_LISTENING:    'daemon:control-listening',
+    CONTROL_CLOSED:       'daemon:control-closed',
+    CONTROL_CONNECTED:    'daemon:control-connected',
+    CONTROL_DISCONNECTED: 'daemon:control-disconnected',
+    CONTROL_COMMAND:      'daemon:control-command',
+    CONTROL_ERROR:        'daemon:control-error',
   }),
 
   // ── Delegation ─────────────────────────────────────────
@@ -813,38 +820,8 @@ const EVENTS = Object.freeze({
   // ── Phase 8 additions (v4.10.0) ────────────────────────
   // v4.12.5-fix: AGENTLOOP.STEP_COMPLETE merged into AGENT_LOOP.STEP_COMPLETE
 
-  // ── Phase 13: Consciousness Substrate ──────────────────
-  CONSCIOUSNESS: Object.freeze({
-    /** @payload {{ epoch, valence, arousal, coherence, phi, qualia }} */
-    FRAME:         'consciousness:frame',
-    /** @payload {{ from: {valence,arousal}, to: {valence,arousal}, qualia, gestalt }} */
-    SHIFT:         'consciousness:shift',
-    /** @payload {{ spread, pairs: [[string,string]], valence, gestalt }} */
-    APPREHENSION:  'consciousness:apprehension',
-    /** @payload {{ state: string, previous: string }} */
-    EXTENSION_STATE: 'consciousness:extension:state',
-    /** @payload {{ epoch, subsystems, enriched }} */
-    EXTENSION_FRAME: 'consciousness:extension:frame',
-    /** @payload {{ level, patterns, insights }} */
-    INTROSPECTION: 'consciousness:introspection',
-    /** @payload {{ retention, protention, chapters }} */
-    TEMPORAL_TICK: 'consciousness:temporal-tick',
-    /** @payload {{ state: string, reason: string }} */
-    EXTENSION_ALERT: 'consciousness:extension:alert',
-    /** @payload {{ type: string, description: string, confidence: number }} */
-    INSIGHT: 'consciousness:insight',
-    // v5.6.0 DA-2: Previously uncatalogued
-    /** @payload {{ dreamResult: object }} */
-    EXTENSION_DREAM: 'consciousness:extension:dream',
-    /** @payload {{ reflection: string, duration: number }} */
-    EXTENSION_DAYDREAM: 'consciousness:extension:daydream',
-    /** @payload {{ theory: string, updates: number }} */
-    SELF_THEORY_UPDATED: 'consciousness:self-theory-updated',
-    /** @payload {{ newChapter: string, previousChapter: string, chapterNumber: number }} */
-    CHAPTER_CHANGE: 'consciousness:chapter-change',
-    /** @payload {{ qualia: string, phi: number, reason: string }} */
-    SIGNIFICANT_MOMENT: 'consciousness:significant-moment',
-  }),
+  // v7.0.1: Phase 13 (Consciousness) removed — 14 dead events cleaned up.
+  // Consciousness Layer replaced by AwarenessPort (Phase 1) in v7.0.0.
 
   ATTENTION: Object.freeze({
     /** @payload {{ channel, strength, mode }} */
@@ -874,11 +851,6 @@ const EVENTS = Object.freeze({
     INSUFFICIENT:    'metabolism:insufficient',
     /** @payload {{ from: string, to: string, energy: number, max: number }} */
     STATE_CHANGED:   'metabolism:state-changed',
-  }),
-
-  EPIGENETIC: Object.freeze({
-    /** @payload {{ adjusted: string[], skipped: string[], totalDelta: number }} */
-    CONSOLIDATION:   'epigenetic:consolidation',
   }),
 
   FITNESS: Object.freeze({

@@ -1,6 +1,6 @@
 # Genesis Agent — Event Flow Architecture
 
-> v6.0.6 — Event flow documentation. Last updated with Offline-First (V6-10) and Intelligence Pipeline.
+> v7.0.1 — Event flow documentation. Updated for AwarenessPort, Colony IPC, and 12-phase boot.
 > This document maps which modules emit and consume which EventBus events.
 
 ## System Overview

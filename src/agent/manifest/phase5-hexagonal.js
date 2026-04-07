@@ -144,22 +144,7 @@ function phase5(ctx, R) {
       }),
     }],
 
-    // @deprecated v6.0.1 — MemoryFacade is a pass-through to UnifiedMemory/KnowledgeGraph.
-    // Kept for backwards compat. Use UnifiedMemory or KnowledgeGraph directly.
-    ['memoryFacade', {
-      phase: 5,
-      deps: [],
-      tags: ['hexagonal', 'memory', 'facade'],
-      lateBindings: [
-        { prop: 'unifiedMemory', service: 'unifiedMemory', optional: true },
-        { prop: 'episodicMemory', service: 'episodicMemory', optional: true },
-        { prop: 'vectorMemory', service: 'vectorMemory', optional: true },
-        { prop: 'conversationMemory', service: 'memory', optional: true },
-        { prop: 'knowledgeGraph', service: 'knowledgeGraph', optional: true },
-        { prop: 'selfNarrative', service: 'selfNarrative', optional: true },
-      ],
-      factory: () => new (R('MemoryFacade').MemoryFacade)({ bus }),
-    }],
+
   ];
 }
 

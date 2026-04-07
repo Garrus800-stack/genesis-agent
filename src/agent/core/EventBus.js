@@ -1,6 +1,10 @@
 // ============================================================
 // GENESIS AGENT — EventBus.js (v3.5.0 — Dev-Mode Validation)
 //
+// ⚠️  FEATURE-FREEZE (v7.0.1): 84 methods — do not add new methods.
+//     If new functionality is needed, extract into a companion module
+//     (e.g. EventStats, EventReplay). See ARCHITECTURE.md §6.
+//
 // v3.5.0: Added event name validation in dev mode.
 // When NODE_ENV !== 'production', every emit() checks the event
 // name against the EventTypes catalog. Unknown events produce a

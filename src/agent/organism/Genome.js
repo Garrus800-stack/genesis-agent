@@ -25,7 +25,6 @@
 // Architecture:
 //   Genome.traits     → IdleMind, Sandbox, PromptBuilder, SelfMod
 //   Genome.reproduce() → CloneFactory (offspring with mutations)
-//   EpigeneticLayer   → Genome.adjustTrait() (experience changes traits)
 //   FitnessEvaluator  → Genome (selection pressure on traits)
 //   Genome            → Storage (persisted to genome.json)
 // ============================================================
@@ -33,6 +32,7 @@
 const crypto = require('crypto');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('Genome');
 
 // ── Default Trait Values ──────────────────────────────────
@@ -77,7 +77,7 @@ class Genome {
 
     // ── Trait adjustment history (for IntrospectionEngine) ──
     this._adjustmentLog = [];  // { trait, delta, reason, timestamp }
-    this._maxAdjustmentLog = 100;
+    this._maxAdjustmentLog = ORGANISM.GENOME_MAX_ADJUSTMENT_LOG;
   }
 
   // ════════════════════════════════════════════════════════════
@@ -152,7 +152,7 @@ class Genome {
   }
 
   // ════════════════════════════════════════════════════════════
-  // PUBLIC API — TRAIT MODIFICATION (by EpigeneticLayer)
+  // PUBLIC API — TRAIT MODIFICATION
   // ════════════════════════════════════════════════════════════
 
   /**
@@ -258,7 +258,7 @@ class Genome {
       traits: this.traits,
       generation: this.generation,
     });
-    return crypto.createHash('sha256').update(data).digest('hex').slice(0, 16);
+    return crypto.createHash('sha256').update(data).digest('hex').slice(0, ORGANISM.GENOME_HASH_LENGTH);
   }
 
   // ════════════════════════════════════════════════════════════
@@ -271,10 +271,9 @@ class Genome {
 
   _persist() {
     if (!this.storage) return;
-    // FIX v5.0.0: Use writeJSONDebounced to avoid a sync fsync storm when
-    // EpigeneticLayer fires up to 8 adjustTrait() calls in one consolidate() pass.
-    // Previously used sync writeJSON which blocks the main thread per fsync.
-    this.storage.writeJSONDebounced(GENOME_FILE, this._persistData(), 2000);
+    // FIX v5.0.0: Use writeJSONDebounced to avoid sync fsync storm on
+    // rapid adjustTrait() calls. Previously used sync writeJSON.
+    this.storage.writeJSONDebounced(GENOME_FILE, this._persistData(), ORGANISM.GENOME_PERSIST_DEBOUNCE_MS);
   }
 
   /** FIX D-1: Sync write for shutdown path — guarantees data reaches disk before exit. */

@@ -38,6 +38,11 @@ describe('Headless Boot', () => {
       'src/agent/core/PreservationInvariants.js',
     ]);
 
+    // On Windows, Unix sockets are not supported. Route DaemonController to a Named Pipe.
+    if (process.platform === 'win32') {
+      process.env.GENESIS_SOCKET = `\\\\.\\pipe\\genesis-headless-test-${process.pid}`;
+    }
+
     agent = new AgentCore({
       rootDir: ROOT,
       guard,

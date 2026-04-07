@@ -86,7 +86,7 @@ curl https://api.anthropic.com/v1/messages \
 
 **Fixed in v4.10.0.** The periodic health check was overwriting the user's model selection. Now `detectAvailable()` preserves the active model.
 
-**v6.0.4:** Genesis uses Smart Ranking to auto-select the best model. If you want a specific model:
+**v7.0.1:** Genesis uses Smart Ranking to auto-select the best model. If you want a specific model:
 
 ```bash
 # In CLI REPL:
@@ -187,13 +187,13 @@ npm start
 
 ### High CPU usage when idle
 
-**Cause:** Consciousness subsystem (Phase 13) runs background processing. On consumer hardware (Intel iGPU + Ollama), this can be noticeable.
+**Cause:** IdleMind and organism systems run background processing. On consumer hardware (Intel iGPU + Ollama), this can be noticeable.
 
-**Fix:** Enable lite mode:
+**Fix:** Reduce background activity by skipping the organism layer:
 ```
-Settings → consciousness.extension.liteMode = true
+node cli.js --skip-phase 7
 ```
-This reduces polling frequency by ~75% and disables DreamEngine LLM calls.
+This disables organism background processing (emotional state, homeostasis, needs). Alternatively, increase the daemon cycle interval via `node cli.js ctl config cycleInterval 600000` (10 min).
 
 ### Memory usage grows over time
 
@@ -202,7 +202,7 @@ This reduces polling frequency by ~75% and disables DreamEngine LLM calls.
 **Mitigations (all automatic):**
 - EventBus uses a ring buffer (capped at 500 entries)
 - ExperienceFrames use a circular buffer (capped at 200 frames)
-- MemoryConsolidator prunes stale KG nodes and archives old lessons (v6.0.0)
+- MemoryConsolidator prunes stale KG nodes and archives old lessons
 - StorageService LRU cache (capped at 200 entries)
 - `/consolidate` CLI command triggers manual memory cleanup
 - Restart Genesis for a clean slate
@@ -225,7 +225,7 @@ Then access `http://127.0.0.1:9477/health` for basic status or `/health/full` fo
 
 ---
 
-## Diagnostic CLI Commands (v6.0.1–v6.0.2)
+## Diagnostic CLI Commands
 
 Use these in the CLI REPL (`node cli.js`) for quick diagnostics:
 

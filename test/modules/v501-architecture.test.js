@@ -66,7 +66,6 @@ describe('AgentCoreBoot — boot phase methods exist', () => {
     const boot = new AgentCoreBoot({ container: null, _bus: mockBus(), intervals: mockIntervals() });
     assert(typeof boot._bootstrapInstances === 'function', '_bootstrapInstances exists');
     assert(typeof boot._registerFromManifest === 'function', '_registerFromManifest exists');
-    assert(typeof boot._registerBiologicalAliases === 'function', '_registerBiologicalAliases exists');
     assert(typeof boot._resolveAndInit === 'function', '_resolveAndInit exists');
     assert(typeof boot._wireAndStart === 'function', '_wireAndStart exists');
   });

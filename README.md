@@ -8,13 +8,13 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.0.0-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.0.1-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <img src="https://img.shields.io/badge/tests-~4107%20passing-4ade80?style=flat-square" alt="Tests">
-  <img src="https://img.shields.io/badge/modules-232-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/tests-~4232%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/modules-231-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-140-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-395-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/events-345-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">
@@ -81,9 +81,9 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Cognition & awareness** — ExpectationEngine (quantitative predictions), SurpriseAccumulator (information-theoretic), AwarenessPort (lightweight coherence gating for self-modification), CognitiveWorkspace (9-slot transient working memory), ArchitectureReflection (live queryable self-model of own architecture), DynamicToolSynthesis (generates new tools on demand via LLM + sandbox).
 
-**Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (6 evolvable traits), epigenetic conditioning, immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). **Empirically validated: +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4, kimi-k2.5:cloud).
+**Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (6 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). **Empirically validated: +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4, kimi-k2.5:cloud).
 
-**Infrastructure** — 13-phase DI boot, EventBus (374 events, 116 schemas), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules).
+**Infrastructure** — 12-phase DI boot, EventBus (345 events, 347 schemas), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules).
 
 > **For the full feature list with version history**, see [CAPABILITIES.md](docs/CAPABILITIES.md).
 
@@ -154,7 +154,7 @@ Priority: Your choice → Cloud API → Smart Ranking → First available.
 
 ### Boot profiles
 
-Genesis boots 12 phases (~140 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
+Genesis boots 12 phases (~137 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
 
 ```bash
 npm start                              # Cognitive — default (~120 services)
@@ -187,6 +187,26 @@ npm run cli:serve              # MCP daemon
 
 REPL commands: `/health`, `/goals`, `/status`, `/quit`. Environment: `GENESIS_API_KEY`, `GENESIS_OPENAI_KEY`.
 
+### External Control Channel (V7-4A)
+
+Control a running Genesis instance from another terminal, a script, or a CI pipeline — without booting a second instance:
+
+```bash
+# Genesis runs in the background
+node cli.js --serve
+
+# From another terminal:
+node cli.js ctl ping                        # Is Genesis reachable?
+node cli.js ctl status                      # Daemon status, memory, PID
+node cli.js ctl goal "Write tests for X"    # Push a goal to the agent loop
+node cli.js ctl check health                # Run a daemon check immediately
+node cli.js ctl config                      # Show daemon config
+node cli.js ctl config autoOptimize true    # Change config at runtime
+node cli.js ctl stop                        # Graceful shutdown
+```
+
+Transport: Unix Socket (`/tmp/genesis-agent.sock`) on Linux/macOS, Named Pipe (`\\.\pipe\genesis-agent`) on Windows. Override via `$GENESIS_SOCKET` or `settings.daemon.socketPath`. Disable via `settings.daemon.controlEnabled = false`.
+
 > **For IDE integration (VSCode, Cursor, Claude Desktop)**, see [MCP-SERVER-SETUP.md](docs/MCP-SERVER-SETUP.md).
 
 ### Supported backends
@@ -209,7 +229,7 @@ Thirteen layers with clear boundaries — star topology where every layer depend
 ┌─────────────────────────────────────────────────────────────┐
 │  🖥️  UI Layer          Chat + Monaco Editor + Dashboard(13)  │
 ├─────────────────────────────────────────────────────────────┤
-│  🔮 Hybrid [P12]       GraphReasoner · AdaptiveMemory       │
+│  🔮 Hybrid [P12]       GraphReasoner                         │
 ├─────────────────────────────────────────────────────────────┤
 │  🌐 Extended [P11]     TrustLevels · Effectors · WebPercept │
 │                         SelfSpawner · GitHubEffector          │
@@ -359,8 +379,6 @@ Not everything needs an LLM. Graph reasoning and intelligent forgetting.
 
 **GraphReasoner** — Deterministic queries over the KnowledgeGraph without LLM calls. Transitive dependency chains, impact analysis ("if I change EventBus, what breaks?"), cycle detection, shortest path between concepts, contradiction detection. Integrated into ReasoningEngine — structural questions are answered in milliseconds instead of seconds.
 
-**AdaptiveMemory** — Differentiated forgetting based on emotional valence, surprise magnitude, and access frequency. High-surprise memories decay 5× slower. Routine conversations decay quickly. Frequently accessed memories are reinforced. Consolidation runs during DreamCycle.
-
 ---
 
 ### MCP Bidirectional (v5.8.0)
@@ -451,7 +469,7 @@ The Dashboard visualizes Genesis's internal state in real-time (2s polling):
 ## Testing
 
 ```bash
-npm test              # All tests (162 suites)
+npm test              # All tests (277 suites)
 npm run test:coverage # With coverage report (c8)
 npm run ci            # Full CI: tests + event audit + channel audit + fitness gate
 ```
@@ -481,12 +499,12 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 241 JS files in src/ |
-| Lines of code | ~81k src + ~43k test |
+| Source modules | 231 agent modules (src/agent/) |
+| Lines of code | ~79k src (agent) + ~43k test |
 | Manifest phases | 13 (+ Phase 0 bootstrap) |
-| DI services | 139 at runtime (131 manifest + 8 kernel) |
+| DI services | 137 at runtime (129 manifest + 8 kernel) |
 | Late-bindings | 197 cross-phase property injections |
-| Test suites | 263 files, ~3720 tests (coverage gates: 75/70/70) |
+| Test suites | 277 files, ~4232 tests (coverage gates: 81/76/80) |
 | Dependencies | 4 production + 3 optional + 5 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | Anthropic models | 3 (Opus 4, Sonnet 4, Haiku 4.5) |
@@ -495,7 +513,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Cross-layer event flows | ~290 emitted events, ~65 listeners (via EventBus, no direct imports — run `npm run audit:events` for exact counts) |
 | Hexagonal ports | 6 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace) |
 | Cognitive modules | 17 (ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence, CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder) |
-| Organism | 5 emotional dimensions + homeostasis + allostasis + 4 needs + steering + metabolism + immune system + heritable genome + epigenetic conditioning + fitness evaluation + body schema + embodied perception |
+| Organism | 5 emotional dimensions + homeostasis + allostasis + 4 needs + steering + metabolism + immune system + heritable genome + fitness evaluation + body schema + embodied perception |
 | Safety layers | 10 (kernel lock → hash-lock → AST scan → capability tokens → IPC whitelist → CSP → sandbox → worker isolation → circuit breaker → immune system) |
 | Trust levels | 4 (supervised → full autonomy) |
 | Languages | EN primary (+ DE, FR, ES via i18n) |
@@ -512,7 +530,6 @@ Genesis has a five-layer memory system, unified through a facade:
 ┌─────────────────────────────────────────────────────────┐
 │  UnifiedMemory (read facade over all layers)            │
 ├─────────────────────────────────────────────────────────┤
-│  AdaptiveMemory [P12] Retention scoring + smart decay    │
 │  VectorMemory        Embedding-based semantic search     │
 │  EpisodicMemory      Timestamped experiences + causality │
 │  ConversationMemory  Chat history + episode extraction   │

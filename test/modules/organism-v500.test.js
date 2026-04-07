@@ -1,64 +1,8 @@
 #!/usr/bin/env node
 // ============================================================
-// Test: BiologicalAliases.js — alias mapping, lazy loading
 // Test: SelfMod genome-scaled circuit breaker threshold
 // ============================================================
 const { describe, test, assert, assertEqual, run } = require('../harness');
-
-// ════════════════════════════════════════════════════════════
-// BIOLOGICAL ALIASES
-// ════════════════════════════════════════════════════════════
-
-describe('BiologicalAliases — ALIAS_MAP', () => {
-  test('ALIAS_MAP has 11 entries', () => {
-    const { ALIAS_MAP } = require('../../src/agent/organism/BiologicalAliases');
-    assertEqual(Object.keys(ALIAS_MAP).length, 11);
-  });
-
-  test('all mapped values are strings', () => {
-    const { ALIAS_MAP } = require('../../src/agent/organism/BiologicalAliases');
-    for (const [key, val] of Object.entries(ALIAS_MAP)) {
-      assertEqual(typeof val, 'string', `${key} should map to string`);
-    }
-  });
-
-  test('known aliases exist', () => {
-    const { ALIAS_MAP } = require('../../src/agent/organism/BiologicalAliases');
-    assertEqual(ALIAS_MAP.Morphogenesis, 'SelfModificationPipeline');
-    assertEqual(ALIAS_MAP.CognitiveLoop, 'AgentLoop');
-    assertEqual(ALIAS_MAP.Connectome, 'KnowledgeGraph');
-    assertEqual(ALIAS_MAP.Reproduction, 'CloneFactory');
-    assertEqual(ALIAS_MAP.DriveSystem, 'GoalStack');
-    assertEqual(ALIAS_MAP.Colony, 'PeerNetwork');
-    assertEqual(ALIAS_MAP.HippocampalBuffer, 'ConversationMemory');
-  });
-});
-
-describe('BiologicalAliases — Lazy loading', () => {
-  test('Morphogenesis resolves to SelfModificationPipeline', () => {
-    const aliases = require('../../src/agent/organism/BiologicalAliases');
-    const { SelfModificationPipeline } = require('../../src/agent/hexagonal/SelfModificationPipeline');
-    assertEqual(aliases.Morphogenesis, SelfModificationPipeline);
-  });
-
-  test('CognitiveLoop resolves to AgentLoop', () => {
-    const aliases = require('../../src/agent/organism/BiologicalAliases');
-    const { AgentLoop } = require('../../src/agent/revolution/AgentLoop');
-    assertEqual(aliases.CognitiveLoop, AgentLoop);
-  });
-
-  test('DriveSystem resolves to GoalStack', () => {
-    const aliases = require('../../src/agent/organism/BiologicalAliases');
-    const { GoalStack } = require('../../src/agent/planning/GoalStack');
-    assertEqual(aliases.DriveSystem, GoalStack);
-  });
-
-  test('Connectome resolves to KnowledgeGraph', () => {
-    const aliases = require('../../src/agent/organism/BiologicalAliases');
-    const { KnowledgeGraph } = require('../../src/agent/foundation/KnowledgeGraph');
-    assertEqual(aliases.Connectome, KnowledgeGraph);
-  });
-});
 
 // ════════════════════════════════════════════════════════════
 // GENOME-SCALED CIRCUIT BREAKER

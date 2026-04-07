@@ -1,36 +1,7 @@
 // Test: v6.1.0 Coverage Push Part 3 — Wiring + LLM Utilities
-// Targets: BiologicalAliases, LLMPort cost/token helpers, CostGuard, utils._round
+// Targets: LLMPort cost/token helpers, CostGuard, utils._round
 
 const { describe, test, assert, assertEqual, run } = require('../harness');
-
-// ── BiologicalAliases ───────────────────────────────────────
-
-describe('BiologicalAliases — lazy-loaded organism names', () => {
-  const aliases = require('../../src/agent/organism/BiologicalAliases');
-
-  test('ALIAS_MAP exists and is frozen', () => {
-    assert(aliases.ALIAS_MAP !== null, 'ALIAS_MAP should exist');
-    assert(Object.isFrozen(aliases.ALIAS_MAP), 'ALIAS_MAP should be frozen');
-  });
-
-  test('ALIAS_MAP contains expected biological names', () => {
-    const map = aliases.ALIAS_MAP;
-    assert('CellularActivity' in map || 'Morphogenesis' in map || 'DriveSystem' in map,
-      'should contain at least one known biological alias');
-  });
-
-  test('lazy getters resolve to constructors', () => {
-    // Test one alias that should resolve to a known class
-    const Morphogenesis = aliases.Morphogenesis;
-    assert(typeof Morphogenesis === 'function', 'Morphogenesis should be a constructor (SelfModificationPipeline)');
-  });
-
-  test('lazy getters are idempotent', () => {
-    const a = aliases.Morphogenesis;
-    const b = aliases.Morphogenesis;
-    assert(a === b, 'repeated access should return same reference');
-  });
-});
 
 // ── CostGuard ───────────────────────────────────────────────
 

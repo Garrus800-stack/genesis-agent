@@ -121,20 +121,6 @@ function phase9(ctx, R) {
       }),
     }],
 
-    // v5.0.0: EpigeneticLayer — experience-driven trait modification
-    ['epigeneticLayer', {
-      phase: 9, deps: ['eventStore', 'storage'], tags: ['organism', 'epigenetic', 'conditioning'],
-      lateBindings: [
-        { prop: 'genome', service: 'genome' },
-        { prop: 'dreamCycle', service: 'dreamCycle', optional: true },
-      ],
-      factory: (c) => new (R('EpigeneticLayer').EpigeneticLayer)({
-        bus,
-        eventStore: c.resolve('eventStore'),
-        storage: c.resolve('storage'),
-      }),
-    }],
-
     // v5.2.0: PromptEvolution — A/B testing for prompt template sections
     ['promptEvolution', {
       phase: 9, deps: ['storage', 'metaLearning'], tags: ['cognitive', 'learning'],

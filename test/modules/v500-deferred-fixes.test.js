@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 // ============================================================
 // Test: v5.0.0 Deferred Findings — D-1 (shutdown persist),
-//       D-2 (stale window expiry), D-3 (clone rollback)
+//       D-3 (clone rollback)
 // ============================================================
 const { describe, test, assert, assertEqual, run, createTestRoot } = require('../harness');
 const path = require('path');
 const fs = require('fs');
 
 const { FitnessEvaluator } = require('../../src/agent/organism/FitnessEvaluator');
-const { EpigeneticLayer, CONDITIONING_RULES } = require('../../src/agent/organism/EpigeneticLayer');
 const { Genome } = require('../../src/agent/organism/Genome');
 const { CloneFactory } = require('../../src/agent/capabilities/CloneFactory');
 
@@ -115,130 +114,6 @@ describe('D-1: FitnessEvaluator.stop() uses sync persist', () => {
     fe.evaluate('manual');
     assert(storage.debouncedWrites > debouncedBefore,
       'evaluate() should use debounced write at runtime');
-  });
-});
-
-describe('D-1: EpigeneticLayer.stop() uses sync persist', () => {
-  test('stop() calls writeJSON (sync), not writeJSONDebounced', () => {
-    const bus = mockBus();
-    const storage = mockStorage();
-    const layer = new EpigeneticLayer({ bus, eventStore: null, storage });
-    layer.genome = new Genome({ bus, storage });
-
-    // Simulate some conditioning history
-    layer._conditioningHistory.push({
-      ruleId: 'test', trait: 'curiosity', delta: 0.02, timestamp: Date.now(),
-    });
-
-    const syncBefore = storage.syncWrites;
-    layer.stop();
-
-    assert(storage.syncWrites > syncBefore,
-      'stop() should call writeJSON (sync)');
-  });
-
-  test('stop() persists conditioning history to storage', () => {
-    const bus = mockBus();
-    const storage = mockStorage();
-    const layer = new EpigeneticLayer({ bus, eventStore: null, storage });
-    layer.genome = new Genome({ bus, storage });
-
-    layer._conditioningHistory.push({
-      ruleId: 'test-rule', trait: 'caution', delta: 0.04, timestamp: Date.now(),
-    });
-    layer._lastFired.set('test-rule', Date.now());
-    layer.stop();
-
-    const saved = storage.store['epigenetic-history.json'];
-    assert(saved, 'epigenetic-history.json should exist after stop()');
-    assertEqual(saved.history.length, 1);
-    assertEqual(saved.history[0].ruleId, 'test-rule');
-    assert(saved.lastFired['test-rule'], 'lastFired should be persisted');
-  });
-
-  test('consolidate() still uses debounced write (runtime path)', () => {
-    const bus = mockBus();
-    const storage = mockStorage();
-    const layer = new EpigeneticLayer({ bus, eventStore: null, storage });
-    layer.genome = new Genome({ bus, storage });
-
-    const debouncedBefore = storage.debouncedWrites;
-    layer.consolidate();
-    assert(storage.debouncedWrites > debouncedBefore,
-      'consolidate() should use debounced write at runtime');
-  });
-});
-
-// ════════════════════════════════════════════════════════════
-// D-2: Stale Event Window Expiry
-// ════════════════════════════════════════════════════════════
-
-describe('D-2: EpigeneticLayer prunes stale events from windows', () => {
-  test('events older than 24h are pruned during consolidate()', () => {
-    const bus = mockBus();
-    const storage = mockStorage();
-    const layer = new EpigeneticLayer({ bus, eventStore: null, storage });
-    layer.genome = new Genome({ bus, storage });
-
-    // Inject old events (48 hours ago) into a window
-    const twoDaysAgo = Date.now() - 48 * 60 * 60 * 1000;
-    const window = layer._windows.get('selfmod:success');
-    for (let i = 0; i < 5; i++) {
-      window.push({ data: {}, timestamp: twoDaysAgo });
-    }
-    assertEqual(window.length, 5);
-
-    layer.consolidate();
-
-    // After consolidation, stale events should be gone
-    const after = layer._windows.get('selfmod:success');
-    assertEqual(after.length, 0, 'All 48h-old events should be pruned');
-  });
-
-  test('fresh events are preserved during prune', () => {
-    const bus = mockBus();
-    const storage = mockStorage();
-    const layer = new EpigeneticLayer({ bus, eventStore: null, storage });
-    layer.genome = new Genome({ bus, storage });
-
-    const now = Date.now();
-    const twoDaysAgo = now - 48 * 60 * 60 * 1000;
-    const window = layer._windows.get('selfmod:success');
-
-    // Mix of stale and fresh events
-    window.push({ data: {}, timestamp: twoDaysAgo });
-    window.push({ data: {}, timestamp: twoDaysAgo });
-    window.push({ data: {}, timestamp: now - 1000 });  // 1 second ago — fresh
-    window.push({ data: {}, timestamp: now });
-
-    layer.consolidate();
-
-    const after = layer._windows.get('selfmod:success');
-    assertEqual(after.length, 2, 'Only the 2 fresh events should remain');
-  });
-
-  test('stale events do not trigger conditioning rules', () => {
-    const bus = mockBus();
-    const storage = mockStorage();
-    const layer = new EpigeneticLayer({ bus, eventStore: null, storage });
-    const genome = new Genome({ bus, storage });
-    layer.genome = genome;
-
-    const twoDaysAgo = Date.now() - 48 * 60 * 60 * 1000;
-    const window = layer._windows.get('selfmod:success');
-
-    // 'selfmod-success-streak' requires >= 3 events.
-    // Inject 5 stale events — should NOT trigger after prune.
-    for (let i = 0; i < 5; i++) {
-      window.push({ data: {}, timestamp: twoDaysAgo });
-    }
-
-    const riskBefore = genome.traits.riskTolerance;
-    layer.consolidate();
-    const riskAfter = genome.traits.riskTolerance;
-
-    assertEqual(riskBefore, riskAfter,
-      'Stale events should not trigger trait adjustment');
   });
 });
 

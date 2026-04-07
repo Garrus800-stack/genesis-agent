@@ -33,6 +33,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('Metabolism');
 
 // ── Cost normalization constants ────────────────────────────
@@ -95,13 +96,13 @@ class Metabolism {
     this._weights = { ...WEIGHTS, ...cfg.weights };
     this._cost = { ...COST, ...cfg.cost };
     this._recovery = { ...RECOVERY, ...cfg.recovery };
-    this._recoveryIntervalMs = cfg.recoveryIntervalMs || 60000;
+    this._recoveryIntervalMs = cfg.recoveryIntervalMs || ORGANISM.METABOLISM_RECOVERY_MS;
 
     // v5.0.0: Discrete energy pool config — must be set BEFORE _initEnergyPool()
     this._energyPoolConfig = cfg.energyPool || {};
     /** @type {number} */ this._energy = 0;
-    /** @type {number} */ this._maxEnergy = 100;
-    /** @type {number} */ this._maxEnergyHistory = 200;
+    /** @type {number} */ this._maxEnergy = ORGANISM.METABOLISM_INITIAL_MAX_ENERGY;
+    /** @type {number} */ this._maxEnergyHistory = ORGANISM.METABOLISM_MAX_ENERGY_HISTORY;
     /** @type {Array<{ timestamp: number, energy: number, event: string, delta: number }>} */
     this._energyHistory = [];
     this._initEnergyPool();
@@ -113,7 +114,7 @@ class Metabolism {
     this._totalEnergyRecovered = 0;
     this._callCount = 0;
     this._recentCosts = [];     // Last 20 energy costs for trending
-    this._maxRecentCosts = 20;
+    this._maxRecentCosts = ORGANISM.METABOLISM_MAX_RECENT_COSTS;
 
     // FIX v5.0.0: Track energy spent since last FitnessEvaluator period reset.
     // Without this, energyEfficiency degrades monotonically to ~0 over time.
@@ -259,7 +260,7 @@ class Metabolism {
     const timeSinceCall = Date.now() - this._lastCallTime;
 
     // Only recover if idle for > 30 seconds
-    if (timeSinceCall < 30000) return;
+    if (timeSinceCall < ORGANISM.METABOLISM_CALL_COOLDOWN_MS) return;
 
     // Recovery rate scales with how depleted we are
     // Very low energy → faster recovery (the body demands rest)
@@ -349,13 +350,13 @@ class Metabolism {
    */
   _initEnergyPool() {
     const cfg = this._energyPoolConfig || {};
-    this._maxEnergy = cfg.maxEnergy || 500;
+    this._maxEnergy = cfg.maxEnergy || ORGANISM.METABOLISM_MAX_ENERGY;
     this._energy = cfg.startEnergy || this._maxEnergy;
     this._regenPerMinute = cfg.regenPerMinute || 3;
     this._regenIdleMultiplier = cfg.regenIdleMultiplier || 2.5; // Bonus when idle > 5min
     this._activityCosts = { ...Metabolism.ACTIVITY_COSTS, ...(cfg.activityCosts || {}) };
     this._energyHistory = [];   // { timestamp, energy, event }
-    this._maxEnergyHistory = 200;
+    this._maxEnergyHistory = ORGANISM.METABOLISM_MAX_ENERGY_HISTORY;
     this._lastEnergyState = 'full';
   }
 
@@ -453,7 +454,7 @@ class Metabolism {
     if (this._energy >= this._maxEnergy) return;
 
     const timeSinceCall = Date.now() - this._lastCallTime;
-    const idleBonus = timeSinceCall > 300000 ? this._regenIdleMultiplier : 1.0;
+    const idleBonus = timeSinceCall > ORGANISM.METABOLISM_IDLE_THRESHOLD_MS ? this._regenIdleMultiplier : 1.0;
     const traitBonus = 0.5 + genomeConsolidation; // 0.5–1.5x based on consolidation trait
 
     const regen = this._regenPerMinute * idleBonus * traitBonus;

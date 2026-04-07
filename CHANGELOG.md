@@ -1,3 +1,69 @@
+## [7.0.1] — Event Contract & Cleanup + V7-4A Control Channel
+
+**Event payload schema coverage from 33.9% to 100%. Dead Consciousness events removed from catalog. Empty catch eliminated. Dead compatibility barrel deprecated. V7-4A: Daemon externally controllable via Unix Socket / Named Pipe. All tests remain green.**
+
+### Bugfixes (post-release)
+
+- **`EventPayloadSchemas.js`** — 4 duplicate `mcp:*` keys removed (lines 266–269 duplicated lines 131–134). esbuild emitted `[WARNING] duplicate-object-key` on every build. `mcp:bridge-started` duplicate had wrong `resources: 'required'`; original correctly has `resources: 'optional'`.
+
+### Windows Test Fixes (post-release)
+
+- **`DaemonController.test.js`** — `tmpSocket()` returns Named Pipe path on Windows instead of `.sock` file in `%TEMP%`.
+- **`phase10-12.test.js`** — Removed stale `describe('AdaptiveMemory', ...)` block; module was deleted in v7.0.1.
+- **`boot-integration.test.js`** — Added `daemon: { controlEnabled: false }` to test settings.
+- **`headless-boot.test.js`** — Sets `GENESIS_SOCKET` env var to Named Pipe on Windows before `agent.boot()`.
+- **`dashboard.test.js`** — Injected scoped `require` via `Module.createRequire` into vm context. Fixed bare `document.getElementById` calls in `AgentRenderers.js` and `SystemRenderers.js`. 40 tests pass (was 0).
+- **`test/index.js`** — `boot-integration` and `headless-boot` now run with `--test-force-exit` (prevents hang on open handles). TAP output from `node:test` now parsed correctly. Test suite headers updated to v7.0.1.
+
+### V7-4A: External Daemon Control
+
+- **`DaemonController` added.** Unix Socket server (Linux/macOS: `/tmp/genesis-agent.sock`) or Named Pipe (Windows: `\\.\pipe\genesis-agent`) accepting JSON-Line RPC commands. 7 methods: `ping`, `status`, `goal`, `check`, `config`, `stop`, `clients`. Max 5 concurrent clients, 4KB message limit, `chmod 600` on socket.
+- **`DaemonControlPort` added** in `src/agent/ports/`. Abstract contract for external daemon control — follows the same Port/Adapter pattern as `AwarenessPort`, `LLMPort`, etc.
+- **CLI `ctl` subcommand.** `node cli.js ctl status|goal|check|config|stop|ping|clients` connects to a running Genesis instance without booting a new one. Zero-boot-overhead remote control.
+- **6 new events** registered: `daemon:control-listening`, `daemon:control-closed`, `daemon:control-connected`, `daemon:control-disconnected`, `daemon:control-command`, `daemon:control-error`. All schemas defined (100% coverage maintained).
+- **Registered in Phase 6** (autonomy) with optional late-binding on `agentLoop`. Enabled by default, disable via `settings.daemon.controlEnabled = false`. Custom socket path via `$GENESIS_SOCKET` or `settings.daemon.socketPath`.
+- **26 new tests** covering lifecycle, all 7 RPC methods, error handling (parse error, unknown method, max clients), event emission, and socket cleanup.
+
+### Event System
+
+- **Payload schema coverage: 33.9% → 100%.** 223 new schemas added to `EventPayloadSchemas.js`, covering all 339 catalogued events. Every `bus.fire()` and `bus.on()` path now has a machine-validated payload contract. Schemas were extracted from actual `fire()` call sites and cross-referenced with listener consumption patterns.
+- **14 dead `consciousness:*` events removed from `EventTypes.js`.** The Consciousness Layer was removed in v7.0.0 but its 14 event definitions and 2 payload schemas remained in the catalog. No source file emits or listens to these events. Removed: `consciousness:frame`, `consciousness:shift`, `consciousness:apprehension`, `consciousness:extension:state`, `consciousness:extension:frame`, `consciousness:introspection`, `consciousness:temporal-tick`, `consciousness:extension:alert`, `consciousness:insight`, `consciousness:extension:dream`, `consciousness:extension:daydream`, `consciousness:self-theory-updated`, `consciousness:chapter-change`, `consciousness:significant-moment`.
+- **Event catalog: 348 → 339 events, 118 → 341 schemas.**
+
+### Bugfixes
+
+- **Empty catch in NetworkSentinel.** `stop()` unsub loop used bare `catch (_) {}` — aligned to canonical pattern `catch (_e) { /* ok */ }` with `typeof` guard. Empty catches in codebase: 1 → 0.
+
+### Cleanup
+
+- **`src/agent/index.js` deleted.** v3.5.0 compatibility barrel (89 lazy re-exports) confirmed unused — zero imports from any source file, test, `main.js`, or `cli.js`. Removed (was deprecated earlier in this release).
+- **`catch(_)` audit completed.** 230 `catch(_)` blocks reviewed across all layers. 131 already have `_log.debug()` logging, remainder are intentional recovery fallbacks returning safe defaults (`null`, `_emptyData()`). No truly silent error swallowing found. No changes needed.
+
+### Deprecated Module Removal
+
+- **`MemoryFacade.js` removed.** Deprecated since v6.0.1, zero consumers (no `resolve('memoryFacade')` outside manifest). Manifest entry, test file, and ARCHITECTURE.md references removed.
+- **`AdaptiveMemory.js` removed.** Deprecated since v6.0.1, zero consumers. Manifest entry (phase12), test file, and 4 deprecated constants (`MEMORY_PRUNE_THRESHOLD`, `MEMORY_COMPRESS_THRESHOLD`, `MEMORY_MAX_RETENTION_ENTRIES`, `MEMORY_DECAY_RATE_PER_HOUR`) removed from `Constants.js`.
+- **`test:legacy` script removed** from `package.json`.
+- **`SECURITY.md` version table updated** to v7.0.x active.
+
+### Architecture Governance
+
+- **EventBus feature-freeze.** 84 methods — comment added, no new methods permitted. New functionality must go into companion modules (e.g. EventStats, EventReplay).
+- **ArchitectureReflection complexity watch.** 58 methods — comment added. Split into ArchGraph/ArchMetrics/ArchAdvisor at 70 methods.
+- **Fitness check: `EXEMPT_CAPS` added to God Object Detection.** 6 known large modules now have individual method-count caps. Adding methods beyond the cap fails the fitness check. Enforces EventBus freeze and ArchitectureReflection threshold automatically.
+- **ARCHITECTURE.md synchronized.** Phase table, event stats, module counts, file map updated to reflect cleanup.
+- **README.md stats updated.** Badges, DI count, source modules, test suites synchronized.
+
+### Stats
+
+- 231 modules, ~79k LOC (was 229, ~78.8k)
+- 345 catalogued events, 347 payload schemas (was 339/341)
+- Tests: 276 files, 4265 passing, 0 failing (was 275/4239 — +26 DaemonController tests)
+- Coverage ratchet: 81/76/80 (unchanged)
+- Fitness: 90/90 (unchanged)
+
+---
+
 ## [7.0.0] — Awareness Redesign
 
 **Major architectural refactoring. Consciousness Layer (14 modules, 6198 LOC) replaced by lightweight AwarenessPort (2 modules, 112 LOC). AgentLoop God-class split. Magic numbers centralized. Memory pressure bug fixed. Colony IPC implemented. V7-3 coverage target reached (81.77/76.93/80.02, ratchet 81/76/80). V7-5 God class evaluated (no split). 355 new tests, full suite green.**

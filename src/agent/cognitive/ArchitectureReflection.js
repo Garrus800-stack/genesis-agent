@@ -2,6 +2,9 @@
 // ============================================================
 // GENESIS — ArchitectureReflection.js (v5.7.0 — SA-P3)
 //
+// ⚠️  COMPLEXITY WATCH (v7.0.1): 58 methods. Split into ArchGraph,
+//     ArchMetrics, ArchAdvisor when this exceeds 70 methods.
+//
 // Genesis's self-model as a live KnowledgeGraph. Instead of a
 // flat file scan (SelfModel) this builds a queryable graph of
 // services, events, dependencies, layers, and their connections.

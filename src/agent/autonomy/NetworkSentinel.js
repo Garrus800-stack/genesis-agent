@@ -133,7 +133,7 @@ class NetworkSentinel {
       this._probeTimer = null;
     }
     for (const unsub of this._unsubs) {
-      try { unsub(); } catch (_) {}
+      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
     }
     this._unsubs = [];
     _log.info('[NET] Sentinel stopped');

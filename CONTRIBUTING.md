@@ -29,7 +29,7 @@ git clone https://github.com/Garrus800-stack/genesis-agent.git
 cd genesis-agent
 npm install
 npm start          # Launch the Electron app
-npm test           # Run all tests (270 suites)
+npm test           # Run all tests (276 suites)
 ```
 
 ### Useful Commands
@@ -37,11 +37,11 @@ npm test           # Run all tests (270 suites)
 | Command | Description |
 |---------|-------------|
 | `npm start` | Launch Electron app |
-| `npm test` | Run full test suite (legacy + per-module, 270 suites) |
+| `npm test` | Run full test suite (legacy + per-module, 276 suites) |
 | `npm run test:new` | Run only per-module tests |
 | `npm run test:legacy` | Run only legacy suite |
 | `npm run test:coverage` | Run tests with c8 coverage report |
-| `npm run test:ci` | Run tests with coverage enforcement (77/72/72) |
+| `npm run test:ci` | Run tests with coverage enforcement (81/76/80) |
 | `npm run ci` | Full CI: tests + event audit + channel audit + fitness gate |
 | `node scripts/audit-events.js` | Audit EventBus event flow |
 | `node scripts/audit-events.js --strict` | Audit with exit code on warnings |
@@ -57,7 +57,7 @@ npm test           # Run all tests (270 suites)
 
 ## Architecture Overview
 
-Genesis is a **13-phase boot system** with a DI container. Understanding the phases is critical:
+Genesis is a **12-phase boot system** with a DI container. Understanding the phases is critical:
 
 | Phase | Layer | Services | Purpose |
 |-------|-------|----------|---------|
@@ -120,7 +120,7 @@ genesis-agent/
 ├── test/
 │   ├── harness.js             # Shared async-safe test framework
 │   ├── index.js               # Test runner v2 (parallel, async)
-│   └── modules/               # Per-module test files (270 suites)
+│   └── modules/               # Per-module test files (276 suites)
 ├── schemas/                   # JSON Schemas (skill-manifest)
 ├── types/                     # TypeScript type definitions (.d.ts)
 ├── scripts/                   # Tooling (audit-events, benchmark, build-bundle)
@@ -351,8 +351,6 @@ Open an issue on [GitHub](https://github.com/Garrus800-stack/genesis-agent/issue
 - `docs/ARCHITECTURE-DEEP-DIVE.md` — Comprehensive technical analysis (all layers, metrics, data flows)
 - `docs/EVENT-FLOW.md` — Full event architecture
 - `docs/TROUBLESHOOTING.md` — Common problems and solutions
-- `docs/consciousness-extension-architecture.md` — Phase 12-13 consciousness design
 - `docs/phase9-cognitive-architecture.md` — Phase 9 design document
-- `docs/ROADMAP-v6.md` — Development roadmap and open items
 - `SECURITY.md` — Security policy and threat model
 - `schemas/skill-manifest.schema.json` — Plugin manifest JSON Schema
