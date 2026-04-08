@@ -89,7 +89,7 @@ class GoalStack {
     this._prioritize();
     this._save();
 
-    this.bus.emit('goal:created', { id: goal.id, description, steps: steps.length, parentId: goal.parentId }, { source: 'GoalStack' });
+    this.bus.emit('goal:created', { goalId: goal.id, id: goal.id, description, steps: steps.length, parentId: goal.parentId }, { source: 'GoalStack' });
     return goal;
   }
 
@@ -125,7 +125,7 @@ class GoalStack {
     goal.updated = new Date().toISOString();
 
     this.bus.emit('goal:step-start', {
-      goalId: goal.id, step: goal.currentStep + 1,
+      goalId: goal.id, stepIndex: goal.currentStep, step: goal.currentStep + 1,
       total: goal.steps.length, action: step.action,
     }, { source: 'GoalStack' });
 

@@ -751,6 +751,10 @@ const EVENTS = Object.freeze({
     COMPLETE:     'dream:complete',
   }),
 
+  INSIGHT: Object.freeze({
+    ACTIONABLE:   'insight:actionable',
+  }),
+
   NARRATIVE: Object.freeze({
     UPDATED: 'narrative:updated',
   }),
@@ -824,17 +828,7 @@ const EVENTS = Object.freeze({
 
   // v7.0.1: Phase 13 (Consciousness) removed — 14 dead events cleaned up.
   // Consciousness Layer replaced by AwarenessPort (Phase 1) in v7.0.0.
-
-  ATTENTION: Object.freeze({
-    /** @payload {{ channel, strength, mode }} */
-    DIRECTED:  'attention:directed',
-    /** @payload {{ by: string, activation: number, interrupted: string[] }} */
-    CAPTURED:  'attention:captured',
-    /** @payload {{ from: string }} */
-    RELEASED:  'attention:released',
-    /** @payload {{ from: string[], to: string[], mode: string }} */
-    SHIFT:     'attention:shift',
-  }),
+  // ATTENTION events removed in v7.0.3 — orphaned (0 emitters, 0 listeners).
 
   // ── v5.0.0: Organism Evolution ───────────────────────────
   GENOME: Object.freeze({

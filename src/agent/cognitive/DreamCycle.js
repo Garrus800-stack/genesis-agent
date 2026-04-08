@@ -195,6 +195,23 @@ class DreamCycle {
       }
       report.phases.push({ name: 'insight', insightCount: report.insights.length });
 
+      // ── Phase 5b: ACTIVE PUSH (v7.0.3 — C4) ──────────
+      // Emit actionable insights so IdleMind/AgentLoop can act on them
+      // immediately instead of waiting for passive SchemaStore retrieval.
+      for (const insight of report.insights) {
+        if (insight.confidence > 0.8 || insight.type === 'cross-schema') {
+          this.bus.emit('insight:actionable', {
+            source: 'DreamCycle',
+            type: insight.type,
+            description: insight.description,
+            confidence: insight.confidence || 0.85,
+            schemas: (insight.schemas || []).map(s => s.name || s.id || 'unknown'),
+            dreamNumber: this._dreamCount,
+          }, { source: 'DreamCycle' });
+          _log.info(`[DREAM] Actionable insight emitted: ${(insight.description || '').slice(0, 60)}`);
+        }
+      }
+
       // Mark episodes as processed
       for (const ep of episodes) {
         this._processedEpisodeIds.add(ep.id);

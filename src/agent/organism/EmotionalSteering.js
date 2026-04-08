@@ -59,6 +59,7 @@ class EmotionalSteering {
     lateBindings: [
       { prop: 'modelRouter', service: 'modelRouter', optional: true },
       { prop: 'needsSystem', service: 'needsSystem', optional: true },
+      { prop: 'bodySchema', service: 'bodySchema', optional: true },
     ],
   };
 
@@ -68,6 +69,7 @@ class EmotionalSteering {
     this.storage = storage || null;
     this.modelRouter = null;  // lateBinding
     this.needsSystem = null;  // lateBinding
+    this.bodySchema = null;   // lateBinding (v7.0.3 — C3: embodiment→steering)
 
     const cfg = config || {};
     this._thresholds = { ...THRESHOLDS, ...cfg.thresholds };
@@ -185,6 +187,11 @@ class EmotionalSteering {
         energy: Math.round(d.energy.value * 100),
         loneliness: Math.round(d.loneliness.value * 100),
       },
+
+      // ── Embodiment Signals (v7.0.3 — C3) ───────────
+      // BodySchema tracks UI state: user idle, window focus, session duration.
+      // These modulate autonomy and energy recovery.
+      ...this._computeEmbodimentSignals(),
     };
 
     this._currentSignals = signals;
@@ -273,7 +280,51 @@ class EmotionalSteering {
       captureInsight: false,
       promptModifiers: null,
       emotionalSnapshot: null,
+      // v7.0.3 — C3: Embodiment signals
+      energyRegenBoost: 0,
+      autonomyDamper: 1.0,
+      suggestRest: false,
     };
+  }
+
+  // ════════════════════════════════════════════════════════
+  // EMBODIMENT (v7.0.3 — C3)
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Compute steering signals from BodySchema (UI embodiment).
+   * Returns partial signal object to spread into main signals.
+   *
+   * - User idle >5min → energy regen boost (EmotionalState can recover faster)
+   * - Window unfocused → dampen proactive autonomy (don't act while user is away)
+   * - Session >2h → suggest rest (avoid cognitive degradation from long sessions)
+   */
+  _computeEmbodimentSignals() {
+    if (!this.bodySchema) return {};
+
+    const result = {};
+    const state = this.bodySchema.getState?.() || this.bodySchema;
+
+    // User idle for >5 minutes → boost energy recovery
+    const idleMs = state.idleDurationMs ?? state.userIdleMs ?? 0;
+    const isIdle = state.isUserIdle ?? (idleMs > 300_000);
+    if (isIdle && idleMs > 300_000) {
+      result.energyRegenBoost = 0.05;
+    }
+
+    // Window unfocused → reduce proactive actions
+    const focused = state.isWindowFocused ?? state.windowFocused ?? true;
+    if (!focused) {
+      result.autonomyDamper = 0.5;
+    }
+
+    // Long session (>2h) → suggest rest
+    const sessionMs = state.sessionDurationMs ?? state.sessionMs ?? 0;
+    if (sessionMs > 7_200_000) {
+      result.suggestRest = true;
+    }
+
+    return result;
   }
 }
 

@@ -30,6 +30,8 @@ const SCHEMAS = {
   // v4.12.5-fix: Schema now matches AgentLoop.js emission (stepIndex, result, type)
   'agent-loop:step-complete':   { goalId: 'required', stepIndex: 'required', type: 'required' },
   'agent-loop:step-failed':     { goalId: 'required', stepIndex: 'required', type: 'required', error: 'required' },
+  // v7.0.3 — C1: Colony auto-escalation
+  'agentloop:colony-escalated': { runId: 'required', reason: 'required', subtasks: 'required' },
   'agent-loop:approval-needed': { action: 'required', description: 'required' },
   'agent-loop:auto-approved':   { action: 'required', description: 'required', reason: 'required' },
   'agent-loop:needs-input':     { goalId: 'required', question: 'required' },
@@ -371,6 +373,9 @@ const SCHEMAS = {
   'dream:schema-found':     { schema: 'required' },
   'dream:complete':         { dreamNumber: 'required', duration: 'required', newSchemas: 'required', insights: 'required' },
 
+  // Insight (v7.0.3 — C4)
+  'insight:actionable':     { source: 'required', type: 'required', description: 'required' },
+
   // Delegation
   'delegation:submitted':   { taskId: 'required', peerId: 'required', description: 'required', estimatedMs: 'required' },
   'delegation:completed':   { taskId: 'required', peerId: 'required', success: 'required' },
@@ -448,11 +453,7 @@ const SCHEMAS = {
   'spawner:progress':       { task: 'required' },
   'spawner:error':          { task: 'required', error: 'required' },
 
-  // Attention
-  'attention:directed':     { channel: 'required', strength: 'required' },
-  'attention:captured':     { by: 'required' },
-  'attention:released':     {},
-  'attention:shift':        { from: 'optional', to: 'required' },
+  // Attention — removed in v7.0.3 (orphaned from old Consciousness layer, 0 emitters, 0 listeners)
 
   // File
   'file:import-blocked':    { path: 'required', resolved: 'required' },
@@ -522,7 +523,7 @@ const SCHEMAS = {
   'goals:loaded':           { total: 'required', unfinished: 'optional', archived: 'optional' },
   'failure:classified':     { category: 'required', error: 'required' },
   'classifier:trained':     { samples: 'required' },
-  'autonomy:status':        { level: 'required' },
+  // autonomy:status — removed in v7.0.3 (orphaned, 0 emitters, 0 listeners)
   'notification:show':      { message: 'required' },
   'fitness:evaluated':      { score: 'required' },
   'safety:degraded':        { reason: 'required' },

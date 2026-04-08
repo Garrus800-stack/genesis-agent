@@ -110,6 +110,7 @@ class Metabolism {
     // ── State ────────────────────────────────────────────
     this._heapBefore = 0;
     this._lastCallTime = 0;
+    this._lastTokenCount = 0;
     this._totalEnergySpent = 0;
     this._totalEnergyRecovered = 0;
     this._callCount = 0;
@@ -200,6 +201,7 @@ class Metabolism {
   _onChatCompleted(data) {
     this._callCount++;
     this._lastCallTime = Date.now();
+    this._lastTokenCount = (data?.tokens || data?.totalTokens || 0);
 
     // Compute heap delta
     let heapDeltaMB = 0;
@@ -409,6 +411,7 @@ class Metabolism {
 
     this.bus.emit('metabolism:consumed', {
       activity, cost,
+      tokens: this._lastTokenCount || 0,
       remaining: Math.round(this._energy),
       state,
     }, { source: 'Metabolism' });

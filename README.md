@@ -8,9 +8,9 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.0.2-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.0.3-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <img src="https://img.shields.io/badge/tests-~4232%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-~4270%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/modules-231-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-140-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
@@ -469,7 +469,7 @@ The Dashboard visualizes Genesis's internal state in real-time (2s polling):
 ## Testing
 
 ```bash
-npm test              # All tests (277 suites)
+npm test              # All tests (~255 suites)
 npm run test:coverage # With coverage report (c8)
 npm run ci            # Full CI: tests + event audit + channel audit + fitness gate
 ```

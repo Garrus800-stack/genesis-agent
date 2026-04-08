@@ -201,12 +201,15 @@ class PromptBuilder {
     const modelName = this.model?.activeModel || '';
     if (!modelName) return; // No model configured (test mode) — don't gate
 
-    const isCloud = modelName.includes('claude') || modelName.includes('gpt')
+    // v7.0.3: Recognize :cloud suffix as cloud model (e.g. kimi-k2.5:cloud)
+    const hasCloudSuffix = /:cloud\b/i.test(modelName);
+    const isCloud = hasCloudSuffix || modelName.includes('claude') || modelName.includes('gpt')
       || modelName.includes('anthropic') || modelName.includes('openai');
     // v6.0.7: Only gate known local model patterns. Unknown models are NOT gated.
-    // FIX v6.1.1: Also gate Ollama-served cloud models (kimi, mannix) — consciousness
-    // sections add noise without improving response quality for any model.
-    const isLocal = /\b(llama|qwen|gemma|mistral|phi|deepseek|codellama|yi-|solar|vicuna|orca|wizardcoder|starcoder|ollama|kimi|mannix)/i.test(modelName);
+    // FIX v6.1.1: Also gate Ollama-served local models — consciousness
+    // sections add noise without improving response quality for small models.
+    // FIX v7.0.3: Models with :cloud suffix are NOT local, even if name matches local patterns.
+    const isLocal = !hasCloudSuffix && /\b(llama|qwen|gemma|mistral|phi|deepseek|codellama|yi-|solar|vicuna|orca|wizardcoder|starcoder|ollama|mannix)\b/i.test(modelName);
 
     if (isLocal && !this._modelGatingApplied) {
       const gated = ['organism', 'consciousness', 'selfAwareness', 'bodySchema', 'metacognition', 'values', 'anticipator', 'optimizer'];

@@ -135,7 +135,9 @@ const INTENT_DEFINITIONS = [
 
   ['goals', [
     /ziel/i, /goal/i, /setze.*ziel/i, /was arbeitest du/i, /woran arbeitest/i, /fortschritt/i,
-  ], 12, ['ziel', 'goal', 'fortschritt', 'aufgabe']],
+    /cancel.*(?:goal|ziel|all)/i, /(?:lösch|entfern|abandon|clear).*(?:goal|ziel)/i,
+    /(?:goal|ziel).*(?:lösch|entfern|cancel|abandon|clear)/i,
+  ], 12, ['ziel', 'goal', 'fortschritt', 'aufgabe', 'cancel', 'abandon', 'lösche']],
 
   ['settings', [
     /einstellung/i, /settings/i, /api.?key/i, /konfigur/i, /config/i,
@@ -149,7 +151,7 @@ const INTENT_DEFINITIONS = [
   ], 12, ['web', 'online', 'suchen', 'npm', 'dokumentation']],
 
   ['undo', [
-    /rueckg/i, /undo/i, /rollback/i, /revert/i, /letzte.*aenderung.*rueck/i,
+    /rueckg/i, /(?<!cancel.{0,20})undo/i, /rollback/i, /revert/i, /letzte.*aenderung.*rueck/i,
   ], 15, ['rueckgaengig', 'undo', 'rollback', 'zurueck', 'revert', 'wiederherstellen']],
 
   // Shell task (multi-step planned execution)
@@ -307,10 +309,28 @@ class IntentRouter {
       return { type: 'general', confidence: 0.90, match: 'visual-request' };
     }
 
+    // v7.0.3: Conversation guard — long messages (>200 chars) with incidental keyword
+    // matches should NOT be routed to action intents with full confidence.
+    // This prevents chat messages about goals from being parsed as goal commands,
+    // and technical discussions from triggering shell/colony/undo operations.
+    const isLongMessage = message.length > 200;
+
     for (const route of this.routes) {
       for (const pattern of route.patterns) {
         const match = message.match(pattern);
-        if (match) return { type: route.name, confidence: 1.0, match: match[0] };
+        if (match) {
+          // v7.0.3: Long conversational messages get reduced confidence for action intents.
+          // Short direct commands keep confidence 1.0.
+          // "goals" and "agent-goal" are most affected since their keywords appear in discussions.
+          let confidence = 1.0;
+          if (isLongMessage) {
+            const matchRatio = match[0].length / message.length;
+            // If the match is a small fraction of a long message, it's likely incidental
+            if (matchRatio < 0.15) confidence = 0.45; // Below 0.6 threshold → won't auto-route
+            else if (matchRatio < 0.3) confidence = 0.7;
+          }
+          return { type: route.name, confidence, match: match[0] };
+        }
       }
     }
     return { type: 'general', confidence: 0.3, match: null };

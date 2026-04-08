@@ -1,3 +1,49 @@
+## [7.0.3] — Consolidation: Colony, Goal-Hygiene, Organism, DreamCycle
+
+**Structural consolidation release. Five targeted fixes that wire existing infrastructure into the hot path instead of adding new modules. Colony auto-escalation in AgentLoop, goal cancel commands, BodySchema→EmotionalSteering, DreamCycle active push, and three event schema bug fixes.**
+
+### Features
+- **C1: Colony Auto-Escalation** — AgentLoop now calls ColonyOrchestrator.execute() when plan exceeds 3 steps. Passthrough detection prevents trusting empty results when no workers available. Event `agentloop:colony-escalated` emitted on successful escalation.
+- **C3: Embodiment→Steering** — EmotionalSteering now consumes BodySchema state. User idle >5min boosts energy recovery, window unfocused dampens autonomy, session >2h suggests rest. EmbodiedPerception/BodySchema are no longer dead code.
+- **C4: DreamCycle Active Push** — DreamCycle emits `insight:actionable` for high-confidence insights (>0.8 or cross-schema type). IdleMind subscribes and queues insights for next idle tick. Event registered in EventTypes and EventPayloadSchemas.
+
+### Test Hygiene (C2)
+- **Deleted 19 empty test files** (0 real assertions) that inflated suite count without providing coverage.
+- **Filled 4 AgentLoop delegate tests** with real assertions: agentloop-steps (11 tests), agentloop-planner (8 tests), agentloop-cognition (8 tests), agentloop-delegate (6 tests).
+- Removed: cancellation-token, logger, writelock, agent-core-boot/health/wire, ast-diff, cognitive-workspace, generic-worker, architecture-reflection, boot-integration, cognitive-health-tracker, dynamic-tool-synthesis, headless-boot, mcpserver, mcpservertoolbridge, project-intelligence, storage-write-queue, v520-upgrade.
+
+### Bugfixes
+- **C0-1: Goal Cancel Command** — CommandHandlers.goals() now supports cancel/abandon patterns: "cancel all goals", "lösche alle ziele", "lösche ziel 1", etc. Calls GoalStack.abandonGoal() and emits goal:abandoned.
+- **C0-2: IntentRouter cancel→goals** — "cancel" with goal/ziel context now routes to goals handler instead of undo (which triggered git revert).
+- **C5-1: metabolism:consumed missing `tokens`** — Added `tokens` field (tracked from chat:completed data) to metabolism:consumed event payload.
+- **C5-2: goal:created missing `goalId`** — Added `goalId` field to goal:created event (schema required it, emitter sent `id`).
+- **C5-3: goal:step-start missing `stepIndex`** — Added `stepIndex` field to goal:step-start event (schema required it, emitter sent `step`).
+- **IntentRouter conversation guard** — Long messages (>200 chars) with incidental keyword matches no longer get routed to action intents with full confidence. Match ratio determines confidence: small keyword hit in long text → reduced confidence → falls through to general chat. Prevents technical discussions from creating false goals.
+- **agent-goal pattern tightening** — Removed ambiguous "ziel/goal/mission" keywords from agent-goal fuzzy matching that collided with goals intent. Removed overly broad pattern `(?:dein|your).*(?:ziel|goal).*(?:ist|is|:)`. agent-goal now only triggers on explicit autonomous execution requests.
+- **PromptBuilder cloud model detection** — Models with `:cloud` suffix (e.g. `kimi-k2.5:cloud`) are now correctly detected as cloud models instead of being gated as local. Removed `kimi` from the isLocal regex. Cloud models get full prompt sections (organism, consciousness, bodySchema, etc.).
+- **cognitive:overload event fix** — CognitiveMonitorAnalysis emitted raw cognitiveLoad object instead of schema-required `metric` + `value` fields. Fixed to emit correct payload.
+- **Orphaned event cleanup** — Removed 5 dead event schemas (4x `attention:*` from old Consciousness layer, `autonomy:status`) and their EventTypes definitions. Zero emitters, zero listeners.
+
+### Files Changed
+- `src/agent/hexagonal/CommandHandlers.js` — goal cancel/abandon commands
+- `src/agent/intelligence/IntentRouter.js` — cancel routing fix + conversation guard
+- `src/agent/intelligence/PromptBuilder.js` — cloud model detection (:cloud suffix)
+- `src/agent/AgentCoreBoot.js` — tightened agent-goal patterns
+- `src/agent/revolution/AgentLoop.js` — colony escalation gate + lateBinding
+- `src/agent/organism/EmotionalSteering.js` — bodySchema integration + embodiment signals
+- `src/agent/organism/Metabolism.js` — tokens tracking + event fix
+- `src/agent/planning/GoalStack.js` — goalId + stepIndex event fixes
+- `src/agent/cognitive/DreamCycle.js` — insight:actionable emission
+- `src/agent/autonomy/IdleMind.js` — insight queue subscriber
+- `src/agent/autonomy/CognitiveMonitorAnalysis.js` — cognitive:overload event fix
+- `src/agent/core/EventPayloadSchemas.js` — 3 new schemas, 5 orphaned removed
+- `src/agent/core/EventTypes.js` — INSIGHT.ACTIONABLE added, ATTENTION block removed
+- `src/agent/core/EventTypes.js` — INSIGHT.ACTIONABLE
+- `src/agent/core/EventPayloadSchemas.js` — 3 new schemas, 0 removed
+- `test/modules/` — 19 empty files deleted, 4 delegate tests filled (33 tests)
+
+---
+
 ## [7.0.2] — Fail-Honest Rollback + Event Schema Accuracy
 
 **DeploymentManager rollback no longer silently fakes success. 6 event payload schemas corrected to match actual emitters. DaemonController minor cleanup. All tests green.**

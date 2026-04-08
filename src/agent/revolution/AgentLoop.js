@@ -55,7 +55,9 @@ class AgentLoop {
     phase: 8,
     deps: ['model', 'goalStack', 'sandbox', 'selfModel', 'memory', 'knowledgeGraph', 'tools', 'eventStore', 'shellAgent', 'selfModPipeline', 'storage'],
     tags: ['revolution', 'autonomy'],
-    lateBindings: [],
+    lateBindings: [
+      { prop: '_colonyOrchestrator', service: 'colonyOrchestrator', optional: true },
+    ],
   };
 
   constructor({
@@ -311,6 +313,42 @@ class AgentLoop {
 
       // Register goal in GoalStack
       // FIX v6.1.1: addGoal expects (description:string, source, priority, options) — not an object
+
+      // ── Colony Escalation Gate (v7.0.3 — C1) ─────────────
+      // If the plan is complex or HTN validation had issues,
+      // delegate to ColonyOrchestrator for parallel analysis.
+      const _COLONY_STEP_THRESHOLD = 3;
+      if (this._colonyOrchestrator && plan.steps.length > _COLONY_STEP_THRESHOLD) {
+        try {
+          _log.info(`[AGENT-LOOP] Colony escalation: ${plan.steps.length} steps > threshold ${_COLONY_STEP_THRESHOLD}`);
+          const colonyRun = await this._colonyOrchestrator.execute(goalDescription, {
+            context: JSON.stringify({ localPlanSteps: plan.steps.length, title: plan.title }),
+          });
+
+          // Only use colony result if it actually executed (not passthrough)
+          const hasRealResults = colonyRun.subtasks && colonyRun.subtasks.some(
+            s => s.result && !s.result.passthrough
+          );
+
+          if (hasRealResults && colonyRun.status === 'done') {
+            plan.colonyInsights = colonyRun.subtasks
+              .filter(s => s.status === 'done' && s.result)
+              .map(s => s.result);
+            _log.info(`[AGENT-LOOP] Colony escalation succeeded — ${plan.colonyInsights.length} insights merged`);
+            this.bus.fire('agentloop:colony-escalated', {
+              runId: colonyRun.id,
+              reason: 'complexity',
+              subtasks: colonyRun.subtasks.length,
+              insights: plan.colonyInsights.length,
+            }, { source: 'AgentLoop' });
+          } else {
+            _log.debug('[AGENT-LOOP] Colony returned passthrough — using local plan');
+          }
+        } catch (colonyErr) {
+          _log.debug(`[AGENT-LOOP] Colony escalation skipped: ${colonyErr.message}`);
+        }
+      }
+
       const _registeredGoal = await this.goalStack.addGoal(
         goalDescription.slice(0, 200),
         'agent-loop',

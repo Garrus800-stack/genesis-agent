@@ -287,6 +287,9 @@ class AgentCoreBoot {
     catch (_e) { _log.debug('[catch] architectureReflection.setContainer:', _e.message); }
 
     // IntentRouter: agent-goal pattern
+    // v7.0.3: Tightened patterns — removed ambiguous "ziel/goal" keywords that
+    // caused fuzzy-match collisions with the "goals" intent (goal management).
+    // agent-goal should only match explicit autonomous execution requests.
     c.resolve('intentRouter').register('agent-goal', [
       /(?:mach|bau|erstell|implementier|refaktor|schreib).*(?:fuer mich|komplett|fertig|ganz|vollstaendig)/i,
       /(?:kuemmer|sorg).*(?:dich|du).*(?:um|darum)/i,
@@ -295,12 +298,11 @@ class AgentCoreBoot {
       /(?:build|create|implement|refactor|write).*(?:for me|complete|entire|whole)/i,
       /(?:take care|handle|manage|do).*(?:for me|it all|everything|autonomously)/i,
       /(?:work|operate|execute).*(?:autonom|independent|on your own)/i,
-      /(?:dein|your).*(?:ziel|goal|aufgabe|task|mission).*(?:ist|is|:)/i,
       /(?:ich will|i want|i need).*(?:dass du|you to).*(?:komplett|complete|entire|fully)/i,
     ], 18, [
       'autonom', 'autonomous', 'eigenstaendig', 'independent',
       'erledigen', 'handle', 'komplett', 'complete', 'aufgabe',
-      'task', 'mission', 'ziel', 'goal', 'implementieren', 'implement',
+      'task', 'implementieren', 'implement',
       'bauen', 'build', 'erstellen', 'create', 'alleine', 'alone',
     ]);
 

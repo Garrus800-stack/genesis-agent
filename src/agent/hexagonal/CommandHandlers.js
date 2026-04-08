@@ -213,7 +213,36 @@ class CommandHandlers {
   async goals(message) {
     if (!this.goalStack) return this.lang.t('goals.unavailable');
 
-    // User wants to add a goal
+    // ── Cancel / Abandon goals ────────────────────────────
+    // "cancel all goals" / "lösche alle ziele" / "abandon all" / "clear goals"
+    const cancelAllMatch = message.match(/(?:cancel|abandon|clear|lösch|entfern|reset).*(?:all|alle).*(?:goal|ziel)/i) ||
+                           message.match(/(?:lösch|entfern|clear|reset).*(?:goal|ziel)/i) ||
+                           message.match(/(?:goal|ziel).*(?:lösch|entfern|clear|cancel|reset|abandon)/i);
+    if (cancelAllMatch) {
+      const active = this.goalStack.getActiveGoals();
+      if (active.length === 0) return '**Keine aktiven Ziele vorhanden.**';
+      let count = 0;
+      for (const g of active) {
+        this.goalStack.abandonGoal(g.id);
+        this.bus.emit('goal:abandoned', { id: g.id, description: g.description }, { source: 'CommandHandlers' });
+        count++;
+      }
+      return `**${count} Ziel(e) abgebrochen.**`;
+    }
+
+    // "cancel goal 1" / "lösche ziel 2" / "stopp ziel 3"
+    const cancelOneMatch = message.match(/(?:cancel|abandon|lösch|entfern|stopp).*(?:goal|ziel)\s*#?(\d+)/i);
+    if (cancelOneMatch) {
+      const idx = parseInt(cancelOneMatch[1], 10) - 1;
+      const active = this.goalStack.getActiveGoals();
+      if (idx < 0 || idx >= active.length) return `**Ziel #${idx + 1} nicht gefunden.** Aktive Ziele: ${active.length}`;
+      const target = active[idx];
+      this.goalStack.abandonGoal(target.id);
+      this.bus.emit('goal:abandoned', { id: target.id, description: target.description }, { source: 'CommandHandlers' });
+      return `**Ziel abgebrochen:** ${target.description}`;
+    }
+
+    // ── Add a goal ────────────────────────────────────────
     const addMatch = message.match(/ziel.*(?:setze|erstelle|hinzufuegen|add).*?:\s*(.+)/i) ||
                      message.match(/(?:setze|erstelle|add).*ziel.*?:\s*(.+)/i) ||
                      message.match(/(?:set|create|add).*goal.*?:\s*(.+)/i);

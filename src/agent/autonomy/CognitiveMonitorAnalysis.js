@@ -187,7 +187,11 @@ const analysis = {
 
     // Emit if load is critical
     if (report.cognitiveLoad.overall > 85) {
-      this.bus.fire('cognitive:overload', report.cognitiveLoad, { source: 'CognitiveMonitor' });
+      this.bus.fire('cognitive:overload', {
+        metric: 'overall',
+        value: report.cognitiveLoad.overall,
+        components: report.cognitiveLoad.components || {},
+      }, { source: 'CognitiveMonitor' });
     }
   },
 

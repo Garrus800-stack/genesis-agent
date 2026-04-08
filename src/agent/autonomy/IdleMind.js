@@ -50,6 +50,9 @@ class IdleMind {
     this._cognitiveSelfModel = null;
     this._currentWeakness = null; // { taskType, successRate, sampleSize }
 
+    // v7.0.3 — C4: DreamCycle active push — queue actionable insights
+    this._pendingInsights = [];
+
     this.running = false;
     this.intervalHandle = null;
     this.lastUserActivity = Date.now();
@@ -70,6 +73,13 @@ class IdleMind {
     this._sub('agent:status', () => { this.lastUserActivity = Date.now(); }, { source: 'IdleMind' });
     this._sub('user:message', () => { this.lastUserActivity = Date.now(); }, { source: 'IdleMind' });
     this._sub('store:CHAT_MESSAGE', () => { this.lastUserActivity = Date.now(); }, { source: 'IdleMind' });
+
+    // v7.0.3 — C4: Queue actionable insights from DreamCycle for next idle tick
+    this._sub('insight:actionable', (data) => {
+      this._pendingInsights.push({ ...data, receivedAt: Date.now() });
+      // Cap queue at 10 to prevent unbounded growth
+      if (this._pendingInsights.length > 10) this._pendingInsights.shift();
+    }, { source: 'IdleMind' });
   }
 
   start() {
