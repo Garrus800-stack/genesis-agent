@@ -155,6 +155,7 @@ const SCHEMAS = {
   'deploy:failed':           { id: 'required', target: 'required', error: 'required' },
   'deploy:request':          { target: 'required' },
   'deploy:rollback':         { id: 'required', target: 'required', snapshot: 'required' },
+  'deploy:rollback-unavailable': { id: 'required', target: 'required', reason: 'required' },
   'deploy:swap':             { target: 'required', from: 'required', to: 'required' },
 
   // Task Outcomes (v5.9.7)

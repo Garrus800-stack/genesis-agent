@@ -84,7 +84,7 @@ describe('V6-3 Deploy — Direct Strategy', () => {
 
     const result = await dm.deploy('app', { strategy: 'direct', commands: ['bad-cmd'] });
 
-    assert(result.status === 'failed' || result.status === 'rolled-back', 'deploy failed or rolled back');
+    assert(result.status === 'failed' || result.status === 'rolled-back' || result.status === 'rollback-unavailable', 'deploy failed, rolled back, or rollback unavailable');
     assert(bus._find('deploy:failed').length >= 1, 'failed event emitted');
   });
 });
@@ -150,16 +150,19 @@ describe('V6-3 Deploy — Blue-Green Strategy', () => {
 describe('V6-3 Deploy — Rollback', () => {
   const { DeploymentManager } = require('../../src/agent/autonomy/DeploymentManager');
 
-  test('rollback emits deploy:rollback', async () => {
+  test('rollback on placeholder emits deploy:rollback-unavailable', async () => {
     const bus = mockBus();
     const dm = new DeploymentManager({ bus });
     dm.shell = { run: async () => ({}) };
 
     const result = await dm.deploy('app', { strategy: 'direct', commands: ['echo ok'] });
-    await dm.rollback(result.id);
+    try {
+      await dm.rollback(result.id);
+    } catch (_e) { /* expected — placeholder snapshot */ }
 
-    const rbEvents = bus._find('deploy:rollback');
-    assert(rbEvents.length >= 1, 'rollback event emitted');
+    // v7.0.2: placeholder snapshot → rollback-unavailable event instead of deploy:rollback
+    const rbUnavail = bus._find('deploy:rollback-unavailable');
+    assert(rbUnavail.length >= 1, 'rollback-unavailable event emitted');
   });
 
   test('rollback unknown deployment throws', async () => {

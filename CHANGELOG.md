@@ -1,3 +1,27 @@
+## [7.0.2] — Fail-Honest Rollback + Event Schema Accuracy
+
+**DeploymentManager rollback no longer silently fakes success. 6 event payload schemas corrected to match actual emitters. DaemonController minor cleanup. All tests green.**
+
+### Bugfixes
+
+- **DeploymentManager fail-honest rollback.** `rollback()` previously set `status='rolled-back'` and fired `deploy:rollback` without restoring anything — the snapshot was a metadata-only placeholder. A failed deploy would report "successfully rolled back" while nothing was actually restored. Now: `_createSnapshot()` marks snapshots as `placeholder: true`. `rollback()` detects placeholders, sets `status='rollback-unavailable'`, fires `deploy:rollback-unavailable` event with reason, and throws. The deploy catch-block preserves this status instead of overwriting with `'failed'`. `getHealth()` reports `rollbackUnavailable` count. Real snapshot-based rollback (via SnapshotManager integration) is deferred to V7-4B.
+- **6 event payload schemas corrected.** All 6 were schema-vs-emitter mismatches introduced in v7.0.1 when schemas were written from documentation rather than from actual `fire()` call sites. Fixed: `goals:loaded` (`count`→`total`), `meta:outcome-recorded` (`taskType`→`category`), `intent:llm-classified` (`type,confidence`→`intent,message`), `knowledge:node-added` (`node`→`id`), `perception:memory-pressure` (`level`→`heapUsedPct`), `editor:open` (`path`→`content`).
+- **DaemonController `_methods` getter → constructor.** Method table was recreated as a new object literal on every RPC call via a getter. Now built once in the constructor. Functionally identical, avoids unnecessary allocation.
+- **StorageService `appendText`/`appendTextAsync` fsync.** Both append methods wrote directly via `appendFileSync`/`appendFile` without flushing to disk. A crash during OS buffer flush could leave half-written JSONL lines in `events.jsonl` or `journal.jsonl`. Now both paths fsync after append, matching the atomic write pattern used by `writeJSON`/`writeText`. Best-effort — silent fallback if file is read-only or locked.
+
+### Event System
+
+- **1 new event registered:** `deploy:rollback-unavailable` (EventTypes + EventPayloadSchemas).
+- **Event catalog: 346 events, 348 schemas.**
+
+### Tests
+
+- `deployment-manager.test.js` — 3 tests updated for `rollback-unavailable` semantics, 4 new fail-honest tests (snapshot placeholder detection, event emission, getHealth counting, real-snapshot-allows-rollback forward-compat test). 22 total.
+- `v606-deploy-selfmodel.test.js` — 2 tests updated for `rollback-unavailable`. 17 total.
+- **4238 passed, 0 failed** (was 4232 in v7.0.1).
+
+---
+
 ## [7.0.1] — Event Contract & Cleanup + V7-4A Control Channel
 
 **Event payload schema coverage from 33.9% to 100%. Dead Consciousness events removed from catalog. Empty catch eliminated. Dead compatibility barrel deprecated. V7-4A: Daemon externally controllable via Unix Socket / Named Pipe. All tests remain green.**

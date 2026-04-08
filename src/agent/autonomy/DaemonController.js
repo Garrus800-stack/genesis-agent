@@ -68,6 +68,17 @@ class DaemonController extends DaemonControlPort {
     this._server = null;
     this._clients = new Set();
     this._listening = false;
+
+    // v7.0.2: Built once in constructor instead of per-call getter (minor perf fix)
+    this._methods = {
+      ping:    () => ({ pong: true, timestamp: Date.now() }),
+      status:  (p) => this._methodStatus(p),
+      goal:    (p) => this._methodGoal(p),
+      stop:    ()  => this._methodStop(),
+      check:   (p) => this._methodCheck(p),
+      config:  (p) => this._methodConfig(p),
+      clients: ()  => this._methodClients(),
+    };
   }
 
   // ── Lifecycle ─────────────────────────────────────────────
@@ -224,19 +235,6 @@ class DaemonController extends DaemonControlPort {
     }
   }
 
-  // ── Method Table ──────────────────────────────────────────
-
-  get _methods() {
-    return {
-      ping:    () => ({ pong: true, timestamp: Date.now() }),
-      status:  (p) => this._methodStatus(p),
-      goal:    (p) => this._methodGoal(p),
-      stop:    ()  => this._methodStop(),
-      check:   (p) => this._methodCheck(p),
-      config:  (p) => this._methodConfig(p),
-      clients: ()  => this._methodClients(),
-    };
-  }
 
   _methodStatus() {
     const daemonStatus = this.daemon?.getStatus?.() || { running: false };

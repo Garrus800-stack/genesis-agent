@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.0.1 · Last verified: all checks green (4232 tests, 277 suites, TSC 0, fitness 90/90)
+> Version: 7.0.2 · Last verified: all checks green (4238 tests, 277 suites, TSC 0, fitness 90/90)
 
 ---
 

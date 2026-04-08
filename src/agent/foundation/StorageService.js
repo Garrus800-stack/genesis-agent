@@ -190,6 +190,13 @@ class StorageService {
     const dir = path.dirname(fullPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.appendFileSync(fullPath, text, 'utf-8');
+    // v7.0.2: fsync after append — ensures complete lines on disk before returning.
+    // Without this, a crash during flush can leave half-written JSONL lines.
+    try {
+      const fd = fs.openSync(fullPath, 'r+');
+      fs.fsyncSync(fd);
+      fs.closeSync(fd);
+    } catch (_e) { /* best effort — file may be read-only or locked */ }
     this._stats.syncWrites++;
   }
 
@@ -260,6 +267,13 @@ class StorageService {
     const fullPath = this._resolve(filename);
     await fsp.mkdir(path.dirname(fullPath), { recursive: true });
     await fsp.appendFile(fullPath, text, 'utf-8');
+    // v7.0.2: fsync after append — matches sync path. Prevents half-written
+    // JSONL lines (events.jsonl) on crash during OS buffer flush.
+    try {
+      const fh = await fsp.open(fullPath, 'r+');
+      await fh.sync();
+      await fh.close();
+    } catch (_e) { /* best effort */ }
     this._stats.asyncWrites++;
   }
 

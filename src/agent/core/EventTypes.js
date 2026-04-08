@@ -430,6 +430,8 @@ const EVENTS = Object.freeze({
     REQUEST:    'deploy:request',
     /** @payload {{ id: string, target: string, snapshot: number }} */
     ROLLBACK:   'deploy:rollback',
+    /** @payload {{ id: string, target: string, reason: string }} v7.0.2 fail-honest */
+    ROLLBACK_UNAVAILABLE: 'deploy:rollback-unavailable',
     /** @payload {{ target: string, from: string, to: string }} v6.0.6 Blue-Green swap */
     SWAP:       'deploy:swap',
   }),

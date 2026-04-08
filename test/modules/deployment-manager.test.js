@@ -130,26 +130,33 @@ describe('DeploymentManager — Pre-flight', () => {
     const dm = createDM();
     await dm.boot();
     const d = await dm.deploy('svc', { env: 'moon' });
-    assert(d.status === 'rolled-back' || d.status === 'failed');
+    // v7.0.2: rollback is unavailable (placeholder snapshot), not silently rolled-back
+    assert(d.status === 'rollback-unavailable' || d.status === 'failed');
     assert(d.error.includes('Unknown environment'));
   });
 });
 
 describe('DeploymentManager — Rollback', () => {
-  test('auto-rollbacks on failure', async () => {
+  test('auto-rollback refuses on placeholder snapshot (fail-honest)', async () => {
     const dm = createDM({ shell: mockShell('bad-cmd') });
     await dm.boot();
     const d = await dm.deploy('svc', { commands: ['bad-cmd'] });
-    assertEqual(d.status, 'rolled-back');
+    // v7.0.2: placeholder snapshot → rollback-unavailable, not silently rolled-back
+    assertEqual(d.status, 'rollback-unavailable');
   });
 
-  test('manual rollback', async () => {
+  test('manual rollback refuses on placeholder snapshot', async () => {
     const dm = createDM();
     await dm.boot();
     const d = await dm.deploy('svc', { commands: ['npm restart'] });
     assertEqual(d.status, 'done');
-    await dm.rollback(d.id);
-    assertEqual(dm.getDeployment(d.id).status, 'rolled-back');
+    try {
+      await dm.rollback(d.id);
+      assert(false, 'Should have thrown');
+    } catch (err) {
+      assert(err.message.includes('placeholder'), 'Should mention placeholder');
+    }
+    assertEqual(dm.getDeployment(d.id).status, 'rollback-unavailable');
   });
 
   test('rollback unknown deployment throws', async () => {
@@ -168,8 +175,8 @@ describe('DeploymentManager — Health Check', () => {
     const dm = createDM({ healthMonitor: mockHealthMonitor(false) });
     await dm.boot();
     const d = await dm.deploy('self', { files: ['x.js'] });
-    // Health check fails → rollback
-    assert(d.status === 'rolled-back' || d.status === 'failed');
+    // v7.0.2: health check fails → rollback attempted → placeholder → rollback-unavailable
+    assert(d.status === 'rollback-unavailable' || d.status === 'failed');
   });
 });
 
@@ -225,6 +232,56 @@ describe('DeploymentManager — Events', () => {
     await dm.deploy('svc', { commands: ['fail'] });
     const events = bus._fired.map(e => e.evt);
     assert(events.includes('deploy:failed'), 'Should fire failed');
+  });
+});
+
+describe('DeploymentManager — Fail-Honest (v7.0.2)', () => {
+  test('snapshot is marked as placeholder', async () => {
+    const dm = createDM();
+    await dm.boot();
+    const d = await dm.deploy('svc', { commands: ['echo'] });
+    // Access internal snapshot before rollback cleans it up
+    // After successful deploy, snapshot still exists
+    const snap = dm._rollbackSnapshots.get(d.id);
+    assert(snap, 'Snapshot should exist after deploy');
+    assertEqual(snap.placeholder, true);
+  });
+
+  test('rollback-unavailable fires event', async () => {
+    const bus = mockBus();
+    const dm = new DeploymentManager({
+      bus, shell: mockShell('fail'), healthMonitor: mockHealthMonitor(), hotReloader: mockHotReloader(),
+    });
+    await dm.boot();
+    await dm.deploy('svc', { commands: ['fail'] });
+    const rbEvents = bus._fired.filter(e => e.evt === 'deploy:rollback-unavailable');
+    assertEqual(rbEvents.length, 1);
+    assert(rbEvents[0].data.reason.includes('placeholder'), 'Should explain why');
+    assertEqual(rbEvents[0].data.target, 'svc');
+  });
+
+  test('getHealth counts rollback-unavailable', async () => {
+    const dm = createDM({ shell: mockShell('x') });
+    await dm.boot();
+    await dm.deploy('svc', { commands: ['x'] });
+    const h = dm.getHealth();
+    assertEqual(h.rollbackUnavailable, 1);
+    assertEqual(h.rolledBack, 0);
+  });
+
+  test('real snapshot (non-placeholder) would allow rollback', async () => {
+    // Simulate a future real snapshot by manually setting placeholder=false
+    const dm = createDM();
+    await dm.boot();
+    const d = await dm.deploy('svc', { commands: ['echo'] });
+    // Manually patch snapshot to simulate real backup (V7-4B)
+    dm._rollbackSnapshots.set(d.id, {
+      backup: { target: 'svc', createdAt: Date.now() },
+      timestamp: Date.now(),
+      placeholder: false,
+    });
+    await dm.rollback(d.id);
+    assertEqual(dm.getDeployment(d.id).status, 'rolled-back');
   });
 });
 
