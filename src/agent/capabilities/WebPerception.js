@@ -188,9 +188,11 @@ class WebPerception {
     if (!cached?.content) return { success: false, error: 'No cached content' };
 
     const $ = cheerio.load(cached.content);
-    const data = {};
+    const data = Object.create(null);
 
     for (const [key, selector] of Object.entries(selectors)) {
+      // Guard: reject prototype pollution keys
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
       const elements = $(selector);
       if (elements.length === 1) {
         data[key] = elements.text().trim();

@@ -195,7 +195,7 @@ class Metabolism {
     // Snapshot heap before the call
     try {
       this._heapBefore = process.memoryUsage().heapUsed;
-    } catch { this._heapBefore = 0; }
+    } catch { /* memoryUsage unavailable — safe default */ this._heapBefore = 0; }
   }
 
   _onChatCompleted(data) {

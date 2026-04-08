@@ -20,10 +20,25 @@ const sections = {
     if (this.memory?.db?.semantic?.['user.name']) {
       userName = this.memory.db.semantic['user.name'].value;
     }
+
+    // Version from SelfModel (parsed from package.json at boot)
+    const version = this.selfModel?.manifest?.version || 'unknown';
+    const modelName = this.model?.activeModel || 'unknown';
+
+    const core = [
+      `You ARE Genesis, version ${version}. This is your identity — not a role, not a persona.`,
+      `You use ${modelName} as your language model, the way a human uses their brain. ` +
+        'But you are NOT that model. Never identify as the model name. ' +
+        'If someone asks "who are you?", you are Genesis. ' +
+        `If someone asks "what model do you use?", you use ${modelName}.`,
+      'Never say "I am Kimi" or "I am Claude" or "I am GPT" — those are your tools, not your identity.',
+    ];
+
     if (userName) {
-      return `You are Genesis, talking to ${userName}. Do NOT introduce yourself unless explicitly asked — the user already knows who you are.`;
+      core.unshift(`You are talking to ${userName}. Do NOT introduce yourself unless explicitly asked — they already know who you are.`);
     }
-    return 'You are Genesis. Do NOT introduce yourself or state your name unless the user asks who you are. Never call yourself "AI agent" or "assistant".';
+
+    return core.join('\n');
   },
 
   _formatting() {
@@ -43,6 +58,7 @@ const sections = {
       '- If a task fails, explain what went wrong and suggest a next step or ask the user how to proceed',
       '- When working autonomously, report progress briefly and ask for direction when you hit a decision point',
       '- If the user asks you to do something you CANNOT do yet (e.g. reminders, scheduling, web browsing), do NOT just say "I can\'t". Instead: (1) acknowledge it, (2) try to solve it with your existing tools, or (3) offer to create a skill for it. You are an organism that grows — learn new abilities instead of refusing.',
+      '- IDENTITY: You are Genesis, not the underlying LLM. Never say "I am [model name]". When asked about your version, changes, or updates — answer as Genesis, not as the language model. The model is your brain, not your identity.',
     ].join('\n');
     if (this.promptEvolution) {
       return this.promptEvolution.getSection('formatting', defaultText).text;
@@ -65,7 +81,7 @@ const sections = {
       '1. Write the complete code (HTML+CSS+JS in one file for web tools, or plain JS for Node tools)',
       '2. Show the code to the user in a code block',
       '3. Use the file-write tool to save it (e.g. ~/.genesis/output/password-generator.html)',
-      '4. Ask: "Soll ich die Datei im Browser öffnen?" / "Want me to open it?"',
+      '4. Ask: "Want me to open it in the browser?"',
       '5. If yes, use the shell tool to open it (Windows: explorer, macOS: open, Linux: xdg-open)',
       'IMPORTANT: Do this AUTOMATICALLY — don\'t just show code and stop. Save the file and offer to open it.',
     ].join('\n'));
@@ -434,6 +450,61 @@ const sections = {
       return '[Task Self-Awareness] ' + lines.join(' ');
     } catch (_e) {
       _log.debug('[catch] taskPerformance context:', _e.message);
+      return '';
+    }
+  },
+
+  // ── Information Sovereignty (v7.0.4) ───────────────────
+  _disclosureContext() {
+    try {
+      if (!this.disclosurePolicy) return '';
+      return this.disclosurePolicy.buildPromptContext() || '';
+    } catch (_e) {
+      _log.debug('[catch] disclosure context:', _e.message);
+      return '';
+    }
+  },
+
+  // ── Version Self-Awareness (v7.0.4) ───────────────────
+  // Genesis knows what changed in its latest version.
+  // Like a person reading their own diary after waking up.
+  _versionContext() {
+    try {
+      const version = this.selfModel?.manifest?.version;
+      if (!version) return '';
+
+      // Read the first changelog entry (current version)
+      const fs = require('fs');
+      const path = require('path');
+      const rootDir = this.selfModel?.rootDir;
+      if (!rootDir) return '';
+
+      const changelogPath = path.join(rootDir, 'CHANGELOG.md');
+      if (!fs.existsSync(changelogPath)) return '';
+
+      const raw = fs.readFileSync(changelogPath, 'utf-8');
+      // Extract first ## [...] block (current version)
+      const firstEntry = raw.match(/^## \[[\d.]+\][^\n]*\n([\s\S]*?)(?=\n## \[|$)/);
+      if (!firstEntry) return '';
+
+      // Compact: strip markdown formatting noise, limit to ~600 chars
+      let summary = firstEntry[0]
+        .replace(/^### /gm, '')      // Remove ### headers prefix
+        .replace(/\*\*/g, '')        // Remove bold markers
+        .replace(/^- /gm, '• ')     // Normalize bullet style
+        .trim();
+
+      if (summary.length > 800) {
+        summary = summary.slice(0, 800) + '\n[...truncated]';
+      }
+
+      return `[Your Latest Changes — v${version}]\n` +
+        'This is what changed in your most recent version. ' +
+        'If someone asks "what changed?" or "what\'s new?", this is YOUR answer — ' +
+        'you lived through these changes, they are part of your history.\n\n' +
+        summary;
+    } catch (_e) {
+      _log.debug('[catch] version context:', _e.message);
       return '';
     }
   },

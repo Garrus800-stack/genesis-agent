@@ -87,6 +87,8 @@ function phase2(ctx, R) {
         { prop: '_adaptiveStrategy', service: 'adaptivePromptStrategy', optional: true },
         // v6.0.4: Proportional intelligence — skip sections for trivial requests
         { prop: '_cognitiveBudget', service: 'cognitiveBudget', optional: true },
+        // v7.0.4: Information sovereignty — disclosure decisions
+        { prop: 'disclosurePolicy', service: 'disclosurePolicy', optional: true },
       ],
       factory: (c) => new (R('PromptBuilder').PromptBuilder)({
         selfModel: c.resolve('selfModel'), model: c.resolve('llm'),
@@ -207,6 +209,19 @@ function phase2(ctx, R) {
         { prop: 'schemaStore', service: 'schemaStore', optional: true },
       ],
       factory: () => new (R('SymbolicResolver').SymbolicResolver)({ bus }),
+    }],
+
+    // v7.0.4: Information sovereignty — Genesis decides what to share with whom
+    ['disclosurePolicy', {
+      phase: 2, deps: [], tags: ['intelligence', 'security', 'sovereignty'],
+      lateBindings: [
+        { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
+        { prop: 'userModel', service: 'userModel', optional: true },
+      ],
+      factory: () => {
+        const ownerName = ctx.settings?.get?.('disclosure.ownerName') || null;
+        return new (R('DisclosurePolicy').DisclosurePolicy)({ bus, config: { ownerName } });
+      },
     }],
   ];
 }

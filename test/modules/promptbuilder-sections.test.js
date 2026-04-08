@@ -30,6 +30,7 @@ describe('PromptBuilderSections: Delegation', () => {
       '_perceptionContext', '_consciousnessContext', '_valuesContext',
       '_userModelContext', '_bodySchemaContext', '_episodicContext',
       '_architectureContext', '_projectContext', '_taskPerformanceContext',
+      '_disclosureContext', '_versionContext',
     ];
     for (const name of expected) {
       assert(typeof sections[name] === 'function', `sections.${name} should be a function`);
@@ -50,8 +51,8 @@ describe('PromptBuilderSections: Identity', () => {
   test('returns default identity without user name', () => {
     const builder = createBuilder();
     const result = builder._identity();
-    assert(result.includes('Genesis'), 'should mention Genesis');
-    assert(result.includes('Do NOT introduce'), 'should include no-intro rule');
+    assert(result.includes('You ARE Genesis'), 'should assert Genesis identity');
+    assert(result.includes('NOT that model'), 'should separate from LLM identity');
   });
 
   test('returns personalized identity with user name', () => {

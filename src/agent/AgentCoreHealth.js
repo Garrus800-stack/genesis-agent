@@ -321,6 +321,10 @@ class AgentCoreHealth {
       'networkSentinel',
       // v6.0.7: EarnedAutonomy — persists action outcomes + unsubscribes step listeners
       'earnedAutonomy',
+      // v7.0.1 (V7-4A): DaemonController — closes Unix Socket/Named Pipe server
+      'daemonController',
+      // v7.0.4: DisclosurePolicy — session-scoped, no persist needed
+      'disclosurePolicy',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

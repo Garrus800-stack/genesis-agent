@@ -40,6 +40,8 @@ const EVENTS = Object.freeze({
     NEEDS_INPUT:      'agent-loop:needs-input',
     /** @payload {{ goalId: string, elapsedMs: number }} */
     TIMEOUT:          'agent-loop:timeout',
+    /** @payload {{ goalId: string, planLength: number, workerCount: number }} */
+    COLONY_ESCALATED: 'agentloop:colony-escalated',
   }),
 
   // v5.2.0 (SA-P6): Working memory lifecycle
@@ -369,6 +371,8 @@ const EVENTS = Object.freeze({
     FRUSTRATION_DETECTED: 'learning:frustration-detected',
     INTENT_SUGGESTION:   'learning:intent-suggestion',
     PERFORMANCE_ALERT:   'learning:performance-alert',
+    /** @payload {{ capability: string, userRequest: string }} */
+    CAPABILITY_GAP:      'learning:capability-gap',
   }),
 
   // ── LLM ────────────────────────────────────────────────
@@ -416,6 +420,8 @@ const EVENTS = Object.freeze({
     RUN_REQUEST:     'colony:run-request',
     /** @payload {{ runId: string, merged: number, conflicts: number }} */
     MERGE_COMPLETED: 'colony:merge-completed',
+    /** @payload {{ runId: string, workerCount: number }} */
+    IPC_SPAWN:       'colony:ipc-spawn',
   }),
 
   // ── Deployment (v5.9.2) ────────────────────────────────
@@ -565,6 +571,8 @@ const EVENTS = Object.freeze({
     PERMISSION_CHANGED: 'shell:permission-changed',
     /** @payload {{ tier: string, count: number, limit: number, windowMs: number }} */
     RATE_LIMITED:       'shell:rate-limited',
+    /** @payload {{ command: string, exitCode: number, success: boolean }} */
+    OUTCOME:            'shell:outcome',
   }),
 
   // ── Skill Registry (v5.9.8 V6-6) ──────────────────────────
@@ -906,6 +914,12 @@ const EVENTS = Object.freeze({
   UPDATE: Object.freeze({
     /** @payload {{ current: string, latest: string, url: string, changelog?: string, publishedAt?: string }} */
     AVAILABLE: 'update:available',
+  }),
+
+  // ── Disclosure (v7.0.4) ─────────────────────────────
+  DISCLOSURE: Object.freeze({
+    /** @payload {{ count: number, pattern: string }} */
+    PROBE_DETECTED: 'disclosure:probe-detected',
   }),
 });
 

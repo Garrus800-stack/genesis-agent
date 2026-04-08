@@ -179,7 +179,7 @@ class NetworkSentinel {
   async _probeOllama() {
     try {
       return await this._httpHead(this._config.ollamaHealthUrl);
-    } catch {
+    } catch { /* Ollama unreachable — report offline */
       return false;
     }
   }

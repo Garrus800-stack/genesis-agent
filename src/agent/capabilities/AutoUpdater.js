@@ -232,7 +232,7 @@ class AutoUpdater {
       const pkgPath = require('path').resolve(__dirname, '../../../package.json');
       const pkg = require(pkgPath);
       return pkg.version || '0.0.0';
-    } catch {
+    } catch { /* package.json unreadable — safe default */
       return '0.0.0';
     }
   }

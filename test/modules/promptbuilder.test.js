@@ -73,7 +73,7 @@ describe('PromptBuilder: Token Budget', () => {
 
   test('_buildWithBudget preserves high-priority sections', () => {
     const pb = createBuilder();
-    pb._tokenBudget = 400;
+    pb._tokenBudget = 800;
     const result = pb.build();
     // Identity is priority 1 — should always be present
     assert(result.includes('Genesis') || result.length > 0,

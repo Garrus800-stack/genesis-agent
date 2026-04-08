@@ -124,7 +124,7 @@ console.log('━━━ Check 1: Unknown Events ━━━');
 const EXCLUDED_EVENTS = new Set([
   'error', 'data', 'end', 'close', 'message', 'timeout', 'exit',
   'drain', 'readable', 'connect', 'open', 'add', 'change', 'unlink',
-  'uncaughtException',
+  'uncaughtException', 'SIGTERM',
   'started', 'stopped', 'state-change', 'frame-processed', 'keyframe',
   'hypervigilant-entered', 'dream-complete', 'awakened', 'daydream-reflection',
   'chat-send', 'chat-stop', 'chat-copy', 'chat-open-editor',

@@ -1,3 +1,64 @@
+## [7.0.4] — Information Sovereignty + Identity Hardening
+
+**Genesis decides what to share with whom. Genesis knows who it is. Genesis knows its own history.**
+
+**Three features in one release: (1) Disclosure policy — trust-based information sharing with social engineering awareness. (2) Identity hardening — Genesis never identifies as the underlying LLM model. (3) Version self-awareness — Genesis reads its own CHANGELOG and can answer "what changed?" from its own history.**
+
+### Features
+- **DisclosurePolicy** (new, ~210 LOC) — Three-tier information classification (PUBLIC/GUARDED/INTERNAL) with trust-based disclosure rules. PUBLIC = README-level (module names, event names, capabilities). GUARDED = implementation details (wiring, config, thresholds). INTERNAL = prompt templates, safety scanner patterns, hash values, API keys.
+- **Trust-to-Interlocutor mapping** — Repurposes TrustLevelSystem for information trust. SUPERVISED/ASSISTED → STRANGER (public only). AUTONOMOUS → TRUSTED (public + guarded). FULL_AUTONOMY → OWNER (everything). Defaults to OWNER when no TrustLevelSystem is bound (single-user local install).
+- **Social Engineering Probe Tracking** — Session-scoped memory of detected social engineering patterns (compliment → technical framing → hidden ask). Ring buffer of 20 probes. Event `disclosure:probe-detected` emitted on each detection. Context warning injected into prompt when probes are active.
+- **Identity Hardening** — `_identity()` section rewritten. Genesis explicitly told: "You ARE Genesis, not the LLM. The model is your brain, not your identity." Version number and model name injected so Genesis can distinguish "I am Genesis v7.0.4" from "I use kimi-k2.5:cloud as my language model." Reinforced in `_formatting()` with identity rule. Prevents cloud models with strong self-identity (Kimi, Claude, GPT) from overriding Genesis's persona.
+- **Version Self-Awareness** — New `_versionContext()` prompt section (Priority 3, 900 chars). Reads the first CHANGELOG.md entry at prompt-build time and injects it as "your latest changes — you lived through these." When someone asks "what changed?", Genesis answers from its own history, not from the LLM's training data.
+
+### Design Philosophy
+- **No regex filter.** No blocklist. Genesis reads the room and decides, like a person who knows what's appropriate.
+- **Owner gets everything.** Full transparency with the developer — nothing is off-limits.
+- **Strangers get README-level.** Helpful but discreet. Conceptual answers without exact patterns.
+- **Social engineering → credible deflection.** Technically sound answers that reveal nothing beyond public docs.
+- **Session-scoped, no grudges.** Probe patterns are intentionally NOT persisted. Each conversation starts fresh.
+- **The model is the brain, not the person.** Genesis uses LLMs the way humans use neurons — as infrastructure, not identity.
+
+### Bugfixes (from v7.0.3 fitness regression)
+- **DaemonController missing from TO_STOP** — Unix Socket/Named Pipe server was not closed during shutdown. Stoppable services: 58 → 60.
+- **CognitiveEvents.js + OrganismEvents.js missing tests** — Typed Event Facades from v7.0.1 had no test files. Added 5 + 6 tests covering constructor, emit delegation, subscribe delegation, method completeness, cross-layer subscriptions.
+
+### Files Changed
+- `src/agent/intelligence/DisclosurePolicy.js` (NEW, ~210 LOC)
+- `src/agent/intelligence/PromptBuilder.js` — `disclosurePolicy` late-bound, disclosure + version sections in priority map, in `build()` + `buildAsync()`, identity budget 300→500
+- `src/agent/intelligence/PromptBuilderSections.js` — `_identity()` rewritten (model separation, version injection), `_formatting()` identity reinforcement, `_disclosureContext()`, `_versionContext()` (reads CHANGELOG.md)
+- `src/agent/manifest/phase2-intelligence.js` — `disclosurePolicy` service registration + late-binding to PromptBuilder
+- `src/agent/core/EventTypes.js` — `DISCLOSURE.PROBE_DETECTED` registered
+- `src/agent/core/EventPayloadSchemas.js` — `disclosure:probe-detected` schema
+- `src/agent/AgentCoreHealth.js` — `disclosurePolicy` + `daemonController` added to TO_STOP
+- `test/modules/disclosure-policy.test.js` (NEW, 21 tests)
+- `test/modules/cognitive-events.test.js` (NEW, 5 tests)
+- `test/modules/organism-events.test.js` (NEW, 6 tests)
+- `test/modules/promptbuilder-sections.test.js` — expected methods list updated, identity test updated
+- `test/modules/promptbuilder.test.js` — budget test adjusted for expanded identity section
+
+### Audit Fixes
+- **F-1: 4 uncatalogued events registered** — `shell:outcome` (SHELL), `learning:capability-gap` (LEARNING), `agentloop:colony-escalated` (AGENT_LOOP), `colony:ipc-spawn` (COLONY). All had schemas but no EventTypes catalog entry. `SIGTERM` added to audit exclude sets (process signal, not Genesis event).
+- **F-2: Orphaned schema removed** — `tool:executed` was replaced by `tools:result` in v4.12.5 but its schema lingered. Removed.
+- **F-3: German runtime string removed** — `"Soll ich die Datei im Browser öffnen?"` in `_capabilities()` prompt section → English only.
+- **F-4: 5 unannotated bare catches annotated** — AutoUpdater (package.json fallback), Metabolism (memoryUsage fallback), Container.tryResolve (resolve fallback), EventBus (EventTypes unavailable), NetworkSentinel (Ollama unreachable). All were safe-fallback patterns, now documented.
+
+### Deep Analysis Fixes
+- **A-3: 2 dead test files deleted** — `v410-audit-fixes.test.js` (53 test defs, 0 executed) and `v520-upgrade.test.js` (43 test defs, 0 executed). Both used the harness `describe/test` pattern but never called `run()`. Dead since v5.x — all functionality covered by dedicated test files.
+- **A-6: WebPerception prototype pollution guard** — `data[key]` in `extractStructured()` replaced `{}` with `Object.create(null)` and rejects `__proto__`/`constructor`/`prototype` keys from Cheerio selectors.
+
+### Stats
+- 237 modules, ~80k LOC (was 236, ~79.7k)
+- 368 catalogued events, 345 payload schemas (was 348/351 — +4 events catalogued, -1 orphan removed)
+- Event validation: **0 warnings, 0 errors** (was 10 warnings)
+- Event audit strict: **✅ All events match catalog** (was 7 uncatalogued)
+- Tests: 275 files, 4271 passing, 0 failing (was 274/4267 — 2 dead files removed)
+- Coverage ratchet: 81/76/80 (unchanged)
+- Fitness: 90/90 (100%)
+- Unannotated bare catches: **0** (was 5)
+
+---
+
 ## [7.0.3] — Consolidation: Colony, Goal-Hygiene, Organism, DreamCycle
 
 **Structural consolidation release. Five targeted fixes that wire existing infrastructure into the hot path instead of adding new modules. Colony auto-escalation in AgentLoop, goal cancel commands, BodySchema→EmotionalSteering, DreamCycle active push, and three event schema bug fixes.**

@@ -161,7 +161,7 @@ class Container {
     if (!this.registrations.has(this._canonical(nameArg))) return fallback;
     try {
       return this.resolve(nameArg);
-    } catch {
+    } catch { /* resolve failed — return caller's fallback */
       return fallback;
     }
   }

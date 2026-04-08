@@ -34,8 +34,8 @@ function _loadKnownEvents() {
       }
     };
     walk(EVENTS);
-  } catch {
-    _knownEvents = new Set(); // EventTypes not available — skip validation
+  } catch { /* EventTypes not available — skip validation */
+    _knownEvents = new Set();
   }
   return _knownEvents;
 }

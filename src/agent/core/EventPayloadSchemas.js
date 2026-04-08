@@ -532,7 +532,7 @@ const SCHEMAS = {
   'circuit:fallback':       { service: 'required' },
   'capability:issued':      { module: 'required', scope: 'required', tokenId: 'required' },
   'capability:revoked':     { tokenId: 'required' },
-  'tool:executed':          { name: 'required' },
+  // v7.0.4: Removed orphaned 'tool:executed' schema — event was replaced by 'tools:result' in v4.12.5
   'tool:native-call':       { name: 'required', round: 'required', input: 'required' },
   'tools:unregistered':     { name: 'required' },
   'tools:completed':        { name: 'required' },
@@ -563,6 +563,9 @@ const SCHEMAS = {
   'lessons:recorded':       { category: 'required' },
   'lessons:recalled':       { query: 'required' },
   'colony:ipc-spawn':       { runId: 'required', workerCount: 'required' },
+
+  // Disclosure (v7.0.4 — Information Sovereignty)
+  'disclosure:probe-detected': { count: 'required', pattern: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

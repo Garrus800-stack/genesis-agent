@@ -58,6 +58,9 @@ class PromptBuilder {
     // v5.9.7 (V6-11): TaskOutcomeTracker — empirical performance data (late-bound)
     this.taskOutcomeTracker = null;
 
+    // v7.0.4: DisclosurePolicy — information sovereignty (late-bound)
+    this.disclosurePolicy = null;
+
     // v4.12.8: Safety context — selfmod circuit breaker + error trends
     this.selfModPipeline = null;
     this.errorAggregator = null;
@@ -97,11 +100,13 @@ class PromptBuilder {
       // P5-P7 are nice-to-have context. P8+ are dropped first on budget pressure.
       // Removed bodySchema from default (no measurable task impact).
       // v6.0.2: formatting + capabilities expanded for code-gen workflow + conversation quality
-      [1, 'identity',      300],
+      [1, 'identity',      500],   // v7.0.4: Expanded — model identity separation + version
       [1, 'formatting',    1200],
       [2, 'session',       500],
       [2, 'capabilities',  1300],
       [2, 'safety',        250],   // v4.12.8: Circuit breaker + error trends — operationally critical
+      [2, 'disclosure',    400],   // v7.0.4: Information sovereignty — what to share with whom
+      [3, 'version',       900],   // v7.0.4: Changelog self-awareness — Genesis knows its own history
       [3, 'mcp',           400],
       [3, 'project',       300],   // v5.7.0: Project intelligence — stack, conventions, quality
       [3, 'taskPerformance', 250],  // v5.9.7: Empirical task success rates — self-awareness
@@ -281,6 +286,10 @@ class PromptBuilder {
       ['taskPerformance', this._taskPerformanceContext()],
       // @ts-ignore — TS strict
       ['safety',         this._safetyContext()],
+      // @ts-ignore — TS strict
+      ['disclosure',     this._disclosureContext()],
+      // @ts-ignore — TS strict
+      ['version',        this._versionContext()],
     ]);
   }
 
@@ -450,6 +459,10 @@ class PromptBuilder {
     sections.push(['taskPerformance', this._taskPerformanceContext()]);
     // @ts-ignore — TS strict
     sections.push(['safety',        this._safetyContext()]);
+    // @ts-ignore — TS strict
+    sections.push(['disclosure',    this._disclosureContext()]);
+    // @ts-ignore — TS strict
+    sections.push(['version',       this._versionContext()]);
 
     return this._buildWithBudget(sections);
   }

@@ -112,7 +112,7 @@ const EXCLUDED_EVENTS = new Set([
   // Node.js stream / process events
   'error', 'data', 'end', 'close', 'message', 'timeout', 'exit',
   'drain', 'readable', 'connect', 'open', 'add', 'change', 'unlink',
-  'uncaughtException',
+  'uncaughtException', 'SIGTERM',
   // ConsciousnessExtension internal EventEmitter (not Genesis EventBus)
   'started', 'stopped', 'state-change', 'frame-processed', 'keyframe',
   'hypervigilant-entered', 'dream-complete', 'awakened', 'daydream-reflection',
