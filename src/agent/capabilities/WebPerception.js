@@ -90,10 +90,8 @@ class WebPerception {
    * @param {object} options — { headless, selector, maxLength }
    * @returns {Promise<*>}
    */
-  // @ts-ignore — TS strict
   async fetch(url, options = {}) {
     if (!url || typeof url !== 'string') {
-      // @ts-ignore — TS strict
       return { success: false, error: 'Invalid URL' };
     }
 
@@ -133,12 +131,10 @@ class WebPerception {
         textLength: parsed.text?.length || 0,
       }, { source: 'WebPerception' });
 
-      // @ts-ignore — TS strict
       return { success: true, ...parsed };
 
     } catch (err) {
       this._stats.failures++;
-      // @ts-ignore — TS strict
       return { success: false, url, error: err.message };
     }
   }
@@ -149,7 +145,6 @@ class WebPerception {
    * @param {object} options
    * @returns {Promise<*>}
    */
-  // @ts-ignore — TS strict
   async fetchMany(urls, options = {}) {
     const maxConcurrent = options.maxConcurrent || 3;
     const results = [];
@@ -172,19 +167,15 @@ class WebPerception {
    * @param {object} selectors — { title: 'h1', items: '.item', ... }
    * @returns {Promise<*>}
    */
-  // @ts-ignore — TS strict
   async extract(url, selectors) {
     if (!cheerio) {
-      // @ts-ignore — TS strict
       return { success: false, error: 'cheerio not installed — npm install cheerio' };
     }
 
     const result = await this.fetch(url);
-    // @ts-ignore — TS strict
     if (!result.success) return result;
 
     const cached = this._cache.get(url);
-    // @ts-ignore — TS strict
     if (!cached?.content) return { success: false, error: 'No cached content' };
 
     const $ = cheerio.load(cached.content);
@@ -203,7 +194,6 @@ class WebPerception {
       }
     }
 
-    // @ts-ignore — TS strict
     return { success: true, url, data };
   }
 
@@ -423,9 +413,8 @@ class WebPerception {
   _trimCache() {
     if (this._cache.size <= this._maxCacheEntries) return;
     const entries = [...this._cache.entries()].sort((a, b) => a[1].fetchedAt - b[1].fetchedAt);
-    while (this._cache.size > this._maxCacheEntries) {
-      // @ts-ignore — TS strict
-      this._cache.delete(entries.shift()[0]);
+    while (this._cache.size > this._maxCacheEntries && entries.length > 0) {
+      this._cache.delete(/** @type {*} */ (entries.shift())[0]);
     }
   }
 }

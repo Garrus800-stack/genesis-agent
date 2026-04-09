@@ -242,7 +242,6 @@ class CognitiveSelfModel {
       };
     }
 
-    // @ts-ignore — typed via JSDoc on _cache declaration
     this._cache.profile = profile;
     this._cache.timestamp = Date.now();
     this.stats.profileBuilds++;
@@ -331,7 +330,6 @@ class CognitiveSelfModel {
       }
     }
 
-    // @ts-ignore — typed via JSDoc on _cache declaration
     this._cache.biases = biases;
     this.stats.biasScans++;
     return biases;

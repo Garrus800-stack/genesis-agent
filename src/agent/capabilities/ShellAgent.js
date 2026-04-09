@@ -289,6 +289,7 @@ Respond ONLY with a JSON list:
       return { plan: [], results: [], summary: this.lang.t('shell.plan_error', { message: err.message }) };
     }
 
+    /** @type {Array<*>} */
     const results = [];
     let allOk = true;
 
@@ -302,13 +303,11 @@ Respond ONLY with a JSON list:
       }
 
       this.bus.emit('shell:step', { step: i + 1, total: steps.length, cmd: step.cmd.slice(0, 80) }, { source: 'ShellAgent' });
-      const result = this.run(step.cmd, { cwd, timeout: TIMEOUTS.TIMEOUT_MS });
+      const result = await this.run(step.cmd, { cwd, timeout: TIMEOUTS.TIMEOUT_MS });
       results.push({ step: i + 1, cmd: step.cmd, description: step.description, ...result });
-      // @ts-ignore — TS strict
       if (!result.ok && step.critical) allOk = false;
     }
 
-    // @ts-ignore — TS strict
     const successRate = results.filter(r => r.ok).length / Math.max(results.length, 1);
     this.memory?.learnPattern(task, steps.map(s => s.cmd).join(' && '), successRate > 0.7);
 
@@ -320,9 +319,7 @@ Respond ONLY with a JSON list:
 
     this.eventStore?.append('SHELL_PLAN_EXECUTED', {
       task: task.slice(0, 200), steps: steps.length,
-      // @ts-ignore — TS strict
       succeeded: results.filter(r => r.ok).length,
-      // @ts-ignore — TS strict
       failed: results.filter(r => !r.ok && !r.skipped).length,
     }, 'ShellAgent');
 
@@ -337,6 +334,7 @@ Respond ONLY with a JSON list:
     const cached = this._projectCache.get(resolved);
     if (cached && Date.now() - cached.timestamp < THRESHOLDS.SHELL_SCAN_CACHE_MS) return cached.scan;
 
+    /** @type {{ type: string|null, scripts: Record<string,string>, keyFiles: string[], gitStatus: string|null, dependencies: string[], size: number, language: string|null }} */
     const scan = { type: null, scripts: {}, keyFiles: [], gitStatus: null, dependencies: [], size: 0, language: null };
 
     let entries;
@@ -349,10 +347,8 @@ Respond ONLY with a JSON list:
           // before replacing *, and use 'g' flag to replace all occurrences.
           const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
           const regex = new RegExp(`^${escaped}$`);
-          // @ts-ignore — TS strict
           if (entries.some(e => regex.test(e))) { scan.type = type; scan.scripts = { ...sig.cmds }; break; }
         } else if (entries.includes(pattern)) {
-          // @ts-ignore — TS strict
           scan.type = type; scan.scripts = { ...sig.cmds }; break;
         }
       }
@@ -367,15 +363,12 @@ Respond ONLY with a JSON list:
             scan.scripts[name] = `npm run ${name}`;
           }
         }
-        // @ts-ignore — TS strict
         scan.dependencies = Object.keys(pkg.dependencies || {});
-        // @ts-ignore — TS strict
         scan.language = 'javascript';
       } catch (err) { _log.debug('[SHELL] package.json parse failed:', err.message); }
     }
 
     const keyPatterns = /^(README|LICENSE|Makefile|Dockerfile|docker-compose|\.env|\.gitignore|tsconfig|webpack|vite|rollup)/i;
-    // @ts-ignore — TS strict
     scan.keyFiles = entries.filter(e => keyPatterns.test(e) || /\.(md|toml|cfg|ini)$/i.test(e)).slice(0, 20);
 
     try {
@@ -383,9 +376,7 @@ Respond ONLY with a JSON list:
       const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], { cwd: resolved, encoding: 'utf-8', timeout: TIMEOUTS.QUICK_CHECK, windowsHide: true });
       const branch = branchOut.trim();
       const changes = status.trim().split('\n').filter(l => l.trim()).length;
-      // @ts-ignore — TS strict
       scan.gitStatus = `${branch} (${changes === 0 ? 'clean' : changes + ' changes'})`;
-    // @ts-ignore — TS strict
     } catch (err) { _log.debug('[SHELL] git status unavailable:', err.message); scan.gitStatus = 'no git'; }
 
     try {

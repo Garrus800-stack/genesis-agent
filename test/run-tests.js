@@ -54,7 +54,7 @@ module.exports = { TestModule };`,
 );
 
 console.log('╔═══════════════════════════════════════╗');
-console.log('║     GENESIS AGENT v7.0.4 — Test Suite ║');
+console.log('║     GENESIS AGENT v7.0.6 — Test Suite ║');
 console.log('╚═══════════════════════════════════════╝');
 
 // ════════════════════════════════════════════════════════════

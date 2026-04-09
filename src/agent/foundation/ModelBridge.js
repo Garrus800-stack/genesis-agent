@@ -106,7 +106,6 @@ class ModelBridge {
     this._cache = new LLMCache({
       maxSize: 100,
       ttlMs: 5 * 60 * 1000,
-      // @ts-ignore — TS strict
       noCacheTaskTypes: ['chat', 'creative'],
     });
 
@@ -126,6 +125,11 @@ class ModelBridge {
 
     // v5.1.0: Per-task model roles — { chat: 'modelName', code: 'modelName', ... }
     this._roles = {};
+
+    // Late-bound by Container — declared here for TypeScript visibility
+    /** @type {*} */ this._settings = null;
+    /** @type {*} */ this.metaLearning = null;
+    /** @type {*} */ this._fallbackModel = null;
   }
 
   /**
@@ -197,7 +201,6 @@ class ModelBridge {
       let chosen = null;
 
       // Priority 1: User-configured preferred model
-      // @ts-ignore — TS strict
       const preferredName = this._settings?.get?.('models.preferred') || null;
       if (preferredName) {
         chosen = this.availableModels.find(m => m.name === preferredName);
@@ -349,11 +352,12 @@ class ModelBridge {
     return { ok: true, model: this.activeModel, backend: this.activeBackend };
   }
 
-  configureBackend(backendName, { baseUrl, apiKey }) {
+  /** @param {string} backendName @param {{ baseUrl?: *, apiKey?: *, models?: Array<*> }} config */
+  configureBackend(backendName, config) {
     const backend = this.backends[backendName];
     if (!backend) throw new Error(`Unknown backend: ${backendName}`);
 
-    backend.configure({ baseUrl, apiKey });
+    backend.configure(config);
 
     // Refresh available models from this backend
     const newModels = backend.getModels();
@@ -371,10 +375,8 @@ class ModelBridge {
   async chat(systemPrompt, messages = [], taskType = 'chat', options = {}) {
     let temp = this.temperatures[taskType] || this.temperatures.chat;
 
-    // @ts-ignore — TS strict
     if (this.metaLearning && taskType !== 'chat') {
       try {
-        // @ts-ignore — TS strict
         const rec = this.metaLearning.recommend(taskType, this.activeModel);
         if (rec && rec.temperature !== undefined) temp = rec.temperature;
       } catch (_e) { _log.debug('[catch] MetaLearning not ready:', _e.message); }
@@ -488,7 +490,6 @@ class ModelBridge {
 
   _findFallbackBackend(failedBackend) {
     // v5.1.0: Configurable fallback chain from settings
-    // @ts-ignore — TS strict
     const chain = this._settings?.get?.('models.fallbackChain') || [];
     if (chain.length > 0) {
       for (const modelName of chain) {
@@ -528,10 +529,8 @@ class ModelBridge {
   // ════════════════════════════════════════════════════════
 
   _recordMetaOutcome(taskCategory, temperature, startTime, success, options = {}) {
-    // @ts-ignore — TS strict
     if (!this.metaLearning) return;
     try {
-      // @ts-ignore — TS strict
       this.metaLearning.recordOutcome({
         taskCategory,
         model: this.activeModel,
@@ -560,33 +559,24 @@ class ModelBridge {
   async asyncLoad() {
     await this.detectAvailable();
 
-    // @ts-ignore — TS strict
     if (this._settings) {
-      // @ts-ignore — TS strict
       if (this._settings.hasAnthropic()) {
-        // @ts-ignore — TS strict
         this.configureBackend('anthropic', { apiKey: this._settings.get('models.anthropicApiKey') });
         _log.info('  [+] Anthropic API configured');
       }
-      // @ts-ignore — TS strict
       if (this._settings.hasOpenAI()) {
         this.configureBackend('openai', {
-          // @ts-ignore — TS strict
           baseUrl: this._settings.get('models.openaiBaseUrl'),
-          // @ts-ignore — TS strict
           apiKey: this._settings.get('models.openaiApiKey'),
-          // @ts-ignore — TS strict
           models: this._settings.get('models.openaiModels') || [],
         });
         _log.info('  [+] OpenAI API configured');
       }
       // v5.1.0: Re-detect after configuring cloud backends (adds their models to list)
-      // @ts-ignore — TS strict
       if (this._settings.hasAnthropic() || this._settings.hasOpenAI()) {
         await this.detectAvailable();
       }
       // v5.1.0: Load per-task model roles
-      // @ts-ignore — TS strict
       const roles = this._settings.get('models.roles');
       if (roles) this.setRoles(roles);
     }

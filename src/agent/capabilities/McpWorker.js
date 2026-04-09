@@ -34,7 +34,7 @@ const pendingCalls = new Map();
 let callIdCounter = 0;
 
 // ── Receive RPC results from main thread ─────────────────
-// @ts-ignore
+// @ts-ignore — genuine TS error, fix requires type widening
 parentPort.on('message', (msg) => {
   if (msg.type === 'mcp-result') {
     const pending = pendingCalls.get(msg.id);
@@ -63,8 +63,8 @@ function mcp(server, tool, args = {}) {
       resolve: (result) => { clearTimeout(callTimeout); resolve(result); },
       reject: (err) => { clearTimeout(callTimeout); reject(err); },
     });
-// @ts-ignore
 
+    // @ts-ignore — genuine TS error, fix requires type widening
     parentPort.postMessage({ type: 'mcp-call', id, server, tool, args });
   });
 }
@@ -127,31 +127,28 @@ async function execute() {
 
     const fn = script.runInContext(context, { timeout });
     const result = await fn(mcp);
-// @ts-ignore
 
     const output = logs.join('\n');
-    // @ts-ignore
+    // @ts-ignore — genuine TS error, fix requires type widening
     parentPort.postMessage({
       type: 'complete',
       output: output.length > maxOutputSize ? output.slice(0, maxOutputSize) + '\n…[truncated]' : output,
       result: result !== undefined ? JSON.stringify(result).slice(0, maxOutputSize) : undefined,
-// @ts-ignore
       duration: Date.now() - startTime,
     });
   } catch (err) {
-    // @ts-ignore
+    // @ts-ignore — genuine TS error, fix requires type widening
     parentPort.postMessage({
       type: 'complete',
       output: logs.join('\n'),
       error: err.message || String(err),
       duration: Date.now() - startTime,
     });
-// @ts-ignore
   }
 }
 
 execute().catch((err) => {
-  // @ts-ignore
+  // @ts-ignore — genuine TS error, fix requires type widening
   parentPort.postMessage({
     type: 'complete',
     output: '',

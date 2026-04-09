@@ -117,7 +117,6 @@ function codeExecute(code, rootDir) {
   };
 
   const context = vm.createContext(sandbox);
-  // @ts-ignore — vm.Script accepts timeout at runtime
   const script = new vm.Script(code, { timeout: TIMEOUTS.COMMAND_EXEC });
   script.runInContext(context);
 

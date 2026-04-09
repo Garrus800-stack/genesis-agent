@@ -26,6 +26,7 @@
   },
   "include": [
     "src/agent/**/*.js",
+    "src/agent/**/*.d.ts",
     "src/kernel/**/*.js",
     "types/**/*.d.ts"
   ],

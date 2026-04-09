@@ -149,11 +149,8 @@ class HotReloader {
         return { success: false, error: `Syntax: ${syntaxErr.message}` };
       }
 
-      // @ts-ignore — require.resolve/cache
       // Clear from Node's require cache
-      // @ts-ignore
       const resolvedPath = require.resolve(fullPath);
-      // @ts-ignore
       const oldModule = require.cache[resolvedPath];
       delete require.cache[resolvedPath];
 
@@ -266,7 +263,7 @@ class HotReloader {
     const timer = setTimeout(() => {
       // Window passed without enough errors — watchdog stands down
       unsub();
-// @ts-ignore
+      // @ts-ignore — genuine TS error, fix requires type widening
       this._watchdogTimers.delete(filePath);
     }, WATCHDOG_WINDOW_MS);
 
@@ -283,9 +280,8 @@ class HotReloader {
     const wd = this._watchdogTimers?.get(filePath);
     if (wd) {
       clearTimeout(wd.timer);
-// @ts-ignore
       if (wd.unsub) wd.unsub();
-      // @ts-ignore
+      // @ts-ignore — genuine TS error, fix requires type widening
       this._watchdogTimers.delete(filePath);
     }
 

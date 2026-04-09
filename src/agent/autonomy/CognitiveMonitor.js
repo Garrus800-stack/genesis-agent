@@ -82,9 +82,12 @@ class CognitiveMonitor {
     this._cognitiveLoad = 0;    // 0.0 - 1.0
 
     /** @type {*} */ this._intervalHandle = null;
-    // @ts-ignore — prototype delegation (CognitiveMonitorAnalysis)
     this._wireEvents();
   }
+
+
+
+  /* c8 ignore stop */
 
   // ════════════════════════════════════════════════════════
   // LIFECYCLE
@@ -92,10 +95,8 @@ class CognitiveMonitor {
 
   start() {
     if (this.intervals) {
-      // @ts-ignore — prototype delegation (CognitiveMonitorAnalysis)
       this.intervals.register('cognitive-monitor', () => this._periodicAnalysis(), this._analyzeIntervalMs);
     } else {
-      // @ts-ignore — prototype delegation (CognitiveMonitorAnalysis)
       this._intervalHandle = setInterval(() => this._periodicAnalysis(), this._analyzeIntervalMs);
     }
     this.bus.fire('cognitive:started', {}, { source: 'CognitiveMonitor' });
@@ -147,7 +148,6 @@ class CognitiveMonitor {
     }
 
     // Detect redundant tool patterns (same tool called 3+ times in 10s window)
-    // @ts-ignore — prototype delegation (CognitiveMonitorAnalysis)
     const redundant = this._detectRedundantToolCalls();
 
     return { perTool: analytics, redundantPatterns: redundant, totalCalls: this._toolCalls.length };
@@ -167,7 +167,7 @@ class CognitiveMonitor {
    * @param {object} context - { source, goalId, stepIndex }
    */
   recordReasoning(summary, context = {}) {
-    // @ts-ignore — prototype delegation (CognitiveMonitorAnalysis)
+    // @ts-ignore — genuine TS error, fix requires type widening
     const hash = this._hashText(summary);
     const entry = {
       summary: summary.substring(0, 200),
@@ -183,7 +183,7 @@ class CognitiveMonitor {
     }
 
     // Check for circularity
-    // @ts-ignore — prototype delegation (CognitiveMonitorAnalysis)
+    // @ts-ignore — genuine TS error, fix requires type widening
     const circular = this._checkCircularity(hash);
     if (circular) {
       this._circularityAlerts.push({

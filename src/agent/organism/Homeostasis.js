@@ -117,11 +117,14 @@ class Homeostasis {
       };
     }
 
-    // @ts-ignore — TS strict
     this._wireEvents();
     // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()
     // this._load();
   }
+
+
+
+  /* c8 ignore stop */
 
   // ════════════════════════════════════════════════════════════
   // LIFECYCLE
@@ -166,7 +169,7 @@ class Homeostasis {
       result[name] = {
         value: vital.value,
         unit: vital.unit,
-        // @ts-ignore — TS strict
+        // @ts-ignore — genuine TS error, fix requires type widening
         status: this._classifyVital(vital),
       };
     }
@@ -180,7 +183,6 @@ class Homeostasis {
       vitals: this.getVitals(),
       autonomyAllowed: this.isAutonomyAllowed(),
       recentCorrections: this._corrections.slice(-10),
-      // @ts-ignore — TS strict
       errorRate: this._calculateErrorRate(),
       recoveryStarted: this._recoveryStarted,
       allostasis: Object.fromEntries(
@@ -238,7 +240,6 @@ class Homeostasis {
 
   _healthTick() {
     // Update vital signs from system state
-    // @ts-ignore — TS strict
     this._updateVitals();
 
     // Classify each vital
@@ -246,7 +247,7 @@ class Homeostasis {
     let criticalCount = 0;
 
     for (const vital of Object.values(this.vitals)) {
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       const status = this._classifyVital(vital);
       if (status === 'warning') warningCount++;
       if (status === 'critical') criticalCount++;
@@ -259,7 +260,6 @@ class Homeostasis {
       if (this.state !== 'critical') {
         this.state = 'critical';
         this._recoveryStarted = Date.now();
-        // @ts-ignore — TS strict
         this._applyCorrections();
         this.bus.emit('homeostasis:critical', {
           vitals: this.getVitals(),
@@ -273,14 +273,13 @@ class Homeostasis {
       this.bus.emit('homeostasis:recovering', {}, { source: 'Homeostasis' });
     } else if (this.state === 'recovering') {
       // Check if recovery period elapsed
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       if (Date.now() - this._recoveryStarted > this._recoveryDuration) {
         this.state = warningCount > 0 ? 'stressed' : 'healthy';
         this._recoveryStarted = null;
       }
     } else if (warningCount > 0) {
       this.state = 'stressed';
-      // @ts-ignore — TS strict
       if (warningCount > 1) this._applyCorrections();
     } else {
       this.state = 'healthy';
@@ -308,7 +307,6 @@ class Homeostasis {
 
     // v4.12.5: Allostasis — adaptive threshold shifting
     if (this._allostasisEnabled) {
-      // @ts-ignore — TS strict
       this._allostasisTick();
     }
   }

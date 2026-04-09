@@ -89,10 +89,7 @@ class OllamaBackend {
       options: { temperature, num_ctx: 8192 },
     };
 
-      // @ts-ignore — resolve() without args is intentional
-    // @ts-ignore — resolve() called without args intentionally
     return new Promise((resolve, reject) => {
-      // @ts-ignore — resolve() without args is intentional
       const url = new URL(`${this.baseUrl}/api/chat`);
       const postData = JSON.stringify(body);
       let _settled = false;
@@ -163,9 +160,7 @@ class OllamaBackend {
   // ── HTTP Helpers ─────────────────────────────────────────
 
   _httpGet(urlStr) {
-    // @ts-ignore — resolve() called without args intentionally
     return new Promise((resolve, reject) => {
-      // @ts-ignore — resolve() without args is intentional
       const url = new URL(urlStr);
       const req = http.get(url, (res) => {
         if (res.statusCode >= 400) {
@@ -186,9 +181,7 @@ class OllamaBackend {
   }
 
   _httpPost(urlStr, body, extraHeaders = {}, timeoutMs = 30000) {
-    // @ts-ignore — resolve() called without args intentionally
     return new Promise((resolve, reject) => {
-      // @ts-ignore — resolve() without args is intentional
       const url = new URL(urlStr);
       const postData = JSON.stringify(body);
       const req = http.request(

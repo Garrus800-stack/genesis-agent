@@ -164,7 +164,7 @@ class VerificationEngine {
       checks: verification.checks?.length || 0,
     }, { source: 'VerificationEngine' });
 
-    // @ts-ignore — TS strict
+    // @ts-ignore — genuine TS error, fix requires type widening
     return verification;
   }
 
@@ -175,7 +175,7 @@ class VerificationEngine {
    */
   verifyPlan(steps) {
     if (!this.worldState) {
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       return { valid: true, issues: [], note: 'WorldState not available — skipping plan verification' };
     }
     return this._verifiers.plan.verifyPlan(steps, this.worldState);
@@ -262,15 +262,15 @@ class CodeVerifier {
     checks.push(...lint.checks);
 
     // Determine overall status
-    // @ts-ignore — TS strict
+    // @ts-ignore — genuine TS error, fix requires type widening
     const hasFail = checks.some(c => !c.passed && c.severity !== 'warn');
-    // @ts-ignore — TS strict
+    // @ts-ignore — genuine TS error, fix requires type widening
     const hasWarn = checks.some(c => c.severity === 'warn');
 
     if (hasFail) {
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       const failedCheck = checks.find(c => !c.passed && c.severity !== 'warn');
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       return { status: FAIL, reason: failedCheck.error || 'Code verification failed', checks };
     }
 
@@ -278,7 +278,7 @@ class CodeVerifier {
       status: hasWarn ? PASS : PASS, // Warnings don't block
       reason: hasWarn ? 'Code valid with warnings' : 'Code verified',
       checks,
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       warnings: checks.filter(c => c.severity === 'warn'),
     };
   }
@@ -694,7 +694,7 @@ class PlanVerifier {
     return {
       valid: issues.length === 0,
       issues,
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       totalIssues: issues.reduce((sum, i) => sum + i.issues.length, 0),
     };
   }

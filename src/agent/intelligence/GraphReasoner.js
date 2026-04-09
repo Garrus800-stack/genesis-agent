@@ -65,7 +65,7 @@ class GraphReasoner {
    * @param {string} label — Node label (e.g., "AgentLoop")
    * @param {string} relation — Edge type to follow (e.g., "depends_on", "imports")
    * @param {object} options — { maxDepth, direction: 'outgoing'|'incoming' }
-   * @returns {{ root, nodes: [{label, type, depth}], edges, totalDepth }}
+   * @returns {{ root: string, nodes: Array<{label: string, type: string, depth: number}>, edges: Array<*>, totalDepth: number, error?: string }}
    */
   transitiveDeps(label, relation = 'depends_on', options = {}) {
     this._stats.queries++;
@@ -73,11 +73,9 @@ class GraphReasoner {
     const direction = options.direction || 'outgoing';
 
     const graph = this.kg?.graph;
-    // @ts-ignore — TS strict
     if (!graph) return { root: label, nodes: [], edges: [], totalDepth: 0 };
 
     const root = graph.findNode(label);
-    // @ts-ignore — TS strict
     if (!root) return { root: label, nodes: [], edges: [], totalDepth: 0, error: 'Node not found' };
 
     const visited = new Set();
@@ -113,7 +111,6 @@ class GraphReasoner {
 
     return {
       root: label,
-      // @ts-ignore — TS strict
       nodes: result.slice(0, this._maxResults),
       edges,
       totalDepth: result.length > 0 ? Math.max(...result.map(r => r.depth)) : 0,
@@ -126,7 +123,7 @@ class GraphReasoner {
    *
    * @param {string} label — Changed module/concept
    * @param {object} options — { maxDepth, includeTests }
-   * @returns {{ changed, impacted: [{label, type, depth, risk}], riskScore }}
+   * @returns {{ changed: string, impacted: Array<{label: string, type: string, depth: number, risk: string, hasTests?: boolean}>, riskScore: number, totalImpacted: number }}
    */
   impactAnalysis(label, options = {}) {
     this._stats.impactAnalyses++;
@@ -141,6 +138,7 @@ class GraphReasoner {
     const impacted = deps.nodes.map(n => ({
       ...n,
       risk: n.depth === 1 ? 'high' : n.depth === 2 ? 'medium' : 'low',
+      /** @type {boolean|undefined} */ hasTests: undefined,
     }));
 
     // Check SelfModel for test associations
@@ -152,7 +150,6 @@ class GraphReasoner {
           .map(([name]) => name);
 
         for (const imp of impacted) {
-          // @ts-ignore — TS strict
           imp.hasTests = testModules.some(t =>
             t.toLowerCase().includes(imp.label.toLowerCase())
           );
@@ -172,7 +169,6 @@ class GraphReasoner {
 
     return {
       changed: label,
-      // @ts-ignore — TS strict
       impacted: impacted.slice(0, this._maxResults),
       riskScore: Math.round(riskScore * 100) / 100,
       totalImpacted: deps.nodes.length,
@@ -184,14 +180,12 @@ class GraphReasoner {
    * Useful for finding circular imports after self-modification.
    *
    * @param {string} relation — Edge type to check
-   * @returns {{ hasCycles, cycles: Array<Array<string>> }}
+   * @returns {{ hasCycles: boolean, cycles: Array<Array<string>> }}
    */
-  // @ts-ignore — TS strict
   detectCycles(relation = 'depends_on') {
     this._stats.queries++;
 
     const graph = this.kg?.graph;
-    // @ts-ignore — TS strict
     if (!graph) return { hasCycles: false, cycles: [] };
 
     const allNodes = graph.getAllNodes?.() || [];
@@ -230,7 +224,6 @@ class GraphReasoner {
 
     if (cycles.length > 0) this._stats.cycles += cycles.length;
 
-    // @ts-ignore — TS strict
     return { hasCycles: cycles.length > 0, cycles };
   }
 
@@ -240,29 +233,27 @@ class GraphReasoner {
    *
    * @param {string} fromLabel
    * @param {string} toLabel
-   * @returns {{ found, path: string[], distance: number, relations: string[] }}
+   * @returns {{ found: boolean, path: string[], distance: number, relations?: string[] }}
    */
-  // @ts-ignore — TS strict
   shortestPath(fromLabel, toLabel) {
     this._stats.queries++;
 
     const graph = this.kg?.graph;
-    // @ts-ignore — TS strict
     if (!graph) return { found: false, path: [], distance: -1, relations: [] };
 
     const from = graph.findNode(fromLabel);
     const to = graph.findNode(toLabel);
-    // @ts-ignore — TS strict
-    if (!from || !to) return { found: false, path: [], distance: -1 };
+    if (!from || !to) return { found: false, path: [], distance: -1, relations: [] };
 
     // BFS
     const visited = new Set();
+    /** @type {Array<{ nodeId: *, path: string[], relations: string[] }>} */
     const queue = [{ nodeId: from.id, path: [fromLabel], relations: [] }];
     visited.add(from.id);
 
     while (queue.length > 0) {
-      // @ts-ignore — TS strict
-      const { nodeId, path: currentPath, relations } = queue.shift();
+      const item = /** @type {{ nodeId: *, path: string[], relations: string[] }} */ (queue.shift());
+      const { nodeId, path: currentPath, relations } = item;
 
       if (nodeId === to.id) {
         return { found: true, path: currentPath, distance: currentPath.length - 1, relations };
@@ -287,14 +278,12 @@ class GraphReasoner {
           queue.push({
             nodeId: edge.target,
             path: [...currentPath, targetNode.label],
-            // @ts-ignore — TS strict
             relations: [...relations, edge.relation],
           });
         }
       }
     }
 
-    // @ts-ignore — TS strict
     return { found: false, path: [], distance: -1, relations: [] };
   }
 
@@ -302,13 +291,12 @@ class GraphReasoner {
    * Find contradictions in the knowledge graph.
    * Checks for conflicting edges (e.g., A is_a B AND A is_not B).
    *
-   * @returns {{ contradictions: [{node, conflicting}] }}
+   * @returns {{ contradictions: Array<{node: string, target: string, positive: string, negative: string}> }}
    */
   findContradictions() {
     this._stats.queries++;
 
     const graph = this.kg?.graph;
-    // @ts-ignore — TS strict
     if (!graph) return { contradictions: [] };
 
     const contradictions = [];
@@ -342,7 +330,6 @@ class GraphReasoner {
     }
 
     this._stats.contradictions += contradictions.length;
-    // @ts-ignore — TS strict
     return { contradictions };
   }
 
@@ -351,7 +338,7 @@ class GraphReasoner {
    * Returns null if the question can't be answered by graph alone.
    *
    * @param {string} question — Natural language question
-   * @returns {{ answered, result, method } | null}
+   * @returns {{ answered: boolean, result: string, method: string, data?: * } | null}
    */
   tryAnswer(question) {
     const q = question.toLowerCase();
@@ -367,7 +354,6 @@ class GraphReasoner {
           answered: true,
           result: `${result.nodes.length} modules depend on ${match[1]}: ${result.nodes.map(n => n.label).join(', ')}`,
           method: 'graph:transitive-deps',
-          // @ts-ignore — TS strict
           data: result,
         };
       }
@@ -383,7 +369,6 @@ class GraphReasoner {
           answered: true,
           result: `${match[1]} depends on ${result.nodes.length} modules: ${result.nodes.map(n => n.label).join(', ')}`,
           method: 'graph:transitive-deps',
-          // @ts-ignore — TS strict
           data: result,
         };
       }
@@ -397,10 +382,8 @@ class GraphReasoner {
         const highRisk = result.impacted.filter(n => n.risk === 'high');
         return {
           answered: true,
-          // @ts-ignore — TS strict
           result: `Changing ${match[1]} impacts ${result.totalImpacted} modules (${highRisk.length} high-risk). Risk score: ${result.riskScore}`,
           method: 'graph:impact-analysis',
-          // @ts-ignore — TS strict
           data: result,
         };
       }
@@ -415,7 +398,6 @@ class GraphReasoner {
           ? `Found ${result.cycles.length} cycles: ${result.cycles.map(c => c.join(' → ')).join('; ')}`
           : 'No circular dependencies detected.',
         method: 'graph:cycle-detection',
-        // @ts-ignore — TS strict
         data: result,
       };
     }

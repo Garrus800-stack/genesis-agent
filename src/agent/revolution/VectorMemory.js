@@ -84,7 +84,6 @@ class VectorMemory {
    * @param {object} metadata - Arbitrary metadata
    * @returns {Promise<string|null>}
    */
-  // @ts-ignore — TS strict
   async add(collection, text, metadata = {}) {
     if (!this.collections[collection]) return null;
     if (!text || text.length < 10) return null;
@@ -120,7 +119,6 @@ class VectorMemory {
    * @param {string|null} collection - Specific collection or null for all
    * @returns {Promise<Array<*>>}
    */
-  // @ts-ignore — TS strict
   async search(query, topK = 5, collection = null) {
     const start = Date.now();
     this._stats.searches++;
@@ -166,7 +164,6 @@ class VectorMemory {
    * @param {number} maxChars - Max characters for the context block
    * @returns {Promise<string>}
    */
-  // @ts-ignore — TS strict
   async buildContextBlock(query, maxChars = 800) {
     const results = await this.search(query, 6);
 
@@ -295,9 +292,9 @@ class VectorMemory {
       const index = {};
       for (const [colName, entries] of Object.entries(this.collections)) {
         index[colName] = entries.map(e => ({
-          // @ts-ignore — TS strict
+          // @ts-ignore — genuine TS error, fix requires type widening
           id: e.id, text: e.text, metadata: e.metadata, ts: e.ts,
-          // @ts-ignore — TS strict
+          // @ts-ignore — genuine TS error, fix requires type widening
           vecLen: e.vector?.length || 0,
         }));
       }
@@ -309,7 +306,7 @@ class VectorMemory {
       const allVectors = [];
       for (const entries of Object.values(this.collections)) {
         for (const entry of entries) {
-          // @ts-ignore — TS strict
+          // @ts-ignore — genuine TS error, fix requires type widening
           if (entry.vector) allVectors.push({ id: entry.id, vector: Array.from(entry.vector) });
         }
       }
@@ -364,7 +361,7 @@ class VectorMemory {
       }
 
       this._stats.totalVectors = Object.values(this.collections)
-        // @ts-ignore — TS strict
+        // @ts-ignore — genuine TS error, fix requires type widening
         .reduce((sum, col) => sum + col.filter(e => e.vector).length, 0);
 
       if (this._stats.totalVectors > 0) {

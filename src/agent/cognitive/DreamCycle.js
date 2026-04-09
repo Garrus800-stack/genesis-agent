@@ -84,6 +84,10 @@ class DreamCycle {
     };
   }
 
+
+
+  /* c8 ignore stop */
+
   async asyncLoad() {
     if (!this.storage) return;
     try {
@@ -157,7 +161,7 @@ class DreamCycle {
       }
 
       // ── Phase 2: PATTERN DETECTION (heuristic, no LLM) ──
-      // @ts-ignore — prototype-delegated from DreamCycleAnalysis.js
+      // @ts-ignore — genuine TS error, fix requires type widening
       const patterns = this._detectPatterns(episodes);
       report.phases.push({ name: 'pattern-detection', patternCount: patterns.length });
 
@@ -172,7 +176,7 @@ class DreamCycle {
       this._dreamPhaseCrystallize(newSchemas);
 
       // ── Phase 4: MEMORY CONSOLIDATION ──────────────────
-      // @ts-ignore — prototype-delegated from DreamCycleAnalysis.js
+      // @ts-ignore — genuine TS error, fix requires type widening
       const consolidation = this._consolidateMemories(episodes);
       report.strengthenedMemories = consolidation.strengthened;
       report.decayedMemories = consolidation.decayed;
@@ -189,7 +193,7 @@ class DreamCycle {
 
       // ── Phase 5: INSIGHT GENERATION ────────────────────
       if (report.newSchemas.length > 0 && this._withinTimeLimit(startTime)) {
-      // @ts-ignore — prototype-delegated from DreamCycleAnalysis.js
+        // @ts-ignore — genuine TS error, fix requires type widening
         report.insights = this._generateInsights(report.newSchemas);
         this._stats.totalInsights += report.insights.length;
       }
@@ -283,10 +287,10 @@ class DreamCycle {
 
     let schemas;
     if (this._useLLM && this.model && this._withinTimeLimit(startTime)) {
-      // @ts-ignore — prototype-delegated from DreamCycleAnalysis.js
+      // @ts-ignore — genuine TS error, fix requires type widening
       schemas = await this._batchExtractSchemas(qualifiedPatterns);
     } else {
-      // @ts-ignore — prototype-delegated from DreamCycleAnalysis.js
+      // @ts-ignore — genuine TS error, fix requires type widening
       schemas = this._heuristicSchemas(qualifiedPatterns);
     }
 

@@ -55,13 +55,16 @@ class ChatOrchestrator {
     this._loadHistory();
   }
 
+
+
+  /* c8 ignore stop */
+
   registerHandler(intentType, handler) {
     this.handlers.set(intentType, handler);
   }
 
   async handleChat(message) {
     this.history.push({ role: 'user', content: message });
-    // @ts-ignore — TS strict
     this._trimHistory();
     this.lang.detect(message);
     // FIX v3.5.0: Non-critical telemetry events use fire() (non-blocking)
@@ -98,7 +101,7 @@ class ChatOrchestrator {
       this.history.push({ role: 'assistant', content: response });
       this._saveHistory();
       // v3.5.0: Record conversation as episodic memory
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       this._recordEpisode(message, response, intent.type);
       this.bus.fire('chat:completed', { message, response, intent: intent.type, success: !response.startsWith('**' + this.lang.t('agent.error')) }, { source: 'ChatOrchestrator' });
       // v6.0.4: End provenance trace — success
@@ -120,7 +123,6 @@ class ChatOrchestrator {
 
   async handleStream(message, onChunk, onDone) {
     this.history.push({ role: 'user', content: message });
-    // @ts-ignore — TS strict
     this._trimHistory();
     this.abortController = new AbortController();
     this.lang.detect(message);
@@ -182,18 +184,18 @@ class ChatOrchestrator {
 
       let fullResponse = '';
 
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       await this._withRetry(() => this.cb.execute(
         () => this.model.streamChat(ctx.system, ctx.messages, (chunk) => {
           if (this.abortController?.signal.aborted) return;
           fullResponse += chunk;
           onChunk(chunk);
-        // @ts-ignore — TS strict
+        // @ts-ignore — genuine TS error, fix requires type widening
         }, this.abortController.signal)
       ));
 
       // Multi-round tool execution loop
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       fullResponse = await this._processToolLoop(fullResponse, onChunk);
 
       this.history.push({ role: 'assistant', content: fullResponse });
@@ -207,7 +209,7 @@ class ChatOrchestrator {
       }
 
       // Route code blocks to editor
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       const codeBlocks = this._extractCodeBlocks(fullResponse);
       if (codeBlocks.length > 0) {
         const primary = codeBlocks.sort((a, b) => b.content.length - a.content.length)[0];
@@ -262,7 +264,7 @@ class ChatOrchestrator {
   }
 
   async _directChat(message) {
-    // @ts-ignore — TS strict
+    // @ts-ignore — genuine TS error, fix requires type widening
     return this._withRetry(async () => {
       const systemPrompt = this.promptBuilder.buildAsync
         ? await this.promptBuilder.buildAsync()

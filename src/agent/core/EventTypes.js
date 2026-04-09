@@ -18,7 +18,6 @@
 const EVENTS = Object.freeze({
 
   // ── Agent Loop ─────────────────────────────────────────
-  // v4.12.5-fix: Consolidated — removed phantom 'agent-loop:completed'
   // (AgentLoop.js emits 'agent-loop:complete'), merged AGENTLOOP namespace.
   /** @payload {{ goalId: string, goal: string, stepCount: number }} */
   AGENT_LOOP: Object.freeze({
@@ -47,13 +46,10 @@ const EVENTS = Object.freeze({
   // v5.2.0 (SA-P6): Working memory lifecycle
   WORKSPACE: Object.freeze({
     /** @payload {{ goalId: string, capacity: number }} */
-    CREATED:      'workspace:created',
     /** @payload {{ goalId: string, key: string, salience: number, evicted?: string }} */
-    STORED:       'workspace:stored',
     /** @payload {{ goalId: string, items: Array, workspaceStats: object }} */
     CONSOLIDATE:  'workspace:consolidate',
     /** @payload {{ goalId: string, itemsCleared: number, consolidated: number }} */
-    CLEARED:      'workspace:cleared',
   }),
 
   // v5.3.0 (SA-P5): Online learning — real-time behavioral adaptation
@@ -75,7 +71,6 @@ const EVENTS = Object.freeze({
     /** @payload {{ id: string, category: string, insight: string }} */
     RECORDED:           'lessons:recorded',
     /** @payload {{ category: string, count: number }} */
-    RECALLED:           'lessons:recalled',
     /** @payload {{ category: string, title: string, content: string, tags: string[] }} */
     LEARNED:            'lesson:learned',
   }),
@@ -85,7 +80,6 @@ const EVENTS = Object.freeze({
     /** @payload {{ file: string, violations: Array<{invariant: string, detail: string}> }} */
     VIOLATION:          'preservation:violation',
     /** @payload {{ file: string, invariantCount: number }} */
-    PASSED:             'preservation:passed',
   }),
 
   // ── Agent System ───────────────────────────────────────
@@ -461,13 +455,10 @@ const EVENTS = Object.freeze({
     FACT_STORED:    'memory:fact-stored',
     UNIFIED_RECALL: 'memory:unified-recall',
     /** @payload {{ key: string, source?: string }} */
-    READ:           'memory:read',
     /** @payload {{ key: string, source?: string }} */
-    WRITE:          'memory:write',
     /** @payload {{ topic: string, conflictCount: number, resolutionCount: number }} */
     CONFLICTS_RESOLVED: 'memory:conflicts-resolved',
     /** @payload {{ key: string, type: string, source?: string }} */
-    STORED:             'memory:stored',
   }),
 
   // ── Meta Learning ──────────────────────────────────────
@@ -481,7 +472,6 @@ const EVENTS = Object.freeze({
     STATUS:    'network:status',
     FAILOVER:  'network:failover',
     RESTORED:  'network:restored',
-    ERROR:     'network:error',
   }),
 
   // ── Model ──────────────────────────────────────────────
@@ -490,7 +480,6 @@ const EVENTS = Object.freeze({
     NO_MODELS:         'model:no-models',
     OLLAMA_UNAVAILABLE: 'model:ollama-unavailable',
     /** @payload {{ model: string, backend: string, priority: number }} */
-    QUERY:             'model:query',
   }),
 
   // ── Needs System ───────────────────────────────────────
@@ -663,8 +652,6 @@ const EVENTS = Object.freeze({
     RESULT:       'tools:result',
     ERROR:        'tools:error',
     /** @payload {{ tool: string, duration: number, success: boolean }} */
-    COMPLETED:    'tools:completed',
-    // v4.12.5-fix: Removed phantom 'tool:executed' — ToolRegistry emits 'tools:result'.
     // Consumers (LearningService, CognitiveMonitor) now use TOOLS.RESULT.
     NATIVE_CALL:  'tool:native-call',
     // v5.7.0 SA-P8: Dynamic Tool Synthesis events
@@ -749,7 +736,6 @@ const EVENTS = Object.freeze({
     STARTED:  'simulation:started',
     BRANCHED: 'simulation:branched',
     COMPLETE: 'simulation:complete',
-    REPLAN:   'simulation:replan',
   }),
 
   SURPRISE: Object.freeze({
@@ -761,15 +747,12 @@ const EVENTS = Object.freeze({
   SCHEMA: Object.freeze({
     STORED:  'schema:stored',
     MERGED:  'schema:merged',
-    MATCHED: 'schema:matched',
     REMOVED: 'schema:removed',
     PRUNED:  'schema:pruned',
   }),
 
   DREAM: Object.freeze({
     STARTED:      'dream:started',
-    PHASE:        'dream:phase',
-    SCHEMA_FOUND: 'dream:schema-found',
     COMPLETE:     'dream:complete',
   }),
 
@@ -785,7 +768,6 @@ const EVENTS = Object.freeze({
   GOAL_PERSIST: Object.freeze({
     LOADED:     'goals:loaded',
     RESUMED:    'goal:resumed',
-    CHECKPOINT: 'goal:checkpoint',
   }),
 
   FAILURE: Object.freeze({
@@ -812,7 +794,6 @@ const EVENTS = Object.freeze({
   AUTONOMY: Object.freeze({
     EARNED:  'autonomy:earned',
     REVOKED: 'autonomy:revoked',
-    STATUS:  'autonomy:status',
   }),
 
   // v6.0.8: Symbolic resolution + Consciousness gate + Directed curiosity
@@ -959,14 +940,10 @@ const EVENT_STORE_BUS_MAP = Object.freeze({
   CODE_MODIFIED:        { store: 'CODE_MODIFIED',        bus: 'selfmod:success' },
   CODE_SAFETY_BLOCK:    { store: 'CODE_SAFETY_BLOCK',    bus: 'code:safety-blocked' },
   SHELL_PLAN_EXECUTED:  { store: 'SHELL_PLAN_EXECUTED',  bus: 'shell:complete' },
-  HEALTH_ALERT:         { store: 'HEALTH_ALERT',         bus: 'health:alert' },
   SYSTEM_BOOT:          { store: 'SYSTEM_BOOT',          bus: 'agent:status' },
   SYSTEM_SHUTDOWN:      { store: 'SYSTEM_SHUTDOWN',       bus: 'agent:shutdown' },
   INTENT_CLASSIFIED:    { store: 'INTENT_CLASSIFIED',    bus: 'intent:classified' },
-  TASK_DELEGATED:       { store: 'TASK_DELEGATED',       bus: 'task:delegated' },
   MCP_TOOL_CALL:        { store: 'MCP_TOOL_CALL',        bus: 'mcp:tool-call' },
-  SURPRISE_NOVEL:       { store: 'SURPRISE_NOVEL',       bus: 'surprise:novel' },
-  COGNITIVE_SNAPSHOT:   { store: 'COGNITIVE_SNAPSHOT',    bus: 'cognitive:snapshot' },
   SKILL_CREATED:        { store: 'SKILL_CREATED',        bus: 'daemon:skill-created' },
 });
 

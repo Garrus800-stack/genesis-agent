@@ -49,6 +49,7 @@ class SessionPersistence {
     this.lang = lang || { t: k => k };
 
     // ── Session State ────────────────────────────────────
+    /** @type {{ startedAt: string, messageCount: number, topicsDiscussed: string[], errorsEncountered: string[], goalsWorkedOn: string[], keyDecisions: string[], codeFilesModified: string[] }} */
     this.currentSession = {
       startedAt: new Date().toISOString(),
       messageCount: 0,
@@ -62,6 +63,7 @@ class SessionPersistence {
     // ── Persistent Across Sessions ───────────────────────
     this.sessionHistory = [];      // Last N session summaries
     this.maxSessionHistory = 10;
+    /** @type {{ name: string|null, language: string|null, interests: string[], projects: string[], preferences: Record<string,*>, communicationStyle: string|null, expertise: string[], lastSeen: string|null }} */
     this.userProfile = {
       name: null,
       language: null,
@@ -222,25 +224,18 @@ UNFINISHED: ...`;
   updateUserProfile(updates) {
     if (updates.name) this.userProfile.name = updates.name;
     if (updates.language) this.userProfile.language = updates.language;
-    // @ts-ignore — TS strict
     if (updates.interest && !this.userProfile.interests.includes(updates.interest)) {
-      // @ts-ignore — TS strict
       this.userProfile.interests.push(updates.interest);
       if (this.userProfile.interests.length > 20) this.userProfile.interests.shift();
     }
-    // @ts-ignore — TS strict
     if (updates.project && !this.userProfile.projects.includes(updates.project)) {
-      // @ts-ignore — TS strict
       this.userProfile.projects.push(updates.project);
       if (this.userProfile.projects.length > 10) this.userProfile.projects.shift();
     }
-    // @ts-ignore — TS strict
     if (updates.expertise && !this.userProfile.expertise.includes(updates.expertise)) {
-      // @ts-ignore — TS strict
       this.userProfile.expertise.push(updates.expertise);
       if (this.userProfile.expertise.length > 15) this.userProfile.expertise.shift();
     }
-    // @ts-ignore — TS strict
     this.userProfile.lastSeen = new Date().toISOString();
     this._debouncedSave();
   }
@@ -268,9 +263,7 @@ UNFINISHED: ...`;
 
       this.bus.on('intent:classified', (data) => {
         if (data?.type && data.type !== 'general' && data.type !== 'greeting') {
-          // @ts-ignore — TS strict
           if (!this.currentSession.topicsDiscussed.includes(data.type)) {
-            // @ts-ignore — TS strict
             this.currentSession.topicsDiscussed.push(data.type);
           }
         }
@@ -278,14 +271,12 @@ UNFINISHED: ...`;
 
       this.bus.on('chat:error', (data) => {
         this.currentSession.errorsEncountered.push(
-          // @ts-ignore — TS strict
           (data?.message || 'unknown').slice(0, 100)
         );
       }, { source: 'SessionPersistence', priority: -10 }),
 
       this.bus.on('agent-loop:started', (data) => {
         if (data?.title) {
-          // @ts-ignore — TS strict
           this.currentSession.goalsWorkedOn.push(data.title);
         }
       }, { source: 'SessionPersistence', priority: -10 }),
@@ -294,10 +285,8 @@ UNFINISHED: ...`;
       // which fires 'store:CODE_MODIFIED'. Also handle bulk file list.
       this.bus.on('store:CODE_MODIFIED', (data) => {
         if (data?.file) {
-          // @ts-ignore — TS strict
           this.currentSession.codeFilesModified.push(data.file);
         } else if (data?.files) {
-          // @ts-ignore — TS strict
           this.currentSession.codeFilesModified.push(...data.files);
         }
       }, { source: 'SessionPersistence', priority: -10 }),
@@ -314,8 +303,7 @@ UNFINISHED: ...`;
   _getSessionDuration() {
     const started = new Date(this.currentSession.startedAt);
     const now = new Date();
-    // @ts-ignore — TS strict
-    const mins = Math.round((now - started) / 60000);
+    const mins = Math.round((now.getTime() - started.getTime()) / 60000);
     return mins > 60 ? `${Math.round(mins / 60)}h ${mins % 60}m` : `${mins}m`;
   }
 

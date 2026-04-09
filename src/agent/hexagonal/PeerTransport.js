@@ -9,7 +9,7 @@
 
 const http = require('http');
 const { TIMEOUTS } = require('../core/Constants');
-// @ts-ignore — dgram module
+// @ts-ignore — genuine TS error, fix requires type widening
 const dgram = require('dgram');
 const crypto = require('crypto');
 const { NullBus } = require('../core/EventBus');
@@ -78,9 +78,7 @@ class PeerTransport {
       });
 
       this.server.listen(port, '127.0.0.1', () => {
-// @ts-ignore
-// @ts-ignore
-// @ts-ignore
+        // @ts-ignore — genuine TS error, fix requires type widening
         this.port = this.server.address().port;
         resolve(this.port);
       });
@@ -210,11 +208,10 @@ class PeerTransport {
     if (this.udpSocket) {
       try {
         if (!this._useBroadcast) this.udpSocket.dropMembership(this.config.multicastGroup);
-// @ts-ignore
         this.udpSocket.close();
       } catch (_e) { _log.debug('[catch] UDP socket close:', _e.message); }
     }
-    // @ts-ignore
+    // @ts-ignore — genuine TS error, fix requires type widening
     if (this.server) return new Promise(resolve => this.server.close(resolve));
   }
 }

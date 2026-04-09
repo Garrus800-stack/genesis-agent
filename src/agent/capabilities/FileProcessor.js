@@ -290,20 +290,18 @@ class FileProcessor {
       check('python'), check('python3'), check('php'),
       check('ruby'), check('bash'), check('lua'),
     ]);
-    // @ts-ignore — PromiseSettledResult.value access
 
     this.runtimes = {
       node: true,
-// @ts-ignore
-// @ts-ignore
+      // @ts-ignore — genuine TS error, fix requires type widening
       python: (python.value || false) || (python3.value || false),
-// @ts-ignore
+      // @ts-ignore — genuine TS error, fix requires type widening
       php: php.value || false,
-      // @ts-ignore
+      // @ts-ignore — genuine TS error, fix requires type widening
       ruby: ruby.value || false,
-      // @ts-ignore
+      // @ts-ignore — genuine TS error, fix requires type widening
       bash: bash.value || false,
-      // @ts-ignore
+      // @ts-ignore — genuine TS error, fix requires type widening
       lua: lua.value || false,
       powershell: process.platform === 'win32' || false,
       cmd: process.platform === 'win32',

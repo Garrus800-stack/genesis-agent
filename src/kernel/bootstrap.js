@@ -14,7 +14,6 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-// @ts-ignore
 const EXEC_OPTS = { cwd: ROOT, stdio: 'pipe', windowsHide: true, encoding: 'utf-8' };
 
 console.log('+=======================================+');

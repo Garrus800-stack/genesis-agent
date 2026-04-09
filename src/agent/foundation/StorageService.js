@@ -154,7 +154,6 @@ class StorageService {
       // FIX v4.10.0: fsync before rename ensures data is on disk
       // FIX v4.13.1: 'r+' required — Windows EPERM on fsync with read-only handle
       const fd = fs.openSync(tmpPath, 'r+');
-      // @ts-ignore
       fs.fsyncSync(fd);
       fs.closeSync(fd);
       fs.renameSync(tmpPath, fullPath);

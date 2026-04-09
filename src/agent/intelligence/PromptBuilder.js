@@ -151,6 +151,9 @@ class PromptBuilder {
     }
   }
 
+
+
+
   /** Set the most recent user query (for context relevance) */
   setQuery(query) {
     this._recentQuery = query;
@@ -240,55 +243,30 @@ class PromptBuilder {
     this._applyModelGating();
 
     return this._buildWithBudget([
-      // @ts-ignore — TS strict
       ['identity',       this._identity()],
-      // @ts-ignore — TS strict
       ['formatting',     this._formatting()],
-      // @ts-ignore — TS strict
       ['session',        this._sessionContext()],
-      // @ts-ignore — TS strict
       ['capabilities',   this._capabilities()],
-      // @ts-ignore — TS strict
       ['mcp',            this._mcpContext()],
-      // @ts-ignore — TS strict
       ['knowledge',      this._knowledgeContext()],
-      // @ts-ignore — TS strict
       ['memory',         this._memoryContext()],
-      // @ts-ignore — TS strict
       ['episodic',       this._episodicContext()],
-      // @ts-ignore — TS strict
       ['perception',     this._perceptionContext()],
-      // @ts-ignore — TS strict
       ['learning',       this._learningContext()],
-      // @ts-ignore — TS strict
       ['lessons',        this._lessonsContext()],
-      // @ts-ignore — TS strict
       ['solutions',      this._solutionContext()],
-      // @ts-ignore — TS strict
       ['anticipator',    this._anticipatorContext()],
-      // @ts-ignore — TS strict
       ['optimizer',      this._optimizerContext()],
-      // @ts-ignore — TS strict
       ['metacognition',  this._metacognitiveContext()],
-      // @ts-ignore — TS strict
       ['selfAwareness',  this._selfAwarenessContext()],
-      // @ts-ignore — TS strict
       ['consciousness',  this._consciousnessContext()],
-      // @ts-ignore — TS strict
       ['values',         this._valuesContext()],
-      // @ts-ignore — TS strict
       ['userModel',      this._userModelContext()],
-      // @ts-ignore — TS strict
       ['bodySchema',     this._bodySchemaContext()],
-      // @ts-ignore — TS strict
       ['organism',       this._organismContext()],
-      // @ts-ignore — TS strict
       ['taskPerformance', this._taskPerformanceContext()],
-      // @ts-ignore — TS strict
       ['safety',         this._safetyContext()],
-      // @ts-ignore — TS strict
       ['disclosure',     this._disclosureContext()],
-      // @ts-ignore — TS strict
       ['version',        this._versionContext()],
     ]);
   }
@@ -385,15 +363,10 @@ class PromptBuilder {
     this._applyModelGating(); // v6.0.7
 
     const sections = [
-      // @ts-ignore — TS strict
       ['identity',     this._identity()],
-      // @ts-ignore — TS strict
       ['formatting',   this._formatting()],
-      // @ts-ignore — TS strict
       ['session',      this._sessionContext()],
-      // @ts-ignore — TS strict
       ['capabilities', this._capabilities()],
-      // @ts-ignore — TS strict
       ['mcp',          this._mcpContext()],
     ];
 
@@ -411,57 +384,33 @@ class PromptBuilder {
         const unifiedBlock = await this.unifiedMemory.buildContextBlock(this._recentQuery, 800);
         if (unifiedBlock) sections.push(['knowledge', unifiedBlock]);
       } catch (err) {
-        // @ts-ignore — TS strict
         sections.push(['knowledge', await this._knowledgeContextAsync()]);
-        // @ts-ignore — TS strict
         sections.push(['memory',    await this._memoryContextAsync()]);
       }
     } else {
-      // @ts-ignore — TS strict
       sections.push(['knowledge', await this._knowledgeContextAsync()]);
-      // @ts-ignore — TS strict
       sections.push(['memory',    await this._memoryContextAsync()]);
     }
 
-    // @ts-ignore — TS strict
     sections.push(['learning',      this._learningContext()]);
-    // @ts-ignore — TS strict
     sections.push(['project',       this._projectContext()]);
-    // @ts-ignore — TS strict
     sections.push(['lessons',       this._lessonsContext()]);
-    // @ts-ignore — TS strict
     sections.push(['solutions',     this._solutionContext()]);
-    // @ts-ignore — TS strict
     sections.push(['anticipator',   this._anticipatorContext()]);
-    // @ts-ignore — TS strict
     sections.push(['optimizer',     this._optimizerContext()]);
-    // @ts-ignore — TS strict
     sections.push(['episodic',      this._episodicContext()]);
-    // @ts-ignore — TS strict
     sections.push(['perception',    this._perceptionContext()]);
-    // @ts-ignore — TS strict
     sections.push(['metacognition', this._metacognitiveContext()]);
-    // @ts-ignore — TS strict
     sections.push(['selfAwareness', this._selfAwarenessContext()]);
-    // @ts-ignore — TS strict
     sections.push(['architecture',  this._architectureContext()]);
-    // @ts-ignore — TS strict
     sections.push(['consciousness', this._consciousnessContext()]);
-    // @ts-ignore — TS strict
     sections.push(['values',        this._valuesContext()]);
-    // @ts-ignore — TS strict
     sections.push(['userModel',     this._userModelContext()]);
-    // @ts-ignore — TS strict
     sections.push(['bodySchema',    this._bodySchemaContext()]);
-    // @ts-ignore — TS strict
     sections.push(['organism',      this._organismContext()]);
-    // @ts-ignore — TS strict
     sections.push(['taskPerformance', this._taskPerformanceContext()]);
-    // @ts-ignore — TS strict
     sections.push(['safety',        this._safetyContext()]);
-    // @ts-ignore — TS strict
     sections.push(['disclosure',    this._disclosureContext()]);
-    // @ts-ignore — TS strict
     sections.push(['version',       this._versionContext()]);
 
     return this._buildWithBudget(sections);

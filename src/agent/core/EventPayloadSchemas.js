@@ -25,7 +25,6 @@ const _log = createLogger('EventPayloadSchemas');
 const SCHEMAS = {
   // Agent Loop
   'agent-loop:started':         { goalId: 'required', goal: 'required' },
-  // v4.12.5-fix: This is the ONLY completion event. Removed phantom 'agent-loop:completed'.
   'agent-loop:complete':        { goalId: 'required', title: 'required', steps: 'required', success: 'required' },
   // v4.12.5-fix: Schema now matches AgentLoop.js emission (stepIndex, result, type)
   'agent-loop:step-complete':   { goalId: 'required', stepIndex: 'required', type: 'required' },
@@ -118,7 +117,6 @@ const SCHEMAS = {
 
   // Surprise
   'surprise:novel-event':    { summary: 'required' },
-  'surprise:novel':          { summary: 'optional' },
 
   // Self-Modification
   'selfmod:success':         { file: 'required' },
@@ -128,8 +126,6 @@ const SCHEMAS = {
 
   // Reserved (registered in EventTypes, not yet emitted — schemas ready for use)
   'shell:complete':          { command: 'optional', exitCode: 'optional' },
-  'health:alert':            { level: 'required', message: 'required' },
-  'task:delegated':          { peerId: 'required', task: 'required' },
   'mcp:tool-call':           { server: 'required', tool: 'required' },
   'mcp:server-started':      { port: 'required' },
   'mcp:bridge-started':      { tools: 'required', resources: 'optional' },
@@ -138,7 +134,6 @@ const SCHEMAS = {
   // v5.9.0: High-traffic event schemas
   'error:trend':                     { category: 'required', type: 'required' },
   'goal:completed':                  { id: 'required', description: 'required' },
-  'cognitive:snapshot':      { type: 'optional' },
 
   // v5.7.0 SA-P8: Tool Synthesis
   'tool:synthesized':        { name: 'required', description: 'required', attempt: 'required' },
@@ -246,7 +241,6 @@ const SCHEMAS = {
   'goal:abandoned':        { goalId: 'required', reason: 'required', stepsCompleted: 'optional' },
   'goal:created':          { goalId: 'required', description: 'required' },
   'goal:resumed':          { goalId: 'required' },
-  'goal:checkpoint':       { goalId: 'required' },
 
   // Shell
   'shell:plan-complete':   { task: 'required', success: 'required' },
@@ -335,10 +329,7 @@ const SCHEMAS = {
   // Memory
   'memory:fact-stored':     { key: 'required', source: 'optional' },
   'memory:unified-recall':  { query: 'required' },
-  'memory:read':            { key: 'required' },
-  'memory:write':           { key: 'required' },
   'memory:conflicts-resolved': { count: 'required' },
-  'memory:stored':          { key: 'required' },
   'memory:consolidated':    { count: 'optional' },
 
   // MCP extended
@@ -369,8 +360,6 @@ const SCHEMAS = {
 
   // Dream
   'dream:started':          { dreamNumber: 'required' },
-  'dream:phase':            { phase: 'required' },
-  'dream:schema-found':     { schema: 'required' },
   'dream:complete':         { dreamNumber: 'required', duration: 'required', newSchemas: 'required', insights: 'required' },
 
   // Insight (v7.0.3 — C4)
@@ -394,15 +383,10 @@ const SCHEMAS = {
   // Schema store
   'schema:stored':          { name: 'required' },
   'schema:merged':          { name: 'required' },
-  'schema:matched':         { name: 'required', confidence: 'required' },
   'schema:removed':         { name: 'required' },
   'schema:pruned':          { count: 'required' },
 
-  // Workspace
-  'workspace:created':      { goalId: 'required' },
-  'workspace:stored':       { goalId: 'required' },
   'workspace:consolidate':  { goalId: 'required', items: 'required', workspaceStats: 'required' },
-  'workspace:cleared':      { goalId: 'required' },
 
   // Hot-reload
   'hot-reload:success':     { module: 'required' },
@@ -439,7 +423,6 @@ const SCHEMAS = {
   'simulation:started':     { plan: 'required' },
   'simulation:branched':    { branch: 'required' },
   'simulation:complete':    { result: 'required' },
-  'simulation:replan':      { reason: 'required' },
 
   // Effector
   'effector:registered':    { name: 'required' },
@@ -513,8 +496,6 @@ const SCHEMAS = {
   'editor:open':            { content: 'required', language: 'optional', filename: 'optional' },
   'embedding:ready':        { model: 'required', dimensions: 'required' },
   'episodic:recorded':      { episode: 'required' },
-  'network:error':          { error: 'required' },
-  'model:query':            { query: 'required' },
   'ui:heartbeat':           {},
   'router:routed':          { backend: 'required' },
   'store:integrity-violation': { key: 'required' },
@@ -532,10 +513,8 @@ const SCHEMAS = {
   'circuit:fallback':       { service: 'required' },
   'capability:issued':      { module: 'required', scope: 'required', tokenId: 'required' },
   'capability:revoked':     { tokenId: 'required' },
-  // v7.0.4: Removed orphaned 'tool:executed' schema — event was replaced by 'tools:result' in v4.12.5
   'tool:native-call':       { name: 'required', round: 'required', input: 'required' },
   'tools:unregistered':     { name: 'required' },
-  'tools:completed':        { name: 'required' },
   'worker:spawned':         { workerId: 'required' },
   'worker:error':           { workerId: 'required', error: 'required' },
   'fs:read':                { path: 'required' },
@@ -557,18 +536,14 @@ const SCHEMAS = {
   'planner:complete':       { plan: 'required' },
   'planner:truncated':      { reason: 'required' },
   'preservation:violation': { rule: 'required' },
-  'preservation:passed':    {},
   'emotion:watchdog-reset': { dimension: 'required', from: 'required', to: 'required', stuckMs: 'required' },
   'emotion:watchdog-alert': { stuck: 'required' },
   'lessons:recorded':       { category: 'required' },
-  'lessons:recalled':       { query: 'required' },
   'colony:ipc-spawn':       { runId: 'required', workerCount: 'required' },
 
   // Disclosure (v7.0.4 — Information Sovereignty)
   'disclosure:probe-detected': { count: 'required', pattern: 'required' },
 
-  // ── v7.0.5: Catalog-only entries (0 emitters, kept for completeness) ──
-  'autonomy:status':          { level: 'optional' },
   'fs:write:self':            { file: 'optional' },
 
   // ── v7.0.5: System kernel events ────────────────────────
@@ -582,9 +557,9 @@ const SCHEMAS = {
   'store:CODE_MODIFIED':        { id: 'required', type: 'required', payload: 'required' },
   'store:CODE_SAFETY_BLOCK':    { id: 'required', type: 'required', payload: 'required' },
   'store:CODE_SAFETY_WARN':     { id: 'required', type: 'required', payload: 'required' },
-  'store:COGNITIVE_SNAPSHOT':    { id: 'required', type: 'required', payload: 'required' },
+  'store:COGNITIVE_SNAPSHOT':   { id: 'required', type: 'required', payload: 'required' },
   'store:ERROR_OCCURRED':       { id: 'required', type: 'required', payload: 'required' },
-  'store:HEALTH_ALERT':         { id: 'required', type: 'required', payload: 'required' },
+  'store:HEALTH_ALERT':        { id: 'required', type: 'required', payload: 'required' },
   'store:HEALTH_CIRCUIT_FORCED': { id: 'required', type: 'required', payload: 'required' },
   'store:HEALTH_DEGRADATION':   { id: 'required', type: 'required', payload: 'required' },
   'store:IDLE_THOUGHT':         { id: 'required', type: 'required', payload: 'required' },
@@ -594,10 +569,10 @@ const SCHEMAS = {
   'store:MULTI_FILE_REFACTOR':  { id: 'required', type: 'required', payload: 'required' },
   'store:SHELL_PLAN_EXECUTED':  { id: 'required', type: 'required', payload: 'required' },
   'store:SKILL_CREATED':        { id: 'required', type: 'required', payload: 'required' },
-  'store:SURPRISE_NOVEL':       { id: 'required', type: 'required', payload: 'required' },
+  'store:SURPRISE_NOVEL':      { id: 'required', type: 'required', payload: 'required' },
   'store:SYSTEM_BOOT':          { id: 'required', type: 'required', payload: 'required' },
   'store:SYSTEM_SHUTDOWN':      { id: 'required', type: 'required', payload: 'required' },
-  'store:TASK_DELEGATED':       { id: 'required', type: 'required', payload: 'required' },
+  'store:TASK_DELEGATED':      { id: 'required', type: 'required', payload: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

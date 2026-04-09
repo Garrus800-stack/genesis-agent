@@ -67,7 +67,6 @@ class HTNPlanner {
    * @param {object} context - { goalDescription, rootDir }
    * @returns {Promise<*>}
    */
-  // @ts-ignore — TS strict
   async validatePlan(steps, context = {}) {
     const results = [];
     let hasBlocker = false;

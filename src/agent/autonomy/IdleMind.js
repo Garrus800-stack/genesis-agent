@@ -48,6 +48,8 @@ class IdleMind {
     this._metabolism = null;
     // v6.0.8: Directed curiosity — explore weak areas
     this._cognitiveSelfModel = null;
+    // v6.0.0: DreamCycle — idle dreaming integration (late-bound)
+    /** @type {*} */ this.dreamCycle = null;
     this._currentWeakness = null; // { taskType, successRate, sampleSize }
 
     // v7.0.3 — C4: DreamCycle active push — queue actionable insights
@@ -82,6 +84,8 @@ class IdleMind {
     }, { source: 'IdleMind' });
   }
 
+
+
   start() {
     if (this.running) return;
     this.running = true;
@@ -101,7 +105,6 @@ class IdleMind {
 
     _log.info('[IDLE-MIND] Active — autonomous thinking enabled');
   }
-
 
   /** @private Subscribe to bus event with auto-cleanup in stop() */
   _sub(event, handler, opts) {
@@ -170,7 +173,6 @@ class IdleMind {
         try {
           const result = await this.goalStack.executeNextStep();
           if (result) {
-            // @ts-ignore — TS strict
             this._journal('goal', `[${result.goalId}] Step: ${result.action} -> ${result.success ? 'OK' : 'FAIL'}: ${(result.output || '').slice(0, 200)}`);
             this.bus.emit('idle:thought-complete', { activity: 'goal', summary: result.action }, { source: 'IdleMind' });
             return;
@@ -189,32 +191,20 @@ class IdleMind {
     try {
       let result;
       switch (activity) {
-        // @ts-ignore — TS strict
         case 'reflect':      result = await this._reflect(); break;
-        // @ts-ignore — TS strict
         case 'plan':         result = await this._plan(); break;
-        // @ts-ignore — TS strict
         case 'explore':      result = await this._explore(); break;
-        // @ts-ignore — TS strict
         case 'ideate':       result = await this._ideate(); break;
-        // @ts-ignore — TS strict
         case 'tidy':         result = await this._tidy(); break;
-        // @ts-ignore — TS strict
         case 'journal':      result = await this._writeJournalEntry(); break;
-        // @ts-ignore — TS strict
         case 'mcp-explore':  result = await this._exploreMcp(); break;
-        // @ts-ignore — TS strict
         case 'dream':        result = await this._dream(); break;
-        // @ts-ignore — TS strict
         case 'consolidate':  result = await this._consolidateMemory(); break;
-        // @ts-ignore — TS strict
         case 'calibrate':   result = await this._calibrate(); break;
-        // @ts-ignore — TS strict
         default:             result = await this._reflect();
       }
 
       if (result) {
-        // @ts-ignore — TS strict
         this._journal(activity, result);
         this.activityLog.push({ activity, timestamp: Date.now() });
 
@@ -287,11 +277,8 @@ class IdleMind {
     } catch (_e) { /* no MCP */ }
 
     try {
-      // @ts-ignore — TS strict
       if (this.dreamCycle) {
-        // @ts-ignore — TS strict
         const timeSince = this.dreamCycle.getTimeSinceLastDream();
-        // @ts-ignore — TS strict
         const unprocessed = this.dreamCycle.getUnprocessedCount();
         if (timeSince > 30 * 60 * 1000 && unprocessed >= 10) candidates.push('dream');
       }

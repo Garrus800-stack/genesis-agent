@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.0.5 · Last verified: all checks green (~3375 tests, ~237 suites, TSC 0, fitness 90/90)
+> Version: 7.0.5 · Last verified: all checks green (~3311 tests, ~238 suites, TSC 0, fitness 90/90)
 
 ---
 
@@ -367,7 +367,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # ~3375 tests, 0 failures
+node test/index.js                          # ~3311 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -406,7 +406,7 @@ Every event emitted must be:
 
 The `audit:events:strict` CI step enforces this. Unregistered events fail the build.
 
-**Current stats:** 369 catalogued events, 369 payload schemas (100% coverage).
+**Current stats:** 348 catalogued events, 348 payload schemas (100% coverage).
 
 ### 6.3 EventStore
 
@@ -486,7 +486,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~3375 tests across 237 suites |
+| Tests | `node test/index.js` | ~3311 tests across 238 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
@@ -577,7 +577,7 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (~3375 tests)
+│   ├── index.js               → Module test runner (~3311 tests)
 │   └── modules/               → One test file per service
 ├── scripts/
 │   ├── architectural-fitness.js → 90/90 fitness score (9 checks)

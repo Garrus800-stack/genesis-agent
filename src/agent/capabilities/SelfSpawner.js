@@ -123,8 +123,6 @@ class SelfSpawner {
         // Same safeEnv pattern as Sandbox.execute() and Sandbox.executeExternal().
         /** @type {Record<string, any>} */
         const safeEnv = {
-          // @ts-ignore
-      // @ts-ignore — env values may be undefined, acceptable for subprocess
           PATH: process.env.PATH,
           HOME: process.env.HOME,
           USERPROFILE: process.env.USERPROFILE,
@@ -138,7 +136,6 @@ class SelfSpawner {
           ELECTRON_RUN_AS_NODE: '1',
         };
 
-        // @ts-ignore — env values may be undefined, acceptable for fork
         const worker = fork(WORKER_SCRIPT, [], {
           env: safeEnv,
           stdio: ['pipe', 'pipe', 'pipe', 'ipc'],

@@ -112,7 +112,6 @@ class MemoryConsolidator {
    * Safe to call multiple times — cooldown enforced.
    * @returns {Promise<object>} Compaction report
    */
-  // @ts-ignore
   async consolidate() {
     // Cooldown guard
     const now = Date.now();

@@ -17,9 +17,7 @@ const { createLogger } = require('../../core/Logger');
 const _log = createLogger('OpenAIBackend');
 
 class OpenAIBackend {
-// @ts-ignore
-// @ts-ignore
-// @ts-ignore
+  // @ts-ignore — genuine TS error, fix requires type widening
   constructor({ baseUrl, apiKey, models } = {}) {
     this.name = 'OpenAI-Compatible';
     this.type = 'openai';
@@ -91,15 +89,13 @@ class OpenAIBackend {
       temperature,
     };
 
-    // @ts-ignore — resolve() without args
     return new Promise((resolve, reject) => {
       const url = new URL(`${this.baseUrl}/v1/chat/completions`);
       const isHttps = url.protocol === 'https:';
-// @ts-ignore
       const client = isHttps ? https : http;
       const postData = JSON.stringify(body);
       let _settled = false;
-      // @ts-ignore
+      // @ts-ignore — genuine TS error, fix requires type widening
       const _resolve = () => { if (!_settled) { _settled = true; resolve(); } };
       const _reject = (err) => { if (!_settled) { _settled = true; reject(err); } };
 

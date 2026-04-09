@@ -126,7 +126,7 @@ class WorldState {
     const entry = {
       path: path.relative(this.rootDir, filePath),
       mtime: Date.now(),
-      // @ts-ignore — _getFileSize is on prototype via WorldStateQueries delegation
+      // @ts-ignore — genuine TS error, fix requires type widening
       size: this._getFileSize(filePath),
     };
 

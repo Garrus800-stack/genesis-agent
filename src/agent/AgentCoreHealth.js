@@ -145,7 +145,7 @@ class AgentCoreHealth {
       const isWin      = process.platform === 'win32';
       const opts       = { timeout: TIMEOUTS.DISK_CHECK, windowsHide: true, encoding: 'utf-8' };
       const cb = (err, stdout) => {
-        // @ts-ignore — resolve() without args
+        // @ts-ignore — genuine TS error, fix requires type widening
         if (err) { resolve(); return; }
         const bytes = parseInt(String(stdout).trim()) || 0;
         if (bytes > LIMITS.DISK_WARN_BYTES) {
@@ -154,7 +154,7 @@ class AgentCoreHealth {
             detail: `.genesis dir is ${Math.round(bytes / 1024 / 1024)}MB — consider cleanup`,
           }, { source: 'HealthCheck' });
         }
-        // @ts-ignore — resolve without args
+        // @ts-ignore — genuine TS error, fix requires type widening
         resolve();
       };
       const { execFile: ef } = require('child_process');

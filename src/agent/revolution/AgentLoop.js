@@ -138,6 +138,9 @@ class AgentLoop {
     // v6.0.8: Symbolic resolution — bypass LLM for known solutions
     this._symbolicResolver = null; // late-bound from phase 2
 
+    // v7.0.5: FailureTaxonomy — error classification (late-bound)
+    /** @type {*} */ this._failureTaxonomy = null;
+
     // v7.0.3: Colony orchestration (late-bound)
     /** @type {*} */ this._colonyOrchestrator = null;
     /** @type {*} */ this.colonyInsights = null;
@@ -209,7 +212,6 @@ class AgentLoop {
    * @param {Function} onProgress - (update) => void — streams progress to UI
    * @returns {Promise<*>}
    */
-  // @ts-ignore — TS strict
   async pursue(goalDescription, onProgress = () => {}) {
     if (this.running) {
       return { success: false, error: 'Agent loop already running. Use stop() first.' };
@@ -239,8 +241,7 @@ class AgentLoop {
     // v5.2.0 (SA-P6): Fresh working memory for this goal.
     this._workspace = this._createWorkspace({
       goalId: this.currentGoalId,
-      // @ts-ignore — TS strict
-      goalTitle: typeof goal === 'string' ? goal.slice(0, 100) : 'goal',
+      goalTitle: typeof goalDescription === 'string' ? goalDescription.slice(0, 100) : 'goal',
     });
 
     // v5.2.0: Wrap entire goal in correlation scope.
@@ -276,7 +277,7 @@ class AgentLoop {
 
     try {
       // ── Phase 1: PLAN ─────────────────────────────────
-      const plan = await this.planner._planGoal(goalDescription);
+      /** @type {*} */ const plan = await this.planner._planGoal(goalDescription);
 
       if (!plan || !plan.steps || plan.steps.length === 0) {
         this.running = false;
@@ -402,13 +403,10 @@ class AgentLoop {
       // If consciousness has concerns, inject them into plan
       // context so the LLM sees them during execution.
       if (cogResult.consciousnessConcerns?.length > 0) {
-        // @ts-ignore — TS strict
         plan._consciousnessContext = cogResult.consciousnessConcerns.join(' ');
-        // @ts-ignore — TS strict
         onProgress({ phase: 'consciousness', detail: plan._consciousnessContext });
       }
       if (cogResult.valueContext) {
-        // @ts-ignore — TS strict
         plan._valueContext = cogResult.valueContext;
       }
       if (cogResult.consciousnessWarning) {
@@ -559,7 +557,7 @@ class AgentLoop {
       const context = await this._buildStepContext(step, i, steps, allResults);
 
       // ── ACT: Execute the step ─────────────────────────
-      const result = await this.steps._executeStep(step, context, onProgress);
+      /** @type {*} */ const result = await this.steps._executeStep(step, context, onProgress);
 
       // ── v3.5.0: VERIFY — programmatic verification ────
       if (this.verifier && result && !result.error) {
@@ -569,10 +567,8 @@ class AgentLoop {
           );
           if (stepVerification.status === 'fail') {
             result.error = `Verification failed: ${stepVerification.reason}`;
-            // @ts-ignore — TS strict
             result.verification = stepVerification;
           } else {
-            // @ts-ignore — TS strict
             result.verification = stepVerification;
           }
         } catch (err) {
@@ -607,7 +603,6 @@ class AgentLoop {
 
       // v5.2.0 (SA-P6): Working memory — store step result and decay salience
       this._workspace.store(
-        // @ts-ignore — TS strict
         `step-${i + 1}-${step.type}`,
         result.error ? `ERROR: ${result.error}` : (result.output || '').slice(0, 300),
         result.error ? 0.8 : 0.6, // Errors are more salient
@@ -745,7 +740,6 @@ class AgentLoop {
       ? `\nRELEVANT VALUES: ${plan._valueContext}`
       : '';
     // v5.2.0 (SA-P6): Working memory contents
-    // @ts-ignore — TS strict
     const workspaceHint = this._workspace.buildContext(5);
 
     return `You are Genesis, executing step ${stepIndex + 1}/${allSteps.length} of an autonomous plan.
@@ -783,11 +777,9 @@ If no adjustment needed: { "adjust": false }`;
    * Classifies the error via FailureTaxonomy and applies recovery strategy.
    * @returns {Promise<*>}
    */
-  // @ts-ignore — TS strict
   async _classifyAndRecover(step, result, stepIndex, onProgress) {
     try {
       const ft = this.bus._container?.resolve?.('failureTaxonomy')
-        // @ts-ignore — TS strict
         || (this._failureTaxonomy || null);
       if (!ft) return { action: 'none' };
 

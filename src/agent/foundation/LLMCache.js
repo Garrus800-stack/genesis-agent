@@ -23,6 +23,7 @@
 const crypto = require('crypto');
 
 class LLMCache {
+  /** @param {{ maxSize?: number, ttlMs?: number, noCacheTaskTypes?: string[] }} [opts] */
   constructor({ maxSize = 100, ttlMs = 5 * 60 * 1000, noCacheTaskTypes = [] } = {}) {
     this._maxSize = maxSize;
     this._ttlMs = ttlMs;

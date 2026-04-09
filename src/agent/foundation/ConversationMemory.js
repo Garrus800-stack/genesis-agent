@@ -23,6 +23,11 @@ class ConversationMemory {
     this.storageDir = storageDir;
     this.dbPath = path.join(storageDir, 'memory.json');
     this._writeLock = new WriteLock();
+    /**
+     * @typedef {{ id: string, timestamp: string, turnCount: number, summary: string, topics: string[], intents: string[], lastExchange: Array<*> }} Episode
+     * @typedef {{ trigger: string, action: string, attempts: number, successes: number, successRate: number, learned: string, lastUsed: string }} ProceduralPattern
+     */
+    /** @type {{ episodic: Episode[], semantic: Record<string, {value: *, timestamp?: string, source?: string, confidence?: number, accessCount?: number, updated?: string}>, procedural: ProceduralPattern[], meta: { created: string, totalConversations: number, lastAccess: string|null } }} */
     this.db = {
       episodic: [],
       semantic: {},
@@ -55,7 +60,6 @@ class ConversationMemory {
         : [],
     };
 
-    // @ts-ignore — TS strict
     this.db.episodic.push(episode);
     this.db.meta.totalConversations++;
     if (this.db.episodic.length > 200) this.db.episodic = this.db.episodic.slice(-200);
@@ -81,7 +85,7 @@ class ConversationMemory {
 
   learnFact(key, value, confidence = 0.8, source = 'conversation') {
     const existing = this.db.semantic[key];
-    if (existing && existing.confidence > confidence) return false;
+    if (existing && (existing.confidence || 0) > confidence) return false;
     this.db.semantic[key] = {
       value, confidence: Math.min(1.0, confidence), source,
       updated: new Date().toISOString(),
@@ -114,8 +118,8 @@ class ConversationMemory {
   getFactContext(maxFacts = 20) {
     const sorted = Object.entries(this.db.semantic)
       .sort((a, b) => {
-        const sA = a[1].confidence * (a[1].accessCount || 1);
-        const sB = b[1].confidence * (b[1].accessCount || 1);
+        const sA = (a[1].confidence || 0) * (a[1].accessCount || 1);
+        const sB = (b[1].confidence || 0) * (b[1].accessCount || 1);
         return sB - sA;
       })
       .slice(0, maxFacts);
@@ -125,26 +129,19 @@ class ConversationMemory {
   // ── Procedural Memory ─────────────────────────────────────
 
   learnPattern(trigger, action, success) {
-    // @ts-ignore — TS strict
     const existing = this.db.procedural.find(p => p.trigger === trigger && p.action === action);
     if (existing) {
-      // @ts-ignore — TS strict
       existing.attempts++;
-      // @ts-ignore — TS strict
       if (success) existing.successes++;
-      // @ts-ignore — TS strict
       existing.successRate = existing.successes / existing.attempts;
-      // @ts-ignore — TS strict
       existing.lastUsed = new Date().toISOString();
     } else {
-      // @ts-ignore — TS strict
       this.db.procedural.push({
         trigger, action, attempts: 1, successes: success ? 1 : 0,
         successRate: success ? 1.0 : 0.0,
         learned: new Date().toISOString(), lastUsed: new Date().toISOString(),
       });
     }
-    // @ts-ignore — TS strict
     this.db.procedural = this.db.procedural.filter(p => p.successRate > 0.3 || p.attempts < 3);
     this._save();
   }
@@ -153,13 +150,11 @@ class ConversationMemory {
     const queryTerms = this._search.tokenize(trigger);
     const matches = this.db.procedural
       .map(p => {
-        // @ts-ignore — TS strict
         const pTerms = this._search.tokenize(p.trigger);
         const overlap = queryTerms.filter(w => pTerms.some(pt => pt.includes(w) || w.includes(pt))).length;
         return { pattern: p, relevance: overlap / Math.max(queryTerms.length, 1) };
       })
       .filter(m => m.relevance > 0.3)
-      // @ts-ignore — TS strict
       .sort((a, b) => (b.relevance * b.pattern.successRate) - (a.relevance * a.pattern.successRate));
     return matches[0]?.pattern || null;
   }
@@ -186,9 +181,7 @@ class ConversationMemory {
     return {
       episodes: this.db.episodic.length, facts: Object.keys(this.db.semantic).length,
       patterns: this.db.procedural.length, totalConversations: this.db.meta.totalConversations,
-      // @ts-ignore — TS strict
       oldestMemory: this.db.episodic[0]?.timestamp || null,
-      // @ts-ignore — TS strict
       newestMemory: this.db.episodic[this.db.episodic.length - 1]?.timestamp || null,
     };
   }
@@ -229,7 +222,6 @@ class ConversationMemory {
         this.db = { ...this.db, ...loaded };
       }
     } catch (err) { _log.warn('[MEMORY] Failed to load, starting fresh:', err.message); }
-    // @ts-ignore — TS strict
     this.db.meta.lastAccess = new Date().toISOString();
   }
 

@@ -128,16 +128,13 @@ class EffectorRegistry {
    * @param {object} context — { goalId, stepIndex, approval }
    * @returns {Promise<*>}
    */
-  // @ts-ignore — TS strict
   async execute(name, params = {}, context = {}) {
     const effector = this._effectors.get(name);
     if (!effector) {
-      // @ts-ignore — TS strict
       return { success: false, error: `Effector "${name}" not found`, verified: false };
     }
 
     if (!effector.enabled) {
-      // @ts-ignore — TS strict
       return { success: false, error: `Effector "${name}" is disabled`, verified: false };
     }
 
@@ -162,7 +159,6 @@ class EffectorRegistry {
         return {
           success: false,
           error: check.reason,
-          // @ts-ignore — TS strict
           needsApproval: true,
           verified: false,
         };
@@ -182,7 +178,6 @@ class EffectorRegistry {
 
         return {
           success: false,
-          // @ts-ignore — TS strict
           blocked: true,
           error: `Precondition not met: ${precondition.description || precondition.message || precondition}`,
           verified: false,
@@ -209,7 +204,6 @@ class EffectorRegistry {
         error: err.message,
       }, { source: 'EffectorRegistry' });
 
-      // @ts-ignore — TS strict
       return { success: false, error: err.message, verified: false };
     }
 
@@ -237,7 +231,6 @@ class EffectorRegistry {
       goalId: context.goalId,
     }, { source: 'EffectorRegistry' });
 
-    // @ts-ignore — TS strict
     return { success: true, result, verified, durationMs };
   }
 

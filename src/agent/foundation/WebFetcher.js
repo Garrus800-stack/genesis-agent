@@ -89,7 +89,6 @@ class WebFetcher {
 
     // FIX v4.0.0: Centralized URL validation (reused for redirects)
     const validation = this._validateUrl(url);
-    // @ts-ignore — validation shape differs from success return
     if (!validation.ok) return validation;
 
     const timeout = options.timeout || this.timeoutMs;

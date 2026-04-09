@@ -64,6 +64,10 @@ class SchemaStore {
     this._dirty = false;
   }
 
+
+
+  /* c8 ignore stop */
+
   // ════════════════════════════════════════════════════════
   // LIFECYCLE
   // ════════════════════════════════════════════════════════
@@ -75,7 +79,6 @@ class SchemaStore {
       if (data && Array.isArray(data.schemas)) {
         this._schemas = data.schemas;
         this._stats = data.stats || this._stats;
-        // @ts-ignore — prototype-delegated from SchemaStoreIndex.js
     this._rebuildIndex();
       }
     } catch (err) {
@@ -86,7 +89,6 @@ class SchemaStore {
   start() {
     // Periodic confidence decay — schemas that are never matched lose confidence
     this.bus.on('idle:thought-complete', () => {
-      // @ts-ignore — prototype-delegated from SchemaStoreIndex.js
     this._maybeDecay();
     }, { source: 'SchemaStore' });
   }
@@ -133,7 +135,8 @@ class SchemaStore {
     };
 
     // Check for duplicate / merge candidate
-    const existing = // @ts-ignore — prototype-delegated from SchemaStoreIndex.js
+    const existing =
+    // @ts-ignore — genuine TS error, fix requires type widening
     this._findSimilar(normalized);
     if (existing) {
       existing.occurrences += normalized.occurrences;
@@ -163,14 +166,13 @@ class SchemaStore {
 
     // Store new schema
     this._schemas.push(normalized);
-    // @ts-ignore — prototype-delegated from SchemaStoreIndex.js
+    // @ts-ignore — genuine TS error, fix requires type widening
     this._addToIndex(normalized);
     this._stats.stored++;
     this._dirty = true;
 
     // Prune if over capacity
     if (this._schemas.length > this._maxSchemas) {
-      // @ts-ignore — prototype-delegated from SchemaStoreIndex.js
     this._prune();
     }
 
@@ -221,7 +223,8 @@ class SchemaStore {
       : this._schemas; // Fallback: scan all (slow but complete)
 
     for (const schema of candidates) {
-      const relevance = // @ts-ignore — prototype-delegated from SchemaStoreIndex.js
+      const relevance =
+    // @ts-ignore — genuine TS error, fix requires type widening
     this._scoreRelevance(schema, actionType, description, target, context);
       if (relevance >= this._relevanceThreshold) {
         results.push({ ...schema, _relevance: relevance });
@@ -280,7 +283,7 @@ class SchemaStore {
     if (idx === -1) return false;
 
     const removed = this._schemas.splice(idx, 1)[0];
-    // @ts-ignore — prototype-delegated from SchemaStoreIndex.js
+    // @ts-ignore — genuine TS error, fix requires type widening
     this._removeFromIndex(removed);
     this._dirty = true;
     this._scheduleSave();

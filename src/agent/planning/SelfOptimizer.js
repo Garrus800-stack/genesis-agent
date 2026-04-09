@@ -23,6 +23,7 @@ class SelfOptimizer {
     this.metricsPath = path.join(storageDir, 'metrics.json');
     // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()
     // this.metrics = this._load();
+    /** @type {{ responses: Array<{timestamp: number, intent: *, msgLength: number, respLength: number, success: boolean, hasCode: boolean}>, errors: Array<{timestamp: number, message: string}>, analysisCount: number, lastAnalysis?: * }} */
     this.metrics = { responses: [], errors: [], analysisCount: 0 };
 
     // Listen for completed chats to track quality
@@ -41,12 +42,12 @@ class SelfOptimizer {
       errorPatterns: this._analyzeErrors(),
       intentAccuracy: this._analyzeIntents(),
       topicCoverage: this._analyzeTopics(),
+      /** @type {Array<{priority: string, area: string, description: string}>} */
       recommendations: [],
     };
 
     // Generate recommendations
     if (report.responseQuality.avgLength < 50) {
-// @ts-ignore
       report.recommendations.push({
         priority: 'high',
         area: 'response-depth',
@@ -54,40 +55,32 @@ class SelfOptimizer {
       });
     }
 
-// @ts-ignore
     if (report.errorPatterns.errorRate > 0.2) {
-      // @ts-ignore
       report.recommendations.push({
         priority: 'high',
         area: 'error-reduction',
         description: `Error rate at ${Math.round(report.errorPatterns.errorRate * 100)}%. Analyze and fix most frequent errors.`,
       });
     }
-// @ts-ignore
 
     if (report.intentAccuracy.unknownRate > 0.4) {
-      // @ts-ignore
       report.recommendations.push({
         priority: 'medium',
         area: 'intent-coverage',
         description: 'Viele Nachrichten werden als "general" klassifiziert. Neue Intent-Patterns registrieren.',
       });
-// @ts-ignore
     }
 
     if (report.topicCoverage.gaps.length > 0) {
-      // @ts-ignore
       report.recommendations.push({
         priority: 'medium',
         area: 'knowledge-gaps',
         description: `Wissensluecken bei: ${report.topicCoverage.gaps.slice(0, 3).join(', ')}`,
       });
-// @ts-ignore
     }
 
     // Create goals from high-priority recommendations
     if (this.goalStack && report.recommendations.length > 0) {
-      // @ts-ignore
       const highPrio = report.recommendations.filter(r => r.priority === 'high');
       for (const rec of highPrio.slice(0, 1)) { // Max 1 auto-goal per analysis
         const activeGoals = this.goalStack.getActiveGoals();
@@ -132,13 +125,11 @@ class SelfOptimizer {
     }
     return lines.join('\n');
   }
-// @ts-ignore
 
   // ── Tracking ─────────────────────────────────────────────
 
   _trackQuality({ message, response, intent, success }) {
     if (!this.metrics.responses) this.metrics.responses = [];
-    // @ts-ignore
     this.metrics.responses.push({
       timestamp: Date.now(),
       intent,
@@ -150,14 +141,12 @@ class SelfOptimizer {
 
     // Keep last 500
     if (this.metrics.responses.length > 500) {
-// @ts-ignore
       this.metrics.responses = this.metrics.responses.slice(-500);
     }
   }
 
   _trackError({ message }) {
     if (!this.metrics.errors) this.metrics.errors = [];
-    // @ts-ignore
     this.metrics.errors.push({
       timestamp: Date.now(),
       message: (message || '').slice(0, 200),

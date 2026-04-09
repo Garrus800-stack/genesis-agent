@@ -23,13 +23,18 @@
  * All operations are safe no-ops.
  */
 class NullWorkspace {
-  store() { return { stored: false, reason: 'null-workspace' }; }
-  recall() { return null; }
-  has() { return false; }
-  remove() { return false; }
+  /** @param {string} [_key] @param {*} [_value] @param {number} [_salience] */
+  store(_key, _value, _salience) { return { stored: false, reason: 'null-workspace' }; }
+  /** @param {string} [_key] */
+  recall(_key) { return null; }
+  /** @param {string} [_key] */
+  has(_key) { return false; }
+  /** @param {string} [_key] */
+  remove(_key) { return false; }
   snapshot() { return []; }
   tick() {}
-  buildContext() { return ''; }
+  /** @param {number} [_maxItems] */
+  buildContext(_maxItems) { return ''; }
   getConsolidationCandidates() { return []; }
   clear() { return { itemsCleared: 0, consolidated: 0 }; }
   getStats() { return { goalId: null, slots: 0, capacity: 0, steps: 0 }; }

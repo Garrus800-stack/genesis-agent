@@ -236,7 +236,6 @@ class SymbolicResolver {
       level: LEVEL.DIRECT,
       lesson,
       schema: null,
-      // @ts-ignore
       directive: undefined,
       confidence: lesson.confidence,
     };

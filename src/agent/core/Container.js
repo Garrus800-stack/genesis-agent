@@ -448,7 +448,7 @@ class Container {
       const settled = await Promise.allSettled(promises);
       for (const s of settled) {
         // allSettled always fulfills; errors are caught inside the async fn
-        // @ts-ignore — accessing .value on fulfilled result
+        // @ts-ignore — genuine TS error, fix requires type widening
         results.push(s.value || { name: '?', status: 'error', error: 'unexpected rejection' });
       }
     }

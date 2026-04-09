@@ -1,7 +1,7 @@
 # Genesis Agent — Architecture Deep-Dive
 
 > Comprehensive technical analysis of Genesis Agent v7.0.1. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.0.5: 12 boot phases, AwarenessPort, 237 modules, 3375 tests, ratchet 81/76/80.
+> Last updated for v7.0.6: 12 boot phases, AwarenessPort, 237 modules, 3311 tests, ratchet 81/76/80.
 
 ---
 

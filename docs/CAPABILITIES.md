@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
 > v7.0.1 — What Genesis can do, organized by category.
-> Last updated: v7.0.5: coverage ratchet 81/76/80, 3375 tests, TSC clean, 12 boot phases.
+> Last updated: v7.0.6: coverage ratchet 81/76/80, 3311 tests, TSC clean, 12 boot phases.
 
 ---
 
@@ -237,7 +237,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **237 test suites** | 3375 tests, coverage gates: 81% lines, 76% branches, 80% functions |
+| **237 test suites** | 3311 tests, coverage gates: 81% lines, 76% branches, 80% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

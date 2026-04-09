@@ -80,7 +80,6 @@ class MetaLearning {
   recordOutcome(outcome) {
     const record = {
       timestamp: Date.now(),
-      // @ts-ignore
       taskCategory: outcome.taskCategory || 'unknown',
       model: outcome.model || 'unknown',
       promptStyle: outcome.promptStyle || 'free-text',
@@ -181,7 +180,6 @@ class MetaLearning {
       ? this._records.filter(r => r.taskCategory === taskCategory)
       : this._records;
 
-    // @ts-ignore
     if (filtered.length < 40) return { trend: 'stable', note: 'Insufficient data' };
 
     const midpoint = Math.floor(filtered.length / 2);
@@ -340,7 +338,7 @@ class MetaLearning {
       if (!data || !data.actionType) return;
       const mult = Math.min(Math.round(data.multiplier || 1), 3);
       for (let i = 1; i < mult; i++) {
-    // @ts-ignore — partial record is intentional
+        // @ts-ignore — genuine TS error, fix requires type widening
         this.recordOutcome({
           taskCategory: data.actionType,
           model: data.model || 'unknown',

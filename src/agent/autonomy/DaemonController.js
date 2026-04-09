@@ -94,7 +94,6 @@ class DaemonController extends DaemonControlPort {
       } catch (_e) { /* does not exist — fine */ }
     }
 
-    // @ts-ignore
     this._server = net.createServer((socket) => this._onConnection(socket));
 
     this._server.on('error', (err) => {

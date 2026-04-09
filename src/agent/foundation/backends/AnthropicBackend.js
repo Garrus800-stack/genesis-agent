@@ -16,8 +16,7 @@ const { createLogger } = require('../../core/Logger');
 const _log = createLogger('AnthropicBackend');
 
 class AnthropicBackend {
-// @ts-ignore
-// @ts-ignore
+  // @ts-ignore — genuine TS error, fix requires type widening
   constructor({ baseUrl, apiKey } = {}) {
     this.name = 'Anthropic';
     this.type = 'anthropic';
@@ -81,13 +80,11 @@ class AnthropicBackend {
       temperature,
     };
 
-    // @ts-ignore — resolve() without args
     return new Promise((resolve, reject) => {
       const url = new URL(`${this.baseUrl}/v1/messages`);
-// @ts-ignore
       const postData = JSON.stringify(body);
       let _settled = false;
-      // @ts-ignore
+      // @ts-ignore — genuine TS error, fix requires type widening
       const _resolve = () => { if (!_settled) { _settled = true; resolve(); } };
       const _reject = (err) => { if (!_settled) { _settled = true; reject(err); } };
 

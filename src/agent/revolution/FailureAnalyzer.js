@@ -42,7 +42,6 @@ const PATTERN_RULES = [
       [/cmd\.exe|\.bat\b/, 0.6],
     ],
     rootCause: (f) => {
-      // @ts-ignore
       if (/\/etc\//.test(f.message)) return 'Hardcoded Unix path /etc/';
       if (/\/tmp\//.test(f.message)) return 'Hardcoded Unix path /tmp/';
       return 'OS-specific path or command';
@@ -182,7 +181,6 @@ class FailureAnalyzer {
    * @param {object} context — { os, nodeVersion, branch, commitSha }
    * @returns {*}
    */
-  // @ts-ignore — TS strict
   analyze(log, context = {}) {
     this.analysisCount++;
 
@@ -232,7 +230,6 @@ class FailureAnalyzer {
    * @param {*} report
    * @returns {*}
    */
-  // @ts-ignore — TS strict
   generateRepairPlan(report) {
     const steps = [];
 
@@ -254,7 +251,7 @@ class FailureAnalyzer {
     // Sort by priority (HIGH first), then by confidence
     steps.sort((a, b) => {
       const prio = { HIGH: 3, MEDIUM: 2, LOW: 1 };
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       return (prio[b.priority] - prio[a.priority]) || (b.confidence - a.confidence);
     });
 

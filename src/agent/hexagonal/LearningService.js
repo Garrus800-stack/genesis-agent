@@ -234,19 +234,19 @@ class LearningService {
     this.es?.append('ERROR_OCCURRED', { message: errorMsg, context: 'chat', intent }, 'ChatOrchestrator');
 
     const existing = this._metrics.errorPatterns.find(e =>
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       e.message === errorMsg || this._stringSimilarity(e.message, errorMsg) > 0.7
     );
     if (existing) {
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       existing.count++;
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       existing.lastSeen = Date.now();
     } else {
-      // @ts-ignore — TS strict
+      // @ts-ignore — genuine TS error, fix requires type widening
       this._metrics.errorPatterns.push({ message: errorMsg, intent, count: 1, lastSeen: Date.now() });
       if (this._metrics.errorPatterns.length > 50) {
-        // @ts-ignore — TS strict
+        // @ts-ignore — genuine TS error, fix requires type widening
         this._metrics.errorPatterns.sort((a, b) => b.count - a.count);
         this._metrics.errorPatterns = this._metrics.errorPatterns.slice(0, 30);
       }
@@ -406,7 +406,7 @@ class LearningService {
       parts.push('LERNHINWEIS — Schwache Bereiche: ' +
         weak.map(([n, m]) => `${n} (${Math.round(m.success / m.total * 100)}%)`).join(', '));
     }
-    // @ts-ignore — TS strict
+    // @ts-ignore — genuine TS error, fix requires type widening
     const topErrors = this._metrics.errorPatterns.filter(e => e.count >= 3).slice(0, 3);
     if (topErrors.length > 0) {
       parts.push('HAEUFIGE FEHLER: ' + topErrors.map(e => `"${e.message.slice(0, 50)}..." (${e.count}x)`).join('; '));
