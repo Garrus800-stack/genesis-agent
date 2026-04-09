@@ -198,6 +198,16 @@ class EventBus {
 
     // Collect matching listeners (exact + wildcard)
     const handlers = this._getMatchingHandlers(event);
+
+    // v7.0.5: Early-exit when no handlers match — skip the expensive async
+    // dispatch loop (Promise.allSettled + priority batching). Middleware,
+    // history, and stats still run. ~85% of events have 0 listeners
+    // (intentional telemetry) — this turns them from O(n) async to O(1).
+    if (handlers.length === 0) {
+      this._updateStats(event);
+      return [];
+    }
+
     handlers.sort((a, b) => b.priority - a.priority);
 
     const results = [];

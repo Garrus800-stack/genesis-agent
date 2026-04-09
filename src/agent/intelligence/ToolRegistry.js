@@ -340,7 +340,7 @@ ${descriptions.join('\n\n')}`;
       const content = fs.readFileSync(filePath, 'utf-8').slice(0, 200000);
       const ext = path.extname(filePath).slice(1);
       const langMap = { js: 'javascript', ts: 'typescript', py: 'python', json: 'json', html: 'html', css: 'css', md: 'markdown' };
-      bus.emit('editor:open', { content, language: langMap[ext] || 'plaintext', filename: input.path }, { source: 'ToolRegistry' });
+      this.bus.emit('editor:open', { content, language: langMap[ext] || 'plaintext', filename: input.path }, { source: 'ToolRegistry' });
       return { opened: true, filename: input.path };
     }, 'system');
 

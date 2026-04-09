@@ -274,6 +274,7 @@ class AdaptiveStrategy {
 
   /** @private */
   _diagnose() {
+    if (!this.cognitiveSelfModel) return null; // TSC null-narrowing
     const windowMs = this._config.dataMaxAgeMs;
 
     // Check minimum data threshold

@@ -1,16 +1,16 @@
 // ============================================================
-// GENESIS — DeploymentManager.js (v5.9.2 — V6-3 Foundation)
+// GENESIS - DeploymentManager.js (v5.9.2 - V6-3 Foundation)
 //
 // Manages deployment of code changes into running systems.
 // Strategy pattern: Direct, Canary, Rolling, Blue-Green.
 //
-// Foundation layer — wires into existing infrastructure:
+// Foundation layer - wires into existing infrastructure:
 //   - ShellAgent (execute deploy commands)
 //   - HealthMonitor (verify target health)
 //   - HotReloader (self-deploy)
 //   - EffectorRegistry (system actions)
 //
-// Phase: 6 (autonomy) — deployment is an autonomous action
+// Phase: 6 (autonomy) - deployment is an autonomous action
 // ============================================================
 
 'use strict';
@@ -88,7 +88,7 @@ class DeploymentManager {
 
   /**
    * Deploy changes to a target.
-   * @param {string} target — Target identifier (e.g. service name, path, or 'self')
+   * @param {string} target - Target identifier (e.g. service name, path, or 'self')
    * @param {{ strategy?: DeployStrategy, files?: string[], commands?: string[], env?: string }} [options]
    * @returns {Promise<Deployment>}
    */
@@ -182,16 +182,17 @@ class DeploymentManager {
     // FAIL-HONEST (v7.0.2): Refuse rollback when snapshot is a placeholder.
     // Previous behavior silently set status='rolled-back' without restoring anything.
     // Now we explicitly surface that rollback is not yet implemented.
+    // @ts-ignore - placeholder is a dynamic property on snapshot
     if (snapshot.placeholder) {
-      _log.warn(`[DEPLOY] Rollback unavailable for ${deploymentId.slice(0, 8)} — snapshot is placeholder (no real backup). Real rollback requires V7-4B SnapshotManager integration.`);
+      _log.warn(`[DEPLOY] Rollback unavailable for ${deploymentId.slice(0, 8)} - snapshot is placeholder (no real backup). Real rollback requires V7-4B SnapshotManager integration.`);
       deployment.status = 'rollback-unavailable';
       this._rollbackSnapshots.delete(deploymentId);
       this.bus.fire('deploy:rollback-unavailable', {
         id: deploymentId,
         target: deployment.target,
-        reason: 'Snapshot is placeholder — no real backup was captured. Deploy failed without rollback.',
+        reason: 'Snapshot is placeholder - no real backup was captured. Deploy failed without rollback.',
       }, { source: 'DeploymentManager' });
-      throw new Error(`Rollback unavailable: snapshot for ${deploymentId.slice(0, 8)} is a placeholder — no real backup exists`);
+      throw new Error(`Rollback unavailable: snapshot for ${deploymentId.slice(0, 8)} is a placeholder - no real backup exists`);
     }
 
     _log.info(`[DEPLOY] Rolling back ${deploymentId.slice(0, 8)}`);
@@ -292,7 +293,7 @@ class DeploymentManager {
     if (options.healthUrl || options.healthCommand) {
       _log.info('[DEPLOY] Verifying canary health...');
       await this._healthCheck(target, 2, options);
-      _log.info('[DEPLOY] Canary healthy — expanding to full');
+      _log.info('[DEPLOY] Canary healthy - expanding to full');
     }
   }
 
@@ -332,8 +333,8 @@ class DeploymentManager {
 
   /**
    * @param {string} target
-   * @param {number} checks — Number of consecutive passing checks required
-   * @param {object} [opts] — Health check options
+   * @param {number} checks - Number of consecutive passing checks required
+   * @param {object} [opts] - Health check options
    */
   async _healthCheck(target, checks = 1, opts = {}) {
     for (let i = 0; i < checks; i++) {
@@ -362,8 +363,8 @@ class DeploymentManager {
 
   /**
    * v6.0.6: HTTP health check for external deploy targets.
-   * @param {string} url — Health endpoint URL
-   * @param {number} timeoutMs — Timeout in ms
+   * @param {string} url - Health endpoint URL
+   * @param {number} timeoutMs - Timeout in ms
    * @returns {Promise<boolean>}
    */
   _httpHealthCheck(url, timeoutMs = 5000) {
@@ -410,9 +411,10 @@ class DeploymentManager {
     this._rollbackSnapshots.set(deploymentId, {
       backup: { target, createdAt: Date.now() },
       timestamp: Date.now(),
+      // @ts-expect-error - dynamic property
       placeholder: true, // signals: no real data was captured
     });
-    _log.debug(`[DEPLOY] Snapshot placeholder created for ${deploymentId.slice(0, 8)} (no real backup — rollback will be refused)`);
+    _log.debug(`[DEPLOY] Snapshot placeholder created for ${deploymentId.slice(0, 8)} (no real backup - rollback will be refused)`);
   }
 
   // ── Pre-flight ────────────────────────────────────────────

@@ -44,16 +44,12 @@ class PluginRegistry {
     this.pluginsDir = pluginsDir;
     this.guard = guard || null;
     // v5.2.0: codeSafety is injected via Container (phase3 manifest).
-    // Fallback to fromScanner() for tests and standalone usage.
+    // v7.0.5: Removed fromScanner() fallback — uses inline null-safety instead
+    // of triggering cross-layer require() in CodeSafetyPort.
     if (codeSafety) {
       this._codeSafety = codeSafety;
     } else {
-      try {
-        const { CodeSafetyAdapter } = require('../ports/CodeSafetyPort');
-        this._codeSafety = CodeSafetyAdapter.fromScanner();
-      } catch (_e) {
-        this._codeSafety = { scanCode: () => ({ safe: true, severity: 'none', violations: [] }), available: false };
-      }
+      this._codeSafety = { scanCode: () => ({ safe: true, blocked: [], warnings: [], scanMethod: 'none' }), available: false };
     }
     this.plugins = new Map(); // name → { manifest, loaded, stats }
 

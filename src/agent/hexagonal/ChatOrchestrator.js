@@ -37,6 +37,11 @@ class ChatOrchestrator {
     this.modelRouter = null;
     this.episodicMemory = null;
 
+    // v6.0.4: Cognitive budget + provenance (late-bound)
+    /** @type {*} */ this._cognitiveBudget = null;
+    /** @type {*} */ this._provenance = null;
+    /** @type {*} */ this.lessonsStore = null;
+
     this.history = [];
     this.maxHistory = LIMITS.CHAT_HISTORY_MAX;
     this.maxToolRounds = LIMITS.CHAT_MAX_TOOL_ROUNDS;

@@ -69,6 +69,7 @@ class AdaptivePromptStrategy {
     ],
   };
 
+  /** @param {{ bus?: *, config?: * }} [deps] */
   constructor({ bus, config } = {}) {
     this.bus = bus || { emit() {}, on() { return () => {}; } };
     this._provenance = null;

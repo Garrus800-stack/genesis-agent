@@ -1,7 +1,7 @@
 # Genesis Agent — Architecture Deep-Dive
 
 > Comprehensive technical analysis of Genesis Agent v7.0.1. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.0.1: 12 boot phases, AwarenessPort, 231 modules, 4232 tests, ratchet 81/76/80.
+> Last updated for v7.0.5: 12 boot phases, AwarenessPort, 237 modules, 3375 tests, ratchet 81/76/80.
 
 ---
 
@@ -15,9 +15,9 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 |--------|-------|
 | Production LOC (src/) | ~79,000 |
 | Source Modules | 230 JS files |
-| Test Suites / Tests | 277 / 4232 |
+| Test Suites / Tests | 237 / 3375 |
 | DI Services | 140 (132 manifest + 8 kernel) |
-| Boot Phases | 12 (+ Phase 0 bootstrap) |
+| Boot Phases | 12 |
 | npm Dependencies | 3 production + 2 dev |
 | Event Types (catalogued) | 356 |
 | IPC Channels | 55 invoke + 2 send + 6 receive = 63 |

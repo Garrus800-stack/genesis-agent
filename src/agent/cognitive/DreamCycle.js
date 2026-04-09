@@ -199,12 +199,12 @@ class DreamCycle {
       // Emit actionable insights so IdleMind/AgentLoop can act on them
       // immediately instead of waiting for passive SchemaStore retrieval.
       for (const insight of report.insights) {
-        if (insight.confidence > 0.8 || insight.type === 'cross-schema') {
+        if (/** @type {*} */ (insight).confidence > 0.8 || insight.type === 'cross-schema') {
           this.bus.emit('insight:actionable', {
             source: 'DreamCycle',
             type: insight.type,
             description: insight.description,
-            confidence: insight.confidence || 0.85,
+            confidence: /** @type {*} */ (insight).confidence || 0.85,
             schemas: (insight.schemas || []).map(s => s.name || s.id || 'unknown'),
             dreamNumber: this._dreamCount,
           }, { source: 'DreamCycle' });

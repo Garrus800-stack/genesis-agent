@@ -26,6 +26,7 @@ declare var process: {
   memoryUsage(): { rss: number; heapTotal: number; heapUsed: number; external: number; arrayBuffers: number };
   nextTick(callback: (...args: any[]) => void, ...args: any[]): void;
   on(event: string, listener: (...args: any[]) => void): any;
+  emit(event: string | symbol, ...args: any[]): boolean;
   removeListener(event: string, listener: (...args: any[]) => void): any;
   uptime(): number;
   kill(pid: number, signal?: string | number): boolean;
@@ -93,7 +94,7 @@ declare module 'fs' {
   export function existsSync(path: string): boolean;
   export function mkdirSync(path: string, options?: { recursive?: boolean; mode?: number }): string | undefined;
   export function readdirSync(path: string, options?: { withFileTypes?: boolean; encoding?: string } | string): any[];
-  export function statSync(path: string, options?: { throwIfNoEntry?: boolean }): { isFile(): boolean; isDirectory(): boolean; size: number; mtime: Date; mtimeMs: number; birthtime: Date };
+  export function statSync(path: string, options?: { throwIfNoEntry?: boolean }): { isFile(): boolean; isDirectory(): boolean; isSocket(): boolean; size: number; mtime: Date; mtimeMs: number; birthtime: Date };
   export function unlinkSync(path: string): void;
   export function renameSync(oldPath: string, newPath: string): void;
   export function copyFileSync(src: string, dest: string, mode?: number): void;
@@ -399,6 +400,7 @@ declare module 'util' {
 // ── https ───────────────────────────────────────────────────
 
 declare module 'https' {
+  export function get(options: object, callback?: (res: any) => void): any;
   export function get(url: string | URL, options: any, callback?: (res: any) => void): any;
   export function get(url: string | URL, callback?: (res: any) => void): any;
   export function request(url: string | URL, options?: any, callback?: (res: any) => void): any;
@@ -489,4 +491,43 @@ declare module 'cheerio' {
 
 declare module 'puppeteer' {
   export function launch(options?: any): Promise<any>;
+}
+
+// v7.0.5: Additional Node built-in modules
+
+declare module 'net' {
+  export function createServer(connectionListener?: (socket: any) => void): Server;
+  export function createServer(options: any, connectionListener?: (socket: any) => void): Server;
+  export function createConnection(options: any, connectListener?: () => void): any;
+  export class Server {
+    listen(path: string, callback?: () => void): this;
+    listen(port: number, host?: string, callback?: () => void): this;
+    close(callback?: (err?: Error) => void): this;
+    address(): any;
+    on(event: string, listener: (...args: any[]) => void): this;
+  }
+  export class Socket {
+    write(data: string | Buffer, encoding?: string, callback?: () => void): boolean;
+    end(data?: string | Buffer): void;
+    destroyed: boolean;
+    destroy(error?: Error): void;
+    on(event: string, listener: (...args: any[]) => void): this;
+    pipe(destination: any): any;
+    setEncoding(encoding: string): this;
+  }
+}
+
+declare module 'v8' {
+  export function getHeapStatistics(): {
+    total_heap_size: number;
+    total_heap_size_executable: number;
+    total_physical_size: number;
+    total_available_size: number;
+    used_heap_size: number;
+    heap_size_limit: number;
+    malloced_memory: number;
+    peak_malloced_memory: number;
+    does_zap_garbage: number;
+  };
+  export function getHeapSpaceStatistics(): Array<{ space_name: string; space_size: number; space_used_size: number; space_available_size: number; physical_space_size: number }>;
 }

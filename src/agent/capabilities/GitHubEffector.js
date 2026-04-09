@@ -14,6 +14,7 @@
 // ============================================================
 
 const https = require('https');
+const { TIMEOUTS } = require('../core/Constants'); // v7.0.5: was missing — runtime crash on GitHub API path
 
 const GITHUB_API = 'api.github.com';
 

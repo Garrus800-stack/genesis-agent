@@ -87,7 +87,7 @@ class AgentCoreBoot {
     // v6.0.1: CrashLog — rotating error/warn file sink
     try {
       const { CrashLog } = require('./core/CrashLog');
-      const crashLog = new CrashLog(core.genesisDir);
+      const crashLog = new CrashLog(/** @type {string} */ (core.genesisDir));
       crashLog.start();
       Logger.setSink((entry) => crashLog.capture(entry));
       c.registerInstance('crashLog', crashLog);

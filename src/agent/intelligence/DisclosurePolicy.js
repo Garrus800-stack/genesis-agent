@@ -101,6 +101,7 @@ class DisclosurePolicy {
     ],
   };
 
+  /** @param {{ bus?: *, config?: * }} [deps] */
   constructor({ bus, config } = {}) {
     this.bus = bus || require('../core/EventBus').NullBus;
     this.trustLevelSystem = null;

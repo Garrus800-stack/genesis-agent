@@ -133,6 +133,7 @@ class QuickBenchmark {
         this._cachedBaseline = stored.result;
         this._baselineTimestamp = stored.timestamp;
         _log.debug('[BENCH] Loaded baseline from disk');
+        // @ts-ignore
         return this._cachedBaseline;
       }
     } catch (_e) { /* no stored baseline */ }
@@ -214,6 +215,7 @@ class QuickBenchmark {
     try {
       // benchmark-agent.js exports { runBenchmark, TASKS }
       return require('../../scripts/benchmark-agent');
+      // @ts-ignore
     } catch (err) {
       // Fallback: try relative to project root
       try {

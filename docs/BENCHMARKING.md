@@ -8,7 +8,7 @@
 
 | Command | What it does | Duration |
 |---------|-------------|----------|
-| `npm test` | Run all 4232 tests | ~30s |
+| `npm test` | Run all 3375 tests | ~30s |
 | `npm run test:ci` | Tests + coverage enforcement (81/76/80) | ~45s |
 | `npm run benchmark:agent --quick` | 3-task capability benchmark | ~2 min |
 | `npm run benchmark:agent:layer:organism` | A/B: full vs without organism | ~5 min |
@@ -22,7 +22,7 @@
 ### Run all tests
 
 ```bash
-npm test                    # Full suite (4232 tests)
+npm test                    # Full suite (3375 tests)
 npm run test:new            # Only per-module test files
 npm run test:legacy         # Only monolithic legacy suite
 ```

@@ -126,7 +126,9 @@ function createMinimalNetwork() {
     {}
   );
   // FIX v5.1.0 (DI-1): CodeSafety via lateBinding
-  net._codeSafety = require('../../src/agent/ports/CodeSafetyPort').CodeSafetyAdapter.fromScanner();
+  // v7.0.5: Scanner must be passed explicitly (cross-layer require removed)
+  const scanner = require('../../src/agent/intelligence/CodeSafetyScanner');
+  net._codeSafety = require('../../src/agent/ports/CodeSafetyPort').CodeSafetyAdapter.fromScanner(scanner);
   return net;
 }
 

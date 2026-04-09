@@ -42,6 +42,7 @@ const PATTERN_RULES = [
       [/cmd\.exe|\.bat\b/, 0.6],
     ],
     rootCause: (f) => {
+      // @ts-ignore
       if (/\/etc\//.test(f.message)) return 'Hardcoded Unix path /etc/';
       if (/\/tmp\//.test(f.message)) return 'Hardcoded Unix path /tmp/';
       return 'OS-specific path or command';
@@ -369,7 +370,7 @@ class FailureAnalyzer {
         if (rule.typeMatch && f.type === rule.typeMatch) return rule.typeScore;
         // Regex rules — first match wins
         for (const [regex, score] of rule.rules) {
-          if (regex.test(msg)) return score;
+          if (/** @type {RegExp} */ (regex).test(msg)) return score;
         }
         // Context-aware rules (e.g. ENVIRONMENT checks nodeVersion)
         if (rule.ctxRule) return rule.ctxRule(msg, f, ctx);

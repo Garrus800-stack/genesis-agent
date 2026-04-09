@@ -192,6 +192,9 @@ class ModelBridgeAdapter extends LLMPort {
       avgLatencyMs: 0,
       _latencies: [],
     };
+
+    // Late-bound (v7.0.5: declared for TSC)
+    /** @type {*} */ this._costGuard = null;
   }
 
   // ── Rate Limit ──────────────────────────────────────

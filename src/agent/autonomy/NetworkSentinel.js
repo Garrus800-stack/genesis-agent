@@ -55,6 +55,7 @@ class NetworkSentinel {
    *   config?: Partial<typeof DEFAULTS>
    * }} deps
    */
+  /** @param {{ bus?: *, intervals?: *, config?: * }} [deps] */
   constructor({ bus, intervals, config } = {}) {
     /** @type {*} */ this.bus = bus || { on() {}, emit() {} };
     this._intervals = intervals;
@@ -74,6 +75,8 @@ class NetworkSentinel {
     // ── Late-bound dependencies ───────────────────────
     /** @type {*} */ this._modelBridge = null;
     /** @type {*} */ this._settings = null;
+    /** @type {*} */ this._knowledgeGraph = null;  // v7.0.5: declared for TSC
+    /** @type {*} */ this._lessonsStore = null;    // v7.0.5: declared for TSC
 
     // ── Subscriptions ─────────────────────────────────
     this._unsubs = [];
@@ -86,7 +89,7 @@ class NetworkSentinel {
       restores: 0,
       lastProbeMs: 0,
       lastStatus: 'unknown',
-      offlineSince: null,
+      offlineSince: /** @type {number|null} */ (null),
     };
   }
 
@@ -215,7 +218,7 @@ class NetworkSentinel {
 
       this._online = true;
       this._stats.lastStatus = 'online';
-      this._stats.offlineSince = null;
+      this._stats.offlineSince = /** @type {*} */ (null);
 
       _log.info(`[NET] Back online (was offline for ${Math.round(offlineDuration / 1000)}s)`);
 

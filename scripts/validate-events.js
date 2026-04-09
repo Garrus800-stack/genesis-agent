@@ -188,7 +188,7 @@ if (highTraffic.length === 0) {
 }
 
 // ── v6.1.0: Schema Coverage Ratchet ──
-const MINIMUM_SCHEMA_RATE = 0.25; // 25% — hold current level, raise over time
+const MINIMUM_SCHEMA_RATE = 1.0; // v7.0.5: Raised to 100% — every new event must have a schema
 if (catalogEvents.size > 0 && schemaEvents.size > 0) {
   const schemaRate = schemaEvents.size / catalogEvents.size;
   console.log(`\n━━━ Check 4: Schema Coverage Ratchet ━━━`);

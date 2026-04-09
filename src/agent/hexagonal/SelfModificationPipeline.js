@@ -423,8 +423,8 @@ Be specific. Reference actual module names and actual limitations. Think like a 
         const coherence = this._awareness.getCoherence();
         if (typeof coherence === 'number' && coherence < THRESHOLDS.SELFMOD_COHERENCE_MIN) {
           this._gateStats.consciousnessBlocked++;
-          this._gateStats.lastBlockedAt = Date.now();
-          this._gateStats.lastCoherence = coherence;
+          this._gateStats.lastBlockedAt = /** @type {*} */ (Date.now());
+          this._gateStats.lastCoherence = /** @type {*} */ (coherence);
           _log.warn(`[SELFMOD] Blocked: awareness coherence too low (${coherence.toFixed(2)})`);
           this.bus.emit('selfmod:consciousness-blocked', {
             coherence: Math.round(coherence * 100) / 100,

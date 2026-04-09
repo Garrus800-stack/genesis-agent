@@ -8,18 +8,20 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.0.4-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.0.5-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <img src="https://img.shields.io/badge/tests-~4271%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-~3375%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/fitness-90%2F90-4ade80?style=flat-square" alt="Fitness">
+  <img src="https://img.shields.io/badge/TSC-clean-4ade80?style=flat-square" alt="TSC">
+  <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
   <img src="https://img.shields.io/badge/modules-237-e0e0e8?style=flat-square" alt="Modules">
-  <img src="https://img.shields.io/badge/services-142-fbbf24?style=flat-square" alt="Services">
+  <img src="https://img.shields.io/badge/services-131-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-368-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/events-369-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">
   <img src="https://img.shields.io/badge/license-MIT-888?style=flat-square" alt="License">
-  <img src="https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=flat-square" alt="CI">
 </p>
 
 ---
@@ -83,7 +85,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (6 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). **Empirically validated: +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4, kimi-k2.5:cloud).
 
-**Infrastructure** — 12-phase DI boot, EventBus (368 events, 345 schemas), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules), DisclosurePolicy (trust-based information sovereignty).
+**Infrastructure** — 12-phase DI boot, EventBus (369 events, 369 schemas), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules), DisclosurePolicy (trust-based information sovereignty).
 
 > **For the full feature list with version history**, see [CAPABILITIES.md](docs/CAPABILITIES.md).
 
@@ -223,7 +225,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Thirteen layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked. Everything else is fair game for self-modification. v5.9.7: zero cross-layer violations, zero orphans, zero phantom late-bindings. TypeScript CI enforced. Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked. Everything else is fair game for self-modification. v7.0.5: zero cross-layer violations, TSC clean, zero orphans, zero phantom late-bindings. TypeScript CI enforced. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -461,6 +463,13 @@ The Dashboard visualizes Genesis's internal state in real-time (2s polling):
 │  SHELL AGENT — 4 tiers, blocklist, rate limiter, no injection    │
 ├──────────────────────────────────────────────────────────────────┤
 │  PEER NETWORK — AES-256-GCM, PBKDF2 600K iterations             │
+├──────────────────────────────────────────────────────────────────┤
+│  DISCLOSURE POLICY — trust-based information sovereignty         │
+│  └─ Controls what Genesis reveals about its own internals        │
+├──────────────────────────────────────────────────────────────────┤
+│  EARNED AUTONOMY — graduated approval bypass via trust scoring   │
+├──────────────────────────────────────────────────────────────────┤
+│  NETWORK SENTINEL — offline detection, auto-failover to Ollama   │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -469,9 +478,9 @@ The Dashboard visualizes Genesis's internal state in real-time (2s polling):
 ## Testing
 
 ```bash
-npm test              # All tests (~255 suites)
+npm test              # All tests (~237 suites)
 npm run test:coverage # With coverage report (c8)
-npm run ci            # Full CI: tests + event audit + channel audit + fitness gate
+npm run ci            # Full CI: tests + fitness + event audit + event validation + channels
 ```
 
 All tests run without external dependencies (no Ollama, no API keys, no internet). Tested on Node 20, 22. CI runs on Ubuntu + Windows via GitHub Actions.
@@ -480,18 +489,18 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Layer | Files | LOC | Purpose |
 |---|---|---|---|
-| Core | 14 | ~4,450 | EventBus, Container, Constants, Logger, CorrelationContext, CircuitBreaker, CancellationToken, PreservationInvariants |
-| Foundation | 27 | ~7,770 | ModelBridge, Backends, Sandbox, KG, WorldState (+ Queries + Snapshot), TrustLevels, Telemetry, LLMCache |
-| Intelligence | 17 | ~6,270 | Verification, Safety Scanner, Intent, Reasoning, ContextManager, PromptBuilder, PromptEvolution |
-| Capabilities | 19 | ~6,000 | Shell, MCP (Client + Server + Transport + CodeExec + Worker + ToolBridge), HotReload, Skills, Plugins, WebPerception |
-| Planning | 11 | ~2,950 | Goals, GoalPersistence, MetaLearning, SchemaStore, ValueStore |
-| Hexagonal | 16 | ~5,890 | ChatOrchestrator, SelfModPipeline, Memory (Unified + Episodic + Adaptive), PeerNetwork, PeerConsensus |
-| Autonomy | 8 | ~2,650 | IdleMind, Daemon, HealthMonitor, HealthServer, CognitiveMonitor, ErrorAggregator |
-| Organism | 14 | ~4,980 | Emotions (5D), Homeostasis (6 vitals), Needs (4 drives), Metabolism, ImmuneSystem, Genome, Epigenetic, Fitness, BodySchema, EmbodiedPerception |
-| Revolution | 14 | ~5,710 | AgentLoop (+ Steps/Planner delegates), FormalPlanner, HTN, VectorMemory, NativeToolUse, ModelRouter |
-| Cognitive | 14 | ~5,760 | DreamCycle, ExpectationEngine, SurpriseAccumulator, MentalSimulator, SelfNarrative, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis |
-| Ports | 7 | ~860 | Hexagonal adapters (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace) |
-| **Total** | **218** | **~73,500** | **(all src/, incl. UI + kernel)** |
+| Core | 15 | ~5,600 | EventBus, Container, Constants, Logger, CorrelationContext, CircuitBreaker, CancellationToken, PreservationInvariants, CrashLog |
+| Foundation | 29 | ~8,300 | ModelBridge, Backends, Sandbox, KG, WorldState (+ Queries + Snapshot), TrustLevels, Telemetry, LLMCache, ASTDiff |
+| Intelligence | 23 | ~8,700 | Verification, Safety Scanner, Intent, Reasoning, ContextManager, PromptBuilder, PromptEvolution, DisclosurePolicy, CognitiveBudget |
+| Capabilities | 22 | ~7,400 | Shell, MCP (Client + Server + Transport + CodeExec + Worker + ToolBridge), HotReload, Skills, Plugins, WebPerception |
+| Planning | 11 | ~3,000 | Goals, GoalPersistence, MetaLearning, SchemaStore, ValueStore, Anticipator |
+| Hexagonal | 14 | ~5,700 | ChatOrchestrator, SelfModPipeline, Memory (Unified + Episodic), PeerNetwork, PeerConsensus, CommandHandlers |
+| Autonomy | 13 | ~4,400 | IdleMind, Daemon, DaemonController, HealthMonitor, HealthServer, CognitiveMonitor, ErrorAggregator, NetworkSentinel, DeploymentManager, AutoUpdater |
+| Organism | 13 | ~4,700 | Emotions (5D), Homeostasis (6 vitals), Needs (4 drives), Metabolism, ImmuneSystem, Genome, Fitness, BodySchema, EmbodiedPerception, EmotionalSteering |
+| Revolution | 17 | ~6,600 | AgentLoop (+ Steps/Planner/Cognition/Delegate), FormalPlanner, HTN, VectorMemory, NativeToolUse, ModelRouter, Colony |
+| Cognitive | 21 | ~9,200 | DreamCycle, ExpectationEngine, SurpriseAccumulator, MentalSimulator, SelfNarrative, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, CognitiveSelfModel, TaskRecorder, AdaptiveStrategy, QuickBenchmark |
+| Ports | 10 | ~1,250 | Hexagonal adapters (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace, Awareness) |
+| **Total** | **237** | **~80,000** | **(agent source only)** |
 
 ---
 
@@ -499,26 +508,27 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 231 agent modules (src/agent/) |
-| Lines of code | ~79k src (agent) + ~43k test |
-| Manifest phases | 13 (+ Phase 0 bootstrap) |
-| DI services | 137 at runtime (129 manifest + 8 kernel) |
-| Late-bindings | 197 cross-phase property injections |
-| Test suites | 277 files, ~4232 tests (coverage gates: 81/76/80) |
-| Dependencies | 4 production + 3 optional + 5 dev |
+| Source modules | 237 agent modules (src/agent/) |
+| Lines of code | ~80k src (agent) + ~42k test |
+| Manifest phases | 12 (Phase 1–12, boot order enforced) |
+| DI services | 131 at runtime |
+| Late-bindings | 468 cross-phase dependency bindings |
+| Test suites | 237 files, ~3375 tests (coverage gates: 81/76/80) |
+| Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
-| Anthropic models | 3 (Opus 4, Sonnet 4, Haiku 4.5) |
 | IPC channels | 55 invoke + 2 send + 6 receive = 63 (rate-limited, all in sync) |
-| Event types | 355 across 89 namespaces (catalogued in EventTypes.js) |
-| Cross-layer event flows | ~290 emitted events, ~65 listeners (via EventBus, no direct imports — run `npm run audit:events` for exact counts) |
-| Hexagonal ports | 6 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace) |
+| Event types | 369 across ~90 namespaces (catalogued in EventTypes.js) |
+| Event schemas | 369/369 (100% coverage, enforced by CI ratchet) |
+| Cross-layer event flows | ~310 emitted events, ~65 listeners (via EventBus, no direct imports) |
+| Hexagonal ports | 7 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace, Awareness) |
 | Cognitive modules | 17 (ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence, CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder) |
 | Organism | 5 emotional dimensions + homeostasis + allostasis + 4 needs + steering + metabolism + immune system + heritable genome + fitness evaluation + body schema + embodied perception |
-| Safety layers | 10 (kernel lock → hash-lock → AST scan → capability tokens → IPC whitelist → CSP → sandbox → worker isolation → circuit breaker → immune system) |
-| Trust levels | 4 (supervised → full autonomy) |
+| Safety layers | 10 (kernel lock → hash-lock → AST scan → capability tokens → IPC whitelist → CSP → sandbox → worker isolation → circuit breaker → immune system) + DisclosurePolicy (trust-based information sovereignty) |
+| Trust levels | 4 (supervised → full autonomy) with EarnedAutonomy gate |
 | Languages | EN primary (+ DE, FR, ES via i18n) |
-| Architectural fitness | 90/90 (100%) — 0 cross-layer violations, 0 orphans, 0 phantoms, 0 TSC errors, 0 @ts-nocheck |
-| TypeScript checking | 210/210 files checked — 0 errors, 0 @ts-nocheck |
+| Architectural fitness | 90/90 (100%) — 0 cross-layer violations, 0 orphans, 0 phantoms |
+| TypeScript | TSC clean — 0 errors in agent source (checkJs + strictNullChecks) |
+| CI gates | 5 (tests + fitness + event audit + event validation + channel sync) |
 
 ---
 
@@ -546,24 +556,29 @@ All persistence goes through `StorageService` (write-queued, atomic JSON writes)
 
 ## Known Limitations
 
-- **Pure JavaScript with TypeScript checking** — `types/core.d.ts` and `types/node.d.ts` provide type declarations. All 218 source files pass `tsc --checkJs` with 0 errors. Type-safety relies on JSDoc annotations, targeted `@ts-ignore` for prototype delegation patterns, and CI enforcement.
+- **Pure JavaScript with TypeScript checking** — `types/core.d.ts` and `types/node.d.ts` provide type declarations. All 237 source files pass `tsc --checkJs` with 0 errors. Type-safety relies on JSDoc annotations, targeted `@ts-ignore` for prototype delegation patterns, and CI enforcement.
 - **VM sandbox is not a true sandbox** — `vm.createContext` provides isolation for quick evals but is explicitly NOT security-grade for untrusted code. Untrusted code must use process-mode `execute()` or Linux namespace isolation.
 - **`sandbox: false`** on Electron <35 — CJS preload requires `require()` which is blocked by sandbox:true. `contextIsolation:true` is the primary security boundary. See `preload.mjs` for ESM preload implementation.
 - **Single-instance storage** — StorageService serializes writes but all autonomous systems share the same `.genesis/` directory.
-- **Consciousness metrics are heuristic** — Phi (integrated information) in PhenomenalField is a simplified proxy, not a rigorous IIT implementation.
+- **AwarenessPort is a lightweight placeholder — real coherence measurement requires a future implementation.
 
 ---
 
 ## Dependencies
 
+**Production** (3 — all with graceful fallbacks):
 ```json
-{
-  "acorn": "^8.16.0",
-  "chokidar": "^3.6.0",
-  "electron": "^33.0.0",
-  "monaco-editor": "^0.44.0",
-  "tree-kill": "^1.2.2"
-}
+{ "acorn": "^8.16.0", "chokidar": "^3.6.0", "tree-kill": "^1.2.2" }
+```
+
+**Optional** (3 — try/catch guarded, degraded mode without):
+```json
+{ "cheerio": "^1.0.0", "puppeteer": "^22.0.0", "monaco-editor": "^0.44.0" }
+```
+
+**Dev** (6):
+```json
+{ "electron": "^39.0.0", "electron-builder": "^26.0.0", "typescript": "^5.5.0", "c8": "^9.1.0", "esbuild": "^0.24.2", "@types/node": "^22.0.0" }
 ```
 
 No LangChain. No LlamaIndex. Everything self-written.
@@ -592,7 +607,7 @@ No LangChain. No LlamaIndex. Everything self-written.
 | [COMMUNICATION.md](docs/COMMUNICATION.md) | How Genesis instances communicate — IPC, EventBus, PeerNetwork, MCP |
 | [DEGRADATION-MATRIX.md](docs/DEGRADATION-MATRIX.md) | What breaks if each service is missing — auto-generated |
 
-### Cognitive & Consciousness
+### Cognitive & Awareness
 
 | Document | What it covers |
 |---|---|
@@ -603,11 +618,9 @@ No LangChain. No LlamaIndex. Everything self-written.
 | Document | What it covers |
 |---|---|
 | [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common problems and solutions — install, boot, LLM, self-modification, platform-specific |
-| [ROADMAP-v6.md](docs/ROADMAP-v6.md) | Development roadmap — completed phases, deferred proposals |
-| [SELF-ANALYSIS-AUDIT.md](docs/SELF-ANALYSIS-AUDIT.md) | Genesis self-critique vs reality — empirical validation of the agent's own architecture review |
+| [BENCHMARKING.md](docs/BENCHMARKING.md) | Performance benchmarks — task suite, A/B organism validation, baseline comparison |
 | [MCP-SERVER-SETUP.md](docs/MCP-SERVER-SETUP.md) | MCP server setup — IDE integration (VSCode, Cursor, Claude Desktop), headless CLI |
 | [SKILL-SECURITY.md](docs/SKILL-SECURITY.md) | Skill security model — sandbox boundaries, allowed/blocked modules, trust model |
-| [AUDIT-BACKLOG.md](AUDIT-BACKLOG.md) | Architectural health tracking — resolved issues, monitor items, fitness metrics |
 
 ### Contributing & Security
 

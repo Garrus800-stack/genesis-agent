@@ -566,6 +566,38 @@ const SCHEMAS = {
 
   // Disclosure (v7.0.4 — Information Sovereignty)
   'disclosure:probe-detected': { count: 'required', pattern: 'required' },
+
+  // ── v7.0.5: Catalog-only entries (0 emitters, kept for completeness) ──
+  'autonomy:status':          { level: 'optional' },
+  'fs:write:self':            { file: 'optional' },
+
+  // ── v7.0.5: System kernel events ────────────────────────
+  'system:security-degraded': { reason: 'required', preloadMode: 'required', mitigation: 'required' },
+
+  // ── v7.0.5: EventStore-forwarded events (store:TYPE) ────
+  // All emitted by EventStore.append() → bus.emit(`store:${type}`, event).
+  // The payload is the full event object: { id, type, payload, source, timestamp, isoTime, prevHash, hash }.
+  'store:AGENT_LOOP_COMPLETE':  { id: 'required', type: 'required', payload: 'required' },
+  'store:CHAT_MESSAGE':         { id: 'required', type: 'required', payload: 'required' },
+  'store:CODE_MODIFIED':        { id: 'required', type: 'required', payload: 'required' },
+  'store:CODE_SAFETY_BLOCK':    { id: 'required', type: 'required', payload: 'required' },
+  'store:CODE_SAFETY_WARN':     { id: 'required', type: 'required', payload: 'required' },
+  'store:COGNITIVE_SNAPSHOT':    { id: 'required', type: 'required', payload: 'required' },
+  'store:ERROR_OCCURRED':       { id: 'required', type: 'required', payload: 'required' },
+  'store:HEALTH_ALERT':         { id: 'required', type: 'required', payload: 'required' },
+  'store:HEALTH_CIRCUIT_FORCED': { id: 'required', type: 'required', payload: 'required' },
+  'store:HEALTH_DEGRADATION':   { id: 'required', type: 'required', payload: 'required' },
+  'store:IDLE_THOUGHT':         { id: 'required', type: 'required', payload: 'required' },
+  'store:INTENT_CLASSIFIED':    { id: 'required', type: 'required', payload: 'required' },
+  'store:MCP_TOOL_CALL':        { id: 'required', type: 'required', payload: 'required' },
+  'store:MODEL_FAILOVER':       { id: 'required', type: 'required', payload: 'required' },
+  'store:MULTI_FILE_REFACTOR':  { id: 'required', type: 'required', payload: 'required' },
+  'store:SHELL_PLAN_EXECUTED':  { id: 'required', type: 'required', payload: 'required' },
+  'store:SKILL_CREATED':        { id: 'required', type: 'required', payload: 'required' },
+  'store:SURPRISE_NOVEL':       { id: 'required', type: 'required', payload: 'required' },
+  'store:SYSTEM_BOOT':          { id: 'required', type: 'required', payload: 'required' },
+  'store:SYSTEM_SHUTDOWN':      { id: 'required', type: 'required', payload: 'required' },
+  'store:TASK_DELEGATED':       { id: 'required', type: 'required', payload: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

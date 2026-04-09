@@ -453,6 +453,8 @@ CONFIDENCE: [0.0-1.0]`;
       if (added > 0) {
         if (!this._learnedPatterns.has(intent)) this._learnedPatterns.set(intent, new Set());
         for (const kw of newKeywords) this._learnedPatterns.get(intent).add(kw);
+        // v7.0.5: Enforce cap — prevents unbounded growth in long-running sessions
+        this._trimLearnedPatterns();
 
         _log.info(`[INTENT] Online-Learning: +${added} keywords for "${intent}": ${newKeywords.join(', ')}`);
         this.bus.emit('intent:learned', {
@@ -484,6 +486,8 @@ CONFIDENCE: [0.0-1.0]`;
         this._learnedPatterns.set(intent, new Set(keywords));
       }
     }
+    // v7.0.5: Enforce cap after bulk import
+    this._trimLearnedPatterns();
   }
 
   // ── Helpers ───────────────────────────────────────────────

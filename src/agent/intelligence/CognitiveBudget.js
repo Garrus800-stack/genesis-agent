@@ -96,6 +96,7 @@ class CognitiveBudget {
     lateBindings: [],
   };
 
+  /** @param {{ bus?: *, config?: * }} [deps] */
   constructor({ bus, config } = {}) {
     this.bus = bus || { emit() {} };
     const cfg = config || {};

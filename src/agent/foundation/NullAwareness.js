@@ -10,6 +10,7 @@
 const { AwarenessPort } = require('../ports/AwarenessPort');
 
 class NullAwareness extends AwarenessPort {
+  /** @param {{ bus?: * }} [deps] */
   constructor({ bus } = {}) {
     super();
     this.bus = bus || null;

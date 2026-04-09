@@ -39,6 +39,9 @@ const _log = createLogger('TaskRecorder');
 const MAX_RECORDINGS = 50;
 const MAX_STEPS_PER_RECORDING = 200;
 
+/** @typedef {{ id: string, goalId: string, goalDescription: string, startedAt: number, steps: Array<*>, llmCalls: Array<*>, toolCalls: Array<*>, outcome: *|null, metadata: object }} Recording */
+/** @typedef {{ id: string, goalId: string, goalDescription: string, startedAt: number, outcome: * }} RecordingSummary */
+
 class TaskRecorder {
   /**
    * @param {object} deps
@@ -168,7 +171,7 @@ class TaskRecorder {
    * @private Stop recording and persist to disk.
    */
   _stopRecording(goalId, reason, data) {
-    const recording = this._active.get(goalId);
+    const recording = this._active.get(/** @type {string} */ (goalId));
     if (!recording) return;
 
     recording.outcome = {
@@ -216,7 +219,7 @@ class TaskRecorder {
    * @private Record a step in the active recording.
    */
   _recordStep(goalId, type, data) {
-    const recording = this._active.get(goalId);
+    const recording = this._active.get(/** @type {string} */ (goalId));
     if (!recording) return;
     if (recording.steps.length >= MAX_STEPS_PER_RECORDING) return;
 
@@ -234,7 +237,7 @@ class TaskRecorder {
   _recordLLMCall(data) {
     // Attach to most recent active recording
     const goalId = this._lastGoalId();
-    const recording = this._active.get(goalId);
+    const recording = this._active.get(/** @type {string} */ (goalId));
     if (!recording) return;
 
     this._stats.totalLLMCalls++;
@@ -255,7 +258,7 @@ class TaskRecorder {
    */
   _recordToolCall(type, data) {
     const goalId = this._lastGoalId();
-    const recording = this._active.get(goalId);
+    const recording = this._active.get(/** @type {string} */ (goalId));
     if (!recording) return;
 
     this._stats.totalToolCalls++;
@@ -265,7 +268,7 @@ class TaskRecorder {
       offset: Date.now() - recording.startedAt,
       type,
       command: (data.command || data.tool || data.name || '').slice(0, 200),
-      success: data.success ?? data.exitCode === 0 ?? null,
+      success: data.success != null ? data.success : (data.exitCode === 0 || null),
       outputPreview: typeof data.output === 'string' ? data.output.slice(0, 300) : null,
     });
   }
@@ -313,7 +316,8 @@ class TaskRecorder {
     const report = {
       recordingA: { id: idA, goal: a.goalDescription, steps: a.steps.length },
       recordingB: { id: idB, goal: b.goalDescription, steps: b.steps.length },
-      divergencePoint: null,
+      divergencePoint: /** @type {number|null} */ (null),
+      /** @type {Array<{index:number,typeA:*,typeB:*,match:*,detailA:string|null,detailB:string|null}>} */
       stepComparison: [],
       outcomeDelta: {
         successA: a.outcome?.success,
@@ -442,7 +446,7 @@ class TaskRecorder {
    *
    * @param {string} recordingId
    * @param {{ speed?: number, emit?: boolean }} [options]
-   * @returns {object|null} Replay report or null if not found
+   * @returns {Promise<object|null>} Replay report or null if not found
    */
   async replay(recordingId, options = {}) {
     const manifest = this.buildReplayManifest(recordingId);

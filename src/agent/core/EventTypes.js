@@ -112,6 +112,12 @@ const EVENTS = Object.freeze({
     DEGRADED:       'safety:degraded',
   }),
 
+  // ── System (kernel-level) ─────────────────────────────
+  SYSTEM: Object.freeze({
+    /** @payload {{ reason: string, preloadMode: string, mitigation: string }} */
+    SECURITY_DEGRADED: 'system:security-degraded',
+  }),
+
   // ── Boot ───────────────────────────────────────────────
   BOOT: Object.freeze({
     /** @payload {{ services: string[], count: number }} */
@@ -605,6 +611,14 @@ const EVENTS = Object.freeze({
     /** @payload {{ recordingId: string, index: number, total: number, kind: string, offset: number }} */
     EVENT:              'replay:event',
     /** @payload {{ id: string, eventsReplayed: number, replayDurationMs: number }} */
+    COMPLETED:          'replay:completed',
+  }),
+
+  // v7.0.5: Domain alias — CognitiveEvents uses REPLAY.* for semantic clarity
+  REPLAY: Object.freeze({
+    RECORDING_COMPLETE: 'replay:recording-complete',
+    STARTED:            'replay:started',
+    EVENT:              'replay:event',
     COMPLETED:          'replay:completed',
   }),
 

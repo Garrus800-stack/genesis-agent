@@ -98,9 +98,9 @@ class SymbolicResolver {
    * Attempt to resolve a step without (or with reduced) LLM usage.
    *
    * @param {string} stepType    — ANALYZE, CODE, SHELL, etc.
-   * @param {string} description — Step description from FormalPlanner
-   * @param {string} [target]    — Target file or command
-   * @param {object} [context]   — Additional context { model, error, goalId }
+   * @param {string} description - Step description from FormalPlanner
+   * @param {string} [target]    - Target file or command
+   * @param {object} [context]   - Additional context { model, error, goalId }
    * @returns {{ level: string, lesson?: object, schema?: object, directive?: string, confidence: number }}
    */
   resolve(stepType, description, target, context = {}) {
@@ -236,7 +236,8 @@ class SymbolicResolver {
       level: LEVEL.DIRECT,
       lesson,
       schema: null,
-      directive: null,
+      // @ts-ignore
+      directive: undefined,
       confidence: lesson.confidence,
     };
   }

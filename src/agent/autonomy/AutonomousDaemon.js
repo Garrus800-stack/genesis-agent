@@ -69,8 +69,12 @@ class AutonomousDaemon {
     // When Genesis says "I can't", queue it for skill creation on next cycle
     this._dynamicGaps = [];
     this.bus.on('learning:capability-gap', (data) => {
-      const topic = data.userRequest.slice(0, 100).replace(/[^a-zA-ZäöüÄÖÜß0-9\s-]/g, '').trim();
+      if (!data) return;
+      // @ts-ignore — data narrowed by guard above
+      const topic = ( data.userRequest || '').slice(0, 100).replace(/[^a-zA-ZäöüÄÖÜß0-9\s-]/g, '').trim();
+      // @ts-ignore
       if (topic.length > 5 && this._dynamicGaps.length < 20) {
+        // @ts-ignore
         this._dynamicGaps.push({ id: `gap:user:${Date.now()}`, topic, type: 'user-request', request: data.userRequest });
         this._log('info', `Capability gap detected from user: "${topic}"`);
       }

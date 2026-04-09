@@ -74,17 +74,15 @@ class CodeSafetyAdapter extends CodeSafetyPort {
 
   /**
    * Factory: create adapter from a CodeSafetyScanner module.
-   * v5.2.0: Scanner is preferably passed in to avoid cross-layer import.
-   * Falls back to auto-require for tests and standalone usage.
+   * v5.2.0: Scanner is always passed in via manifest to avoid cross-layer import.
+   * v7.0.5: Removed cross-layer require() fallback — scannerModule is now required.
    *
-   * @param {{ scanCodeSafety: Function, acornAvailable: boolean }} [scannerModule]
+   * @param {{ scanCodeSafety: Function, acornAvailable: boolean }} scannerModule
    * @returns {CodeSafetyAdapter}
    */
   static fromScanner(scannerModule) {
     if (!scannerModule) {
-      // Fallback for tests and standalone usage - not used in production
-      // (manifests always pass the scanner explicitly via R()).
-      scannerModule = require('../intelligence/CodeSafetyScanner');
+      throw new Error('CodeSafetyAdapter.fromScanner() requires scannerModule — inject via manifest, never auto-require');
     }
     return new CodeSafetyAdapter(scannerModule);
   }

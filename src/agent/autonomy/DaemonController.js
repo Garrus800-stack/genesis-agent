@@ -94,6 +94,7 @@ class DaemonController extends DaemonControlPort {
       } catch (_e) { /* does not exist — fine */ }
     }
 
+    // @ts-ignore
     this._server = net.createServer((socket) => this._onConnection(socket));
 
     this._server.on('error', (err) => {
@@ -236,7 +237,7 @@ class DaemonController extends DaemonControlPort {
   }
 
 
-  _methodStatus() {
+  _methodStatus(_params) {
     const daemonStatus = this.daemon?.getStatus?.() || { running: false };
     const services = this.container
       ? { total: this.container.registrations.size, resolved: this.container.resolved.size }

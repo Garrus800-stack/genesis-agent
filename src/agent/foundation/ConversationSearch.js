@@ -58,6 +58,8 @@ class ConversationSearchDelegate {
     for (const [term, count] of df) {
       this._idfCache.set(term, Math.log(N / count));
     }
+    // v7.0.5: Enforce cap after rebuild — prevents unbounded growth on large corpora
+    this._trimIdfCache();
 
     this._docVectors = docs.map(terms => this._tfVector(terms));
   }

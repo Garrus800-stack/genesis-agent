@@ -23,12 +23,16 @@ describe('PluginRegistry — Code Safety (v4.0.0)', () => {
   };
 
   const { PluginRegistry } = require('../../src/agent/capabilities/PluginRegistry');
+  // v7.0.5: codeSafety must be injected explicitly (cross-layer fallback removed)
+  const { CodeSafetyAdapter } = require('../../src/agent/ports/CodeSafetyPort');
+  const scanner = require('../../src/agent/intelligence/CodeSafetyScanner');
+  const codeSafety = CodeSafetyAdapter.fromScanner(scanner);
 
   function createRegistry() {
     return new PluginRegistry({
       bus: mockBus, sandbox: mockSandbox,
       toolRegistry: mockToolRegistry, storage: mockStorage,
-      pluginsDir,
+      pluginsDir, codeSafety,
     });
   }
 

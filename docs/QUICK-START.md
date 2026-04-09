@@ -185,7 +185,7 @@ Settings persist in `.genesis/settings.json`.
 - Read [ARCHITECTURE-DEEP-DIVE.md](docs/ARCHITECTURE-DEEP-DIVE.md) to understand the 12-phase boot
 - Read [CAPABILITIES.md](docs/CAPABILITIES.md) for the full feature list
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) if you want to extend Genesis
-- Run `npm test` to see all 4232 tests pass
+- Run `npm test` to see all 3375 tests pass
 - Run `node scripts/architectural-fitness.js` to check code health
 
 ## CLI Commands (REPL Mode)

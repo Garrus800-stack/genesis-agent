@@ -86,8 +86,11 @@ describe('CodeSafetyAdapter', () => {
 // ── Static factory ──────────────────────────────────────────
 
 describe('CodeSafetyAdapter.fromScanner()', () => {
+  // v7.0.5: Scanner must be passed explicitly (cross-layer require removed)
+  const scanner = require('../../src/agent/intelligence/CodeSafetyScanner');
+
   test('creates adapter from real CodeSafetyScanner module', () => {
-    const adapter = CodeSafetyAdapter.fromScanner();
+    const adapter = CodeSafetyAdapter.fromScanner(scanner);
     assert(adapter instanceof CodeSafetyAdapter);
     assert(adapter instanceof CodeSafetyPort);
     // acorn is vendored in kernel, so should always be available
@@ -95,15 +98,24 @@ describe('CodeSafetyAdapter.fromScanner()', () => {
   });
 
   test('scans safe code correctly', () => {
-    const adapter = CodeSafetyAdapter.fromScanner();
+    const adapter = CodeSafetyAdapter.fromScanner(scanner);
     const result = adapter.scanCode('const x = 1 + 2;', 'safe.js');
     assertEqual(result.safe, true);
   });
 
   test('blocks eval()', () => {
-    const adapter = CodeSafetyAdapter.fromScanner();
+    const adapter = CodeSafetyAdapter.fromScanner(scanner);
     const result = adapter.scanCode('eval("dangerous")', 'evil.js');
     assertEqual(result.safe, false);
+  });
+
+  test('throws when called without scanner', () => {
+    try {
+      CodeSafetyAdapter.fromScanner();
+      throw new Error('Should have thrown');
+    } catch (e) {
+      assert(e.message.includes('requires scannerModule'), 'Should require scanner');
+    }
   });
 });
 

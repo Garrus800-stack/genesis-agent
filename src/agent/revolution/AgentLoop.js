@@ -138,6 +138,14 @@ class AgentLoop {
     // v6.0.8: Symbolic resolution — bypass LLM for known solutions
     this._symbolicResolver = null; // late-bound from phase 2
 
+    // v7.0.3: Colony orchestration (late-bound)
+    /** @type {*} */ this._colonyOrchestrator = null;
+    /** @type {*} */ this.colonyInsights = null;
+
+    // v7.0.5: Approval delegate method — assigned by ApprovalGate, called from AgentLoopSteps
+    /** @type {function(string, string): Promise<boolean>} */
+    this._requestApproval = async () => true;
+
     this._unsubs = [];
 
     // v3.8.0: Composition delegates (replace prototype mixins)
@@ -331,15 +339,15 @@ class AgentLoop {
           );
 
           if (hasRealResults && colonyRun.status === 'done') {
-            plan.colonyInsights = colonyRun.subtasks
+            /** @type {*} */ (plan).colonyInsights = colonyRun.subtasks
               .filter(s => s.status === 'done' && s.result)
               .map(s => s.result);
-            _log.info(`[AGENT-LOOP] Colony escalation succeeded — ${plan.colonyInsights.length} insights merged`);
+            _log.info(`[AGENT-LOOP] Colony escalation succeeded — ${/** @type {*} */ (plan).colonyInsights.length} insights merged`);
             this.bus.fire('agentloop:colony-escalated', {
               runId: colonyRun.id,
               reason: 'complexity',
               subtasks: colonyRun.subtasks.length,
-              insights: plan.colonyInsights.length,
+              insights: /** @type {*} */ (plan).colonyInsights.length,
             }, { source: 'AgentLoop' });
           } else {
             _log.debug('[AGENT-LOOP] Colony returned passthrough — using local plan');
