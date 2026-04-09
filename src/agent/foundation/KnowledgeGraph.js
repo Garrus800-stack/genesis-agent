@@ -33,7 +33,7 @@ class KnowledgeGraph {
 
   setEmbeddingService(embeddingService) {
     this._embeddings = embeddingService;
-    // @ts-ignore — genuine TS error, fix requires type widening
+    // @ts-ignore — TS inference limitation (checkJs)
     this._syncNodeVectors().catch(err => _log.debug('[KG] Vector sync failed:', err.message));
   }
 

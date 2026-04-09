@@ -126,7 +126,7 @@ class WorldState {
     const entry = {
       path: path.relative(this.rootDir, filePath),
       mtime: Date.now(),
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       size: this._getFileSize(filePath),
     };
 

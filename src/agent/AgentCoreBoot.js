@@ -72,7 +72,7 @@ class AgentCoreBoot {
     c.registerInstance('lang', lang);
 
     // Logger — read log level from settings.json without resolving Settings service
-    // @ts-ignore — genuine TS error, fix requires type widening
+    // @ts-ignore — TS inference limitation (checkJs)
     const settingsPath = path.join(core.genesisDir, 'settings.json');
     let logLevel = 'info';
     try {
@@ -96,7 +96,7 @@ class AgentCoreBoot {
     // Event payload validation (dev-mode)
     try {
       const { installPayloadValidation } = require('./core/EventPayloadSchemas');
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       core._payloadValidation = installPayloadValidation(this._bus);
     } catch (_e) { _log.warn('[catch] payload validation init:', _e.message); }
 

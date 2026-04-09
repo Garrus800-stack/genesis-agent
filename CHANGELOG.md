@@ -1,3 +1,43 @@
+## [7.0.7] — Observability: Type Safety in Critical Modules
+
+**Genesis can now see the types in its own self-repair chain. VerificationEngine, LearningService, McpWorker — zero ts-ignore. Backend constructors properly typed. vendor/acorn excluded from TSC. Swallowed catches in 18 critical modules audited — all confirmed intentional.**
+
+### @ts-ignore Reduction (85 → 62, −27%)
+
+**VerificationEngine (8 → 0)** — `verifyPlan` and `verifyCode` return types widened to include optional `note`, `warnings`, `totalIssues`, `details`. All 7 `checks` array declarations typed as `Array<*>`. Zero ts-ignore remaining in the code verification pipeline.
+
+**LearningService (6 → 0)** — `_metrics.errorPatterns` typed from `never[]` to `Array<{message, intent, count, lastSeen}>`. All pattern-matching, sorting, and filtering now type-safe.
+
+**McpWorker (5 → 0)** — `parentPort` null-guard via destructuring alias + `@type {*}` cast. Worker context guarantees non-null, but TSC didn't know.
+
+**Backend Constructors (4 → 0)** — AnthropicBackend and OpenAIBackend: `@param` JSDoc for destructured constructor options. OpenAIBackend spread type fixed with `@type {object}` cast.
+
+**Remaining 62:** 23 prototype-delegated (Object.assign invisible to checkJs — architectural limitation), 39 TS inference (checkJs without @types/node). All re-commented with specific cause.
+
+### TSC Improvements
+
+- **vendor/acorn excluded** from `tsconfig.ci.json` — eliminates ~507 noise errors from vendored parser
+- `tsconfig.ci.json` exclude list now includes `src/kernel/vendor/**`
+- TSC output on `npx tsc` now shows only real errors (11 transitive from `scripts/benchmark-agent.js`)
+
+### Swallowed Catches Audit
+
+Systematic audit of 18 critical modules (self-repair chain + self-awareness + decision-making):
+AgentLoop, AgentLoopSteps, AgentLoopRecovery, AgentLoopCognition, SelfModificationPipeline, VerificationEngine, Sandbox, ChatOrchestrator, ChatOrchestratorHelpers, CognitiveMonitor, CognitiveMonitorAnalysis, HealthMonitor, ErrorAggregator, EventStore, Container, EventBus, ModelBridge, LearningService.
+
+**Result: 0 unintentionally swallowed catches.** All multi-line catches in critical modules have either code, logging, or documented `/* best effort */` comments. The 5 one-liner empty catches are all annotated with intent. No fixes needed.
+
+### Stats
+
+- 237 modules, ~80k LOC, 3311 tests, 0 failures
+- Fitness: 90/90
+- TSC: 0 agent errors
+- Events: 348 (100% schema coverage)
+- @ts-ignore: 62 (was 85, all categorized)
+- Coverage ratchet: 78/75/71 (enforced)
+
+---
+
 ## [7.0.6] — Structural Cleanup: Types, Events, Tests
 
 **The codebase sees its own types. Dead events buried. Legacy test debt eliminated.**

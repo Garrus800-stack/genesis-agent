@@ -169,7 +169,7 @@ class Homeostasis {
       result[name] = {
         value: vital.value,
         unit: vital.unit,
-        // @ts-ignore — genuine TS error, fix requires type widening
+        // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
         status: this._classifyVital(vital),
       };
     }
@@ -247,7 +247,7 @@ class Homeostasis {
     let criticalCount = 0;
 
     for (const vital of Object.values(this.vitals)) {
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       const status = this._classifyVital(vital);
       if (status === 'warning') warningCount++;
       if (status === 'critical') criticalCount++;
@@ -273,7 +273,7 @@ class Homeostasis {
       this.bus.emit('homeostasis:recovering', {}, { source: 'Homeostasis' });
     } else if (this.state === 'recovering') {
       // Check if recovery period elapsed
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       if (Date.now() - this._recoveryStarted > this._recoveryDuration) {
         this.state = warningCount > 0 ? 'stressed' : 'healthy';
         this._recoveryStarted = null;

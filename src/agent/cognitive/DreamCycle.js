@@ -161,7 +161,7 @@ class DreamCycle {
       }
 
       // ── Phase 2: PATTERN DETECTION (heuristic, no LLM) ──
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       const patterns = this._detectPatterns(episodes);
       report.phases.push({ name: 'pattern-detection', patternCount: patterns.length });
 
@@ -176,7 +176,7 @@ class DreamCycle {
       this._dreamPhaseCrystallize(newSchemas);
 
       // ── Phase 4: MEMORY CONSOLIDATION ──────────────────
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       const consolidation = this._consolidateMemories(episodes);
       report.strengthenedMemories = consolidation.strengthened;
       report.decayedMemories = consolidation.decayed;
@@ -193,7 +193,7 @@ class DreamCycle {
 
       // ── Phase 5: INSIGHT GENERATION ────────────────────
       if (report.newSchemas.length > 0 && this._withinTimeLimit(startTime)) {
-        // @ts-ignore — genuine TS error, fix requires type widening
+        // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
         report.insights = this._generateInsights(report.newSchemas);
         this._stats.totalInsights += report.insights.length;
       }
@@ -287,10 +287,10 @@ class DreamCycle {
 
     let schemas;
     if (this._useLLM && this.model && this._withinTimeLimit(startTime)) {
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       schemas = await this._batchExtractSchemas(qualifiedPatterns);
     } else {
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       schemas = this._heuristicSchemas(qualifiedPatterns);
     }
 

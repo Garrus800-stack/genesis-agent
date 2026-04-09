@@ -48,7 +48,7 @@ class GoalStack {
    */
   async addGoal(description, source = 'self', priority = 'medium', options = {}) {
     // Decompose into steps using LLM
-    // @ts-ignore — genuine TS error, fix requires type widening
+    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
     const steps = await this._decompose(description);
 
     const goal = {
@@ -135,7 +135,7 @@ class GoalStack {
 
     try {
       // Execute the step
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       const result = await this._executeStep(step, goal);
 
       // Record result
@@ -160,7 +160,7 @@ class GoalStack {
         // Step failed
         if (goal.attempts >= goal.maxAttempts) {
           // Too many failures on this step — try replanning
-          // @ts-ignore — genuine TS error, fix requires type widening
+          // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
           const replanned = await this._replan(goal, result.error);
           if (!replanned) {
             goal.status = 'failed';

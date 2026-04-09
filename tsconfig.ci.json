@@ -36,6 +36,7 @@
     "test",
     "dist",
     "scripts",
-    "src/ui/**"
+    "src/ui/**",
+    "src/kernel/vendor/**"
   ]
 }

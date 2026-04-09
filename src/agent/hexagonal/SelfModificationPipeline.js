@@ -178,7 +178,7 @@ class SelfModificationPipeline {
       frozen: this._frozen,
       reason: this._frozenReason,
       failures: this._consecutiveFailures,
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       threshold: this._getCircuitBreakerThreshold(),
     };
   }

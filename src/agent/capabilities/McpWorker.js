@@ -24,7 +24,11 @@
 
 'use strict';
 
-const { parentPort, workerData } = require('worker_threads');
+const { parentPort: _parentPort, workerData } = require('worker_threads');
+
+// Worker file — parentPort is always non-null in worker context
+/** @type {*} */
+const parentPort = _parentPort;
 const vm = require('vm');
 
 const { code, timeout = 10000, maxOutputSize = 64000 } = workerData;
@@ -34,7 +38,6 @@ const pendingCalls = new Map();
 let callIdCounter = 0;
 
 // ── Receive RPC results from main thread ─────────────────
-// @ts-ignore — genuine TS error, fix requires type widening
 parentPort.on('message', (msg) => {
   if (msg.type === 'mcp-result') {
     const pending = pendingCalls.get(msg.id);
@@ -64,7 +67,6 @@ function mcp(server, tool, args = {}) {
       reject: (err) => { clearTimeout(callTimeout); reject(err); },
     });
 
-    // @ts-ignore — genuine TS error, fix requires type widening
     parentPort.postMessage({ type: 'mcp-call', id, server, tool, args });
   });
 }
@@ -129,7 +131,6 @@ async function execute() {
     const result = await fn(mcp);
 
     const output = logs.join('\n');
-    // @ts-ignore — genuine TS error, fix requires type widening
     parentPort.postMessage({
       type: 'complete',
       output: output.length > maxOutputSize ? output.slice(0, maxOutputSize) + '\n…[truncated]' : output,
@@ -137,7 +138,6 @@ async function execute() {
       duration: Date.now() - startTime,
     });
   } catch (err) {
-    // @ts-ignore — genuine TS error, fix requires type widening
     parentPort.postMessage({
       type: 'complete',
       output: logs.join('\n'),
@@ -148,7 +148,6 @@ async function execute() {
 }
 
 execute().catch((err) => {
-  // @ts-ignore — genuine TS error, fix requires type widening
   parentPort.postMessage({
     type: 'complete',
     output: '',

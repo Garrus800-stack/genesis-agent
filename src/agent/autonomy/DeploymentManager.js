@@ -182,7 +182,7 @@ class DeploymentManager {
     // FAIL-HONEST (v7.0.2): Refuse rollback when snapshot is a placeholder.
     // Previous behavior silently set status='rolled-back' without restoring anything.
     // Now we explicitly surface that rollback is not yet implemented.
-    // @ts-ignore — genuine TS error, fix requires type widening
+    // @ts-ignore — TS inference limitation (checkJs)
     if (snapshot.placeholder) {
       _log.warn(`[DEPLOY] Rollback unavailable for ${deploymentId.slice(0, 8)} - snapshot is placeholder (no real backup). Real rollback requires V7-4B SnapshotManager integration.`);
       deployment.status = 'rollback-unavailable';

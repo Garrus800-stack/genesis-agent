@@ -29,9 +29,9 @@ class EmbeddingService {
   constructor(optionsOrUrl = 'http://127.0.0.1:11434', bus) {
     // Support both: new EmbeddingService({ bus }) and new EmbeddingService(url, bus)
     if (typeof optionsOrUrl === 'object' && optionsOrUrl !== null) {
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       this.bus = optionsOrUrl.bus || NullBus;
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       this.baseUrl = optionsOrUrl.baseUrl || 'http://127.0.0.1:11434';
     } else {
       this.bus = bus || NullBus;
@@ -246,9 +246,9 @@ class EmbeddingService {
     try {
       await this.init();
       if (this.isAvailable()) {
-        // @ts-ignore — genuine TS error, fix requires type widening
+        // @ts-ignore — TS inference limitation (checkJs)
         if (/** @type {any} */ (this)._memory) this._memory.setEmbeddingService(this);
-        // @ts-ignore — genuine TS error, fix requires type widening
+        // @ts-ignore — TS inference limitation (checkJs)
         if (/** @type {any} */ (this)._knowledgeGraph) this._knowledgeGraph.setEmbeddingService(this);
         _log.info(`  [+] Embeddings: ${this.model} (${this.dimensions}d)`);
       }

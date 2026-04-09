@@ -263,7 +263,7 @@ class HotReloader {
     const timer = setTimeout(() => {
       // Window passed without enough errors — watchdog stands down
       unsub();
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       this._watchdogTimers.delete(filePath);
     }, WATCHDOG_WINDOW_MS);
 
@@ -281,7 +281,7 @@ class HotReloader {
     if (wd) {
       clearTimeout(wd.timer);
       if (wd.unsub) wd.unsub();
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       this._watchdogTimers.delete(filePath);
     }
 

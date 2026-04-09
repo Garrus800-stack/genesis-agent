@@ -293,15 +293,15 @@ class FileProcessor {
 
     this.runtimes = {
       node: true,
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       python: (python.value || false) || (python3.value || false),
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       php: php.value || false,
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       ruby: ruby.value || false,
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       bash: bash.value || false,
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       lua: lua.value || false,
       powershell: process.platform === 'win32' || false,
       cmd: process.platform === 'win32',

@@ -101,7 +101,7 @@ class ChatOrchestrator {
       this.history.push({ role: 'assistant', content: response });
       this._saveHistory();
       // v3.5.0: Record conversation as episodic memory
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       this._recordEpisode(message, response, intent.type);
       this.bus.fire('chat:completed', { message, response, intent: intent.type, success: !response.startsWith('**' + this.lang.t('agent.error')) }, { source: 'ChatOrchestrator' });
       // v6.0.4: End provenance trace — success
@@ -184,18 +184,18 @@ class ChatOrchestrator {
 
       let fullResponse = '';
 
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       await this._withRetry(() => this.cb.execute(
         () => this.model.streamChat(ctx.system, ctx.messages, (chunk) => {
           if (this.abortController?.signal.aborted) return;
           fullResponse += chunk;
           onChunk(chunk);
-        // @ts-ignore — genuine TS error, fix requires type widening
+        // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
         }, this.abortController.signal)
       ));
 
       // Multi-round tool execution loop
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       fullResponse = await this._processToolLoop(fullResponse, onChunk);
 
       this.history.push({ role: 'assistant', content: fullResponse });
@@ -209,7 +209,7 @@ class ChatOrchestrator {
       }
 
       // Route code blocks to editor
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
       const codeBlocks = this._extractCodeBlocks(fullResponse);
       if (codeBlocks.length > 0) {
         const primary = codeBlocks.sort((a, b) => b.content.length - a.content.length)[0];
@@ -264,7 +264,7 @@ class ChatOrchestrator {
   }
 
   async _directChat(message) {
-    // @ts-ignore — genuine TS error, fix requires type widening
+    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
     return this._withRetry(async () => {
       const systemPrompt = this.promptBuilder.buildAsync
         ? await this.promptBuilder.buildAsync()

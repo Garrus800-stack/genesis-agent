@@ -136,7 +136,7 @@ class SchemaStore {
 
     // Check for duplicate / merge candidate
     const existing =
-    // @ts-ignore — genuine TS error, fix requires type widening
+    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
     this._findSimilar(normalized);
     if (existing) {
       existing.occurrences += normalized.occurrences;
@@ -166,7 +166,7 @@ class SchemaStore {
 
     // Store new schema
     this._schemas.push(normalized);
-    // @ts-ignore — genuine TS error, fix requires type widening
+    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
     this._addToIndex(normalized);
     this._stats.stored++;
     this._dirty = true;
@@ -224,7 +224,7 @@ class SchemaStore {
 
     for (const schema of candidates) {
       const relevance =
-    // @ts-ignore — genuine TS error, fix requires type widening
+    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
     this._scoreRelevance(schema, actionType, description, target, context);
       if (relevance >= this._relevanceThreshold) {
         results.push({ ...schema, _relevance: relevance });
@@ -283,7 +283,7 @@ class SchemaStore {
     if (idx === -1) return false;
 
     const removed = this._schemas.splice(idx, 1)[0];
-    // @ts-ignore — genuine TS error, fix requires type widening
+    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
     this._removeFromIndex(removed);
     this._dirty = true;
     this._scheduleSave();

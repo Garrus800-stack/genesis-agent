@@ -17,7 +17,7 @@ const { createLogger } = require('../../core/Logger');
 const _log = createLogger('OpenAIBackend');
 
 class OpenAIBackend {
-  // @ts-ignore — genuine TS error, fix requires type widening
+  /** @param {{ baseUrl?: string, apiKey?: string, models?: Array<string> }} [options] */
   constructor({ baseUrl, apiKey, models } = {}) {
     this.name = 'OpenAI-Compatible';
     this.type = 'openai';
@@ -46,7 +46,7 @@ class OpenAIBackend {
     if (this._models.length > 0) {
       return this._models.map(m => typeof m === 'string'
         ? { name: m, backend: 'openai', size: 0, quantization: 'cloud' }
-        : { backend: 'openai', size: 0, quantization: 'cloud', ...m }
+        : { backend: 'openai', size: 0, quantization: 'cloud', .../** @type {object} */ (m) }
       );
     }
     return [
@@ -95,7 +95,7 @@ class OpenAIBackend {
       const client = isHttps ? https : http;
       const postData = JSON.stringify(body);
       let _settled = false;
-      // @ts-ignore — genuine TS error, fix requires type widening
+      // @ts-ignore — TS inference limitation (checkJs)
       const _resolve = () => { if (!_settled) { _settled = true; resolve(); } };
       const _reject = (err) => { if (!_settled) { _settled = true; reject(err); } };
 

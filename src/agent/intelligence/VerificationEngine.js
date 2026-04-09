@@ -94,7 +94,7 @@ class VerificationEngine {
    * @param {string} type - Step type: 'CODE'|'SANDBOX'|'SHELL'|'ANALYZE'|'SEARCH'|'ASK'
    * @param {object} step - The step definition { type, description, target, ... }
    * @param {object} result - The step result { output, error, exitCode, ... }
-   * @returns {{ status: 'pass'|'fail'|'ambiguous', details: object, checks: Array }}
+   * @returns {{ status: string, details?: object, checks?: Array<*>, reason?: string }}
    */
   verify(type, step, result) {
     this._stats.total++;
@@ -164,18 +164,16 @@ class VerificationEngine {
       checks: verification.checks?.length || 0,
     }, { source: 'VerificationEngine' });
 
-    // @ts-ignore — genuine TS error, fix requires type widening
     return verification;
   }
 
   /**
    * Verify plan preconditions against WorldState.
    * @param {Array} steps - Typed plan steps
-   * @returns {{ valid: boolean, issues: Array }}
+   * @returns {{ valid: boolean, issues: Array<*>, note?: string, totalIssues?: number }}
    */
   verifyPlan(steps) {
     if (!this.worldState) {
-      // @ts-ignore — genuine TS error, fix requires type widening
       return { valid: true, issues: [], note: 'WorldState not available — skipping plan verification' };
     }
     return this._verifiers.plan.verifyPlan(steps, this.worldState);
@@ -194,7 +192,7 @@ class VerificationEngine {
   // ── Internal ────────────────────────────────────────────
 
   _verifySandbox(step, result) {
-    const checks = [];
+    /** @type {Array<*>} */ const checks = [];
 
     // 1. Check if sandbox execution itself failed
     if (result.error && /sandbox.*denied|restricted|blocked/i.test(result.error)) {
@@ -240,14 +238,14 @@ class CodeVerifier {
    * Full code verification.
    * @param {string} code - JavaScript source code
    * @param {object} context - { rootDir, targetFile }
-   * @returns {{ status, reason, checks }}
+   * @returns {{ status: string, reason: string, checks: Array<*>, warnings?: Array<*>, details?: * }}
    */
   verify(code, context = {}) {
     if (!code || typeof code !== 'string' || code.trim().length === 0) {
       return { status: FAIL, reason: 'Empty or missing code', checks: [{ name: 'non-empty', passed: false }] };
     }
 
-    const checks = [];
+    /** @type {Array<*>} */ const checks = [];
 
     // 1. Syntax check (AST parse)
     const syntax = this.checkSyntax(code);
@@ -262,15 +260,11 @@ class CodeVerifier {
     checks.push(...lint.checks);
 
     // Determine overall status
-    // @ts-ignore — genuine TS error, fix requires type widening
     const hasFail = checks.some(c => !c.passed && c.severity !== 'warn');
-    // @ts-ignore — genuine TS error, fix requires type widening
     const hasWarn = checks.some(c => c.severity === 'warn');
 
     if (hasFail) {
-      // @ts-ignore — genuine TS error, fix requires type widening
       const failedCheck = checks.find(c => !c.passed && c.severity !== 'warn');
-      // @ts-ignore — genuine TS error, fix requires type widening
       return { status: FAIL, reason: failedCheck.error || 'Code verification failed', checks };
     }
 
@@ -278,7 +272,6 @@ class CodeVerifier {
       status: hasWarn ? PASS : PASS, // Warnings don't block
       reason: hasWarn ? 'Code valid with warnings' : 'Code verified',
       checks,
-      // @ts-ignore — genuine TS error, fix requires type widening
       warnings: checks.filter(c => c.severity === 'warn'),
     };
   }
@@ -308,7 +301,7 @@ class CodeVerifier {
   }
 
   _checkImports(code, rootDir) {
-    const checks = [];
+    /** @type {Array<*>} */ const checks = [];
     // Match require('...') and require("...")
     const requirePattern = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
     let match;
@@ -387,7 +380,7 @@ class CodeVerifier {
   }
 
   _lintPatterns(code) {
-    const checks = [];
+    /** @type {Array<*>} */ const checks = [];
 
     // Async function without await
     const asyncFns = code.match(/async\s+(?:function\s+\w+|\w+)\s*\([^)]*\)\s*\{/g) || [];
@@ -444,7 +437,7 @@ class CodeVerifier {
 
 class TestVerifier {
   verify(result) {
-    const checks = [];
+    /** @type {Array<*>} */ const checks = [];
     const output = result.output || result.stdout || '';
     const stderr = result.stderr || '';
     const exitCode = result.exitCode ?? (result.error ? 1 : 0);
@@ -504,7 +497,7 @@ class TestVerifier {
 
 class ShellVerifier {
   verify(result) {
-    const checks = [];
+    /** @type {Array<*>} */ const checks = [];
     const exitCode = result.exitCode ?? (result.error ? 1 : 0);
     const stderr = result.stderr || '';
     const stdout = result.output || result.stdout || '';
@@ -564,7 +557,7 @@ class FileVerifier {
   }
 
   verify(targetPath, result) {
-    const checks = [];
+    /** @type {Array<*>} */ const checks = [];
 
     if (!targetPath) {
       return { status: FAIL, reason: 'No target file path specified', checks: [{ name: 'path-specified', passed: false }] };
@@ -645,7 +638,7 @@ class PlanVerifier {
    * Verify plan steps against WorldState.
    * @param {Array} steps - Typed plan steps with preconditions
    * @param {object} worldState - WorldState instance
-   * @returns {{ valid: boolean, issues: Array }}
+   * @returns {{ valid: boolean, issues: Array<*>, totalIssues?: number }}
    */
   verifyPlan(steps, worldState) {
     const issues = [];
@@ -694,7 +687,6 @@ class PlanVerifier {
     return {
       valid: issues.length === 0,
       issues,
-      // @ts-ignore — genuine TS error, fix requires type widening
       totalIssues: issues.reduce((sum, i) => sum + i.issues.length, 0),
     };
   }
