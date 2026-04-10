@@ -63,10 +63,11 @@ class EmotionalSteering {
     ],
   };
 
-  constructor({ bus, emotionalState, storage, config }) {
+  constructor({ bus, emotionalState, storage, config, intervals }) {
     this.bus = bus || NullBus;
     this.emotions = emotionalState;
     this.storage = storage || null;
+    this._intervals = intervals || null;
     this.modelRouter = null;  // lateBinding
     this.needsSystem = null;  // lateBinding
     this.bodySchema = null;   // lateBinding (v7.0.3 — C3: embodiment→steering)
@@ -103,14 +104,21 @@ class EmotionalSteering {
   /** Start periodic signal refresh as safety-net (in case events are missed) */
   start() {
     // FIX v4.12.7 (Audit-02): Guard against double-start timer leak
-    if (this._tickTimer) clearInterval(this._tickTimer);
     this._updateSignals();
     // Refresh every 15s — lightweight (no LLM, just reads EmotionalState dimensions)
-    this._tickTimer = setInterval(() => this._updateSignals(), 15_000);
+    // FIX v7.0.8 (Q-1): Use IntervalManager when available
+    if (this._intervals) {
+      this._intervals.register('emotional-steering-tick', () => this._updateSignals(), 15_000);
+    } else {
+      if (this._tickTimer) clearInterval(this._tickTimer);
+      this._tickTimer = setInterval(() => this._updateSignals(), 15_000);
+    }
   }
 
   stop() {
-    if (this._tickTimer) {
+    if (this._intervals) {
+      this._intervals.clear('emotional-steering-tick');
+    } else if (this._tickTimer) {
       clearInterval(this._tickTimer);
       this._tickTimer = null;
     }

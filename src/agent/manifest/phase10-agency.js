@@ -86,7 +86,7 @@ function phase10(ctx, R) {
         { prop: 'needsSystem', service: 'needsSystem', optional: true },
       ],
       factory: (c) => new (R('EmotionalSteering').EmotionalSteering)({
-        bus,
+        bus, intervals,
         emotionalState: c.resolve('emotionalState'),
         storage: c.resolve('storage'),
         config: c.tryResolve('settings')

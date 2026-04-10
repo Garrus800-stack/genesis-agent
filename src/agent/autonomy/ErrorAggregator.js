@@ -49,10 +49,11 @@ class ErrorAggregator {
     lateBindings: [],
   };
 
-  /** @param {{ bus?: object, config?: object }} [opts] */
-  constructor({ bus, config } = {}) {
+  /** @param {{ bus?: object, config?: object, intervals?: object }} [opts] */
+  constructor({ bus, config, intervals } = {}) {
     this.bus = bus || NullBus;
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this._intervals = intervals || null;
 
     // Category → { errors: [{ts, msg, source}], windowRates: [rate1, rate2, ...] }
     this._categories = new Map();
@@ -88,15 +89,22 @@ class ErrorAggregator {
 
     // Periodic health summary
     // FIX v4.12.7 (Audit-02): Guard against double-start timer leak
-    if (this._healthInterval) clearInterval(this._healthInterval);
-    this._healthInterval = setInterval(() => this._emitHealthSummary(), this.config.healthIntervalMs);
+    // FIX v7.0.8 (Q-1): Use IntervalManager when available
+    if (this._intervals) {
+      this._intervals.register('erroragg-health', () => this._emitHealthSummary(), this.config.healthIntervalMs);
+    } else {
+      if (this._healthInterval) clearInterval(this._healthInterval);
+      this._healthInterval = setInterval(() => this._emitHealthSummary(), this.config.healthIntervalMs);
+    }
     _log.info(`[ErrorAggregator] Started — tracking ${errorPatterns.length} patterns`);
   }
 
   stop() {
     for (const unsub of this._unsubs) unsub();
     this._unsubs = [];
-    if (this._healthInterval) {
+    if (this._intervals) {
+      this._intervals.clear('erroragg-health');
+    } else if (this._healthInterval) {
       clearInterval(this._healthInterval);
       this._healthInterval = null;
     }

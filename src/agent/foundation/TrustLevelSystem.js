@@ -100,7 +100,9 @@ class TrustLevelSystem {
     this.metaLearning = null; // lateBinding
 
     const cfg = config || {};
-    this._level = cfg.level || TRUST_LEVELS.ASSISTED; // Default: Level 1
+    // FIX v7.0.8: Use ?? instead of || — level 0 (SUPERVISED) is valid.
+    // Previously, cfg.level=0 was falsy → fell back to ASSISTED.
+    this._level = cfg.level ?? TRUST_LEVELS.ASSISTED; // Default: Level 1
     this._actionOverrides = {}; // Per-action trust overrides
 
     // ── Upgrade suggestions (pending user confirmation) ──

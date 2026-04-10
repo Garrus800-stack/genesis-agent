@@ -87,7 +87,7 @@ function phase6(ctx, R) {
 
     ['errorAggregator', {
       phase: 6, deps: [], tags: ['monitoring', 'autonomy'],
-      factory: () => new (R('ErrorAggregator').ErrorAggregator)({ bus }),
+      factory: () => new (R('ErrorAggregator').ErrorAggregator)({ bus, intervals }),
     }],
 
     // v5.2.0: Optional HTTP health endpoint for external monitoring.

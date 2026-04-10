@@ -36,6 +36,15 @@ describe('Headless Boot', () => {
       'src/agent/core/Container.js',
       'src/agent/capabilities/McpWorker.js',
       'src/agent/core/PreservationInvariants.js',
+      // v7.0.8 (S-1): 8 additional security-critical files
+      'src/agent/foundation/Sandbox.js',
+      'src/agent/foundation/CapabilityGuard.js',
+      'src/agent/foundation/TrustLevelSystem.js',
+      'src/agent/foundation/ModuleSigner.js',
+      'src/agent/foundation/EarnedAutonomy.js',
+      'src/agent/intelligence/DisclosurePolicy.js',
+      'src/agent/revolution/ApprovalGate.js',
+      'src/agent/organism/ImmuneSystem.js',
     ]);
 
     // On Windows, Unix sockets are not supported. Route DaemonController to a Named Pipe.

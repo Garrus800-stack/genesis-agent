@@ -203,8 +203,14 @@ class ModelBridge {
       // Priority 1: User-configured preferred model
       const preferredName = this._settings?.get?.('models.preferred') || null;
       if (preferredName) {
-        chosen = this.availableModels.find(m => m.name === preferredName);
-        if (chosen) _log.info(`[MODEL] Using preferred model from settings: ${chosen.name}`);
+        // Exact match first, then partial match (handles tag variations like :latest vs :cloud)
+        chosen = this.availableModels.find(m => m.name === preferredName)
+              || this.availableModels.find(m => m.name.startsWith(preferredName.split(':')[0]) && m.name.includes(preferredName.split(':')[1] || ''));
+        if (chosen) {
+          _log.info(`[MODEL] Using preferred model from settings: ${chosen.name}`);
+        } else {
+          _log.warn(`[MODEL] Preferred model "${preferredName}" not found in ${this.availableModels.length} available models`);
+        }
       }
 
       // Priority 2: Cloud backends (configured = user actively chose them)

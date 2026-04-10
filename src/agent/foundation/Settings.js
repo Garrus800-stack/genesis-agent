@@ -165,8 +165,12 @@ class Settings {
         },
       },
     };
-    // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()
-    // this._load();
+    // FIX v7.0.8: Moved _load() back into constructor (was asyncLoad since v3.8.0).
+    // _load() is synchronous (readJSON is sync). Having it in asyncLoad() caused a
+    // race condition: ModelBridge.asyncLoad() runs concurrently in the same boot level
+    // and reads models.preferred BEFORE Settings._load() applies env overrides.
+    // Result: GENESIS_MODEL env var was ignored, auto-select picked wrong model.
+    this._load();
   }
 
   /** @param {string} dotPath @param {*} value */
@@ -217,12 +221,12 @@ class Settings {
   }
 
   /**
-   * v3.8.0: Async boot-time data loading.
-   * Called by Container.bootAll() after all services are resolved.
-   * Replaces sync this._load() that was previously in the constructor.
+   * v3.8.0: Was async boot-time loading. Since v7.0.8, _load() runs in
+   * constructor (sync) to avoid race conditions with ModelBridge.
+   * asyncLoad() kept as no-op for Container.bootAll() compatibility.
    */
   async asyncLoad() {
-    this._load();
+    // _load() already called in constructor — nothing to do.
   }
 
 
@@ -252,7 +256,7 @@ class Settings {
       'GENESIS_MODEL':      'models.preferred',
     };
     for (const [env, dotPath] of Object.entries(ENV_MAP)) {
-      const val = process.env[env];
+      const val = process.env[env]?.trim();
       if (val && val.length > 0) {
         this.set(dotPath, val);
         _log.info(`[SETTINGS] Applied env override: ${env} → ${dotPath}`);

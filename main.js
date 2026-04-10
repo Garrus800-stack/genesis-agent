@@ -50,6 +50,17 @@ app.whenReady().then(async () => {
     // v5.5.0: Self-Preservation Invariants — semantic safety rules.
     // Hash-locked so the agent cannot weaken its own preservation checks.
     'src/agent/core/PreservationInvariants.js',
+    // FIX v7.0.8 (S-1): Audit finding — 8 security-relevant files were
+    // not hash-locked. Self-modification could have weakened execution
+    // isolation, trust evaluation, disclosure policy, or approval gates.
+    'src/agent/foundation/Sandbox.js',
+    'src/agent/foundation/CapabilityGuard.js',
+    'src/agent/foundation/TrustLevelSystem.js',
+    'src/agent/foundation/ModuleSigner.js',
+    'src/agent/foundation/EarnedAutonomy.js',
+    'src/agent/intelligence/DisclosurePolicy.js',
+    'src/agent/revolution/ApprovalGate.js',
+    'src/agent/organism/ImmuneSystem.js',
   ]);
 
   // Phase 2: Create window

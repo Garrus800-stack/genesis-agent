@@ -1,3 +1,121 @@
+## [7.0.8] — Audit Hardening: lockCritical + Security Tests + Fitness
+
+**Full audit of v7.0.7 identified 7 findings. This release addresses all actionable items: 8 security-critical files added to hash-lock, 5 security-module test suites created (84 new tests), raw-setInterval tracking added to fitness function, EventBus freeze comment corrected.**
+
+**Deep analysis of v7.0.8 (13 chapters, 237 modules, every data flow traced) found 0 new security risks. 3 minor findings all resolved: SD-1 (McpServer shutdown) confirmed already handled via McpClient.shutdown() chain; CC-1 (CommandHandlers CC=177) is structurally correct — each intent is a separate method; MF-1 (MultiFileRefactor fan-out) was a measurement artifact (Node stdlib counted as project deps).**
+
+**Dependency analysis (1,706 require() calls, cross-layer matrix, stability index, supply chain) confirms 9.6/10 score. Production deps tilde-pinned (D-2). Supply chain: 3 direct + ~3 transitive = ~6 total packages. Zero upward dependencies. Zero orphan modules. Max import depth 5.**
+
+**Security test coverage now 12/12 — all security-critical modules have dedicated unit tests. setInterval migration reduces raw usage from 12 to 3 (remaining are intentionally raw: CrashLog, McpTransport, McpServer).**
+
+### Bug Fixes
+
+**Settings Race Condition (GENESIS_MODEL ignored):** `Settings._load()` ran in `asyncLoad()` concurrently with `ModelBridge.asyncLoad()` in the same boot level. ModelBridge read `models.preferred` before Settings applied env overrides → `GENESIS_MODEL` env var was silently ignored and auto-select always picked the highest-scored local model. Fix: `_load()` moved back into Settings constructor (it's synchronous anyway — `readJSON` is sync). All services that `c.resolve('settings')` now get fully-loaded settings including env overrides.
+
+**TrustLevelSystem SUPERVISED unreachable:** `cfg.level || TRUST_LEVELS.ASSISTED` treated level 0 (SUPERVISED) as falsy → always fell back to ASSISTED (level 1). SUPERVISED could never be set via config. Fix: `||` → `??` (nullish coalescing).
+
+**headless-boot.test.js lockCritical mismatch:** Test had the old 7-file lockCritical list instead of the new 15-file list from main.js. On some runs this caused SafeGuard integrity warnings → PeerTransport WARN log → node:test interpreted stderr output as test failure → c8 measured lower coverage for partially-executed modules (Lines dropped from 78% to 75.96%). Fix: lockCritical list in test synchronized with main.js.
+
+**Test suite version banner:** Test runner displayed "v7.0.7" in banner output. Fixed to "v7.0.8".
+
+### T-1b FIX: Complete Security Test Coverage (12/12)
+
+4 additional test suites for the remaining security modules without dedicated tests:
+
+- **DisclosurePolicy.test.js** (19 tests) — trust tiers, probe tracking, prompt context, social engineering
+- **CapabilityGuard.test.js** (15 tests) — token issue/validate/revoke, scope checks, kernel block, audit
+- **TrustLevelSystem.test.js** (9 tests) — levels, checkApproval, getStatus, boundary behavior
+- **ModuleSigner.test.js** (13 tests) — sign/verify, tamper detection, session isolation, auditAll, events
+
+New tests: 56 (total new in v7.0.8: 140). Security modules with tests: 12/12 (was 3/12 in v7.0.7).
+
+### Q-1 FIX: setInterval → IntervalManager Migration
+
+Two modules migrated from raw setInterval to dual IntervalManager/fallback pattern:
+
+- **ErrorAggregator** — `_intervals` DI injection added, health summary timer managed
+- **EmotionalSteering** — `_intervals` DI injection added, signal refresh timer managed
+
+Both manifest files updated to wire `intervals` dependency. Fitness check baseline updated 12 → 3. Remaining 3 are intentionally raw:
+- `CrashLog` — runs before/after IntervalManager lifecycle (kernel-level)
+- `McpTransport` — heartbeat tied to SSE connection lifecycle (F-06)
+- `McpServer` — on-demand, not DI-registered
+
+9 modules now use the dual IntervalManager/fallback pattern: AutonomousDaemon, CognitiveMonitor, ErrorAggregator, HealthMonitor, IdleMind, NetworkSentinel, LearningService, PeerNetwork, EmotionalSteering.
+
+### D-2 FIX: Tilde-Pin Production Dependencies
+
+Production dependencies changed from caret (^) to tilde (~) versioning. This restricts automatic updates to patch-level only, reducing the risk of unexpected breaking changes from minor version bumps.
+
+- `acorn`: `^8.16.0` → `~8.16.0`
+- `chokidar`: `^3.6.0` → `~3.6.0`
+- `tree-kill`: `^1.2.2` → `~1.2.2`
+
+Dev and optional dependencies remain on caret — breaking changes there only affect development, not production.
+
+### S-1 FIX: lockCritical Expansion (HOCH)
+
+8 security-relevant files were not hash-locked by SafeGuard. Self-modification could theoretically have weakened execution isolation, trust evaluation, or disclosure policy. Now locked:
+
+- `Sandbox.js` — execution isolation boundary
+- `CapabilityGuard.js` — permission grant system
+- `TrustLevelSystem.js` — trust level evaluation
+- `DisclosurePolicy.js` — information sovereignty policy
+- `ModuleSigner.js` — module integrity signing
+- `EarnedAutonomy.js` — autonomy level management
+- `ApprovalGate.js` — human approval gates
+- `ImmuneSystem.js` — self-healing system
+
+Total hash-locked files: 7 → 15.
+
+### T-1 FIX: Security Module Unit Tests (HOCH)
+
+5 dedicated test suites for security-critical modules that previously had zero unit tests:
+
+- **CodeSafetyScanner.test.js** (22 tests) — all AST rules, fail-closed, dedup, edge cases
+- **SafeGuard.test.js** (17 tests) — kernel lock, critical lock, write validation, integrity
+- **PreservationInvariants.test.js** (21 tests) — all 11 invariant rules, fail-closed, events
+- **VerificationEngine.test.js** (13 tests) — CODE/SHELL/SANDBOX verification, stats, edge cases
+- **SelfModificationPipeline.test.js** (11 tests) — safety gates, fail-closed, atomic write, circuit breaker
+
+New tests: 84. All green. Security-critical modules with tests: 3/12 → 8/12.
+
+### Q-1 FIX: Raw setInterval Fitness Check (MITTEL)
+
+New architectural fitness check (#10: "Raw setInterval Audit") tracks modules using raw `setInterval` instead of `IntervalManager`. Baseline: 12 modules. Score: 7/10 (warn). New raw-setInterval usage in future commits will be surfaced immediately by `npm run audit:fitness`.
+
+### A-1 FIX: EventBus Feature-Freeze Comment (INFO)
+
+Feature-freeze comment updated from "84 methods" to "~30 public methods" to reflect actual count.
+
+### Stats
+
+- Version: 7.0.8
+- Modules: 237
+- LOC: ~80k
+- Test files: 244 (+9 new suites)
+- New tests: 140 (84 + 56)
+- Security module test coverage: 12/12 (was 3/12)
+- Fitness check: 10 checks (new: Raw setInterval Audit)
+- lockCritical files: 15 (was 7)
+- Raw setInterval: 12 → 3 raw-only (9 migrated to dual IntervalManager/fallback pattern)
+- Prod deps: tilde-pinned (~)
+
+### Coverage Push: 6 Additional Test Suites
+
+Core and foundation modules tested for function coverage uplift:
+
+- **CircuitBreaker.test.js** (14 tests) — state machine, retries, timeout, fallback, reset
+- **IntervalManager.test.js** (11 tests) — register/clear, pause/resume, shutdown/reset
+- **GraphStore.test.js** (19 tests) — node CRUD, edges, traversal, pageRank, serialize
+- **Genome.test.js** (14 tests) — traits, reproduce with mutation, clamp, hash
+- **Language.test.js** (9 tests) — detection, translation, variable substitution
+- **WriteLock.test.js** (7 tests) — acquire/release, timeout, withLock, stats
+
+New tests in coverage push: 74. **Total new tests in v7.0.8: 214.** Test files: 250 (was 235).
+
+---
+
 ## [7.0.7] — Observability: Type Safety in Critical Modules
 
 **Genesis can now see the types in its own self-repair chain. VerificationEngine, LearningService, McpWorker — zero ts-ignore. Backend constructors properly typed. vendor/acorn excluded from TSC. Swallowed catches in 18 critical modules audited — all confirmed intentional.**

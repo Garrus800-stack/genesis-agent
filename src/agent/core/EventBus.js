@@ -1,7 +1,7 @@
 // ============================================================
 // GENESIS AGENT — EventBus.js (v3.5.0 — Dev-Mode Validation)
 //
-// ⚠️  FEATURE-FREEZE (v7.0.1): 84 methods — do not add new methods.
+// ⚠️  FEATURE-FREEZE (v7.0.1): ~30 public methods — do not add new methods.
 //     If new functionality is needed, extract into a companion module
 //     (e.g. EventStats, EventReplay). See ARCHITECTURE.md §6.
 //

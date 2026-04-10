@@ -546,6 +546,45 @@ check('Source Metrics', (r) => {
 });
 
 // ════════════════════════════════════════════════════════════
+// 10. Raw setInterval Usage
+// FIX v7.0.8 (Q-1): Audit finding — 12 modules use raw setInterval
+// instead of IntervalManager. Track count so it doesn't grow.
+// ════════════════════════════════════════════════════════════
+
+check('Raw setInterval Audit', (r) => {
+  const agentFiles = walkJs(path.join(SRC, 'agent'));
+  const EXEMPT = ['IntervalManager.js']; // IntervalManager itself uses setInterval
+  const KNOWN_RAW = 3; // v7.0.8 baseline: 3 modules with raw-only setInterval
+  // Exempt (intentionally raw): CrashLog (pre-DI lifecycle), McpTransport (F-06),
+  // McpServer (on-demand). All other modules use dual IntervalManager/fallback pattern.
+  const raw = [];
+
+  for (const file of agentFiles) {
+    const base = path.basename(file);
+    if (EXEMPT.includes(base)) continue;
+    const code = readSafe(file);
+    // Match raw setInterval that isn't through this._intervals.register
+    const intervals = code.match(/\bsetInterval\s*\(/g);
+    if (!intervals) continue;
+    // Exclude if the file also uses this._intervals.register (already managed)
+    if (/this\._intervals\.register/.test(code)) continue;
+    raw.push(`${base} (${intervals.length} call${intervals.length > 1 ? 's' : ''})`);
+  }
+
+  if (raw.length <= KNOWN_RAW) {
+    r.score = raw.length === 0 ? 10 : 7; // 7/10 for stable count, 10/10 when all migrated
+    r.status = raw.length === 0 ? 'pass' : 'warn';
+    r.details.push(`${raw.length} modules use raw setInterval (baseline: ${KNOWN_RAW}).`);
+    if (raw.length > 0) r.details.push('Migration to IntervalManager recommended for coordinated shutdown.');
+  } else {
+    r.score = Math.max(0, 7 - (raw.length - KNOWN_RAW) * 2);
+    r.status = 'warn';
+    r.details.push(`${raw.length} modules use raw setInterval — INCREASED from baseline ${KNOWN_RAW}.`);
+    for (const entry of raw) r.details.push(`  ${entry}`);
+  }
+});
+
+// ════════════════════════════════════════════════════════════
 // REPORT
 // ════════════════════════════════════════════════════════════
 

@@ -670,7 +670,8 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   const opts = {
     quick: args.includes('--quick'),
-    backend: args.includes('--backend') ? args[args.indexOf('--backend') + 1] : null,
+    backend: args.includes('--backend') ? args[args.indexOf('--backend') + 1]
+             : (process.env.GENESIS_MODEL ? `ollama:${process.env.GENESIS_MODEL.trim()}` : null),
     baselineSave: args.includes('--baseline') && args.includes('save'),
     baselineCompare: args.includes('--baseline') && args.includes('compare'),
     json: args.includes('--json'),
