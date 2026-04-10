@@ -301,6 +301,80 @@ class GraphStore {
     };
   }
 
+  // ── Causal Graph Operations (v7.0.9 Phase 1) ──────────
+
+  /**
+   * Promote an edge to a new relation type with updated weight.
+   * Used by CausalAnnotation when correlated_with → caused.
+   * @param {string} edgeId
+   * @param {string} newRelation
+   * @param {number} newWeight
+   * @returns {boolean} success
+   */
+  promoteEdge(edgeId, newRelation, newWeight) {
+    const edge = this.edges.get(edgeId);
+    if (!edge) return false;
+    edge.relation = newRelation;
+    edge.weight = Math.min(1.0, newWeight);
+    return true;
+  }
+
+  /**
+   * Degrade all outgoing edges from nodes whose label contains the given substring.
+   * Used by CausalAnnotation.onFileChange() for staleness.
+   * @param {{ sourceContains: string, fromRelation?: string, toRelation: string, confMultiplier: number }} opts
+   * @returns {number} count of degraded edges
+   */
+  degradeEdges({ sourceContains, fromRelation, toRelation, confMultiplier }) {
+    let count = 0;
+    for (const [id, edge] of this.edges) {
+      if (fromRelation && edge.relation !== fromRelation) continue;
+      const sourceNode = this.nodes.get(edge.source);
+      if (!sourceNode || !sourceNode.label.includes(sourceContains)) continue;
+      edge.relation = toRelation;
+      edge.weight = Math.max(0, edge.weight * confMultiplier);
+      count++;
+    }
+    return count;
+  }
+
+  /**
+   * Get all edges of a specific relation type.
+   * Used by Fitness Check #11 to count causal edges.
+   * @param {string} relation
+   * @returns {Array<object>}
+   */
+  getEdgesByRelation(relation) {
+    return Array.from(this.edges.values()).filter(e => e.relation === relation);
+  }
+
+  /**
+   * Prune edges below a confidence threshold.
+   * @param {{ maxAge?: number, minConfidence?: number, relation?: string }} opts
+   * @returns {number} count of pruned edges
+   */
+  pruneEdges({ maxAge, minConfidence, relation } = {}) {
+    const now = Date.now();
+    const toRemove = [];
+    for (const [id, edge] of this.edges) {
+      if (relation && edge.relation !== relation) continue;
+      if (minConfidence !== undefined && edge.weight >= minConfidence) continue;
+      if (maxAge !== undefined && (now - edge.created) < maxAge) continue;
+      toRemove.push(id);
+    }
+    for (const id of toRemove) {
+      const edge = this.edges.get(id);
+      if (edge) {
+        const srcSet = this.neighborIndex.get(edge.source);
+        const tgtSet = this.neighborIndex.get(edge.target);
+        if (srcSet) srcSet.delete(id);
+        if (tgtSet) tgtSet.delete(id);
+        this.edges.delete(id);
+      }
+    }
+    return toRemove.length;
+  }
+
   // ── Serialization ─────────────────────────────────────
 
   serialize() {

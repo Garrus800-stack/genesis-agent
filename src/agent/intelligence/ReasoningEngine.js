@@ -68,6 +68,26 @@ class ReasoningEngine {
       } catch (_e) { _log.debug('[catch] GraphReasoner not available or failed — proceed normally:', _e.message); }
     }
 
+    // v7.0.9 Phase 2: Try InferenceEngine for causal reasoning (no LLM needed)
+    if (this._inferenceEngine) {
+      try {
+        const inferred = this._inferenceEngine.infer({ from: task.slice(0, 200), relation: 'caused' });
+        if (inferred.length > 0 && inferred[0].confidence >= 0.7) {
+          this.bus.emit('reasoning:started', {
+            task: task.slice(0, 100),
+            complexity: { level: 'inferred', strategy: 'deterministic-inferred' },
+            strategy: 'inference-engine',
+          }, { source: 'ReasoningEngine' });
+
+          return {
+            answer: inferred.map(i => `${i.source} → ${i.target} (${i.relation}, confidence ${(i.confidence * 100).toFixed(0)}%)`).join('\n'),
+            reasoning: { strategy: 'deterministic-inferred', rule: inferred[0].rule, inferences: inferred },
+            toolsUsed: [],
+          };
+        }
+      } catch (_e) { _log.debug('[catch] InferenceEngine failed:', _e.message); }
+    }
+
     // Step 1: Classify complexity
     const complexity = await this._assessComplexity(task, context);
 

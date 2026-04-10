@@ -75,35 +75,63 @@ class AgentLoopStepsDelegate {
       }
     }
 
+    // v7.0.9 Phase 1: Causal tracking — snapshot WorldState before step
+    const worldState = loop.worldState || loop._worldState;
+    const causalAnnotation = loop._causalAnnotation;
+    const beforeSnap = worldState?.snapshot?.() || null;
+
+    let stepResult;
     try {
       switch (step.type) {
         case 'ANALYZE':
-          return { ...(await this._stepAnalyze(step, enrichedContext)), durationMs: Date.now() - start };
-
+          stepResult = { ...(await this._stepAnalyze(step, enrichedContext)), durationMs: Date.now() - start };
+          break;
         case 'CODE':
-          return { ...(await this._stepCode(step, enrichedContext, onProgress)), durationMs: Date.now() - start };
-
+          stepResult = { ...(await this._stepCode(step, enrichedContext, onProgress)), durationMs: Date.now() - start };
+          break;
         case 'SANDBOX':
-          return { ...(await this._stepSandbox(step, enrichedContext)), durationMs: Date.now() - start };
-
+          stepResult = { ...(await this._stepSandbox(step, enrichedContext)), durationMs: Date.now() - start };
+          break;
         case 'SHELL':
-          return { ...(await this._stepShell(step, enrichedContext, onProgress)), durationMs: Date.now() - start };
-
+          stepResult = { ...(await this._stepShell(step, enrichedContext, onProgress)), durationMs: Date.now() - start };
+          break;
         case 'SEARCH':
-          return { ...(await this._stepSearch(step, enrichedContext)), durationMs: Date.now() - start };
-
+          stepResult = { ...(await this._stepSearch(step, enrichedContext)), durationMs: Date.now() - start };
+          break;
         case 'ASK':
-          return { ...(await this._stepAsk(step, onProgress)), durationMs: Date.now() - start };
-
+          stepResult = { ...(await this._stepAsk(step, onProgress)), durationMs: Date.now() - start };
+          break;
         case 'DELEGATE':
-          return { ...(await this._stepDelegate(step, enrichedContext, onProgress)), durationMs: Date.now() - start };
-
+          stepResult = { ...(await this._stepDelegate(step, enrichedContext, onProgress)), durationMs: Date.now() - start };
+          break;
         default:
-          return { output: `Unknown step type: ${step.type}`, error: null, durationMs: Date.now() - start };
+          stepResult = { output: `Unknown step type: ${step.type}`, error: null, durationMs: Date.now() - start };
       }
     } catch (err) {
-      return { output: '', error: err.message, durationMs: Date.now() - start };
+      stepResult = { output: '', error: err.message, durationMs: Date.now() - start };
     }
+
+    // v7.0.9 Phase 1: Causal tracking — diff and record
+    if (beforeSnap && worldState?.diff && causalAnnotation) {
+      try {
+        const afterSnap = worldState.snapshot();
+        const delta = worldState.diff(beforeSnap, afterSnap);
+        if (delta.changes.length > 0) {
+          causalAnnotation.record({
+            stepId: step.id || `step-${Date.now()}`,
+            toolCalls: [{ tool: step.type, args: { target: step.target, description: step.description }, timestamp: start }],
+            delta,
+            outcome: stepResult.error ? 'failure' : 'success',
+            source: loop.currentGoalSource || 'user-task',
+          });
+        }
+      } catch (causalErr) {
+        // Causal tracking should never block the pipeline
+        _log.debug('[STEPS] Causal tracking error:', causalErr.message);
+      }
+    }
+
+    return stepResult;
   }
 
   async _stepAnalyze(step, context) {

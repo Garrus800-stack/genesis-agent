@@ -8,7 +8,7 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.0.5-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.0.9-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
   <img src="https://img.shields.io/badge/tests-~3375%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-90%2F90-4ade80?style=flat-square" alt="Fitness">
@@ -156,7 +156,7 @@ Priority: Your choice → Cloud API → Smart Ranking → First available.
 
 ### Boot profiles
 
-Genesis boots 12 phases (~137 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
+Genesis boots 12 phases (~147 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
 
 ```bash
 npm start                              # Cognitive — default (~120 services)
@@ -225,7 +225,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked. Everything else is fair game for self-modification. v7.0.7: zero cross-layer violations, TSC clean, zero orphans, zero phantom late-bindings. TypeScript CI enforced. Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked. Everything else is fair game for self-modification. v7.0.9: zero cross-layer violations, TSC clean, 5 new cognitive modules (CausalAnnotation, InferenceEngine, PatternMatcher, StructuralAbstraction, GoalSynthesizer), 12 fitness checks, 3447 tests passing. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

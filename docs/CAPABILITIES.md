@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.0.1 — What Genesis can do, organized by category.
-> Last updated: v7.0.6: coverage ratchet 81/76/80, 3311 tests, TSC clean, 12 boot phases.
+> v7.0.9 — What Genesis can do, organized by category.
+> Last updated: v7.0.9: 5 cognitive modules (causal reasoning, inference, structural learning, autonomous goals), fitness 115/120, 3447 tests, 147 services.
 
 ---
 

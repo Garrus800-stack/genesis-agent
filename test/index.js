@@ -28,7 +28,7 @@ const CONCURRENCY = 4;
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════╗');
-  console.log('║       GENESIS TEST SUITE v7.0.8          ║');
+  console.log('║       GENESIS TEST SUITE v7.0.9          ║');
   console.log('╚══════════════════════════════════════════╝\n');
 
   let totalPassed = 0;
@@ -95,7 +95,9 @@ async function main() {
         for (const result of results) {
           const { moduleName, stdout, error } = result.status === 'fulfilled' ? result.value : { moduleName: '?', stdout: '', error: result.reason?.message || 'Unknown error' };
           const passMatch = stdout.match(/(\d+) passed/);
-          const failMatch = stdout.match(/(\d+) failed/) || (error ? [null, '0'] : null);
+          // Match "N failed" only in Results/summary lines, not in log output like "lesson-1 failed"
+          const allFailMatches = [...stdout.matchAll(/(\d+) failed/g)];
+          const failMatch = allFailMatches.length > 0 ? allFailMatches[allFailMatches.length - 1] : (error ? [null, '0'] : null);
           const tapPass = !passMatch && stdout.includes('TAP version') ? stdout.match(/^ok \d+/mg) : null;
           const tapFail = !passMatch && stdout.includes('TAP version') ? stdout.match(/^not ok \d+/mg) : null;
           const p = passMatch ? parseInt(passMatch[1]) : (tapPass ? tapPass.length : 0);

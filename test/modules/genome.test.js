@@ -47,9 +47,9 @@ describe('Genome — Construction', () => {
     }
   });
 
-  test('has 6 traits', () => {
+  test('has 7 traits', () => {
     const { genome } = createGenome();
-    assertEqual(Object.keys(genome.traits).length, 6);
+    assertEqual(Object.keys(genome.traits).length, 7); // v7.0.9: +selfAwareness
   });
 
   test('starts at generation 1', () => {

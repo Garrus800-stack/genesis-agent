@@ -137,3 +137,4 @@ test('getStats returns correct counts', () => {
   console.log(`\n    ${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
 })();
+

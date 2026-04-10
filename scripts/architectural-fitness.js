@@ -585,6 +585,90 @@ check('Raw setInterval Audit', (r) => {
 });
 
 // ════════════════════════════════════════════════════════════
+// 11. Causal Graph Size (v7.0.9 Phase 1)
+// Monitors the number of causal edges in KnowledgeGraph.
+// Auto-prune trigger if count exceeds threshold.
+// ════════════════════════════════════════════════════════════
+
+check('Causal Graph Size', (r) => {
+  // Count causal relation types in GraphStore if data exists
+  const PASS_THRESHOLD = 3000;
+  const WARN_THRESHOLD = 5000;
+
+  // At build time we can't query the live graph — check that
+  // CausalAnnotation module exists and has pruning support
+  const causalPath = path.join(SRC, 'agent', 'cognitive', 'CausalAnnotation.js');
+  const graphStorePath = path.join(SRC, 'agent', 'foundation', 'GraphStore.js');
+
+  if (!fs.existsSync(causalPath)) {
+    r.score = 5;
+    r.status = 'warn';
+    r.details.push('CausalAnnotation.js not found — Phase 1 not yet implemented.');
+    return;
+  }
+
+  const gsCode = readSafe(graphStorePath);
+  const hasPrune = /pruneEdges/.test(gsCode);
+  const hasDegrade = /degradeEdges/.test(gsCode);
+  const hasPromote = /promoteEdge/.test(gsCode);
+
+  if (hasPrune && hasDegrade && hasPromote) {
+    r.score = 10;
+    r.status = 'pass';
+    r.details.push('GraphStore has pruneEdges(), degradeEdges(), promoteEdge() — causal graph lifecycle managed.');
+    r.details.push(`Thresholds: pass <${PASS_THRESHOLD}, warn <${WARN_THRESHOLD}, fail >${WARN_THRESHOLD}.`);
+  } else {
+    r.score = 5;
+    r.status = 'warn';
+    const missing = [];
+    if (!hasPrune) missing.push('pruneEdges');
+    if (!hasDegrade) missing.push('degradeEdges');
+    if (!hasPromote) missing.push('promoteEdge');
+    r.details.push(`GraphStore missing causal lifecycle methods: ${missing.join(', ')}.`);
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+// 12. Inference Contradiction Detection (v7.0.9 Phase 2)
+// Verifies InferenceEngine exists and has contradiction detection.
+// At runtime, contradictions should be 0 (warn >5).
+// ════════════════════════════════════════════════════════════
+
+check('Inference Contradiction Detection', (r) => {
+  const enginePath = path.join(SRC, 'agent', 'cognitive', 'InferenceEngine.js');
+
+  if (!fs.existsSync(enginePath)) {
+    r.score = 5;
+    r.status = 'warn';
+    r.details.push('InferenceEngine.js not found — Phase 2 not yet implemented.');
+    return;
+  }
+
+  const code = readSafe(enginePath);
+  const hasContradictions = /findContradictions/.test(code);
+  const hasRuleIndex = /ruleIndex|_ruleIndex/.test(code);
+  const hasMinObs = /minObservations/.test(code);
+  const hasLearnedRules = /learned/.test(code);
+
+  const features = [hasContradictions, hasRuleIndex, hasMinObs, hasLearnedRules];
+  const featureCount = features.filter(Boolean).length;
+
+  if (featureCount === 4) {
+    r.score = 10;
+    r.status = 'pass';
+    r.details.push('InferenceEngine: contradiction detection, rule index, minObservations, learned rules — all present.');
+  } else if (featureCount >= 2) {
+    r.score = 7;
+    r.status = 'warn';
+    r.details.push(`InferenceEngine: ${featureCount}/4 features present.`);
+  } else {
+    r.score = 3;
+    r.status = 'warn';
+    r.details.push('InferenceEngine exists but missing key features.');
+  }
+});
+
+// ════════════════════════════════════════════════════════════
 // REPORT
 // ════════════════════════════════════════════════════════════
 

@@ -192,6 +192,74 @@ class WorldState {
   }
 
   // ════════════════════════════════════════════════════════
+  // CAUSAL TRACKING: SNAPSHOT / DIFF (v7.0.9 Phase 1)
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Capture a deep copy of the current state for before/after comparison.
+   * Used by CausalAnnotation to attribute WorldState changes to specific Steps.
+   * @returns {{ project: *, runtime: *, user: *, system: *, timestamp: number }}
+   */
+  snapshot() {
+    return {
+      project: {
+        recentlyModified: [...(this.state.project.recentlyModified || [])].map(f => ({ ...f })),
+        gitStatus: this.state.project.gitStatus ? { ...this.state.project.gitStatus } : null,
+        testScript: this.state.project.testScript,
+      },
+      runtime: {
+        ollamaStatus: this.state.runtime.ollamaStatus,
+        circuitState: this.state.runtime.circuitState,
+        activeGoals: [...(this.state.runtime.activeGoals || [])],
+      },
+      user: {
+        recentTopics: [...(this.state.user.recentTopics || [])],
+        expertise: { ...this.state.user.expertise },
+      },
+      system: {}, // system rarely changes — omit from diff
+      timestamp: Date.now(),
+    };
+  }
+
+  /**
+   * Compute the delta between two snapshots.
+   * Returns a list of concrete changes: { field, type, before, after }
+   * @param {object} before - Snapshot from before step execution
+   * @param {object} after - Snapshot from after step execution
+   * @returns {{ changes: Array<{ field: string, type: string, before: *, after: * }> }}
+   */
+  diff(before, after) {
+    const changes = [];
+    this._diffObj(before, after, '', changes);
+    return { changes };
+  }
+
+  /** @private Recursive diff helper */
+  _diffObj(a, b, prefix, changes) {
+    if (a === b) return;
+    if (a == null || b == null || typeof a !== typeof b) {
+      if (a !== b) changes.push({ field: prefix || 'root', type: a == null ? 'add' : b == null ? 'remove' : 'change', before: a, after: b });
+      return;
+    }
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (JSON.stringify(a) !== JSON.stringify(b)) {
+        changes.push({ field: prefix, type: 'change', before: `[${a.length} items]`, after: `[${b.length} items]` });
+      }
+      return;
+    }
+    if (typeof a === 'object') {
+      const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+      for (const key of keys) {
+        this._diffObj(a[key], b[key], prefix ? `${prefix}.${key}` : key, changes);
+      }
+      return;
+    }
+    if (a !== b) {
+      changes.push({ field: prefix, type: 'change', before: a, after: b });
+    }
+  }
+
+  // ════════════════════════════════════════════════════════
   // CONTEXT BUILDING (for PromptBuilder)
   // ════════════════════════════════════════════════════════
 

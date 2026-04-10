@@ -294,11 +294,18 @@ class IdleMind {
       }
     } catch (_e) { /* no adaptiveStrategy */ }
 
+    // v7.0.9 Phase 4: improve — GoalSynthesizer-driven self-improvement
+    try {
+      if (this.bus._container?.resolve?.('goalSynthesizer')) {
+        candidates.push('improve');
+      }
+    } catch (_e) { /* no goalSynthesizer */ }
+
     // ── Static weight table ─────────────────────────────
     const STATIC_WEIGHTS = {
       reflect: 1.5, plan: 1.0, explore: 1.2, ideate: 0.8,
       tidy: 0.6, journal: 0.5, 'mcp-explore': 1.0, dream: 2.0,
-      consolidate: 1.3, calibrate: 1.5,
+      consolidate: 1.3, calibrate: 1.5, improve: 1.8,
     };
 
     // ── Initialize scores ───────────────────────────────
@@ -346,11 +353,21 @@ class IdleMind {
           const weakAreas = Object.entries(profile).filter(([, p]) => p.isWeak);
           if (weakAreas.length > 0) {
             if (scores.explore !== undefined) scores.explore *= (1 + weakAreas.length * 0.5);
+            // v7.0.9: Boost improve when weak areas exist
+            if (scores.improve !== undefined) scores.improve *= (1 + weakAreas.length * 0.8);
             // Store weakest area for targeted exploration
             this._currentWeakness = weakAreas
               .sort((a, b) => (a[1].successRate || 0) - (b[1].successRate || 0))[0];
           }
         } catch (_e) { /* optional */ }
+      },
+      // v7.0.9: selfAwareness trait boosts improve activity
+      () => {
+        if (!this._genome) return;
+        const sa = this._genome.trait('selfAwareness');
+        if (sa !== undefined && scores.improve !== undefined) {
+          scores.improve *= (0.5 + sa); // selfAwareness=1.0 → 1.5x boost
+        }
       },
     ];
 

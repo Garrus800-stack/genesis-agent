@@ -45,6 +45,7 @@ const DEFAULT_TRAITS = {
   riskTolerance:   0.3,   // Conservative self-modification
   socialDrive:     0.5,   // Moderate interaction seeking
   consolidation:   0.6,   // Slight preference for consolidation over exploration
+  selfAwareness:   0.5,   // v7.0.9: Controls GoalSynthesizer frequency (higher = more self-improvement)
 };
 
 const TRAIT_BOUNDS = { min: 0.05, max: 0.95 };

@@ -53,6 +53,8 @@ function phase8(ctx, R) {
         { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
         // v6.0.8: Symbolic resolution — bypass LLM for known solutions
         { prop: '_symbolicResolver', service: 'symbolicResolver', optional: true },
+        // v7.0.9 Phase 1: Causal tracking — WorldState snapshot/diff per step
+        { prop: '_causalAnnotation', service: 'causalAnnotation', optional: true },
       ],
       factory: (c) => new (R('AgentLoop').AgentLoop)({
         bus, model: c.resolve('llm'), goalStack: c.resolve('goalStack'),

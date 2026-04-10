@@ -577,6 +577,61 @@ class LessonsStore {
     };
   }
 
+  // ════════════════════════════════════════════════════════
+  // STRUCTURAL PATTERN MATCHING (v7.0.9 Phase 3)
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Find lessons by structural pattern similarity.
+   * Falls back to text-based recall if PatternMatcher unavailable.
+   * @param {object} currentPattern - The current problem's structural pattern
+   * @param {{ minScore?: number, limit?: number }} [opts]
+   * @returns {Array<{ lesson: object, score: number }>}
+   */
+  findByStructure(currentPattern, opts = {}) {
+    const minScore = opts.minScore || 0.6;
+    const limit = opts.limit || 5;
+
+    if (!this._patternMatcher || !currentPattern) {
+      return [];
+    }
+
+    const results = [];
+    for (const lesson of this._lessons) {
+      if (!lesson.structuralPattern) continue;
+      const score = this._patternMatcher.compare(currentPattern, lesson.structuralPattern);
+      if (score >= minScore) {
+        results.push({ lesson, score });
+      }
+    }
+
+    return results.sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
+  /**
+   * Get lessons that need structural pattern extraction.
+   * @returns {Array<{ lessonId: string, text: string, category: string }>}
+   */
+  getPendingAbstractions() {
+    return this._lessons
+      .filter(l => !l.structuralPattern && l.patternStatus !== 'obsolete' && l.patternStatus !== 'contradiction')
+      .map(l => ({ lessonId: l.id, text: l.insight, category: l.category }));
+  }
+
+  /**
+   * Set the structural pattern for a lesson.
+   * @param {string} lessonId
+   * @param {object} pattern
+   * @param {string} [status='extracted']
+   */
+  setStructuralPattern(lessonId, pattern, status = 'extracted') {
+    const lesson = this._lessons.find(l => l.id === lessonId);
+    if (!lesson) return;
+    lesson.structuralPattern = pattern;
+    lesson.patternStatus = status;
+    this._dirty = true;
+  }
+
   /** Get all lessons (for debug/export) */
   getAll() {
     return [...this._lessons];

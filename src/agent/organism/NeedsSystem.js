@@ -81,6 +81,16 @@ class NeedsSystem {
         satisfiedBy: [],
         satisfyAmount: satisfyAmounts.rest ?? 0.12,
       },
+      // v7.0.9 Phase 4: Competence need — drives GoalSynthesizer
+      // Rises when failure rate in any task category exceeds 50%.
+      // Falls when success rate improves. Drives autonomous self-improvement.
+      competence: {
+        value: 0.0,
+        growthRate: growthRates.competence ?? 0.004,
+        weight: weights.competence ?? 1.0,
+        satisfiedBy: ['goal:synthesized'],
+        satisfyAmount: satisfyAmounts.competence ?? 0.20,
+      },
     };
 
     // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()

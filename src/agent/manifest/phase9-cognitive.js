@@ -153,6 +153,10 @@ function phase9(ctx, R) {
     // v5.3.0 (SA-P7): LessonsStore — cross-project persistent learning
     ['lessonsStore', {
       phase: 9, deps: ['bus'], tags: ['cognitive', 'learning', 'persistent'],
+      // v7.0.9 Phase 3: PatternMatcher for structural lesson retrieval
+      lateBindings: [
+        { prop: '_patternMatcher', service: 'patternMatcher', optional: true },
+      ],
       factory: () => new (R('LessonsStore').LessonsStore)({
         bus,
       }),
@@ -308,6 +312,59 @@ function phase9(ctx, R) {
       ],
       factory: (c) => new (R('AdaptiveStrategy').AdaptiveStrategy)({
         bus, storage: c.resolve('storage'),
+      }),
+    }],
+
+    // v7.0.9 Phase 1: CausalAnnotation — causal tracking for WorldState mutations
+    ['causalAnnotation', {
+      phase: 9, deps: [], tags: ['cognitive', 'causal', 'reasoning'],
+      lateBindings: [
+        { prop: 'kg', service: 'knowledgeGraph', optional: true },
+      ],
+      factory: () => new (R('CausalAnnotation').CausalAnnotation)({
+        bus,
+      }),
+    }],
+
+    // v7.0.9 Phase 2: InferenceEngine — rule-based deterministic inference
+    ['inferenceEngine', {
+      phase: 9, deps: [], tags: ['cognitive', 'reasoning', 'inference'],
+      lateBindings: [
+        { prop: 'graph', service: 'knowledgeGraph', optional: true },
+      ],
+      factory: () => new (R('InferenceEngine').InferenceEngine)({
+        bus,
+      }),
+    }],
+
+    // v7.0.9 Phase 3: PatternMatcher — structural similarity for lessons
+    ['patternMatcher', {
+      phase: 9, deps: [], tags: ['cognitive', 'learning'],
+      factory: () => new (R('PatternMatcher').PatternMatcher)(),
+    }],
+
+    // v7.0.9 Phase 3: StructuralAbstraction — LLM-deferred pattern extraction
+    ['structuralAbstraction', {
+      phase: 9, deps: [], tags: ['cognitive', 'learning', 'abstraction'],
+      lateBindings: [
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
+      ],
+      factory: () => new (R('StructuralAbstraction').StructuralAbstraction)({
+        bus,
+      }),
+    }],
+
+    // v7.0.9 Phase 4: GoalSynthesizer — autonomous goal generation
+    ['goalSynthesizer', {
+      phase: 9, deps: [], tags: ['cognitive', 'autonomy', 'goals'],
+      lateBindings: [
+        { prop: 'selfModel', service: 'cognitiveSelfModel', optional: true },
+        { prop: 'tracker', service: 'taskOutcomeTracker', optional: true },
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
+        { prop: 'inferenceEngine', service: 'inferenceEngine', optional: true },
+      ],
+      factory: () => new (R('GoalSynthesizer').GoalSynthesizer)({
+        bus,
       }),
     }],
   ];

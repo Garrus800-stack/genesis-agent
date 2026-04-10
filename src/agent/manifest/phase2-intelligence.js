@@ -119,6 +119,8 @@ function phase2(ctx, R) {
       lateBindings: [
         // v4.10.0: GraphReasoner for deterministic structural queries
         { prop: '_graphReasoner', service: 'graphReasoner', optional: true },
+        // v7.0.9 Phase 2: InferenceEngine for causal reasoning
+        { prop: '_inferenceEngine', service: 'inferenceEngine', optional: true },
       ],
       factory: (c) => new (R('ReasoningEngine').ReasoningEngine)(
         c.resolve('llm'), c.resolve('prompts'), c.resolve('tools'), bus
@@ -207,6 +209,8 @@ function phase2(ctx, R) {
       lateBindings: [
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
         { prop: 'schemaStore', service: 'schemaStore', optional: true },
+        // v7.0.9 Phase 2: Deterministic inference before LLM
+        { prop: '_inferenceEngine', service: 'inferenceEngine', optional: true },
       ],
       factory: () => new (R('SymbolicResolver').SymbolicResolver)({ bus }),
     }],

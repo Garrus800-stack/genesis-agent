@@ -406,6 +406,95 @@ class GraphReasoner {
   }
 
   getStats() { return { ...this._stats }; }
+
+  // ════════════════════════════════════════════════════════
+  // CAUSAL REASONING (v7.0.9 Phase 1)
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Find the causal chain from an action to an effect.
+   * Only follows "caused" edges (not "correlated_with").
+   * @param {string} fromLabel - Action label
+   * @param {string} toLabel - Effect label
+   * @param {{ maxDepth?: number, minConfidence?: number }} [options]
+   * @returns {{ found: boolean, chain: Array<{ node: string, relation: string, weight: number }>, depth: number }}
+   */
+  causalChain(fromLabel, toLabel, options = {}) {
+    const maxDepth = options.maxDepth || 6;
+    const minConf = options.minConfidence || 0.3;
+    const graph = this.kg?.graph || this.kg;
+    if (!graph) return { found: false, chain: [], depth: 0 };
+
+    const fromNode = graph.findNode(fromLabel);
+    const toNode = graph.findNode(toLabel);
+    if (!fromNode || !toNode) return { found: false, chain: [], depth: 0 };
+
+    // BFS for shortest causal path
+    const queue = [{ id: fromNode.id, chain: [], depth: 0 }];
+    const visited = new Set([fromNode.id]);
+
+    while (queue.length > 0) {
+      const { id, chain, depth } = queue.shift();
+      if (depth > maxDepth) continue;
+
+      const neighbors = graph.getNeighbors(id, 'caused');
+      for (const neighbor of neighbors) {
+        if (neighbor.edge.weight < minConf) continue;
+        const targetId = neighbor.edge.source === id ? neighbor.edge.target : neighbor.edge.source;
+        const newChain = [...chain, {
+          node: neighbor.node.label,
+          relation: 'caused',
+          weight: neighbor.edge.weight,
+        }];
+
+        if (targetId === toNode.id) {
+          this._stats.causalChains = (this._stats.causalChains || 0) + 1;
+          return { found: true, chain: newChain, depth: depth + 1 };
+        }
+
+        if (!visited.has(targetId)) {
+          visited.add(targetId);
+          queue.push({ id: targetId, chain: newChain, depth: depth + 1 });
+        }
+      }
+    }
+
+    return { found: false, chain: [], depth: 0 };
+  }
+
+  /**
+   * Predict the effects of a planned action based on historical causal edges.
+   * Looks at all outgoing "caused" edges from the action node.
+   * @param {string} actionLabel - The action being planned
+   * @param {{ minConfidence?: number, source?: string }} [options]
+   * @returns {Array<{ effect: string, confidence: number, occurrences: number }>}
+   */
+  predictEffects(actionLabel, options = {}) {
+    const minConf = options.minConfidence || 0.3;
+    const graph = this.kg?.graph || this.kg;
+    if (!graph) return [];
+
+    const actionNode = graph.findNode(actionLabel);
+    if (!actionNode) return [];
+
+    const neighbors = graph.getNeighbors(actionNode.id, 'caused');
+    const effects = [];
+
+    for (const neighbor of neighbors) {
+      // Only outgoing edges (action → effect)
+      if (neighbor.edge.source !== actionNode.id) continue;
+      if (neighbor.edge.weight < minConf) continue;
+
+      effects.push({
+        effect: neighbor.node.label,
+        confidence: neighbor.edge.weight,
+        occurrences: neighbor.node.accessCount || 1,
+      });
+    }
+
+    this._stats.predictions = (this._stats.predictions || 0) + 1;
+    return effects.sort((a, b) => b.confidence - a.confidence);
+  }
 }
 
 module.exports = { GraphReasoner };

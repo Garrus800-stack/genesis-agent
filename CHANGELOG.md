@@ -1,3 +1,54 @@
+## [7.0.9] — Causal Genesis: Reasoning, Learning, Autonomous Goals
+
+**Genesis can now track causality, reason about it without LLM calls, learn structural patterns across contexts, and generate its own improvement goals from self-observed weaknesses. Four phases implemented sequentially, each building on the previous. The closed loop: HANDELN → BEOBACHTEN → SCHLIESSEN → ABSTRAHIEREN → REFLEKTIEREN → PLANEN → HANDELN.**
+
+### Phase 1 — Kausales Weltmodell
+- **CausalAnnotation.js** (~270 LOC) — Temporal isolation, suspicion scoring, source tagging, staleness hooks
+- **WorldState.js** — `snapshot()` + `diff()` for before/after step comparison
+- **GraphStore.js** — `promoteEdge()`, `degradeEdges()`, `getEdgesByRelation()`, `pruneEdges()`
+- **GraphReasoner.js** — `predictEffects()`, `causalChain()` for causal path finding
+- **AgentLoopSteps.js** — Automatic snapshot/diff/record wrapper around step execution
+- **Fitness Check #11** — Causal Graph Size (pass <3000, warn <5000, fail >5000)
+
+### Phase 2 — Deterministische Inferenz
+- **InferenceEngine.js** (~310 LOC) — Rule-based inference, rule index Map<relationType, Rule[]>, hardcoded/learned rules with minObservations, contradiction detection
+- **SymbolicResolver.js** — New `INFERRED` level between DIRECT and GUIDED
+- **ReasoningEngine.js** — `deterministic-inferred` strategy before chain-of-thought
+- **Fitness Check #12** — Inference Contradiction Detection
+
+### Phase 3 — Strukturelles Lernen
+- **PatternMatcher.js** (~80 LOC) — Weighted Jaccard similarity (category 40%, elements 25%, anti-patterns 15%, strategy 10%, steps 10%)
+- **StructuralAbstraction.js** (~190 LOC) — Extraction lifecycle: pending→extracted|failed|obsolete|contradiction|stale, typed failures (llm-timeout, parse-error, low-confidence, contradicts-existing), retry queue
+
+### Phase 4 — Autonome Zielgenerierung
+- **GoalSynthesizer.js** (~220 LOC) — Generates improvement goals from CognitiveSelfModel weaknesses. Bootstrap guard (NOOP if <20 outcomes). Priority formula: impact × (1 - lessonCoverage × lessonEffectiveness). Self-referential loop prevention: PROTECTED_MODULES, improvement budget, regression circuit-breaker (3 regressions → 100 tasks pause)
+
+### Manifest Wiring
+- phase9-cognitive.js: CausalAnnotation, InferenceEngine, PatternMatcher, StructuralAbstraction, GoalSynthesizer registered
+- phase8-revolution.js: AgentLoop gets `_causalAnnotation` late-binding
+- phase2-intelligence.js: SymbolicResolver + ReasoningEngine get `_inferenceEngine` late-binding
+
+### Stats
+- New modules: 5 (CausalAnnotation, InferenceEngine, PatternMatcher, StructuralAbstraction, GoalSynthesizer)
+- Modified modules: 8 (WorldState, GraphStore, GraphReasoner, AgentLoopSteps, SymbolicResolver, ReasoningEngine, phase9, phase8, phase2)
+- New tests: 60 (causal-annotation:12, causal-graph-reasoning:19, inference-engine:10, structural-learning:12, goal-synthesizer:7)
+- Total tests: 244 files, all passing
+- Fitness: 115/120 (12 checks, +2 new)
+- Zero regressions — 143 integration tests + 18 headless-boot tests all green
+
+### Bug Fixes (from v7.0.8 testing)
+
+- **Settings Race Condition:** `_load()` moved back into constructor — fixes `GENESIS_MODEL` env var being ignored.
+- **TrustLevelSystem SUPERVISED unreachable:** `||` → `??` for level=0.
+- **Benchmark GENESIS_MODEL:** env var now auto-forwarded as `--backend` to CLI child processes. Windows trailing-space trimmed.
+- **ModelBridge preferred model:** Partial name matching + warn log when preferred not found.
+
+### Stats
+
+- Modules: 238 (+1 CausalAnnotation)
+- New tests: 31 (causal-annotation: 12, causal-graph-reasoning: 19)
+- Fitness: 105/110 (11 checks, +1 Causal Graph Size)
+
 ## [7.0.8] — Audit Hardening: lockCritical + Security Tests + Fitness
 
 **Full audit of v7.0.7 identified 7 findings. This release addresses all actionable items: 8 security-critical files added to hash-lock, 5 security-module test suites created (84 new tests), raw-setInterval tracking added to fitness function, EventBus freeze comment corrected.**

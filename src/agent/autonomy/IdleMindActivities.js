@@ -315,6 +315,32 @@ const activities = {
     }
   },
 
+  // v7.0.9 Phase 4: Autonomous self-improvement via GoalSynthesizer
+  async _improve() {
+    try {
+      const goalSynthesizer = this.bus?._container?.resolve?.('goalSynthesizer');
+      if (!goalSynthesizer) return 'GoalSynthesizer not available';
+
+      const goals = goalSynthesizer.synthesize();
+      if (goals.length === 0) return 'No improvement goals generated — performance is adequate or insufficient data.';
+
+      const goal = goals[0];
+
+      // Push to GoalStack if available
+      if (this.goalStack) {
+        await this.goalStack.addGoal(goal.title, 'self-improvement', 'medium');
+        _log.info(`[IDLE-MIND] Self-improvement goal pushed: ${goal.title}`);
+      }
+
+      const summary = `Self-improvement: ${goal.title} (priority: ${goal.priority}, impact: ${goal.impact})`;
+      this._journal('improve', summary);
+      return summary;
+    } catch (err) {
+      _log.warn('[IDLE-MIND] Improve failed:', err.message);
+      return `Improve failed: ${err.message}`;
+    }
+  },
+
   _journal(activity, content) {
     const entry = {
       timestamp: new Date().toISOString(),

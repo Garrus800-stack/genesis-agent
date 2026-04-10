@@ -39,9 +39,10 @@ const _log = createLogger('SymbolicResolver');
 
 // ── Resolution levels ────────────────────────────────────────
 const LEVEL = Object.freeze({
-  DIRECT: 'direct',   // Execute without LLM
-  GUIDED: 'guided',   // LLM with directive injection
-  PASS:   'pass',     // Normal flow
+  DIRECT:   'direct',    // Execute without LLM
+  INFERRED: 'inferred',  // v7.0.9: Deterministic inference answered — no LLM needed
+  GUIDED:   'guided',    // LLM with directive injection
+  PASS:     'pass',      // Normal flow
 });
 
 // ── Thresholds ───────────────────────────────────────────────
@@ -135,6 +136,40 @@ class SymbolicResolver {
     if (bestConf >= this._config.directThreshold && bestLesson) {
       const directResult = this._checkDirect(stepType, bestLesson);
       if (directResult) return directResult;
+    }
+
+    // ── v7.0.9 Phase 2: INFERRED — deterministic inference ──
+    // If InferenceEngine can answer without LLM, use it
+    if (this._inferenceEngine) {
+      try {
+        const inferred = this._inferenceEngine.infer({
+          from: target || description,
+          relation: 'caused',
+        });
+        if (inferred.length > 0 && inferred[0].confidence >= this._minConfidence) {
+          this._stats.inferredHits = (this._stats.inferredHits || 0) + 1;
+          const inferredDirective = `INFERRED: ${inferred.map(i => `${i.source} → ${i.target} (${i.relation}, conf ${(i.confidence * 100).toFixed(0)}%)`).join('; ')}`;
+
+          _log.info(`[SYMBOLIC] INFERRED "${stepType}" — ${inferred.length} inference(s) (rule: ${inferred[0].rule})`);
+
+          this.bus.emit('symbolic:resolved', {
+            level: LEVEL.INFERRED,
+            stepType,
+            confidence: Math.round(inferred[0].confidence * 100),
+            source: 'inference-engine',
+            rule: inferred[0].rule,
+          }, { source: 'SymbolicResolver' });
+
+          return {
+            level: LEVEL.INFERRED,
+            directive: inferredDirective,
+            confidence: inferred[0].confidence,
+            inferences: inferred,
+          };
+        }
+      } catch (err) {
+        _log.debug('[SYMBOLIC] Inference failed:', err.message);
+      }
     }
 
     // ── GUIDED: inject as directive ────────────────────────
