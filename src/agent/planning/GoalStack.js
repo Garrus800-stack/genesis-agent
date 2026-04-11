@@ -47,9 +47,9 @@ class GoalStack {
    * @param {object} options - { parentId, blockedBy: [goalId], tags: [] }
    */
   async addGoal(description, source = 'self', priority = 'medium', options = {}) {
-    // Decompose into steps using LLM
-    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-    const steps = await this._decompose(description);
+    // GoalStackExecution mixin — single cast covers all delegated calls in this method
+    const _exe = /** @type {import('./GoalStackExecution').GoalStackExecutionMixin} */ (/** @type {any} */ (this));
+    const steps = await _exe._decompose(description);
 
     const goal = {
       id: `goal_${Date.now()}_${++this._idSeq}`,
@@ -134,9 +134,9 @@ class GoalStack {
     }, { source: 'GoalStack' });
 
     try {
-      // Execute the step
-      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-      const result = await this._executeStep(step, goal);
+      // GoalStackExecution mixin — single cast covers all delegated calls in this method
+      const _exe = /** @type {import('./GoalStackExecution').GoalStackExecutionMixin} */ (/** @type {any} */ (this));
+      const result = await _exe._executeStep(step, goal);
 
       // Record result
       goal.results.push({
@@ -160,8 +160,7 @@ class GoalStack {
         // Step failed
         if (goal.attempts >= goal.maxAttempts) {
           // Too many failures on this step — try replanning
-          // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-          const replanned = await this._replan(goal, result.error);
+          const replanned = await _exe._replan(goal, result.error);
           if (!replanned) {
             goal.status = 'failed';
             this.bus.emit('goal:failed', { id: goal.id, reason: result.error }, { source: 'GoalStack' });

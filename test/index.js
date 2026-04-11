@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — Test Runner v2
+// GENESIS — Test Runner v2 (v7.1.1-r3)
 // Runs both the legacy monolithic test suite AND new per-module
 // test files. Compatible with Node 18+ (uses node:test if available).
 //
@@ -28,7 +28,7 @@ const CONCURRENCY = 4;
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════╗');
-  console.log('║       GENESIS TEST SUITE v7.1.0          ║');
+  console.log('║       GENESIS TEST SUITE v7.1.1          ║');
   console.log('╚══════════════════════════════════════════╝\n');
 
   let totalPassed = 0;
@@ -75,18 +75,31 @@ async function main() {
             const filePath = path.join(testDir, file);
             const moduleName = file.replace('.test.js', '');
             try {
-              // boot-integration/headless-boot use node:test which hangs on open handles
-              const isNodeTest = ['boot-integration', 'headless-boot'].includes(moduleName);
-              const nodeArgs = isNodeTest ? ['--test-force-exit', filePath] : [filePath];
-              const { stdout } = await execFileAsync('node', nodeArgs, {
+              // These files use node:test (TAP output) and need --test-force-exit to avoid
+              // hanging on open handles. Detected via require('node:test') usage.
+              // --test-reporter=tap --test-reporter-destination=stdout forces TAP to stdout
+              // on all platforms (Windows writes to stderr by default in some Node versions).
+              const NODE_TEST_FILES = new Set([
+                'architecture-reflection', 'boot-integration', 'cognitive-events',
+                'cognitive-health-tracker', 'disclosure-policy', 'dynamic-tool-synthesis',
+                'headless-boot', 'mcpserver', 'mcpservertoolbridge', 'organism-events',
+                'project-intelligence', 'storage-write-queue',
+              ]);
+              const isNodeTest = NODE_TEST_FILES.has(moduleName);
+              const nodeArgs = isNodeTest
+                ? ['--test-reporter=tap', '--test-reporter-destination=stdout', '--test-force-exit', filePath]
+                : [filePath];
+              const { stdout, stderr: nodeStderr } = await execFileAsync('node', nodeArgs, {
                 cwd: path.join(__dirname, '..'),
                 encoding: 'utf-8',
                 timeout: 30000,
               });
-              return { moduleName, stdout, error: null };
+              // On some platforms node:test may write TAP to stderr; merge both
+              const combinedOut = stdout + (nodeStderr || '');
+              return { moduleName, stdout: combinedOut, error: null };
             } catch (err) {
-              const out = err.stdout || '';
-              const hasContent = out.includes('TAP version') || out.includes(' passed') || out.includes(' failed');
+              const out = err.stdout || err.stderr || '';
+              const hasContent = out.includes('TAP version') || out.includes(' passed') || out.includes(' failed') || out.includes('# pass');
               return { moduleName, stdout: out, error: hasContent ? null : (err.stderr || err.message) };
             }
           })
@@ -95,13 +108,23 @@ async function main() {
         for (const result of results) {
           const { moduleName, stdout, error } = result.status === 'fulfilled' ? result.value : { moduleName: '?', stdout: '', error: result.reason?.message || 'Unknown error' };
           const passMatch = stdout.match(/(\d+) passed/);
-          // Match "N failed" only in Results/summary lines, not in log output like "lesson-1 failed"
-          const allFailMatches = [...stdout.matchAll(/(\d+) failed/g)];
-          const failMatch = allFailMatches.length > 0 ? allFailMatches[allFailMatches.length - 1] : (error ? [null, '0'] : null);
-          const tapPass = !passMatch && stdout.includes('TAP version') ? stdout.match(/^ok \d+/mg) : null;
-          const tapFail = !passMatch && stdout.includes('TAP version') ? stdout.match(/^not ok \d+/mg) : null;
-          const p = passMatch ? parseInt(passMatch[1]) : (tapPass ? tapPass.length : 0);
-          const f = failMatch ? parseInt(failMatch[1]) : (tapFail ? tapFail.length : 0);
+          // node:test TAP summary uses "# pass N" format instead of "N passed"
+          const tapSummaryPass = !passMatch ? stdout.match(/^# pass (\d+)/m) : null;
+          // CRITICAL: Match "N failed" ONLY in harness summary lines ("Results: N passed, N failed")
+          // or standalone summary format, NOT in log output like "Health check 1/1 failed".
+          // On Windows, stderr (log lines) is appended after stdout (summary), so a naive
+          // "last match" approach picks up log lines instead of the actual test summary.
+          const summaryFailMatch = stdout.match(/Results:\s*\d+ passed,\s*(\d+) failed/);
+          const tapSummaryFail = stdout.match(/^# fail (\d+)/m);
+          // Fallback: if no summary-format match, try matching "N failed" at end of line
+          // but only as last resort (for custom harness formats)
+          const standaloneFailMatch = !summaryFailMatch && !tapSummaryFail
+            ? stdout.match(/^\s*(\d+) failed\s*$/m) : null;
+          const failMatch = summaryFailMatch || standaloneFailMatch || (error ? [null, '0'] : null);
+          const tapPass = !passMatch && !tapSummaryPass && stdout.includes('TAP version') ? stdout.match(/^ok \d+/mg) : null;
+          const tapFail = !passMatch && !tapSummaryFail && stdout.includes('TAP version') ? stdout.match(/^not ok \d+/mg) : null;
+          const p = passMatch ? parseInt(passMatch[1]) : (tapSummaryPass ? parseInt(tapSummaryPass[1]) : (tapPass ? tapPass.length : 0));
+          const f = failMatch ? parseInt(failMatch[1]) : (tapSummaryFail ? parseInt(tapSummaryFail[1]) : (tapFail ? tapFail.length : 0));
           totalPassed += p;
 
           if (error && p === 0) {
@@ -110,6 +133,11 @@ async function main() {
           } else if (f > 0) {
             totalFailed += f;
             console.log(`  ${moduleName}... ❌ ${p} passed, ${f} failed`);
+            // Show failure details so we can diagnose platform-specific issues
+            const failLines = stdout.split('\n').filter(l => l.includes('❌') || l.includes('not ok') || l.includes('AssertionError') || l.includes('FAIL:'));
+            for (const fl of failLines.slice(0, 5)) {
+              console.log(`    ${fl.trim()}`);
+            }
           } else {
             console.log(`  ${moduleName}... ✅ ${p} passed`);
           }

@@ -56,6 +56,14 @@ npm install
 
 **Fix:** Run `node scripts/validate-channels.js` and `node scripts/validate-events.js` to check consistency. Ensure the module file exists in `src/agent/<category>/`.
 
+### "Booting" badge stuck after startup (v7.1.1+)
+
+**Symptom:** The UI badge shows "Booting" indefinitely even though Genesis is running and responding.
+
+**Cause (fixed in v7.1.1):** The health check required a `model` field in the ready-status response. If the model was still loading when the renderer connected, the check failed silently and the badge never transitioned.
+
+**Fix:** Update to v7.1.1 or later. If the issue persists on v7.1.1+, verify Genesis is running via `node cli.js ctl ping`. If ping responds, the renderer missed the ready event — reload the window (Ctrl+R / Cmd+R).
+
 ---
 
 ## LLM / Model Issues
@@ -238,6 +246,25 @@ Use these in the CLI REPL (`node cli.js`) for quick diagnostics:
 | `/adaptations` | Check if the Meta-Cognitive Loop has adapted (and whether adaptations helped) |
 | `/consolidate` | Force memory cleanup if responses seem to slow down |
 | `/update` | Check if a newer Genesis version is available |
+
+### External control via `ctl` (v7.1.1+)
+
+These commands talk to a **running** Genesis instance over the Unix Socket / Named Pipe — no boot required:
+
+```bash
+node cli.js ctl ping                       # Check if daemon is reachable
+node cli.js ctl status                     # Show daemon status
+node cli.js ctl goal "description"         # Push a goal to the agent loop
+node cli.js ctl chat "message"             # Send a message and get a response
+node cli.js ctl check health               # Run health|optimize|gaps|consolidate|learn
+node cli.js ctl config                     # Show daemon config
+node cli.js ctl config key value           # Set daemon config key
+node cli.js ctl stop                       # Stop the daemon gracefully
+node cli.js ctl update                     # Check for updates (report only)
+node cli.js ctl update --apply             # Check and apply update via DeploymentManager
+```
+
+The socket path defaults to `.genesis/daemon.sock` (Linux/macOS) or a Named Pipe on Windows. If `ctl ping` times out, Genesis is not running or the socket path differs — check `.genesis/daemon.sock` exists.
 
 ---
 

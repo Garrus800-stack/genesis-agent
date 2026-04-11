@@ -276,7 +276,9 @@ function runBenchmark(opts = {}) {
         cwd: ROOT,
         // v6.0.4: Increased from 60s to 120s — cloud backends (Ollama proxy,
         // OpenAI-compatible) need more time for first-token on large models.
-        timeout: 120_000,
+        // v7.1.1: Increased from 120s to 180s — RF/AN tasks were timing out at
+        // 120s on kimi-k2.5:cloud, producing false failures and skewing baseline.
+        timeout: 180_000,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,

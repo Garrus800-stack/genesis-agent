@@ -74,10 +74,12 @@ class DaemonController extends DaemonControlPort {
       ping:    () => ({ pong: true, timestamp: Date.now() }),
       status:  (p) => this._methodStatus(p),
       goal:    (p) => this._methodGoal(p),
+      chat:    (p) => this._methodChat(p),
       stop:    ()  => this._methodStop(),
       check:   (p) => this._methodCheck(p),
       config:  (p) => this._methodConfig(p),
       clients: ()  => this._methodClients(),
+      update:  (p) => this._methodUpdate(p),  // v7.1.1: V7-4B/C — trigger update check
     };
   }
 
@@ -321,6 +323,39 @@ class DaemonController extends DaemonControlPort {
       count: this._clients.size,
       max: MAX_CLIENTS,
     };
+  }
+
+  // v7.1.1: Chat command — send a message to Genesis via control channel
+  async _methodChat(params) {
+    const message = params.message || params.msg;
+    if (!message || typeof message !== 'string') {
+      throw new Error('Missing required param: message');
+    }
+    const orchestrator = this.container?.tryResolve?.('chatOrchestrator');
+    if (!orchestrator) {
+      throw new Error('ChatOrchestrator not available');
+    }
+    const result = await orchestrator.handleChat(message);
+    return { message, response: result.text, intent: result.intent };
+  }
+
+  // v7.1.1: Update command — check for updates (and optionally apply) via control channel
+  async _methodUpdate(params) {
+    const updater = this.container?.tryResolve?.('autoUpdater');
+    if (!updater) {
+      throw new Error('AutoUpdater not available');
+    }
+    const force = params?.force === true;
+    if (force) {
+      // Temporarily enable autoApply for this triggered check if not already set
+      const wasAutoApply = updater._autoApply;
+      if (params.apply === true) updater._autoApply = true;
+      const result = await updater.checkForUpdate();
+      updater._autoApply = wasAutoApply;
+      return { ...result, status: updater.getStatus() };
+    }
+    const result = await updater.checkForUpdate();
+    return { ...result, status: updater.getStatus() };
   }
 
   // ── Transport Helpers ─────────────────────────────────────

@@ -167,8 +167,8 @@ class CognitiveMonitor {
    * @param {object} context - { source, goalId, stepIndex }
    */
   recordReasoning(summary, context = {}) {
-    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-    const hash = this._hashText(summary);
+    const _cma = /** @type {any} */ (this); // CognitiveMonitorAnalysis mixin cast
+    const hash = _cma._hashText(summary);
     const entry = {
       summary: summary.substring(0, 200),
       hash,
@@ -183,8 +183,7 @@ class CognitiveMonitor {
     }
 
     // Check for circularity
-    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-    const circular = this._checkCircularity(hash);
+    const circular = _cma._checkCircularity(hash);
     if (circular) {
       this._circularityAlerts.push({
         ...circular,

@@ -133,8 +133,7 @@ class QuickBenchmark {
         this._cachedBaseline = stored.result;
         this._baselineTimestamp = stored.timestamp;
         _log.debug('[BENCH] Loaded baseline from disk');
-        // @ts-ignore — TS inference limitation (checkJs)
-        return this._cachedBaseline;
+        return /** @type {any} */ (this._cachedBaseline);
       }
     } catch (_e) { /* no stored baseline */ }
 
@@ -216,8 +215,7 @@ class QuickBenchmark {
       // benchmark-agent.js exports { runBenchmark, TASKS }
       // scripts/ is excluded from TSC (not part of agent runtime).
       // This require is inside try/catch — intentionally optional.
-      // @ts-ignore — TS inference limitation (checkJs)
-      return require('../../scripts/benchmark-agent');
+      return /** @type {any} */ (require('../../scripts/benchmark-agent'));
     } catch (err) {
       // Fallback: try relative to project root
       try {

@@ -11,6 +11,9 @@
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { createLogger } = require('../agent/core/Logger');
+
+const _log = createLogger('SafeGuard');
 
 class SafeGuard {
   constructor(protectedPaths, rootDir) {
@@ -28,7 +31,7 @@ class SafeGuard {
       this._hashRecursive(p);
     }
     this.locked = true;
-    console.log(`[SAFEGUARD] Kernel locked. ${this.kernelHashes.size} files protected.`);
+    _log.info(`[SAFEGUARD] Kernel locked. ${this.kernelHashes.size} files protected.`);
   }
 
   /**
@@ -58,7 +61,7 @@ class SafeGuard {
     if (missing.length > 0) {
       console.warn(`[SAFEGUARD] lockCritical: ${missing.length} file(s) not found:`, missing.join(', '));
     }
-    console.log(`[SAFEGUARD] Critical files locked. ${this.criticalHashes.size} files hash-protected.`);
+    _log.info(`[SAFEGUARD] Critical files locked. ${this.criticalHashes.size} files hash-protected.`);
     return { locked: this.criticalHashes.size, missing };
   }
 

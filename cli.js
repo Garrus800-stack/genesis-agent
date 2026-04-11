@@ -78,10 +78,13 @@ Control commands (ctl):
   node cli.js ctl ping                  Check if daemon is reachable
   node cli.js ctl status                Show daemon status
   node cli.js ctl goal "description"    Push a goal to the agent loop
+  node cli.js ctl chat "message"       Send a chat message and get response
   node cli.js ctl check health          Run a daemon check (health|optimize|gaps|consolidate|learn)
   node cli.js ctl config                Show daemon config
   node cli.js ctl config key value      Set daemon config key
   node cli.js ctl stop                  Stop the daemon gracefully
+  node cli.js ctl update                Check for updates (report only)
+  node cli.js ctl update --apply        Check and apply update via DeploymentManager
 
 Environment:
   GENESIS_API_KEY            Anthropic API key (optional)
@@ -962,7 +965,7 @@ async function runCtl() {
   const method = ctlArgs[0];
 
   if (!method) {
-    console.error('Usage: node cli.js ctl <method> [params]\nMethods: ping, status, goal, check, config, stop, clients');
+    console.error('Usage: node cli.js ctl <method> [params]\nMethods: ping, status, goal, chat, check, config, stop, clients');
     process.exit(1);
   }
 
@@ -970,12 +973,18 @@ async function runCtl() {
   let params = {};
   if (method === 'goal') {
     params = { description: ctlArgs.slice(1).join(' ') };
+  } else if (method === 'chat') {
+    params = { message: ctlArgs.slice(1).join(' ') };
   } else if (method === 'check') {
     params = { type: ctlArgs[1] || 'health' };
   } else if (method === 'config' && ctlArgs[1]) {
     params = ctlArgs[2] !== undefined
       ? { key: ctlArgs[1], value: isNaN(ctlArgs[2]) ? ctlArgs[2] : Number(ctlArgs[2]) }
       : { key: ctlArgs[1] };
+  } else if (method === 'update') {
+    // --apply triggers DeploymentManager if autoUpdater has _deploymentManager wired
+    const apply = args.includes('--apply');
+    params = { force: true, apply };
   }
 
   const id = String(Date.now());

@@ -4,8 +4,9 @@
 
 | Version | Supported |
 |---------|-----------|
-| 7.0.x  | ✅ Active |
-| 6.0.x  | ⚠️ Critical fixes only |
+| 7.1.x  | ✅ Active |
+| 7.0.x  | ⚠️ Critical fixes only |
+| 6.0.x  | ❌ Unsupported |
 | < 6.0  | ❌ Unsupported |
 
 ## Reporting a Vulnerability
@@ -26,12 +27,22 @@ Genesis is a self-modifying AI agent, which makes its security model uniquely im
 `main.js`, `preload.js`, `preload.mjs`, and `src/kernel/` are SHA-256 hash-locked at boot. The agent **cannot modify, delete, or replace** these files. `SafeGuard.lockKernel()` enforces this at every write operation.
 
 ### Layer 2: Hash-Locked Critical Files
-Five additional agent files are hash-locked via `SafeGuard.lockCritical()`:
+Fifteen agent files are hash-locked via `SafeGuard.lockCritical()` (expanded in v7.0.8):
 - `CodeSafetyScanner.js` — AST-based code analysis
 - `VerificationEngine.js` — programmatic result verification
 - `Constants.js` — system limits and thresholds
 - `EventBus.js` — inter-module communication
 - `Container.js` — dependency injection core
+- `McpWorker.js` — worker isolation boundary (v5.1.0)
+- `PreservationInvariants.js` — semantic safety rules (v5.5.0)
+- `Sandbox.js` — execution isolation (v7.0.8)
+- `CapabilityGuard.js` — capability token system (v7.0.8)
+- `TrustLevelSystem.js` — trust evaluation (v7.0.8)
+- `ModuleSigner.js` — module signing (v7.0.8)
+- `EarnedAutonomy.js` — autonomy gating (v7.0.8)
+- `DisclosurePolicy.js` — information sovereignty (v7.0.8)
+- `ApprovalGate.js` — approval workflow (v7.0.8)
+- `ImmuneSystem.js` — self-modification monitoring (v7.0.8)
 
 This prevents the agent from weakening its own safety checks through self-modification.
 

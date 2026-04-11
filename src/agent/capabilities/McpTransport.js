@@ -81,8 +81,7 @@ class McpServerConnection {
       timeoutMs: config.circuitBreakerTimeoutMs || 15000,
       maxRetries: config.circuitBreakerRetries ?? 1,
       retryDelayMs: config.circuitBreakerRetryDelayMs ?? 2000,
-      // @ts-ignore — TS inference limitation (checkJs)
-      fallback: null,  // No fallback — let caller handle
+      fallback: /** @type {any} */ (null),  // No fallback — let caller handle
     }, this.bus);
   }
 
@@ -148,8 +147,7 @@ class McpServerConnection {
       if (this.transport === 'sse') {
         await this._connectSSE();
       } else {
-        // @ts-ignore — TS inference limitation (checkJs)
-        await this._connectHTTP();
+        await (/** @type {any} */ (this))._connectHTTP();
       }
       this._startHeartbeat();
     } catch (err) {
@@ -305,8 +303,7 @@ class McpServerConnection {
 
   _recordLatency(ms) {
     this._healthStats.lastLatency = ms;
-    // @ts-ignore — TS inference limitation (checkJs)
-    this._healthStats.latencies.push(ms);
+    (/** @type {any} */ (this._healthStats)).latencies.push(ms);
     if (this._healthStats.latencies.length > 20) this._healthStats.latencies.shift();
   }
 

@@ -198,6 +198,201 @@ test('getStatus returns correct structure', () => {
   assert(typeof status.patternCounts === 'number');
 });
 
+// ── findRelevantTools ────────────────────────────────────
+
+test('findRelevantTools returns [] when kg is null', () => {
+  const client = createMockClient();
+  client.kg = null;
+  const result = client.findRelevantTools('search query');
+  assert(Array.isArray(result) && result.length === 0);
+});
+
+test('findRelevantTools filters only mcp-tool nodes from kg', () => {
+  const client = createMockClient();
+  client.kg = {
+    search: () => [
+      { type: 'mcp-tool', label: 'do-thing', properties: { server: 'srv', description: 'does thing' } },
+      { type: 'node', label: 'other' },
+    ],
+  };
+  const result = client.findRelevantTools('thing');
+  assert(result.length === 1 && result[0].name === 'do-thing');
+});
+
+// ── _trackCall ───────────────────────────────────────────
+
+test('_trackCall appends to chain window', () => {
+  const client = createMockClient();
+  client._trackCall('srv', 'tool-a', { x: 1 });
+  assert(client._chainWindow.length === 1);
+  assert(client._chainWindow[0].tool === 'tool-a');
+});
+
+test('_trackCall trims chain window to 20', () => {
+  const client = createMockClient();
+  for (let i = 0; i < 25; i++) client._trackCall('srv', `t${i}`, {});
+  assert(client._chainWindow.length === 20, `Expected 20 got ${client._chainWindow.length}`);
+});
+
+// ── _allTools ────────────────────────────────────────────
+
+test('_allTools returns empty array when no servers', () => {
+  const client = createMockClient();
+  const tools = client._allTools();
+  assert(Array.isArray(tools) && tools.length === 0);
+});
+
+test('_allTools aggregates tools from multiple servers', () => {
+  const client = createMockClient();
+  const fakeConn = { tools: [{ name: 'a' }, { name: 'b' }] };
+  client.servers.set('fake', fakeConn);
+  const tools = client._allTools();
+  assert(tools.length === 2);
+});
+
+// ── _formatResult ────────────────────────────────────────
+
+test('_formatResult handles missing content', () => {
+  const client = createMockClient();
+  const r = client._formatResult({ data: 42 });
+  assert(r.result !== undefined);
+});
+
+test('_formatResult extracts text blocks', () => {
+  const client = createMockClient();
+  const r = client._formatResult({
+    content: [{ type: 'text', text: 'hello' }, { type: 'text', text: ' world' }],
+  });
+  assert(r.text === 'hello\n world', `Got: ${r.text}`);
+});
+
+test('_formatResult extracts resource blocks', () => {
+  const client = createMockClient();
+  const r = client._formatResult({
+    content: [{ type: 'resource', resource: { uri: 'file://x' } }],
+  });
+  assert(Array.isArray(r.resources) && r.resources[0].uri === 'file://x');
+});
+
+test('_formatResult propagates isError flag', () => {
+  const client = createMockClient();
+  const r = client._formatResult({ content: [], isError: true });
+  assert(r.isError === true);
+});
+
+// ── _saveConfig / _removeConfig ──────────────────────────
+
+test('_saveConfig adds server to settings', () => {
+  const stored = [];
+  const bus = { emit() {}, on() {}, off() {} };
+  const client = new (require('../../src/agent/capabilities/McpClient').McpClient)({
+    bus,
+    settings: {
+      get: (k) => k === 'mcp.servers' ? stored : [],
+      set: (k, v) => { if (k === 'mcp.servers') stored.splice(0, stored.length, ...v); },
+    },
+    toolRegistry: { register: () => {}, listTools: () => [], execute: async () => ({}) },
+    sandbox: null,
+    knowledgeGraph: { addNode: () => 'id', connect: () => 'e', search: () => [] },
+    eventStore: { append: () => {}, query: () => [] },
+    storageDir: require('os').tmpdir(),
+  });
+  client._saveConfig({ name: 'my-server', url: 'http://localhost:9000' });
+  assert(stored.length === 1 && stored[0].name === 'my-server');
+});
+
+test('_removeConfig removes server from settings', () => {
+  const stored = [{ name: 'keep' }, { name: 'remove' }];
+  const bus = { emit() {}, on() {}, off() {} };
+  const client = new (require('../../src/agent/capabilities/McpClient').McpClient)({
+    bus,
+    settings: {
+      get: (k) => k === 'mcp.servers' ? stored : [],
+      set: (k, v) => { if (k === 'mcp.servers') stored.splice(0, stored.length, ...v); },
+    },
+    toolRegistry: { register: () => {}, listTools: () => [], execute: async () => ({}) },
+    sandbox: null,
+    knowledgeGraph: { addNode: () => 'id', connect: () => 'e', search: () => [] },
+    eventStore: { append: () => {}, query: () => [] },
+    storageDir: require('os').tmpdir(),
+  });
+  client._removeConfig('remove');
+  assert(stored.length === 1 && stored[0].name === 'keep');
+});
+
+// ── removeServer ─────────────────────────────────────────
+
+test('removeServer returns false for unknown server', () => {
+  const client = createMockClient();
+  const result = client.removeServer('nonexistent');
+  assert(result === false);
+});
+
+test('removeServer disconnects and removes known server', () => {
+  const client = createMockClient();
+  let disconnected = false;
+  client.servers.set('s1', {
+    disconnect() { disconnected = true; },
+    tools: [],
+  });
+  const result = client.removeServer('s1');
+  assert(result === true);
+  assert(disconnected, 'should have called disconnect()');
+  assert(!client.servers.has('s1'));
+});
+
+test('removeServer cleans schema cache for server', () => {
+  const client = createMockClient();
+  client._schemaCache.set('s1:tool-a', { properties: {} });
+  client._schemaCache.set('other:tool-b', { properties: {} });
+  client.servers.set('s1', { disconnect() {}, tools: [] });
+  client.removeServer('s1');
+  assert(!client._schemaCache.has('s1:tool-a'), 'should remove s1 schemas');
+  assert(client._schemaCache.has('other:tool-b'), 'should keep other schemas');
+});
+
+// ── shutdown ─────────────────────────────────────────────
+
+test('shutdown clears servers and schema cache', async () => {
+  const client = createMockClient();
+  let disc = false;
+  client.servers.set('srv', { disconnect() { disc = true; }, tools: [] });
+  client._schemaCache.set('srv:t', {});
+  await client.shutdown();
+  assert(disc, 'disconnect should be called');
+  assert(client.servers.size === 0);
+  assert(client._schemaCache.size === 0);
+});
+
+// ── addServer (error path) ───────────────────────────────
+
+test('addServer throws when name missing', async () => {
+  const client = createMockClient();
+  let threw = false;
+  try { await client.addServer({ url: 'http://x' }); }
+  catch (e) { threw = true; assert(e.message.includes('name')); }
+  assert(threw, 'should throw on missing name');
+});
+
+test('addServer throws when url missing', async () => {
+  const client = createMockClient();
+  let threw = false;
+  try { await client.addServer({ name: 'x' }); }
+  catch (e) { threw = true; assert(e.message.includes('url')); }
+  assert(threw, 'should throw on missing url');
+});
+
+// ── getExplorationContext ─────────────────────────────────
+
+test('getExplorationContext returns object with servers and recipes', () => {
+  const client = createMockClient();
+  const ctx = client.getExplorationContext();
+  assert(typeof ctx === 'object');
+  assert(Array.isArray(ctx.servers));
+  assert(Array.isArray(ctx.recipes));
+  assert(Array.isArray(ctx.skillCandidates));
+});
+
 // ── Report ──────────────────────────────────────────────
 
 // v3.5.2: Async-safe runner — properly awaits all tests

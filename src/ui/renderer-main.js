@@ -219,17 +219,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Proactive readiness check
   window.genesis.invoke('agent:get-health').then((health) => {
-    if (health && health.model && !agentReady) {
-      onAgentReady({ state: 'ready', model: health.model.active });
+    if (health && !agentReady) {
+      onAgentReady({ state: 'ready', model: health.model?.active || null });
     }
   }).catch(e => console.warn('[UI] Health check failed:', e.message));
 
-  setTimeout(() => {
-    if (!agentReady) {
-      console.debug('[UI] Fallback connection...');
-      loadModels().then(() => { agentReady = true; }).catch(err => console.debug('[UI] Fallback load failed:', err.message));
-    }
-  }, 5000);
+  // v7.1.1: Aggressive retries — 1s, 2s, 3s, 5s, 10s
+  // The ready status IPC can arrive before the renderer has registered its listener.
+  // Also accept health response even without model (agent is ready, model may still be loading).
+  for (const d of [1000, 2000, 3000, 5000, 10000]) {
+    setTimeout(async () => {
+      if (agentReady) return;
+      try {
+        const h = await window.genesis.invoke('agent:get-health');
+        if (h) onAgentReady({ state: 'ready', model: h.model?.active || null });
+      } catch (_e) { console.debug('[UI] boot retry failed:', _e.message); }
+    }, d);
+  }
 
   // v5.1.0: Reload models when settings are saved (API keys may unlock new backends)
   window.addEventListener('genesis:reload-models', () => loadModels().catch(e => console.warn('[UI] Model reload failed:', e.message)));

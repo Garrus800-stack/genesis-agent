@@ -118,3 +118,72 @@ describe('AutoUpdater', () => {
 });
 
 if (require.main === module) run();
+
+// ── v7.1.1: V7-4B bridge tests ────────────────────────────
+
+describe('AutoUpdater V7-4B bridge', () => {
+  test('autoApply defaults to false', () => {
+    const au = new AutoUpdater({});
+    const s = au.getStatus();
+    if (s.autoApply !== false) throw new Error('autoApply should default to false');
+    if (s.deploymentManagerAvailable !== false) throw new Error('deploymentManagerAvailable should be false without DM');
+  });
+
+  test('autoApply can be set via config', () => {
+    const au = new AutoUpdater({ config: { autoApply: true } });
+    if (au.getStatus().autoApply !== true) throw new Error('Should set autoApply via config');
+  });
+
+  test('deploymentManagerAvailable true when _deploymentManager injected', () => {
+    const au = new AutoUpdater({});
+    au._deploymentManager = { deploy: async () => ({ id: 'test-id' }) };
+    if (!au.getStatus().deploymentManagerAvailable) throw new Error('Should reflect DM availability');
+  });
+
+  test('does NOT call deploymentManager when autoApply is false (default)', async () => {
+    let deployCalled = false;
+    const bus = { emit() {}, fire() {} };
+    const au = new AutoUpdater({ bus });
+    au._currentVersion = '1.0.0';
+    au._deploymentManager = { deploy: async () => { deployCalled = true; return { id: 'x' }; } };
+    au._fetchLatestRelease = async () => ({ tag_name: 'v99.0.0', html_url: '', body: '', published_at: '' });
+
+    await au.checkForUpdate();
+    if (deployCalled) throw new Error('Should not deploy when autoApply=false');
+  });
+
+  test('calls deploymentManager.deploy when autoApply is true and update available', async () => {
+    let deployTarget = null, deployOpts = null;
+    const bus = { emit() {}, fire() {} };
+    const au = new AutoUpdater({ bus, config: { autoApply: true } });
+    au._currentVersion = '1.0.0';
+    au._deploymentManager = {
+      deploy: async (target, opts) => {
+        deployTarget = target;
+        deployOpts = opts;
+        return { id: 'deploy-123' };
+      },
+    };
+    au._fetchLatestRelease = async () => ({ tag_name: 'v99.0.0', html_url: '', body: '', published_at: '' });
+
+    const result = await au.checkForUpdate();
+    if (!result.available) throw new Error('Should detect update');
+    // deploy is fire-and-forget — give the microtask queue a tick
+    await new Promise(r => setTimeout(r, 10));
+    if (deployTarget !== 'self') throw new Error('Should deploy to "self"');
+    if (deployOpts?.strategy !== 'direct') throw new Error('Should use direct strategy');
+  });
+
+  test('does NOT call deploymentManager when already up to date', async () => {
+    let deployCalled = false;
+    const bus = { emit() {}, fire() {} };
+    const au = new AutoUpdater({ bus, config: { autoApply: true } });
+    au._currentVersion = '99.0.0';
+    au._deploymentManager = { deploy: async () => { deployCalled = true; return { id: 'x' }; } };
+    au._fetchLatestRelease = async () => ({ tag_name: 'v1.0.0', html_url: '', body: '', published_at: '' });
+
+    await au.checkForUpdate();
+    await new Promise(r => setTimeout(r, 10));
+    if (deployCalled) throw new Error('Should not deploy when already up to date');
+  });
+});

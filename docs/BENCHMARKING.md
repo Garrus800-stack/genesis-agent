@@ -8,7 +8,7 @@
 
 | Command | What it does | Duration |
 |---------|-------------|----------|
-| `npm test` | Run all 3447 tests | ~30s |
+| `npm test` | Run all 3760 tests | ~30s |
 | `npm run test:ci` | Tests + coverage enforcement (78/75/71) | ~45s |
 | `npm run benchmark:agent --quick` | 3-task capability benchmark | ~2 min |
 | `npm run benchmark:agent:layer:organism` | A/B: full vs without organism | ~5 min |
@@ -22,7 +22,7 @@
 ### Run all tests
 
 ```bash
-npm test                    # Full suite (3447 tests)
+npm test                    # Full suite (3760 tests)
 npm run test:new            # Only per-module test files
 npm run test:legacy         # Only monolithic legacy suite
 ```
@@ -256,7 +256,7 @@ Genesis defaults to `cognitive` profile (phases 1–12). Phase 13 (Consciousness
 # Cognitive (default): phases 1-12, ~136 services
 node cli.js
 
-# Full: all 12 phases, ~147 services
+# Full: all 12 phases, ~136 services
 node cli.js --full
 
 # Minimal: phases 1-8, core agent only (~80 services)

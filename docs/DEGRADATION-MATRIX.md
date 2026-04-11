@@ -1,7 +1,7 @@
 # Genesis — Graceful Degradation Matrix
 
-Generated: 2026-04-09T06:57:10.529Z
-Services: 131 | Bindings: 468
+Generated: 2026-04-11T18:44:21.739Z
+Services: 136 | Bindings: 481
 
 ## Critical Services (removal breaks dependents)
 
@@ -77,6 +77,7 @@ Services: 131 | Bindings: 468
 | healthMonitor | P6 | 2 | serviceRecovery.healthMonitor, deploymentManager.healthMonitor |
 | cognitiveMonitor | P6 | 1 | promptBuilder.cognitiveMonitor |
 | errorAggregator | P6 | 1 | promptBuilder.errorAggregator |
+| deploymentManager | P6 | 1 | autoUpdater._deploymentManager |
 | networkSentinel | P6 | 1 | bodySchema.networkSentinel |
 | bodySchema | P7 | 1 | promptBuilder.bodySchema |
 | embodiedPerception | P7 | 1 | bodySchema.embodiedPerception |
@@ -95,15 +96,18 @@ Services: 131 | Bindings: 468
 | selfNarrative | P9 | 2 | promptBuilder.selfNarrative, idleMind.selfNarrative |
 | promptEvolution | P9 | 3 | promptBuilder.promptEvolution, onlineLearner.promptEvolution, adaptiveStrategy.promptEvolution |
 | onlineLearner | P9 | 1 | adaptiveStrategy.onlineLearner |
-| lessonsStore | P9 | 7 | promptBuilder.lessonsStore, symbolicResolver.lessonsStore, mcpToolBridge._lessonsStore, chatOrchestrator.lessonsStore, networkSentinel._lessonsStore, cognitiveSelfModel.lessonsStore, memoryConsolidator.lessonsStore |
+| lessonsStore | P9 | 9 | promptBuilder.lessonsStore, symbolicResolver.lessonsStore, mcpToolBridge._lessonsStore, chatOrchestrator.lessonsStore, networkSentinel._lessonsStore, cognitiveSelfModel.lessonsStore, memoryConsolidator.lessonsStore, structuralAbstraction.lessonsStore, goalSynthesizer.lessonsStore |
 | reasoningTracer | P9 | 1 | cognitiveSelfModel.reasoningTracer |
 | workspaceFactory | P9 | 1 | agentLoop._createWorkspace |
 | architectureReflection | P9 | 2 | promptBuilder.architectureReflection, mcpToolBridge._archReflection |
 | dynamicToolSynthesis | P9 | 1 | tools._toolSynthesis |
 | projectIntelligence | P9 | 2 | promptBuilder.projectIntelligence, mcpToolBridge._projectIntel |
-| taskOutcomeTracker | P9 | 2 | promptBuilder.taskOutcomeTracker, cognitiveSelfModel.taskOutcomeTracker |
-| cognitiveSelfModel | P9 | 3 | promptBuilder.cognitiveSelfModel, idleMind._cognitiveSelfModel, adaptiveStrategy.cognitiveSelfModel |
+| taskOutcomeTracker | P9 | 3 | promptBuilder.taskOutcomeTracker, cognitiveSelfModel.taskOutcomeTracker, goalSynthesizer.tracker |
+| cognitiveSelfModel | P9 | 4 | promptBuilder.cognitiveSelfModel, idleMind._cognitiveSelfModel, adaptiveStrategy.cognitiveSelfModel, goalSynthesizer.selfModel |
 | quickBenchmark | P9 | 1 | adaptiveStrategy.quickBenchmark |
+| causalAnnotation | P9 | 1 | agentLoop._causalAnnotation |
+| inferenceEngine | P9 | 3 | reasoning._inferenceEngine, symbolicResolver._inferenceEngine, goalSynthesizer.inferenceEngine |
+| patternMatcher | P9 | 1 | lessonsStore._patternMatcher |
 | dynamicContextBudget | P10 | 2 | context._dynamicBudget, homeostasisEffectors.dynamicContextBudget |
 | conversationCompressor | P10 | 1 | context._compressor |
 | emotionalSteering | P10 | 3 | promptBuilder.emotionalSteering, formalPlanner._emotionalSteering, modelRouter._emotionalSteering |
@@ -133,7 +137,6 @@ Services: 131 | Bindings: 468
 | serviceRecovery | P6 | autonomy, recovery |
 | healthServer | P6 | autonomy, monitoring |
 | daemonController | P6 | autonomy, control |
-| deploymentManager | P6 | autonomy, deployment, devops |
 | backupManager | P6 | autonomy, backup |
 | autoUpdater | P6 | autonomy, update |
 | homeostasisEffectors | P7 | organism, homeostasis, effectors |
@@ -143,6 +146,8 @@ Services: 131 | Bindings: 468
 | memoryConsolidator | P9 | cognitive, memory, v6-7 |
 | taskRecorder | P9 | cognitive, replay, v6-8 |
 | adaptiveStrategy | P9 | cognitive, metacognition, v6-0-2 |
+| structuralAbstraction | P9 | cognitive, learning, abstraction |
+| goalSynthesizer | P9 | cognitive, autonomy, goals |
 | goalPersistence | P10 | planning, persistence |
 | failureTaxonomy | P10 | intelligence, error-handling |
 | fitnessEvaluator | P10 | organism, evolution, fitness |

@@ -263,8 +263,7 @@ class HotReloader {
     const timer = setTimeout(() => {
       // Window passed without enough errors — watchdog stands down
       unsub();
-      // @ts-ignore — TS inference limitation (checkJs)
-      this._watchdogTimers.delete(filePath);
+      (/** @type {any} */ (this._watchdogTimers)).delete(filePath);
     }, WATCHDOG_WINDOW_MS);
 
     this._watchdogTimers.set(filePath, { timer, unsub });
@@ -281,8 +280,7 @@ class HotReloader {
     if (wd) {
       clearTimeout(wd.timer);
       if (wd.unsub) wd.unsub();
-      // @ts-ignore — TS inference limitation (checkJs)
-      this._watchdogTimers.delete(filePath);
+      (/** @type {any} */ (this._watchdogTimers)).delete(filePath);
     }
 
     // Restore old module in require cache

@@ -916,6 +916,40 @@ const EVENTS = Object.freeze({
     /** @payload {{ count: number, pattern: string }} */
     PROBE_DETECTED: 'disclosure:probe-detected',
   }),
+
+  // ── Causal Annotation (v7.1.2) ──────────────────────
+  CAUSAL: Object.freeze({
+    /** @payload {{ stepId: string, changes: number, relation: string }} */
+    RECORDED:            'causal:recorded',
+    /** @payload {{ action: string, suspicion: number, observations: number }} */
+    PROMOTED:            'causal:promoted',
+    /** @payload {{ file: string, diffPct: number, threshold: number }} */
+    STALENESS_TRIGGERED: 'causal:staleness-triggered',
+  }),
+
+  // ── Goal Synthesizer (v7.1.2) ───────────────────────
+  GOAL_SYNTH: Object.freeze({
+    /** @payload {{ title: string, weakness: string, priority: string }} */
+    SYNTHESIZED:     'goal:synthesized',
+    /** @payload {{ regressions: number, pauseUntil: number }} */
+    CIRCUIT_BREAKER: 'goal:circuit-breaker',
+  }),
+
+  // ── Inference Engine (v7.1.2) ───────────────────────
+  INFERENCE: Object.freeze({
+    /** @payload {{ count: number }} */
+    CONTRADICTIONS_FOUND: 'inference:contradictions-found',
+  }),
+
+  // ── Structural Abstraction (v7.1.2) ─────────────────
+  ABSTRACTION: Object.freeze({
+    /** @payload {{ lessonId: string, category: string }} */
+    EXTRACTED:     'abstraction:extracted',
+    /** @payload {{ lessonId: string, category: string }} */
+    CONTRADICTION: 'abstraction:contradiction',
+    /** @payload {{ lessonId: string, retries: number, lastReason: string }} */
+    OBSOLETE:      'abstraction:obsolete',
+  }),
 });
 
 // ── Event Naming Bridge ─────────────────────────────────────

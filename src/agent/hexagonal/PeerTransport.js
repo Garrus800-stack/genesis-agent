@@ -9,8 +9,7 @@
 
 const http = require('http');
 const { TIMEOUTS } = require('../core/Constants');
-// @ts-ignore — TS inference limitation (checkJs)
-const dgram = require('dgram');
+const dgram = /** @type {any} */ (require('dgram'));
 const crypto = require('crypto');
 const { NullBus } = require('../core/EventBus');
 const { verifyAuth } = require('./PeerCrypto');
@@ -78,8 +77,7 @@ class PeerTransport {
       });
 
       this.server.listen(port, '127.0.0.1', () => {
-        // @ts-ignore — TS inference limitation (checkJs)
-        this.port = this.server.address().port;
+        this.port = (/** @type {any} */ (this.server.address())).port;
         resolve(this.port);
       });
 
@@ -211,8 +209,7 @@ class PeerTransport {
         this.udpSocket.close();
       } catch (_e) { _log.debug('[catch] UDP socket close:', _e.message); }
     }
-    // @ts-ignore — TS inference limitation (checkJs)
-    if (this.server) return new Promise(resolve => this.server.close(resolve));
+    if (this.server) return new Promise(resolve => (/** @type {any} */ (this.server)).close(resolve));
   }
 }
 

@@ -161,8 +161,8 @@ class DreamCycle {
       }
 
       // ── Phase 2: PATTERN DETECTION (heuristic, no LLM) ──
-      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-      const patterns = this._detectPatterns(episodes);
+      const _dca = /** @type {any} */ (this); // DreamCycleAnalysis mixin cast
+      const patterns = _dca._detectPatterns(episodes);
       report.phases.push({ name: 'pattern-detection', patternCount: patterns.length });
 
       // ── Phase 3: SCHEMA EXTRACTION ─────────────────────
@@ -176,8 +176,7 @@ class DreamCycle {
       this._dreamPhaseCrystallize(newSchemas);
 
       // ── Phase 4: MEMORY CONSOLIDATION ──────────────────
-      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-      const consolidation = this._consolidateMemories(episodes);
+      const consolidation = _dca._consolidateMemories(episodes);
       report.strengthenedMemories = consolidation.strengthened;
       report.decayedMemories = consolidation.decayed;
       report.phases.push({ name: 'consolidation', ...consolidation });
@@ -193,8 +192,7 @@ class DreamCycle {
 
       // ── Phase 5: INSIGHT GENERATION ────────────────────
       if (report.newSchemas.length > 0 && this._withinTimeLimit(startTime)) {
-        // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-        report.insights = this._generateInsights(report.newSchemas);
+        report.insights = _dca._generateInsights(report.newSchemas);
         this._stats.totalInsights += report.insights.length;
       }
       report.phases.push({ name: 'insight', insightCount: report.insights.length });
@@ -286,12 +284,11 @@ class DreamCycle {
     if (qualifiedPatterns.length === 0) return results;
 
     let schemas;
+    const _dca = /** @type {any} */ (this); // DreamCycleAnalysis mixin cast
     if (this._useLLM && this.model && this._withinTimeLimit(startTime)) {
-      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-      schemas = await this._batchExtractSchemas(qualifiedPatterns);
+      schemas = await _dca._batchExtractSchemas(qualifiedPatterns);
     } else {
-      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-      schemas = this._heuristicSchemas(qualifiedPatterns);
+      schemas = _dca._heuristicSchemas(qualifiedPatterns);
     }
 
     for (const schema of schemas) {

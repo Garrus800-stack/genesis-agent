@@ -48,7 +48,7 @@ function createDM(overrides = {}) {
     shell: overrides.shell || mockShell(),
     healthMonitor: overrides.healthMonitor || mockHealthMonitor(),
     hotReloader: overrides.hotReloader || mockHotReloader(),
-    config: overrides.config,
+    config: { stepDelayMs: 0, ...overrides.config },
   });
 }
 

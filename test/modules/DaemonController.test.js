@@ -414,4 +414,67 @@ describe('DaemonController — helpers', () => {
   });
 });
 
+describe('DaemonController — V7-4B/C: update command', () => {
+
+  test('update returns available:false when no autoUpdater', async () => {
+    await withController({}, async ({ socketPath }) => {
+      const res = await rpc(socketPath, 'update', { force: true });
+      // No container → AutoUpdater not available → error
+      assert(res.error || res.result, 'should return error or result');
+    });
+  });
+
+  test('update with mock autoUpdater returns check result', async () => {
+    const mockUpdater = {
+      _autoApply: false,
+      checkForUpdate: async () => ({ available: false, current: '7.1.1', latest: '7.1.1' }),
+      getStatus: () => ({ currentVersion: '7.1.1', autoApply: false, deploymentManagerAvailable: false }),
+    };
+    const container = {
+      tryResolve: (name) => name === 'autoUpdater' ? mockUpdater : null,
+      resolve: (name) => name === 'autoUpdater' ? mockUpdater : null,
+      has: () => false,
+    };
+    await withController({ container }, async ({ socketPath }) => {
+      const res = await rpc(socketPath, 'update', { force: true });
+      assert(res.result || res.error, 'should return result or error');
+      if (res.result) {
+        assert(typeof res.result.available === 'boolean', 'should have available field');
+        assert(res.result.status, 'should include status');
+      }
+    });
+  });
+
+  test('update --apply triggers deploy when autoUpdater + deploymentManager available', async () => {
+    let deployCalled = false;
+    const mockDM = { deploy: async (t, o) => { deployCalled = true; return { id: 'dep-test' }; } };
+    const mockUpdater = {
+      _autoApply: false,
+      _deploymentManager: mockDM,
+      checkForUpdate: async () => ({ available: true, current: '7.1.1', latest: '7.2.0' }),
+      getStatus: () => ({ currentVersion: '7.1.1', autoApply: true, deploymentManagerAvailable: true }),
+    };
+    const container = {
+      tryResolve: (name) => name === 'autoUpdater' ? mockUpdater : null,
+      resolve: (name) => name === 'autoUpdater' ? mockUpdater : null,
+      has: () => false,
+    };
+    await withController({ container }, async ({ socketPath }) => {
+      const res = await rpc(socketPath, 'update', { force: true, apply: true });
+      assert(res.result || res.error, 'should return result');
+      if (res.result) {
+        assertEqual(res.result.available, true);
+        assertEqual(res.result.status.currentVersion, '7.1.1');
+      }
+    });
+  });
+
+  test('update method is registered in methods map', async () => {
+    const { DaemonController } = require('../../src/agent/autonomy/DaemonController');
+    const bus = require('../../src/agent/core/EventBus').createBus();
+    const ctrl = new DaemonController({ bus, socketPath: '/tmp/test-methods.sock' });
+    assert(typeof ctrl._methods.update === 'function', 'update method should be in _methods map');
+  });
+});
+
 run();

@@ -43,11 +43,12 @@ class DeploymentManager {
     /** @type {*} */ this.healthMonitor = healthMonitor;
     /** @type {*} */ this.hotReloader = hotReloader;
 
-    /** @type {{ defaultStrategy: DeployStrategy, healthTimeoutMs: number, maxRetries: number }} */
+    /** @type {{ defaultStrategy: DeployStrategy, healthTimeoutMs: number, maxRetries: number, stepDelayMs: number }} */
     this.config = {
       defaultStrategy: config?.defaultStrategy || 'direct',
       healthTimeoutMs: config?.healthTimeoutMs || 30_000,
       maxRetries: config?.maxRetries || 2,
+      stepDelayMs: config?.stepDelayMs ?? TIMEOUTS.DEPLOY_STEP_DELAY,
     };
 
     /** @type {Map<string, Deployment>} */
@@ -182,8 +183,7 @@ class DeploymentManager {
     // FAIL-HONEST (v7.0.2): Refuse rollback when snapshot is a placeholder.
     // Previous behavior silently set status='rolled-back' without restoring anything.
     // Now we explicitly surface that rollback is not yet implemented.
-    // @ts-ignore — TS inference limitation (checkJs)
-    if (snapshot.placeholder) {
+    if ((/** @type {any} */ (snapshot)).placeholder) {
       _log.warn(`[DEPLOY] Rollback unavailable for ${deploymentId.slice(0, 8)} - snapshot is placeholder (no real backup). Real rollback requires V7-4B SnapshotManager integration.`);
       deployment.status = 'rollback-unavailable';
       this._rollbackSnapshots.delete(deploymentId);
@@ -356,7 +356,7 @@ class DeploymentManager {
         }
       }
       if (i < checks - 1) {
-        await new Promise(r => setTimeout(r, TIMEOUTS.DEPLOY_STEP_DELAY));
+        await new Promise(r => setTimeout(r, this.config.stepDelayMs));
       }
     }
   }

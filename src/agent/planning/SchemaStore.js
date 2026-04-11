@@ -135,9 +135,9 @@ class SchemaStore {
     };
 
     // Check for duplicate / merge candidate
+    const _idx = /** @type {any} */ (this); // SchemaStoreIndex mixin cast
     const existing =
-    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-    this._findSimilar(normalized);
+    _idx._findSimilar(normalized);
     if (existing) {
       existing.occurrences += normalized.occurrences;
       existing.confidence = Math.min(
@@ -166,8 +166,7 @@ class SchemaStore {
 
     // Store new schema
     this._schemas.push(normalized);
-    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-    this._addToIndex(normalized);
+    _idx._addToIndex(normalized);
     this._stats.stored++;
     this._dirty = true;
 
@@ -223,9 +222,9 @@ class SchemaStore {
       : this._schemas; // Fallback: scan all (slow but complete)
 
     for (const schema of candidates) {
+      const _idx = /** @type {any} */ (this); // SchemaStoreIndex mixin cast
       const relevance =
-    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-    this._scoreRelevance(schema, actionType, description, target, context);
+      _idx._scoreRelevance(schema, actionType, description, target, context);
       if (relevance >= this._relevanceThreshold) {
         results.push({ ...schema, _relevance: relevance });
 
@@ -283,8 +282,8 @@ class SchemaStore {
     if (idx === -1) return false;
 
     const removed = this._schemas.splice(idx, 1)[0];
-    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-    this._removeFromIndex(removed);
+    const _idx = /** @type {any} */ (this); // SchemaStoreIndex mixin cast
+    _idx._removeFromIndex(removed);
     this._dirty = true;
     this._scheduleSave();
 

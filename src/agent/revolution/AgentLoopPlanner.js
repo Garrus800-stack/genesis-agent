@@ -78,8 +78,7 @@ class AgentLoopPlannerDelegate {
     // v4.12.4: Inject BodySchema constraints — tells planner what's unavailable
     let bodyContext = '';
     try {
-      // @ts-ignore — TS inference limitation (checkJs)
-      const bodySchema = loop.bodySchema || (loop._container?.has?.('bodySchema') ? loop._container.resolve('bodySchema') : null);
+      const bodySchema = (/** @type {any} */ (loop)).bodySchema || (loop._container?.has?.('bodySchema') ? loop._container.resolve('bodySchema') : null);
       if (bodySchema) {
         const constraints = bodySchema.getConstraints?.() || [];
         if (constraints.length > 0) {

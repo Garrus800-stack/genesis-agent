@@ -33,8 +33,7 @@ class KnowledgeGraph {
 
   setEmbeddingService(embeddingService) {
     this._embeddings = embeddingService;
-    // @ts-ignore — TS inference limitation (checkJs)
-    this._syncNodeVectors().catch(err => _log.debug('[KG] Vector sync failed:', err.message));
+    (/** @type {any} */ (this))._syncNodeVectors().catch(err => _log.debug('[KG] Vector sync failed:', err.message));
   }
 
   // ── Delegated CRUD ────────────────────────────────────

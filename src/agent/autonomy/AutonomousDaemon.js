@@ -71,10 +71,9 @@ class AutonomousDaemon {
     this.bus.on('learning:capability-gap', (data) => {
       if (!data) return;
       const topic = ( data.userRequest || '').slice(0, 100).replace(/[^a-zA-ZäöüÄÖÜß0-9\s-]/g, '').trim();
-      // @ts-ignore — TS inference limitation (checkJs)
-      if (topic.length > 5 && this._dynamicGaps.length < 20) {
-        // @ts-ignore — TS inference limitation (checkJs)
-        this._dynamicGaps.push({ id: `gap:user:${Date.now()}`, topic, type: 'user-request', request: data.userRequest });
+      const _ad = /** @type {any} */ (this);
+      if (topic.length > 5 && _ad._dynamicGaps.length < 20) {
+        _ad._dynamicGaps.push({ id: `gap:user:${Date.now()}`, topic, type: 'user-request', request: data.userRequest });
         this._log('info', `Capability gap detected from user: "${topic}"`);
       }
     }, { source: 'AutonomousDaemon' });

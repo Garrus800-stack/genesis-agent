@@ -553,10 +553,13 @@ check('Source Metrics', (r) => {
 
 check('Raw setInterval Audit', (r) => {
   const agentFiles = walkJs(path.join(SRC, 'agent'));
-  const EXEMPT = ['IntervalManager.js']; // IntervalManager itself uses setInterval
-  const KNOWN_RAW = 3; // v7.0.8 baseline: 3 modules with raw-only setInterval
-  // Exempt (intentionally raw): CrashLog (pre-DI lifecycle), McpTransport (F-06),
-  // McpServer (on-demand). All other modules use dual IntervalManager/fallback pattern.
+  // IntervalManager itself uses setInterval internally (implementation, not usage).
+  // CrashLog: runs before/after IntervalManager lifecycle — kernel-level timer.
+  // McpTransport: heartbeat tied to SSE connection lifecycle (F-06) — managed externally.
+  const EXEMPT = ['IntervalManager.js', 'CrashLog.js', 'McpTransport.js'];
+  const KNOWN_RAW = 2; // v7.1.1 baseline: 2 modules with raw-only setInterval
+  // Exempt (intentionally raw): CrashLog (pre-DI lifecycle), McpTransport (F-06).
+  // McpServer migrated to dual IntervalManager/fallback pattern in v7.1.1.
   const raw = [];
 
   for (const file of agentFiles) {
@@ -566,8 +569,8 @@ check('Raw setInterval Audit', (r) => {
     // Match raw setInterval that isn't through this._intervals.register
     const intervals = code.match(/\bsetInterval\s*\(/g);
     if (!intervals) continue;
-    // Exclude if the file also uses this._intervals.register (already managed)
-    if (/this\._intervals\.register/.test(code)) continue;
+    // Exclude if the file uses IntervalManager (this._intervals or this.intervals, both patterns used)
+    if (/this\._?intervals\.register/.test(code)) continue;
     raw.push(`${base} (${intervals.length} call${intervals.length > 1 ? 's' : ''})`);
   }
 

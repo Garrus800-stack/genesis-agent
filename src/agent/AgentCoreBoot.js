@@ -72,8 +72,7 @@ class AgentCoreBoot {
     c.registerInstance('lang', lang);
 
     // Logger — read log level from settings.json without resolving Settings service
-    // @ts-ignore — TS inference limitation (checkJs)
-    const settingsPath = path.join(core.genesisDir, 'settings.json');
+    const settingsPath = path.join((/** @type {any} */ (core)).genesisDir, 'settings.json');
     let logLevel = 'info';
     try {
       if (fs.existsSync(settingsPath)) {
@@ -96,8 +95,7 @@ class AgentCoreBoot {
     // Event payload validation (dev-mode)
     try {
       const { installPayloadValidation } = require('./core/EventPayloadSchemas');
-      // @ts-ignore — TS inference limitation (checkJs)
-      core._payloadValidation = installPayloadValidation(this._bus);
+      (/** @type {any} */ (core))._payloadValidation = installPayloadValidation(this._bus);
     } catch (_e) { _log.warn('[catch] payload validation init:', _e.message); }
 
     _log.info('  [0] Bootstrap: rootDir, guard, bus, storage, lang, logger');
@@ -202,6 +200,12 @@ class AgentCoreBoot {
       'emotionalSteering', 'localClassifier',
       'trustLevelSystem', 'effectorRegistry', 'webPerception',
       'graphReasoner',
+      // v7.1.1: InferenceEngine must be resolved before wireLateBindings() so that
+      // the _inferenceEngine lateBindings on ReasoningEngine + SymbolicResolver are
+      // applied. Previously it was registered (phase9-cognitive) but never resolved
+      // during boot → wireLateBindings() skipped both bindings (optional=true) →
+      // _inferenceEngine stayed undefined → inference rate 0%.
+      'inferenceEngine',
     ];
 
     const degraded = [];

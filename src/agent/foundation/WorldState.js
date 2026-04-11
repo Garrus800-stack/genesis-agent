@@ -126,8 +126,7 @@ class WorldState {
     const entry = {
       path: path.relative(this.rootDir, filePath),
       mtime: Date.now(),
-      // @ts-ignore — TS inference limitation (checkJs)
-      size: this._getFileSize(filePath),
+      size: (/** @type {any} */ (this))._getFileSize(filePath),
     };
 
     // Keep last 20

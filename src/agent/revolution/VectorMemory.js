@@ -292,10 +292,8 @@ class VectorMemory {
       const index = {};
       for (const [colName, entries] of Object.entries(this.collections)) {
         index[colName] = entries.map(e => ({
-          // @ts-ignore — TS inference limitation (checkJs)
-          id: e.id, text: e.text, metadata: e.metadata, ts: e.ts,
-          // @ts-ignore — TS inference limitation (checkJs)
-          vecLen: e.vector?.length || 0,
+          id: (/** @type {any} */ (e)).id, text: (/** @type {any} */ (e)).text, metadata: (/** @type {any} */ (e)).metadata, ts: (/** @type {any} */ (e)).ts,
+          vecLen: (/** @type {any} */ (e)).vector?.length || 0,
         }));
       }
       // v3.7.1: Non-blocking writes — vector data can be large
@@ -306,8 +304,8 @@ class VectorMemory {
       const allVectors = [];
       for (const entries of Object.values(this.collections)) {
         for (const entry of entries) {
-          // @ts-ignore — TS inference limitation (checkJs)
-          if (entry.vector) allVectors.push({ id: entry.id, vector: Array.from(entry.vector) });
+          const _e = /** @type {any} */ (entry);
+          if (_e.vector) allVectors.push({ id: _e.id, vector: Array.from(_e.vector) });
         }
       }
       // Store as JSON for now — binary would be better but more complex
@@ -361,8 +359,7 @@ class VectorMemory {
       }
 
       this._stats.totalVectors = Object.values(this.collections)
-        // @ts-ignore — TS inference limitation (checkJs)
-        .reduce((sum, col) => sum + col.filter(e => e.vector).length, 0);
+        .reduce((sum, col) => sum + (/** @type {any[]} */ (col)).filter(e => (/** @type {any} */ (e)).vector).length, 0);
 
       if (this._stats.totalVectors > 0) {
         _log.info(`[VECMEM] Loaded ${this._stats.totalVectors} vectors`);

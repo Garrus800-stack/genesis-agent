@@ -1,6 +1,6 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.0.9 — Event flow documentation. Updated for AwarenessPort, Colony IPC, and 12-phase boot.
+> v7.1.1 — Event flow documentation. Updated for AwarenessPort, Colony IPC, 12-phase boot, and v7.1.1 ctl events.
 > This document maps which modules emit and consume which EventBus events.
 
 ## System Overview

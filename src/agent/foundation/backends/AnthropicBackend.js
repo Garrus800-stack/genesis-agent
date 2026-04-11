@@ -84,8 +84,7 @@ class AnthropicBackend {
       const url = new URL(`${this.baseUrl}/v1/messages`);
       const postData = JSON.stringify(body);
       let _settled = false;
-      // @ts-ignore — TS inference limitation (checkJs)
-      const _resolve = () => { if (!_settled) { _settled = true; resolve(); } };
+      const _resolve = /** @type {() => void} */ (() => { if (!_settled) { _settled = true; resolve(); } });
       const _reject = (err) => { if (!_settled) { _settled = true; reject(err); } };
 
       const req = https.request(

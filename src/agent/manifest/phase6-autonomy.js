@@ -142,10 +142,12 @@ function phase6(ctx, R) {
     }],
 
     // v6.0.1: AutoUpdater — GitHub release checker
+    // v7.1.1: lateBinding to deploymentManager for optional auto-apply (V7-4B bridge)
     ['autoUpdater', {
       phase: 6, deps: [], tags: ['autonomy', 'update'],
       lateBindings: [
-        { prop: '_settings', service: 'settings', optional: true },
+        { prop: '_settings',          service: 'settings',          optional: true },
+        { prop: '_deploymentManager', service: 'deploymentManager', optional: true },
       ],
       factory: () => new (R('AutoUpdater').AutoUpdater)({ bus, intervals }),
     }],

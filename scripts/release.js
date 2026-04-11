@@ -10,14 +10,13 @@
 //   node scripts/release.js 5.9.4 --dry-run   — preview only
 //   node scripts/release.js 5.9.4 --skip-ci   — skip CI checks
 //
-// Version locations (7):
+// Version locations (6):
 //   1. package.json
 //   2. package-lock.json (2 entries)
 //   3. README.md badge
 //   4. docs/banner.svg
-//   5. docs/ROADMAP-v6.md header
-//   6. McpTransport.js clientInfo
-//   7. CHANGELOG.md (validates entry exists)
+//   5. McpTransport.js clientInfo
+//   6. CHANGELOG.md (validates entry exists)
 // ============================================================
 
 const fs = require('fs');
@@ -154,15 +153,7 @@ replaceInFile(
   'banner'
 );
 
-// 5. docs/ROADMAP-v6.md header
-replaceInFile(
-  path.join(ROOT, 'docs/ROADMAP-v6.md'),
-  `v${oldVersion}`,
-  `v${newVersion}`,
-  'header'
-);
-
-// 6. McpTransport.js clientInfo
+// 5. McpTransport.js clientInfo
 replaceInFile(
   path.join(ROOT, 'src/agent/capabilities/McpTransport.js'),
   `version: '${oldVersion}'`,

@@ -251,8 +251,7 @@ class FailureAnalyzer {
     // Sort by priority (HIGH first), then by confidence
     steps.sort((a, b) => {
       const prio = { HIGH: 3, MEDIUM: 2, LOW: 1 };
-      // @ts-ignore — TS inference limitation (checkJs)
-      return (prio[b.priority] - prio[a.priority]) || (b.confidence - a.confidence);
+      return ((/** @type {any} */ (prio))[b.priority] - (/** @type {any} */ (prio))[a.priority]) || (b.confidence - a.confidence);
     });
 
     this.repairsGenerated++;

@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.0.9 · Last verified: all checks green (3447 tests, ~245 suites, TSC 0, fitness 115/120)
+> Version: 7.1.1 · Last verified: all checks green (3760 tests, ~251 suites, TSC 0, fitness 120/120)
 
 ---
 
@@ -11,7 +11,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~80k LOC of JavaScript (CommonJS), 237 source modules, 131 DI-managed services, with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~82k LOC of JavaScript (CommonJS), 242 source modules, 136 DI-managed services, with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -367,7 +367,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # ~3311 tests, 0 failures
+node test/index.js                          # ~3760 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -486,13 +486,13 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~3311 tests across 238 suites |
+| Tests | `node test/index.js` | ~3760 tests across 251 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
 | Channel sync | `node scripts/validate-channels.js` | IPC channels match between main/preload |
-| Fitness score | `node scripts/architectural-fitness.js --ci` | 90/90: no circular deps, no god objects, full shutdown coverage |
-| Coverage | `npm run test:coverage:enforce` | 70% lines, 60% branches, 65% functions |
+| Fitness score | `node scripts/architectural-fitness.js --ci` | 120/120: no circular deps, no god objects, full shutdown coverage |
+| Coverage | `npm run test:coverage:enforce` | 78% lines, 75% branches, 71% functions |
 | Benchmark | `node scripts/benchmark-agent.js --quick` | 3 tasks, pass/fail with duration |
 | A/B Organism | `node scripts/benchmark-agent.js --ab` | Runs each task with/without organism, compares |
 
@@ -577,7 +577,7 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (~3311 tests)
+│   ├── index.js               → Module test runner (~3760 tests)
 │   └── modules/               → One test file per service
 ├── scripts/
 │   ├── architectural-fitness.js → 90/90 fitness score (9 checks)

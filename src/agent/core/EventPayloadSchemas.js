@@ -573,6 +573,23 @@ const SCHEMAS = {
   'store:SYSTEM_BOOT':          { id: 'required', type: 'required', payload: 'required' },
   'store:SYSTEM_SHUTDOWN':      { id: 'required', type: 'required', payload: 'required' },
   'store:TASK_DELEGATED':      { id: 'required', type: 'required', payload: 'required' },
+
+  // v7.1.2: Causal Annotation
+  'causal:recorded':            { stepId: 'required', changes: 'required', relation: 'required' },
+  'causal:promoted':            { action: 'required', suspicion: 'required', observations: 'required' },
+  'causal:staleness-triggered': { file: 'required', diffPct: 'required', threshold: 'required' },
+
+  // v7.1.2: Goal Synthesizer
+  'goal:synthesized':           { title: 'required', weakness: 'required', priority: 'required' },
+  'goal:circuit-breaker':       { regressions: 'required', pauseUntil: 'required' },
+
+  // v7.1.2: Inference Engine
+  'inference:contradictions-found': { count: 'required' },
+
+  // v7.1.2: Structural Abstraction
+  'abstraction:extracted':      { lessonId: 'required', category: 'required' },
+  'abstraction:contradiction':  { lessonId: 'required', category: 'required' },
+  'abstraction:obsolete':       { lessonId: 'required', retries: 'required', lastReason: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

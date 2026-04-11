@@ -338,8 +338,7 @@ class MetaLearning {
       if (!data || !data.actionType) return;
       const mult = Math.min(Math.round(data.multiplier || 1), 3);
       for (let i = 1; i < mult; i++) {
-        // @ts-ignore — TS inference limitation (checkJs)
-        this.recordOutcome({
+        (/** @type {any} */ (this)).recordOutcome({
           taskCategory: data.actionType,
           model: data.model || 'unknown',
           success: data.valence === 'positive',

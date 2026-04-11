@@ -243,4 +243,220 @@ describe('MemoryConsolidator', () => {
   });
 });
 
+// ── v7.1.2: Coverage expansion ───────────────────────────────
+
+describe('MemoryConsolidator — start / stop', () => {
+  test('start subscribes to bus events', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+    mc.start();
+    assert(Object.keys(bus._handlers).length >= 1, 'should register handlers');
+    mc.stop();
+  });
+
+  test('stop clears unsubs', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+    mc.start();
+    assert(mc._unsubs.length > 0);
+    mc.stop();
+    assertEqual(mc._unsubs.length, 0);
+  });
+
+  test('stop is safe without start', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+    mc.stop(); // should not throw
+    assert(true);
+  });
+
+  test('idle:consolidate-memory event triggers consolidation', async () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+    mc.start();
+    let ran = false;
+    mc.consolidate = async () => { ran = true; return {}; };
+    bus._fire('idle:consolidate-memory', {});
+    await new Promise(r => setTimeout(r, 10));
+    assert(ran, 'consolidate should have been called');
+    mc.stop();
+  });
+});
+
+describe('MemoryConsolidator — _mergeKGNodes()', () => {
+  test('merges properties of victim into survivor', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+
+    const nodes = new Map();
+    const edges = new Map();
+    const neighborIndex = new Map();
+    const removedNodes = [];
+
+    nodes.set('n1', { type: 'concept', label: 'rest api', properties: { source: 'manual' }, accessCount: 5 });
+    nodes.set('n2', { type: 'concept', label: 'rest api', properties: { origin: 'auto' }, accessCount: 2 });
+
+    const graph = {
+      nodes, edges, neighborIndex,
+      removeNode: (id) => { removedNodes.push(id); nodes.delete(id); },
+    };
+
+    const group = [
+      { id: 'n1', label: 'rest api', node: nodes.get('n1') },
+      { id: 'n2', label: 'rest api', node: nodes.get('n2') },
+    ];
+
+    const result = mc._mergeKGNodes(graph, group);
+    assert(result === true, 'merge should succeed');
+    assert(removedNodes.includes('n2'), 'victim n2 should be removed');
+    assert(nodes.has('n1'), 'survivor n1 should remain');
+    assert(nodes.get('n1').accessCount >= 7, 'accessCount should be summed');
+  });
+
+  test('redirects edges from victim to survivor', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+
+    const nodes = new Map();
+    const edges = new Map();
+    const neighborIndex = new Map();
+
+    nodes.set('n1', { type: 'concept', label: 'api', properties: {}, accessCount: 3 });
+    nodes.set('n2', { type: 'concept', label: 'api', properties: {}, accessCount: 1 });
+    nodes.set('n3', { type: 'concept', label: 'other', properties: {}, accessCount: 1 });
+
+    edges.set('e1', { source: 'n2', target: 'n3', type: 'relates' });
+    neighborIndex.set('n2', new Set(['e1']));
+
+    const removedNodes = [];
+    const graph = {
+      nodes, edges, neighborIndex,
+      removeNode: (id) => { removedNodes.push(id); nodes.delete(id); },
+    };
+
+    const group = [
+      { id: 'n1', label: 'api', node: nodes.get('n1') },
+      { id: 'n2', label: 'api', node: nodes.get('n2') },
+    ];
+
+    mc._mergeKGNodes(graph, group);
+    assertEqual(edges.get('e1').source, 'n1', 'edge source should be redirected to survivor');
+  });
+
+  test('removes self-loop edges created by merge', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+
+    const nodes = new Map();
+    const edges = new Map();
+    const neighborIndex = new Map();
+
+    nodes.set('n1', { type: 'concept', label: 'api', properties: {}, accessCount: 3 });
+    nodes.set('n2', { type: 'concept', label: 'api', properties: {}, accessCount: 1 });
+
+    // Edge between n1 and n2 — becomes self-loop after merge
+    edges.set('e1', { source: 'n2', target: 'n1', type: 'relates' });
+    neighborIndex.set('n2', new Set(['e1']));
+
+    const graph = {
+      nodes, edges, neighborIndex,
+      removeNode: (id) => { nodes.delete(id); },
+    };
+
+    const group = [
+      { id: 'n1', label: 'api', node: nodes.get('n1') },
+      { id: 'n2', label: 'api', node: nodes.get('n2') },
+    ];
+
+    mc._mergeKGNodes(graph, group);
+    assert(!edges.has('e1'), 'self-loop edge should be deleted');
+  });
+
+  test('returns false on exception', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+    const graph = { nodes: new Map(), edges: new Map(), neighborIndex: new Map(), removeNode() { throw new Error('fail'); } };
+    const group = [
+      { id: 'x', label: 'a', node: { type: 'c', properties: {}, accessCount: 0 } },
+      { id: 'y', label: 'a', node: { type: 'c', properties: {}, accessCount: 0 } },
+    ];
+    const result = mc._mergeKGNodes(graph, group);
+    assertEqual(result, false);
+  });
+});
+
+describe('MemoryConsolidator — _consolidateLessons()', () => {
+  test('returns zeroed report when no lessons are old enough', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+    mc.lessonsStore = {
+      getAll: () => [
+        { id: 'l1', createdAt: Date.now(), lastUsed: Date.now(), useCount: 10 },
+      ],
+    };
+    const r = mc._consolidateLessons();
+    assertEqual(r.archived, 0);
+    assertEqual(r.beforeCount, 1);
+  });
+
+  test('archives old low-use lessons', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+    const oldTs = Date.now() - (400 * 24 * 60 * 60 * 1000); // 400 days ago
+
+    const archived = [];
+    mc.lessonsStore = {
+      getAll: () => [{ id: 'old1', createdAt: oldTs, lastUsed: oldTs, useCount: 0 }],
+      _globalDir: os.tmpdir(),
+      _lessons: [{ id: 'old1' }],
+      get _dirty() { return false; },
+      set _dirty(_) {},
+    };
+    mc._archiveLessons = (lessons) => { archived.push(...lessons); };
+    const r = mc._consolidateLessons();
+    assert(archived.length > 0, 'should call _archiveLessons');
+    assert(r.archived > 0);
+  });
+});
+
+describe('MemoryConsolidator — _archiveLessons()', () => {
+  test('writes archive file and removes lessons from store', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+    const tmpDir = path.join(os.tmpdir(), `mc-test-${Date.now()}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    mc.lessonsStore = {
+      _globalDir: tmpDir,
+      _lessons: [{ id: 'l1' }, { id: 'l2' }, { id: 'l3' }],
+      get _dirty() { return false; },
+      set _dirty(_) {},
+    };
+    mc.storage = null;
+
+    mc._archiveLessons([{ id: 'l1' }, { id: 'l2' }]);
+
+    // Archive file should exist in tmpDir/archive/
+    const archiveDir = path.join(tmpDir, 'archive');
+    const files = fs.readdirSync(archiveDir);
+    assert(files.length > 0, 'archive file should be created');
+
+    // Lessons l1 and l2 should be removed from store
+    assertEqual(mc.lessonsStore._lessons.length, 1);
+    assertEqual(mc.lessonsStore._lessons[0].id, 'l3');
+
+    // Cleanup
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  test('handles write errors gracefully', () => {
+    const bus = mockBus();
+    const mc = new MemoryConsolidator({ bus });
+    mc.lessonsStore = { _globalDir: '/nonexistent/path/that/cannot/exist' };
+    mc.storage = null;
+    mc._archiveLessons([{ id: 'x' }]); // should not throw
+    assert(true);
+  });
+});
+
 run();

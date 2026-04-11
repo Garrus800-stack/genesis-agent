@@ -223,4 +223,83 @@ describe('MemoryPort — interface stubs', () => {
   });
 });
 
+describe('KnowledgePort — adapters and mocks', () => {
+  const { KnowledgePort, KnowledgeGraphAdapter, MockKnowledge } = require('../../src/agent/ports/KnowledgePort');
+
+  test('MockKnowledge addTriple and getStats', () => {
+    const m = new MockKnowledge();
+    m.addTriple('A', 'rel', 'B', {});
+    m.addTriple('C', 'rel', 'D', {});
+    assertEqual(m.getStats().triples, 2);
+  });
+
+  test('MockKnowledge search returns results', () => {
+    const m = new MockKnowledge();
+    m.setSearchResults(['x', 'y', 'z']);
+    assertEqual(m.search('query', 2).length, 2);
+  });
+
+  test('MockKnowledge query returns empty array', () => {
+    assert(Array.isArray(new MockKnowledge().query({})));
+  });
+
+  test('MockKnowledge flush does not throw', () => {
+    new MockKnowledge().flush();
+    assert(true);
+  });
+
+  test('KnowledgeGraphAdapter delegates to inner graph', () => {
+    const kg = { addTriple: (s,p,o) => 'ok', search: (q,l) => ['r1'], query: () => [], getStats: () => ({n:1}), flush: () => {}, setEmbeddingService: () => {} };
+    const a = new KnowledgeGraphAdapter(kg);
+    a.addTriple('A','rel','B');
+    a.search('q', 3);
+    a.query({});
+    a.getStats();
+    a.flush();
+    a.setEmbeddingService({});
+    const m = a.getMetrics();
+    assertEqual(m.triples, 1);
+    assertEqual(m.searches, 1);
+    assertEqual(m.queries, 1);
+  });
+
+  test('KnowledgeGraphAdapter connect method', () => {
+    const kg = { connect: (s,r,t) => 'connected', search: ()=>[], getStats: ()=>({}), flush: ()=>{} };
+    const a = new KnowledgeGraphAdapter(kg);
+    a.connect('A', 'links', 'B');
+    assertEqual(a.getMetrics().triples, 1);
+  });
+
+  test('KnowledgeGraphAdapter raw getter', () => {
+    const kg = { getStats: ()=>({}), flush: ()=>{} };
+    assert(new KnowledgeGraphAdapter(kg).raw === kg);
+  });
+});
+
+describe('MemoryPort — adapters and mocks', () => {
+  const { MemoryPort, EpisodicMemoryAdapter, MockMemory } = require('../../src/agent/ports/MemoryPort');
+
+  test('MockMemory search returns results', () => {
+    const m = new MockMemory();
+    m.setSearchResults([{ text: 'r1' }]);
+    assertEqual(m.search('q', 5).length, 1);
+  });
+
+  test('MockMemory addSemantic and getSemantic', () => {
+    const m = new MockMemory();
+    m.addSemantic('key', 'value');
+    assertEqual(m.getSemantic('key'), 'value');
+  });
+
+  test('MockMemory getStats', () => {
+    const m = new MockMemory();
+    assert(typeof m.getStats() === 'object');
+  });
+
+  test('MockMemory flush does not throw', () => {
+    new MockMemory().flush();
+    assert(true);
+  });
+});
+
 run();

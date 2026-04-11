@@ -100,9 +100,8 @@ class ChatOrchestrator {
 
       this.history.push({ role: 'assistant', content: response });
       this._saveHistory();
-      // v3.5.0: Record conversation as episodic memory
-      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-      this._recordEpisode(message, response, intent.type);
+      // v3.5.0: Record conversation as episodic memory (ChatOrchestratorHelpers mixin)
+      (/** @type {any} */ (this))._recordEpisode(message, response, intent.type);
       this.bus.fire('chat:completed', { message, response, intent: intent.type, success: !response.startsWith('**' + this.lang.t('agent.error')) }, { source: 'ChatOrchestrator' });
       // v6.0.4: End provenance trace — success
       if (traceId) {
@@ -183,20 +182,17 @@ class ChatOrchestrator {
         });
 
       let fullResponse = '';
-
-      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-      await this._withRetry(() => this.cb.execute(
+      const _h = /** @type {any} */ (this); // ChatOrchestratorHelpers mixin cast
+      await _h._withRetry(() => this.cb.execute(
         () => this.model.streamChat(ctx.system, ctx.messages, (chunk) => {
           if (this.abortController?.signal.aborted) return;
           fullResponse += chunk;
           onChunk(chunk);
-        // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
         }, this.abortController.signal)
       ));
 
       // Multi-round tool execution loop
-      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-      fullResponse = await this._processToolLoop(fullResponse, onChunk);
+      fullResponse = await _h._processToolLoop(fullResponse, onChunk);
 
       this.history.push({ role: 'assistant', content: fullResponse });
       this._saveHistory();
@@ -208,9 +204,8 @@ class ChatOrchestrator {
         this._provenance.endTrace(traceId, { tokens: Math.ceil(fullResponse.length / 3.5), latencyMs: Date.now() - t0, outcome: 'success' });
       }
 
-      // Route code blocks to editor
-      // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-      const codeBlocks = this._extractCodeBlocks(fullResponse);
+      // Route code blocks to editor (ChatOrchestratorHelpers mixin)
+      const codeBlocks = _h._extractCodeBlocks(fullResponse);
       if (codeBlocks.length > 0) {
         const primary = codeBlocks.sort((a, b) => b.content.length - a.content.length)[0];
         this.bus.emit('editor:open', primary, { source: 'ChatOrchestrator' });
@@ -264,8 +259,8 @@ class ChatOrchestrator {
   }
 
   async _directChat(message) {
-    // @ts-ignore — prototype-delegated method (Object.assign, invisible to checkJs)
-    return this._withRetry(async () => {
+    const _h = /** @type {any} */ (this); // ChatOrchestratorHelpers mixin cast
+    return _h._withRetry(async () => {
       const systemPrompt = this.promptBuilder.buildAsync
         ? await this.promptBuilder.buildAsync()
         : this.promptBuilder.build();

@@ -448,8 +448,7 @@ class Container {
       const settled = await Promise.allSettled(promises);
       for (const s of settled) {
         // allSettled always fulfills; errors are caught inside the async fn
-        // @ts-ignore — TS inference limitation (checkJs)
-        results.push(s.value || { name: '?', status: 'error', error: 'unexpected rejection' });
+        results.push((/** @type {any} */ (s)).value || { name: '?', status: 'error', error: 'unexpected rejection' });
       }
     }
 

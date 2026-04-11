@@ -49,12 +49,15 @@ class AutoUpdater {
     this.bus = bus || { emit() {}, fire() {} };
     this._settings = settings || null;
     this._intervals = intervals || null;
+    this._deploymentManager = null; // v7.1.1: injected via lateBinding (V7-4B bridge)
 
     const cfg = { ...DEFAULTS, ...config };
     this._owner = cfg.owner;
     this._repo = cfg.repo;
     this._checkOnBoot = cfg.checkOnBoot;
     this._checkIntervalHours = cfg.checkIntervalHours;
+    /** @type {boolean} Apply update via DeploymentManager when available (default: false) */
+    this._autoApply = cfg.autoApply === true;
 
     this._currentVersion = this._loadCurrentVersion();
     this._latestRelease = null;
@@ -73,6 +76,7 @@ class AutoUpdater {
       if (typeof cfg.checkIntervalHours === 'number') this._checkIntervalHours = cfg.checkIntervalHours;
       if (cfg.owner) this._owner = cfg.owner;
       if (cfg.repo) this._repo = cfg.repo;
+      if (typeof cfg.autoApply === 'boolean') this._autoApply = cfg.autoApply;
     }
 
     _log.info(`[AUTO-UPDATE] v${this._currentVersion} — checking ${this._owner}/${this._repo}`);
@@ -128,6 +132,18 @@ class AutoUpdater {
           publishedAt: release.published_at,
         }, { source: 'AutoUpdater' });
 
+        // v7.1.1: V7-4B bridge — trigger DeploymentManager when autoApply is enabled.
+        // autoApply defaults to false; user must opt in via settings.json → updates.autoApply.
+        // The deployment runs fire-and-forget: outcome is reported via deploy:completed /
+        // deploy:failed events, not by blocking checkForUpdate().
+        if (this._autoApply && this._deploymentManager) {
+          _log.info(`[AUTO-UPDATE] autoApply enabled — triggering deployment for v${latestVersion}`);
+          const deployOpts = { strategy: 'direct', env: `v${latestVersion}` };
+          this._deploymentManager.deploy('self', deployOpts)
+            .then(d => _log.info(`[AUTO-UPDATE] Deployment ${d.id.slice(0, 8)} completed (v${latestVersion})`))
+            .catch(err => _log.warn(`[AUTO-UPDATE] Deployment failed: ${err.message}`));
+        }
+
         return {
           available: true,
           current: this._currentVersion,
@@ -159,6 +175,8 @@ class AutoUpdater {
       lastCheck: this._lastCheck,
       checkOnBoot: this._checkOnBoot,
       checkIntervalHours: this._checkIntervalHours,
+      autoApply: this._autoApply,
+      deploymentManagerAvailable: !!this._deploymentManager,
     };
   }
 

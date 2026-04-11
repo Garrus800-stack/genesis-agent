@@ -69,6 +69,8 @@ class McpServer {
     // Sliding-window rate limiter: { ip -> timestamp[] }
     /** @type {Map<string, number[]>} */ this._rateBuckets = new Map();
     /** @type {*} */ this._ratePruneTimer = null;
+    // v7.1.1: Optional IntervalManager (dual pattern — IntervalManager/fallback raw)
+    /** @type {*} */ this._intervals = null;
   }
 
   // ── Lifecycle ─────────────────────────────────────────────
@@ -77,16 +79,21 @@ class McpServer {
   async start(port = 0) {
     if (this._httpServer) return this._serverPort;
 
-    // Prune stale rate-limit entries every 60s
-    this._ratePruneTimer = setInterval(() => {
+    // Prune stale rate-limit entries every 60s (v7.1.1: dual IntervalManager/fallback pattern)
+    const ratePruneFn = () => {
       const cutoff = Date.now() - 60_000;
       for (const [ip, timestamps] of this._rateBuckets) {
         const fresh = timestamps.filter(t => t > cutoff);
         if (fresh.length === 0) this._rateBuckets.delete(ip);
         else this._rateBuckets.set(ip, fresh);
       }
-    }, 60_000);
-    if (this._ratePruneTimer.unref) this._ratePruneTimer.unref();
+    };
+    if (this._intervals) {
+      this._intervals.register('mcpserver-rate-prune', ratePruneFn, 60_000);
+    } else {
+      this._ratePruneTimer = setInterval(ratePruneFn, 60_000);
+      if (this._ratePruneTimer.unref) this._ratePruneTimer.unref();
+    }
 
     this._httpServer = http.createServer((req, res) => {
       // CORS preflight
@@ -151,7 +158,12 @@ class McpServer {
   }
 
   async stop() {
-    if (this._ratePruneTimer) { clearInterval(this._ratePruneTimer); this._ratePruneTimer = null; }
+    if (this._intervals) {
+      this._intervals.clear('mcpserver-rate-prune');
+    } else if (this._ratePruneTimer) {
+      clearInterval(this._ratePruneTimer);
+      this._ratePruneTimer = null;
+    }
     this._rateBuckets.clear();
 
     for (const client of this._sseClients) {

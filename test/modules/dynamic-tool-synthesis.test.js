@@ -307,8 +307,10 @@ describe('DynamicToolSynthesis', () => {
 
   describe('event emission', () => {
     it('emits tool:synthesized on success', async () => {
-      let emitted = false;
-      bus.on('tool:synthesized', () => { emitted = true; });
+      // Use a Promise that resolves when the event fires — robust across platforms
+      const eventPromise = new Promise(resolve => {
+        bus.on('tool:synthesized', () => resolve(true));
+      });
 
       const dts = new DynamicToolSynthesis({ bus, storage: mockStorage(), config: { autoSynthesize: false } });
       dts.llm = mockLLM(VALID_SPEC);
@@ -317,12 +319,18 @@ describe('DynamicToolSynthesis', () => {
       dts.start();
 
       await dts.synthesize('Reverse text');
-      assert.ok(emitted);
+      // bus.fire() is fire-and-forget — wait for the event with a safety timeout
+      const result = await Promise.race([
+        eventPromise,
+        new Promise(resolve => setTimeout(() => resolve(false), 2000)),
+      ]);
+      assert.ok(result, 'tool:synthesized event should have fired');
     });
 
     it('emits tool:synthesis-failed on failure', async () => {
-      let emitted = false;
-      bus.on('tool:synthesis-failed', () => { emitted = true; });
+      const eventPromise = new Promise(resolve => {
+        bus.on('tool:synthesis-failed', () => resolve(true));
+      });
 
       const dts = new DynamicToolSynthesis({ bus, storage: mockStorage(), config: { autoSynthesize: false, maxAttempts: 1 } });
       dts.llm = { chat: async () => 'not json' };
@@ -331,7 +339,11 @@ describe('DynamicToolSynthesis', () => {
       dts.start();
 
       await dts.synthesize('Something');
-      assert.ok(emitted);
+      const result = await Promise.race([
+        eventPromise,
+        new Promise(resolve => setTimeout(() => resolve(false), 2000)),
+      ]);
+      assert.ok(result, 'tool:synthesis-failed event should have fired');
     });
   });
 });

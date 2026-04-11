@@ -291,18 +291,14 @@ class FileProcessor {
       check('ruby'), check('bash'), check('lua'),
     ]);
 
+    /** @type {{ node:boolean, python:boolean, php:boolean, ruby:boolean, bash:boolean, lua:boolean, powershell:boolean, cmd:boolean }} */
     this.runtimes = {
       node: true,
-      // @ts-ignore — TS inference limitation (checkJs)
-      python: (python.value || false) || (python3.value || false),
-      // @ts-ignore — TS inference limitation (checkJs)
-      php: php.value || false,
-      // @ts-ignore — TS inference limitation (checkJs)
-      ruby: ruby.value || false,
-      // @ts-ignore — TS inference limitation (checkJs)
-      bash: bash.value || false,
-      // @ts-ignore — TS inference limitation (checkJs)
-      lua: lua.value || false,
+      python: !!(/** @type {any} */ (python).value || /** @type {any} */ (python3).value),
+      php:    !!(/** @type {any} */ (php).value),
+      ruby:   !!(/** @type {any} */ (ruby).value),
+      bash:   !!(/** @type {any} */ (bash).value),
+      lua:    !!(/** @type {any} */ (lua).value),
       powershell: process.platform === 'win32' || false,
       cmd: process.platform === 'win32',
     };
