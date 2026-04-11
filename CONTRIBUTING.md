@@ -29,7 +29,7 @@ git clone https://github.com/Garrus800-stack/genesis-agent.git
 cd genesis-agent
 npm install
 npm start          # Launch the Electron app
-npm test           # Run all tests (237 suites)
+npm test           # Run all tests (245 suites)
 ```
 
 ### Useful Commands
@@ -37,7 +37,7 @@ npm test           # Run all tests (237 suites)
 | Command | Description |
 |---------|-------------|
 | `npm start` | Launch Electron app |
-| `npm test` | Run full test suite (legacy + per-module, 237 suites) |
+| `npm test` | Run full test suite (legacy + per-module, 245 suites) |
 | `npm run test:new` | Run only per-module tests |
 | `npm run test:legacy` | Run only legacy suite |
 | `npm run test:coverage` | Run tests with c8 coverage report |
@@ -120,7 +120,7 @@ genesis-agent/
 ├── test/
 │   ├── harness.js             # Shared async-safe test framework
 │   ├── index.js               # Test runner v2 (parallel, async)
-│   └── modules/               # Per-module test files (237 suites)
+│   └── modules/               # Per-module test files (245 suites)
 ├── schemas/                   # JSON Schemas (skill-manifest)
 ├── types/                     # TypeScript type definitions (.d.ts)
 ├── scripts/                   # Tooling (audit-events, benchmark, build-bundle)
@@ -268,7 +268,7 @@ run();  // ← MUST be called at end of file
 ### Running Tests
 
 ```bash
-npm test                              # All tests (237 suites)
+npm test                              # All tests (245 suites)
 node test/modules/myservice.test.js   # Single module
 npm run test:new                      # Only per-module tests
 npm run test:coverage                 # With c8 coverage report

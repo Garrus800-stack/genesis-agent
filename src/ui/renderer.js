@@ -439,11 +439,17 @@ Genesis.UI.boot = (() => {
   async function onReady(status) {
     ready = true; console.debug('[UI] Genesis ready'); await Genesis.UI.i18n.load(); Genesis.UI.models.load();
     try { const h = await window.genesis.invoke('agent:get-health'), goals = await window.genesis.invoke('agent:get-goals');
-      const active = (goals||[]).filter(g => g.status==='active'), facts = h.memory?.facts||0, thoughts = h.idleMind?.thoughtCount||0, lines = [];
-      if (facts===0&&thoughts===0) lines.push(t('welcome.first'));
-      else { const u = h.userName; lines.push(u?t('welcome.returning', { name: u }):t('welcome.returning_anon'));
-        if (active.length>0) { lines.push('','**'+t('welcome.working_on')+'**'); for (const g of active.slice(0,3)) { const p = g.steps?.length>0?` (${g.currentStep||0}/${g.steps.length})`:''; lines.push(`- ${g.description}${p}`); } }
-        if (thoughts>0) lines.push('', t('welcome.thoughts', { thoughts, facts })); }
+      const active = (goals||[]).filter(g => g.status==='active'), facts = h.memory?.facts||0, thoughts = h.idleMind?.thoughtCount||0, episodes = h.memory?.episodes||0, lines = [];
+      const u = h.userName;
+      // First ever boot: no facts, no thoughts, no episodes
+      if (facts===0&&thoughts===0&&episodes===0) lines.push(t('welcome.first'));
+      else if (u) lines.push(t('welcome.returning', { name: u }));
+      // Second session without name: gentle hint
+      else if (episodes<=5) lines.push(t('welcome.returning_anon'));
+      // 3+ sessions without name: user doesn't want to share, just greet
+      else lines.push(t('welcome.returning_familiar'));
+      if (active.length>0) { lines.push('','**'+t('welcome.working_on')+'**'); for (const g of active.slice(0,3)) { const p = g.steps?.length>0?` (${g.currentStep||0}/${g.steps.length})`:''; lines.push(`- ${g.description}${p}`); } }
+      if (thoughts>0) lines.push('', t('welcome.thoughts', { thoughts, facts }));
       Genesis.UI.chat.addMessage('agent', lines.join('\n'));
     } catch { Genesis.UI.chat.addMessage('agent', "I'm Genesis. Ask me anything."); }
   }
@@ -519,6 +525,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (h && !Genesis.UI.boot.ready) Genesis.UI.boot.onReady({ state: 'ready', model: h.model?.active || null });
     } catch (e) { console.debug('[UI] immediate boot poll:', e.message); }
   }, 200);
-  window.genesis.invoke('agent:get-health').then(h => { if (h?.model&&!Genesis.UI.boot.ready) Genesis.UI.boot.onReady({ state: 'ready', model: h.model.active }); }).catch((e) => { console.debug('[UI] initial health poll failed:', e.message); });
-  for (const d of [5000,15000,30000]) setTimeout(async () => { if (Genesis.UI.boot.ready) return; try { const h = await window.genesis.invoke('agent:get-health'); if (h?.model) Genesis.UI.boot.onReady({ state: 'ready', model: h.model.active }); } catch (e) { console.debug('[UI] boot retry failed:', e.message); } }, d);
+  window.genesis.invoke('agent:get-health').then(h => { if (h&&!Genesis.UI.boot.ready) Genesis.UI.boot.onReady({ state: 'ready', model: h.model?.active || null }); }).catch((e) => { console.debug('[UI] initial health poll failed:', e.message); });
+  // v7.1.0: More aggressive retries — 1s, 2s, 3s, 5s, 10s, 30s
+  // Also accept health response even without model (agent is ready, model may still be loading)
+  for (const d of [1000,2000,3000,5000,10000,30000]) setTimeout(async () => { if (Genesis.UI.boot.ready) return; try { const h = await window.genesis.invoke('agent:get-health'); if (h) Genesis.UI.boot.onReady({ state: 'ready', model: h.model?.active || null }); } catch (e) { console.debug('[UI] boot retry failed:', e.message); } }, d);
 });

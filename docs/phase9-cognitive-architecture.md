@@ -1923,4 +1923,10 @@ node scripts/benchmark-agent.js --baseline compare    # compare vs saved baselin
 
 10. **Standardized benchmarking** (v5.9.8) — Reproducible task suite with baseline comparison and regression detection. Genesis can prove its improvement across versions.
 
-**No open-source agent has this closed loop.** AutoGPT plans but doesn't predict. CrewAI delegates but doesn't learn from surprise. OpenDevin executes but doesn't dream. Genesis does all of it — and each part feeds the others.
+11. **Causal reasoning** (v7.0.9) — CausalAnnotation tracks WorldState mutations per tool-call with temporal isolation, suspicion scoring, and staleness hooks. InferenceEngine applies deterministic rules on the causal graph without LLM calls. SymbolicResolver gains INFERRED level — 15%+ of decisions need no LLM.
+
+12. **Structural learning** (v7.0.9) — PatternMatcher compares lesson structures via weighted Jaccard similarity. StructuralAbstraction extracts machine-readable patterns from lessons via DreamCycle. Cross-context matching: "off-by-one in FizzBuzz" finds "off-by-one in Pagination."
+
+13. **Autonomous goal generation** (v7.0.9) — GoalSynthesizer analyzes CognitiveSelfModel weaknesses, generates concrete improvement goals with PROTECTED_MODULES, improvement budget, and regression circuit-breaker. NeedsSystem competence need + Genome selfAwareness trait drive the self-improvement loop.
+
+**No open-source agent has this closed loop.** AutoGPT plans but doesn't predict. CrewAI delegates but doesn't learn from surprise. OpenDevin executes but doesn't dream. Genesis does all of it — and each part feeds the others. v7.0.9 closes the loop: OBSERVE → REASON → ABSTRACT → REFLECT → PLAN → ACT.

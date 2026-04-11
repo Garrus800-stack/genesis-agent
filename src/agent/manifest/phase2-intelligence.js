@@ -89,6 +89,8 @@ function phase2(ctx, R) {
         { prop: '_cognitiveBudget', service: 'cognitiveBudget', optional: true },
         // v7.0.4: Information sovereignty — disclosure decisions
         { prop: 'disclosurePolicy', service: 'disclosurePolicy', optional: true },
+        // v7.0.9: IdleMind — autonomous activity status for honest self-reflection
+        { prop: '_idleMind', service: 'idleMind', optional: true },
       ],
       factory: (c) => new (R('PromptBuilder').PromptBuilder)({
         selfModel: c.resolve('selfModel'), model: c.resolve('llm'),

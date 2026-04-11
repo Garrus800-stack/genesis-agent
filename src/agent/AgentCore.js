@@ -136,6 +136,15 @@ class AgentCore {
 
       this._pushStatus({ state: 'ready', model: this.container.resolve('model').activeModel });
 
+      // v7.1.0: Fix "booting" badge stuck — the ready status may be sent before
+      // the renderer has registered its IPC listener. Re-send when renderer loads.
+      if (this.window && !this.window.isDestroyed()) {
+        const readyPayload = { state: 'ready', model: this.container.resolve('model').activeModel };
+        this.window.webContents.on('did-finish-load', () => this._pushStatus(readyPayload));
+        // Also re-send after a short delay as fallback for already-loaded renderers
+        setTimeout(() => this._pushStatus(readyPayload), 500);
+      }
+
       if (this._bootRecovery) {
         try { this._bootRecovery.postBootSuccess(); }
         catch (_e) { _log.debug('[GENESIS] Post-boot recovery:', _e.message); }

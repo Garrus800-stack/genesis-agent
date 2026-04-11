@@ -8,8 +8,8 @@
 
 | Command | What it does | Duration |
 |---------|-------------|----------|
-| `npm test` | Run all 3311 tests | ~30s |
-| `npm run test:ci` | Tests + coverage enforcement (81/76/80) | ~45s |
+| `npm test` | Run all 3447 tests | ~30s |
+| `npm run test:ci` | Tests + coverage enforcement (78/75/71) | ~45s |
 | `npm run benchmark:agent --quick` | 3-task capability benchmark | ~2 min |
 | `npm run benchmark:agent:layer:organism` | A/B: full vs without organism | ~5 min |
 | `npm run benchmark:agent:ab` | A/B: full vs baseline (no organism) | ~10 min |
@@ -22,7 +22,7 @@
 ### Run all tests
 
 ```bash
-npm test                    # Full suite (3311 tests)
+npm test                    # Full suite (3447 tests)
 npm run test:new            # Only per-module test files
 npm run test:legacy         # Only monolithic legacy suite
 ```
@@ -46,7 +46,7 @@ The coverage ratchet is enforced in CI. Current thresholds:
 
 | Scope | Lines | Branches | Functions |
 |-------|-------|----------|-----------|
-| Global | 81% | 76% | 80% |
+| Global | 78% | 75% | 71% |
 | Safety-critical | 80% | 70% | 75% |
 
 Safety-critical modules: `src/kernel/**`, `CodeSafetyScanner`, `VerificationEngine`, `Sandbox`, `WebFetcher`, `SelfModificationPipeline`, `MemoryFacade`.
@@ -215,7 +215,7 @@ npm run benchmark:consciousness:dry       # Dry run (no LLM, measures computatio
 Automated checks for coupling, listener leaks, event catalog completeness, and structural rules:
 
 ```bash
-npm run audit:fitness            # Score out of 90
+npm run audit:fitness            # Score out of 120 (12 checks)
 npm run audit:fitness:ci         # Exit 1 if score below threshold
 npm run audit:fitness:json       # Machine-readable output
 
@@ -253,10 +253,10 @@ node scripts/benchmark-agent.js --quick --backend ollama:kimi-k2.5:cloud
 Genesis defaults to `cognitive` profile (phases 1–12). Phase 13 (Consciousness) was empirically validated as 0pp impact and removed in v7.0.0.
 
 ```bash
-# Cognitive (default): phases 1-12, ~120 services
+# Cognitive (default): phases 1-12, ~136 services
 node cli.js
 
-# Full: all 12 phases, ~139 services
+# Full: all 12 phases, ~147 services
 node cli.js --full
 
 # Minimal: phases 1-8, core agent only (~80 services)
@@ -284,7 +284,7 @@ node cli.js --skip-phase 9,10,11    # Skip cognitive + agency + extended
 | 10 | agency | goalPersistence, conversationCompressor, userModel |
 | 11 | extended | trustLevelSystem, webPerception |
 | 12 | hybrid | graphReasoner, adaptiveMemory |
-| 13 | consciousness | attentionalGate, phenomenalField, temporalSelf |
+| 13 | (removed in v7.0.0 — replaced by AwarenessPort in Phase 1) | — |
 
 Phases 1-5 cannot be skipped (core infrastructure).
 

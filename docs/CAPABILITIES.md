@@ -131,6 +131,11 @@ Bio-inspired cognitive modules that run during idle time and influence behavior:
 | **CLI Log Throttle** `v5.9.1` | UX | HomeostasisEffectors 1x/2min. Logger warn after boot, `--verbose` flag for full output |
 | **Sandbox Hardening** `v5.9.1` | Safety | +os module whitelist, _log→console.log fix, stderr diagnostics, system-info skill sandbox-safe rewrite |
 | **PromptEvolution** | A/B testing | Controlled experiments on prompt sections, auto-promotes statistically significant improvements |
+| **CausalAnnotation** `v7.0.9` | Causal reasoning | Tracks causality across steps. Temporal isolation (caused vs correlated_with), suspicion scoring, staleness hooks. WorldState snapshot/diff. |
+| **InferenceEngine** `v7.0.9` | Deterministic reasoning | Rule-based inference on KnowledgeGraph without LLM calls. Hardcoded + learned rules, contradiction detection, rule index for O(1) lookup. |
+| **PatternMatcher** `v7.0.9` | Structural learning | Weighted Jaccard similarity on lesson patterns. Cross-context matching: "off-by-one in FizzBuzz" finds "off-by-one in Pagination". |
+| **StructuralAbstraction** `v7.0.9` | Pattern extraction | LLM-deferred pattern extraction for lessons. Typed failures, retry queue, lifecycle: pending→extracted→stale→obsolete. |
+| **GoalSynthesizer** `v7.0.9` | Autonomous goals | Generates improvement goals from CognitiveSelfModel weaknesses. Bootstrap guard, PROTECTED_MODULES, regression circuit-breaker. |
 
 All cognitive modules degrade gracefully — if any are unavailable, Genesis falls back to direct LLM planning.
 

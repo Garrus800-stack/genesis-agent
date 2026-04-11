@@ -1,6 +1,6 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.0.1 — Event flow documentation. Updated for AwarenessPort, Colony IPC, and 12-phase boot.
+> v7.0.9 — Event flow documentation. Updated for AwarenessPort, Colony IPC, and 12-phase boot.
 > This document maps which modules emit and consume which EventBus events.
 
 ## System Overview
@@ -605,3 +605,13 @@ graph TD
 | `adaptation:validation-deferred` | AdaptiveStrategy | — |
 | `adaptation:cycle-complete` | AdaptiveStrategy | — |
 | `router:empirical-strength-injected` | ModelRouter | — |
+| **Causal Reasoning (v7.0.9)** | | |
+| `causal:recorded` | CausalAnnotation | — |
+| `causal:promoted` | CausalAnnotation | — (correlated_with → caused) |
+| `causal:staleness-triggered` | CausalAnnotation | — (file refactoring degrades edges) |
+| `inference:contradictions-found` | InferenceEngine | DreamCycle |
+| `goal:synthesized` | GoalSynthesizer | NeedsSystem (satisfies competence) |
+| `goal:circuit-breaker` | GoalSynthesizer | — (3 regressions → pause) |
+| `abstraction:extracted` | StructuralAbstraction | LessonsStore |
+| `abstraction:contradiction` | StructuralAbstraction | — (knowledge collision) |
+| `abstraction:obsolete` | StructuralAbstraction | — (3 failed re-extractions) |

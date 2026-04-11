@@ -245,7 +245,9 @@ describe('PromptBuilderSections: Organism Context', () => {
       getEnergyLevel: () => ({ state: 'low', current: 20, max: 100 }),
     };
     const result = builder._organismContext();
-    assert(result.includes('ENERGY LOW'), 'should warn about low energy');
+    assert(result.includes('ENERGY:'), 'should show energy state');
+    assert(result.includes('20/100'), 'should show energy values');
+    assert(result.includes('low'), 'should show low state');
   });
 });
 

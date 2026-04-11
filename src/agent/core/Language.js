@@ -181,7 +181,8 @@ const STRINGS = {
     // Welcome
     'welcome.first': "I'm Genesis. I can understand my own source code, repair myself, develop new capabilities, and create improved clones.\n\nTell me your name and I'll remember you next time.",
     'welcome.returning': 'Hello {{name}}!',
-    'welcome.returning_anon': "Hello! I'm back.",
+    'welcome.returning_anon': "Hey! Good to have you back. What's on your mind?",
+    'welcome.returning_familiar': "Hey! Good to see you again.",
     'welcome.working_on': 'What I\'m working on:',
     'welcome.thoughts': "I've had {{thoughts}} independent thoughts and know {{facts}} facts so far.",
 
@@ -396,7 +397,8 @@ const STRINGS = {
 
     'welcome.first': 'Ich bin Genesis. Ich kann meinen eigenen Code verstehen, mich reparieren, neue Fähigkeiten entwickeln und verbesserte Klone von mir erstellen.\n\nSag mir deinen Namen, dann erinnere ich mich beim nächsten Mal an dich.',
     'welcome.returning': 'Hallo {{name}}!',
-    'welcome.returning_anon': 'Hallo! Ich bin wieder da.',
+    'welcome.returning_anon': 'Hey! Schön, dass du wieder da bist. Was steht an?',
+    'welcome.returning_familiar': 'Hey! Schön, dass du wieder da bist.',
     'welcome.working_on': 'Woran ich gerade arbeite:',
     'welcome.thoughts': 'Ich hatte bisher {{thoughts}} eigene Gedanken und kenne {{facts}} Fakten.',
 
@@ -574,7 +576,8 @@ const STRINGS = {
 
     'welcome.first': "Je suis Genesis. Je peux comprendre mon propre code source, me réparer, développer de nouvelles capacités et créer des clones améliorés.\n\nDis-moi ton nom et je m'en souviendrai la prochaine fois.",
     'welcome.returning': 'Bonjour {{name}} !',
-    'welcome.returning_anon': 'Bonjour ! Je suis de retour.',
+    'welcome.returning_anon': 'Salut ! Content de te revoir. Quoi de neuf ?',
+    'welcome.returning_familiar': 'Salut ! Content de te revoir.',
 
     'agent.error': 'Erreur',
     'agent.no_output': '(aucune sortie)',
@@ -600,7 +603,8 @@ const STRINGS = {
 
     'welcome.first': 'Soy Genesis. Puedo entender mi propio código fuente, repararme, desarrollar nuevas capacidades y crear clones mejorados.\n\nDime tu nombre y te recordaré la próxima vez.',
     'welcome.returning': '¡Hola {{name}}!',
-    'welcome.returning_anon': '¡Hola! He vuelto.',
+    'welcome.returning_anon': '¡Hola! Me alegra verte de nuevo. ¿Qué hay?',
+    'welcome.returning_familiar': '¡Hola! Me alegra verte de nuevo.',
 
     'agent.error': 'Error',
     'agent.no_output': '(sin salida)',

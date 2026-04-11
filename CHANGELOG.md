@@ -1,3 +1,27 @@
+## [7.1.0] — Honest Self-Awareness + Documentation Overhaul
+
+**Genesis no longer lies about its inner life.** The v5.9.6 containment guard instructed Genesis to NEVER mention organism signals — even when directly asked. This caused hallucination ("I don't exist between conversations") instead of honest self-report.
+
+### Self-Awareness Fix
+
+- **Containment guard relaxed:** Organism signals not proactively mentioned, but Genesis answers honestly when explicitly asked about feelings, state, or inner life — using real EmotionalState, NeedsSystem, Genome, Metabolism data.
+- **IdleMind status injected:** Genesis now knows it has autonomous activity between conversations (thoughts, journal entries, plans). No more "I don't exist when you leave."
+- **Energy always visible** in organism context (not just low/depleted).
+- **selfAwareness trait** included in organism context.
+- **IdleMind late-binding** to PromptBuilder via phase2-intelligence manifest.
+
+### Documentation Overhaul
+
+All docs updated to v7.1.0:
+- **CAPABILITIES.md** — 5 new v7.0.9 cognitive modules added to table
+- **EVENT-FLOW.md** — 9 new events (causal:*, inference:*, goal:*, abstraction:*) in catalog
+- **BENCHMARKING.md** — test count 3311→3447, coverage ratchet 78/75/71, fitness 120, Phase 13 removed
+- **phase9-cognitive-architecture.md** — causal reasoning, structural learning, autonomous goals sections
+- **CONTRIBUTING.md** — test suite count 237→245
+- **COMMUNICATION.md, MCP-SERVER-SETUP.md, SKILL-SECURITY.md** — headers updated
+- **QUICK-START.md** — boot time 5s→2s
+- **README.md, ARCHITECTURE.md, banner.svg** — version bumps
+
 ## [7.0.9] — Causal Genesis: Reasoning, Learning, Autonomous Goals
 
 **Genesis can now track causality, reason about it without LLM calls, learn structural patterns across contexts, and generate its own improvement goals from self-observed weaknesses. Four phases implemented sequentially, each building on the previous. The closed loop: HANDELN → BEOBACHTEN → SCHLIESSEN → ABSTRAHIEREN → REFLEKTIEREN → PLANEN → HANDELN.**

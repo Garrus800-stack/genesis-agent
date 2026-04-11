@@ -11,7 +11,7 @@ npm install
 npm start
 ```
 
-Genesis boots in ~5 seconds. You'll see a chat window — that's your interface.
+Genesis boots in ~2 seconds. You'll see a chat window — that's your interface.
 
 **Model selection — Genesis picks the best model automatically:**
 
