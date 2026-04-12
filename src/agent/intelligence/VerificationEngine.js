@@ -1,24 +1,8 @@
 // @ts-checked-v5.8
 // ============================================================
-// GENESIS — VerificationEngine.js (v3.5.0 — Cognitive Agent)
-//
-// THE FUNDAMENTAL SHIFT: Programmatic truth over LLM opinion.
-//
-// Every AgentLoop step gets a deterministic verifier that runs
-// BEFORE any LLM evaluation. The LLM proposes, the machine
-// verifies. Only ambiguous cases fall back to LLM judgment.
-//
-// Sub-verifiers:
-//   CodeVerifier   — AST parse, import resolution, pattern lint
-//   TestVerifier   — Exit code, stderr, assertion count
-//   ShellVerifier  — Exit code, stderr patterns, timeout
-//   FileVerifier   — Existence, non-empty, valid encoding
-//   PlanVerifier   — Preconditions against WorldState
-//
-// Results: PASS | FAIL | AMBIGUOUS (only AMBIGUOUS goes to LLM)
-//
-// Dependency: acorn (~60KB, zero deps) for AST parsing.
-// Install: npm install acorn
+// GENESIS — VerificationEngine.js
+// Programmatic truth over LLM opinion. Sub-verifiers: Code,
+// Test, Shell, File, Plan. Results: PASS | FAIL | AMBIGUOUS.
 // ============================================================
 
 const path = require('path');

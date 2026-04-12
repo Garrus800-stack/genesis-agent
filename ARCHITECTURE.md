@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.1.1 · Last verified: all checks green (3760 tests, ~251 suites, TSC 0, fitness 120/120)
+> Version: 7.1.2 · Last verified: all checks green (4146 tests, ~251 suites, TSC 0, fitness 130/130)
 
 ---
 
@@ -367,7 +367,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # ~3760 tests, 0 failures
+node test/index.js                          # ~4146 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -486,12 +486,12 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~3760 tests across 251 suites |
+| Tests | `node test/index.js` | ~4146 tests across 251 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
 | Channel sync | `node scripts/validate-channels.js` | IPC channels match between main/preload |
-| Fitness score | `node scripts/architectural-fitness.js --ci` | 120/120: no circular deps, no god objects, full shutdown coverage |
+| Fitness score | `node scripts/architectural-fitness.js --ci` | 130/130: no circular deps, no god objects, full shutdown coverage |
 | Coverage | `npm run test:coverage:enforce` | 78% lines, 75% branches, 71% functions |
 | Benchmark | `node scripts/benchmark-agent.js --quick` | 3 tasks, pass/fail with duration |
 | A/B Organism | `node scripts/benchmark-agent.js --ab` | Runs each task with/without organism, compares |
@@ -577,7 +577,7 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (~3760 tests)
+│   ├── index.js               → Module test runner (~4146 tests)
 │   └── modules/               → One test file per service
 ├── scripts/
 │   ├── architectural-fitness.js → 90/90 fitness score (9 checks)
@@ -610,6 +610,18 @@ Decisions that aren't obvious from reading the code.
 **Why no `for...in` anywhere?** Prototype pollution prevention. The codebase exclusively uses `Object.keys()` (71×), `Object.entries()` (146×), `Object.values()` (26×), and `for...of` (703×). All are prototype-safe. This is a coding convention, not enforced by a linter — it's maintained through consistency.
 
 **Why `'use strict'` is only in 17% of files?** The codebase has no patterns that require strict mode enforcement (no `with`, no `arguments.callee`, no `for...in`). TSC catches the errors that strict mode would catch. Adding it to 171 files would be churn without value.
+
+### NIH Decisions — Why Custom Infrastructure
+
+Genesis has only 3 production dependencies (`acorn`, `chokidar`, `tree-kill`). The DI Container, EventBus, and test harness are all custom implementations. This is not accidental — it's a security architecture decision.
+
+**Why a custom DI Container?** Genesis modifies its own source code. If the Container were an npm dependency, a self-modification cycle could `npm install` a different version and break its own boot sequence. The custom Container (725 LOC, feature-frozen since v7.0.1) is hash-locked by SafeGuard — the agent literally cannot weaken its own dependency injection. External DI frameworks (tsyringe, inversify) also bring decorator syntax, build steps, and transitive dependencies that increase the attack surface. The custom Container has zero dependencies, circular dependency detection, phase enforcement, and late-binding resolution — exactly what Genesis needs, nothing more.
+
+**Why a custom EventBus?** Same reasoning. The EventBus (591 LOC, feature-frozen) is hash-locked. If it were `eventemitter2` or `mitt`, the agent could modify `node_modules/` and alter event delivery semantics. The custom EventBus also provides features no off-the-shelf emitter has: dev-mode event catalog validation, wildcard prefix caching, per-event stats, ring-buffer history, middleware pipeline, and correlation context propagation.
+
+**Why a custom test harness?** The harness is 200 LOC with zero dependencies. Jest (330+ transitive deps) or Mocha (78 deps) would be the largest dependency trees in the project by an order of magnitude. For a self-modifying agent, every dependency is attack surface. The harness provides exactly what's needed: `describe`/`test`/`assert`, async support, cross-platform paths, and `c8` coverage integration. 12 files already use `node:test` (Node.js built-in) — a gradual migration to `node:test` is the natural next step, not a framework adoption.
+
+**Trade-off acknowledgment:** Custom infrastructure means solo maintenance burden. The mitigation is: each component is feature-frozen, small (<800 LOC), well-tested, and structurally simple enough that any contributor can understand it within an hour.
 
 ---
 

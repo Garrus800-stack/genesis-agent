@@ -242,6 +242,39 @@ class AgentLoopCognitionDelegate {
     if (/self.*mod|modify.*self|evolve/.test(combined)) return 'self-modification';
     return 'all';
   }
+
+  // ── Cognitive Level Diagnostic (v7.1.2 — extracted from AgentLoop) ──
+
+  /**
+   * Report cognitive level after late-bindings are wired.
+   * Sets loop._cognitiveLevel to FULL|PARTIAL|NONE.
+   */
+  reportCognitiveLevel() {
+    const loop = this.loop;
+    const core = { verifier: loop.verifier, formalPlanner: loop.formalPlanner, worldState: loop.worldState };
+    const extended = { episodicMemory: loop.episodicMemory, metaLearning: loop.metaLearning };
+    const auxiliary = { htnPlanner: loop.htnPlanner, taskDelegation: loop.taskDelegation };
+
+    const coreBound = Object.entries(core).filter(([, v]) => v != null).map(([k]) => k);
+    const extBound = Object.entries(extended).filter(([, v]) => v != null).map(([k]) => k);
+    const auxBound = Object.entries(auxiliary).filter(([, v]) => v != null).map(([k]) => k);
+    const coreMissing = Object.entries(core).filter(([, v]) => v == null).map(([k]) => k);
+
+    const level = coreBound.length === Object.keys(core).length ? 'FULL'
+      : coreBound.length > 0 ? 'PARTIAL' : 'NONE';
+
+    loop._cognitiveLevel = level;
+
+    if (level !== 'FULL') {
+      _log.warn(`[AGENT-LOOP] Cognitive level: ${level} — bound: [${coreBound.join(', ')}], missing: [${coreMissing.join(', ')}]`);
+      loop.bus.emit('agent:status', {
+        state: 'warning',
+        detail: `AgentLoop cognitive level: ${level} — missing: ${coreMissing.join(', ')}`,
+      }, { source: 'AgentLoop' });
+    } else {
+      _log.info(`[AGENT-LOOP] Cognitive level: FULL — core: [${coreBound.join(', ')}], extended: [${extBound.join(', ')}], aux: [${auxBound.join(', ')}]`);
+    }
+  }
 }
 
 module.exports = { AgentLoopCognitionDelegate };

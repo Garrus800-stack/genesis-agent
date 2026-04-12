@@ -8,16 +8,16 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.1.1-6c8cff?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.1.2-6c8cff?style=flat-square" alt="Version">
   <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <img src="https://img.shields.io/badge/tests-~3375%20passing-4ade80?style=flat-square" alt="Tests">
-  <img src="https://img.shields.io/badge/fitness-90%2F90-4ade80?style=flat-square" alt="Fitness">
+  <img src="https://img.shields.io/badge/tests-~4146%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-clean-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-237-e0e0e8?style=flat-square" alt="Modules">
-  <img src="https://img.shields.io/badge/services-131-fbbf24?style=flat-square" alt="Services">
+  <img src="https://img.shields.io/badge/modules-242-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/services-136-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-369-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/events-353-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">

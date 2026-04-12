@@ -276,12 +276,96 @@ describe('DeploymentManager — Fail-Honest (v7.0.2)', () => {
     const d = await dm.deploy('svc', { commands: ['echo'] });
     // Manually patch snapshot to simulate real backup (V7-4B)
     dm._rollbackSnapshots.set(d.id, {
-      backup: { target: 'svc', createdAt: Date.now() },
+      backup: { target: 'svc', createdAt: Date.now(), snapshotName: 'test-snap' },
       timestamp: Date.now(),
       placeholder: false,
     });
     await dm.rollback(d.id);
     assertEqual(dm.getDeployment(d.id).status, 'rolled-back');
+  });
+});
+
+// ── V7-4B: SnapshotManager Integration (v7.1.2) ────────────
+
+function mockSnapshotManager() {
+  const created = [];
+  const restored = [];
+  return {
+    create: (name, desc) => {
+      const meta = { name, description: desc, fileCount: 42, timestamp: Date.now(), hash: 'abc123' };
+      created.push(meta);
+      return meta;
+    },
+    restore: (name) => {
+      const result = { restored: 42, name };
+      restored.push(result);
+      return result;
+    },
+    _created: created,
+    _restored: restored,
+  };
+}
+
+describe('DeploymentManager — SnapshotManager Integration (V7-4B)', () => {
+  test('creates real snapshot when SnapshotManager is bound', async () => {
+    const sm = mockSnapshotManager();
+    const dm = createDM();
+    dm._snapshotManager = sm;
+    await dm.boot();
+    const d = await dm.deploy('svc', { commands: ['echo'] });
+    assertEqual(d.status, 'done');
+    assertEqual(sm._created.length, 1);
+    assert(sm._created[0].name.startsWith('deploy-'), 'Snapshot name should start with deploy-');
+    // Internal snapshot should not be a placeholder
+    const snap = dm._rollbackSnapshots.get(d.id);
+    assert(snap, 'Snapshot should exist');
+    assertEqual(snap.placeholder, false);
+    assertEqual(snap.backup.fileCount, 42);
+  });
+
+  test('real rollback restores via SnapshotManager', async () => {
+    const sm = mockSnapshotManager();
+    const bus = mockBus();
+    const dm = new DeploymentManager({
+      bus, shell: mockShell('fail-cmd'), healthMonitor: mockHealthMonitor(),
+      hotReloader: mockHotReloader(),
+    });
+    dm._snapshotManager = sm;
+    await dm.boot();
+    const d = await dm.deploy('svc', { commands: ['fail-cmd'] });
+    // Deploy fails → auto-rollback → should call sm.restore()
+    assertEqual(d.status, 'rolled-back');
+    assertEqual(sm._restored.length, 1);
+    assert(sm._restored[0].name.startsWith('deploy-'), 'Should restore the deploy snapshot');
+    // Should fire deploy:rollback (not deploy:rollback-unavailable)
+    const rollbackEvents = bus._fired.filter(e => e.evt === 'deploy:rollback');
+    const unavailEvents = bus._fired.filter(e => e.evt === 'deploy:rollback-unavailable');
+    assertEqual(rollbackEvents.length, 1);
+    assertEqual(unavailEvents.length, 0);
+  });
+
+  test('falls back to placeholder when SnapshotManager is not bound', async () => {
+    const dm = createDM();
+    // No _snapshotManager set
+    await dm.boot();
+    const d = await dm.deploy('svc', { commands: ['echo'] });
+    assertEqual(d.status, 'done');
+    const snap = dm._rollbackSnapshots.get(d.id);
+    assertEqual(snap.placeholder, true);
+  });
+
+  test('falls back to placeholder when SnapshotManager.create() throws', async () => {
+    const dm = createDM();
+    dm._snapshotManager = {
+      create: () => { throw new Error('disk full'); },
+      restore: () => ({ restored: 0, name: '' }),
+    };
+    await dm.boot();
+    const d = await dm.deploy('svc', { commands: ['echo'] });
+    // Should still succeed — snapshot failure doesn't block deploy
+    assertEqual(d.status, 'done');
+    const snap = dm._rollbackSnapshots.get(d.id);
+    assertEqual(snap.placeholder, true);
   });
 });
 

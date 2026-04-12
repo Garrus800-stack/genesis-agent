@@ -241,6 +241,37 @@ If no adjustment needed: { "adjust": false }`;
     }
     return tags;
   }
+
+  // ── Step Context (v7.1.2 — extracted from AgentLoop) ──
+
+  /**
+   * Build LLM context string for the current step execution.
+   * @param {object} step
+   * @param {number} stepIndex
+   * @param {Array} allSteps
+   * @param {Array} previousResults
+   * @returns {string}
+   */
+  buildStepContext(step, stepIndex, allSteps, previousResults) {
+    const recentResults = previousResults.slice(-3).map((r, i) => {
+      const stepNum = stepIndex - previousResults.slice(-3).length + i + 1;
+      return `Step ${stepNum}: ${r.error ? 'ERROR: ' + r.error : (r.output || '').slice(0, 200)}`;
+    }).join('\n');
+
+    const plan = this.loop._currentPlan || {};
+    const consciousnessHint = plan._consciousnessContext
+      ? `\n${plan._consciousnessContext}`
+      : '';
+    const valueHint = plan._valueContext
+      ? `\nRELEVANT VALUES: ${plan._valueContext}`
+      : '';
+    const workspaceHint = this.loop._workspace.buildContext(5);
+
+    return `You are Genesis, executing step ${stepIndex + 1}/${allSteps.length} of an autonomous plan.
+${recentResults ? '\nRecent results:\n' + recentResults : ''}${consciousnessHint}${valueHint}${workspaceHint ? '\n' + workspaceHint : ''}
+Current step: ${step.type} — ${step.description}
+${step.target ? 'Target: ' + step.target : ''}`;
+  }
 }
 
 module.exports = { AgentLoopRecoveryDelegate };

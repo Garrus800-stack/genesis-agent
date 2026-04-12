@@ -128,6 +128,15 @@ function phase3(ctx, R) {
       }),
     }],
 
+    // v4.12.2: SnapshotManager — named source code snapshots for safe rollback.
+    // v7.1.2: Registered in DI for DeploymentManager integration (V7-4B real rollback).
+    ['snapshotManager', {
+      phase: 3, deps: [], tags: ['capabilities', 'safety'],
+      factory: () => new (R('SnapshotManager').SnapshotManager)({
+        rootDir, storage: null, guard,
+      }),
+    }],
+
     // v5.8.0: McpServerToolBridge — exposes Genesis capabilities as MCP tools.
     // Late-binds to phase-9 services (ArchitectureReflection, ProjectIntelligence).
     ['mcpToolBridge', {

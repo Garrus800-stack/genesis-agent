@@ -1,37 +1,22 @@
 // @ts-checked-v5.7
 // ============================================================
-// GENESIS AGENT — Sandbox.js (v4.10.0 — Linux Namespace Isolation)
+// GENESIS AGENT — Sandbox.js (v7.1.2 — Composition Refactor)
 //
-// v4.10.0 UPGRADE: Linux namespace isolation via unshare(1).
-// On supported Linux kernels, execute() wraps child processes
-// with PID/net/mount/IPC namespaces. Graceful degradation on
-// Windows, macOS, Docker without --privileged, or kernels with
-// restricted user namespaces.
+// v7.1.2: VM-mode extracted to SandboxVM.js delegate.
+// Sandbox.js is now the coordinator — delegates to:
+//   - SandboxVMDelegate for vm.createContext execution
+//   - Direct process spawn for untrusted code (stays here)
+//   - External language execution (stays here — small)
 //
-// v4.0.0 UPGRADE: Two isolation modes:
-//   1. PROCESS mode (default for untrusted code / self-mod):
-//      Spawns a child process with minimal env, memory limit,
-//      timeout, and restricted fs/net. Maximum isolation.
-//   2. VM mode (for quick evaluations / tool results):
-//      Uses Node's vm.createContext with a frozen global.
-//      Faster (~5ms vs ~200ms) but same-process.
-//
-// Both modes share the same security surface:
-//   - Allowlisted module require
-//   - Restricted fs scope (sandbox/ + src/ read-only)
-//   - No API keys in environment
-//   - Audit logging
-//
-// v3.5.0: Replaced ALL execSync with async execFile.
-// v4.0.0: Added vm-based fast path, process resource limits,
-//          execution nonce tracking, and kill-group cleanup.
+// v4.10.0: Linux namespace isolation via unshare(1).
+// v4.0.0: Two isolation modes (process + VM).
+// v3.5.0: Fully async — no execSync.
 // ============================================================
 
 const { execFile } = require('child_process');
 const { TIMEOUTS } = require('../core/Constants');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
-const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
 const { createLogger } = require('../core/Logger');
@@ -41,6 +26,8 @@ try { treeKill = require('tree-kill'); } catch { treeKill = (pid) => { try { pro
 
 // v4.10.0: Linux namespace isolation for process sandbox
 const { wrapCommand: _linuxWrap, getCapabilities: _linuxCaps } = require('./LinuxSandboxHelper');
+// v7.1.2: VM-mode delegate
+const { SandboxVMDelegate } = require('./SandboxVM');
 
 class Sandbox {
   constructor(rootDir) {
@@ -63,6 +50,9 @@ class Sandbox {
       'child_process', 'cluster', 'dgram', 'dns', 'net',
       'tls', 'http2', 'worker_threads', 'vm',
     ]);
+
+    // v7.1.2: VM-mode delegate
+    this._vm = new SandboxVMDelegate(this);
 
     this.allowedModules = new Set([
       'path', 'url', 'querystring', 'util', 'assert',
@@ -207,186 +197,15 @@ class Sandbox {
   }
 
   /**
-   * Execute code with injected context (e.g. async functions).
-   * v4.0.0: Hardened VM mode — frozen globals, no prototype pollution,
-   * restricted timers, explicit blocked identifiers.
+   * Execute code with injected context (VM mode).
+   * v7.1.2: Delegated to SandboxVMDelegate (composition extract).
    *
    * ⚠ SECURITY NOTE: vm.createContext is NOT a true sandbox — it runs
-   * in the same process and V8 isolate. Prototype chain escapes are
-   * theoretically possible. Use this mode ONLY for trusted/quick evals
-   * (e.g. tool result formatting). For untrusted/LLM-generated code,
-   * always use execute() which spawns a separate child process.
-   * Future: migrate to isolated-vm or worker_threads for process-level
-   * isolation with VM-like speed.
-   * FIX v4.12.7 (Audit-10): Migration candidates ranked by isolation/speed:
-   *   1. isolated-vm (npm) — separate V8 isolate, ~10ms startup, true memory isolation
-   *   2. worker_threads  — separate thread, full Node API, ~50ms startup
-   *   3. WebAssembly sandbox (experimental) — strongest isolation, limited API
-   *
-   * FIX v4.12.3 (S-03): Added runtime guard — callers must pass
-   * { trusted: true } to explicitly acknowledge the same-process risk.
-   * Code is also pre-scanned by CodeSafetyScanner for dangerous patterns.
+   * in the same process. Use { trusted: true } to explicitly acknowledge.
+   * For untrusted/LLM-generated code, use execute() (child process).
    */
   async executeWithContext(code, context = {}, options = {}) {
-    const { timeout = this.timeout, trusted = false } = options;
-
-    // FIX v4.12.3 (S-03): Reject if caller did not explicitly opt in
-    if (!trusted) {
-      throw new Error(
-        '[SANDBOX] executeWithContext() requires { trusted: true }. ' +
-        'This mode runs in the same V8 isolate and is NOT a security boundary. ' +
-        'For untrusted/LLM-generated code, use execute() (child process) instead.'
-      );
-    }
-
-    // FIX v5.1.0 (A-1): Use injected scanner instead of direct require.
-    // Eliminates cross-phase coupling (foundation → intelligence).
-    try {
-      if (this._codeSafety) {
-        const scanResult = this._codeSafety.scanCode(code);
-        if (scanResult.blocked && scanResult.blocked.length > 0) {
-          const reasons = scanResult.blocked.map(b => b.description).join('; ');
-          return { output: null, error: `[SANDBOX] Code blocked by safety scanner: ${reasons}`, duration: 0, mode: 'vm-blocked' };
-        }
-      }
-    } catch (_scanErr) {
-      _log.debug('[SANDBOX] CodeSafetyScanner not available for pre-scan:', _scanErr.message);
-    }
-    const startTime = Date.now();
-    const logs = [];
-    const nonce = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    this._executionNonces.add(nonce);
-
-    this._audit('executeWithContext', Object.keys(context).join(', '));
-
-    // v4.0.0: Build a minimal, frozen sandbox environment
-    const logFn = (...args) => {
-      if (logs.length > 1000) return; // Cap log buffer to prevent memory bomb
-      logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
-    };
-    const timerHandles = new Set();
-
-    // FIX v4.10.0 (S-7): Deep-freeze all exposed builtins.
-    // Object.freeze() is shallow — without this, VM code can mutate
-    // Array.prototype, Object.prototype, etc. which persist within
-    // the context. We create frozen copies of the prototype chains
-    // for all exposed constructors.
-    const _deepFreeze = (obj, seen = new WeakSet()) => {
-      if (obj == null || typeof obj !== 'object' && typeof obj !== 'function') return obj;
-      if (seen.has(obj)) return obj;
-      seen.add(obj);
-      try { Object.freeze(obj); } catch (_e) { _log.debug('[catch] some builtins resist:', _e.message); }
-      // Freeze prototype chain
-      const proto = Object.getPrototypeOf(obj);
-      if (proto && proto !== Object.prototype) _deepFreeze(proto, seen);
-      // Freeze own property values (only enumerable + non-enumerable descriptors)
-      for (const key of Object.getOwnPropertyNames(obj)) {
-        try {
-          const desc = Object.getOwnPropertyDescriptor(obj, key);
-          if (desc && desc.value && (typeof desc.value === 'object' || typeof desc.value === 'function')) {
-            _deepFreeze(desc.value, seen);
-          }
-        } catch (_e) { _log.debug('[catch] skip non-configurable:', _e.message); }
-      }
-      return obj;
-    };
-
-    // Create safe copies of constructors with frozen prototypes
-    // so VM code cannot pollute the host's prototypes
-    const safeCopy = (Ctor) => {
-      const copy = Object.create(null);
-      for (const key of Object.getOwnPropertyNames(Ctor)) {
-        try { copy[key] = Ctor[key]; } catch (_e) { _log.debug('[catch] skip:', _e.message); }
-      }
-      // FIX v6.0.3 (M-7): Create fully independent prototype — not linked to original.
-      // Previous: Object.create(Ctor.prototype) — shared __proto__ chain meant
-      // mutations could propagate if _deepFreeze failed on certain builtins.
-      // Now: copy all own properties into a null-prototype object.
-      const proto = Object.create(null);
-      try {
-        for (const key of Object.getOwnPropertyNames(Ctor.prototype)) {
-          try {
-            const desc = Object.getOwnPropertyDescriptor(Ctor.prototype, key);
-            if (desc) Object.defineProperty(proto, key, desc);
-          } catch (_e) { _log.debug('[catch] proto skip:', _e.message); }
-        }
-      } catch (_e) { _log.debug('[catch] proto iter:', _e.message); }
-      copy.prototype = proto;
-      _deepFreeze(copy);
-      return copy;
-    };
-
-    const sandbox = {
-      console: Object.freeze({
-        log: logFn, error: logFn, warn: logFn, info: logFn, debug: logFn,
-      }),
-      // Expose frozen constructor copies — prevents prototype pollution
-      // of the host's builtins from within the VM context
-      JSON: _deepFreeze({ parse: JSON.parse, stringify: JSON.stringify }),
-      Math: _deepFreeze(Object.create(Math)),
-      // FIX v4.10.0 (Audit P2-03): All constructors via safeCopy() — prevents
-      // prototype pollution that would persist within the VM context.
-      // Previously Date, Array, Object etc. were passed as direct references.
-      Date: safeCopy(Date), Array: safeCopy(Array), Object: safeCopy(Object),
-      String: safeCopy(String), Number: safeCopy(Number), Boolean: safeCopy(Boolean),
-      Map: safeCopy(Map), Set: safeCopy(Set), WeakMap: safeCopy(WeakMap),
-      WeakSet: safeCopy(WeakSet), Promise: safeCopy(Promise),
-      RegExp: safeCopy(RegExp), Error: safeCopy(Error),
-      parseInt, parseFloat, isNaN, isFinite,
-      Buffer: safeCopy(Buffer),
-      setTimeout: (fn, ms) => {
-        const h = setTimeout(fn, Math.min(ms, timeout));
-        timerHandles.add(h);
-        return h;
-      },
-      clearTimeout: (h) => { timerHandles.delete(h); clearTimeout(h); },
-      TextEncoder, TextDecoder,
-    };
-
-    // Explicitly block dangerous globals
-    for (const blocked of ['process', 'require', 'module', 'global', 'globalThis',
-                           '__dirname', '__filename', 'eval', 'Function']) {
-      sandbox[blocked] = undefined;
-    }
-
-    // Freeze the sandbox to prevent prototype pollution
-    const vmContext = vm.createContext(Object.freeze(sandbox));
-
-    try {
-      const script = new vm.Script(code, /** @type {*} */ ({
-        filename: 'mcp-code-mode.js',
-        timeout: Math.min(timeout, 30000), // Hard cap at 30s for VM mode
-      }));
-      const fn = script.runInContext(vmContext, { timeout: Math.min(timeout, 30000) });
-
-      if (typeof fn !== 'function') {
-        return { output: String(fn), error: null, duration: Date.now() - startTime, mode: 'vm' };
-      }
-
-      const contextArgs = Object.values(context);
-      const resultPromise = fn(...contextArgs);
-      // FIX v4.0.0: Track timeout handle so it can be cleared in finally block
-      let _timeoutHandle;
-      const timeoutPromise = new Promise((_, reject) => {
-        _timeoutHandle = setTimeout(() => reject(new Error(`Timeout after ${timeout}ms`)), timeout);
-      });
-      const result = await Promise.race([resultPromise, timeoutPromise]);
-      clearTimeout(_timeoutHandle); // Clean up winning race's loser
-
-      const output = result !== undefined
-        ? (typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result))
-        : logs.join('\n');
-
-      return { output, error: null, duration: Date.now() - startTime, mode: 'vm' };
-
-    } catch (err) {
-      return { output: logs.join('\n') || '', error: err.message, duration: Date.now() - startTime, mode: 'vm' };
-    } finally {
-      // v4.0.0: Clean up leaked timers
-      for (const h of timerHandles) clearTimeout(h);
-      timerHandles.clear();
-      this._executionNonces.delete(nonce);
-    }
+    return this._vm.executeWithContext(code, context, options);
   }
 
   async testPatch(filePath, newCode) {

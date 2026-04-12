@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/release.js (v5.9.3)
+// GENESIS — scripts/release.js (v7.1.2)
 //
-// Automated release helper. Bumps version in all 7 locations,
-// validates CI gates, and outputs git commands.
+// Automated release helper. Bumps version in all locations,
+// auto-updates README badges from live stats, validates CI
+// gates, and outputs git commands.
 //
 // Usage:
-//   node scripts/release.js 5.9.4
-//   node scripts/release.js 5.9.4 --dry-run   — preview only
-//   node scripts/release.js 5.9.4 --skip-ci   — skip CI checks
+//   node scripts/release.js 7.1.3
+//   node scripts/release.js 7.1.3 --dry-run   — preview only
+//   node scripts/release.js 7.1.3 --skip-ci   — skip CI checks
 //
 // Version locations (6):
 //   1. package.json
 //   2. package-lock.json (2 entries)
-//   3. README.md badge
+//   3. README.md badge (version + live stats: tests, fitness, modules, services, events)
 //   4. docs/banner.svg
 //   5. McpTransport.js clientInfo
 //   6. CHANGELOG.md (validates entry exists)
@@ -137,13 +138,71 @@ if (fs.existsSync(lockPath)) {
   console.log(`  ✅ package-lock.json (${count} entries)`);
 }
 
-// 3. README.md badge
+// 3. README.md badge — version
 replaceInFile(
   path.join(ROOT, 'README.md'),
   `version-${oldVersion}`,
   `version-${newVersion}`,
   'badge'
 );
+
+// 3b. README.md badges — live stats (tests, fitness, modules, services, events)
+{
+  const readmePath = path.join(ROOT, 'README.md');
+  let readme = fs.readFileSync(readmePath, 'utf-8');
+  const badgeUpdates = [];
+
+  // Tests: count test files × ~15 avg (rough) — or parse from last CI run
+  try {
+    const testFiles = fs.readdirSync(path.join(ROOT, 'test', 'modules')).filter(f => f.endsWith('.test.js') || f.endsWith('.test.mjs'));
+    // Use the count from ARCHITECTURE.md or CHANGELOG.md as source of truth
+    const archDoc = fs.readFileSync(path.join(ROOT, 'ARCHITECTURE.md'), 'utf-8');
+    const testMatch = archDoc.match(/~?(\d[\d,]+)\s*tests/);
+    if (testMatch) {
+      const count = testMatch[1].replace(/,/g, '');
+      readme = readme.replace(/tests-~?\d+%20passing/g, `tests-~${count}%20passing`);
+      badgeUpdates.push(`tests: ~${count}`);
+    }
+  } catch { /* best effort */ }
+
+  // Fitness: parse from architectural-fitness.js maxScore
+  try {
+    const fitnessScript = fs.readFileSync(path.join(ROOT, 'scripts', 'architectural-fitness.js'), 'utf-8');
+    const checkCount = (fitnessScript.match(/^check\(/gm) || []).length;
+    const maxScore = checkCount * 10;
+    readme = readme.replace(/fitness-\d+%2F\d+/g, `fitness-${maxScore}%2F${maxScore}`);
+    badgeUpdates.push(`fitness: ${maxScore}/${maxScore}`);
+  } catch { /* best effort */ }
+
+  // Modules: count source files (excl vendor)
+  try {
+    const count = execSync(`find src -name "*.js" -not -path "*/vendor/*" | wc -l`, { cwd: ROOT, encoding: 'utf-8' }).trim();
+    readme = readme.replace(/modules-\d+-/g, `modules-${count}-`);
+    badgeUpdates.push(`modules: ${count}`);
+  } catch { /* best effort */ }
+
+  // Services: count containerConfig
+  try {
+    const count = execSync(`grep -rl "containerConfig" src/agent/ | wc -l`, { cwd: ROOT, encoding: 'utf-8' }).trim();
+    const manifestCount = execSync(`grep -c "^\\s*\\['" src/agent/manifest/phase*.js | awk -F: '{s+=$2}END{print s}'`, { cwd: ROOT, encoding: 'utf-8' }).trim();
+    const total = manifestCount || count;
+    readme = readme.replace(/services-\d+-/g, `services-${total}-`);
+    badgeUpdates.push(`services: ${total}`);
+  } catch { /* best effort */ }
+
+  // Events: count from EventTypes.js
+  try {
+    const evtSrc = fs.readFileSync(path.join(ROOT, 'src', 'agent', 'core', 'EventTypes.js'), 'utf-8');
+    const evtCount = (evtSrc.match(/'[a-z][\w-]*:[a-z][\w-]*'/g) || []).length;
+    readme = readme.replace(/events-\d+-/g, `events-${evtCount}-`);
+    badgeUpdates.push(`events: ${evtCount}`);
+  } catch { /* best effort */ }
+
+  if (badgeUpdates.length > 0 && !DRY_RUN) {
+    fs.writeFileSync(readmePath, readme, 'utf-8');
+  }
+  console.log(`  ✅ README.md badges (${badgeUpdates.join(', ') || 'no changes'})`);
+}
 
 // 4. docs/banner.svg
 replaceInFile(

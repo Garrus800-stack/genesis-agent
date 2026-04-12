@@ -99,14 +99,14 @@ describe('AgentLoop — Initialization', () => {
 describe('AgentLoop — Cognitive Level Reporting', () => {
   test('reports NONE when no cognitive services bound', () => {
     const loop = createAgentLoop();
-    loop._reportCognitiveLevel();
+    loop.cognition.reportCognitiveLevel();
     assertEqual(loop._cognitiveLevel, 'NONE');
   });
 
   test('reports PARTIAL when some cognitive services bound', () => {
     const loop = createAgentLoop();
     loop.verifier = { verify: async () => ({ valid: true }) };
-    loop._reportCognitiveLevel();
+    loop.cognition.reportCognitiveLevel();
     assertEqual(loop._cognitiveLevel, 'PARTIAL');
   });
 
@@ -115,7 +115,7 @@ describe('AgentLoop — Cognitive Level Reporting', () => {
     loop.verifier = {};
     loop.formalPlanner = {};
     loop.worldState = {};
-    loop._reportCognitiveLevel();
+    loop.cognition.reportCognitiveLevel();
     assertEqual(loop._cognitiveLevel, 'FULL');
   });
 });
@@ -131,7 +131,7 @@ describe('AgentLoop — Pursue Guard Rails', () => {
 
   test('strict mode blocks pursue without cognitive services', async () => {
     const loop = createAgentLoop({ strictCognitiveMode: true });
-    loop._reportCognitiveLevel();
+    loop.cognition.reportCognitiveLevel();
     const result = await loop.pursue('test goal');
     assertEqual(result.success, false);
     assert(result.error.includes('Strict cognitive mode') || result.error.includes('missing'));

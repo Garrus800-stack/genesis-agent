@@ -1,40 +1,15 @@
 // @ts-checked-v6.0
 // ============================================================
-// GENESIS — AdaptiveStrategy.js (v6.0.2 — V6-12)
+// GENESIS — AdaptiveStrategy.js (v7.1.2 — Composition Refactor)
+//
+// v7.1.2: Diagnose/propose/apply logic extracted to
+// AdaptiveStrategyApply.js delegate. This file retains the
+// orchestration loop, validation, confirm/rollback, lifecycle,
+// and public API.
 //
 // The meta-cognitive feedback loop: SelfModel detects weaknesses,
 // AdaptiveStrategy proposes compensating adaptations, QuickBenchmark
 // validates them, and results feed back into SelfModel.
-//
-// PROBLEM: CognitiveSelfModel (V6-11) detects biases and backend
-// mismatches, but no system acts on those findings. PromptEvolution
-// can evolve prompt sections, but nobody tells it WHAT to improve.
-// ModelRouter routes by heuristic, ignoring empirical evidence.
-// Genesis diagnoses but never prescribes.
-//
-// SOLUTION: A reactive bridge with three adaptation strategies:
-//
-//   1. PROMPT MUTATION — bias pattern → hypothesis → experiment
-//      Trigger: SelfModel.getBiasPatterns() returns severity >= medium
-//      Action:  PromptEvolution.startExperiment(section, text, hypothesis)
-//
-//   2. BACKEND ROUTING — strength map → ModelRouter injection
-//      Trigger: SelfModel.getBackendStrengthMap() confidence delta > 15%
-//      Action:  ModelRouter.injectEmpiricalStrength(strengthMap)
-//
-//   3. TEMPERATURE SIGNAL — capability profile → OnlineLearner
-//      Trigger: SelfModel.getCapabilityProfile() isWeak/isStrong flags
-//      Action:  OnlineLearner.receiveWeaknessSignal(taskType, isWeak)
-//
-// Every adaptation follows: PROPOSED → APPLIED → VALIDATED → CONFIRMED | ROLLED_BACK
-// Every hypothesis is tested. Every test has a rollback.
-//
-// Integration:
-//   - Registered in phase9 manifest, late-bound to all targets
-//   - IdleMind 'calibrate' activity triggers runCycle()
-//   - CLI: /adapt, /adaptations
-//   - Events: adaptation:proposed, :applied, :validated, :rolled-back
-//   - LessonsStore: every confirmed/rolled-back adaptation stored as lesson
 //
 // Principle: Diagnose → Prescribe → Measure → Learn. Repeat.
 // ============================================================
@@ -43,57 +18,23 @@
 
 const { createLogger } = require('../core/Logger');
 const { NullBus } = require('../core/EventBus');
+// v7.1.2: Composition delegate
+const { AdaptiveStrategyApplyDelegate, STATUS } = require('./AdaptiveStrategyApply');
 
 const _log = createLogger('AdaptiveStrategy');
 
 // ── Adaptation cooldowns and thresholds ─────────────────────
 
 const DEFAULTS = {
-  cooldownMs:          30 * 60 * 1000,  // 30 min between same-type adaptations
-  minOutcomes:         10,              // Minimum SelfModel outcomes before adapting
-  regressionThreshold: -0.05,           // 5pp regression triggers rollback
-  noiseMargin:         0.02,            // 2pp noise margin for confirm
-  budgetFloor:         0.20,            // 20% CostGuard budget floor for validation
-  maxHistory:          200,             // Max stored adaptation records
-  maxActiveAdaptations: 1,              // Max concurrent adaptations
-  empiricalStrengthMinDelta: 0.15,      // 15% confidence delta for backend injection
-  dataMaxAgeMs:        7 * 24 * 3600_000, // 7 days
-};
-
-// ── Bias → Prompt Section mapping ───────────────────────────
-// Each bias pattern maps to a prompt section and a compensation hypothesis.
-// These are deterministic (no LLM) — the LLM only generates the variant text.
-
-const BIAS_HYPOTHESES = {
-  'scope-underestimate': {
-    section: 'solutions',
-    hypothesis: 'Break complex tasks into explicit sub-steps before executing. Estimate 2× the steps you think are needed.',
-  },
-  'token-overuse': {
-    section: 'formatting',
-    hypothesis: 'Be concise. Prefer direct answers over exploratory reasoning. Target 50% fewer tokens.',
-  },
-  'error-repetition': {
-    section: 'metacognition',
-    // {topError} replaced at runtime with actual top error category
-    hypothesis: 'Before executing, check if this error category has occurred before: {topError}. Apply the inverse strategy.',
-  },
-  'backend-mismatch': {
-    section: 'optimizer',
-    // {taskType}, {recommendedBackend}, {confidence} replaced at runtime
-    hypothesis: 'For {taskType} tasks, prefer {recommendedBackend} which has {confidence}% empirical confidence.',
-  },
-};
-
-// ── Adaptation states ───────────────────────────────────────
-
-const STATUS = {
-  PROPOSED:           'proposed',
-  APPLIED:            'applied',
-  VALIDATING:         'validating',
-  CONFIRMED:          'confirmed',
-  ROLLED_BACK:        'rolled-back',
-  APPLIED_UNVALIDATED: 'applied-unvalidated',
+  cooldownMs:          30 * 60 * 1000,
+  minOutcomes:         10,
+  regressionThreshold: -0.05,
+  noiseMargin:         0.02,
+  budgetFloor:         0.20,
+  maxHistory:          200,
+  maxActiveAdaptations: 1,
+  empiricalStrengthMinDelta: 0.15,
+  dataMaxAgeMs:        7 * 24 * 3600_000,
 };
 
 class AdaptiveStrategy {
@@ -133,6 +74,9 @@ class AdaptiveStrategy {
 
     /** @type {Array<Function>} */
     this._unsubs = [];
+
+    // v7.1.2: Composition delegate for diagnose/propose/apply
+    this._applyDelegate = new AdaptiveStrategyApplyDelegate(this);
   }
 
   static containerConfig = {
@@ -225,7 +169,7 @@ class AdaptiveStrategy {
     }
 
     // Step 1: Diagnose — gather SelfModel data
-    const diagnosis = this._diagnose();
+    const diagnosis = this._applyDelegate.diagnose();
     if (!diagnosis) {
       _log.info('[ADAPT] No actionable findings — all metrics stable');
       this.bus.emit('adaptation:cycle-complete', {
@@ -235,7 +179,7 @@ class AdaptiveStrategy {
     }
 
     // Step 2: Propose — select best adaptation
-    const proposal = this._propose(diagnosis);
+    const proposal = this._applyDelegate.propose(diagnosis);
     if (!proposal) {
       _log.info('[ADAPT] No viable adaptation — all options on cooldown or unavailable');
       return null;
@@ -269,124 +213,8 @@ class AdaptiveStrategy {
   }
 
   // ════════════════════════════════════════════════════════
-  // STEP 1: DIAGNOSE
+  // STEP 1-2: DIAGNOSE + PROPOSE — delegated to AdaptiveStrategyApplyDelegate
   // ════════════════════════════════════════════════════════
-
-  /** @private */
-  _diagnose() {
-    if (!this.cognitiveSelfModel) return null; // TSC null-narrowing
-    const windowMs = this._config.dataMaxAgeMs;
-
-    // Check minimum data threshold
-    const profile = this.cognitiveSelfModel.getCapabilityProfile({ windowMs });
-    const totalSamples = Object.values(profile).reduce((s, e) => s + e.sampleSize, 0);
-    if (totalSamples < this._config.minOutcomes) {
-      _log.debug(`[ADAPT] Insufficient data: ${totalSamples} < ${this._config.minOutcomes} outcomes`);
-      return null;
-    }
-
-    // Gather all signals
-    const biases = this.cognitiveSelfModel.getBiasPatterns({ windowMs });
-    const backendMap = this.cognitiveSelfModel.getBackendStrengthMap({ windowMs });
-    const weaknesses = Object.entries(profile).filter(([, e]) => e.isWeak);
-    const strengths = Object.entries(profile).filter(([, e]) => e.isStrong);
-
-    // Any actionable signal?
-    const hasActionableBias = biases.some(b => b.severity === 'high' || b.severity === 'medium');
-    const hasBackendMismatch = this._hasSignificantBackendDelta(backendMap);
-    const hasWeakness = weaknesses.length > 0;
-
-    if (!hasActionableBias && !hasBackendMismatch && !hasWeakness) {
-      return null;
-    }
-
-    return { biases, backendMap, profile, weaknesses, strengths };
-  }
-
-  // ════════════════════════════════════════════════════════
-  // STEP 2: PROPOSE
-  // ════════════════════════════════════════════════════════
-
-  /** @private */
-  _propose(diagnosis) {
-    const candidates = [];
-
-    // A) Prompt mutations from bias patterns
-    for (const bias of diagnosis.biases) {
-      if (bias.severity !== 'high' && bias.severity !== 'medium') continue;
-      const mapping = BIAS_HYPOTHESES[bias.name];
-      if (!mapping) continue;
-      if (this._isOnCooldown(`prompt-mutation:${bias.name}`)) continue;
-      if (!this.promptEvolution) continue;
-
-      let hypothesis = mapping.hypothesis;
-
-      // Substitute runtime values into hypothesis template
-      if (bias.name === 'error-repetition') {
-        const topError = bias.evidence.split('(')[0]?.trim() || 'unknown';
-        hypothesis = hypothesis.replace('{topError}', topError);
-      } else if (bias.name === 'backend-mismatch') {
-        const parts = bias.evidence.split(':');
-        const taskType = parts[0]?.trim() || 'unknown';
-        const backends = parts[1]?.trim() || '';
-        const recommended = backends.split(' ')[0] || 'unknown';
-        hypothesis = hypothesis
-          .replace('{taskType}', taskType)
-          .replace('{recommendedBackend}', recommended)
-          .replace('{confidence}', '');
-      }
-
-      candidates.push({
-        type: 'prompt-mutation',
-        priority: bias.severity === 'high' ? 3 : 2,
-        bias: bias.name,
-        section: mapping.section,
-        hypothesis,
-        evidence: bias.evidence,
-      });
-    }
-
-    // B) Backend routing injection
-    if (this.modelRouter && this._hasSignificantBackendDelta(diagnosis.backendMap)) {
-      if (!this._isOnCooldown('backend-routing')) {
-        candidates.push({
-          type: 'backend-routing',
-          priority: 2,
-          backendMap: diagnosis.backendMap,
-          evidence: this._summarizeBackendMap(diagnosis.backendMap),
-        });
-      }
-    }
-
-    // C) Temperature signals for weak task types
-    if (this.onlineLearner && diagnosis.weaknesses.length > 0) {
-      for (const [taskType] of diagnosis.weaknesses) {
-        if (this._isOnCooldown(`temp-signal:${taskType}`)) continue;
-
-        candidates.push({
-          type: 'temp-signal',
-          priority: 1,
-          taskType,
-          isWeak: true,
-          evidence: `${taskType} isWeak (Wilson floor < 60%)`,
-        });
-      }
-    }
-
-    if (candidates.length === 0) return null;
-
-    // Select highest-priority candidate
-    candidates.sort((a, b) => b.priority - a.priority);
-
-    // Skip if the top candidate was recently tried and failed
-    const top = candidates[0];
-    if (this._wasRecentlyRolledBack(top)) {
-      _log.debug(`[ADAPT] Top candidate "${top.type}:${top.bias || top.taskType}" was recently rolled back — trying next`);
-      return candidates[1] || null;
-    }
-
-    return top;
-  }
 
   // ════════════════════════════════════════════════════════
   // STEP 3: APPLY
@@ -415,7 +243,7 @@ class AdaptiveStrategy {
       baselineScore: null,
       postScore: null,
       delta: null,
-      revert: null, // not persisted — runtime only
+      revert: null,
     };
 
     this.stats.proposed++;
@@ -426,22 +254,9 @@ class AdaptiveStrategy {
 
     _log.info(`[ADAPT] Proposed: ${record.type} — ${record.evidence}`);
 
-    // Apply based on type
+    // v7.1.2: Strategy application delegated
     try {
-      switch (proposal.type) {
-        case 'prompt-mutation':
-          record.revert = await this._applyPromptMutation(proposal);
-          break;
-        case 'backend-routing':
-          record.revert = this._applyBackendRouting(proposal);
-          break;
-        case 'temp-signal':
-          record.revert = this._applyTempSignal(proposal);
-          break;
-        default:
-          _log.warn(`[ADAPT] Unknown adaptation type: ${proposal.type}`);
-          return null;
-      }
+      record.revert = await this._applyDelegate.applyStrategy(proposal);
     } catch (err) {
       _log.warn(`[ADAPT] Application failed: ${err.message}`);
       return null;
@@ -456,7 +271,6 @@ class AdaptiveStrategy {
     record.appliedAt = Date.now();
     this.stats.applied++;
 
-    // Set cooldown
     const cooldownKey = record.bias
       ? `${record.type}:${record.bias}`
       : record.taskType
@@ -473,82 +287,6 @@ class AdaptiveStrategy {
 
     _log.info(`[ADAPT] Applied: ${record.type} — ${record.evidence}`);
     return record;
-  }
-
-  // ── Apply helpers ─────────────────────────────────────
-
-  /**
-   * @private
-   * @returns {Promise<Function|null>} Revert function
-   */
-  async _applyPromptMutation(proposal) {
-    if (!this.promptEvolution) return null;
-
-    // Get current section text from PromptEvolution
-    const current = this.promptEvolution.getSection(proposal.section, '');
-    if (!current || !current.text) {
-      _log.debug(`[ADAPT] No current text for section "${proposal.section}"`);
-      return null;
-    }
-
-    const result = await this.promptEvolution.startExperiment(
-      proposal.section, current.text, proposal.hypothesis
-    );
-
-    if (!result) {
-      _log.debug('[ADAPT] PromptEvolution did not start experiment');
-      return null;
-    }
-
-    _log.info(`[ADAPT] PromptEvolution experiment started: ${result.variantId}`);
-
-    // Revert: abort the experiment
-    return () => {
-      try {
-        if (this.promptEvolution._experiments?.[proposal.section]) {
-          this.promptEvolution._experiments[proposal.section].status = 'aborted';
-          _log.info(`[ADAPT] Reverted prompt mutation for "${proposal.section}"`);
-        }
-      } catch (err) {
-        _log.warn(`[ADAPT] Revert failed: ${err.message}`);
-      }
-    };
-  }
-
-  /** @private */
-  _applyBackendRouting(proposal) {
-    if (!this.modelRouter) return null;
-
-    // Inject empirical strength data
-    this.modelRouter.injectEmpiricalStrength(proposal.backendMap);
-
-    _log.info('[ADAPT] Backend strength map injected into ModelRouter');
-
-    // Revert: clear empirical data
-    return () => {
-      if (this.modelRouter) {
-        this.modelRouter._empiricalStrength = null;
-        this.modelRouter._empiricalStrengthAt = 0;
-        _log.info('[ADAPT] Reverted backend routing injection');
-      }
-    };
-  }
-
-  /** @private */
-  _applyTempSignal(proposal) {
-    if (!this.onlineLearner) return null;
-
-    this.onlineLearner.receiveWeaknessSignal(proposal.taskType, proposal.isWeak);
-
-    _log.info(`[ADAPT] Weakness signal sent for "${proposal.taskType}"`);
-
-    // Revert: send inverse signal
-    return () => {
-      if (this.onlineLearner) {
-        this.onlineLearner.receiveWeaknessSignal(proposal.taskType, false);
-        _log.info(`[ADAPT] Reverted weakness signal for "${proposal.taskType}"`);
-      }
-    };
   }
 
   // ════════════════════════════════════════════════════════
@@ -711,29 +449,6 @@ class AdaptiveStrategy {
     );
   }
 
-  /** @private */
-  _hasSignificantBackendDelta(backendMap) {
-    for (const rec of Object.values(backendMap)) {
-      if (rec.entries.length < 2) continue;
-      const best = rec.entries[0]?.confidence || 0;
-      const worst = rec.entries[rec.entries.length - 1]?.confidence || 0;
-      if (best - worst > this._config.empiricalStrengthMinDelta) return true;
-    }
-    return false;
-  }
-
-  /** @private */
-  _summarizeBackendMap(backendMap) {
-    const parts = [];
-    for (const [type, rec] of Object.entries(backendMap)) {
-      if (rec.entries.length >= 2) {
-        const best = rec.entries[0];
-        parts.push(`${type}: ${best.backend} ${Math.round(best.confidence * 100)}%`);
-      }
-    }
-    return parts.join(', ') || 'no significant deltas';
-  }
-
   /** @private Strip non-serializable fields */
   _serializableRecord(record) {
     const { revert, ...rest } = record;
@@ -753,7 +468,7 @@ class AdaptiveStrategy {
   }
 }
 
-module.exports = { AdaptiveStrategy, BIAS_HYPOTHESES, STATUS, DEFAULTS };
+module.exports = { AdaptiveStrategy, BIAS_HYPOTHESES: require('./AdaptiveStrategyApply').BIAS_HYPOTHESES, STATUS, DEFAULTS };
 
 // ── Type Definitions ──────────────────────────────────────
 

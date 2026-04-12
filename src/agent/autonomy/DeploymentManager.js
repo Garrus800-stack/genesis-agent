@@ -42,6 +42,7 @@ class DeploymentManager {
     /** @type {*} */ this.shell = shell;
     /** @type {*} */ this.healthMonitor = healthMonitor;
     /** @type {*} */ this.hotReloader = hotReloader;
+    /** @type {*} */ this._snapshotManager = null; // v7.1.2: injected via lateBinding (V7-4B real rollback)
 
     /** @type {{ defaultStrategy: DeployStrategy, healthTimeoutMs: number, maxRetries: number, stepDelayMs: number }} */
     this.config = {
@@ -63,7 +64,7 @@ class DeploymentManager {
     this.META = {
       id: 'deploymentManager',
       name: 'DeploymentManager',
-      version: '5.9.2',
+      version: '7.1.2',
       phase: 6,
       tags: ['autonomy', 'deployment', 'devops'],
     };
@@ -181,23 +182,26 @@ class DeploymentManager {
     }
 
     // FAIL-HONEST (v7.0.2): Refuse rollback when snapshot is a placeholder.
-    // Previous behavior silently set status='rolled-back' without restoring anything.
-    // Now we explicitly surface that rollback is not yet implemented.
     if ((/** @type {any} */ (snapshot)).placeholder) {
-      _log.warn(`[DEPLOY] Rollback unavailable for ${deploymentId.slice(0, 8)} - snapshot is placeholder (no real backup). Real rollback requires V7-4B SnapshotManager integration.`);
+      _log.warn(`[DEPLOY] Rollback unavailable for ${deploymentId.slice(0, 8)} — no SnapshotManager was available at deploy time.`);
       deployment.status = 'rollback-unavailable';
       this._rollbackSnapshots.delete(deploymentId);
       this.bus.fire('deploy:rollback-unavailable', {
         id: deploymentId,
         target: deployment.target,
-        reason: 'Snapshot is placeholder - no real backup was captured. Deploy failed without rollback.',
+        reason: 'Snapshot is placeholder — no SnapshotManager was available when deploy started.',
       }, { source: 'DeploymentManager' });
-      throw new Error(`Rollback unavailable: snapshot for ${deploymentId.slice(0, 8)} is a placeholder - no real backup exists`);
+      throw new Error(`Rollback unavailable: snapshot for ${deploymentId.slice(0, 8)} is a placeholder — no real backup exists`);
     }
 
     _log.info(`[DEPLOY] Rolling back ${deploymentId.slice(0, 8)}`);
     await this._step(deployment, 'rollback', async () => {
-      // V7-4B: Real restore from SnapshotManager will go here
+      // v7.1.2 (V7-4B): Real restore via SnapshotManager.
+      const snapshotName = snapshot.backup?.snapshotName;
+      if (snapshotName && this._snapshotManager) {
+        const result = this._snapshotManager.restore(snapshotName);
+        _log.info(`[DEPLOY] Restored snapshot "${snapshotName}" — ${result.restored} files`);
+      }
       this.bus.fire('deploy:rollback', {
         id: deploymentId,
         target: deployment.target,
@@ -404,17 +408,32 @@ class DeploymentManager {
   // ── Snapshot ──────────────────────────────────────────────
 
   async _createSnapshot(deploymentId, target) {
-    // FAIL-HONEST (v7.0.2): No real snapshot implementation yet.
-    // Stores a placeholder so rollback() can detect this and refuse
-    // instead of silently claiming success. Real snapshot-based rollback
-    // will be implemented in V7-4B via SnapshotManager integration.
+    const snapshotName = `deploy-${deploymentId.slice(0, 12)}`;
+
+    // v7.1.2: Real snapshot via SnapshotManager when available (V7-4B complete).
+    if (this._snapshotManager) {
+      try {
+        const meta = this._snapshotManager.create(snapshotName, `Pre-deploy backup for ${target}`);
+        this._rollbackSnapshots.set(deploymentId, {
+          backup: { target, createdAt: Date.now(), snapshotName: meta.name, fileCount: meta.fileCount },
+          timestamp: Date.now(),
+          placeholder: false,
+        });
+        _log.info(`[DEPLOY] Real snapshot "${meta.name}" created for ${deploymentId.slice(0, 8)} (${meta.fileCount} files)`);
+        return;
+      } catch (err) {
+        _log.warn(`[DEPLOY] SnapshotManager.create() failed: ${err.message} — falling back to placeholder`);
+      }
+    }
+
+    // Fallback: placeholder when SnapshotManager is unavailable or failed.
+    // rollback() will detect placeholder and refuse (fail-honest, v7.0.2).
     this._rollbackSnapshots.set(deploymentId, {
       backup: { target, createdAt: Date.now() },
       timestamp: Date.now(),
-      // @ts-expect-error - dynamic property
-      placeholder: true, // signals: no real data was captured
+      placeholder: true,
     });
-    _log.debug(`[DEPLOY] Snapshot placeholder created for ${deploymentId.slice(0, 8)} (no real backup - rollback will be refused)`);
+    _log.debug(`[DEPLOY] Snapshot placeholder created for ${deploymentId.slice(0, 8)} (no SnapshotManager — rollback will be refused)`);
   }
 
   // ── Pre-flight ────────────────────────────────────────────

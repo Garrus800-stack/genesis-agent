@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/coverage-ratchet.js (v5.9.2)
+// GENESIS — scripts/coverage-ratchet.js (v7.1.2)
 //
 // Reads c8 coverage output (text format) and ratchets up
 // thresholds in package.json to (actual - buffer).
 //
+// v7.1.2: Default buffer reduced 3 → 1 for tighter protection.
+// Only ratchets UP (never lowers thresholds, even if coverage drops).
+//
 // Usage:
 //   npm run test:coverage 2>&1 | node scripts/coverage-ratchet.js
 //   node scripts/coverage-ratchet.js --dry-run < coverage.txt
-//   node scripts/coverage-ratchet.js --buffer 5   (default: 3)
+//   node scripts/coverage-ratchet.js --buffer 2   (default: 1)
 // ============================================================
 
 'use strict';
@@ -19,7 +22,7 @@ const path = require('path');
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const bufferIdx = args.indexOf('--buffer');
-const buffer = bufferIdx >= 0 ? parseInt(args[bufferIdx + 1], 10) : 3;
+const buffer = bufferIdx >= 0 ? parseInt(args[bufferIdx + 1], 10) : 1;
 
 const PKG_PATH = path.join(__dirname, '..', 'package.json');
 
@@ -45,10 +48,20 @@ process.stdin.on('end', () => {
   const newBranches = Math.max(0, Math.floor(coverage.branches - buffer));
   const newFunctions = Math.max(0, Math.floor(coverage.functions - buffer));
 
+  // v7.1.2: Ratchet only goes UP — read current thresholds and take max
+  const pkg = fs.readFileSync(PKG_PATH, 'utf8');
+  const curLines = parseInt((pkg.match(/--lines (\d+)/) || [])[1] || '0', 10);
+  const curBranches = parseInt((pkg.match(/--branches (\d+)/) || [])[1] || '0', 10);
+  const curFunctions = parseInt((pkg.match(/--functions (\d+)/) || [])[1] || '0', 10);
+
+  const finalLines = Math.max(newLines, curLines);
+  const finalBranches = Math.max(newBranches, curBranches);
+  const finalFunctions = Math.max(newFunctions, curFunctions);
+
   console.log(`[RATCHET] New thresholds:`);
-  console.log(`  Lines:     ${newLines}%`);
-  console.log(`  Branches:  ${newBranches}%`);
-  console.log(`  Functions: ${newFunctions}%`);
+  console.log(`  Lines:     ${finalLines}%${finalLines > curLines ? ` (was ${curLines}%)` : ' (unchanged)'}`);
+  console.log(`  Branches:  ${finalBranches}%${finalBranches > curBranches ? ` (was ${curBranches}%)` : ' (unchanged)'}`);
+  console.log(`  Functions: ${finalFunctions}%${finalFunctions > curFunctions ? ` (was ${curFunctions}%)` : ' (unchanged)'}`);
 
   if (dryRun) {
     console.log('[RATCHET] Dry run — no changes written');
@@ -56,11 +69,10 @@ process.stdin.on('end', () => {
   }
 
   // Update package.json
-  const pkg = fs.readFileSync(PKG_PATH, 'utf8');
   const updated = pkg
-    .replace(/--lines \d+/g, `--lines ${newLines}`)
-    .replace(/--branches \d+/g, `--branches ${newBranches}`)
-    .replace(/--functions \d+/g, `--functions ${newFunctions}`);
+    .replace(/--lines \d+/g, `--lines ${finalLines}`)
+    .replace(/--branches \d+/g, `--branches ${finalBranches}`)
+    .replace(/--functions \d+/g, `--functions ${finalFunctions}`);
 
   if (updated === pkg) {
     console.log('[RATCHET] No changes needed — thresholds already current');

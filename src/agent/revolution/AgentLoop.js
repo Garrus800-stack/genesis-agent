@@ -117,38 +117,22 @@ class AgentLoop {
     this._currentStepPromise = null;
 
     // ── Approval Queue ───────────────────────────────────
-    // v7.6.0: Approval lifecycle moved to ApprovalGate delegate
-
-    // v3.5.0: Multi-agent delegation (late-bound by Container)
-    this.taskDelegation = null;
-
-    // v3.5.0: HTN Planner for pre-validation (late-bound)
-    this.htnPlanner = null;
-
-    // v3.5.0: Cognitive Agent modules (late-bound by Container)
-    this.verifier = null;        // VerificationEngine — programmatic truth
-    this.formalPlanner = null;   // FormalPlanner — typed actions + simulation
-    this.worldState = null;      // WorldState — environment model
-    this.episodicMemory = null;  // EpisodicMemory — temporal memory
-    this.metaLearning = null;    // MetaLearning — prompt strategy optimization
-
-    // v6.0.7: Earned Autonomy — trust-gated approval bypass
-    this.trustLevelSystem = null; // late-bound from phase 11
-
-    // v6.0.8: Symbolic resolution — bypass LLM for known solutions
-    this._symbolicResolver = null; // late-bound from phase 2
-
-    // v7.0.5: FailureTaxonomy — error classification (late-bound)
-    /** @type {*} */ this._failureTaxonomy = null;
-
-    // v7.0.3: Colony orchestration (late-bound)
-    /** @type {*} */ this._colonyOrchestrator = null;
+    // ── Late-bound services (injected by Container) ─────
+    this.taskDelegation = null;     // Multi-agent delegation
+    this.htnPlanner = null;         // HTN pre-validation
+    this.verifier = null;           // VerificationEngine
+    this.formalPlanner = null;      // FormalPlanner
+    this.worldState = null;         // WorldState
+    this.episodicMemory = null;     // EpisodicMemory
+    this.metaLearning = null;       // MetaLearning
+    this.trustLevelSystem = null;   // EarnedAutonomy (v6.0.7)
+    this._symbolicResolver = null;  // SymbolicResolver (v6.0.8)
+    /** @type {*} */ this._failureTaxonomy = null;    // v7.0.5
+    /** @type {*} */ this._colonyOrchestrator = null;  // v7.0.3
     /** @type {*} */ this.colonyInsights = null;
 
-    // v7.0.5: Approval delegate method — assigned by ApprovalGate, called from AgentLoopSteps
     /** @type {function(string, string): Promise<boolean>} */
     this._requestApproval = async () => true;
-
     this._unsubs = [];
 
     // v3.8.0: Composition delegates (replace prototype mixins)
@@ -161,43 +145,6 @@ class AgentLoop {
       trustLevelSystem: this.trustLevelSystem,
       timeoutMs: this._approvalTimeoutMs,
     });
-  }
-
-  // ════════════════════════════════════════════════════════
-  // COGNITIVE LEVEL DIAGNOSTIC (v3.5.3)
-  // ════════════════════════════════════════════════════════
-
-  /**
-   * FIX v3.5.3: Report cognitive level after late-bindings are wired.
-   * All 7 cognitive services are optional — if any fail to bind,
-   * the loop silently degrades to pre-v3.5.0 behavior (raw LLM
-   * planning without verification). This method logs the actual
-   * cognitive level so degradation is never silent.
-   */
-  _reportCognitiveLevel() {
-    const core = { verifier: this.verifier, formalPlanner: this.formalPlanner, worldState: this.worldState };
-    const extended = { episodicMemory: this.episodicMemory, metaLearning: this.metaLearning };
-    const auxiliary = { htnPlanner: this.htnPlanner, taskDelegation: this.taskDelegation };
-
-    const coreBound = Object.entries(core).filter(([, v]) => v != null).map(([k]) => k);
-    const extBound = Object.entries(extended).filter(([, v]) => v != null).map(([k]) => k);
-    const auxBound = Object.entries(auxiliary).filter(([, v]) => v != null).map(([k]) => k);
-    const coreMissing = Object.entries(core).filter(([, v]) => v == null).map(([k]) => k);
-
-    const level = coreBound.length === Object.keys(core).length ? 'FULL'
-      : coreBound.length > 0 ? 'PARTIAL' : 'NONE';
-
-    this._cognitiveLevel = level;
-
-    if (level !== 'FULL') {
-      _log.warn(`[AGENT-LOOP] Cognitive level: ${level} — bound: [${coreBound.join(', ')}], missing: [${coreMissing.join(', ')}]`);
-      this.bus.emit('agent:status', {
-        state: 'warning',
-        detail: `AgentLoop cognitive level: ${level} — missing: ${coreMissing.join(', ')}`,
-      }, { source: 'AgentLoop' });
-    } else {
-      _log.info(`[AGENT-LOOP] Cognitive level: FULL — core: [${coreBound.join(', ')}], extended: [${extBound.join(', ')}], aux: [${auxBound.join(', ')}]`);
-    }
   }
 
   // ════════════════════════════════════════════════════════
@@ -509,13 +456,7 @@ class AgentLoop {
   }
 
   // ════════════════════════════════════════════════════════
-  // PHASE 1: PLANNING (delegated to AgentLoopPlanner.js)
-  // ════════════════════════════════════════════════════════
-  // _planGoal, _llmPlanGoal, _salvagePlan, _inferStepType
-  // → mixed in via prototype at bottom of file
-
-  // ════════════════════════════════════════════════════════
-  // PHASE 2: EXECUTION LOOP
+  // EXECUTION LOOP
   // ════════════════════════════════════════════════════════
 
   async _executeLoop(plan, onProgress) {
@@ -554,7 +495,7 @@ class AgentLoop {
       });
 
       // ── THINK: Build context for this step ────────────
-      const context = await this._buildStepContext(step, i, steps, allResults);
+      const context = await this.recovery.buildStepContext(step, i, steps, allResults);
 
       // ── ACT: Execute the step ─────────────────────────
       /** @type {*} */ const result = await this.steps._executeStep(step, context, onProgress);
@@ -622,7 +563,7 @@ class AgentLoop {
         }, { source: 'AgentLoop' });
 
         // FIX v5.1.0 (SA-O2): FailureTaxonomy classification extracted
-        const recovery = await this._classifyAndRecover(step, result, i, onProgress);
+        const recovery = await this.recovery.classifyAndRecover(step, result, i, onProgress);
         if (recovery.action === 'retry') {
           i--; // Retry same step
           allResults.push({ retried: true, category: recovery.category });
@@ -666,7 +607,7 @@ class AgentLoop {
       // ── REFLECT: Should we adjust the plan? ───────────
       if (i < steps.length - 1 && (i + 1) % 3 === 0) {
         // Every 3 steps, check if the plan still makes sense
-        const adjustment = await this._reflectOnProgress(plan, allResults, i);
+        const adjustment = await this.recovery.reflectOnProgress(plan, allResults, i);
         if (adjustment && adjustment.newSteps) {
           // Replace remaining steps with adjusted plan
           steps.splice(i + 1, steps.length, ...adjustment.newSteps);
@@ -722,99 +663,6 @@ class AgentLoop {
   // → mixed in via prototype at bottom of file
 
   // ════════════════════════════════════════════════════════
-  // REFLECTION & REPAIR
-  // ════════════════════════════════════════════════════════
-
-  _buildStepContext(step, stepIndex, allSteps, previousResults) {
-    const recentResults = previousResults.slice(-3).map((r, i) => {
-      const stepNum = stepIndex - previousResults.slice(-3).length + i + 1;
-      return `Step ${stepNum}: ${r.error ? 'ERROR: ' + r.error : (r.output || '').slice(0, 200)}`;
-    }).join('\n');
-
-    // v4.12.4: Find the plan object to access consciousness context
-    const plan = this._currentPlan || {};
-    const consciousnessHint = plan._consciousnessContext
-      ? `\n${plan._consciousnessContext}`
-      : '';
-    const valueHint = plan._valueContext
-      ? `\nRELEVANT VALUES: ${plan._valueContext}`
-      : '';
-    // v5.2.0 (SA-P6): Working memory contents
-    const workspaceHint = this._workspace.buildContext(5);
-
-    return `You are Genesis, executing step ${stepIndex + 1}/${allSteps.length} of an autonomous plan.
-${recentResults ? '\nRecent results:\n' + recentResults : ''}${consciousnessHint}${valueHint}${workspaceHint ? '\n' + workspaceHint : ''}
-Current step: ${step.type} — ${step.description}
-${step.target ? 'Target: ' + step.target : ''}`;
-  }
-
-  async _reflectOnProgress(plan, results, currentStep) {
-    const recentErrors = results.slice(-3).filter(r => r.error);
-    if (recentErrors.length === 0) return null; // All going well
-
-    const prompt = `You are Genesis. You're ${currentStep + 1}/${plan.steps.length} steps into a plan.
-
-Goal: "${plan.title}"
-Success criteria: ${plan.successCriteria || 'Complete all steps'}
-
-Recent errors: ${recentErrors.map(r => r.error).join('; ')}
-
-Should the plan be adjusted? If yes, provide new remaining steps.
-Respond with JSON: { "adjust": true/false, "reason": "why", "newSteps": [...] }
-If no adjustment needed: { "adjust": false }`;
-
-    try {
-      const response = await this.model.chatStructured(prompt, [], 'analysis');
-      if (response.adjust && response.newSteps) {
-        return { reason: response.reason, newSteps: response.newSteps };
-      }
-    } catch (err) { _log.debug('[AGENT-LOOP] Persist error:', err.message); }
-    return null;
-  }
-
-  /**
-   * FIX v5.1.0 (SA-O2): Extracted from _executeLoop to reduce CC.
-   * Classifies the error via FailureTaxonomy and applies recovery strategy.
-   * @returns {Promise<*>}
-   */
-  async _classifyAndRecover(step, result, stepIndex, onProgress) {
-    try {
-      const ft = this.bus._container?.resolve?.('failureTaxonomy')
-        || (this._failureTaxonomy || null);
-      if (!ft) return { action: 'none' };
-
-      const taxonomy = ft.classify(result.error, {
-        actionType: step.type,
-        stepIndex,
-        goalId: this.currentGoalId,
-        model: this.model?.activeModel,
-        attempt: this.consecutiveErrors - 1,
-      });
-      onProgress({ phase: 'failure-classified', category: taxonomy.category, strategy: taxonomy.strategy });
-
-      if (taxonomy.strategy === 'retry_backoff' && taxonomy.retryConfig?.shouldRetry) {
-        const backoffMs = taxonomy.retryConfig.backoffMs || 2000;
-        onProgress({ phase: 'retry-backoff', waitMs: backoffMs });
-        await new Promise(r => setTimeout(r, backoffMs));
-        return { action: 'retry', category: taxonomy.category };
-      }
-
-      if (taxonomy.strategy === 'update_world_replan' && taxonomy.worldStateUpdates) {
-        try {
-          const ws = this.bus._container?.resolve?.('worldState');
-          if (ws) await ws.refresh();
-        } catch (_e) { _log.debug('[catch] worldState refresh:', _e.message); }
-      } else if (taxonomy.strategy === 'escalate_model' && taxonomy.escalation) {
-        try {
-          const mr = this.bus._container?.resolve?.('modelRouter');
-          if (mr) mr.escalate?.(step.type);
-        } catch (_e) { _log.debug('[catch] model escalation:', _e.message); }
-      }
-    } catch (_e) { _log.debug('[catch] FailureTaxonomy not available:', _e.message); }
-
-    return { action: 'none' };
-  }
-
   // ════════════════════════════════════════════════════════
   // CHATorchestrator INTEGRATION
   // ════════════════════════════════════════════════════════
@@ -825,7 +673,7 @@ If no adjustment needed: { "adjust": false }`;
    */
   registerHandlers(orchestrator) {
     // FIX v3.5.3: Report cognitive level after late-bindings are wired
-    this._reportCognitiveLevel();
+    this.cognition.reportCognitiveLevel();
 
     orchestrator.registerHandler('agent-goal', async (message, { history }) => {
       let fullResponse = '';
@@ -847,11 +695,5 @@ If no adjustment needed: { "adjust": false }`;
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-// v3.8.0: Prototype mixins removed. Planning and step-execution
-// are now composition delegates (this.planner, this.steps).
-// See AgentLoopPlanner.js and AgentLoopSteps.js for the
-// AgentLoopPlannerDelegate and AgentLoopStepsDelegate classes.
-// ═══════════════════════════════════════════════════════════
-
+// v3.8.0: Composition delegates (this.planner, this.steps, this.recovery, this.cognition).
 module.exports = { AgentLoop };

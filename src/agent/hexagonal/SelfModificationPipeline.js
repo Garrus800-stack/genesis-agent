@@ -34,14 +34,7 @@ function _atomicWriteFileSync(filePath, content, encoding = 'utf-8') {
   }
 }
 
-// ── Code Safety Scanner ─────────────────────────────────────
-// FIX v3.5.0: AST-based scanner replaces regex-only scanning.
-// Uses acorn to parse the syntax tree, catching obfuscated patterns
-// (string concatenation, variable aliasing, computed properties)
-// that regex alone cannot detect. Falls back to regex if acorn
-// is not installed.
-// FIX v5.1.0 (DI-1): CodeSafety injected via lateBinding (/** @type {any} */ (this)._codeSafety)
-// instead of direct cross-layer import from intelligence/.
+// v5.1.0: CodeSafety injected via lateBinding (_codeSafety), not direct import.
 
 class SelfModificationPipeline {
   constructor({ lang, bus,  selfModel, model, prompts, sandbox, reflector, skills, cloner,
@@ -63,45 +56,27 @@ class SelfModificationPipeline {
     this.rootDir = rootDir;
     this.astDiff = astDiff;
 
-    // v4.13.1 (Audit P1): VerificationEngine — late-bound from Container.
-    this.verifier = null; // late-bound
-    // v5.0.0: Genome + Metabolism — late-bound from Container.
-    this._genome = null;
-    this._metabolism = null;
-    // v7.6.0: AwarenessPort — coherence-gated self-modification
-    this._awareness = null;
-    // v5.5.0: PreservationInvariants — late-bound from Container.
-    // Semantic safety: detects modifications that weaken safety systems.
-    this._preservation = null;
+    // ── Late-bound services ───────────────────────────────
+    this.verifier = null;          // VerificationEngine
+    this._genome = null;           // Genome (v5.0.0)
+    this._metabolism = null;       // Metabolism (v5.0.0)
+    this._awareness = null;        // AwarenessPort (v7.6.0)
+    this._preservation = null;     // PreservationInvariants (v5.5.0)
 
-    // FIX v4.12.8: Self-modification circuit breaker.
+    // ── Circuit breaker (v4.12.8) ─────────────────────────
     this._consecutiveFailures = 0;
     this._frozen = false;
     this._frozenReason = null;
     this._circuitBreakerThreshold = 3;
-    /** @type {string|null} */ this._pendingRetry = null; // v5.9.1: Last failed operation for retry
-    /** @type {string|null} */ this._pendingRetryError = null;
-    /** @type {number} */ this._retryCount = 0;
+    this._pendingRetry = null;      // v5.9.1: last failed op for retry
+    this._pendingRetryError = null;
+    this._retryCount = 0;
 
-    // v6.1.0: Gate statistics — makes all decision points measurable.
-    // Answers: "Does ConsciousnessGate actually block anything?"
-    this._gateStats = {
-      totalAttempts: 0,
-      consciousnessBlocked: 0,
-      energyBlocked: 0,
-      circuitBreakerBlocked: 0,
-      passed: 0,
-      lastBlockedAt: null,
-      lastCoherence: null,
-    };
+    // ── Gate statistics (v6.1.0) ──────────────────────────
+    this._gateStats = { totalAttempts: 0, consciousnessBlocked: 0, energyBlocked: 0, circuitBreakerBlocked: 0, passed: 0, lastBlockedAt: null, lastCoherence: null };
   }
 
-  /**
-   * v5.0.0: Dynamic circuit breaker threshold based on Genome riskTolerance.
-   * High riskTolerance (0.8) → threshold 4 (more tolerant of failures).
-   * Low riskTolerance (0.2) → threshold 2 (freezes faster).
-   * Default (no genome): 3.
-   */
+  /** Dynamic circuit breaker threshold based on Genome riskTolerance (2–5, default 3). */
   _getCircuitBreakerThreshold() {
     if (!this._genome) return this._circuitBreakerThreshold;
     const risk = this._genome.trait('riskTolerance'); // 0–1
@@ -109,15 +84,8 @@ class SelfModificationPipeline {
   }
 
   /**
-   * v4.13.2 (Audit P1): Mandatory verification gate for all code writes.
-   * Runs VerificationEngine.verify() with type 'code' on the proposed new code.
-   * Returns { pass: true } or { pass: false, reason: string }.
-   *
-   * FAIL-CLOSED: If verifier is not bound or throws, the write is BLOCKED.
-   * Previous behaviour (v4.13.1) allowed writes when the verifier was missing
-   * (graceful degradation). This was a security gap — unverified self-modification
-   * is worse than no self-modification. The circuit breaker already handles the
-   * "self-mod unavailable" UX; this gate should never silently pass.
+   * Mandatory verification gate for all code writes. FAIL-CLOSED:
+   * if verifier is not bound or throws, the write is BLOCKED.
    */
   _verifyCode(filePath, newCode) {
     if (!this.verifier) {
@@ -142,16 +110,7 @@ class SelfModificationPipeline {
   }
 
   /**
-   * v5.5.0: Self-Preservation Invariants — semantic safety check.
-   * Compares old vs new code to detect modifications that would
-   * weaken Genesis's safety systems (rule removal, gate bypass, etc.).
-   *
-   * FAIL-CLOSED: If PreservationInvariants is not bound, the write proceeds
-   * (preserves backward compat). If bound and check throws, the write is BLOCKED.
-   *
-   * @param {string} filePath — relative path
-   * @param {string} oldCode — current contents
-   * @param {string} newCode — proposed contents
+   * Self-Preservation Invariants check. FAIL-CLOSED when bound and throws.
    * @returns {{ pass: boolean, reason?: string }}
    */
   _checkPreservation(filePath, oldCode, newCode) {
@@ -169,10 +128,7 @@ class SelfModificationPipeline {
     }
   }
 
-  /**
-   * Check if self-modification is frozen (circuit breaker tripped).
-   * @returns {{ frozen: boolean, reason: string|null, failures: number }}
-   */
+  /** Check if self-modification is frozen (circuit breaker tripped). */
   getCircuitBreakerStatus() {
     return {
       frozen: this._frozen,
@@ -182,14 +138,7 @@ class SelfModificationPipeline {
     };
   }
 
-  /**
-   * v6.1.0: Gate statistics — aggregated view of all self-modification gates.
-   * Answers: "Does ConsciousnessGate actually block anything?"
-   * v7.0.0: Added awarenessActive — false when NullAwareness (no-op) is in use,
-   * so dashboard consumers can distinguish "gate active, nothing blocked" from
-   * "gate inactive, counter is always 0 by design".
-   * @returns {{ totalAttempts: number, passed: number, blockRate: number, consciousnessBlockRate: number, consciousnessBlocked: number, energyBlocked: number, circuitBreakerBlocked: number, lastBlockedAt: number|null, lastCoherence: number|null, awarenessActive: boolean }}
-   */
+  /** Gate statistics — aggregated view of all self-modification gates. */
   getGateStats() {
     const { totalAttempts, consciousnessBlocked, passed } = this._gateStats;
     // Awareness is "active" when a real implementation is wired up.
@@ -209,9 +158,7 @@ class SelfModificationPipeline {
     };
   }
 
-  /**
-   * Reset the circuit breaker — called by user command or after explicit approval.
-   */
+  /** Reset the circuit breaker — called by user command or after explicit approval. */
   resetCircuitBreaker() {
     this._frozen = false;
     this._frozenReason = null;
@@ -220,17 +167,13 @@ class SelfModificationPipeline {
     this.bus.emit('selfmod:circuit-reset', {}, { source: 'SelfModPipeline' });
   }
 
-  /**
-   * Internal: record a successful modification (resets counter).
-   */
+  /** Record successful modification (resets counter). */
   _recordSuccess(file) {
     this._consecutiveFailures = 0;
     this.bus.emit('selfmod:success', { file }, { source: 'SelfModPipeline' });
   }
 
-  /**
-   * Internal: record a failed modification. If threshold reached, freeze.
-   */
+  /** Record failed modification. If threshold reached, freeze. */
   _recordFailure(reason) {
     this._consecutiveFailures++;
     const threshold = this._getCircuitBreakerThreshold();
@@ -285,7 +228,6 @@ class SelfModificationPipeline {
   }
 
   // ── INSPECT ──────────────────────────────────────────────
-
   inspect() {
     const sm = this.selfModel;
     const model = sm.getFullModel();
@@ -336,7 +278,6 @@ class SelfModificationPipeline {
   }
 
   // ── REFLECT (self-analysis with genuine LLM reasoning) ──
-
   async reflect(message) {
     this.bus.emit('agent:status', { state: 'thinking', detail: 'Self-reflection...' }, { source: 'SelfModPipeline' });
 
@@ -404,7 +345,6 @@ Be specific. Reference actual module names and actual limitations. Think like a 
   }
 
   // ── MODIFY ───────────────────────────────────────────────
-
   async modify(message) {
     this._gateStats.totalAttempts++;
 
@@ -675,7 +615,6 @@ Be specific. Reference actual module names and actual limitations. Think like a 
   }
 
   // ── CIRCUIT BREAKER RESET ───────────────────────────────
-
   handleCircuitReset() {
     if (!this._frozen) {
       return `Self-modification is not frozen. Circuit breaker status: ${this._consecutiveFailures}/${this._circuitBreakerThreshold} failures.`;
@@ -687,7 +626,6 @@ Be specific. Reference actual module names and actual limitations. Think like a 
   }
 
   // ── CREATE SKILL ─────────────────────────────────────────
-
   async createSkill(message) {
     this.bus.emit('agent:status', { state: 'creating-skill' }, { source: 'SelfModPipeline' });
 
@@ -724,7 +662,6 @@ Be specific. Reference actual module names and actual limitations. Think like a 
   }
 
   // ── CLONE ────────────────────────────────────────────────
-
   async clone(message, history) {
     this.bus.emit('agent:status', { state: 'cloning' }, { source: 'SelfModPipeline' });
     const result = await this.cloner.createClone({ improvements: message, conversation: history || [] });
@@ -733,7 +670,6 @@ Be specific. Reference actual module names and actual limitations. Think like a 
   }
 
   // ── GREETING ─────────────────────────────────────────────
-
   async _greeting(message) {
     // v5.1.0: Use LLM for natural greeting instead of static string.
     // Minimal system prompt — no consciousness/organism/knowledge overhead.
@@ -751,7 +687,6 @@ Be specific. Reference actual module names and actual limitations. Think like a 
   }
 
   // ── Helpers ──────────────────────────────────────────────
-
   _extractPatches(response) {
     const patches = [];
     const rx = /(?:\/\/\s*FILE:\s*(\S+)|---\s*(\S+\.js)\s*---)\n```(?:\w+)?\n([\s\S]+?)```/g;

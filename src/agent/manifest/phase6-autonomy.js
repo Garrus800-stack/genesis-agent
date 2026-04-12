@@ -128,9 +128,10 @@ function phase6(ctx, R) {
     ['deploymentManager', {
       phase: 6, deps: [], tags: ['autonomy', 'deployment', 'devops'],
       lateBindings: [
-        { prop: 'shell',         service: 'shellAgent',    optional: true },
-        { prop: 'healthMonitor', service: 'healthMonitor', optional: true },
-        { prop: 'hotReloader',   service: 'hotReloader',   optional: true },
+        { prop: 'shell',            service: 'shellAgent',      optional: true },
+        { prop: 'healthMonitor',    service: 'healthMonitor',   optional: true },
+        { prop: 'hotReloader',      service: 'hotReloader',     optional: true },
+        { prop: '_snapshotManager', service: 'snapshotManager', optional: true }, // v7.1.2: V7-4B real rollback
       ],
       factory: () => new (R('DeploymentManager').DeploymentManager)({ bus }),
     }],

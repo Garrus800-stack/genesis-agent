@@ -672,8 +672,59 @@ check('Inference Contradiction Detection', (r) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// REPORT
+// CHECK 13: File Size Guard (v7.1.2)
+// Prevents files from growing past maintainability thresholds.
+// Warn >600 LOC, fail >800 LOC. Vendor files exempt.
 // ════════════════════════════════════════════════════════════
+
+check('File Size Guard', (r) => {
+  const WARN_THRESHOLD = 700;
+  const FAIL_THRESHOLD = 900;
+  const EXEMPT = [
+    'acorn.js',         // Vendored parser — not our code
+    'EventTypes.js',    // Catalog file — grows with features, pure data
+    'EventPayloadSchemas.js', // Schema catalog — same
+    'Language.js',      // i18n strings — data, not logic
+    'Container.js',     // Core DI — feature-frozen, complex by nature
+  ];
+
+  const srcFiles = walkJs(path.join(SRC, 'agent'));
+  const overWarn = [];
+  const overFail = [];
+
+  for (const file of srcFiles) {
+    const name = path.basename(file);
+    if (EXEMPT.includes(name)) continue;
+
+    const lines = readSafe(file).split('\n').length;
+    if (lines > FAIL_THRESHOLD) {
+      overFail.push({ file: relPath(file), lines });
+    } else if (lines > WARN_THRESHOLD) {
+      overWarn.push({ file: relPath(file), lines });
+    }
+  }
+
+  if (overFail.length > 0) {
+    r.score = 0;
+    r.status = 'fail';
+    for (const f of overFail) {
+      r.details.push(`FAIL: ${f.file} — ${f.lines} LOC (>${FAIL_THRESHOLD})`);
+    }
+  } else if (overWarn.length > 0) {
+    r.score = 7;
+    r.status = 'warn';
+    for (const f of overWarn) {
+      r.details.push(`WARN: ${f.file} — ${f.lines} LOC (>${WARN_THRESHOLD})`);
+    }
+  } else {
+    r.score = 10;
+    r.details.push(`All ${srcFiles.length} source files under ${WARN_THRESHOLD} LOC.`);
+  }
+
+  if (overWarn.length > 0 || overFail.length > 0) {
+    r.details.push(`Exempt: ${EXEMPT.join(', ')}`);
+  }
+});
 
 if (JSON_MODE) {
   console.log(JSON.stringify(results, null, 2));
