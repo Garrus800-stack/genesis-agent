@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — Test Runner v2 (v7.1.1-r3)
+// GENESIS — Test Runner v2 (v7.1.3)
 // Runs both the legacy monolithic test suite AND new per-module
 // test files. Compatible with Node 18+ (uses node:test if available).
 //
@@ -28,7 +28,7 @@ const CONCURRENCY = 4;
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════╗');
-  console.log('║       GENESIS TEST SUITE v7.1.1          ║');
+  console.log('║       GENESIS TEST SUITE v7.1.3          ║');
   console.log('╚══════════════════════════════════════════╝\n');
 
   let totalPassed = 0;

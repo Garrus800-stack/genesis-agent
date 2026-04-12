@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.1.1 — What Genesis can do, organized by category.
-> Last updated: v7.1.1: InferenceEngine live in hot path, DaemonController ctl chat/update, AutoUpdater↔DeploymentManager bridge, fitness 120/120, 3760 tests, 136 services.
+> v7.1.3 — What Genesis can do, organized by category.
+> Last updated: v7.1.3: InferenceEngine live in hot path, DaemonController ctl chat/update, AutoUpdater↔DeploymentManager bridge, fitness 120/120, 3760 tests, 136 services.
 
 ---
 

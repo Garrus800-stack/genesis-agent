@@ -1,6 +1,6 @@
 # Genesis Agent — Communication Architecture
 
-> v7.0.9 — How Genesis instances communicate with each other and the outside world.
+> v7.1.3 — How Genesis instances communicate with each other and the outside world.
 > Updated with Colony IPC (V7-1), AwarenessPort, and NetworkSentinel.
 
 ---

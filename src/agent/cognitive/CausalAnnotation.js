@@ -89,7 +89,16 @@ class CausalAnnotation {
       correlatedEdges: 0,
       promotions: 0,
       degradations: 0,
+      chatOutcomes: 0,
     };
+
+    // v7.1.3: Listen for chat:completed to build causal edges from user interactions.
+    // This closes the feedback loop: InferenceEngine can now learn patterns
+    // like "code intent → success" or "greeting intent → correlated_with greeting response".
+    this._unsubs = [];
+    this._unsubs.push(this.bus.on('chat:completed', (data) => {
+      this.recordChatOutcome(data);
+    }, { source: 'CausalAnnotation' }));
   }
 
   // ════════════════════════════════════════════════════════
@@ -257,6 +266,36 @@ class CausalAnnotation {
       return null;
     }
   }
+
+  // ── v7.1.3: Chat Outcome → Causal Graph Bridge ────────
+  // Closes the InferenceEngine feedback loop. Each chat:completed
+  // event creates edges: "intent:X → outcome:success/fail".
+  // After ~20 chats, InferenceEngine has enough data for
+  // transitive-causation and error-propagation rules.
+  recordChatOutcome({ intent, success, message }) {
+    if (!this.kg || !intent) return;
+
+    const actionLabel = `intent:${intent}`;
+    const outcomeLabel = `outcome:${success !== false ? 'success' : 'fail'}`;
+    const relation = success !== false ? REL.CAUSED : REL.CORRELATED;
+    const confidence = success !== false ? 0.6 : 0.5;
+
+    this._addCausalEdge(actionLabel, outcomeLabel, relation, confidence, {
+      source: 'chat',
+    });
+    this._stats.chatOutcomes++;
+
+    // Track suspicion: does this intent frequently fail?
+    const key = `chat:${intent}`;
+    const entry = this._suspicion.get(key) || { failCount: 0, successCount: 0, observations: 0, lastSeen: 0 };
+    entry.observations++;
+    entry.lastSeen = Date.now();
+    if (success !== false) entry.successCount++; else entry.failCount++;
+    this._suspicion.set(key, entry);
+  }
+
+  /** Stop bus listeners (called during shutdown). */
+  stop() { for (const unsub of this._unsubs) unsub(); this._unsubs = []; }
 
   /** Get tracking statistics */
   getStats() {

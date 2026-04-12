@@ -323,6 +323,8 @@ class AgentCoreHealth {
       'daemonController',
       // v7.0.4: DisclosurePolicy — session-scoped, no persist needed
       'disclosurePolicy',
+      // v7.1.3: CausalAnnotation — unsubscribes chat:completed listener
+      'causalAnnotation',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

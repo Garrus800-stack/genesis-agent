@@ -8,6 +8,7 @@
 // ============================================================
 
 const { describe, test, assert, assertEqual, run } = require('../harness');
+const { CausalAnnotation } = require('../../src/agent/cognitive/CausalAnnotation');
 
 // ── Mock KnowledgeGraph that records edges ────────────────
 function createMockKG() {
@@ -270,6 +271,93 @@ describe('CausalAnnotation — stats', () => {
     assert(typeof stats.totalRecorded === 'number', 'should track total records');
     assert(typeof stats.causedEdges === 'number', 'should track caused edges');
     assert(typeof stats.correlatedEdges === 'number', 'should track correlated edges');
+  });
+  test('getStats includes chatOutcomes counter', () => {
+    const kg = createMockKG();
+    const ca = new CausalAnnotation({ bus: createMockBus(), knowledgeGraph: kg });
+    assertEqual(ca.getStats().chatOutcomes, 0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// v7.1.3: Chat Outcome → Causal Graph Bridge
+// ═══════════════════════════════════════════════════════════
+
+describe('CausalAnnotation — recordChatOutcome()', () => {
+  test('creates caused edge for successful chat', () => {
+    const kg = createMockKG();
+    const ca = new CausalAnnotation({ bus: createMockBus(), knowledgeGraph: kg });
+    ca.recordChatOutcome({ intent: 'code', success: true, message: 'write a function' });
+
+    assert(kg.edges.length >= 1, 'Should create at least 1 edge');
+    const edge = kg.edges[0];
+    assertEqual(edge.source, 'n_intent:code');
+    assertEqual(edge.target, 'n_outcome:success');
+    assertEqual(edge.relation, 'caused');
+    assertEqual(ca.getStats().chatOutcomes, 1);
+  });
+
+  test('creates correlated edge for failed chat', () => {
+    const kg = createMockKG();
+    const ca = new CausalAnnotation({ bus: createMockBus(), knowledgeGraph: kg });
+    ca.recordChatOutcome({ intent: 'code', success: false, message: 'fix bug' });
+
+    const edge = kg.edges[0];
+    assertEqual(edge.target, 'n_outcome:fail');
+    assertEqual(edge.relation, 'correlated_with');
+  });
+
+  test('tracks suspicion for repeated failures', () => {
+    const kg = createMockKG();
+    const ca = new CausalAnnotation({ bus: createMockBus(), knowledgeGraph: kg });
+
+    ca.recordChatOutcome({ intent: 'self-modify', success: false });
+    ca.recordChatOutcome({ intent: 'self-modify', success: false });
+    ca.recordChatOutcome({ intent: 'self-modify', success: true });
+
+    assertEqual(ca.getStats().chatOutcomes, 3);
+    assertEqual(kg.edges.length, 3);
+  });
+
+  test('no-ops without knowledgeGraph', () => {
+    const ca = new CausalAnnotation({ bus: createMockBus(), knowledgeGraph: null });
+    ca.recordChatOutcome({ intent: 'greeting', success: true });
+    assertEqual(ca.getStats().chatOutcomes, 0);
+  });
+
+  test('no-ops without intent', () => {
+    const kg = createMockKG();
+    const ca = new CausalAnnotation({ bus: createMockBus(), knowledgeGraph: kg });
+    ca.recordChatOutcome({ success: true });
+    assertEqual(kg.edges.length, 0);
+  });
+});
+
+describe('CausalAnnotation — chat:completed bus listener', () => {
+  test('auto-records on chat:completed event', () => {
+    const kg = createMockKG();
+    const listeners = {};
+    const bus = {
+      on(event, handler, opts) { listeners[event] = handler; return () => {}; },
+      emit() {},
+    };
+    const ca = new CausalAnnotation({ bus, knowledgeGraph: kg });
+
+    assert(listeners['chat:completed'], 'Should register chat:completed listener');
+    listeners['chat:completed']({ intent: 'greeting', success: true, message: 'hi' });
+    assertEqual(ca.getStats().chatOutcomes, 1);
+    assertEqual(kg.edges.length, 1);
+  });
+
+  test('stop() removes bus listeners', () => {
+    let unsubCalled = false;
+    const bus = {
+      on(event, handler) { return () => { unsubCalled = true; }; },
+      emit() {},
+    };
+    const ca = new CausalAnnotation({ bus, knowledgeGraph: createMockKG() });
+    ca.stop();
+    assert(unsubCalled, 'Should call unsub on stop()');
   });
 });
 

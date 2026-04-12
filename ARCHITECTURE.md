@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.1.2 · Last verified: all checks green (4146 tests, ~251 suites, TSC 0, fitness 130/130)
+> Version: 7.1.3 · Last verified: all checks green (4200 tests, ~253 suites, TSC 0, fitness 130/130)
 
 ---
 
@@ -11,7 +11,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~82k LOC of JavaScript (CommonJS), 242 source modules, 136 DI-managed services, with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~82k LOC of JavaScript (CommonJS), 217 source modules, 137 DI-managed services, with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -367,12 +367,12 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # ~4146 tests, 0 failures
+node test/index.js                          # ~4200 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
 node scripts/audit-events.js --strict       # 0 uncatalogued
-node scripts/architectural-fitness.js --ci  # 90/90, 0 missing shutdown
+node scripts/architectural-fitness.js --ci  # 130/130, 0 missing shutdown
 ```
 
 If any check fails, you missed a step. The most commonly forgotten: TO_STOP entry, event schema, preload whitelist.
@@ -406,7 +406,7 @@ Every event emitted must be:
 
 The `audit:events:strict` CI step enforces this. Unregistered events fail the build.
 
-**Current stats:** 348 catalogued events, 348 payload schemas (100% coverage).
+**Current stats:** 357 catalogued events, 357 payload schemas (100% coverage).
 
 ### 6.3 EventStore
 
@@ -486,7 +486,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~4146 tests across 251 suites |
+| Tests | `node test/index.js` | ~4200 tests across 253 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
@@ -577,7 +577,7 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (~4146 tests)
+│   ├── index.js               → Module test runner (~4200 tests)
 │   └── modules/               → One test file per service
 ├── scripts/
 │   ├── architectural-fitness.js → 90/90 fitness score (9 checks)

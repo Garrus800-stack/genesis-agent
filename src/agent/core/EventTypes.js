@@ -300,7 +300,7 @@ const EVENTS = Object.freeze({
     REDUCE_CONTEXT:   'homeostasis:reduce-context',
     PRUNE_CACHES:     'homeostasis:prune-caches',
     PRUNE_KNOWLEDGE:  'homeostasis:prune-knowledge',
-    /** @payload {{ type: string, result: string, vital: string }} */
+    /** @payload {{ type: string, result: string, vital: string }} — telemetry-only (EventStore/Dashboard) */
     CORRECTION_APPLIED: 'homeostasis:correction-applied',
     /** @payload {{ type: string, vital: string }} */
     CORRECTION_LIFTED: 'homeostasis:correction-lifted',
@@ -478,6 +478,7 @@ const EVENTS = Object.freeze({
   MODEL: Object.freeze({
     FAILOVER:          'model:failover',
     NO_MODELS:         'model:no-models',
+    /** telemetry-only (EventStore/Dashboard) */
     OLLAMA_UNAVAILABLE: 'model:ollama-unavailable',
     /** @payload {{ model: string, backend: string, priority: number }} */
   }),
@@ -533,6 +534,7 @@ const EVENTS = Object.freeze({
 
   // ── Reasoning ──────────────────────────────────────────
   REASONING: Object.freeze({
+    /** telemetry-only (EventStore/Dashboard) */
     STARTED:         'reasoning:started',
     COMPLETED:       'reasoning:completed',
     STEP:            'reasoning:step',
@@ -798,6 +800,7 @@ const EVENTS = Object.freeze({
 
   // v6.0.8: Symbolic resolution + Consciousness gate + Directed curiosity
   SYMBOLIC: Object.freeze({
+    /** telemetry-only (EventStore/Dashboard) */
     RESOLVED: 'symbolic:resolved',
     FALLBACK: 'symbolic:fallback',
   }),

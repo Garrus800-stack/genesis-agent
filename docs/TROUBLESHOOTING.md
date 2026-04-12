@@ -56,13 +56,13 @@ npm install
 
 **Fix:** Run `node scripts/validate-channels.js` and `node scripts/validate-events.js` to check consistency. Ensure the module file exists in `src/agent/<category>/`.
 
-### "Booting" badge stuck after startup (v7.1.1+)
+### "Booting" badge stuck after startup (v7.1.3+)
 
 **Symptom:** The UI badge shows "Booting" indefinitely even though Genesis is running and responding.
 
-**Cause (fixed in v7.1.1):** The health check required a `model` field in the ready-status response. If the model was still loading when the renderer connected, the check failed silently and the badge never transitioned.
+**Cause (fixed in v7.1.3):** The health check required a `model` field in the ready-status response. If the model was still loading when the renderer connected, the check failed silently and the badge never transitioned.
 
-**Fix:** Update to v7.1.1 or later. If the issue persists on v7.1.1+, verify Genesis is running via `node cli.js ctl ping`. If ping responds, the renderer missed the ready event — reload the window (Ctrl+R / Cmd+R).
+**Fix:** Update to v7.1.3 or later. If the issue persists on v7.1.3+, verify Genesis is running via `node cli.js ctl ping`. If ping responds, the renderer missed the ready event — reload the window (Ctrl+R / Cmd+R).
 
 ---
 
@@ -247,7 +247,7 @@ Use these in the CLI REPL (`node cli.js`) for quick diagnostics:
 | `/consolidate` | Force memory cleanup if responses seem to slow down |
 | `/update` | Check if a newer Genesis version is available |
 
-### External control via `ctl` (v7.1.1+)
+### External control via `ctl` (v7.1.3+)
 
 These commands talk to a **running** Genesis instance over the Unix Socket / Named Pipe — no boot required:
 
