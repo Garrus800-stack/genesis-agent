@@ -217,6 +217,61 @@ async function runAsync() {
     // Should still return KG + semantic results
     assert(Array.isArray(results));
   });
+
+  // ── v7.1.4 Feature 4: Cross-Referencing ──
+
+  test('_extractKeywords returns set of words > 3 chars', () => {
+    const um = createMockUM();
+    const keywords = um._extractKeywords('the quick brown fox jumps over the lazy dog');
+    assert(keywords instanceof Set);
+    assert(keywords.has('quick'));
+    assert(keywords.has('brown'));
+    assert(keywords.has('jumps'));
+    assert(keywords.has('over'));
+    assert(keywords.has('lazy'));
+    assert(!keywords.has('the'), 'should exclude short words');
+  });
+
+  test('_crossReference merges similar results from different stores', () => {
+    const um = createMockUM();
+    const results = [
+      { source: 'episodic', score: 0.8, content: 'authentication error handling in the login module code' },
+      { source: 'knowledge', score: 0.6, content: 'authentication error handling login module patterns' },
+    ];
+    const merged = um._crossReference(results);
+    assert(merged.length === 1, `Expected 1 merged result, got ${merged.length}`);
+    assert(merged[0].source === 'unified', 'source should be unified');
+    assert(merged[0].score > 0.8, `score should be boosted, got ${merged[0].score}`);
+  });
+
+  test('_crossReference keeps different results separate', () => {
+    const um = createMockUM();
+    const results = [
+      { source: 'episodic', score: 0.8, content: 'authentication error handling login module' },
+      { source: 'knowledge', score: 0.6, content: 'database migration schema upgrade rollback' },
+    ];
+    const merged = um._crossReference(results);
+    assert(merged.length === 2, `Expected 2 results, got ${merged.length}`);
+  });
+
+  test('_crossReference skips same-source comparisons', () => {
+    const um = createMockUM();
+    const results = [
+      { source: 'episodic', score: 0.8, content: 'authentication error handling login module' },
+      { source: 'episodic', score: 0.6, content: 'authentication error handling login module duplicate' },
+    ];
+    const merged = um._crossReference(results);
+    assert(merged.length === 2, 'same-source should not merge');
+  });
+
+  test('_crossReference cleans up _keywords', () => {
+    const um = createMockUM();
+    const results = [
+      { source: 'episodic', score: 0.5, content: 'some test content here' },
+    ];
+    const merged = um._crossReference(results);
+    assert(!merged[0]._keywords, 'should not leak _keywords');
+  });
 }
 
 runAsync().then(() => {

@@ -253,8 +253,8 @@ class SelfModificationPipeline {
     }
 
     // Build concise summary — only src/agent layers, sorted by count
-    const layerSummary = Object.entries(categories)
-      .filter(([k]) => k !== 'root')
+    const layers = Object.entries(categories).filter(([k]) => k !== 'root');
+    const layerSummary = layers
       .sort((a, b) => b[1] - a[1])
       .map(([k, v]) => `${k} (${v})`)
       .join(', ');
@@ -264,7 +264,7 @@ class SelfModificationPipeline {
     const lines = [
       `**${this.lang.t('inspect.title')}**`, '',
       `**${this.lang.t('inspect.identity')}:** ${model.identity} v${model.version}`,
-      `**Source:** ${srcCount} modules across ${Object.keys(categories).length} layers`,
+      `**Source:** ${srcCount} modules across ${layers.length} layers`,
       `**${this.lang.t('inspect.kernel')}:** ${health.ok ? this.lang.t('inspect.kernel_intact') : this.lang.t('inspect.kernel_compromised')}`,
       `**${this.lang.t('inspect.capabilities')}:** ${model.capabilities.join(', ')}`,
       `**${this.lang.t('inspect.skills')}:** ${this.skills.listSkills().map(s => s.name).join(', ') || this.lang.t('inspect.none')}`,

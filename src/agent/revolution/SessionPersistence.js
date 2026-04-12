@@ -38,6 +38,7 @@ class SessionPersistence {
     tags: ['revolution', 'memory'],
     lateBindings: [
       { target: 'promptBuilder', property: 'sessionPersistence' },
+      { prop: '_knowledgeGraph', service: 'knowledgeGraph', optional: true }, // v7.1.4: Frontier
     ],
   };
 
@@ -47,6 +48,9 @@ class SessionPersistence {
     this.memory = memory;
     this.storage = storage || null;
     this.lang = lang || { t: k => k };
+
+    // v7.1.4: Session ID for crash-safe checkpoint
+    this._sessionId = `s-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     // ── Session State ────────────────────────────────────
     /** @type {{ startedAt: string, messageCount: number, topicsDiscussed: string[], errorsEncountered: string[], goalsWorkedOn: string[], keyDecisions: string[], codeFilesModified: string[] }} */
@@ -59,6 +63,9 @@ class SessionPersistence {
       keyDecisions: [],
       codeFilesModified: [],
     };
+
+    // v7.1.4: Checkpoint interval (messages between saves)
+    this._checkpointInterval = 10;
 
     // ── Persistent Across Sessions ───────────────────────
     this.sessionHistory = [];      // Last N session summaries
@@ -185,6 +192,7 @@ UNFINISHED: ...`;
       const unfinishedMatch = response.match(/UNFINISHED:\s*(.+?)$/is);
 
       const summary = {
+        sessionId: this._sessionId,
         date: new Date().toISOString(),
         duration: sessionData.duration,
         messageCount: sessionData.messages,
@@ -192,6 +200,7 @@ UNFINISHED: ...`;
         unfinishedWork: unfinishedMatch ? unfinishedMatch[1].trim() : null,
         topics: sessionData.topics,
         filesModified: sessionData.modifications,
+        scores: this._computeScores(sessionData),
       };
 
       // Append to history
@@ -201,11 +210,14 @@ UNFINISHED: ...`;
       }
 
       this._save();
+      this._deleteCheckpoint(); // v7.1.4: clean up checkpoint after successful summary
+      this._linkToFrontier(summary); // v7.1.4: connect summary to frontier
       return summary;
 
     } catch (err) {
       // LLM unavailable — save raw session data instead
       const fallback = {
+        sessionId: this._sessionId,
         date: new Date().toISOString(),
         duration: sessionData.duration,
         messageCount: sessionData.messages,
@@ -213,9 +225,12 @@ UNFINISHED: ...`;
         unfinishedWork: null,
         topics: sessionData.topics,
         filesModified: sessionData.modifications,
+        scores: this._computeScores(sessionData),
       };
       this.sessionHistory.push(fallback);
       this._save();
+      this._deleteCheckpoint(); // v7.1.4: clean up even on fallback
+      this._linkToFrontier(fallback); // v7.1.4: connect fallback to frontier
       return fallback;
     }
   }
@@ -259,6 +274,10 @@ UNFINISHED: ...`;
     this._unsubs.push(
       this.bus.on('user:message', (data) => {
         this.currentSession.messageCount++;
+        // v7.1.4: Save checkpoint every N messages (crash-safe)
+        if (this.currentSession.messageCount % this._checkpointInterval === 0) {
+          this._saveCheckpoint();
+        }
       }, { source: 'SessionPersistence', priority: -10 }),
 
       this.bus.on('intent:classified', (data) => {
@@ -308,6 +327,117 @@ UNFINISHED: ...`;
   }
 
   // ════════════════════════════════════════════════════════
+  // v7.1.4 FEATURE 1: CRASH-SAFE CHECKPOINTS
+  // ════════════════════════════════════════════════════════
+
+  /** Save a lightweight checkpoint (no LLM). Called every _checkpointInterval messages. */
+  _saveCheckpoint() {
+    if (!this.storage) return;
+    try {
+      const checkpoint = {
+        sessionId: this._sessionId,
+        startTime: this.currentSession.startedAt,
+        messageCount: this.currentSession.messageCount,
+        topics: this.currentSession.topicsDiscussed.slice(-10),
+        filesModified: [...new Set(this.currentSession.codeFilesModified)],
+        decisions: this.currentSession.keyDecisions.slice(-5),
+        errorCount: this.currentSession.errorsEncountered.length,
+        goalsWorkedOn: this.currentSession.goalsWorkedOn.slice(-5),
+        lastMessageTime: new Date().toISOString(),
+        userName: this.userProfile.name,
+      };
+      this.storage.writeJSON('session-checkpoint.json', checkpoint);
+      _log.debug(`[SESSION] Checkpoint saved (${checkpoint.messageCount} msgs, session ${this._sessionId})`);
+    } catch (err) { _log.debug('[SESSION] Checkpoint save error:', err.message); }
+  }
+
+  /** Delete checkpoint after successful LLM summary. */
+  _deleteCheckpoint() {
+    if (!this.storage) return;
+    try { this.storage.writeJSON('session-checkpoint.json', null); }
+    catch (_e) { /* ok */ }
+  }
+
+  /** Recover from crash: if checkpoint exists but no matching summary, create fallback. */
+  _recoverOrphanedCheckpoint() {
+    if (!this.storage) return;
+    try {
+      const checkpoint = this.storage.readJSON('session-checkpoint.json', null);
+      if (!checkpoint || !checkpoint.sessionId) return;
+
+      // Check if this sessionId already has a summary
+      const alreadySummarized = this.sessionHistory.some(s => s.sessionId === checkpoint.sessionId);
+      if (alreadySummarized) {
+        this._deleteCheckpoint();
+        return;
+      }
+
+      // Orphaned checkpoint — crash occurred. Create fallback summary.
+      _log.info(`[SESSION] Recovering orphaned checkpoint from crashed session ${checkpoint.sessionId}`);
+      const fallback = {
+        sessionId: checkpoint.sessionId,
+        date: checkpoint.lastMessageTime || new Date().toISOString(),
+        duration: 'unknown (crash)',
+        messageCount: checkpoint.messageCount,
+        summary: `Session crashed after ${checkpoint.messageCount} messages. Topics: ${(checkpoint.topics || []).join(', ') || 'none'}. Files: ${(checkpoint.filesModified || []).join(', ') || 'none'}.`,
+        unfinishedWork: 'Session ended unexpectedly — review and continue.',
+        topics: checkpoint.topics || [],
+        filesModified: checkpoint.filesModified || [],
+        scores: this._computeScores(checkpoint),
+      };
+      this.sessionHistory.push(fallback);
+      if (this.sessionHistory.length > this.maxSessionHistory) {
+        this.sessionHistory = this.sessionHistory.slice(-this.maxSessionHistory);
+      }
+      this._deleteCheckpoint();
+      this._save();
+    } catch (err) { _log.debug('[SESSION] Checkpoint recovery error:', err.message); }
+  }
+
+  // ════════════════════════════════════════════════════════
+  // v7.1.4 FEATURE 3: SESSION SCORES (HEURISTIC)
+  // ════════════════════════════════════════════════════════
+
+  /** Compute deterministic session scores from metadata. No LLM needed. */
+  _computeScores(data) {
+    const messages = data.messageCount || data.messages || 0;
+    const errors = data.errorCount ?? (data.errors ? data.errors.length : 0);
+    const goals = data.goalsWorkedOn || data.goals || [];
+    const goalsTotal = goals.length;
+    const goalsCompleted = goalsTotal; // heuristic: if tracked, assumed completed
+    const filesModified = data.filesModified || data.modifications || [];
+    const decisions = data.decisions || [];
+
+    return {
+      productivity: goalsTotal > 0 ? Math.round(goalsCompleted / goalsTotal * 100) : (messages > 0 ? 50 : 0),
+      complexity: Math.min(filesModified.length * 15 + decisions.length * 10, 100),
+      quality: Math.max(0, Math.round(100 - (errors / Math.max(messages, 5)) * 200)),
+      impact: filesModified.length > 0 ? Math.min(filesModified.length * 20, 100) : 10,
+    };
+  }
+
+  /** Get rolling average of last N session scores for trend analysis. */
+  getScoreTrends(window = 5) {
+    const recent = this.sessionHistory.filter(s => s.scores).slice(-window);
+    if (recent.length === 0) return null;
+    const avg = { productivity: 0, complexity: 0, quality: 0, impact: 0 };
+    for (const s of recent) {
+      avg.productivity += s.scores.productivity;
+      avg.complexity += s.scores.complexity;
+      avg.quality += s.scores.quality;
+      avg.impact += s.scores.impact;
+    }
+    const n = recent.length;
+    return {
+      productivity: Math.round(avg.productivity / n),
+      complexity: Math.round(avg.complexity / n),
+      quality: Math.round(avg.quality / n),
+      impact: Math.round(avg.impact / n),
+      sessions: n,
+    };
+  }
+
+  // ════════════════════════════════════════════════════════
   // PERSISTENCE
   // ════════════════════════════════════════════════════════
 
@@ -334,6 +464,25 @@ UNFINISHED: ...`;
    */
   async asyncLoad() {
     this._load();
+    // v7.1.4: Recover from crash — check for orphaned checkpoint
+    this._recoverOrphanedCheckpoint();
+    // v7.1.4: Decay old frontier edges at boot (deterministic, no timer)
+    if (this._knowledgeGraph) {
+      this._knowledgeGraph.decayFrontierEdges(0.5);
+    }
+  }
+
+  /** v7.1.4: Link session summary to frontier node in KnowledgeGraph */
+  _linkToFrontier(summary) {
+    if (!this._knowledgeGraph) return;
+    try {
+      const label = `session-${this._sessionId}`;
+      this._knowledgeGraph.connectToFrontier(
+        'SESSION_COMPLETED', label, 1.0, 'session',
+        { summary: (summary.summary || '').slice(0, 200), date: summary.date }
+      );
+      _log.debug(`[SESSION] Linked to frontier: ${label}`);
+    } catch (err) { _log.debug('[SESSION] Frontier link error:', err.message); }
   }
 
 

@@ -130,6 +130,34 @@ const sections = {
     } catch (err) { _log.debug('[PROMPT] Session context unavailable:', err.message); return ''; }
   },
 
+  // v7.1.4: Frontier — what's currently important (graph-based, no linear scan)
+  _frontierContext() {
+    if (!this.kg) return '';
+    try {
+      const ctx = this.kg.getFrontierContext(2);
+      if (!ctx || ctx.nodes.length === 0) return '';
+
+      const parts = ['CURRENT FOCUS:'];
+      // Sort edges by weight descending, take top entries
+      const topEdges = ctx.edges
+        .filter(e => e.weight > 0.1)
+        .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+        .slice(0, 8);
+
+      for (const edge of topEdges) {
+        const targetNode = ctx.nodes.find(n => n.id === edge.target);
+        if (targetNode) {
+          const label = targetNode.label || targetNode.properties?.summary || targetNode.id;
+          parts.push(`- [${edge.relation}] ${label.slice(0, 120)} (confidence: ${(edge.weight * 100).toFixed(0)}%)`);
+        }
+      }
+
+      // Cap at 500 tokens (~2000 chars)
+      const result = parts.join('\n');
+      return result.length > 2000 ? result.slice(0, 2000) + '...' : result;
+    } catch (err) { _log.debug('[PROMPT] Frontier context unavailable:', err.message); return ''; }
+  },
+
   _memoryContext() {
     if (!this.memory || !this._recentQuery) return '';
     const context = this.memory.buildContext(this._recentQuery);

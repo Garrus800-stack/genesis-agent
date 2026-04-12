@@ -109,6 +109,130 @@ class KnowledgeGraph {
     return { ...this.graph.getStats(), embeddings: { available: !!this._embeddings?.isAvailable(), vectorizedNodes: this._nodeVectors.size } };
   }
 
+  // ── v7.1.4 FEATURE 2: FRONTIER NODE ──────────────────
+
+  /** Ensure the frontier node exists. Called at boot. */
+  ensureFrontier() {
+    const existing = this.graph.findNode('frontier');
+    if (!existing) {
+      this.graph.addNode('system', 'frontier', { role: 'focus-anchor', created: Date.now() });
+      _log.info('[KG] Frontier node created');
+      this._save();
+    }
+    return this.graph.findNode('frontier');
+  }
+
+  /**
+   * Get all nodes connected to the frontier within depth edges.
+   * @param {number} depth - Traversal depth (default 2)
+   * @returns {{ nodes: Array<*>, edges: Array<*> }}
+   */
+  getFrontierContext(depth = 2) {
+    const frontier = this.graph.findNode('frontier');
+    if (!frontier) return { nodes: [], edges: [] };
+
+    const visited = new Set();
+    const resultNodes = [];
+    const resultEdges = [];
+    const queue = [{ id: frontier.id, d: 0 }];
+    visited.add(frontier.id);
+
+    while (queue.length > 0) {
+      const { id, d } = queue.shift();
+      const node = this.graph.getNode(id);
+      if (node && id !== frontier.id) resultNodes.push(node);
+
+      if (d < depth) {
+        const neighbors = this.graph.getNeighbors(id) || [];
+        for (const n of neighbors) {
+          // GraphStore returns { node, edge, direction } or plain id/object
+          const nid = n.node?.id || (typeof n === 'string' ? n : (n.id || n.target || n.source));
+          if (nid && !visited.has(nid)) {
+            visited.add(nid);
+            queue.push({ id: nid, d: d + 1 });
+            // Collect edge from neighbor result
+            if (n.edge && !resultEdges.some(re => re.id === n.edge.id)) {
+              resultEdges.push(n.edge);
+            }
+          }
+        }
+      }
+    }
+
+    // Sort by weight/confidence descending
+    resultEdges.sort((a, b) => (b.weight || 0) - (a.weight || 0));
+    return { nodes: resultNodes, edges: resultEdges };
+  }
+
+  /**
+   * Connect a node to the frontier with a typed relation.
+   * @param {string} relation - Edge type (SESSION_COMPLETED, ACTIVE_GOAL, etc.)
+   * @param {string} targetLabel - Label of the target node (created if not exists)
+   * @param {number} weight - Edge weight/confidence
+   * @param {string} targetType - Node type for the target
+   * @param {Object} targetProps - Additional properties for the target node
+   */
+  connectToFrontier(relation, targetLabel, weight = 1.0, targetType = 'session', targetProps = {}) {
+    this.ensureFrontier();
+    const frontier = this.graph.findNode('frontier');
+    if (!frontier) return null;
+
+    // Create or find target node
+    let target = this.graph.findNode(targetLabel);
+    if (!target) {
+      const tid = this.graph.addNode(targetType, targetLabel, { ...targetProps, created: Date.now() });
+      target = this.graph.getNode(tid);
+    }
+    if (!target) return null;
+
+    const edgeId = this.graph.addEdge(frontier.id, target.id, relation, weight);
+    this._save();
+    return edgeId;
+  }
+
+  /**
+   * Remove an edge from the frontier to a specific target label.
+   * @param {string} targetLabel - Label of the target node
+   */
+  disconnectFromFrontier(targetLabel) {
+    const frontier = this.graph.findNode('frontier');
+    const target = this.graph.findNode(targetLabel);
+    if (!frontier || !target) return false;
+
+    const edges = this.graph.getEdgesBetween(frontier.id, target.id);
+    if (edges && edges.length > 0) {
+      for (const e of edges) {
+        if (this.graph.edges) this.graph.edges.delete(e.id);
+      }
+      this._save();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Decay old frontier edges. Called at boot by SessionPersistence.
+   * SESSION_COMPLETED edges lose confidence each session.
+   * @param {number} factor - Decay multiplier (default 0.5)
+   */
+  decayFrontierEdges(factor = 0.5) {
+    const frontier = this.graph.findNode('frontier');
+    if (!frontier || !this.graph.edges) return 0;
+
+    let decayed = 0;
+    const toRemove = [];
+    for (const [id, edge] of this.graph.edges) {
+      if (edge.source === frontier.id && edge.relation === 'SESSION_COMPLETED') {
+        edge.weight = (edge.weight || 1) * factor;
+        decayed++;
+        if (edge.weight < 0.05) toRemove.push(id);
+      }
+    }
+    for (const id of toRemove) this.graph.edges.delete(id);
+    if (decayed > 0) this._save();
+    return decayed;
+  }
+
   // ── Persistence ───────────────────────────────────────
 
   _save() { if (this.storage) this.storage.writeJSONDebounced('knowledge-graph.json', this.graph.serialize()); }
@@ -120,8 +244,8 @@ class KnowledgeGraph {
    */
   async asyncLoad() {
     this._load();
+    this.ensureFrontier(); // v7.1.4: Guarantee frontier node exists
   }
-
 
   _load() {
     if (!this.storage) return;

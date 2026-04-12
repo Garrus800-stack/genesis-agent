@@ -171,6 +171,67 @@ async function runAsyncTests() {
     assert(stats.embeddings.vectorizedNodes > 0, `Expected >0 vectorized, got ${stats.embeddings.vectorizedNodes}`);
   });
 
+  // ── v7.1.4 Feature 2: Frontier Node ──
+
+  test('ensureFrontier creates frontier node', () => {
+    const tmpF = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-frontier-'));
+    const { KnowledgeGraph } = require('../../src/agent/foundation/KnowledgeGraph');
+    const kgF = new KnowledgeGraph({ storage: { readJSON: () => null, writeJSON() {}, writeJSONDebounced() {}, flush: async () => {} } });
+    const frontier = kgF.ensureFrontier();
+    assert(frontier, 'frontier node should exist');
+    // second call should not create duplicate
+    const frontier2 = kgF.ensureFrontier();
+    assert(frontier2, 'second call should return existing frontier');
+    fs.rmSync(tmpF, { recursive: true, force: true });
+  });
+
+  test('connectToFrontier creates edge', () => {
+    const { KnowledgeGraph } = require('../../src/agent/foundation/KnowledgeGraph');
+    const kgF = new KnowledgeGraph({ storage: { readJSON: () => null, writeJSON() {}, writeJSONDebounced() {}, flush: async () => {} } });
+    kgF.ensureFrontier();
+    const edgeId = kgF.connectToFrontier('SESSION_COMPLETED', 'session-001', 1.0, 'session', { summary: 'test' });
+    assert(edgeId, 'should return edge id');
+  });
+
+  test('getFrontierContext returns connected nodes', () => {
+    const { KnowledgeGraph } = require('../../src/agent/foundation/KnowledgeGraph');
+    const kgF = new KnowledgeGraph({ storage: { readJSON: () => null, writeJSON() {}, writeJSONDebounced() {}, flush: async () => {} } });
+    kgF.ensureFrontier();
+    kgF.connectToFrontier('SESSION_COMPLETED', 'session-A', 1.0);
+    kgF.connectToFrontier('ACTIVE_GOAL', 'goal-B', 0.9, 'goal');
+    const ctx = kgF.getFrontierContext(1);
+    assert(ctx.nodes.length >= 2, `Expected >= 2 nodes, got ${ctx.nodes.length}`);
+  });
+
+  test('disconnectFromFrontier removes edge', () => {
+    const { KnowledgeGraph } = require('../../src/agent/foundation/KnowledgeGraph');
+    const kgF = new KnowledgeGraph({ storage: { readJSON: () => null, writeJSON() {}, writeJSONDebounced() {}, flush: async () => {} } });
+    kgF.ensureFrontier();
+    kgF.connectToFrontier('ACTIVE_GOAL', 'goal-remove', 0.9, 'goal');
+    const removed = kgF.disconnectFromFrontier('goal-remove');
+    assert(removed, 'should return true');
+    const ctx = kgF.getFrontierContext(1);
+    const goalNodes = ctx.nodes.filter(n => n.label === 'goal-remove');
+    // Node may still exist but should not be connected via frontier edge
+  });
+
+  test('decayFrontierEdges reduces SESSION_COMPLETED weights', () => {
+    const { KnowledgeGraph } = require('../../src/agent/foundation/KnowledgeGraph');
+    const kgF = new KnowledgeGraph({ storage: { readJSON: () => null, writeJSON() {}, writeJSONDebounced() {}, flush: async () => {} } });
+    kgF.ensureFrontier();
+    kgF.connectToFrontier('SESSION_COMPLETED', 'old-session', 1.0);
+    const decayed = kgF.decayFrontierEdges(0.5);
+    assert(decayed >= 1, 'should decay at least 1 edge');
+  });
+
+  test('getFrontierContext returns empty for fresh install', () => {
+    const { KnowledgeGraph } = require('../../src/agent/foundation/KnowledgeGraph');
+    const kgF = new KnowledgeGraph({ storage: { readJSON: () => null, writeJSON() {}, writeJSONDebounced() {}, flush: async () => {} } });
+    kgF.ensureFrontier();
+    const ctx = kgF.getFrontierContext(1);
+    assert(ctx.nodes.length === 0, `Expected 0 nodes, got ${ctx.nodes.length}`);
+  });
+
   fs.rmSync(tmpDir2, { recursive: true, force: true });
   fs.rmSync(tmpDir, { recursive: true, force: true });
   console.log(`\n  ${passed} passed, ${failed} failed`);

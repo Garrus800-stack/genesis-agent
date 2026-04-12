@@ -23,7 +23,7 @@ describe('PromptBuilderSections: Delegation', () => {
   test('sections object exports all expected methods', () => {
     const expected = [
       '_identity', '_formatting', '_capabilities', '_knowledgeContext',
-      '_mcpContext', '_sessionContext', '_memoryContext', '_learningContext',
+      '_mcpContext', '_sessionContext', '_frontierContext', '_memoryContext', '_learningContext',
       '_lessonsContext', '_inferCategory', '_solutionContext', '_anticipatorContext',
       '_optimizerContext', '_organismContext', '_safetyContext', '_metacognitiveContext',
       '_selfAwarenessContext', '_knowledgeContextAsync', '_memoryContextAsync',

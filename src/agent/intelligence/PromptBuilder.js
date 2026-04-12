@@ -246,6 +246,7 @@ class PromptBuilder {
       ['identity',       this._identity()],
       ['formatting',     this._formatting()],
       ['session',        this._sessionContext()],
+      ['frontier',       this._frontierContext()],
       ['capabilities',   this._capabilities()],
       ['mcp',            this._mcpContext()],
       ['knowledge',      this._knowledgeContext()],

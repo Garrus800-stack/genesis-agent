@@ -166,8 +166,11 @@ class UnifiedMemory {
       }
     }
 
+    // ── Cross-reference across stores (v7.1.4) ──────────
+    const crossReferenced = this._crossReference(results);
+
     // ── Rank, filter, deduplicate ───────────────────────────
-    const ranked = results
+    const ranked = crossReferenced
       .filter(r => r.score >= minScore)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
@@ -564,6 +567,82 @@ class UnifiedMemory {
     let overlap = 0;
     for (const w of wordsB) { if (wordsA.has(w)) overlap++; }
     return overlap / Math.max(wordsB.length, 1) > 0.6;
+  }
+
+  // ── v7.1.4 FEATURE 4: CROSS-STORE REFERENCING ────────
+
+  /**
+   * Extract keywords from text. Cached on first call per result.
+   * @param {string} text
+   * @returns {Set<string>}
+   */
+  _extractKeywords(text) {
+    if (!text) return new Set();
+    return new Set(
+      text.toLowerCase()
+        .split(/[\s,.;:!?()\[\]{}"'`]+/)
+        .filter(w => w.length > 3)
+    );
+  }
+
+  /**
+   * Cross-reference results from different stores.
+   * If two results from DIFFERENT stores describe the same concept (Jaccard > 0.5),
+   * merge them: score = max(a, b) * 1.3, keep longer text, source = 'unified'.
+   * @param {Array} results
+   * @returns {Array}
+   */
+  _crossReference(results) {
+    if (results.length < 2) return results;
+
+    // Extract keywords once per result (cached)
+    for (const r of results) {
+      if (!r._keywords) r._keywords = this._extractKeywords(r.content);
+    }
+
+    const merged = new Set(); // indices of merged-away results
+    const output = [];
+
+    for (let i = 0; i < results.length; i++) {
+      if (merged.has(i)) continue;
+
+      let best = results[i];
+      for (let j = i + 1; j < results.length; j++) {
+        if (merged.has(j)) continue;
+        if (results[i].source === results[j].source) continue; // same store — skip
+
+        // Jaccard similarity on keyword sets
+        const setA = results[i]._keywords;
+        const setB = results[j]._keywords;
+        if (setA.size === 0 || setB.size === 0) continue;
+
+        let intersection = 0;
+        for (const w of setA) { if (setB.has(w)) intersection++; }
+        const union = setA.size + setB.size - intersection;
+        const jaccard = intersection / union;
+
+        if (jaccard > 0.5) {
+          // Merge: keep longer text, boost score
+          merged.add(j);
+          const longer = (best.content || '').length >= (results[j].content || '').length ? best : results[j];
+          best = {
+            source: 'unified',
+            score: Math.max(best.score, results[j].score) * 1.3,
+            content: longer.content,
+            meta: { ...best.meta, ...results[j].meta, crossReferenced: true },
+          };
+        }
+      }
+
+      // Remove cached keywords before returning
+      delete best._keywords;
+      output.push(best);
+    }
+
+    // Add remaining un-merged results, clean keywords
+    // (already handled — merged items are skipped, non-merged are in output)
+    for (const r of output) delete r._keywords;
+    return output;
   }
 
   _getCache(key) {

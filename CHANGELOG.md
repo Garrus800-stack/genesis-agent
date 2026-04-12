@@ -1,3 +1,53 @@
+## [7.1.4] — Session-Aware Memory Architecture
+
+**Inspired by neo.mjs Memory Core. Implemented the Genesis way: self-contained, no external services.**
+
+### Feature 1: Crash-Safe Session Summaries
+
+- **`SessionPersistence.js`** — Periodic checkpoints every 10 messages (no LLM call, raw metadata
+  only). SessionId-based orphan detection at boot: if checkpoint exists but no matching summary,
+  creates fallback summary from checkpoint data. Checkpoint deleted after successful LLM summary.
+  Genesis no longer loses session context on crash.
+
+### Feature 2: Frontier Node in KnowledgeGraph
+
+- **`KnowledgeGraph.js`** — New `ensureFrontier()`, `connectToFrontier()`, `disconnectFromFrontier()`,
+  `getFrontierContext(depth)`, `decayFrontierEdges(factor)`. A persistent "frontier" node acts as
+  focus anchor. Session summaries and active goals connect via typed edges. Edge decay at boot
+  (SESSION_COMPLETED edges lose 50% confidence per session, pruned below 5%).
+- **`SessionPersistence.js`** — Links summary to frontier at shutdown. Decays old edges at boot.
+  KnowledgeGraph added as optional lateBinding.
+- **`PromptBuilderSections.js`** — New `_frontierContext()` section. Traverses frontier (depth 2),
+  builds "CURRENT FOCUS" prompt section sorted by confidence. Max 2000 chars.
+- **`PromptBuilder.js`** — Frontier section added after session context (priority 4).
+- **Scope:** 2 frontier writers only (SessionPersistence + GoalStack). Additional writers
+  (UNFINISHED_WORK, HIGH_SUSPICION, LESSON_APPLIED) deferred to v7.1.5.
+
+### Feature 3: Session Scores (Heuristic)
+
+- **`SessionPersistence.js`** — New `_computeScores(data)` computes 4 deterministic scores (0-100)
+  from session metadata. No LLM needed.
+  - productivity = goals_completed / max(goals_total, 1) × 100
+  - complexity = min(files × 15 + decisions × 10, 100)
+  - quality = max(0, 100 - (errors / max(messages, 5)) × 200)
+  - impact = min(codeFiles × 20, 100) or 10
+- **`SessionPersistence.js`** — New `getScoreTrends(window)` returns rolling average of last N
+  session scores for trend analysis.
+- Scores stored in every session summary (including crash-checkpoint fallbacks).
+
+### Feature 4: UnifiedMemory Cross-Referencing
+
+- **`UnifiedMemory.js`** — New `_crossReference(results)` pass after store merging. Compares
+  results from different stores using Jaccard similarity on cached keyword sets. If similarity > 0.5,
+  merges into single result with 1.3× score boost, source = "unified". Keywords extracted once per
+  result (cached as `_keywords`), cleaned before return. O(n²) but n ≤ 50.
+- **`UnifiedMemory.js`** — New `_extractKeywords(text)` returns Set of words > 3 chars.
+
+### Stats
+- Changed files: 6 (SessionPersistence, KnowledgeGraph, UnifiedMemory, PromptBuilder, PromptBuilderSections, promptbuilder-sections.test)
+- New tests: 21 (10 SessionPersistence + 6 KnowledgeGraph + 5 UnifiedMemory)
+- Fitness: 130/130 (unchanged)
+
 ## [7.1.3] — V7-4B Real Rollback + Fitness 130/130 + Coverage Push
 
 **DeploymentManager rollback is no longer a placeholder. All three warn-zone files brought below 700 LOC.
