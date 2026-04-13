@@ -257,7 +257,7 @@ class LessonsStore {
       this._dirty = true;
     }
 
-    return scored.map(({ lesson, relevance }) => ({
+    const results = scored.map(({ lesson, relevance }) => ({
       id: lesson.id,
       insight: lesson.insight,
       strategy: lesson.strategy,
@@ -268,6 +268,38 @@ class LessonsStore {
       useCount: lesson.useCount || 0,
       lastUsed: lesson.lastUsed || 0,
     }));
+
+    // v7.1.6: Emit lesson:applied for each recalled lesson (frontier tracking)
+    for (const r of results) {
+      this.bus.emit('lesson:applied', {
+        id: r.id, category: r.category, insight: r.insight,
+      }, { source: 'LessonsStore' });
+    }
+
+    return results;
+  }
+
+  /**
+   * v7.1.6: Temporarily boost relevance of recently applied lessons.
+   * Called by SessionPersistence at boot from LESSON_APPLIED frontier data.
+   * Boosted lessons score higher in the next recall() until natural decay.
+   *
+   * @param {string[]} lessonIds — IDs of lessons to boost
+   * @returns {number} — Number of lessons found and boosted
+   */
+  boostRecent(lessonIds) {
+    if (!lessonIds || lessonIds.length === 0) return 0;
+    const idSet = new Set(lessonIds);
+    let boosted = 0;
+    for (const lesson of this._lessons) {
+      if (idSet.has(lesson.id)) {
+        lesson.lastUsed = Date.now(); // Recency boost in _scoreRelevance
+        lesson.useCount = Math.min((lesson.useCount || 0) + 1, 100); // v7.1.6: Cap at 100
+        boosted++;
+      }
+    }
+    if (boosted > 0) this._dirty = true;
+    return boosted;
   }
 
   /**

@@ -55,6 +55,7 @@ class McpServerConnection {
     this._sessionUrl = null;
     this._pendingRequests = new Map();
     this._reconnectAttempts = 0;
+    this._reconnectTimer = null; // v7.1.6: tracked for cleanup in disconnect()
     this._maxReconnects = 5;
     this._requestTimeout = 30000;
 
@@ -461,11 +462,16 @@ class McpServerConnection {
     const jitter = Math.random() * base * 0.3;
     const delay = base + jitter;
     _log.info(`[MCP] Reconnecting ${this.name} in ${Math.round(delay)}ms (attempt ${this._reconnectAttempts})`);
-    setTimeout(() => this.connect().catch(err => _log.debug('[MCP] Reconnect failed:', err.message)), delay);
+    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = null;
+      this.connect().catch(err => _log.debug('[MCP] Reconnect failed:', err.message));
+    }, delay);
   }
 
   disconnect() {
     this._reconnectAttempts = this._maxReconnects;
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     if (this._heartbeatHandle) { clearInterval(this._heartbeatHandle); this._heartbeatHandle = null; }
     if (this._sseConnection) { this._sseConnection.destroy(); this._sseConnection = null; }
     for (const [, p] of this._pendingRequests) { clearTimeout(p.timer); p.reject(new Error('Disconnected')); }

@@ -73,6 +73,8 @@ const EVENTS = Object.freeze({
     /** @payload {{ category: string, count: number }} */
     /** @payload {{ category: string, title: string, content: string, tags: string[] }} */
     LEARNED:            'lesson:learned',
+    /** @payload {{ id: string, category: string, insight: string }} v7.1.6: Emitted on recall */
+    APPLIED:            'lesson:applied',
   }),
 
   // ── Self-Preservation ────────────────────────────────────
@@ -358,6 +360,10 @@ const EVENTS = Object.freeze({
     CONSOLIDATE_MEMORY: 'idle:consolidate-memory',
     /** v6.0.8: Directed curiosity — weakness-targeted exploration @payload {{ weakness: string, targetModule: string, insight: string }} */
     CURIOSITY_TARGETED: 'idle:curiosity-targeted',
+    /** @payload {{ topic: string, source: string, query: string }} v7.1.6: Research started */
+    RESEARCH_STARTED:  'idle:research-started',
+    /** @payload {{ topic: string, source: string, insight: string }} v7.1.6: Research complete */
+    RESEARCH_COMPLETE: 'idle:research-complete',
   }),
 
   // ── Intent Router ──────────────────────────────────────
@@ -984,7 +990,7 @@ const EVENT_STORE_BUS_MAP = Object.freeze({
   ERROR_OCCURRED:       { store: 'ERROR_OCCURRED',       bus: 'chat:error' },
   CODE_MODIFIED:        { store: 'CODE_MODIFIED',        bus: 'selfmod:success' },
   CODE_SAFETY_BLOCK:    { store: 'CODE_SAFETY_BLOCK',    bus: 'code:safety-blocked' },
-  SHELL_PLAN_EXECUTED:  { store: 'SHELL_PLAN_EXECUTED',  bus: 'shell:complete' },
+  SHELL_PLAN_EXECUTED:  { store: 'SHELL_PLAN_EXECUTED',  bus: 'shell:outcome' },
   SYSTEM_BOOT:          { store: 'SYSTEM_BOOT',          bus: 'agent:status' },
   SYSTEM_SHUTDOWN:      { store: 'SYSTEM_SHUTDOWN',       bus: 'agent:shutdown' },
   INTENT_CLASSIFIED:    { store: 'INTENT_CLASSIFIED',    bus: 'intent:classified' },

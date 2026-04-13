@@ -1,3 +1,192 @@
+## [7.1.6] — Persistent Self
+
+**Genesis remembers what it left unfinished, what surprised it, and what it learned.**
+
+### Feature 1: Generic FrontierWriter Framework
+
+- **`FrontierWriter.js`** (NEW) — Configurable frontier node writer. Strategy pattern:
+  `extractFn(context) → props | null` controls what to write, optional
+  `mergeFn(existing, incoming) → merged` enables node consolidation.
+  Full API: `write()`, `getRecent()`, `buildPromptContext()`, `getDashboardLine()`,
+  `getReport()`. Cached queries with configurable TTL. Max-imprint eviction (weakest-first).
+  Deterministic — zero LLM calls.
+- **`FrontierExtractors.js`** (NEW) — Pure extractor/merger functions for the three
+  FrontierWriter configurations. No side effects, fully testable.
+
+### Feature 2: UNFINISHED_WORK Frontier (Phase 8)
+
+- **`SessionPersistence.js`** — Calls `_unfinishedWorkFrontier.write()` in `_linkToFrontier()`,
+  passing session context + GoalStack pending goals. Decay 0.7/boot (sticky — work persists).
+  Max 5 imprints, prune threshold 0.1.
+- **`unfinishedWorkExtractor`** — Extracts from two sources: LLM-generated unfinished text
+  and non-completed GoalStack goals (active/paused/blocked). Skips trivial sessions (<3 msgs).
+  Priority "high" when goal progress >50%.
+
+### Feature 3: HIGH_SUSPICION Frontier (Phase 9)
+
+- **`phase9-cognitive.js`** — Event-buffered: collects `surprise:novel-event` over session,
+  writes at `session:ending`. Decay 0.6/boot, max 8 imprints.
+- **`suspicionMerger`** — Merges nodes with same `dominant_category` to prevent frontier bloat.
+  Counts additive, events merged (cap 15), edge weight refreshed (+0.2, cap 1.0).
+
+### Feature 4: LESSON_APPLIED Frontier (Phase 9)
+
+- **`LessonsStore.js`** — `recall()` now emits `lesson:applied` for each retrieved lesson.
+  New `boostRecent(lessonIds)` method for boot-time relevance boosting (useCount cap 100).
+- **`phase9-cognitive.js`** — Event-buffered: collects `lesson:applied` over session,
+  writes at `session:ending`. Decay 0.6/boot, max 5 imprints.
+  Scope: tracking only. Confirmed/contradicted deferred to v7.1.7.
+
+### Feature 5: IdleMind Research Activity
+
+- **`IdleMindActivities.js`** — New `_research()` activity: autonomous web-fetching from
+  trusted domains (npm Registry, GitHub Search API). Pipeline: fetch → LLM distill → KG store.
+  Topic-source-dependent distillation prompts. Exponential backoff on fetch errors.
+- **`IdleMind.js`** — 5-gate security: network availability, energy ≥0.5, trust level ≥1,
+  rate limit (3/hr), cooldown (30min). Frontier-driven topic selection from UNFINISHED_WORK,
+  HIGH_SUSPICION, and CognitiveSelfModel weaknesses. No aimless browsing.
+
+### Feature 6: Frontier-Driven Activity Scoring
+
+- **`IdleMind.js`** — Three new scorers: UNFINISHED_WORK → plan ×1.6,
+  HIGH_SUSPICION → explore ×1.5, LESSON_APPLIED (low count) → reflect ×1.3.
+  Research score boosted by frontier signals (×1.4/×1.3) and knowledge need (×1.5).
+
+### Supporting Changes
+
+- **`KnowledgeGraph.js`** — `decayFrontierEdges()` now uses per-type decay factors
+  (UNFINISHED_WORK: 0.7, HIGH_SUSPICION/LESSON_APPLIED: 0.6, SESSION/EMOTION: 0.5).
+  Unknown types skipped (safer than global fallback).
+- **`PromptBuilderSections.js`** — `_frontierContext()` includes 4 frontier sources with
+  weighted sorting (UW: 0.9, Emotion: 0.8, Suspicion: 0.7, Lesson: 0.6).
+- **`OrganismRenderers.js`** — Dashboard shows ⏳ UNFINISHED_WORK, ⚠ HIGH_SUSPICION,
+  ✓ LESSON_APPLIED one-liners.
+- **`AgentCoreHealth.js`** — Health report includes all 3 frontier writer reports.
+- **`EventTypes.js`** — New events: `lesson:applied`, `idle:research-started`,
+  `idle:research-complete`.
+- **Manifests** — 14 new late-bindings across phase2/6/8/9 (all optional: true).
+
+### Design Principles
+
+- **Generic over bespoke:** FrontierWriter replaces what would have been 3 separate modules.
+  New frontier types require only an extractFn (~30 LOC) + manifest entry (~15 LOC).
+- **Additive, not invasive:** All call sites guard with `if (this._xxxFrontier)`.
+- **Deterministic frontier path:** Zero LLM calls in write/read/prompt pipeline.
+  Only Research distillation uses LLM (separate pipeline, gated).
+- **Conservative autonomy:** Research has 5 security gates, frontier-driven topics only,
+  trusted endpoints only. No aimless browsing.
+
+### Stats
+- New files: 2 (FrontierWriter.js, FrontierExtractors.js) + 2 tests
+- Changed files: 12 (SessionPersistence, IdleMind, IdleMindActivities, LessonsStore,
+  KnowledgeGraph, PromptBuilderSections, OrganismRenderers, AgentCoreHealth,
+  EventTypes, phase2/6/8/9 manifests)
+- New tests: 30 (FrontierWriter: 15, FrontierExtractors: 15)
+- Zero regressions: 3839 passed, 0 failed
+
+### Post-Release Fixes (Static + Deep Analysis)
+
+**Bug Fixes:**
+- **`shell:complete` → `shell:outcome`** — TaskOutcomeTracker and TaskRecorder listened
+  on `shell:complete` but CommandHandlers emitted `shell:outcome` since v6.1.1. Shell
+  outcomes never reached CognitiveSelfModel calibration or TaskRecorder replay.
+  Fixed in: TaskOutcomeTracker, TaskRecorder, CognitiveEvents, EventTypes,
+  EventPayloadSchemas + 2 test files.
+- **`prompt-evolution:promoted` never emitted** — PromptEvolution emitted
+  `experiment-completed` but not `promoted`. LessonsStore never captured
+  successful prompt optimizations as lessons. Silent failure since v5.3.0.
+- **EmotionalFrontier double-injection** — `buildPromptContext()` called in both
+  `_frontierContext()` and `_organismContext()`, wasting tokens. Duplicate removed.
+- **CognitiveEvents duplicate `onShellOutcome`** — Duplicate method after rename.
+
+**Architectural Improvements:**
+- **`KnowledgeGraph.updateFrontierNode()`** — New API for atomic node+edge mutation
+  with `_save()`. FrontierWriter._tryMerge() no longer mutates KG silently.
+- **`FrontierWriter.enableEventBuffer()`** — Event-buffer lifecycle moved from manifest
+  closures into the writer instance. Eliminates closure-leak risk on hot-reload.
+  Manifest factories simplified from 15 → 5 lines each.
+- **KG decay fallback** — Unknown frontier edge types now decay with the `factor`
+  parameter instead of being silently skipped. Warn-log (once per type) added.
+- **McpTransport reconnect timer tracked** — `_reconnectTimer` stored and cancelled
+  in `disconnect()`. Prevents ghost reconnect after shutdown.
+- **21 late bindings → optional** — promptBuilder (11), commandHandlers (2),
+  idleMind (4), all cross-phase. All code paths already guarded with try-catch.
+- **2 dangling late binding names fixed** — `shellAgent._verification` pointed to
+  `verificationEngine` (correct: `verifier`), `dynamicToolSynthesis.toolRegistry`
+  pointed to `toolRegistry` (correct: `tools`).
+- **`CACHE_PREFETCH` constant** — Magic number 5 in FrontierWriter.getRecent()
+  replaced with named constant + JSDoc explaining the cache prefetch strategy.
+- **`model` guard in research** — IdleMindActivities._doResearchAsync() now checks
+  `this.model` before LLM distillation call, symmetric with `_webFetcher` guard.
+
+---
+
+## [7.1.6] — Persistent Self
+
+**Genesis remembers what it was doing. It notices what surprised it. It tracks which lessons it used. And when idle, it researches what it needs to know.**
+
+### Feature 1: Generic FrontierWriter Framework
+
+- **`FrontierWriter.js`** (NEW, 404 LOC) — Configurable frontier node writer. One class serves all frontier types via `extractFn(context) → props | null` and optional `mergeFn(existing, incoming) → merged | null`. API: write(), getRecent() (cached, configurable TTL), buildPromptContext(), getDashboardLine(), getReport(). Consistent with EmotionalFrontier interface. Zero LLM calls.
+- **`FrontierExtractors.js`** (NEW, 200 LOC) — Pure extractor/merger functions: `unfinishedWorkExtractor` (session text + GoalStack pending goals, skip < 3 messages, filter "none"), `suspicionExtractor` (novel events + dominant category), `suspicionMerger` (same-category consolidation, count + events merge), `lessonExtractor` (deduplicated by ID, category aggregation).
+
+### Feature 2: UNFINISHED_WORK Frontier (Phase 8)
+
+- **`phase8-revolution.js`** — New `unfinishedWorkFrontier` service. Decay 0.7/boot (stickiest — work persists longest). Max 5 imprints. Prune threshold 0.1.
+- **`SessionPersistence.js`** — Calls `_unfinishedWorkFrontier.write()` in `_linkToFrontier()` at session:ending. Passes session context (messageCount, unfinishedWork, codeFilesModified, topicsDiscussed) and GoalStack instance. Late-bindings: `_unfinishedWorkFrontier`, `_goalStack`.
+
+### Feature 3: HIGH_SUSPICION Frontier (Phase 9)
+
+- **`phase9-cognitive.js`** — New `suspicionFrontier` service with event buffering. Decay 0.6/boot. Max 8 imprints. `bus.on('surprise:novel-event')` buffers events over session, flushed at `session:ending`. Buffer reset after write (prevents Hot-Reload bloat). Merge: nodes with same `dominant_category` consolidate — counts add, events merge (cap 15).
+
+### Feature 4: LESSON_APPLIED Frontier (Phase 9)
+
+- **`phase9-cognitive.js`** — New `lessonFrontier` service with event buffering. Decay 0.6/boot. Max 5 imprints. `bus.on('lesson:applied')` buffers over session. Buffer reset after write.
+- **`LessonsStore.js`** — `recall()` now emits `lesson:applied` event for each retrieved lesson (v7.1.6 frontier tracking). New `boostRecent(lessonIds)` method: temporarily boosts relevance of recently applied lessons at boot (useCount cap: 100).
+- **Scope:** v7.1.6 tracks applied lessons only. Confirmed/contradicted tracking deferred to v7.1.7.
+
+### Feature 5: Per-Type Frontier Decay
+
+- **`KnowledgeGraph.js`** — `decayFrontierEdges()` now uses a `DECAY_FACTORS` dictionary. Each frontier edge type decays at its own rate: SESSION_COMPLETED 0.5, EMOTIONAL_IMPRINT 0.5, UNFINISHED_WORK 0.7, HIGH_SUSPICION 0.6, LESSON_APPLIED 0.6. Unknown edge types are skipped (safer than global fallback).
+
+### Feature 6: Autonomous Research Activity
+
+- **`IdleMind.js`** — New `research` activity in candidates and scoring pipeline. Five security gates: network availability (DNS probe, 5min cache), energy ≥ 0.5, trust level ≥ 1, rate limit (3/hour), cooldown (30min). Frontier-driven score boost: UNFINISHED_WORK ×1.4, HIGH_SUSPICION ×1.3, knowledge need ×1.5.
+- **`IdleMindActivities.js`** — `_research()` kicks off async background pipeline: `_pickResearchTopic()` (frontier-driven, weighted random), `_buildResearchUrl()` (npm registry or GitHub API), `_doResearchAsync()` (fetch → LLM distillation → KG node). Topic-source-dependent distillation prompts (unfinished-work → actionable steps, suspicion → root cause, weakness → reusable techniques). Exponential backoff on fetch errors (failures² × 60s, cap 30min, reset on success).
+
+### Feature 7: Frontier-Aware IdleMind Scoring
+
+- **`IdleMind.js`** — Three new scorers: UNFINISHED_WORK → `plan` ×1.6, HIGH_SUSPICION → `explore` ×1.5, low LESSON_APPLIED count → `reflect` ×1.3.
+
+### Feature 8: Prompt & Dashboard Integration
+
+- **`PromptBuilderSections.js`** — `_frontierContext()` now includes all four frontier types with weighted sorting: UNFINISHED_WORK 0.9, EMOTIONAL_IMPRINT 0.8, HIGH_SUSPICION 0.7, LESSON_APPLIED 0.6.
+- **`OrganismRenderers.js`** — Dashboard shows three new frontier lines: ⏳ UNFINISHED_WORK, ⚠ HIGH_SUSPICION, ✓ LESSON_APPLIED.
+- **`AgentCoreHealth.js`** — Health report includes `unfinishedWorkFrontier`, `suspicionFrontier`, `lessonFrontier` via `getReport()`.
+
+### Supporting Changes
+
+- **`EventTypes.js`** — New events: `lesson:applied`, `idle:research-started`, `idle:research-complete`.
+- **`phase6-autonomy.js`** — IdleMind late-bindings: 3 frontier writers + WebFetcher + TrustLevelSystem.
+- **`phase2-intelligence.js`** — PromptBuilder late-bindings: 3 frontier writers.
+- **`phase8-revolution.js`** — SessionPersistence late-bindings: `_unfinishedWorkFrontier`, `_goalStack`.
+
+### Design Principles
+
+- **Generic, not repetitive:** FrontierWriter (404 LOC) + FrontierExtractors (200 LOC) = 604 LOC. Three separate modules would have been ~900 LOC. ~33% code reduction with higher consistency.
+- **Additive, not invasive:** All 14 new late-bindings are optional. All call sites guard with `if (this._xxxFrontier)`. Genesis runs identically without any FrontierWriter.
+- **Frontier-driven, not aimless:** Research topics come from internal signals only. No research without frontier data or cognitive weakness signals.
+- **Backoff-aware:** Exponential backoff on research fetch failures. Buffer reset after write. useCount cap at 100.
+
+### Stats
+- New files: 4 (FrontierWriter.js, FrontierExtractors.js, FrontierWriter.test.js, FrontierExtractors.test.js)
+- Changed files: 12 (KnowledgeGraph, SessionPersistence, LessonsStore, IdleMind, IdleMindActivities, PromptBuilderSections, OrganismRenderers, AgentCoreHealth, EventTypes, phase2/6/8/9 manifests)
+- New tests: 30 (FrontierWriter: 15, FrontierExtractors: 15)
+- New late-bindings: 14
+- Zero regressions: 4296 passed, 0 failed
+
+---
+
 ## [7.1.5] — Emotional Continuity
 
 **Genesis has emotions. With EmotionalFrontier, it gets a will.**

@@ -52,7 +52,7 @@ describe('TaskRecorder', () => {
     assert(bus._handlers['agent-loop:complete'], 'subscribes to loop complete');
     assert(bus._handlers['goal:step-complete'], 'subscribes to step complete');
     assert(bus._handlers['chat:completed'], 'subscribes to chat');
-    assert(bus._handlers['shell:complete'], 'subscribes to shell');
+    assert(bus._handlers['shell:outcome'], 'subscribes to shell');
     assert(bus._handlers['intent:classified'], 'subscribes to intent');
   });
 
@@ -130,7 +130,7 @@ describe('TaskRecorder', () => {
     tr.start();
 
     bus._fire('agent-loop:started', { goalId: 'g1', goal: 'Tool test' });
-    bus._fire('shell:complete', { command: 'npm test', exitCode: 0, output: 'All passed' });
+    bus._fire('shell:outcome', { command: 'npm test', exitCode: 0, output: 'All passed' });
     bus._fire('mcp:tool-call', { tool: 'verify-code', success: true });
 
     const recording = tr._active.get('g1');
@@ -266,7 +266,7 @@ describe('TaskRecorder', () => {
     bus._fire('agent-loop:started', { goalId: 'g1', goal: 'Stats test' });
     bus._fire('goal:step-complete', { goalId: 'g1', action: 'step', success: true });
     bus._fire('chat:completed', { model: 'test', prompt: 'p', response: 'r' });
-    bus._fire('shell:complete', { command: 'ls' });
+    bus._fire('shell:outcome', { command: 'ls' });
     bus._fire('agent-loop:complete', { goalId: 'g1', success: true });
 
     const stats = tr.getStats();

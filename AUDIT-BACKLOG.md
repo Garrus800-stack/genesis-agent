@@ -1,9 +1,49 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.1.3 · Last updated: v7.1.3 release
+> Version: 7.1.6 · Last updated: v7.1.6 post-release fixes
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.1.6 (Post-Release)
+
+### R-1: shell:complete → shell:outcome Event Mismatch
+- **Since:** v6.1.1 (CommandHandlers emitted `shell:outcome`, consumers listened on `shell:complete`)
+- **Impact:** HIGH — TaskOutcomeTracker and TaskRecorder received zero shell data.
+  CognitiveSelfModel Wilson-score calibration had no shell evidence.
+- **Fixed:** TaskOutcomeTracker, TaskRecorder, CognitiveEvents, EventTypes, EventPayloadSchemas.
+
+### R-2: prompt-evolution:promoted Never Emitted
+- **Since:** v5.3.0 (PromptEvolution emitted `experiment-completed` but not `promoted`)
+- **Impact:** HIGH — LessonsStore never captured promoted prompt variants as lessons.
+- **Fixed:** PromptEvolution now emits `prompt-evolution:promoted` on successful promotion.
+
+### R-3: EmotionalFrontier Double-Injection in Prompt
+- **Since:** v7.1.5 (added in both `_frontierContext` and `_organismContext`)
+- **Impact:** MEDIUM — Duplicate token usage per LLM call.
+- **Fixed:** Removed from `_organismContext`. Canonical location: `_frontierContext`.
+
+### R-4: KG Mutation Without Persistence in _tryMerge
+- **Since:** v7.1.6 (FrontierWriter._tryMerge mutated KG nodes by reference without `_save()`)
+- **Impact:** MEDIUM — Merged frontier nodes could be lost on crash before next unrelated save.
+- **Fixed:** New `KnowledgeGraph.updateFrontierNode()` API with atomic mutation + save.
+
+### R-5: McpTransport Reconnect Timer Leak
+- **Since:** v5.2.0 (reconnect `setTimeout` not tracked, could fire after `disconnect()`)
+- **Impact:** MEDIUM — Ghost reconnect attempt after intended disconnect.
+- **Fixed:** `_reconnectTimer` tracked, cancelled in `disconnect()`.
+
+### R-6: 21 Cross-Phase Required Late Bindings
+- **Since:** various (promptBuilder, commandHandlers, idleMind)
+- **Impact:** MEDIUM — Boot failure in P7/P8 could cascade to P2/P5/P6 services.
+- **Fixed:** All 21 bindings changed to `optional: true`. All code paths already try-catch guarded.
+
+### R-7: 2 Dangling Late Binding Names
+- **Since:** unknown (shellAgent → `verificationEngine`, dynamicToolSynthesis → `toolRegistry`)
+- **Impact:** LOW — Properties stayed `undefined`, features silently unavailable.
+- **Fixed:** Corrected to `verifier` and `tools` respectively.
 
 ---
 

@@ -84,6 +84,10 @@ class AgentCoreHealth {
         genome:      safe('genome',               g  => g.getReport?.() || { traits: g.getTraits() }),
         fitness:     safe('fitnessEvaluator',     fe => fe.getStats()),
         emotionalFrontier: safe('emotionalFrontier', ef => ef.getReport()),
+        // v7.1.6: Persistent Self frontier writers
+        unfinishedWorkFrontier: safe('unfinishedWorkFrontier', uw => uw.getReport()),
+        suspicionFrontier: safe('suspicionFrontier', sf => sf.getReport()),
+        lessonFrontier: safe('lessonFrontier', lf => lf.getReport()),
       },
       cognitiveMonitor: safe('cognitiveMonitor', cm => cm.getReport()),
       cognitive: {

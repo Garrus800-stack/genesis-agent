@@ -61,7 +61,7 @@ describe('TaskOutcomeTracker', () => {
     assert(bus._handlers['agent-loop:complete'], 'agent-loop:complete handler');
     assert(bus._handlers['chat:completed'], 'chat:completed handler');
     assert(bus._handlers['selfmod:success'], 'selfmod:success handler');
-    assert(bus._handlers['shell:complete'], 'shell:complete handler');
+    assert(bus._handlers['shell:outcome'], 'shell:outcome handler');
   });
 
   test('stop() unsubscribes and persists', () => {
@@ -124,16 +124,16 @@ describe('TaskOutcomeTracker', () => {
     assertEqual(t._outcomes[0].success, true);
   });
 
-  test('records outcome on shell:complete', () => {
+  test('records outcome on shell:outcome', () => {
     const bus = mockBus();
     const t = new TaskOutcomeTracker({ bus });
     t.boot();
 
-    bus._fire('shell:complete', { exitCode: 0, durationMs: 500 });
+    bus._fire('shell:outcome', { exitCode: 0, durationMs: 500 });
     assertEqual(t._outcomes[0].taskType, 'shell-exec');
     assertEqual(t._outcomes[0].success, true);
 
-    bus._fire('shell:complete', { exitCode: 1 });
+    bus._fire('shell:outcome', { exitCode: 1 });
     assertEqual(t._outcomes[1].success, false);
     assertEqual(t._outcomes[1].errorCategory, 'exit-1');
   });
@@ -305,7 +305,7 @@ describe('TaskOutcomeTracker', () => {
     bus._fire('agent-loop:complete', null);
     bus._fire('chat:completed', undefined);
     bus._fire('selfmod:success', null);
-    bus._fire('shell:complete', null);
+    bus._fire('shell:outcome', null);
 
     assertEqual(t._outcomes.length, 0);
     assertEqual(t.stats.recorded, 0);

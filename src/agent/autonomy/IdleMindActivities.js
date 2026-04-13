@@ -365,6 +365,194 @@ const activities = {
     }
   },
 
+  // ════════════════════════════════════════════════════════
+  // v7.1.6: RESEARCH — web-based learning from trusted domains
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Start a research activity. Non-blocking: kicks off async fetch+distill
+   * in the background and returns immediately.
+   */
+  async _research() {
+    if (this._pendingResearch) return null; // Already researching
+
+    const topic = this._pickResearchTopic();
+    if (!topic) return null;
+
+    this._pendingResearch = { topic, startedAt: Date.now() };
+
+    this.bus.fire('idle:research-started', {
+      topic: topic.label, source: topic.source, query: topic.query,
+    }, { source: 'IdleMind' });
+
+    // Background — does not block the idle tick
+    this._doResearchAsync(topic).catch(err => {
+      _log.debug('[IDLE] Research failed:', err.message);
+      this._pendingResearch = null;
+    });
+
+    return `Research started: ${topic.label}`;
+  },
+
+  /**
+   * Background research: fetch → distill → store.
+   */
+  async _doResearchAsync(topic) {
+    if (!this._webFetcher) { this._pendingResearch = null; return; }
+
+    // A) Fetch from trusted domain
+    // v7.1.6: Backoff on rate-limit or server errors
+    if (this._researchBackoffUntil && Date.now() < this._researchBackoffUntil) {
+      _log.debug('[IDLE] Research skipped — backoff active');
+      this._pendingResearch = null;
+      return;
+    }
+
+    const url = this._buildResearchUrl(topic);
+    let fetchResult;
+    try {
+      fetchResult = await this._webFetcher.fetch(url);
+    } catch (err) {
+      _log.debug('[IDLE] Research fetch failed:', err.message);
+      // v7.1.6: Exponential backoff on fetch errors (likely 429/5xx)
+      const failures = (this._researchFailures || 0) + 1;
+      this._researchFailures = Math.min(failures, 5);
+      this._researchBackoffUntil = Date.now() + Math.min(failures * failures * 60 * 1000, 30 * 60 * 1000);
+      _log.debug(`[IDLE] Research backoff: ${this._researchFailures} failures, next retry in ${Math.round((this._researchBackoffUntil - Date.now()) / 60000)}min`);
+      this._pendingResearch = null;
+      return;
+    }
+
+    // Reset backoff on success
+    this._researchFailures = 0;
+    this._researchBackoffUntil = null;
+
+    if (!fetchResult?.body) { this._pendingResearch = null; return; }
+
+    // B) LLM distillation
+    if (!this.model) { this._pendingResearch = null; return; }
+    const body = (typeof fetchResult.body === 'string' ? fetchResult.body : JSON.stringify(fetchResult.body)).slice(0, 3000);
+    // v7.1.6: Topic-source-dependent distillation prompts
+    const DISTILL_FOCUS = {
+      'unfinished-work': 'Focus on actionable next steps and concrete techniques to complete this work.',
+      'suspicion': 'Focus on root cause analysis and what to watch out for.',
+      'weakness': 'Focus on reusable techniques and patterns to improve this capability.',
+    };
+    const focus = DISTILL_FOCUS[topic.source] || 'Focus on actionable knowledge.';
+    const prompt = `You are Genesis. You researched "${topic.label}" and found this:\n\n${body}\n\nDistill the most useful insight in 2-3 sentences for your own reference. ${focus}`;
+
+    let insight;
+    try {
+      insight = await this.model.chat(prompt, [], 'analysis');
+    } catch (err) {
+      _log.debug('[IDLE] Research distillation failed:', err.message);
+      this._pendingResearch = null;
+      return;
+    }
+
+    // C) Store in KnowledgeGraph
+    if (this.kg && insight) {
+      this.kg.addNode('research', `${topic.label}: ${insight.slice(0, 60)}`, {
+        type: 'research-finding',
+        source: topic.source,
+        url: url,
+        insight: insight.slice(0, 500),
+        query: topic.query,
+      });
+    }
+
+    // D) Satisfy knowledge need
+    this.bus.emit('knowledge:learned', {
+      source: 'research', topic: topic.label, url,
+    }, { source: 'IdleMind' });
+
+    this.bus.fire('idle:research-complete', {
+      topic: topic.label, source: topic.source, insight: insight?.slice(0, 200),
+    }, { source: 'IdleMind' });
+
+    this._pendingResearch = null;
+    _log.info(`[IDLE] Research complete: ${topic.label}`);
+  },
+
+  /**
+   * Pick a research topic from internal signals.
+   * Returns null if no signals → no aimless browsing.
+   */
+  _pickResearchTopic() {
+    const sources = [];
+
+    // A) UNFINISHED_WORK topics
+    if (this._unfinishedWorkFrontier) {
+      try {
+        const recent = this._unfinishedWorkFrontier.getRecent(2);
+        for (const node of recent) {
+          const topic = node.description || node.pending_goals?.[0]?.description;
+          if (topic) sources.push({
+            query: `${topic.slice(0, 40)} best practices nodejs`,
+            label: topic.slice(0, 50),
+            source: 'unfinished-work',
+            priority: 1.4,
+          });
+        }
+      } catch (_e) { /* optional */ }
+    }
+
+    // B) HIGH_SUSPICION categories
+    if (this._suspicionFrontier) {
+      try {
+        const recent = this._suspicionFrontier.getRecent(2);
+        for (const node of recent) {
+          if (node.dominant_category) {
+            sources.push({
+              query: `${node.dominant_category} common pitfalls solutions`,
+              label: `${node.dominant_category} pitfalls`,
+              source: 'suspicion',
+              priority: 1.3,
+            });
+          }
+        }
+      } catch (_e) { /* optional */ }
+    }
+
+    // C) CognitiveSelfModel weaknesses
+    if (this._cognitiveSelfModel) {
+      try {
+        const weak = this._cognitiveSelfModel.getWeakestCapability?.();
+        if (weak) sources.push({
+          query: `${weak.taskType} techniques improvement`,
+          label: `improve ${weak.taskType}`,
+          source: 'weakness',
+          priority: 1.1,
+        });
+      } catch (_e) { /* optional */ }
+    }
+
+    if (sources.length === 0) return null;
+
+    // Weighted random selection
+    const totalWeight = sources.reduce((s, t) => s + t.priority, 0);
+    let r = Math.random() * totalWeight;
+    for (const s of sources) {
+      r -= s.priority;
+      if (r <= 0) return s;
+    }
+    return sources[0];
+  },
+
+  /**
+   * Build a research URL targeting trusted API endpoints.
+   */
+  _buildResearchUrl(topic) {
+    const q = encodeURIComponent(topic.query.slice(0, 80));
+    const strategies = [
+      `https://registry.npmjs.org/-/v1/search?text=${q}&size=3`,
+      `https://api.github.com/search/repositories?q=${q}&sort=stars&per_page=3`,
+    ];
+    if (topic.source === 'weakness') return strategies[0];
+    if (topic.source === 'suspicion') return strategies[1];
+    return strategies[Math.floor(Math.random() * strategies.length)];
+  },
+
 };
 
 module.exports = { activities };

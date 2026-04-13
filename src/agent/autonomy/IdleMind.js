@@ -56,6 +56,18 @@ class IdleMind {
     this._emotionalFrontier = null;
     this._recentImprintIds = new Set(); // Cooldown: halve score for recently-used imprints
 
+    // v7.1.6: Frontier writers (late-bound)
+    this._unfinishedWorkFrontier = null;
+    this._suspicionFrontier = null;
+    this._lessonFrontier = null;
+    this._webFetcher = null;
+    this._trustLevelSystem = null;
+
+    // v7.1.6: Research state
+    this._pendingResearch = null;
+    this._networkCheckCache = undefined;
+    this._networkCheckTs = 0;
+
     // v7.0.3 — C4: DreamCycle active push — queue actionable insights
     this._pendingInsights = [];
 
@@ -205,6 +217,7 @@ class IdleMind {
         case 'dream':        result = await this._dream(); break;
         case 'consolidate':  result = await this._consolidateMemory(); break;
         case 'calibrate':   result = await this._calibrate(); break;
+        case 'research':    result = await this._research(); break;
         default:             result = await this._reflect();
       }
 
@@ -305,11 +318,18 @@ class IdleMind {
       }
     } catch (_e) { /* no goalSynthesizer */ }
 
+    // v7.1.6: research — web-based learning from trusted domains
+    try {
+      if (this._webFetcher && this._isNetworkAvailable()) {
+        candidates.push('research');
+      }
+    } catch (_e) { /* no webFetcher or network */ }
+
     // ── Static weight table ─────────────────────────────
     const STATIC_WEIGHTS = {
       reflect: 1.5, plan: 1.0, explore: 1.2, ideate: 0.8,
       tidy: 0.6, journal: 0.5, 'mcp-explore': 1.0, dream: 2.0,
-      consolidate: 1.3, calibrate: 1.5, improve: 1.8,
+      consolidate: 1.3, calibrate: 1.5, improve: 1.8, research: 0.7,
     };
 
     // ── Initialize scores ───────────────────────────────
@@ -409,6 +429,64 @@ class IdleMind {
           this._recentImprintIds = new Set(imprints.slice(0, 2).map(i => i.nodeId).filter(Boolean));
         } catch (_e) { /* optional */ }
       },
+      // v7.1.6: UNFINISHED_WORK → boost plan activity
+      () => {
+        if (!this._unfinishedWorkFrontier) return;
+        try {
+          const items = this._unfinishedWorkFrontier.getRecent(2);
+          if (items.length > 0 && scores.plan !== undefined) {
+            scores.plan *= 1.6;
+          }
+        } catch (_e) { /* optional */ }
+      },
+      // v7.1.6: HIGH_SUSPICION → boost explore for affected category
+      () => {
+        if (!this._suspicionFrontier) return;
+        try {
+          const items = this._suspicionFrontier.getRecent(2);
+          if (items.length > 0 && scores.explore !== undefined) {
+            scores.explore *= 1.5;
+          }
+        } catch (_e) { /* optional */ }
+      },
+      // v7.1.6: LESSON_APPLIED low confirmation → boost reflect
+      () => {
+        if (!this._lessonFrontier) return;
+        try {
+          const items = this._lessonFrontier.getRecent(1);
+          if (items.length > 0 && scores.reflect !== undefined) {
+            // Low lesson count in session could indicate lessons aren't being applied
+            if ((items[0].count || 0) <= 1) scores.reflect *= 1.3;
+          }
+        } catch (_e) { /* optional */ }
+      },
+      // v7.1.6: Research gates — energy, trust, rate limit, frontier-driven boost
+      () => {
+        if (scores.research === undefined) return;
+        // Energy gate
+        const energy = this.emotionalState?.getState?.()?.energy ?? 0.5;
+        if (energy < 0.5) { scores.research = 0; return; }
+        // Trust gate
+        const trustLevel = this._trustLevelSystem?.getCurrentLevel?.() ?? 1;
+        if (trustLevel < 1) { scores.research = 0; return; }
+        // Rate limit: max 3 per hour
+        const recentResearch = this.activityLog
+          .filter(a => a.activity === 'research' && Date.now() - a.timestamp < 60 * 60 * 1000);
+        if (recentResearch.length >= 3) { scores.research = 0; return; }
+        // Cooldown: 30min after last research
+        const lastR = recentResearch[recentResearch.length - 1];
+        if (lastR && Date.now() - lastR.timestamp < 30 * 60 * 1000) {
+          scores.research *= 0.1;
+        }
+        // Frontier-driven boost: topics available → higher score
+        if (this._unfinishedWorkFrontier?.getRecent(1).length > 0) scores.research *= 1.4;
+        if (this._suspicionFrontier?.getRecent(1).length > 0) scores.research *= 1.3;
+        // Knowledge need boost
+        if (this.needsSystem) {
+          const needs = this.needsSystem.getNeeds();
+          if (needs.knowledge > 0.6) scores.research *= 1.5;
+        }
+      },
     ];
 
     for (const scorer of scorers) {
@@ -436,6 +514,35 @@ class IdleMind {
 
   // ── Activity implementations → IdleMindActivities.js ──
   // (prototype delegation, see bottom of file)
+
+  // v7.1.6: Network availability check for research activity
+  // Cached for 5 minutes — async DNS probe, non-blocking.
+  _isNetworkAvailable() {
+    if (this._networkCheckCache !== undefined
+        && Date.now() - this._networkCheckTs < 5 * 60 * 1000) {
+      return this._networkCheckCache;
+    }
+
+    // Async DNS probe — result available next tick
+    try {
+      const dns = require('dns');
+      dns.resolve('registry.npmjs.org', (err) => {
+        this._networkCheckCache = !err;
+        this._networkCheckTs = Date.now();
+      });
+    } catch (_e) {
+      this._networkCheckCache = false;
+      this._networkCheckTs = Date.now();
+    }
+
+    // First call: optimistic (fetch timeout catches failures)
+    if (this._networkCheckCache === undefined) {
+      this._networkCheckCache = true;
+      this._networkCheckTs = Date.now();
+    }
+
+    return this._networkCheckCache;
+  }
 
   readJournal(limit = 20) {
     try {

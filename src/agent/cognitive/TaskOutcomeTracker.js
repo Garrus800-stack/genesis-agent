@@ -20,7 +20,7 @@
 //   agent-loop:complete   ──┐
 //   chat:completed        ──┼─→ _recordOutcome() → storage
 //   selfmod:success       ──┤     ↓
-//   shell:complete        ──┘   emit task-outcome:recorded
+//   shell:outcome         ──┘   emit task-outcome:recorded
 //                               emit task-outcome:stats-updated
 //
 // Data format per outcome:
@@ -121,7 +121,7 @@ class TaskOutcomeTracker {
       this.bus.on('agent-loop:complete', (data) => this._onAgentLoopComplete(data)),
       this.bus.on('chat:completed', (data) => this._onChatCompleted(data)),
       this.bus.on('selfmod:success', (data) => this._onSelfModSuccess(data)),
-      this.bus.on('shell:complete', (data) => this._onShellComplete(data)),
+      this.bus.on('shell:outcome', (data) => this._onShellComplete(data)),
     );
   }
 

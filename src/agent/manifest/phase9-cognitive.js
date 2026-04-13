@@ -214,7 +214,7 @@ function phase9(ctx, R) {
       phase: 9, deps: ['storage'], tags: ['cognitive', 'tools', 'synthesis'],
       lateBindings: [
         { prop: 'llm', service: 'llm', optional: true },
-        { prop: 'toolRegistry', service: 'toolRegistry', optional: true },
+        { prop: 'toolRegistry', service: 'tools', optional: true }, // v7.1.6: was 'toolRegistry' (dangling)
         { prop: 'sandbox', service: 'sandbox', optional: true },
         { prop: 'codeSafety', service: 'codeSafety', optional: true },
       ],
@@ -366,6 +366,69 @@ function phase9(ctx, R) {
       factory: () => new (R('GoalSynthesizer').GoalSynthesizer)({
         bus,
       }),
+    }],
+
+    // v7.1.6: SuspicionFrontier — persists novel/surprising events across sessions.
+    // Uses generic FrontierWriter with suspicionExtractor + suspicionMerger.
+    // Decay 0.6/boot. Merges nodes with same dominant_category to prevent bloat.
+    // Event-buffering: collects surprise:novel-event over session, writes at session:ending.
+    ['suspicionFrontier', {
+      phase: 9,
+      deps: ['knowledgeGraph', 'storage'],
+      tags: ['cognitive', 'frontier', 'suspicion'],
+      factory: (c) => {
+        const { FrontierWriter } = R('FrontierWriter');
+        const { suspicionExtractor, suspicionMerger } = R('FrontierExtractors');
+        const writer = new FrontierWriter({
+          name: 'suspicion',
+          edgeType: 'HIGH_SUSPICION',
+          decayFactor: 0.6,
+          maxImprints: 8,
+          pruneThreshold: 0.05,
+          extractFn: suspicionExtractor,
+          mergeFn: suspicionMerger,
+        }, {
+          bus,
+          knowledgeGraph: c.resolve('knowledgeGraph'),
+          storage: c.resolve('storage'),
+        });
+
+        // v7.1.6: Buffer novel events, flush at session end
+        writer.enableEventBuffer('surprise:novel-event', 'session:ending', 'novelEvents');
+
+        return writer;
+      },
+    }],
+
+    // v7.1.6: LessonFrontier — tracks which lessons were recalled during sessions.
+    // Uses generic FrontierWriter with lessonExtractor.
+    // Decay 0.6/boot. v7.1.6 scope: only lesson:applied tracking.
+    // Confirmed/contradicted deferred to v7.1.7.
+    ['lessonFrontier', {
+      phase: 9,
+      deps: ['knowledgeGraph', 'storage'],
+      tags: ['cognitive', 'frontier', 'lessons'],
+      factory: (c) => {
+        const { FrontierWriter } = R('FrontierWriter');
+        const { lessonExtractor } = R('FrontierExtractors');
+        const writer = new FrontierWriter({
+          name: 'lessonTracking',
+          edgeType: 'LESSON_APPLIED',
+          decayFactor: 0.6,
+          maxImprints: 5,
+          pruneThreshold: 0.05,
+          extractFn: lessonExtractor,
+        }, {
+          bus,
+          knowledgeGraph: c.resolve('knowledgeGraph'),
+          storage: c.resolve('storage'),
+        });
+
+        // v7.1.6: Buffer applied lessons, flush at session end
+        writer.enableEventBuffer('lesson:applied', 'session:ending', 'appliedLessons');
+
+        return writer;
+      },
     }],
   ];
 }

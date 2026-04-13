@@ -315,6 +315,16 @@ class PromptEvolution {
       variantRate: exp.variantRate,
       improvement: exp.improvement,
     }, { source: 'PromptEvolution' });
+
+    // v7.1.6: Emit promoted event for LessonsStore capture
+    if (decision === 'promote') {
+      this.bus.emit('prompt-evolution:promoted', {
+        section: sectionName,
+        variantId: exp.variantId,
+        improvement: exp.improvement,
+        generation: exp.generation,
+      }, { source: 'PromptEvolution' });
+    }
   }
 
   /**

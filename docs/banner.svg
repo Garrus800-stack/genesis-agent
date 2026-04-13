@@ -1,9 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
   <style>
-    @keyframes pulse { 0%,100%{opacity:.15} 50%{opacity:.6} }
+    @keyframes pulse { 0%,100%{opacity:.12} 50%{opacity:.55} }
     @keyframes flow { 0%{stroke-dashoffset:40} 100%{stroke-dashoffset:0} }
-    @keyframes glow { 0%,100%{opacity:.4} 50%{opacity:1} }
+    @keyframes frontier-glow { 0%,100%{opacity:.3;r:14} 50%{opacity:.7;r:17} }
+    @keyframes ring-expand { 0%{r:18;opacity:.4} 100%{r:28;opacity:0} }
     @keyframes scan { 0%{transform:translateX(-200px)} 100%{transform:translateX(1000px)} }
+    @keyframes drift { 0%,100%{opacity:.06} 50%{opacity:.18} }
+    @keyframes edge-pulse { 0%,100%{stroke-opacity:.08} 50%{stroke-opacity:.35} }
     .net{stroke:#6c8cff;stroke-width:.5;fill:none;opacity:.15}
     .net-pulse{stroke:#6c8cff;stroke-width:1;fill:none;stroke-dasharray:4 6;animation:flow 2s linear infinite}
     .node-bg{fill:#6c8cff;opacity:.08}
@@ -15,33 +18,51 @@
     .p4{animation:pulse 3s ease-in-out infinite 1.5s}
     .p5{animation:pulse 3s ease-in-out infinite 2s}
     .p6{animation:pulse 3s ease-in-out infinite 2.5s}
+    .frontier-bg{fill:#d4a017;opacity:.12;animation:frontier-glow 4s ease-in-out infinite}
+    .frontier-ring{fill:none;stroke:#d4a017;stroke-width:1.2;opacity:.5}
+    .frontier-ring-expand{fill:none;stroke:#d4a017;stroke-width:.6;animation:ring-expand 3s ease-out infinite}
+    .frontier-core{fill:#d4a017}
+    .frontier-edge{stroke:#d4a017;stroke-width:.8;stroke-dasharray:3 4;animation:edge-pulse 2.5s ease-in-out infinite}
+    .fe2{animation-delay:.4s}.fe3{animation-delay:.8s}.fe4{animation-delay:1.2s}.fe5{animation-delay:1.6s}
+    .writer-bg{opacity:.1}.writer-ring{fill:none;stroke-width:.8;opacity:.5}.writer-core{r:2.5}
+    .w-work{fill:#3fb950;stroke:#3fb950}
+    .w-suspicion{fill:#f0883e;stroke:#f0883e}
+    .w-lesson{fill:#bc8cff;stroke:#bc8cff}
+    .w-emotion{fill:#f85149;stroke:#f85149}
+    .mem-thread{stroke:#6c8cff;stroke-width:.3;fill:none;opacity:.04;animation:drift 6s ease-in-out infinite}
+    .mt2{animation-delay:2s}.mt3{animation-delay:4s}
     .title{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-weight:200;font-size:42px;fill:#e8e6df;letter-spacing:12px}
     .sub{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-weight:300;font-size:11px;fill:#888780;letter-spacing:3px}
     .ver{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-weight:400;font-size:10px;fill:#6c8cff;letter-spacing:1px}
-    .diamond{fill:#6c8cff;opacity:.8}
-    .scan-line{fill:url(#scanGrad);animation:scan 4s linear infinite;opacity:.3}
+    .codename{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-weight:300;font-size:9px;fill:#d4a017;letter-spacing:4px;opacity:.8}
+    .diamond{fill:#d4a017;opacity:.85}
+    .scan-line{fill:url(#scanGrad);animation:scan 4s linear infinite;opacity:.25}
     @media(prefers-color-scheme:light){
-      .title{fill:#2C2C2A}
-      .sub{fill:#5F5E5A}
-      .net{stroke:#534AB7}
-      .net-pulse{stroke:#534AB7}
-      .node-bg{fill:#534AB7}
-      .node-ring{stroke:#534AB7}
-      .node-core{fill:#534AB7}
-      .diamond{fill:#534AB7}
-      .ver{fill:#534AB7}
-      .scan-line{opacity:.15}
+      .title{fill:#2C2C2A}.sub{fill:#5F5E5A}.codename{fill:#9a7612}
+      .net{stroke:#534AB7}.net-pulse{stroke:#534AB7}
+      .node-bg{fill:#534AB7}.node-ring{stroke:#534AB7}.node-core{fill:#534AB7}
+      .diamond{fill:#9a7612}.ver{fill:#534AB7}
+      .frontier-bg{fill:#9a7612}.frontier-ring{stroke:#9a7612}
+      .frontier-ring-expand{stroke:#9a7612}.frontier-core{fill:#9a7612}
+      .frontier-edge{stroke:#9a7612}.mem-thread{stroke:#534AB7}.scan-line{opacity:.12}
     }
   </style>
   <defs>
     <linearGradient id="scanGrad" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#6c8cff" stop-opacity="0"/>
-      <stop offset="50%" stop-color="#6c8cff" stop-opacity=".4"/>
+      <stop offset="50%" stop-color="#6c8cff" stop-opacity=".3"/>
       <stop offset="100%" stop-color="#6c8cff" stop-opacity="0"/>
     </linearGradient>
+    <radialGradient id="frontierAura" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#d4a017" stop-opacity=".15"/>
+      <stop offset="100%" stop-color="#d4a017" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <rect width="800" height="200" fill="#111110" rx="8"/>
   <rect class="scan-line" x="-200" y="0" width="200" height="200" rx="8"/>
+  <path class="mem-thread" d="M0,100 Q200,40 400,100 T800,100"/>
+  <path class="mem-thread mt2" d="M0,80 Q200,140 400,80 T800,80"/>
+  <path class="mem-thread mt3" d="M0,120 Q200,60 400,120 T800,120"/>
   <g opacity=".5">
     <line class="net p1" x1="80" y1="60" x2="200" y2="90"/>
     <line class="net p2" x1="200" y1="90" x2="340" y2="55"/>
@@ -65,48 +86,59 @@
     <line class="net p5" x1="340" y1="55" x2="600" y2="150"/>
     <line class="net p6" x1="460" y1="115" x2="720" y2="75"/>
   </g>
+  <line class="frontier-edge" x1="400" y1="78" x2="200" y2="90"/>
+  <line class="frontier-edge fe2" x1="400" y1="78" x2="600" y2="50"/>
+  <line class="frontier-edge fe3" x1="400" y1="78" x2="340" y2="145"/>
+  <line class="frontier-edge fe4" x1="400" y1="78" x2="460" y2="115"/>
+  <line class="frontier-edge fe5" x1="400" y1="78" x2="600" y2="150"/>
   <g>
     <circle class="node-bg p1" cx="80" cy="60" r="8"/>
     <circle class="node-ring p1" cx="80" cy="60" r="8"/>
     <circle class="node-core p1" cx="80" cy="60" r="2.5"/>
-    <circle class="node-bg p2" cx="200" cy="90" r="10"/>
-    <circle class="node-ring p2" cx="200" cy="90" r="10"/>
-    <circle class="node-core p2" cx="200" cy="90" r="3"/>
-    <circle class="node-bg p3" cx="340" cy="55" r="7"/>
-    <circle class="node-ring p3" cx="340" cy="55" r="7"/>
-    <circle class="node-core p3" cx="340" cy="55" r="2"/>
-    <circle class="node-bg p4" cx="460" cy="85" r="12"/>
-    <circle class="node-ring p4" cx="460" cy="85" r="12"/>
-    <circle class="node-core p4" cx="460" cy="85" r="3.5"/>
-    <circle class="node-bg p5" cx="600" cy="50" r="9"/>
-    <circle class="node-ring p5" cx="600" cy="50" r="9"/>
-    <circle class="node-core p5" cx="600" cy="50" r="2.5"/>
     <circle class="node-bg p6" cx="720" cy="75" r="7"/>
     <circle class="node-ring p6" cx="720" cy="75" r="7"/>
     <circle class="node-core p6" cx="720" cy="75" r="2"/>
     <circle class="node-bg p1" cx="80" cy="140" r="6"/>
     <circle class="node-ring p1" cx="80" cy="140" r="6"/>
     <circle class="node-core p1" cx="80" cy="140" r="2"/>
-    <circle class="node-bg p2" cx="200" cy="110" r="8"/>
-    <circle class="node-ring p2" cx="200" cy="110" r="8"/>
-    <circle class="node-core p2" cx="200" cy="110" r="2.5"/>
-    <circle class="node-bg p3" cx="340" cy="145" r="11"/>
-    <circle class="node-ring p3" cx="340" cy="145" r="11"/>
-    <circle class="node-core p3" cx="340" cy="145" r="3"/>
-    <circle class="node-bg p4" cx="460" cy="115" r="6"/>
-    <circle class="node-ring p4" cx="460" cy="115" r="6"/>
-    <circle class="node-core p4" cx="460" cy="115" r="2"/>
-    <circle class="node-bg p5" cx="600" cy="150" r="10"/>
-    <circle class="node-ring p5" cx="600" cy="150" r="10"/>
-    <circle class="node-core p5" cx="600" cy="150" r="3"/>
     <circle class="node-bg p6" cx="720" cy="125" r="8"/>
     <circle class="node-ring p6" cx="720" cy="125" r="8"/>
     <circle class="node-core p6" cx="720" cy="125" r="2.5"/>
   </g>
-  <polygon class="diamond" points="400,72 405,78 400,84 395,78"/>
-  <text class="title" x="400" y="105" text-anchor="middle">GENESIS</text>
-  <text class="sub" x="400" y="128" text-anchor="middle">SELF-MODIFYING COGNITIVE AI AGENT</text>
-  <text class="ver" x="400" y="148" text-anchor="middle">v7.1.4  &#x2022;  215 modules  &#x2022;  147 services  &#x2022;  3447 tests  &#x2022;  12 boot phases</text>
-  <line x1="200" y1="160" x2="600" y2="160" stroke="#6c8cff" stroke-width=".3" opacity=".3"/>
-  <text class="sub" x="400" y="175" text-anchor="middle">PERCEIVE &#x2022; PLAN &#x2022; ACT &#x2022; VERIFY &#x2022; LEARN &#x2022; DREAM &#x2022; EVOLVE</text>
+  <circle class="writer-bg w-work" cx="200" cy="90" r="10"/>
+  <circle class="writer-ring w-work" cx="200" cy="90" r="10"/>
+  <circle class="writer-core w-work" cx="200" cy="90"/>
+  <circle class="writer-bg w-emotion" cx="340" cy="55" r="7"/>
+  <circle class="writer-ring w-emotion" cx="340" cy="55" r="7"/>
+  <circle class="writer-core w-emotion" cx="340" cy="55"/>
+  <circle class="node-bg p4" cx="460" cy="85" r="12"/>
+  <circle class="node-ring p4" cx="460" cy="85" r="12"/>
+  <circle class="node-core p4" cx="460" cy="85" r="3.5"/>
+  <circle class="writer-bg w-suspicion" cx="600" cy="50" r="9"/>
+  <circle class="writer-ring w-suspicion" cx="600" cy="50" r="9"/>
+  <circle class="writer-core w-suspicion" cx="600" cy="50"/>
+  <circle class="node-bg p2" cx="200" cy="110" r="8"/>
+  <circle class="node-ring p2" cx="200" cy="110" r="8"/>
+  <circle class="node-core p2" cx="200" cy="110" r="2.5"/>
+  <circle class="writer-bg w-lesson" cx="340" cy="145" r="11"/>
+  <circle class="writer-ring w-lesson" cx="340" cy="145" r="11"/>
+  <circle class="writer-core w-lesson" cx="340" cy="145"/>
+  <circle class="node-bg p4" cx="460" cy="115" r="6"/>
+  <circle class="node-ring p4" cx="460" cy="115" r="6"/>
+  <circle class="node-core p4" cx="460" cy="115" r="2"/>
+  <circle class="writer-bg w-work" cx="600" cy="150" r="10"/>
+  <circle class="writer-ring w-work" cx="600" cy="150" r="10"/>
+  <circle class="writer-core w-work" cx="600" cy="150"/>
+  <circle cx="400" cy="78" r="30" fill="url(#frontierAura)"/>
+  <circle class="frontier-bg" cx="400" cy="78" r="14"/>
+  <circle class="frontier-ring" cx="400" cy="78" r="14"/>
+  <circle class="frontier-ring-expand" cx="400" cy="78" r="18"/>
+  <circle class="frontier-core" cx="400" cy="78" r="4"/>
+  <polygon class="diamond" points="400,68 405,74 400,80 395,74"/>
+  <text class="title" x="400" y="112" text-anchor="middle">GENESIS</text>
+  <text class="sub" x="400" y="133" text-anchor="middle">SELF-MODIFYING COGNITIVE AI AGENT</text>
+  <text class="codename" x="400" y="148" text-anchor="middle">PERSISTENT SELF</text>
+  <text class="ver" x="400" y="163" text-anchor="middle">v7.1.6  &#x2022;  247 modules  &#x2022;  141 services  &#x2022;  4296 tests  &#x2022;  12 boot phases</text>
+  <line x1="200" y1="172" x2="600" y2="172" stroke="#6c8cff" stroke-width=".3" opacity=".3"/>
+  <text class="sub" x="400" y="186" text-anchor="middle">PERCEIVE &#x2022; PLAN &#x2022; ACT &#x2022; VERIFY &#x2022; LEARN &#x2022; DREAM &#x2022; EVOLVE &#x2022; REMEMBER</text>
 </svg>

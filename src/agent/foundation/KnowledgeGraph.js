@@ -211,6 +211,22 @@ class KnowledgeGraph {
   }
 
   /**
+   * v7.1.6: Update a frontier node's properties and edge weight atomically.
+   * Ensures _save() is called — prevents silent mutation without persistence.
+   *
+   * @param {object} node     — KG node reference (from getNode)
+   * @param {object} merged   — New properties to apply
+   * @param {object} edge     — Edge to refresh weight on
+   */
+  updateFrontierNode(node, merged, edge) {
+    Object.assign(node.properties, merged);
+    node.properties.last_merged = Date.now();
+    node.accessed = Date.now();
+    if (edge) edge.weight = Math.min((edge.weight || 0.5) + 0.2, 1.0);
+    this._save();
+  }
+
+  /**
    * Decay old frontier edges. Called at boot by SessionPersistence.
    * SESSION_COMPLETED edges lose confidence each session.
    * @param {number} factor - Decay multiplier (default 0.5)
@@ -219,17 +235,37 @@ class KnowledgeGraph {
     const frontier = this.graph.findNode('frontier');
     if (!frontier || !this.graph.edges) return 0;
 
-    // v7.1.5: Decay both SESSION_COMPLETED and EMOTIONAL_IMPRINT edges
-    const DECAYABLE = new Set(['SESSION_COMPLETED', 'EMOTIONAL_IMPRINT']);
+    // v7.1.6: Per-type decay factors. Each frontier edge type decays at its
+    // own rate. Unfinished work persists longest (0.7), emotions fade fastest (0.5).
+    // The `factor` parameter serves as fallback for unknown types.
+    const DECAY_FACTORS = {
+      'SESSION_COMPLETED':  0.5,
+      'EMOTIONAL_IMPRINT':  0.5,
+      'UNFINISHED_WORK':    0.7,
+      'HIGH_SUSPICION':     0.6,
+      'LESSON_APPLIED':     0.6,
+    };
 
     let decayed = 0;
     const toRemove = [];
     for (const [id, edge] of this.graph.edges) {
-      if (edge.source === frontier.id && DECAYABLE.has(edge.relation)) {
+      if (edge.source !== frontier.id) continue;
+      const typeFactor = DECAY_FACTORS[edge.relation];
+      if (typeFactor === undefined) {
+        // v7.1.6: Warn once per unknown type — catches missing DECAY_FACTORS entries
+        if (!this._warnedDecayTypes) this._warnedDecayTypes = new Set();
+        if (!this._warnedDecayTypes.has(edge.relation)) {
+          _log.debug(`[KG] decayFrontierEdges: unknown type "${edge.relation}" — using fallback factor ${factor}`);
+          this._warnedDecayTypes.add(edge.relation);
+        }
         edge.weight = (edge.weight || 1) * factor;
         decayed++;
         if (edge.weight < 0.05) toRemove.push(id);
+        continue;
       }
+      edge.weight = (edge.weight || 1) * typeFactor;
+      decayed++;
+      if (edge.weight < 0.05) toRemove.push(id);
     }
     for (const id of toRemove) this.graph.edges.delete(id);
     if (decayed > 0) this._save();

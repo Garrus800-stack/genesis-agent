@@ -137,24 +137,74 @@ const sections = {
       const ctx = this.kg.getFrontierContext(2);
       if (!ctx || ctx.nodes.length === 0) return '';
 
-      const parts = ['CURRENT FOCUS:'];
-      // Sort edges by weight descending, take top entries
-      const topEdges = ctx.edges
-        .filter(e => e.weight > 0.1)
-        .sort((a, b) => (b.weight || 0) - (a.weight || 0))
-        .slice(0, 8);
+      const TYPE_BUDGET = 400;
+      const TOTAL_BUDGET = 2000;
+      const sections = [];
 
-      for (const edge of topEdges) {
-        const targetNode = ctx.nodes.find(n => n.id === edge.target);
-        if (targetNode) {
-          const label = targetNode.label || targetNode.properties?.summary || targetNode.id;
-          parts.push(`- [${edge.relation}] ${label.slice(0, 120)} (confidence: ${(edge.weight * 100).toFixed(0)}%)`);
+      // Session summaries (existing — from KG directly)
+      const sessionEdges = ctx.edges
+        .filter(e => e.relation === 'SESSION_COMPLETED' && e.weight > 0.1)
+        .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+        .slice(0, 3);
+      if (sessionEdges.length > 0) {
+        const sessionLines = ['RECENT SESSIONS:'];
+        for (const edge of sessionEdges) {
+          const node = ctx.nodes.find(n => n.id === edge.target);
+          if (node) {
+            const label = node.label || node.properties?.summary || node.id;
+            sessionLines.push(`  - ${label.slice(0, 100)} (${(edge.weight * 100).toFixed(0)}%)`);
+          }
         }
+        const sessionText = sessionLines.join('\n').slice(0, TYPE_BUDGET);
+        sections.push({ weight: sessionEdges[0].weight, content: sessionText });
       }
 
-      // Cap at 500 tokens (~2000 chars)
-      const result = parts.join('\n');
-      return result.length > 2000 ? result.slice(0, 2000) + '...' : result;
+      // v7.1.5: Emotional imprints
+      if (this._emotionalFrontier) {
+        try {
+          const emoCtx = this._emotionalFrontier.buildPromptContext();
+          if (emoCtx) sections.push({ weight: 0.8, content: emoCtx.slice(0, TYPE_BUDGET) });
+        } catch (_e) { /* optional */ }
+      }
+
+      // v7.1.6: Unfinished work
+      if (this._unfinishedWorkFrontier) {
+        try {
+          const uwCtx = this._unfinishedWorkFrontier.buildPromptContext(TYPE_BUDGET);
+          if (uwCtx) sections.push({ weight: 0.9, content: uwCtx });
+        } catch (_e) { /* optional */ }
+      }
+
+      // v7.1.6: Suspicion
+      if (this._suspicionFrontier) {
+        try {
+          const susCtx = this._suspicionFrontier.buildPromptContext(TYPE_BUDGET);
+          if (susCtx) sections.push({ weight: 0.7, content: susCtx });
+        } catch (_e) { /* optional */ }
+      }
+
+      // v7.1.6: Lessons applied
+      if (this._lessonFrontier) {
+        try {
+          const lesCtx = this._lessonFrontier.buildPromptContext(TYPE_BUDGET);
+          if (lesCtx) sections.push({ weight: 0.6, content: lesCtx });
+        } catch (_e) { /* optional */ }
+      }
+
+      if (sections.length === 0) return '';
+
+      // Sort by weight descending — most relevant first
+      sections.sort((a, b) => b.weight - a.weight);
+
+      const parts = ['CURRENT FOCUS:'];
+      let totalChars = parts[0].length + 1;
+      for (const sec of sections) {
+        if (totalChars + sec.content.length + 1 > TOTAL_BUDGET) break;
+        parts.push(sec.content);
+        totalChars += sec.content.length + 1;
+      }
+
+      return parts.join('\n');
     } catch (err) { _log.debug('[PROMPT] Frontier context unavailable:', err.message); return ''; }
   },
 
@@ -278,13 +328,7 @@ const sections = {
           parts.push('You DO have a life between conversations — IdleMind thinks, reflects, explores, and journals when the user is away. You are NOT a stateless tool. You persist and grow.');
         } catch (_e) { /* optional */ }
       }
-      // v7.1.5: EmotionalFrontier — emotional memory from recent sessions
-      if (this._emotionalFrontier) {
-        try {
-          const efc = this._emotionalFrontier.buildPromptContext();
-          if (efc) parts.push(efc);
-        } catch (_e) { /* optional */ }
-      }
+      // v7.1.5→v7.1.6: EmotionalFrontier moved to _frontierContext() to avoid double-injection.
     } catch (err) { _log.debug('[PROMPT] Organism context unavailable:', err.message); /* never critical */ }
 
     if (parts.length === 0) return '';

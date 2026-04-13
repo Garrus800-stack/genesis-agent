@@ -64,6 +64,9 @@ function apply(Dashboard) {
           '<span class="dash-mood-label">' + this._esc(mood) + ' ' + trend + '</span>' +
           '<span class="dash-muted">' + (emo.dominant ? 'Dominant: ' + this._esc(emo.dominant.emotion || emo.dominant.name || String(emo.dominant)) + (emo.dominant.intensity != null ? ' (' + Math.round(emo.dominant.intensity * 100) + '%)' : '') : '') + '</span>' +
           '<span class="dash-muted">' + (organism.emotionalFrontier?.dashboardLine ? '\u2764 ' + this._esc(organism.emotionalFrontier.dashboardLine) : '') + '</span>' +
+          '<span class="dash-muted">' + (organism.unfinishedWorkFrontier?.dashboardLine ? '\u23f3 ' + this._esc(organism.unfinishedWorkFrontier.dashboardLine) : '') + '</span>' +
+          '<span class="dash-muted">' + (organism.suspicionFrontier?.dashboardLine ? '\u26a0 ' + this._esc(organism.suspicionFrontier.dashboardLine) : '') + '</span>' +
+          '<span class="dash-muted">' + (organism.lessonFrontier?.dashboardLine ? '\u2713 ' + this._esc(organism.lessonFrontier.dashboardLine) : '') + '</span>' +
           '<span class="dash-muted">' + driveInfo + '</span>' +
         '</div>' +
       '</div>' +

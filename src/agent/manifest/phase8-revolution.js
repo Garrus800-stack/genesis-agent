@@ -28,6 +28,8 @@ function phase8(ctx, R) {
       lateBindings: [
         { prop: '_knowledgeGraph', service: 'knowledgeGraph', optional: true },       // v7.1.4: Frontier
         { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true }, // v7.1.5: Emotional Continuity
+        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true }, // v7.1.6: Persistent Self
+        { prop: '_goalStack', service: 'goalStack', optional: true },                 // v7.1.6: Pending goals for unfinished work
       ],
       factory: (c) => new (R('SessionPersistence').SessionPersistence)({
         bus, model: c.resolve('llm'), memory: c.resolve('memory'),
@@ -165,6 +167,26 @@ function phase8(ctx, R) {
         storage: c.resolve('storage'),
         config: c.tryResolve('settings')
           ?.get('organism.emotionalFrontier') || {},
+      }),
+    }],
+    // v7.1.6: UnfinishedWorkFrontier — tracks incomplete work across sessions.
+    // Uses generic FrontierWriter with unfinishedWorkExtractor.
+    // Decay 0.7/boot (persists longer than emotions — unfinished work is sticky).
+    ['unfinishedWorkFrontier', {
+      phase: 8,
+      deps: ['knowledgeGraph', 'storage'],
+      tags: ['organism', 'frontier', 'unfinished-work'],
+      factory: (c) => new (R('FrontierWriter').FrontierWriter)({
+        name: 'unfinishedWork',
+        edgeType: 'UNFINISHED_WORK',
+        decayFactor: 0.7,
+        maxImprints: 5,
+        pruneThreshold: 0.1,
+        extractFn: R('FrontierExtractors').unfinishedWorkExtractor,
+      }, {
+        bus,
+        knowledgeGraph: c.resolve('knowledgeGraph'),
+        storage: c.resolve('storage'),
       }),
     }],
   ];

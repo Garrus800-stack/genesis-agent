@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.1.3 · Last verified: all checks green (4200 tests, ~253 suites, TSC 0, fitness 130/130)
+> Version: 7.1.6 · Last verified: all checks green (3839 tests, 257 suites, TSC 0, fitness 130/130)
 
 ---
 
@@ -11,7 +11,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~82k LOC of JavaScript (CommonJS), 217 source modules, 137 DI-managed services, with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~84k LOC of JavaScript (CommonJS), 247 source modules, 141 DI-managed services, with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -28,8 +28,8 @@ Genesis boots in 12 phases. Each phase registers services into a dependency inje
 | 5 | hexagonal | Chat orchestration, unified memory, self-modification | `chatOrchestrator`, `unifiedMemory`, `selfModPipeline`, `episodicMemory` |
 | 6 | autonomy | Health monitoring, daemon, error aggregation, service recovery, external control | `daemon`, `daemonController`, `healthMonitor`, `serviceRecovery`, `deploymentManager` |
 | 7 | organism | Emotional state, homeostasis, needs, metabolism, immune system | `emotionalState`, `homeostasis`, `needsSystem`, `genome` |
-| 8 | revolution | Agent loop, session persistence, colony orchestration, emotional frontier | `agentLoop`, `sessionPersistence`, `vectorMemory`, `colonyOrchestrator`, `emotionalFrontier` |
-| 9 | cognitive | Self-model, reasoning traces, dream cycle, architecture reflection | `cognitiveSelfModel`, `taskOutcomeTracker`, `reasoningTracer`, `projectIntelligence` |
+| 8 | revolution | Agent loop, session persistence, colony orchestration, emotional frontier, unfinished work frontier | `agentLoop`, `sessionPersistence`, `vectorMemory`, `colonyOrchestrator`, `emotionalFrontier`, `unfinishedWorkFrontier` |
+| 9 | cognitive | Self-model, reasoning traces, dream cycle, architecture reflection, suspicion frontier, lesson frontier | `cognitiveSelfModel`, `taskOutcomeTracker`, `reasoningTracer`, `projectIntelligence`, `suspicionFrontier`, `lessonFrontier` |
 | 10 | agency | Goal persistence, conversation compression, user model | `goalPersistence`, `conversationCompressor`, `userModel`, `fitnessEvaluator` |
 | 11 | extended | Trust levels, web perception, self-spawning | `trustLevelSystem`, `effectorRegistry`, `webPerception` |
 | 12 | hybrid | Graph reasoning | `graphReasoner` |
@@ -437,6 +437,8 @@ Biologically inspired self-regulation. Not a metaphor — these services genuine
 | **ImmuneSystem** | Detects repeated failure patterns, error cascades, anomalous behavior. Triggers circuit breakers. |
 | **Genome** | Long-term behavioral parameters (traits like riskTolerance, curiosity). Used by SelfMod, IdleMind, and CloneFactory for trait-based decisions and offspring mutation. |
 | **EmotionalFrontier** | Cross-layer bridge (Phase 8). Writes EMOTIONAL_IMPRINT nodes to KnowledgeGraph frontier at session end. Restores dampened emotional state at boot (RESTORE_FACTOR 0.15). Provides emotion-aware activity targeting for IdleMind. Zero LLM calls. |
+| **FrontierWriter** | Generic frontier node writer (v7.1.6). One class, multiple configurations via extractFn/mergeFn. Used by UNFINISHED_WORK (Phase 8), HIGH_SUSPICION (Phase 9, with merge), LESSON_APPLIED (Phase 9). Consistent API with EmotionalFrontier: write(), getRecent(), buildPromptContext(), getDashboardLine(), getReport(). Zero LLM calls. |
+| **FrontierExtractors** | Pure extractor/merger functions for FrontierWriter configurations: unfinishedWorkExtractor (session + GoalStack), suspicionExtractor (novel events + dominant category), suspicionMerger (same-category consolidation), lessonExtractor (deduplicated applied lessons). Deterministic, no side effects. |
 
 ### 7.2 Awareness (Phase 1 — AwarenessPort)
 
@@ -471,6 +473,30 @@ EmotionalFrontier closes the gap between *feeling* and *acting*. Before v7.1.5, 
 4. **Idle** → IdleMind reads frontier imprints: frustration peaks → targeted EXPLORE, curiosity sustained → targeted IDEATE, with cooldown to prevent thematic tunneling
 
 **Cross-layer bridge:** EmotionalFrontier lives in `src/agent/organism/` (conceptually organism) but boots in Phase 8 (operationally revolution) because SessionPersistence (also Phase 8) is its primary caller. Documented via `tags: ['organism', 'frontier', 'emotional', 'cross-layer']`.
+
+### 7.5 Persistent Self (v7.1.6)
+
+FrontierWriter generalizes the frontier pattern into a configurable, reusable framework. Instead of writing a separate module for each frontier type, one class accepts an `extractFn` and optional `mergeFn` — the Strategy pattern applied to memory persistence.
+
+**Three new frontier writers:**
+
+| Writer | Edge Type | Phase | Decay | Max | Merge | Source |
+|--------|-----------|-------|-------|-----|-------|--------|
+| UnfinishedWork | `UNFINISHED_WORK` | 8 | 0.7 | 5 | No | SessionPersistence at session:ending |
+| Suspicion | `HIGH_SUSPICION` | 9 | 0.6 | 8 | Yes (same category) | SurpriseAccumulator via event buffer |
+| LessonTracking | `LESSON_APPLIED` | 9 | 0.6 | 5 | No | LessonsStore.recall() via event buffer |
+
+**Per-type decay:** KnowledgeGraph.decayFrontierEdges() now uses a DECAY_FACTORS dictionary. Unfinished work persists longest (0.7 → 16.8% after 5 boots), emotions fade fastest (0.5 → 3.1% after 5 boots).
+
+**Autonomous research:** IdleMind gains a `research` activity — web-based learning from trusted domains (npm registry, GitHub API). Topic selection is frontier-driven (no aimless browsing). Five security gates: network availability, energy ≥ 0.5, trust level ≥ 1, rate limit (3/hour), cooldown (30 min). Fetch → LLM distillation → KnowledgeGraph storage.
+
+**Signal flow:**
+1. **Session runs** → LessonsStore.recall() emits `lesson:applied`, SurpriseAccumulator emits `surprise:novel-event` — both buffered in phase9 manifest closures
+2. **Session ends** → Buffers flushed to FrontierWriter.write(). SessionPersistence writes UNFINISHED_WORK from session context + GoalStack pending goals
+3. **Boot** → Per-type decay applied. Frontier context injected into prompt (UNFINISHED_WORK weight 0.9, EMOTIONAL_IMPRINT 0.8, HIGH_SUSPICION 0.7, LESSON_APPLIED 0.6)
+4. **Idle** → UNFINISHED_WORK boosts `plan` (×1.6), HIGH_SUSPICION boosts `explore` (×1.5), low LESSON_APPLIED boosts `reflect` (×1.3). All three drive `research` topic selection
+
+**Design:** FrontierWriter (404 LOC) + FrontierExtractors (200 LOC) replace what would have been ~900 LOC across three separate modules. All call sites guard with `if (this._xxxFrontier)`. All late-bindings are optional. Zero LLM calls in the frontier write path.
 
 ---
 
@@ -583,7 +609,7 @@ genesis-agent/
 │   │   ├── planning/          → GoalStack, Anticipator, MetaLearning
 │   │   ├── hexagonal/         → ChatOrchestrator, UnifiedMemory, SelfModPipeline
 │   │   ├── autonomy/          → HealthMonitor, AutonomousDaemon, DaemonController, ServiceRecovery
-│   │   ├── organism/          → EmotionalState, Homeostasis, NeedsSystem, Genome, EmotionalFrontier
+│   │   ├── organism/          → EmotionalState, Homeostasis, NeedsSystem, Genome, EmotionalFrontier, FrontierWriter, FrontierExtractors
 │   │   ├── revolution/        → AgentLoop, SessionPersistence, ColonyOrchestrator
 │   │   ├── cognitive/         → CognitiveSelfModel, TaskOutcomeTracker, ReasoningTracer
 │   ├── kernel/                → SafeGuard, vendor libs (acorn)

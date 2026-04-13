@@ -504,6 +504,21 @@ UNFINISHED: ...`;
         });
       } catch (err) { _log.debug('[SESSION] Emotional imprint error:', err.message); }
     }
+
+    // v7.1.6: Write unfinished work to frontier
+    if (this._unfinishedWorkFrontier) {
+      try {
+        this._unfinishedWorkFrontier.write(this._sessionId, {
+          session: {
+            messageCount: this.currentSession.messageCount,
+            unfinishedWork: summary.unfinishedWork,
+            codeFilesModified: this.currentSession.codeFilesModified,
+            topicsDiscussed: this.currentSession.topicsDiscussed,
+          },
+          goalStack: this._goalStack,
+        });
+      } catch (err) { _log.debug('[SESSION] UnfinishedWork error:', err.message); }
+    }
   }
 
 

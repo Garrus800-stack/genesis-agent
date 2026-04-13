@@ -90,8 +90,9 @@ function phase5(ctx, R) {
       deps: ['sandbox', 'fileProcessor', 'network', 'analyzer', 'goalStack', 'settings', 'webFetcher', 'shellAgent'],
       tags: ['hexagonal'],
       lateBindings: [
-        { prop: 'daemon', service: 'daemon' },
-        { prop: 'idleMind', service: 'idleMind' },
+        // v7.1.6: cross-phase P5→P6, optional for graceful degradation
+        { prop: 'daemon', service: 'daemon', optional: true },
+        { prop: 'idleMind', service: 'idleMind', optional: true },
         { prop: 'skillManager', service: 'skills', optional: true },
       ],
       factory: (c) => {

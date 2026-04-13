@@ -29,10 +29,11 @@ function phase6(ctx, R) {
       tags: ['autonomy'],
       lateBindings: [
         { prop: 'mcpClient', service: 'mcpClient', optional: true },
-        { prop: 'learningService', service: 'learningService' },
-        { prop: 'emotionalState', service: 'emotionalState' },
-        { prop: 'needsSystem', service: 'needsSystem' },
-        { prop: '_homeostasis', service: 'homeostasis' },
+        // v7.1.6: cross-phase P6→P5/P7, optional for graceful degradation
+        { prop: 'learningService', service: 'learningService', optional: true },
+        { prop: 'emotionalState', service: 'emotionalState', optional: true },
+        { prop: 'needsSystem', service: 'needsSystem', optional: true },
+        { prop: '_homeostasis', service: 'homeostasis', optional: true },
         { prop: 'worldState', service: 'worldState', optional: true },
         { prop: 'episodicMemory', service: 'episodicMemory', optional: true },
         // Phase 9: Cognitive Architecture
@@ -47,6 +48,14 @@ function phase6(ctx, R) {
         { prop: '_cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
         // v7.1.5: EmotionalFrontier — emotion-aware activity targeting
         { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true },
+        // v7.1.6: Frontier writers — research topic sources
+        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true },
+        { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true },
+        { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true },
+        // v7.1.6: WebFetcher — for research activity
+        { prop: '_webFetcher', service: 'webFetcher', optional: true },
+        // v7.1.6: TrustLevelSystem — research trust gate
+        { prop: '_trustLevelSystem', service: 'trustLevelSystem', optional: true },
       ],
       factory: (c) => new (R('IdleMind').IdleMind)({
         bus, model: c.resolve('llm'), prompts: c.resolve('prompts'),

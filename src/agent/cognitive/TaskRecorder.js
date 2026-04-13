@@ -101,7 +101,7 @@ class TaskRecorder {
     });
 
     // ── Shell/tool invocations ───────────────────────────
-    this._sub('shell:complete', (data) => {
+    this._sub('shell:outcome', (data) => {
       this._recordToolCall('shell', data);
     });
 

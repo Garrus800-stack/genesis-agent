@@ -129,7 +129,7 @@ const SCHEMAS = {
   'daemon:skill-created':    { skill: 'required', reason: 'required' },
 
   // Reserved (registered in EventTypes, not yet emitted — schemas ready for use)
-  'shell:complete':          { command: 'optional', exitCode: 'optional' },
+  // v7.1.6: shell:complete removed — consolidated to shell:outcome (see line 322)
   'mcp:tool-call':           { server: 'required', tool: 'required' },
   'mcp:server-started':      { port: 'required' },
   'mcp:bridge-started':      { tools: 'required', resources: 'optional' },

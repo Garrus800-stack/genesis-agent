@@ -146,7 +146,7 @@ function phase3(ctx, R) {
       optional: true,
       lateBindings: [
         { prop: '_mcpClient',          service: 'mcpClient', optional: true },
-        { prop: '_verification',       service: 'verificationEngine', optional: true },
+        { prop: '_verification',       service: 'verifier', optional: true }, // v7.1.6: was 'verificationEngine' (dangling)
         { prop: '_codeSafety',         service: 'codeSafety', optional: true },
         { prop: '_projectIntel',       service: 'projectIntelligence', optional: true },
         { prop: '_archReflection',     service: 'architectureReflection', optional: true },

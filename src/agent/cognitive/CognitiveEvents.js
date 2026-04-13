@@ -98,7 +98,6 @@ class CognitiveEvents {
   // ── Cross-layer subscriptions ───────────────────────────
   onAgentLoopComplete(handler, opts)   { return this._bus.on(EVENTS.AGENT_LOOP.COMPLETE, handler, opts); }
   onChatCompleted(handler, opts)       { return this._bus.on('chat:completed', handler, opts); }
-  onShellComplete(handler, opts)       { return this._bus.on('shell:complete', handler, opts); }
   onShellOutcome(handler, opts)        { return this._bus.on('shell:outcome', handler, opts); }
   onToolsError(handler, opts)          { return this._bus.on('tools:error', handler, opts); }
   onSelfModSuccess(handler, opts)      { return this._bus.on('selfmod:success', handler, opts); }
