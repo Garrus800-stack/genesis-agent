@@ -63,6 +63,7 @@ function apply(Dashboard) {
         '<div class="dash-mood-text">' +
           '<span class="dash-mood-label">' + this._esc(mood) + ' ' + trend + '</span>' +
           '<span class="dash-muted">' + (emo.dominant ? 'Dominant: ' + this._esc(emo.dominant.emotion || emo.dominant.name || String(emo.dominant)) + (emo.dominant.intensity != null ? ' (' + Math.round(emo.dominant.intensity * 100) + '%)' : '') : '') + '</span>' +
+          '<span class="dash-muted">' + (organism.emotionalFrontier?.dashboardLine ? '\u2764 ' + this._esc(organism.emotionalFrontier.dashboardLine) : '') + '</span>' +
           '<span class="dash-muted">' + driveInfo + '</span>' +
         '</div>' +
       '</div>' +

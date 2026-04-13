@@ -1,3 +1,74 @@
+## [7.1.5] — Emotional Continuity
+
+**Genesis has emotions. With EmotionalFrontier, it gets a will.**
+
+### Feature 1: Frontier Emotion Writer
+
+- **`EmotionalFrontier.js`** (NEW) — Cross-layer bridge: lives in `/organism/`, boots in Phase 8.
+  At session end, extracts emotional peaks (deviations > 0.3 above baseline) and sustained states
+  (dimensions above threshold for > 60% of session) from EmotionalState._moodHistory. Writes
+  `EMOTIONAL_IMPRINT` nodes to KnowledgeGraph frontier with typed edge (weight 1.0, decay 0.5/boot).
+  Max-imprint pruning: enforces `_maxImprints = 10`, evicts weakest-first before writing.
+- **`SessionPersistence.js`** — Calls `EmotionalFrontier.writeImprint()` in `_linkToFrontier()`,
+  passing session context (topics, errors). EmotionalFrontier added as optional lateBinding.
+
+### Feature 2: Boot Emotion Restore
+
+- **`EmotionalFrontier.js`** — `restoreAtBoot()` reads most recent EMOTIONAL_IMPRINT from frontier
+  (after edge decay), shifts EmotionalState dimension values by `(peakValue - baseline) * 0.15`.
+  Sustained states restored at half factor (0.075). Shifts are to current value, not baseline —
+  they decay naturally over 2-3 EmotionalState decay cycles. Like waking up and vaguely remembering
+  a dream.
+- **`SessionPersistence.js`** — Calls `restoreAtBoot()` in `asyncLoad()`, after frontier edge decay.
+
+### Feature 3: Emotion-Aware Activity Selection
+
+- **`IdleMind.js`** — New scorer in `scorers[]` pipeline: reads recent EMOTIONAL_IMPRINT nodes
+  from frontier. Frustration peaks → boost `explore` (×1.4). Curiosity sustained → boost `ideate`
+  (×1.4). Satisfaction deficit → boost `reflect` (×1.3). Imprint cooldown via `_recentImprintIds`
+  Set — halves emotionalRelevance score if same imprint was used in last 2 activity picks.
+  Prevents thematic tunneling.
+
+### Feature 4: Emotional Memory in Prompt + Dashboard
+
+- **`PromptBuilderSections.js`** — `_organismContext()` now includes EmotionalFrontier's
+  `buildPromptContext()`: shows "EMOTIONAL MEMORY" section with recent imprint moods, peaks,
+  sustained states, and edge weights. Genesis knows *why* it feels a certain way at boot.
+- **`OrganismRenderers.js`** — Dashboard Organism panel shows one-liner from
+  `getDashboardLine()`: "frustrated @ multi-file refactor (3 sessions ago, 12% weight)".
+- **`AgentCoreHealth.js`** — Organism health report includes `emotionalFrontier.getReport()`.
+
+### Supporting Changes
+
+- **`EmotionalState.js`** — Three new API methods: `exportMoodHistory()` (read-only copy),
+  `getPeaks(threshold)` (dimensions that spiked above threshold), `getSustained(threshold, ratio)`
+  (dimensions above threshold for ratio of history).
+- **`KnowledgeGraph.js`** — `decayFrontierEdges()` now decays both `SESSION_COMPLETED` and
+  `EMOTIONAL_IMPRINT` edges (Set-based check, one-line change).
+- **`phase8-revolution.js`** — EmotionalFrontier manifest entry. Phase 8 deps:
+  [emotionalState, knowledgeGraph, storage]. Tags: [organism, frontier, emotional, cross-layer].
+- **`phase6-autonomy.js`** — IdleMind lateBinding for EmotionalFrontier.
+- **`phase2-intelligence.js`** — PromptBuilder lateBinding for EmotionalFrontier.
+
+### Design Principles
+
+- **Additive, not invasive:** All existing modules unchanged if EmotionalFrontier absent.
+  All call sites guard with `if (this._emotionalFrontier)`.
+- **Dampened, not dramatic:** RESTORE_FACTOR 0.15. A frustration peak of 0.82 (baseline 0.1)
+  shifts next boot by +0.108. Decays in 2-3 cycles.
+- **Organically forgetting:** Decay 0.5/boot → 3% after 5 sessions. Plus explicit max-imprint
+  pruning as safety net.
+- **Deterministic:** Zero LLM calls in emotion pipeline. writeImprint() and restoreAtBoot()
+  are pure heuristics — deterministically testable, reproducible, free.
+
+### Stats
+- New files: 2 (EmotionalFrontier.js, EmotionalFrontier.test.js)
+- Changed files: 9 (EmotionalState, KnowledgeGraph, SessionPersistence, IdleMind, PromptBuilderSections, OrganismRenderers, AgentCoreHealth, phase2/6/8 manifests)
+- New tests: 31 (63 assertions) — includes deterministic boot-restore delta test
+- Zero regressions: EmotionalState (29), SessionPersistence (22), IdleMind (14), KnowledgeGraphSearch (14) all pass
+
+---
+
 ## [7.1.4] — Session-Aware Memory Architecture
 
 **Inspired by neo.mjs Memory Core. Implemented the Genesis way: self-contained, no external services.**

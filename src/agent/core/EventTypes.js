@@ -249,6 +249,14 @@ const EVENTS = Object.freeze({
     WATCHDOG_ALERT: 'emotion:watchdog-alert',
   }),
 
+  // ── Emotional Frontier (v7.1.5) ─────────────────────────
+  EMOTIONAL_FRONTIER: Object.freeze({
+    /** @payload {{ sessionId: string, peaks: number, sustained: number, dominantMood: string }} */
+    IMPRINT_WRITTEN: 'emotional-frontier:imprint-written',
+    /** @payload {{ shifted: number, imprintId: string }} */
+    BOOT_RESTORED: 'emotional-frontier:boot-restored',
+  }),
+
   // ── Episodic Memory ────────────────────────────────────
   EPISODIC: Object.freeze({
     RECORDED: 'episodic:recorded',

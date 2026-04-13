@@ -83,6 +83,7 @@ class AgentCoreHealth {
         immune:      safe('immuneSystem',         is => is.getReport()),
         genome:      safe('genome',               g  => g.getReport?.() || { traits: g.getTraits() }),
         fitness:     safe('fitnessEvaluator',     fe => fe.getStats()),
+        emotionalFrontier: safe('emotionalFrontier', ef => ef.getReport()),
       },
       cognitiveMonitor: safe('cognitiveMonitor', cm => cm.getReport()),
       cognitive: {

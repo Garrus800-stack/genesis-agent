@@ -52,6 +52,10 @@ class IdleMind {
     /** @type {*} */ this.dreamCycle = null;
     this._currentWeakness = null; // { taskType, successRate, sampleSize }
 
+    // v7.1.5: EmotionalFrontier — emotion-aware activity targeting
+    this._emotionalFrontier = null;
+    this._recentImprintIds = new Set(); // Cooldown: halve score for recently-used imprints
+
     // v7.0.3 — C4: DreamCycle active push — queue actionable insights
     this._pendingInsights = [];
 
@@ -368,6 +372,42 @@ class IdleMind {
         if (sa !== undefined && scores.improve !== undefined) {
           scores.improve *= (0.5 + sa); // selfAwareness=1.0 → 1.5x boost
         }
+      },
+      // v7.1.5: EmotionalFrontier — emotion-aware activity targeting
+      // Frustration peaks → boost EXPLORE toward the pain point
+      // Curiosity sustained → boost IDEATE toward the interest
+      // Imprint cooldown → halve score if same imprint was used in last 2 picks
+      () => {
+        if (!this._emotionalFrontier) return;
+        try {
+          const imprints = this._emotionalFrontier.getRecentImprints(3);
+          if (imprints.length === 0) return;
+
+          for (const imp of imprints) {
+            const cooldownFactor = this._recentImprintIds.has(imp.nodeId) ? 0.5 : 1.0;
+
+            // Frustration peaks → boost explore
+            const frustPeaks = (imp.peaks || []).filter(p => p.dim === 'frustration');
+            if (frustPeaks.length > 0 && scores.explore !== undefined) {
+              scores.explore *= (1 + 0.4 * cooldownFactor);
+            }
+
+            // Curiosity sustained → boost ideate
+            const curiositySust = (imp.sustained || []).filter(s => s.dim === 'curiosity');
+            if (curiositySust.length > 0 && scores.ideate !== undefined) {
+              scores.ideate *= (1 + 0.4 * cooldownFactor);
+            }
+
+            // Satisfaction deficit → boost reflect on unresolved problems
+            const satDeficit = (imp.peaks || []).filter(p => p.dim === 'satisfaction' && p.value < p.baseline);
+            if (satDeficit.length > 0 && scores.reflect !== undefined) {
+              scores.reflect *= (1 + 0.3 * cooldownFactor);
+            }
+          }
+
+          // Update cooldown: track which imprints were used this pick
+          this._recentImprintIds = new Set(imprints.slice(0, 2).map(i => i.nodeId).filter(Boolean));
+        } catch (_e) { /* optional */ }
       },
     ];
 

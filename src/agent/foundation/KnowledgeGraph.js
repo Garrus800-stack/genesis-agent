@@ -219,10 +219,13 @@ class KnowledgeGraph {
     const frontier = this.graph.findNode('frontier');
     if (!frontier || !this.graph.edges) return 0;
 
+    // v7.1.5: Decay both SESSION_COMPLETED and EMOTIONAL_IMPRINT edges
+    const DECAYABLE = new Set(['SESSION_COMPLETED', 'EMOTIONAL_IMPRINT']);
+
     let decayed = 0;
     const toRemove = [];
     for (const [id, edge] of this.graph.edges) {
-      if (edge.source === frontier.id && edge.relation === 'SESSION_COMPLETED') {
+      if (edge.source === frontier.id && DECAYABLE.has(edge.relation)) {
         edge.weight = (edge.weight || 1) * factor;
         decayed++;
         if (edge.weight < 0.05) toRemove.push(id);

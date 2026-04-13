@@ -278,6 +278,13 @@ const sections = {
           parts.push('You DO have a life between conversations — IdleMind thinks, reflects, explores, and journals when the user is away. You are NOT a stateless tool. You persist and grow.');
         } catch (_e) { /* optional */ }
       }
+      // v7.1.5: EmotionalFrontier — emotional memory from recent sessions
+      if (this._emotionalFrontier) {
+        try {
+          const efc = this._emotionalFrontier.buildPromptContext();
+          if (efc) parts.push(efc);
+        } catch (_e) { /* optional */ }
+      }
     } catch (err) { _log.debug('[PROMPT] Organism context unavailable:', err.message); /* never critical */ }
 
     if (parts.length === 0) return '';

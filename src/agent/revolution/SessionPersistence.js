@@ -39,6 +39,7 @@ class SessionPersistence {
     lateBindings: [
       { target: 'promptBuilder', property: 'sessionPersistence' },
       { prop: '_knowledgeGraph', service: 'knowledgeGraph', optional: true }, // v7.1.4: Frontier
+      { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true }, // v7.1.5: Emotional Continuity
     ],
   };
 
@@ -66,6 +67,9 @@ class SessionPersistence {
 
     // v7.1.4: Checkpoint interval (messages between saves)
     this._checkpointInterval = 10;
+
+    // v7.1.5: EmotionalFrontier — late-bound (cross-layer bridge)
+    this._emotionalFrontier = null;
 
     // ── Persistent Across Sessions ───────────────────────
     this.sessionHistory = [];      // Last N session summaries
@@ -470,6 +474,13 @@ UNFINISHED: ...`;
     if (this._knowledgeGraph) {
       this._knowledgeGraph.decayFrontierEdges(0.5);
     }
+    // v7.1.5: Restore dampened emotional state from frontier imprints
+    // Runs AFTER decay so imprint weights reflect their current relevance
+    if (this._emotionalFrontier) {
+      try {
+        this._emotionalFrontier.restoreAtBoot();
+      } catch (err) { _log.debug('[SESSION] Emotional restore error:', err.message); }
+    }
   }
 
   /** v7.1.4: Link session summary to frontier node in KnowledgeGraph */
@@ -483,6 +494,16 @@ UNFINISHED: ...`;
       );
       _log.debug(`[SESSION] Linked to frontier: ${label}`);
     } catch (err) { _log.debug('[SESSION] Frontier link error:', err.message); }
+
+    // v7.1.5: Write emotional imprint alongside session link
+    if (this._emotionalFrontier) {
+      try {
+        this._emotionalFrontier.writeImprint(this._sessionId, {
+          topics: this.currentSession.topicsDiscussed,
+          errors: this.currentSession.errorsEncountered,
+        });
+      } catch (err) { _log.debug('[SESSION] Emotional imprint error:', err.message); }
+    }
   }
 
 

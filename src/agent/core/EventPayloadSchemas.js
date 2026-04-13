@@ -102,6 +102,10 @@ const SCHEMAS = {
   // Emotion
   'emotion:shift':          { dimension: 'required', from: 'required', to: 'required', mood: 'required' },
 
+  // Emotional Frontier (v7.1.5)
+  'emotional-frontier:imprint-written': { sessionId: 'required', peaks: 'required', sustained: 'required', dominantMood: 'required' },
+  'emotional-frontier:boot-restored':   { shifted: 'required', imprintId: 'required' },
+
   // Metabolism
   'metabolism:cost':        { cost: 'required', tokens: 'required' },
 

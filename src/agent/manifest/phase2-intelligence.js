@@ -91,6 +91,8 @@ function phase2(ctx, R) {
         { prop: 'disclosurePolicy', service: 'disclosurePolicy', optional: true },
         // v7.0.9: IdleMind — autonomous activity status for honest self-reflection
         { prop: '_idleMind', service: 'idleMind', optional: true },
+        // v7.1.5: EmotionalFrontier — emotional memory from recent sessions
+        { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true },
       ],
       factory: (c) => new (R('PromptBuilder').PromptBuilder)({
         selfModel: c.resolve('selfModel'), model: c.resolve('llm'),

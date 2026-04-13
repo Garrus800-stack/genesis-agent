@@ -25,6 +25,10 @@ function phase8(ctx, R) {
 
     ['sessionPersistence', {
       phase: 8, deps: ['llm', 'memory', 'storage'], tags: ['revolution', 'memory'],
+      lateBindings: [
+        { prop: '_knowledgeGraph', service: 'knowledgeGraph', optional: true },       // v7.1.4: Frontier
+        { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true }, // v7.1.5: Emotional Continuity
+      ],
       factory: (c) => new (R('SessionPersistence').SessionPersistence)({
         bus, model: c.resolve('llm'), memory: c.resolve('memory'),
         storage: c.resolve('storage'), lang: R('Language').lang,
@@ -139,6 +143,28 @@ function phase8(ctx, R) {
       factory: (c) => new (R('ColonyOrchestrator').ColonyOrchestrator)({
         bus, llm: c.resolve('model'),
         peerNetwork: null, taskDelegation: null, peerConsensus: null, selfSpawner: null,
+      }),
+    }],
+
+    // v7.1.5: EmotionalFrontier — cross-layer bridge (organism + frontier)
+    // Bridges emotional state to KnowledgeGraph frontier for session continuity.
+    // Lives in src/agent/organism/ but boots in Phase 8 because SessionPersistence
+    // (also Phase 8) is the primary caller at session:ending.
+    ['emotionalFrontier', {
+      phase: 8,
+      deps: ['emotionalState', 'knowledgeGraph', 'storage'],
+      tags: ['organism', 'frontier', 'emotional', 'cross-layer'],
+      lateBindings: [
+        { prop: '_sessionPersistence', service: 'sessionPersistence', optional: true },
+        { prop: '_idleMind', service: 'idleMind', optional: true },
+      ],
+      factory: (c) => new (R('EmotionalFrontier').EmotionalFrontier)({
+        bus,
+        emotionalState: c.resolve('emotionalState'),
+        knowledgeGraph: c.resolve('knowledgeGraph'),
+        storage: c.resolve('storage'),
+        config: c.tryResolve('settings')
+          ?.get('organism.emotionalFrontier') || {},
       }),
     }],
   ];

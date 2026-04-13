@@ -28,7 +28,7 @@ Genesis boots in 12 phases. Each phase registers services into a dependency inje
 | 5 | hexagonal | Chat orchestration, unified memory, self-modification | `chatOrchestrator`, `unifiedMemory`, `selfModPipeline`, `episodicMemory` |
 | 6 | autonomy | Health monitoring, daemon, error aggregation, service recovery, external control | `daemon`, `daemonController`, `healthMonitor`, `serviceRecovery`, `deploymentManager` |
 | 7 | organism | Emotional state, homeostasis, needs, metabolism, immune system | `emotionalState`, `homeostasis`, `needsSystem`, `genome` |
-| 8 | revolution | Agent loop, session persistence, colony orchestration | `agentLoop`, `sessionPersistence`, `vectorMemory`, `colonyOrchestrator` |
+| 8 | revolution | Agent loop, session persistence, colony orchestration, emotional frontier | `agentLoop`, `sessionPersistence`, `vectorMemory`, `colonyOrchestrator`, `emotionalFrontier` |
 | 9 | cognitive | Self-model, reasoning traces, dream cycle, architecture reflection | `cognitiveSelfModel`, `taskOutcomeTracker`, `reasoningTracer`, `projectIntelligence` |
 | 10 | agency | Goal persistence, conversation compression, user model | `goalPersistence`, `conversationCompressor`, `userModel`, `fitnessEvaluator` |
 | 11 | extended | Trust levels, web perception, self-spawning | `trustLevelSystem`, `effectorRegistry`, `webPerception` |
@@ -436,6 +436,7 @@ Biologically inspired self-regulation. Not a metaphor — these services genuine
 | **Metabolism** | Token budget management. Converts "energy" (available tokens) into "work" (LLM calls). Conservation mode under scarcity. |
 | **ImmuneSystem** | Detects repeated failure patterns, error cascades, anomalous behavior. Triggers circuit breakers. |
 | **Genome** | Long-term behavioral parameters (traits like riskTolerance, curiosity). Used by SelfMod, IdleMind, and CloneFactory for trait-based decisions and offspring mutation. |
+| **EmotionalFrontier** | Cross-layer bridge (Phase 8). Writes EMOTIONAL_IMPRINT nodes to KnowledgeGraph frontier at session end. Restores dampened emotional state at boot (RESTORE_FACTOR 0.15). Provides emotion-aware activity targeting for IdleMind. Zero LLM calls. |
 
 ### 7.2 Awareness (Phase 1 — AwarenessPort)
 
@@ -458,6 +459,18 @@ paraphrased, or referenced in responses to the user."
 ```
 
 The LLM receives behavioral instructions ("keep responses concise", "try a different approach") without knowing they come from organism metrics. This prevents the embarrassing "memoryPressure: 97% CRITICAL" leaks that happened in v5.9.5.
+
+### 7.4 Emotional Continuity (v7.1.5)
+
+EmotionalFrontier closes the gap between *feeling* and *acting*. Before v7.1.5, emotions influenced prompt tone but not intent — Genesis knew it was frustrated but didn't prioritize solving the frustration source.
+
+**Signal flow:**
+1. **Session runs** → EmotionalState collects mood history (peaks, sustained states)
+2. **Session ends** → EmotionalFrontier.writeImprint() extracts peaks/sustained, writes EMOTIONAL_IMPRINT to KnowledgeGraph frontier (max 10, weakest-first eviction)
+3. **Boot** → SessionPersistence.asyncLoad() decays frontier edges (0.5×), then EmotionalFrontier.restoreAtBoot() shifts EmotionalState start values (×0.15 dampening)
+4. **Idle** → IdleMind reads frontier imprints: frustration peaks → targeted EXPLORE, curiosity sustained → targeted IDEATE, with cooldown to prevent thematic tunneling
+
+**Cross-layer bridge:** EmotionalFrontier lives in `src/agent/organism/` (conceptually organism) but boots in Phase 8 (operationally revolution) because SessionPersistence (also Phase 8) is its primary caller. Documented via `tags: ['organism', 'frontier', 'emotional', 'cross-layer']`.
 
 ---
 
@@ -570,7 +583,7 @@ genesis-agent/
 │   │   ├── planning/          → GoalStack, Anticipator, MetaLearning
 │   │   ├── hexagonal/         → ChatOrchestrator, UnifiedMemory, SelfModPipeline
 │   │   ├── autonomy/          → HealthMonitor, AutonomousDaemon, DaemonController, ServiceRecovery
-│   │   ├── organism/          → EmotionalState, Homeostasis, NeedsSystem, Genome
+│   │   ├── organism/          → EmotionalState, Homeostasis, NeedsSystem, Genome, EmotionalFrontier
 │   │   ├── revolution/        → AgentLoop, SessionPersistence, ColonyOrchestrator
 │   │   ├── cognitive/         → CognitiveSelfModel, TaskOutcomeTracker, ReasoningTracer
 │   ├── kernel/                → SafeGuard, vendor libs (acorn)

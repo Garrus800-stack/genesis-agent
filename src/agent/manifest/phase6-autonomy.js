@@ -45,6 +45,8 @@ function phase6(ctx, R) {
         { prop: '_metabolism', service: 'metabolism', optional: true },
         // v6.0.8: Directed curiosity — explore weak areas
         { prop: '_cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
+        // v7.1.5: EmotionalFrontier — emotion-aware activity targeting
+        { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true },
       ],
       factory: (c) => new (R('IdleMind').IdleMind)({
         bus, model: c.resolve('llm'), prompts: c.resolve('prompts'),
