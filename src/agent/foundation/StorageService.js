@@ -49,6 +49,9 @@ class StorageService {
     this._debounceTimers = new Map(); // filename → timeoutId
     this._debouncePending = new Map(); // filename → { data, mergeFn? }
 
+    // v7.1.9 S-1a: Integrity checksums — SHA-256 per file for corruption detection
+    this._checksums = this._loadChecksums();
+
     if (!fs.existsSync(baseDir)) {
       fs.mkdirSync(baseDir, { recursive: true });
     }
@@ -61,6 +64,65 @@ class StorageService {
       throw new Error(`[STORAGE] Path traversal blocked: ${filename}`);
     }
     return resolved;
+  }
+
+  // ── v7.1.9 S-1a: Integrity Checksums ────────────────
+
+  /** Load checksums from disk, or return empty map if missing/corrupt */
+  _loadChecksums() {
+    try {
+      const p = path.join(this.baseDir, '_checksums.json');
+      if (fs.existsSync(p)) return new Map(Object.entries(JSON.parse(fs.readFileSync(p, 'utf8'))));
+    } catch (_e) { /* regenerate */ }
+    return new Map();
+  }
+
+  /** Save checksums to disk */
+  _saveChecksums() {
+    try {
+      const p = path.join(this.baseDir, '_checksums.json');
+      fs.writeFileSync(p, JSON.stringify(Object.fromEntries(this._checksums), null, 2), 'utf8');
+    } catch (_e) { _log.debug('[STORAGE] Checksum save failed:', _e.message); }
+  }
+
+  /** Update checksum for a file after successful write */
+  _updateChecksum(filename, jsonStr) {
+    try {
+      const hash = require('crypto').createHash('sha256').update(jsonStr).digest('hex');
+      this._checksums.set(filename, hash);
+      if (this._checksumTimer) clearTimeout(this._checksumTimer);
+      this._checksumTimer = setTimeout(() => this._saveChecksums(), 2000);
+    } catch (_e) { /* best-effort */ }
+  }
+
+  /**
+   * v7.1.9: Verify integrity of all .genesis/ JSON files against stored checksums.
+   * Called at boot after Phase 1.
+   * @returns {{ ok: boolean, verified: number, mismatches: Array, missing: Array }}
+   */
+  verifyIntegrity() {
+    const result = { ok: true, verified: 0, mismatches: [], missing: [] };
+    for (const [filename, expectedHash] of this._checksums) {
+      const fullPath = this._resolve(filename);
+      try {
+        if (!fs.existsSync(fullPath)) {
+          result.missing.push(filename);
+          continue;
+        }
+        const content = fs.readFileSync(fullPath, 'utf8');
+        const actualHash = require('crypto').createHash('sha256').update(content).digest('hex');
+        if (actualHash !== expectedHash) {
+          result.mismatches.push({ filename, expected: expectedHash.slice(0, 12), actual: actualHash.slice(0, 12) });
+          result.ok = false;
+        } else {
+          result.verified++;
+        }
+      } catch (err) {
+        result.mismatches.push({ filename, error: err.message });
+        result.ok = false;
+      }
+    }
+    return result;
   }
 
   // ── Read (Sync) ───────────────────────────────────────
@@ -158,6 +220,7 @@ class StorageService {
       fs.closeSync(fd);
       fs.renameSync(tmpPath, fullPath);
       this._cacheSet(filename, data);
+      this._updateChecksum(filename, json); // v7.1.9 S-1a
       this._stats.syncWrites++;
     } catch (err) {
       try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch (_e) { _log.debug('[catch] tmp cleanup sync:', _e.message); }
@@ -237,6 +300,7 @@ class StorageService {
       await fh.close();
       await fsp.rename(tmpPath, fullPath);
       this._cacheSet(filename, data);
+      this._updateChecksum(filename, json); // v7.1.9 S-1a
       this._stats.asyncWrites++;
     } catch (err) {
       try { await fsp.unlink(tmpPath); } catch (_e) { _log.debug('[catch] tmp cleanup sync 2:', _e.message); }

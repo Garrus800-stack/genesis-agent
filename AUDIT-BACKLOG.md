@@ -1,6 +1,6 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.1.8 · Last updated: v7.1.7 release
+> Version: 7.1.9 · Last updated: v7.1.9 release
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).

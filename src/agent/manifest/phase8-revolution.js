@@ -62,7 +62,7 @@ function phase8(ctx, R) {
         // v7.0.9 Phase 1: Causal tracking — WorldState snapshot/diff per step
         { prop: '_causalAnnotation', service: 'causalAnnotation', optional: true },
         // v7.1.7: LessonsStore for lesson confirmation loop (AgentLoopCognition)
-        { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expects: ['updateLessonOutcome'] },
       ],
       factory: (c) => new (R('AgentLoop').AgentLoop)({
         bus, model: c.resolve('llm'), goalStack: c.resolve('goalStack'),
@@ -100,7 +100,7 @@ function phase8(ctx, R) {
       tags: ['revolution', 'planning'],
       lateBindings: [
         // v4.10.0: EmotionalSteering for plan length limiting
-        { prop: '_emotionalSteering', service: 'emotionalSteering', optional: true },
+        { prop: '_emotionalSteering', service: 'emotionalSteering', optional: true, expects: ['getSignals'] },
       ],
       factory: (c) => new (R('FormalPlanner').FormalPlanner)({
         bus, worldState: c.resolve('worldState'),
@@ -117,7 +117,7 @@ function phase8(ctx, R) {
       phase: 8, deps: ['model', 'metaLearning', 'worldState'], tags: ['revolution', 'routing'],
       lateBindings: [
         // v4.10.0: EmotionalSteering for model escalation on frustration
-        { prop: '_emotionalSteering', service: 'emotionalSteering', optional: true },
+        { prop: '_emotionalSteering', service: 'emotionalSteering', optional: true, expects: ['getSignals'] },
       ],
       factory: (c) => new (R('ModelRouter').ModelRouter)({
         bus, modelBridge: c.resolve('model'),

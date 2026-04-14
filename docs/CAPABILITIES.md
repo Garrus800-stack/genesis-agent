@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.1.7 — What Genesis can do, organized by category.
-> Last updated: v7.1.7: Lesson confirmation loop, research quality gate, introspection accuracy, frontier-driven GoalSynthesizer, emotional-cognitive bridge, StackOverflow endpoint, 4307 tests, 141 services.
+> v7.1.9 — What Genesis can do, organized by category.
+> Last updated: v7.1.9: .genesis/ integrity guard, late-binding contract validator, event-schema CI-gate, bug taxonomy, 33 new tests, 4340 tests, 141 services.
 
 ---
 

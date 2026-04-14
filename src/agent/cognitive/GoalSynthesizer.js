@@ -260,4 +260,4 @@ class GoalSynthesizer {
   }
 }
 
-module.exports = { GoalSynthesizer, PROTECTED_MODULES };
+module.exports = { GoalSynthesizer };

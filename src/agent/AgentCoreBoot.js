@@ -160,6 +160,24 @@ class AgentCoreBoot {
     }
     _log.info(`  [1] Foundation resolved: ${selfModel.moduleCount()} modules`);
 
+    // v7.1.9 S-1a: Verify .genesis/ file integrity at boot
+    const _storage = c.resolve('storage');
+    if (typeof _storage.verifyIntegrity === 'function') {
+      const integrity = _storage.verifyIntegrity();
+      if (!integrity.ok) {
+        _log.warn(`  [1] ⚠ Integrity check: ${integrity.mismatches.length} corrupted file(s)`);
+        for (const m of integrity.mismatches) {
+          _log.warn(`      → ${m.filename}${m.error ? ': ' + m.error : ' (hash mismatch)'}`);
+        }
+        this._bus.emit('health:degradation', {
+          service: 'storage', level: 'warning',
+          reason: `${integrity.mismatches.length} file(s) failed integrity check`,
+        }, { source: 'AgentCoreBoot' });
+      } else if (integrity.verified > 0) {
+        _log.info(`  [1] Integrity: ${integrity.verified} file(s) verified OK`);
+      }
+    }
+
     // Intelligence
     const model = c.resolve('model');
     c.resolve('intentRouter').setModel(model);
@@ -315,6 +333,29 @@ class AgentCoreBoot {
 
     // Start autonomous services
     wireDelegate._startServices();
+
+    // v7.1.9 S-1b: Auto-backup .genesis/ every 24h
+    if (c.has('backupManager') && this._intervals) {
+      try {
+        const backupMgr = c.resolve('backupManager');
+        const backupDir = require('path').join(c.resolve('storage').baseDir, 'backups');
+        this._intervals.register('genesis-backup', async () => {
+          try {
+            const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const outPath = require('path').join(backupDir, `genesis-backup-${ts}.tar.gz`);
+            await backupMgr.export(outPath);
+            // Rotate: keep max 3 backups
+            const fs = require('fs');
+            if (fs.existsSync(backupDir)) {
+              const files = fs.readdirSync(backupDir).filter(f => f.startsWith('genesis-backup-')).sort();
+              while (files.length > 3) {
+                fs.unlinkSync(require('path').join(backupDir, files.shift()));
+              }
+            }
+          } catch (err) { _log.debug('[BACKUP] Auto-backup failed:', err.message); }
+        }, 24 * 60 * 60 * 1000); // 24h
+      } catch (_e) { _log.debug('[BACKUP] Auto-backup setup skipped:', _e.message); }
+    }
 
     // Restore learned IntentRouter patterns
     try {

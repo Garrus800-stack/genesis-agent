@@ -1,3 +1,68 @@
+## [7.1.9] — Solid Ground
+
+**No new features. Only strength.**
+
+### S-1a: .genesis/ Integrity Guard (Checksums)
+
+- **`StorageService.js`** — SHA-256 checksum per file, stored in `_checksums.json`.
+  Updated on every `writeJSON()` / `writeJSONAsync()`. Debounced save (2s).
+  `verifyIntegrity()` validates all files against stored hashes.
+- **`AgentCoreBoot.js`** — Integrity check after Phase 1. Mismatches emit
+  `health:degradation` and log warnings. Clean files reported as "N file(s) verified OK".
+
+### S-1b: Auto-Backup (24h Rotation)
+
+- **`AgentCoreBoot.js`** — IntervalManager job `genesis-backup` runs every 24h.
+  BackupManager.export() to `.genesis/backups/`. Max 3 backups, oldest rotated.
+
+### S-2: Late-Binding Contract Validator
+
+- **`Container.js`** — `wireLateBindings()` supports `expects` arrays on bindings.
+  If a resolved service is missing expected methods, the binding is rejected
+  (optional → skipped, required → error). Contract violations logged as warnings.
+- **12 critical bindings** now have `expects` contracts:
+  `emotionalState` (getMood, getTrend, buildPromptContext),
+  `architectureReflection` (getSnapshot, buildPromptContext),
+  `cognitiveSelfModel` (getReport, buildPromptContext),
+  `emotionalSteering` ×3 (getSignals — on PromptBuilder, AdaptiveStrategy, FormalPlanner, ModelRouter),
+  `lessonsStore` (updateLessonOutcome),
+  3 frontier writers on GoalSynthesizer (getRecent).
+
+### S-3: Bug Taxonomy
+
+- **`docs/BUG-TAXONOMY.md`** — Root-cause analysis of all 29 bugs from v7.1.1–v7.1.8.
+  62% were naming mismatches (31% property-name, 31% schema-drift).
+  Contract Validator (S-2) + Schema CI-Gate (S-9) prevent this class.
+
+### S-4: Test Coverage (3 previously untested modules)
+
+- **`ExecutionProvenance.test.js`** — 10 tests: trace lifecycle, record/query API,
+  active trace tracking, null-safety.
+- **`CognitiveBudget.test.js`** — 11 tests: tier classification (trivial/moderate/complex/extreme),
+  section inclusion, intent hints, disabled mode, stats/report.
+- **`ValueStore.test.js`** — 12 tests: store/reinforce cycle, domain filtering,
+  weight clamping, conflict recording, prompt context, pruning.
+
+### S-7: Dead Code Cleanup
+
+- **`GoalSynthesizer.js`** — `PROTECTED_MODULES` removed from exports (used internally only).
+- **`AgentLoopCognition.js`** — `_lessonUnsub` dead variable removed (key-dedup prevents leaks).
+
+### S-9: Event-Schema CI-Gate
+
+- **`scripts/audit-schemas.js`** — Validates EventPayloadSchemas against actual
+  `bus.emit()` calls. Detects stale schemas, missing schemas, payload-shape
+  mismatches. `--strict` mode exits with code 1 for CI integration.
+
+### Stats
+- New files: 4 (3 test files + audit-schemas.js)
+- Changed files: 7 (Container.js, StorageService.js, AgentCoreBoot.js,
+  GoalSynthesizer.js, AgentLoopCognition.js, phase2/8/9 manifests)
+- New tests: 33 (ExecutionProvenance: 10, CognitiveBudget: 11, ValueStore: 12)
+- New LOC: ~285 src + ~385 test
+
+---
+
 ## [7.1.8] — Honest Reflection (Bug Fixes)
 
 **Three property-name mismatches fixed + one design-issue corrected.**

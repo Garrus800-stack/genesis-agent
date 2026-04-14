@@ -310,7 +310,7 @@ function phase9(ctx, R) {
         { prop: 'onlineLearner',      service: 'onlineLearner',      optional: true },
         { prop: 'quickBenchmark',     service: 'quickBenchmark',     optional: true },
         // v7.1.7 F5: Emotional-Cognitive Bridge — emotions influence adaptation strategy
-        { prop: 'emotionalSteering',  service: 'emotionalSteering',  optional: true },
+        { prop: 'emotionalSteering',  service: 'emotionalSteering',  optional: true, expects: ['getSignals'] },
       ],
       factory: (c) => new (R('AdaptiveStrategy').AdaptiveStrategy)({
         bus, storage: c.resolve('storage'),
@@ -365,9 +365,9 @@ function phase9(ctx, R) {
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
         { prop: 'inferenceEngine', service: 'inferenceEngine', optional: true },
         // v7.1.7 F4: Frontier-driven goal sources
-        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true },
-        { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true },
-        { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true },
+        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true, expects: ['getRecent'] },
+        { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true, expects: ['getRecent'] },
+        { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true, expects: ['getRecent'] },
       ],
       factory: () => new (R('GoalSynthesizer').GoalSynthesizer)({
         bus,

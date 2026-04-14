@@ -51,7 +51,8 @@ class AgentLoopCognitionDelegate {
     // lesson:applied events fire synchronously during PromptBuilder.build() → LessonsStore.recall()
     // which happens before step execution. We collect them here and correlate in postStep().
     this._stepRecalledLessons = [];
-    this._lessonUnsub = this.loop.bus?.on('lesson:applied', (data) => {
+    // key-dedup prevents listener leaks — no unsub needed
+    this.loop.bus?.on('lesson:applied', (data) => {
       if (data?.id) this._stepRecalledLessons.push(data);
     }, { source: 'AgentLoopCognition', key: 'lesson-step-collector' });
 

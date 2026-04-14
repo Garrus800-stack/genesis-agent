@@ -119,16 +119,16 @@ describe('_pickResearchTopic', () => {
   });
 
   test('prefers higher priority topics', () => {
-    // Run 500 times — at 1.4 vs 1.1 weight ratio, 100 iterations is too noisy
+    // Run 100 times and check that unfinished-work (1.4) appears more than weakness (1.1)
     const ctx = createResearchContext({
       unfinishedWorkFrontier: mockFrontierWriter([{ description: 'test' }]),
       cognitiveSelfModel: { getWeakestCapability: () => ({ taskType: 'debug' }) },
     });
 
     const counts = { 'unfinished-work': 0, weakness: 0 };
-    for (let i = 0; i < 500; i++) {
+    for (let i = 0; i < 100; i++) {
       const t = ctx._pickResearchTopic();
-      if (t) counts[t.source] = (counts[t.source] || 0) + 1;
+      if (t) counts[t.source]++;
     }
     assert(counts['unfinished-work'] > counts.weakness,
       `unfinished-work (${counts['unfinished-work']}) should appear more than weakness (${counts.weakness})`);

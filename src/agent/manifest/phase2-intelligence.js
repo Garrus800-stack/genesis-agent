@@ -47,7 +47,7 @@ function phase2(ctx, R) {
         { prop: 'solutions', service: 'solutionAccumulator', optional: true },
         { prop: 'optimizer', service: 'selfOptimizer', optional: true },
         { prop: 'mcpClient', service: 'mcpClient', optional: true },
-        { prop: 'emotionalState', service: 'emotionalState', optional: true },
+        { prop: 'emotionalState', service: 'emotionalState', optional: true, expects: ['getMood', 'getTrend', 'buildPromptContext'] },
         { prop: 'homeostasis', service: 'homeostasis', optional: true },
         { prop: 'needsSystem', service: 'needsSystem', optional: true },
         { prop: 'sessionPersistence', service: 'sessionPersistence', optional: true },
@@ -64,7 +64,7 @@ function phase2(ctx, R) {
         { prop: 'userModel', service: 'userModel', optional: true },
         { prop: 'bodySchema', service: 'bodySchema', optional: true },
         // v4.12.5: Organism steering + immune context
-        { prop: 'emotionalSteering', service: 'emotionalSteering', optional: true },
+        { prop: 'emotionalSteering', service: 'emotionalSteering', optional: true, expects: ['getSignals'] },
         { prop: 'immuneSystem', service: 'immuneSystem', optional: true },
         // v4.12.8: Safety context — selfmod circuit breaker + error trends
         { prop: 'selfModPipeline', service: 'selfModPipeline', optional: true },
@@ -77,13 +77,13 @@ function phase2(ctx, R) {
         // v5.3.0 (SA-P7): Cross-project lessons
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
         // v5.7.0 (SA-P3): Architecture self-reflection
-        { prop: 'architectureReflection', service: 'architectureReflection', optional: true },
+        { prop: 'architectureReflection', service: 'architectureReflection', optional: true, expects: ['getSnapshot', 'buildPromptContext'] },
         // v5.7.0: Project intelligence
         { prop: 'projectIntelligence', service: 'projectIntelligence', optional: true },
         // v5.9.7 (V6-11): Task outcome tracker — empirical performance data
         { prop: 'taskOutcomeTracker', service: 'taskOutcomeTracker', optional: true },
         // v5.9.8 (V6-11): Cognitive self-model — replaces raw stats with calibrated self-awareness
-        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
+        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true, expects: ['getReport', 'buildPromptContext'] },
         // v6.0.4: Adaptive prompt optimization — skip/boost sections based on provenance data
         { prop: '_adaptiveStrategy', service: 'adaptivePromptStrategy', optional: true },
         // v6.0.4: Proportional intelligence — skip sections for trivial requests

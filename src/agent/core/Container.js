@@ -220,6 +220,7 @@ class Container {
   wireLateBindings() {
     let wired = 0, skipped = 0;
     const errors = [];
+    const contractViolations = []; // v7.1.9 S-2
 
     for (const [name, reg] of this.registrations) {
       if (!reg.lateBindings || reg.lateBindings.length === 0) continue;
@@ -228,7 +229,7 @@ class Container {
       if (!instance) continue; // Not yet resolved
 
       for (const binding of reg.lateBindings) {
-        const { prop, service, optional = false } = binding;
+        const { prop, service, optional = false, expects } = binding;
 
         if (!this.has(service)) {
           if (optional) {
@@ -240,7 +241,24 @@ class Container {
         }
 
         try {
-          instance[prop] = this.resolve(service);
+          const resolved = this.resolve(service);
+
+          // v7.1.9 S-2: Contract validation — check expected methods exist
+          if (expects && Array.isArray(expects) && expects.length > 0) {
+            const missing = expects.filter(m => typeof resolved[m] !== 'function');
+            if (missing.length > 0) {
+              const msg = `${name}.${prop} → ${service}: contract violation — missing: ${missing.join(', ')}`;
+              contractViolations.push(msg);
+              if (optional) {
+                skipped++; // Don't inject broken service
+                continue;
+              }
+              errors.push(msg);
+              continue;
+            }
+          }
+
+          instance[prop] = resolved;
           wired++;
         } catch (err) {
           if (optional) {
@@ -255,8 +273,11 @@ class Container {
     if (errors.length > 0) {
       console.warn(`[CONTAINER] Late-binding errors:`, errors);
     }
+    if (contractViolations.length > 0) {
+      console.warn(`[CONTAINER] Contract violations:`, contractViolations);
+    }
 
-    return { wired, skipped, errors };
+    return { wired, skipped, errors, contractViolations };
   }
 
   /**
