@@ -100,7 +100,7 @@ class AdaptiveStrategyApplyDelegate {
       try {
         const signals = this._p.emotionalSteering.getSignals();
         emotionalBias = {
-          explorative: signals.activityBias?.curiosity > 0.6 && !signals.modelEscalation,
+          explorative: signals.activityBias?.explore > 1.0 && !signals.modelEscalation,
           conservative: signals.modelEscalation || signals.planLengthLimit,
         };
       } catch (_e) { /* optional */ }

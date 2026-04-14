@@ -1,3 +1,48 @@
+## [7.1.8] — Honest Reflection (Bug Fixes)
+
+**Three property-name mismatches fixed + one design-issue corrected.**
+
+### Bug Fixes
+
+- **B-1:** `PromptBuilderSections._introspectionContext()` — `snap.serviceCount` →
+  `snap.services` (and `eventCount`→`events`, `layerCount`→`layers`,
+  `lateBindingCount`→`lateBindings`). ArchitectureReflection.getSnapshot() returns
+  short names. All four values showed '?' instead of real numbers.
+- **B-2:** `PromptBuilderSections._introspectionContext()` — `getMoodTrend()` →
+  `getTrend()`. EmotionalState has no `getMoodTrend` method. Trend always showed
+  'stable' fallback instead of actual trend.
+- **B-3:** `AdaptiveStrategyApply.diagnose()` — `activityBias?.curiosity > 0.6` →
+  `activityBias?.explore > 1.0`. EmotionalSteering returns `{ explore, research,
+  social }`, not `{ curiosity }`. Explorative bias was never set.
+
+### Design Fix
+
+- **D-1:** `_introspectionContext()` intent filter — removed `general` from the
+  allowed intents. `general` is the default intent for all normal chat messages,
+  causing introspection data to be injected into every prompt. Now fires only for
+  `self-inspect`, `self-reflect`, and `architecture` intents as the roadmap specified.
+
+### Event-Schema-Drift Fixes
+
+- **`EventPayloadSchemas.js`** — 4 stale schemas corrected to match actual emit payloads:
+  `health:metric` (`name`→`service`+`metric`), `chat:error` (`error`→`message`),
+  `goal:abandoned` (`goalId`+`reason`→`id`+`description`),
+  `mcp:degraded` (`server`+`reason`→`name`+`failRate`).
+- **`EventPayloadSchemas.js`** — 5 missing schemas added for v7.1.6/7 events:
+  `lesson:applied`, `lesson:confirmed`, `lesson:contradicted`,
+  `idle:research-started`, `idle:research-complete`.
+
+### Dead Code Cleanup
+
+- **`ProjectIntelligence.js`** — Removed unused `TIMEOUTS` import from Constants.
+
+### Stats
+- Changed files: 4 (PromptBuilderSections.js, AdaptiveStrategyApply.js, ProjectIntelligence.js, EventPayloadSchemas.js)
+- Schema fixes: 4 corrected + 5 added
+- package.json: 7.1.8
+
+---
+
 ## [7.1.7] — Honest Reflection
 
 **Genesis learns to see itself accurately — and acts on what it sees.**

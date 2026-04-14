@@ -570,7 +570,7 @@ const sections = {
       if (!this._currentIntent) return '';
       const intent = this._currentIntent;
       if (intent !== 'self-inspect' && intent !== 'self-reflect' &&
-          intent !== 'architecture' && intent !== 'general') return '';
+          intent !== 'architecture') return '';
 
       const parts = ['VERIFIED FACTS ABOUT YOURSELF (use these, do NOT invent numbers):'];
 
@@ -588,7 +588,7 @@ const sections = {
         try {
           const snap = this.architectureReflection.getSnapshot?.();
           if (snap) {
-            parts.push(`  DI services: ${snap.serviceCount || '?'}, Events: ${snap.eventCount || '?'}, Layers: ${snap.layerCount || '?'}, Late bindings: ${snap.lateBindingCount || '?'}`);
+            parts.push(`  DI services: ${snap.services || '?'}, Events: ${snap.events || '?'}, Layers: ${snap.layers || '?'}, Late bindings: ${snap.lateBindings || '?'}`);
           }
         } catch (_e) { /* optional */ }
       }
@@ -611,7 +611,7 @@ const sections = {
       if (this.emotionalState) {
         try {
           const mood = this.emotionalState.getMood?.();
-          const trend = this.emotionalState.getMoodTrend?.();
+          const trend = this.emotionalState.getTrend?.();
           if (mood) parts.push(`  Current mood: ${mood} (trend: ${trend || 'stable'})`);
         } catch (_e) { /* optional */ }
       }

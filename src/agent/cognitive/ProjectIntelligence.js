@@ -29,7 +29,7 @@
 const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
-const { TIMEOUTS } = require('../core/Constants');
+// v7.1.8: TIMEOUTS import removed (unused)
 const { createLogger } = require('../core/Logger');
 
 const _log = createLogger('ProjectIntel');

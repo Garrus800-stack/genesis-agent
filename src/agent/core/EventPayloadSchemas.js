@@ -41,7 +41,7 @@ const SCHEMAS = {
 
   // Chat
   'chat:completed': { message: 'required', response: 'required', intent: 'required', success: 'required' },
-  'chat:error':     { error: 'required' },
+  'chat:error':     { message: 'required' },
 
   // Circuit Breaker
   'circuit:state-change': { from: 'required', to: 'required' },
@@ -63,6 +63,9 @@ const SCHEMAS = {
 
   // Idle Mind
   'idle:thinking':         { activity: 'required', thought: 'required' },
+  // v7.1.6: Autonomous research
+  'idle:research-started': { topic: 'required', source: 'required' },
+  'idle:research-complete': { topic: 'required', source: 'required', insight: 'optional' },
   'idle:thought-complete': {},
   'idle:proactive-insight': { activity: 'required', insight: 'required' },
 
@@ -211,6 +214,11 @@ const SCHEMAS = {
 
   // Lesson (v6.0.2 — AdaptiveStrategy)
   'lesson:learned': { category: 'required', title: 'required', content: 'required' },
+  // v7.1.6: Lesson tracking
+  'lesson:applied':       { id: 'required', category: 'required' },
+  // v7.1.7: Lesson confirmation loop
+  'lesson:confirmed':     { id: 'required', category: 'required', confirmed: 'required' },
+  'lesson:contradicted':  { id: 'required', category: 'required', contradicted: 'required' },
 
   // Prompt Strategy (v6.0.4 — AdaptivePromptStrategy)
   'prompt:strategy-updated': { intents: 'required', recommendations: 'required' },
@@ -242,7 +250,7 @@ const SCHEMAS = {
   // ── v7.0.1: Schema coverage sweep ──────────────────────
 
   // Goal lifecycle
-  'goal:abandoned':        { goalId: 'required', reason: 'required', stepsCompleted: 'optional' },
+  'goal:abandoned':        { id: 'required', description: 'optional' },
   'goal:created':          { goalId: 'required', description: 'required' },
   'goal:resumed':          { goalId: 'required' },
 
@@ -340,7 +348,7 @@ const SCHEMAS = {
   'mcp:connected':          { server: 'required' },
   'mcp:connecting':         { server: 'required' },
   'mcp:disconnected':       { server: 'required' },
-  'mcp:degraded':           { server: 'required', reason: 'required' },
+  'mcp:degraded':           { name: 'required', failRate: 'required' },
   'mcp:error':              { server: 'required', error: 'required' },
   'mcp:tools-discovered':   { server: 'required', tools: 'required' },
   'mcp:server-removed':     { server: 'required' },
@@ -450,7 +458,7 @@ const SCHEMAS = {
   // Health
   'health:started':         {},
   'health:tick':            {},
-  'health:metric':          { name: 'required', value: 'required' },
+  'health:metric':          { service: 'required', metric: 'required', value: 'required' },
 
   // HTN
   'htn:plan-validated':     { plan: 'required' },
