@@ -139,10 +139,10 @@ describe('_pickResearchTopic', () => {
 
 describe('_buildResearchUrl', () => {
 
-  test('returns npm URL for weakness source', () => {
+  test('returns StackOverflow URL for weakness source', () => {
     const ctx = createResearchContext();
     const url = ctx._buildResearchUrl({ query: 'test', source: 'weakness' });
-    assert(url.includes('registry.npmjs.org'), 'should use npm for weakness');
+    assert(url.includes('api.stackexchange.com'), 'should use StackOverflow for weakness');
   });
 
   test('returns GitHub URL for suspicion source', () => {

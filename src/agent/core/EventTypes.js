@@ -75,6 +75,8 @@ const EVENTS = Object.freeze({
     LEARNED:            'lesson:learned',
     /** @payload {{ id: string, category: string, insight: string }} v7.1.6: Emitted on recall */
     APPLIED:            'lesson:applied',
+    CONFIRMED:          'lesson:confirmed',      // v7.1.7: Lesson confirmed by step outcome
+    CONTRADICTED:       'lesson:contradicted',   // v7.1.7: Lesson contradicted by step outcome
   }),
 
   // ── Self-Preservation ────────────────────────────────────

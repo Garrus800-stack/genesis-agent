@@ -318,12 +318,22 @@ class LessonsStore {
     const boost = opts.confBoost ?? 0.05;
     const penalty = opts.confPenalty ?? 0.15;
 
+    // v7.1.7: Track confirmed/contradicted counts for Frontier + GoalSynthesizer
     if (success) {
+      lesson.confirmed = (lesson.confirmed || 0) + 1;
       lesson.useCount = (lesson.useCount || 0) + 1;
       lesson.lastUsed = Date.now();
       lesson.evidence.confidence = Math.min(lesson.evidence.confidence + boost, 0.99);
+      this.bus.emit('lesson:confirmed', {
+        id: lessonId, category: lesson.category, confirmed: lesson.confirmed,
+      }, { source: 'LessonsStore' });
     } else {
+      lesson.contradicted = (lesson.contradicted || 0) + 1;
       lesson.evidence.confidence = Math.max(lesson.evidence.confidence - penalty, 0.1);
+      this.bus.emit('lesson:contradicted', {
+        id: lessonId, category: lesson.category, contradicted: lesson.contradicted,
+        insight: (lesson.insight || '').slice(0, 80),
+      }, { source: 'LessonsStore' });
     }
     this._dirty = true;
     return true;

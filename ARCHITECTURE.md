@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.1.6 · Last verified: all checks green (3839 tests, 257 suites, TSC 0, fitness 130/130)
+> Version: 7.1.7 · Last verified: all checks green (3839+ tests, 257 suites, TSC 0)
 
 ---
 
@@ -496,7 +496,25 @@ FrontierWriter generalizes the frontier pattern into a configurable, reusable fr
 3. **Boot** → Per-type decay applied. Frontier context injected into prompt (UNFINISHED_WORK weight 0.9, EMOTIONAL_IMPRINT 0.8, HIGH_SUSPICION 0.7, LESSON_APPLIED 0.6)
 4. **Idle** → UNFINISHED_WORK boosts `plan` (×1.6), HIGH_SUSPICION boosts `explore` (×1.5), low LESSON_APPLIED boosts `reflect` (×1.3). All three drive `research` topic selection
 
-**Design:** FrontierWriter (404 LOC) + FrontierExtractors (200 LOC) replace what would have been ~900 LOC across three separate modules. All call sites guard with `if (this._xxxFrontier)`. All late-bindings are optional. Zero LLM calls in the frontier write path.
+**Design:** FrontierWriter (448 LOC) + FrontierExtractors (200 LOC) replace what would have been ~900 LOC across three separate modules. All call sites guard with `if (this._xxxFrontier)`. All late-bindings are optional. Zero LLM calls in the frontier write path. Event buffers capped at 200 entries (v7.1.7 H-1).
+
+### 7.6 Honest Reflection (v7.1.7)
+
+Genesis learns to perceive itself accurately. The core problem: when asked about its own architecture, Genesis hallucinated metrics ("529 modules" when the real count is 247). v7.1.7 closes the gap between self-perception and reality.
+
+**Lesson Confirmation Loop:** The LESSON_APPLIED frontier gains confirmed/contradicted tracking. AgentLoopCognition collects `lesson:applied` events per step and correlates with step outcomes via `LessonsStore.updateLessonOutcome()`. Success → `lesson.confirmed++`, failure → `lesson.contradicted++`. Wilson-score confidence updates. Contradicted lessons feed into GoalSynthesizer as "Revise lesson" goals.
+
+**Research Quality Gate:** `_scoreResearchInsight()` scores LLM-distilled insights before KG write. Jaccard relevance (40%) + specificity (60%). Score < 0.5 → insight rejected, logged. Deterministic — zero LLM calls on the gate path.
+
+**Introspection Accuracy:** New `_introspectionContext()` in PromptBuilderSections injects verified facts from ArchitectureReflection.getSnapshot(), SelfModel.manifest, CognitiveSelfModel.getReport(), and EmotionalState into the prompt when self-inspect/self-reflect intents are detected. The LLM receives "VERIFIED FACTS ABOUT YOURSELF: Source modules: 247, DI services: 141" — and cannot invent numbers.
+
+**GoalSynthesizer v2:** Three new frontier-driven goal sources beyond CognitiveSelfModel weakness detection: UNFINISHED_WORK (high priority, < 48h) → completion goals, HIGH_SUSPICION (count ≥ 3) → investigation goals, LESSON_APPLIED contradicted → revision goals.
+
+**Emotional-Cognitive Bridge:** EmotionalSteering signals flow into AdaptiveStrategy.diagnose(). restMode → defer adaptation, frustration → conservative strategies, curiosity+satisfaction → explorative strategies. The Apply-Delegate adjusts candidate priorities based on emotional context.
+
+**Research Endpoint Expansion:** StackOverflow (`api.stackexchange.com`) added as third trusted endpoint. weakness → StackOverflow Q&A, suspicion → GitHub code search.
+
+**Hardening:** Event-buffer size capped at 200 (H-1). Research topic labels sanitized before prompt injection (H-2). Event-audit cross-reference detects listeners without emitters (H-3) — would have caught the v6.1.1 shell:complete mismatch. `prompt-evolution:promoted` removed from EXCLUDED_EVENTS list.
 
 ---
 

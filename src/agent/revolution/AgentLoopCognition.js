@@ -47,6 +47,14 @@ class AgentLoopCognitionDelegate {
     const simulator = this.loop.mentalSimulator;
     const expectationEngine = this.loop.expectationEngine;
 
+    // v7.1.7 F1: Reset step-scoped lesson collector
+    // lesson:applied events fire synchronously during PromptBuilder.build() → LessonsStore.recall()
+    // which happens before step execution. We collect them here and correlate in postStep().
+    this._stepRecalledLessons = [];
+    this._lessonUnsub = this.loop.bus?.on('lesson:applied', (data) => {
+      if (data?.id) this._stepRecalledLessons.push(data);
+    }, { source: 'AgentLoopCognition', key: 'lesson-step-collector' });
+
     if (!simulator && !expectationEngine) {
       return { proceed: true };
     }
@@ -114,6 +122,9 @@ class AgentLoopCognitionDelegate {
    * Post-step hook: compare expectation with actual outcome.
    */
   postStep(plan, stepIndex, step, result) {
+    // v7.1.7 F1: Correlate recalled lessons with step outcome
+    this._correlateLessons(result);
+
     const expectationEngine = this.loop.expectationEngine;
     if (!expectationEngine || !plan._expectations || !plan._expectations[stepIndex]) {
       return;
@@ -139,6 +150,35 @@ class AgentLoopCognitionDelegate {
       try { doCompare(); }
       catch (err) { _log.debug('[COGNITION] Post-step comparison failed:', err.message); }
     }
+  }
+
+  /**
+   * v7.1.7: Correlate lessons recalled during prompt-build with step outcome.
+   * Called at the start of postStep() — lessons were collected during preExecute→step.
+   * @param {object} result — Step execution result
+   */
+  _correlateLessons(result) {
+    const lessons = this._stepRecalledLessons;
+    if (!lessons || lessons.length === 0) return;
+
+    const lessonsStore = this.loop.lessonsStore;
+    if (!lessonsStore || typeof lessonsStore.updateLessonOutcome !== 'function') return;
+
+    const success = !result?.error;
+    for (const lesson of lessons) {
+      try {
+        lessonsStore.updateLessonOutcome(lesson.id, success);
+      } catch (err) {
+        _log.debug('[COGNITION] Lesson correlation failed:', err.message);
+      }
+    }
+
+    if (lessons.length > 0) {
+      _log.debug(`[COGNITION] Correlated ${lessons.length} lesson(s): ${success ? 'confirmed' : 'contradicted'}`);
+    }
+
+    // Reset for next step
+    this._stepRecalledLessons = [];
   }
 
   // ── Fallback methods (when tracker unavailable) ────────

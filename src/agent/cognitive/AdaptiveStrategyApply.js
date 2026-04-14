@@ -60,6 +60,18 @@ class AdaptiveStrategyApplyDelegate {
 
   diagnose() {
     if (!this._p.cognitiveSelfModel) return null;
+
+    // v7.1.7 F5: Defer adaptation when organism signals rest
+    if (this._p.emotionalSteering) {
+      try {
+        const signals = this._p.emotionalSteering.getSignals();
+        if (signals.restMode) {
+          _log.debug('[ADAPT] Deferred — emotional restMode active');
+          return null;
+        }
+      } catch (_e) { /* optional */ }
+    }
+
     const windowMs = this._p._config.dataMaxAgeMs;
 
     const profile = this._p.cognitiveSelfModel.getCapabilityProfile({ windowMs });
@@ -82,7 +94,19 @@ class AdaptiveStrategyApplyDelegate {
       return null;
     }
 
-    return { biases, backendMap, profile, weaknesses, strengths };
+    // v7.1.7 F5: Attach emotional context for propose() to use
+    let emotionalBias = null;
+    if (this._p.emotionalSteering) {
+      try {
+        const signals = this._p.emotionalSteering.getSignals();
+        emotionalBias = {
+          explorative: signals.activityBias?.curiosity > 0.6 && !signals.modelEscalation,
+          conservative: signals.modelEscalation || signals.planLengthLimit,
+        };
+      } catch (_e) { /* optional */ }
+    }
+
+    return { biases, backendMap, profile, weaknesses, strengths, emotionalBias };
   }
 
   // ════════════════════════════════════════════════════════
@@ -154,6 +178,20 @@ class AdaptiveStrategyApplyDelegate {
     }
 
     if (candidates.length === 0) return null;
+
+    // v7.1.7 F5: Emotional bias adjusts candidate priority
+    if (diagnosis.emotionalBias) {
+      for (const c of candidates) {
+        // Conservative mood → prefer safe, low-impact changes
+        if (diagnosis.emotionalBias.conservative && c.type === 'prompt-mutation') {
+          c.priority = Math.max(c.priority - 1, 0);
+        }
+        // Explorative mood → prefer model-routing experiments
+        if (diagnosis.emotionalBias.explorative && c.type === 'model-routing') {
+          c.priority += 1;
+        }
+      }
+    }
 
     candidates.sort((a, b) => b.priority - a.priority);
 

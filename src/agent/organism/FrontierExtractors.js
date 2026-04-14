@@ -157,15 +157,17 @@ function suspicionMerger(existing, incoming) {
  * lesson retrieved. These are buffered over the session and
  * passed here at session:ending.
  *
- * v7.1.6 scope: Only tracks which lessons were applied.
- * Confirmed/contradicted tracking deferred to v7.1.7.
+ * v7.1.7: Now includes confirmed/contradicted counts from
+ * lesson:confirmed and lesson:contradicted events (also buffered).
  *
  * @param {object} context
  * @param {Array} [context.appliedLessons] — Buffered applied lessons
+ * @param {Array} [context.confirmedLessons] — Buffered confirmed lessons (v7.1.7)
+ * @param {Array} [context.contradictedLessons] — Buffered contradicted lessons (v7.1.7)
  * @returns {object|null}
  */
 function lessonExtractor(context) {
-  const { appliedLessons } = context;
+  const { appliedLessons, confirmedLessons, contradictedLessons } = context;
   if (!appliedLessons || appliedLessons.length === 0) return null;
 
   // Deduplicate by lesson ID (same lesson may be recalled multiple times)
@@ -180,6 +182,10 @@ function lessonExtractor(context) {
 
   if (unique.length === 0) return null;
 
+  // v7.1.7: Aggregate confirmation data
+  const confirmedCount = confirmedLessons?.length || 0;
+  const contradictedCount = contradictedLessons?.length || 0;
+
   return {
     applied: unique.slice(0, 10).map(l => ({
       lessonId: l.id,
@@ -188,6 +194,8 @@ function lessonExtractor(context) {
     })),
     count: unique.length,
     categories: [...new Set(unique.map(l => l.category || 'unknown'))],
+    confirmed_count: confirmedCount,
+    contradicted_count: contradictedCount,
   };
 }
 

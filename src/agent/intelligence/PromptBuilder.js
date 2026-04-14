@@ -106,6 +106,7 @@ class PromptBuilder {
       [2, 'capabilities',  1300],
       [2, 'safety',        250],   // v4.12.8: Circuit breaker + error trends — operationally critical
       [2, 'disclosure',    400],   // v7.0.4: Information sovereignty — what to share with whom
+      [2, 'introspection', 600],   // v7.1.7: Verified self-data — prevents hallucinated metrics
       [3, 'version',       900],   // v7.0.4: Changelog self-awareness — Genesis knows its own history
       [3, 'mcp',           400],
       [3, 'project',       300],   // v5.7.0: Project intelligence — stack, conventions, quality
@@ -412,6 +413,7 @@ class PromptBuilder {
     sections.push(['taskPerformance', this._taskPerformanceContext()]);
     sections.push(['safety',        this._safetyContext()]);
     sections.push(['disclosure',    this._disclosureContext()]);
+    sections.push(['introspection', this._introspectionContext()]); // v7.1.7 F3: verified self-data
     sections.push(['version',       this._versionContext()]);
 
     return this._buildWithBudget(sections);

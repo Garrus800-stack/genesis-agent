@@ -1,6 +1,8 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.1.3 — Event flow documentation. Updated for AwarenessPort, Colony IPC, 12-phase boot, and v7.1.3 ctl events.
+> v7.1.7 — Event flow documentation. Updated for lesson confirmation loop,
+> research quality gate, introspection accuracy, emotional-cognitive bridge,
+> and v7.1.7 hardening (event-audit cross-reference, buffer cap, label sanitization).
 > This document maps which modules emit and consume which EventBus events.
 
 ## System Overview
@@ -615,3 +617,15 @@ graph TD
 | `abstraction:extracted` | StructuralAbstraction | LessonsStore |
 | `abstraction:contradiction` | StructuralAbstraction | — (knowledge collision) |
 | `abstraction:obsolete` | StructuralAbstraction | — (3 failed re-extractions) |
+| **Persistent Self (v7.1.6)** | | |
+| `lesson:applied` | LessonsStore | LessonFrontier (event buffer), AgentLoopCognition (step collector) |
+| `idle:research-started` | IdleMind | — |
+| `idle:research-complete` | IdleMind | — |
+| `emotional-frontier:imprint-written` | EmotionalFrontier | — |
+| `emotional-frontier:boot-restored` | EmotionalFrontier | — |
+| `frontier:*:written` | FrontierWriter (per instance) | — |
+| `frontier:*:merged` | FrontierWriter (per instance) | — |
+| `prompt-evolution:promoted` | PromptEvolution | LessonsStore (captures promoted variants) |
+| **Honest Reflection (v7.1.7)** | | |
+| `lesson:confirmed` | LessonsStore | LessonFrontier (event buffer) |
+| `lesson:contradicted` | LessonsStore | LessonFrontier (event buffer) |

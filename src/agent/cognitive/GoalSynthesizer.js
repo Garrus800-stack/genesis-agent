@@ -142,6 +142,60 @@ class GoalSynthesizer {
       });
     }
 
+    // ── v7.1.7 F4: Frontier-driven goal sources ─────────
+
+    // UNFINISHED_WORK: high-priority unfinished work < 48h old
+    if (this._unfinishedWorkFrontier) {
+      try {
+        const recent = this._unfinishedWorkFrontier.getRecent?.(3) || [];
+        for (const uw of recent) {
+          if (uw.priority !== 'high') continue;
+          const ageMs = Date.now() - (uw.created || 0);
+          if (ageMs > 48 * 60 * 60 * 1000) continue; // > 48h = stale
+          const desc = uw.description || uw.pending_goals?.[0]?.description || 'unfinished work';
+          goals.push({
+            title: `Complete: ${desc.slice(0, 80)}`,
+            weakness: null, priority: 0.8, impact: 0.8,
+            source: 'unfinished-work', topError: null, sampleSize: 0,
+          });
+        }
+      } catch (_e) { /* optional */ }
+    }
+
+    // HIGH_SUSPICION: recurring anomaly patterns (count ≥ 3)
+    if (this._suspicionFrontier) {
+      try {
+        const recent = this._suspicionFrontier.getRecent?.(3) || [];
+        for (const sus of recent) {
+          if ((sus.count || 0) < 3) continue;
+          goals.push({
+            title: `Investigate: ${(sus.dominant_category || 'unknown')} anomaly (${sus.count} events)`,
+            weakness: null, priority: 0.6, impact: 0.5,
+            source: 'suspicion', topError: sus.dominant_category, sampleSize: sus.count,
+          });
+        }
+      } catch (_e) { /* optional */ }
+    }
+
+    // LESSON_APPLIED contradicted: lessons that failed more than they helped
+    if (this._lessonFrontier) {
+      try {
+        const recent = this._lessonFrontier.getRecent?.(3) || [];
+        for (const les of recent) {
+          const confirmed = les.confirmed_count || 0;
+          const contradicted = les.contradicted_count || 0;
+          if (contradicted <= confirmed || contradicted < 2) continue;
+          const topLesson = les.applied?.[0];
+          if (!topLesson) continue;
+          goals.push({
+            title: `Revise lesson: ${(topLesson.insight || topLesson.category || '?').slice(0, 60)} — contradicted ${contradicted}x`,
+            weakness: null, priority: 0.7, impact: 0.6,
+            source: 'contradicted-lesson', topError: null, sampleSize: contradicted,
+          });
+        }
+      } catch (_e) { /* optional */ }
+    }
+
     // Sort by priority descending
     goals.sort((a, b) => b.priority - a.priority);
 

@@ -560,6 +560,78 @@ const sections = {
     }
   },
 
+  // ── v7.1.7 F3: Introspection Accuracy ─────────────────
+  // When Genesis is asked about itself, inject VERIFIED facts
+  // from its own systems instead of letting the LLM hallucinate.
+  // Triggered by self-inspect / self-reflect intents.
+  _introspectionContext() {
+    try {
+      // Only inject for self-reflective queries
+      if (!this._currentIntent) return '';
+      const intent = this._currentIntent;
+      if (intent !== 'self-inspect' && intent !== 'self-reflect' &&
+          intent !== 'architecture' && intent !== 'general') return '';
+
+      const parts = ['VERIFIED FACTS ABOUT YOURSELF (use these, do NOT invent numbers):'];
+
+      // SelfModel: module counts, version, capabilities
+      const manifest = this.selfModel?.manifest;
+      if (manifest && Object.keys(manifest.modules || {}).length > 0) {
+        const moduleCount = Object.keys(manifest.modules).length;
+        const version = manifest.version || 'unknown';
+        const caps = manifest.capabilities || [];
+        parts.push(`  Version: ${version}, Source modules: ${moduleCount}, Capabilities: ${caps.slice(0, 8).join(', ')}`);
+      }
+
+      // ArchitectureReflection: services, events, layers
+      if (this.architectureReflection) {
+        try {
+          const snap = this.architectureReflection.getSnapshot?.();
+          if (snap) {
+            parts.push(`  DI services: ${snap.serviceCount || '?'}, Events: ${snap.eventCount || '?'}, Layers: ${snap.layerCount || '?'}, Late bindings: ${snap.lateBindingCount || '?'}`);
+          }
+        } catch (_e) { /* optional */ }
+      }
+
+      // CognitiveSelfModel: Wilson-calibrated capability profile
+      if (this.cognitiveSelfModel) {
+        try {
+          const report = this.cognitiveSelfModel.getReport?.();
+          if (report?.profile) {
+            const entries = Object.entries(report.profile);
+            const weak = entries.filter(([, v]) => v.isWeak).map(([k]) => k);
+            const strong = entries.filter(([, v]) => !v.isWeak && v.sampleSize >= 5).map(([k, v]) => `${k}:${Math.round(v.successRate * 100)}%`);
+            if (strong.length > 0) parts.push(`  Strong capabilities: ${strong.slice(0, 5).join(', ')}`);
+            if (weak.length > 0) parts.push(`  Weak capabilities: ${weak.join(', ')}`);
+          }
+        } catch (_e) { /* optional */ }
+      }
+
+      // EmotionalState: current mood
+      if (this.emotionalState) {
+        try {
+          const mood = this.emotionalState.getMood?.();
+          const trend = this.emotionalState.getMoodTrend?.();
+          if (mood) parts.push(`  Current mood: ${mood} (trend: ${trend || 'stable'})`);
+        } catch (_e) { /* optional */ }
+      }
+
+      // IdleMind: activity status
+      if (this._idleMind) {
+        try {
+          const status = this._idleMind.getStatus?.();
+          if (status) parts.push(`  IdleMind: ${status.thoughtCount || 0} thoughts, ${status.journalEntries || 0} journal entries`);
+        } catch (_e) { /* optional */ }
+      }
+
+      if (parts.length <= 1) return ''; // Only header, no data
+      return parts.join('\n');
+    } catch (err) {
+      _log.debug('[PROMPT] Introspection context error:', err.message);
+      return '';
+    }
+  },
+
   // ── Version Self-Awareness (v7.0.4) ───────────────────
   // Genesis knows what changed in its latest version.
   // Like a person reading their own diary after waking up.

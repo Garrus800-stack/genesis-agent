@@ -120,8 +120,7 @@ const EXCLUDED_EVENTS = new Set([
   'chat-send', 'chat-stop', 'chat-copy', 'chat-open-editor',
   // IPC bridge events (emitted by Electron renderer, not Genesis EventBus)
   'chat:message', 'agent:stream-chunk', 'agent:stream-done',
-  // PromptEvolution internal EventEmitter
-  'prompt-evolution:promoted',
+  // v7.1.7 H-3: Removed 'prompt-evolution:promoted' — it IS a Bus event since v7.1.6
 ]);
 
 // ── 3. Analyze ──────────────────────────────────────────────
@@ -130,6 +129,18 @@ const emittedNotInCatalog = [];
 const subscribedNotInCatalog = [];
 const catalogNeverEmitted = [];
 const catalogNeverSubscribed = [];
+
+// v7.1.7 H-3: Cross-reference — listeners without emitters and vice versa
+// This catches event-name mismatches like shell:complete vs shell:outcome (v6.1.1→v7.1.6)
+const listenersWithoutEmitters = [];
+const frequentEmittersWithoutListeners = [];
+
+// Dynamic event patterns that won't have static matches
+const DYNAMIC_PATTERNS = [
+  /^store:/, // EventStore emits store:${type} dynamically
+  /^frontier:/, // FrontierWriter emits frontier:${name}:written/merged
+];
+const isDynamic = (event) => DYNAMIC_PATTERNS.some(p => p.test(event));
 
 for (const event of emitters.keys()) {
   if (event.includes('*') || event.includes('$')) continue; // wildcard / template patterns
@@ -145,11 +156,23 @@ for (const event of subscribers.keys()) {
   if (!catalogEvents.has(event)) {
     subscribedNotInCatalog.push({ event, locations: subscribers.get(event) });
   }
+  // H-3: Listener without emitter?
+  if (!emitters.has(event) && !isDynamic(event) && !EXCLUDED_EVENTS.has(event)) {
+    listenersWithoutEmitters.push({ event, locations: subscribers.get(event) });
+  }
 }
 
 for (const event of catalogEvents) {
   if (!emitters.has(event)) catalogNeverEmitted.push(event);
   if (!subscribers.has(event)) catalogNeverSubscribed.push(event);
+}
+
+// H-3: Frequently emitted without any listener (>3 call sites = likely intentional)
+for (const [event, locations] of emitters) {
+  if (EXCLUDED_EVENTS.has(event) || isDynamic(event)) continue;
+  if (locations.length >= 3 && !subscribers.has(event)) {
+    frequentEmittersWithoutListeners.push({ event, count: locations.length });
+  }
 }
 
 // ── 4. Report ───────────────────────────────────────────────
@@ -163,11 +186,15 @@ const report = {
     subscribedNotInCatalog: subscribedNotInCatalog.length,
     catalogNeverEmitted: catalogNeverEmitted.length,
     catalogNeverSubscribed: catalogNeverSubscribed.length,
+    listenersWithoutEmitters: listenersWithoutEmitters.length,
+    frequentEmittersWithoutListeners: frequentEmittersWithoutListeners.length,
   },
   emittedNotInCatalog,
   subscribedNotInCatalog,
   catalogNeverEmitted,
   catalogNeverSubscribed,
+  listenersWithoutEmitters,
+  frequentEmittersWithoutListeners,
 };
 
 if (jsonOutput) {
@@ -215,14 +242,34 @@ if (jsonOutput) {
   }
 
   const warnings = emittedNotInCatalog.length + subscribedNotInCatalog.length;
-  if (warnings === 0) {
+  if (listenersWithoutEmitters.length > 0) {
+    console.log('🔴 LISTENERS WITHOUT EMITTERS (event-name mismatch?):');
+    for (const { event, locations } of listenersWithoutEmitters) {
+      console.log(`   "${event}"`);
+      for (const loc of locations) console.log(`     → ${loc.file}:${loc.line}`);
+    }
+    console.log('');
+  }
+
+  if (frequentEmittersWithoutListeners.length > 0) {
+    console.log('ℹ  FREQUENTLY EMITTED but never listened (≥3 call sites):');
+    for (const { event, count } of frequentEmittersWithoutListeners) {
+      console.log(`   "${event}" (${count} emit sites)`);
+    }
+    console.log('');
+  }
+
+  if (warnings === 0 && listenersWithoutEmitters.length === 0) {
     console.log('✅ All events match the EventTypes catalog.');
+    console.log('✅ All listeners have at least one emitter.');
   } else {
-    console.log(`⚠  ${warnings} event(s) not in catalog.`);
+    if (warnings > 0) console.log(`⚠  ${warnings} event(s) not in catalog.`);
+    if (listenersWithoutEmitters.length > 0) console.log(`🔴 ${listenersWithoutEmitters.length} listener(s) without emitters — potential event-name mismatch!`);
   }
   console.log('');
 }
 
-// Exit code
+// Exit code — listeners without emitters are HIGH severity
 const hasWarnings = emittedNotInCatalog.length > 0 || subscribedNotInCatalog.length > 0;
-process.exit(strict && hasWarnings ? 1 : 0);
+const hasCrossRefErrors = listenersWithoutEmitters.length > 0;
+process.exit(strict && (hasWarnings || hasCrossRefErrors) ? 1 : 0);

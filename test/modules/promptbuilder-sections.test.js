@@ -30,7 +30,7 @@ describe('PromptBuilderSections: Delegation', () => {
       '_perceptionContext', '_consciousnessContext', '_valuesContext',
       '_userModelContext', '_bodySchemaContext', '_episodicContext',
       '_architectureContext', '_projectContext', '_taskPerformanceContext',
-      '_disclosureContext', '_versionContext',
+      '_disclosureContext', '_introspectionContext', '_versionContext',
     ];
     for (const name of expected) {
       assert(typeof sections[name] === 'function', `sections.${name} should be a function`);

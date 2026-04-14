@@ -1,3 +1,72 @@
+## [7.1.7] — Honest Reflection
+
+**Genesis learns to see itself accurately — and acts on what it sees.**
+
+### Feature 1: Lesson Confirmation Loop (Phase 9)
+
+- **`LessonsStore.js`** — `updateLessonOutcome()` now tracks `confirmed`/`contradicted`
+  counts on each lesson. Emits `lesson:confirmed` / `lesson:contradicted` events.
+- **`AgentLoopCognition.js`** — Step-scoped `lesson:applied` collector. Correlates
+  recalled lessons with step outcome in `postStep()` → closes the feedback loop.
+- **`FrontierExtractors.js`** — `lessonExtractor` includes `confirmed_count` and
+  `contradicted_count` in frontier props.
+- **`phase9-cognitive.js`** — LessonFrontier buffers confirmed/contradicted events,
+  injects into extractor context at session:ending.
+
+### Feature 2: Research Quality Gate (Phase 6)
+
+- **`IdleMindActivities.js`** — `_scoreResearchInsight(insight, topic)`: deterministic
+  quality scoring before KG write. Jaccard relevance (40%) + specificity (60%).
+  Score < 0.5 → insight rejected, logged, stats tracked. Zero LLM calls.
+
+### Feature 3: Introspection Accuracy (Phase 2)
+
+- **`PromptBuilderSections.js`** — `_introspectionContext()`: injects VERIFIED FACTS
+  from ArchitectureReflection, SelfModel, CognitiveSelfModel, EmotionalState, IdleMind
+  into the prompt when self-inspect/self-reflect intents are detected. Prevents Genesis
+  from hallucinating metrics about itself ("529 modules" → actual: 247).
+- **`PromptBuilder.js`** — Wired as priority 2 section (600 char budget).
+
+### Feature 4: GoalSynthesizer v2 — Frontier-Driven Goals (Phase 9)
+
+- **`GoalSynthesizer.js`** — Three new goal sources from frontier data:
+  UNFINISHED_WORK (high priority, < 48h) → "Complete: ..."
+  HIGH_SUSPICION (count ≥ 3) → "Investigate: ... anomaly"
+  LESSON_APPLIED contradicted > confirmed → "Revise lesson: ..."
+- **`phase9-cognitive.js`** — Late bindings for 3 frontier writers.
+
+### Feature 5: Emotional-Cognitive Bridge (Phase 9)
+
+- **`AdaptiveStrategyApply.js`** — `diagnose()` checks EmotionalSteering signals:
+  restMode → defer adaptation cycle, frustration → conservative strategies,
+  curiosity+satisfaction → explorative strategies.
+  `propose()` adjusts candidate priorities based on emotional context.
+- **`phase9-cognitive.js`** — Late binding for emotionalSteering.
+
+### Feature 6: Research Endpoint Expansion (Phase 6)
+
+- **`IdleMindActivities.js`** — `_buildResearchUrl()` adds StackOverflow
+  (`api.stackexchange.com`) as third trusted endpoint. weakness → StackOverflow,
+  suspicion → GitHub, unfinished-work → npm or StackOverflow.
+
+### Hardening
+
+- **H-1:** `FrontierWriter.enableEventBuffer()` — buffer size capped at 200 (configurable).
+  Prevents unbounded growth in sessions that never end (crash, daemon mode).
+- **H-2:** `IdleMindActivities._doResearchAsync()` — `topic.label` sanitized before
+  prompt injection: `slice(0, 120).replace(/[<>{}\\`]/g, '')`.
+- **H-3:** `scripts/audit-events.js` — Cross-reference analysis: detects listeners
+  without emitters (would have caught shell:complete and prompt-evolution:promoted).
+  `prompt-evolution:promoted` removed from EXCLUDED_EVENTS. Dynamic event patterns
+  (`store:*`, `frontier:*`) whitelisted.
+
+### Stats
+- Changed files: 14
+- New LOC: ~500 src + ~30 test adjustments
+- Features: 6 + 3 hardening items
+
+---
+
 ## [7.1.6] — Persistent Self
 
 **Genesis remembers what it left unfinished, what surprised it, and what it learned.**

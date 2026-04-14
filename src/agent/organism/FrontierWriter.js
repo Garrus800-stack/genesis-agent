@@ -360,13 +360,17 @@ class FrontierWriter {
    * @param {string} collectEvent  — Event to buffer (e.g. 'surprise:novel-event')
    * @param {string} triggerEvent  — Event that triggers write (e.g. 'session:ending')
    * @param {string} contextKey    — Key to wrap buffer under (e.g. 'novelEvents')
+   * @param {number} [maxSize=200] — Max buffer size (oldest evicted on overflow)
    */
-  enableEventBuffer(collectEvent, triggerEvent, contextKey) {
+  enableEventBuffer(collectEvent, triggerEvent, contextKey, maxSize = 200) {
     this._eventBuffer = [];
     this._bufferContextKey = contextKey;
+    this._bufferMaxSize = maxSize;
 
-    this.bus.on(collectEvent, (data) => this._eventBuffer.push(data),
-      { source: `FrontierWriter:${this._name}`, key: `${this._name}-buffer` });
+    this.bus.on(collectEvent, (data) => {
+      if (this._eventBuffer.length >= this._bufferMaxSize) this._eventBuffer.shift();
+      this._eventBuffer.push(data);
+    }, { source: `FrontierWriter:${this._name}`, key: `${this._name}-buffer` });
 
     this.bus.on(triggerEvent, (data) => {
       if (this._eventBuffer.length > 0) {

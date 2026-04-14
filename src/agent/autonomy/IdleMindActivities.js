@@ -439,7 +439,9 @@ const activities = {
       'weakness': 'Focus on reusable techniques and patterns to improve this capability.',
     };
     const focus = DISTILL_FOCUS[topic.source] || 'Focus on actionable knowledge.';
-    const prompt = `You are Genesis. You researched "${topic.label}" and found this:\n\n${body}\n\nDistill the most useful insight in 2-3 sentences for your own reference. ${focus}`;
+    // v7.1.7 H-2: Sanitize label — frontier data is indirectly LLM-sourced
+    const safeLabel = (topic.label || '').slice(0, 120).replace(/[<>{}\\`]/g, '');
+    const prompt = `You are Genesis. You researched "${safeLabel}" and found this:\n\n${body}\n\nDistill the most useful insight in 2-3 sentences for your own reference. ${focus}`;
 
     let insight;
     try {
@@ -450,15 +452,23 @@ const activities = {
       return;
     }
 
-    // C) Store in KnowledgeGraph
+    // C) Quality gate — score before writing to KG
     if (this.kg && insight) {
-      this.kg.addNode('research', `${topic.label}: ${insight.slice(0, 60)}`, {
-        type: 'research-finding',
-        source: topic.source,
-        url: url,
-        insight: insight.slice(0, 500),
-        query: topic.query,
-      });
+      const quality = this._scoreResearchInsight(insight, topic);
+      if (quality.score >= 0.5) {
+        this.kg.addNode('research', `${topic.label}: ${insight.slice(0, 60)}`, {
+          type: 'research-finding',
+          source: topic.source,
+          url: url,
+          insight: insight.slice(0, 500),
+          query: topic.query,
+          qualityScore: quality.score,
+        });
+      } else {
+        _log.debug(`[IDLE] Research insight rejected (quality ${quality.score.toFixed(2)}): ${quality.reason}`);
+        this._researchStats = this._researchStats || { written: 0, rejected: 0 };
+        this._researchStats.rejected++;
+      }
     }
 
     // D) Satisfy knowledge need
@@ -541,16 +551,60 @@ const activities = {
 
   /**
    * Build a research URL targeting trusted API endpoints.
+   * v7.1.7 F6: Added StackOverflow for Q&A-style research.
    */
   _buildResearchUrl(topic) {
     const q = encodeURIComponent(topic.query.slice(0, 80));
     const strategies = [
       `https://registry.npmjs.org/-/v1/search?text=${q}&size=3`,
       `https://api.github.com/search/repositories?q=${q}&sort=stars&per_page=3`,
+      // v7.1.7 F6: StackOverflow — structured Q&A, read-only, no auth
+      `https://api.stackexchange.com/2.3/search?order=desc&sort=votes&intitle=${q}&site=stackoverflow&pagesize=3`,
     ];
-    if (topic.source === 'weakness') return strategies[0];
-    if (topic.source === 'suspicion') return strategies[1];
+    if (topic.source === 'weakness') return strategies[2]; // StackOverflow for techniques
+    if (topic.source === 'suspicion') return strategies[1]; // GitHub for code patterns
+    if (topic.source === 'unfinished-work') return strategies[Math.random() < 0.5 ? 0 : 2];
     return strategies[Math.floor(Math.random() * strategies.length)];
+  },
+
+  /**
+   * v7.1.7 F2: Score a research insight before KG write.
+   * Deterministic — no LLM calls. Three dimensions:
+   *   relevance: keyword overlap with topic (Jaccard)
+   *   specificity: length + not generic filler
+   *   novelty: checked externally via KG search (deferred — too expensive here)
+   *
+   * @param {string} insight — LLM-distilled insight text
+   * @param {object} topic — { label, query, source }
+   * @returns {{ score: number, reason: string }}
+   */
+  _scoreResearchInsight(insight, topic) {
+    if (!insight || insight.length < 20) {
+      return { score: 0, reason: 'too short' };
+    }
+
+    // Relevance: Jaccard similarity between insight words and topic words
+    const insightWords = new Set(insight.toLowerCase().split(/\W+/).filter(w => w.length > 2));
+    const topicWords = new Set(
+      `${topic.label || ''} ${topic.query || ''}`.toLowerCase().split(/\W+/).filter(w => w.length > 2)
+    );
+    const intersection = [...insightWords].filter(w => topicWords.has(w)).length;
+    const union = new Set([...insightWords, ...topicWords]).size;
+    const relevance = union > 0 ? intersection / union : 0;
+
+    // Specificity: penalize short or generic responses
+    const FILLER = /\b(various|many|several|some|generally|typically|often|usually|important|useful|helpful)\b/gi;
+    const fillerCount = (insight.match(FILLER) || []).length;
+    const specificity = Math.min(insight.length / 200, 1) * Math.max(1 - fillerCount * 0.15, 0.2);
+
+    // Combined score (relevance 40%, specificity 60%)
+    const score = Math.round((relevance * 0.4 + specificity * 0.6) * 100) / 100;
+
+    const reason = score < 0.5
+      ? `low quality (relevance: ${relevance.toFixed(2)}, specificity: ${specificity.toFixed(2)})`
+      : 'passed';
+
+    return { score, reason };
   },
 
 };

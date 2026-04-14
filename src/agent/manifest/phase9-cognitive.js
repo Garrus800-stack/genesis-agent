@@ -309,6 +309,8 @@ function phase9(ctx, R) {
         { prop: 'modelRouter',        service: 'modelRouter',        optional: true },
         { prop: 'onlineLearner',      service: 'onlineLearner',      optional: true },
         { prop: 'quickBenchmark',     service: 'quickBenchmark',     optional: true },
+        // v7.1.7 F5: Emotional-Cognitive Bridge — emotions influence adaptation strategy
+        { prop: 'emotionalSteering',  service: 'emotionalSteering',  optional: true },
       ],
       factory: (c) => new (R('AdaptiveStrategy').AdaptiveStrategy)({
         bus, storage: c.resolve('storage'),
@@ -362,6 +364,10 @@ function phase9(ctx, R) {
         { prop: 'tracker', service: 'taskOutcomeTracker', optional: true },
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
         { prop: 'inferenceEngine', service: 'inferenceEngine', optional: true },
+        // v7.1.7 F4: Frontier-driven goal sources
+        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true },
+        { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true },
+        { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true },
       ],
       factory: () => new (R('GoalSynthesizer').GoalSynthesizer)({
         bus,
@@ -426,6 +432,28 @@ function phase9(ctx, R) {
 
         // v7.1.6: Buffer applied lessons, flush at session end
         writer.enableEventBuffer('lesson:applied', 'session:ending', 'appliedLessons');
+
+        // v7.1.7 F1: Buffer confirmed/contradicted events, merge into context at flush
+        const confirmedBuffer = [];
+        const contradictedBuffer = [];
+        bus.on('lesson:confirmed', (data) => {
+          if (confirmedBuffer.length >= 200) confirmedBuffer.shift();
+          confirmedBuffer.push(data);
+        }, { source: 'LessonFrontier', key: 'lesson-confirmed-buffer' });
+        bus.on('lesson:contradicted', (data) => {
+          if (contradictedBuffer.length >= 200) contradictedBuffer.shift();
+          contradictedBuffer.push(data);
+        }, { source: 'LessonFrontier', key: 'lesson-contradicted-buffer' });
+
+        // Wrap the existing flush to inject confirmed/contradicted into context
+        const originalExtract = writer._extractFn;
+        writer._extractFn = (context) => {
+          context.confirmedLessons = [...confirmedBuffer];
+          context.contradictedLessons = [...contradictedBuffer];
+          confirmedBuffer.length = 0;
+          contradictedBuffer.length = 0;
+          return originalExtract(context);
+        };
 
         return writer;
       },
