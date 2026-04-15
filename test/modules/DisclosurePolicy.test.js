@@ -48,7 +48,7 @@ describe('DisclosurePolicy — trust without TrustLevelSystem', () => {
 describe('DisclosurePolicy — trust with TrustLevelSystem', () => {
   test('STRANGER gets only PUBLIC', () => {
     const dp = new DisclosurePolicy();
-    dp.trustLevelSystem = { getCurrentLevel: () => 0 };
+    dp.trustLevelSystem = { getLevel: () => 0 };
     assertEqual(dp.getInterlocutor(), INTERLOCUTOR.STRANGER);
     const tiers = dp.getAllowedTiers();
     assertEqual(tiers.length, 1);
@@ -57,7 +57,7 @@ describe('DisclosurePolicy — trust with TrustLevelSystem', () => {
 
   test('TRUSTED gets PUBLIC + GUARDED', () => {
     const dp = new DisclosurePolicy();
-    dp.trustLevelSystem = { getCurrentLevel: () => 2 };
+    dp.trustLevelSystem = { getLevel: () => 2 };
     assertEqual(dp.getInterlocutor(), INTERLOCUTOR.TRUSTED);
     const tiers = dp.getAllowedTiers();
     assertEqual(tiers.length, 2);
@@ -68,7 +68,7 @@ describe('DisclosurePolicy — trust with TrustLevelSystem', () => {
 
   test('OWNER (level 3) gets all tiers', () => {
     const dp = new DisclosurePolicy();
-    dp.trustLevelSystem = { getCurrentLevel: () => 3 };
+    dp.trustLevelSystem = { getLevel: () => 3 };
     assertEqual(dp.getInterlocutor(), INTERLOCUTOR.OWNER);
     assertEqual(dp.getAllowedTiers().length, 3);
   });
@@ -123,7 +123,7 @@ describe('DisclosurePolicy — buildPromptContext', () => {
 
   test('STRANGER context mentions discretion', () => {
     const dp = new DisclosurePolicy();
-    dp.trustLevelSystem = { getCurrentLevel: () => 0 };
+    dp.trustLevelSystem = { getLevel: () => 0 };
     const ctx = dp.buildPromptContext();
     assert(ctx.includes('don\'t know well') || ctx.includes('README'), 'STRANGER prompt should reference public info');
   });

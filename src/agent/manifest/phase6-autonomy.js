@@ -30,10 +30,11 @@ function phase6(ctx, R) {
       lateBindings: [
         { prop: 'mcpClient', service: 'mcpClient', optional: true },
         // v7.1.6: cross-phase P6→P5/P7, optional for graceful degradation
+        // v7.2.1: expectedActive marks bindings critical for IdleMind's core activities
         { prop: 'learningService', service: 'learningService', optional: true },
-        { prop: 'emotionalState', service: 'emotionalState', optional: true },
-        { prop: 'needsSystem', service: 'needsSystem', optional: true },
-        { prop: '_homeostasis', service: 'homeostasis', optional: true },
+        { prop: 'emotionalState', service: 'emotionalState', optional: true, expectedActive: true, expects: ['getState', 'getIdlePriorities'], impact: 'No emotion-weighted activity selection' },
+        { prop: 'needsSystem', service: 'needsSystem', optional: true, expectedActive: true, expects: ['getActivityRecommendations'], impact: 'No needs-driven activity recommendations' },
+        { prop: '_homeostasis', service: 'homeostasis', optional: true, expectedActive: true },
         { prop: 'worldState', service: 'worldState', optional: true },
         { prop: 'episodicMemory', service: 'episodicMemory', optional: true },
         // Phase 9: Cognitive Architecture
@@ -42,22 +43,22 @@ function phase6(ctx, R) {
         // v4.12.8: Memory consolidation during idle
         { prop: 'unifiedMemory', service: 'unifiedMemory', optional: true },
         // v5.0.0: Genome traits + Metabolism energy gating
-        { prop: '_genome', service: 'genome', optional: true },
-        { prop: '_metabolism', service: 'metabolism', optional: true },
+        { prop: '_genome', service: 'genome', optional: true, expectedActive: true, expects: ['trait'] },
+        { prop: '_metabolism', service: 'metabolism', optional: true, expectedActive: true },
         // v6.0.8: Directed curiosity — explore weak areas
-        { prop: '_cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
+        { prop: '_cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true, expectedActive: true, expects: ['getCapabilityProfile'] },
         // v7.1.5: EmotionalFrontier — emotion-aware activity targeting
-        { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true },
+        { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true, expectedActive: true },
         // v7.1.6: Frontier writers — research topic sources
-        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true },
-        { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true },
-        { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true },
+        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true, expectedActive: true, expects: ['getRecent'] },
+        { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true, expectedActive: true, expects: ['getRecent'] },
+        { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true, expectedActive: true, expects: ['getRecent'] },
         // v7.1.6: WebFetcher — for research activity
-        { prop: '_webFetcher', service: 'webFetcher', optional: true },
+        { prop: '_webFetcher', service: 'webFetcher', optional: true, expectedActive: true, expects: ['fetch'] },
         // v7.1.6: TrustLevelSystem — research trust gate
-        { prop: '_trustLevelSystem', service: 'trustLevelSystem', optional: true },
+        { prop: '_trustLevelSystem', service: 'trustLevelSystem', optional: true, expectedActive: true, expects: ['getLevel'] },
         // v7.2.0: LessonsStore — for self-define activity
-        { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expects: ['getAll', 'getStats'] },
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expectedActive: true, expects: ['getAll', 'getStats'] },
       ],
       factory: (c) => new (R('IdleMind').IdleMind)({
         bus, model: c.resolve('llm'), prompts: c.resolve('prompts'),

@@ -127,7 +127,7 @@ class DisclosurePolicy {
   getInterlocutor() {
     if (!this.trustLevelSystem) return INTERLOCUTOR.OWNER;
 
-    const level = this.trustLevelSystem.getCurrentLevel?.() ?? 1;
+    const level = this.trustLevelSystem.getLevel?.() ?? 1;
     if (level >= 3) return INTERLOCUTOR.OWNER;
     if (level >= 2) return INTERLOCUTOR.TRUSTED;
     return INTERLOCUTOR.STRANGER;

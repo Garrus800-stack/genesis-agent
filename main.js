@@ -61,6 +61,12 @@ app.whenReady().then(async () => {
     'src/agent/intelligence/DisclosurePolicy.js',
     'src/agent/revolution/ApprovalGate.js',
     'src/agent/organism/ImmuneSystem.js',
+    // v7.2.1 (Adversarial Audit): SelfModificationPipeline is the ONLY code path
+    // that writes to Genesis source files. Without hash-locking, Genesis could
+    // modify its own pipeline to bypass verification, safety scan, and preservation
+    // gates. PreservationInvariants rules 3-5 count gate calls but can be gamed
+    // by adding a new bypass path without reducing existing call counts.
+    'src/agent/hexagonal/SelfModificationPipeline.js',
   ]);
 
   // Phase 2: Create window

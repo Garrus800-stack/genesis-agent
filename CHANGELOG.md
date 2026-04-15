@@ -1,3 +1,49 @@
+## [7.2.1] — Binding Visibility
+
+**Silent feature failures are now visible. Every late-binding knows whether it should be there.**
+
+### Phase 1: expectedActive Flag
+
+- **`Container.js`** — `wireLateBindings()` reads `expectedActive` from binding config.
+  Bindings with `expectedActive: true` that fail to resolve appear in `expectedMissing[]`
+  instead of being silently counted as `skipped`. Returns extended object with
+  `{ wired, skipped, errors, contractViolations, expectedMissing, report }`.
+  Stores `_lastBindingReport` on container instance.
+
+### Phase 2: Boot-Report
+
+- **`AgentCoreBoot.js`** — Logs expected-missing bindings with `⚠` prefix and impact strings.
+  Emits `container:binding-report` event on EventBus with full structured report
+  (resolved list, expectedMissing with impact, optionalSkipped, contractViolations).
+- **`EventTypes.js`** — Added `CONTAINER.BINDING_REPORT`.
+- **`EventPayloadSchemas.js`** — Added schema for `container:binding-report`.
+
+### Phase 4: expects-Contracts Extended (First Wave)
+
+Bindings classified as `expectedActive: true` with `expects` arrays and `impact` strings:
+
+- **`phase2-intelligence.js`** — ~20 PromptBuilder bindings: emotionalState, emotionalSteering,
+  architectureReflection, cognitiveSelfModel, learningService, lessonsStore, sessionPersistence,
+  genome, metabolism, promptEvolution, cognitiveBudget, idleMind, all 3 frontier writers.
+- **`phase6-autonomy.js`** — ~15 IdleMind bindings: emotionalState (getState, getIdlePriorities),
+  needsSystem (getActivityRecommendations), genome (trait), cognitiveSelfModel (getCapabilityProfile),
+  all 3 frontier writers (getRecent), webFetcher (fetch), trustLevelSystem (getLevel).
+- **`phase8-revolution.js`** — SessionPersistence: ALL 4 bindings (v7.1.4 bug zone) with expects +
+  impact. AgentLoop: verifier, worldState, trustLevelSystem, symbolicResolver, lessonsStore.
+  FormalPlanner + ModelRouter: emotionalSteering.
+- **`phase9-cognitive.js`** — AdaptiveStrategy: cognitiveSelfModel (getCapabilityProfile,
+  getBiasPatterns), promptEvolution, emotionalSteering. GoalSynthesizer: cognitiveSelfModel
+  (getCapabilityProfile), taskOutcomeTracker, all 3 frontier writers.
+
+### Design
+
+- `expectedActive` defaults to `false` — zero behavior change for unclassified bindings
+- First wave: ~40 bindings classified, rest grows incrementally
+- `impact` strings on ~15 critical bindings (the ones where silence caused bugs)
+- Would have caught v7.1.4 (SessionPersistence frontier bindings) at boot time
+
+---
+
 ## [7.2.0] — Self-Define
 
 **Genesis describes itself. Not the other way around.**

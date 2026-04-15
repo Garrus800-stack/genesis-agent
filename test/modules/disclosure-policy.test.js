@@ -40,25 +40,25 @@ describe('DisclosurePolicy', () => {
 
   it('maps trust level 0 (SUPERVISED) to STRANGER', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getCurrentLevel: () => 0 };
+    dp.trustLevelSystem = { getLevel: () => 0 };
     assert.strictEqual(dp.getInterlocutor(), INTERLOCUTOR.STRANGER);
   });
 
   it('maps trust level 1 (ASSISTED) to STRANGER', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getCurrentLevel: () => 1 };
+    dp.trustLevelSystem = { getLevel: () => 1 };
     assert.strictEqual(dp.getInterlocutor(), INTERLOCUTOR.STRANGER);
   });
 
   it('maps trust level 2 (AUTONOMOUS) to TRUSTED', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getCurrentLevel: () => 2 };
+    dp.trustLevelSystem = { getLevel: () => 2 };
     assert.strictEqual(dp.getInterlocutor(), INTERLOCUTOR.TRUSTED);
   });
 
   it('maps trust level 3 (FULL_AUTONOMY) to OWNER', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getCurrentLevel: () => 3 };
+    dp.trustLevelSystem = { getLevel: () => 3 };
     assert.strictEqual(dp.getInterlocutor(), INTERLOCUTOR.OWNER);
   });
 
@@ -72,14 +72,14 @@ describe('DisclosurePolicy', () => {
 
   it('TRUSTED gets PUBLIC + GUARDED', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getCurrentLevel: () => 2 };
+    dp.trustLevelSystem = { getLevel: () => 2 };
     const tiers = dp.getAllowedTiers();
     assert.deepStrictEqual(tiers, [TIER.PUBLIC, TIER.GUARDED]);
   });
 
   it('STRANGER gets only PUBLIC', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getCurrentLevel: () => 0 };
+    dp.trustLevelSystem = { getLevel: () => 0 };
     const tiers = dp.getAllowedTiers();
     assert.deepStrictEqual(tiers, [TIER.PUBLIC]);
   });
@@ -97,7 +97,7 @@ describe('DisclosurePolicy', () => {
 
   it('TRUSTED context mentions share architecture but keep security', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getCurrentLevel: () => 2 };
+    dp.trustLevelSystem = { getLevel: () => 2 };
     const ctx = dp.buildPromptContext();
     assert.ok(ctx.includes('trusted user'));
     assert.ok(ctx.includes('security internals'));
@@ -105,7 +105,7 @@ describe('DisclosurePolicy', () => {
 
   it('STRANGER context mentions README level sharing', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getCurrentLevel: () => 0 };
+    dp.trustLevelSystem = { getLevel: () => 0 };
     const ctx = dp.buildPromptContext();
     assert.ok(ctx.includes('README'));
     assert.ok(ctx.includes('don\'t know'));

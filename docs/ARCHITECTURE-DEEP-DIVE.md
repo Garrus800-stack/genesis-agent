@@ -1,7 +1,7 @@
 # Genesis Agent — Architecture Deep-Dive
 
-> Comprehensive technical analysis of Genesis Agent v7.0.9. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.0.9: 12 boot phases, 147 services, 215 source files, 3447 tests, fitness 115/120, 5 cognitive modules (CausalAnnotation, InferenceEngine, PatternMatcher, StructuralAbstraction, GoalSynthesizer).
+> Comprehensive technical analysis of Genesis Agent. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
+> Last updated for v7.2.1: 12 boot phases, 152 services, 247 source files, 4354 tests, 16 hash-locked files, 11 PreservationInvariants rules.
 
 ---
 

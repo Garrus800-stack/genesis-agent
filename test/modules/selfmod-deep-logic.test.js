@@ -86,11 +86,13 @@ describe('SelfModPipeline — _getCircuitBreakerThreshold', () => {
 // ════════════════════════════════════════════════════════════
 
 describe('SelfModPipeline — _checkPreservation', () => {
-  test('passes when preservation not bound', () => {
+  // v7.2.1 (Adversarial Audit): Changed from fail-open to fail-closed
+  test('blocks when preservation not bound (fail-closed)', () => {
     const p = createPipeline();
     p._preservation = null;
     const result = p._checkPreservation('file.js', 'old', 'new');
-    assert(result.pass === true, 'Should pass when not bound');
+    assert(result.pass === false, 'Should block when not bound (fail-closed)');
+    assert(result.reason.includes('not available'), 'Should explain why blocked');
   });
 
   test('passes when preservation reports safe', () => {

@@ -56,7 +56,7 @@ function createResearchContext(overrides = {}) {
     _lessonFrontier: overrides.lessonFrontier || null,
     _cognitiveSelfModel: overrides.cognitiveSelfModel || null,
     emotionalState: { getState: () => ({ energy: overrides.energy ?? 0.7 }) },
-    _trustLevelSystem: { getCurrentLevel: () => overrides.trustLevel ?? 1 },
+    _trustLevelSystem: { getLevel: () => overrides.trustLevel ?? 1 },
     needsSystem: overrides.needsSystem || null,
     activityLog: overrides.activityLog || [],
     _networkCheckCache: overrides.networkAvailable ?? true,
@@ -169,7 +169,7 @@ describe('Research gates in _pickActivity', () => {
   test('trust gate blocks research when level < 1', () => {
     const ctx = createResearchContext({ trustLevel: 0 });
     const scores = { research: 1.0 };
-    const trustLevel = ctx._trustLevelSystem.getCurrentLevel();
+    const trustLevel = ctx._trustLevelSystem.getLevel();
     if (trustLevel < 1) scores.research = 0;
     assertEqual(scores.research, 0);
   });

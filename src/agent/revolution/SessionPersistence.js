@@ -36,11 +36,9 @@ class SessionPersistence {
     phase: 7,
     deps: ['model', 'memory', 'storage'],
     tags: ['revolution', 'memory'],
-    lateBindings: [
-      { target: 'promptBuilder', property: 'sessionPersistence' },
-      { prop: '_knowledgeGraph', service: 'knowledgeGraph', optional: true }, // v7.1.4: Frontier
-      { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true }, // v7.1.5: Emotional Continuity
-    ],
+    // NOTE: lateBindings removed — SessionPersistence is registered via phase8 manifest,
+    // not via ModuleRegistry. Real bindings: _knowledgeGraph, _emotionalFrontier,
+    // _unfinishedWorkFrontier, _goalStack are declared in the manifest.
   };
 
   constructor({ bus, model, memory, storage, lang }) {
@@ -70,6 +68,12 @@ class SessionPersistence {
 
     // v7.1.5: EmotionalFrontier — late-bound (cross-layer bridge)
     this._emotionalFrontier = null;
+    // v7.1.4: KnowledgeGraph — late-bound (frontier linking)
+    this._knowledgeGraph = null;
+    // v7.1.6: UnfinishedWorkFrontier — late-bound
+    this._unfinishedWorkFrontier = null;
+    // v7.1.6: GoalStack — late-bound (pending goals at session end)
+    this._goalStack = null;
 
     // ── Persistent Across Sessions ───────────────────────
     this.sessionHistory = [];      // Last N session summaries
@@ -306,11 +310,15 @@ UNFINISHED: ...`;
 
       // v4.12.5-fix: Was 'CODE_MODIFIED' — SelfModPipeline emits via EventStore.append(),
       // which fires 'store:CODE_MODIFIED'. Also handle bulk file list.
+      // FIX v7.2.2: EventStore emits the full event object { id, type, payload, ... },
+      // NOT just the payload. Previously read data.file (always undefined) — must
+      // unwrap data.payload first. This caused codeFilesModified to be permanently empty.
       this.bus.on('store:CODE_MODIFIED', (data) => {
-        if (data?.file) {
-          this.currentSession.codeFilesModified.push(data.file);
-        } else if (data?.files) {
-          this.currentSession.codeFilesModified.push(...data.files);
+        const p = data?.payload || data; // unwrap EventStore envelope; fallback for direct emit
+        if (p?.file) {
+          this.currentSession.codeFilesModified.push(p.file);
+        } else if (p?.files) {
+          this.currentSession.codeFilesModified.push(...p.files);
         }
       }, { source: 'SessionPersistence', priority: -10 }),
 

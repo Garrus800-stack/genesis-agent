@@ -38,9 +38,9 @@ class VectorMemory {
     phase: 8,
     deps: ['storage'],
     tags: ['revolution', 'memory'],
-    lateBindings: [
-      { target: 'promptBuilder', property: 'vectorMemory' },
-    ],
+    // NOTE: lateBindings removed — VectorMemory is registered via phase8 manifest,
+    // not via ModuleRegistry auto-discovery. Injection into consumers (promptBuilder etc.)
+    // is handled by the consumers' own lateBindings declarations.
     optional: true, // Works without embeddings, just less effective
   };
 

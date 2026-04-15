@@ -40,17 +40,18 @@ function phase2(ctx, R) {
       tags: ['intelligence'],
       lateBindings: [
         // v7.1.6: All cross-phase bindings optional — PromptBuilderSections guards each with try-catch
+        // v7.2.1: expectedActive marks bindings that should be present in normal operation
         { prop: 'skills', service: 'skills', optional: true },
-        { prop: 'learningService', service: 'learningService', optional: true },
+        { prop: 'learningService', service: 'learningService', optional: true, expectedActive: true, expects: ['getMetrics'] },
         { prop: 'unifiedMemory', service: 'unifiedMemory', optional: true },
         { prop: 'anticipator', service: 'anticipator', optional: true },
         { prop: 'solutions', service: 'solutionAccumulator', optional: true },
         { prop: 'optimizer', service: 'selfOptimizer', optional: true },
         { prop: 'mcpClient', service: 'mcpClient', optional: true },
-        { prop: 'emotionalState', service: 'emotionalState', optional: true, expects: ['getMood', 'getTrend', 'buildPromptContext'] },
-        { prop: 'homeostasis', service: 'homeostasis', optional: true },
-        { prop: 'needsSystem', service: 'needsSystem', optional: true },
-        { prop: 'sessionPersistence', service: 'sessionPersistence', optional: true },
+        { prop: 'emotionalState', service: 'emotionalState', optional: true, expectedActive: true, expects: ['getMood', 'getTrend', 'buildPromptContext'], impact: 'No emotional context in prompts' },
+        { prop: 'homeostasis', service: 'homeostasis', optional: true, expectedActive: true },
+        { prop: 'needsSystem', service: 'needsSystem', optional: true, expectedActive: true },
+        { prop: 'sessionPersistence', service: 'sessionPersistence', optional: true, expectedActive: true, impact: 'No session continuity context' },
         { prop: 'vectorMemory', service: 'vectorMemory', optional: true },
         { prop: 'worldState', service: 'worldState', optional: true },
         { prop: 'episodicMemory', service: 'episodicMemory', optional: true },
@@ -64,40 +65,40 @@ function phase2(ctx, R) {
         { prop: 'userModel', service: 'userModel', optional: true },
         { prop: 'bodySchema', service: 'bodySchema', optional: true },
         // v4.12.5: Organism steering + immune context
-        { prop: 'emotionalSteering', service: 'emotionalSteering', optional: true, expects: ['getSignals'] },
+        { prop: 'emotionalSteering', service: 'emotionalSteering', optional: true, expectedActive: true, expects: ['getSignals'], impact: 'No emotional steering in prompts' },
         { prop: 'immuneSystem', service: 'immuneSystem', optional: true },
         // v4.12.8: Safety context — selfmod circuit breaker + error trends
         { prop: 'selfModPipeline', service: 'selfModPipeline', optional: true },
         { prop: 'errorAggregator', service: 'errorAggregator', optional: true },
         // v5.0.0: Genome traits + Metabolism energy state
-        { prop: '_genome', service: 'genome', optional: true },
-        { prop: '_metabolism', service: 'metabolism', optional: true },
+        { prop: '_genome', service: 'genome', optional: true, expectedActive: true },
+        { prop: '_metabolism', service: 'metabolism', optional: true, expectedActive: true },
         // v5.2.0: Prompt Evolution — A/B testing for prompt sections
-        { prop: 'promptEvolution', service: 'promptEvolution', optional: true },
+        { prop: 'promptEvolution', service: 'promptEvolution', optional: true, expectedActive: true },
         // v5.3.0 (SA-P7): Cross-project lessons
-        { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expectedActive: true, expects: ['buildContext'], impact: 'No lesson context in prompts' },
         // v5.7.0 (SA-P3): Architecture self-reflection
-        { prop: 'architectureReflection', service: 'architectureReflection', optional: true, expects: ['getSnapshot', 'buildPromptContext'] },
+        { prop: 'architectureReflection', service: 'architectureReflection', optional: true, expectedActive: true, expects: ['getSnapshot', 'buildPromptContext'], impact: 'No architecture data for introspection' },
         // v5.7.0: Project intelligence
         { prop: 'projectIntelligence', service: 'projectIntelligence', optional: true },
         // v5.9.7 (V6-11): Task outcome tracker — empirical performance data
-        { prop: 'taskOutcomeTracker', service: 'taskOutcomeTracker', optional: true },
+        { prop: 'taskOutcomeTracker', service: 'taskOutcomeTracker', optional: true, expectedActive: true },
         // v5.9.8 (V6-11): Cognitive self-model — replaces raw stats with calibrated self-awareness
-        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true, expects: ['getReport', 'buildPromptContext'] },
+        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true, expectedActive: true, expects: ['getReport', 'buildPromptContext'], impact: 'No calibrated self-awareness in prompts' },
         // v6.0.4: Adaptive prompt optimization — skip/boost sections based on provenance data
         { prop: '_adaptiveStrategy', service: 'adaptivePromptStrategy', optional: true },
         // v6.0.4: Proportional intelligence — skip sections for trivial requests
-        { prop: '_cognitiveBudget', service: 'cognitiveBudget', optional: true },
+        { prop: '_cognitiveBudget', service: 'cognitiveBudget', optional: true, expectedActive: true },
         // v7.0.4: Information sovereignty — disclosure decisions
         { prop: 'disclosurePolicy', service: 'disclosurePolicy', optional: true },
         // v7.0.9: IdleMind — autonomous activity status for honest self-reflection
-        { prop: '_idleMind', service: 'idleMind', optional: true },
+        { prop: '_idleMind', service: 'idleMind', optional: true, expectedActive: true },
         // v7.1.5: EmotionalFrontier — emotional memory from recent sessions
-        { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true },
+        { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true, expectedActive: true, impact: 'No emotional continuity in prompts' },
         // v7.1.6: Frontier writers — persistent self context
-        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true },
-        { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true },
-        { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true },
+        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true, expectedActive: true },
+        { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true, expectedActive: true },
+        { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true, expectedActive: true },
       ],
       factory: (c) => new (R('PromptBuilder').PromptBuilder)({
         selfModel: c.resolve('selfModel'), model: c.resolve('llm'),

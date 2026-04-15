@@ -289,7 +289,7 @@ npm run test:coverage                 # With c8 coverage report
 Genesis can modify its own source code. This is powerful but dangerous. These rules are **non-negotiable**:
 
 1. **Never modify kernel files** (`main.js`, `preload.js`, `src/kernel/`). SafeGuard enforces this at runtime.
-2. **Never modify hash-locked files** (CodeSafetyScanner, VerificationEngine, Constants, EventBus, Container). SafeGuard.lockCritical() enforces this.
+2. **Never modify hash-locked files** (CodeSafetyScanner, VerificationEngine, Constants, EventBus, Container, McpWorker, PreservationInvariants, Sandbox, CapabilityGuard, TrustLevelSystem, ModuleSigner, EarnedAutonomy, DisclosurePolicy, ApprovalGate, ImmuneSystem, SelfModificationPipeline — 16 files total). SafeGuard.lockCritical() enforces this.
 3. **All LLM-generated code must pass CodeSafetyScanner** before being written to disk.
 4. **Self-modified modules must be signed** via `ModuleSigner.sign()` for integrity tracking.
 5. **IPC channels must be whitelisted** in `preload.js`. Never add a channel without review.

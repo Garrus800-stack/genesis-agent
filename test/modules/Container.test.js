@@ -128,6 +128,101 @@ describe('Container — Late-Bindings', () => {
   });
 });
 
+// v7.2.1: Binding Visibility
+describe('Container — expectedActive + Binding Report', () => {
+  test('expectedActive: true missing → appears in expectedMissing', () => {
+    const c = new Container();
+    c.register('target', () => ({ opt: null }), {
+      lateBindings: [{ prop: 'opt', service: 'missing', optional: true, expectedActive: true }],
+    });
+    c.resolve('target');
+    const result = c.wireLateBindings();
+    assertEqual(result.skipped, 1);
+    assertEqual(result.expectedMissing.length, 1);
+    assertEqual(result.expectedMissing[0].consumer, 'target');
+    assertEqual(result.expectedMissing[0].service, 'missing');
+  });
+
+  test('expectedActive defaults to false — missing not in expectedMissing', () => {
+    const c = new Container();
+    c.register('target', () => ({ opt: null }), {
+      lateBindings: [{ prop: 'opt', service: 'missing', optional: true }],
+    });
+    c.resolve('target');
+    const result = c.wireLateBindings();
+    assertEqual(result.skipped, 1);
+    assertEqual(result.expectedMissing.length, 0);
+  });
+
+  test('expectedActive: true present → wired normally, not in expectedMissing', () => {
+    const c = new Container();
+    c.register('target', () => ({ dep: null }), {
+      lateBindings: [{ prop: 'dep', service: 'theDep', optional: true, expectedActive: true }],
+    });
+    c.register('theDep', () => ({ name: 'ok' }));
+    c.resolve('target');
+    c.resolve('theDep');
+    const result = c.wireLateBindings();
+    assertEqual(result.wired, 1);
+    assertEqual(result.expectedMissing.length, 0);
+    assertEqual(c.resolve('target').dep.name, 'ok');
+  });
+
+  test('impact string propagates to expectedMissing', () => {
+    const c = new Container();
+    c.register('target', () => ({ x: null }), {
+      lateBindings: [{ prop: 'x', service: 'gone', optional: true, expectedActive: true, impact: 'Feature X broken' }],
+    });
+    c.resolve('target');
+    const result = c.wireLateBindings();
+    assertEqual(result.expectedMissing[0].impact, 'Feature X broken');
+  });
+
+  test('binding report has correct structure', () => {
+    const c = new Container();
+    c.register('a', () => ({ dep: null, opt: null }), {
+      lateBindings: [
+        { prop: 'dep', service: 'depSvc', optional: true, expectedActive: true },
+        { prop: 'opt', service: 'optSvc', optional: true },
+      ],
+    });
+    c.register('depSvc', () => ({ id: 1 }));
+    c.resolve('a');
+    c.resolve('depSvc');
+    const result = c.wireLateBindings();
+    const report = result.report;
+    assert(report, 'report should exist');
+    assert(report.timestamp > 0, 'timestamp should be set');
+    assertEqual(report.summary.wired, 1);
+    assertEqual(report.summary.expectedMissing, 0);
+    assertEqual(report.resolved.length, 1);
+    assertEqual(report.optionalSkipped.length, 1);
+    assertEqual(report.optionalSkipped[0].service, 'optSvc');
+  });
+
+  test('contract violation on expectedActive binding goes into report', () => {
+    const c = new Container();
+    c.register('target', () => ({ svc: null }), {
+      lateBindings: [{ prop: 'svc', service: 'broken', optional: true, expectedActive: true, expects: ['doStuff'] }],
+    });
+    c.register('broken', () => ({ noDoStuff: true })); // missing doStuff method
+    c.resolve('target');
+    c.resolve('broken');
+    const result = c.wireLateBindings();
+    assert(result.contractViolations.length > 0, 'should have contract violation');
+    assertEqual(result.skipped, 1);
+  });
+
+  test('_lastBindingReport stored on container', () => {
+    const c = new Container();
+    c.register('x', () => ({}), { lateBindings: [] });
+    c.resolve('x');
+    c.wireLateBindings();
+    assert(c._lastBindingReport, '_lastBindingReport should be stored');
+    assert(c._lastBindingReport.summary, 'report should have summary');
+  });
+});
+
 describe('Container — Phase-Aware Topological Sort', () => {
   test('boots lower phases before higher phases', async () => {
     const c = new Container();

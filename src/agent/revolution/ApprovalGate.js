@@ -13,11 +13,12 @@ const DEFAULT_TIMEOUT_MS = 60_000;
 
 class ApprovalGate {
   /**
-   * @param {{ bus: *, trustLevelSystem?: *, timeoutMs?: number }} opts
+   * @param {{ bus: *, trustLevelSystem?: *, timeoutMs?: number, parent?: * }} opts
    */
-  constructor({ bus, trustLevelSystem, timeoutMs }) {
+  constructor({ bus, trustLevelSystem, timeoutMs, parent }) {
     this.bus = bus;
     this.trustLevelSystem = trustLevelSystem || null;
+    this._parent = parent || null; // v7.2.2: Lazy-read for late-bound services
     this._timeoutMs = timeoutMs || DEFAULT_TIMEOUT_MS;
     this._pending = null;
     /** @type {string|null} */ this.currentGoalId = null;
@@ -28,9 +29,15 @@ class ApprovalGate {
    * Auto-rejects after timeout. Trust system can auto-approve.
    */
   request(action, description) {
+    // FIX v7.2.2: Read trustLevelSystem lazily from parent if not set directly.
+    // ApprovalGate is constructed during AgentLoop's constructor when
+    // trustLevelSystem is still null (not yet late-bound by Container).
+    // Reading from the parent at request-time picks up the live reference.
+    const tls = this.trustLevelSystem || this._parent?.trustLevelSystem;
+
     // Trust-gated bypass
-    if (this.trustLevelSystem) {
-      const trust = this.trustLevelSystem.checkApproval(action);
+    if (tls) {
+      const trust = tls.checkApproval(action);
       if (trust.approved) {
         _log.info(`[TRUST] Auto-approved "${action}" — ${trust.reason}`);
         this.bus.fire('agent-loop:auto-approved', {

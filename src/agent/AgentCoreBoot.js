@@ -288,6 +288,20 @@ class AgentCoreBoot {
       _log.warn('  [WIRE] Binding errors:', bindResult.errors);
     }
 
+    // v7.2.1: Log expected-active bindings that are missing
+    if (bindResult.expectedMissing && bindResult.expectedMissing.length > 0) {
+      _log.warn(`  [WIRE] ⚠ ${bindResult.expectedMissing.length} expected-active binding(s) missing:`);
+      for (const m of bindResult.expectedMissing) {
+        const impactStr = m.impact ? ` — ${m.impact}` : '';
+        _log.warn(`    ⚠ ${m.consumer}.${m.prop} → ${m.service}${impactStr}`);
+      }
+    }
+
+    // v7.2.1: Emit binding report for Dashboard and self-awareness modules
+    if (bindResult.report) {
+      this._bus.emit('container:binding-report', bindResult.report, { source: 'AgentCoreBoot' });
+    }
+
     const verify = c.verifyLateBindings();
     _log.info(`  [WIRE] Verification: ${verify.verified}/${verify.total} bindings OK`);
     if (verify.missing.length > 0) {

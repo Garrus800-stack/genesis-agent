@@ -28,12 +28,14 @@
 const { NullBus } = require('../core/EventBus');
 
 class GraphReasoner {
+  // NOTE: containerConfig is informational only — this module is registered
+  // via the phase manifest, not via ModuleRegistry auto-discovery.
+  // Real lateBindings are declared in the manifest entry.
   static containerConfig = {
     name: 'graphReasoner',
     phase: 4,
     deps: ['knowledgeGraph', 'selfModel'],
     tags: ['intelligence', 'reasoning'],
-    lateBindings: [],
   };
 
   constructor({ bus, knowledgeGraph, selfModel, config }) {

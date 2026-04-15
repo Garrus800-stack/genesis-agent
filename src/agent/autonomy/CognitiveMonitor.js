@@ -27,14 +27,12 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('CognitiveMonitor');
 
 class CognitiveMonitor {
+  // NOTE: containerConfig is informational only — registered via phase manifest.
   static containerConfig = {
     name: 'cognitiveMonitor',
     phase: 6,
     deps: ['bus', 'eventStore', 'storage'],
     tags: ['metacognition', 'autonomy'],
-    lateBindings: [
-      { target: 'promptBuilder', property: 'cognitiveMonitor' },
-    ],
   };
 
   /** @param {{ bus?: *, eventStore?: *, storage?: *, intervals?: *, config?: * }} [deps] */

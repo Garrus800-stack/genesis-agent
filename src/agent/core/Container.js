@@ -215,12 +215,15 @@ class Container {
    * Replaces manual property assignments like:
    *   idleMind.emotionalState = c.resolve('emotionalState')
    *
-   * @returns {{ wired: number, skipped: number, errors: string[] }}
+   * @returns {{ wired: number, skipped: number, errors: string[], contractViolations: string[], expectedMissing: object[] }}
    */
   wireLateBindings() {
     let wired = 0, skipped = 0;
     const errors = [];
     const contractViolations = []; // v7.1.9 S-2
+    const expectedMissing = [];   // v7.2.1: Bindings that should be active but aren't
+    const resolved_list = [];     // v7.2.1: Successfully wired bindings
+    const optionalSkipped = [];   // v7.2.1: Intentionally optional (expectedActive: false)
 
     for (const [name, reg] of this.registrations) {
       if (!reg.lateBindings || reg.lateBindings.length === 0) continue;
@@ -229,11 +232,17 @@ class Container {
       if (!instance) continue; // Not yet resolved
 
       for (const binding of reg.lateBindings) {
-        const { prop, service, optional = false, expects } = binding;
+        const { prop, service, optional = false, expects, expectedActive = false, impact } = binding;
 
         if (!this.has(service)) {
           if (optional) {
             skipped++;
+            // v7.2.1: Distinguish "expected but missing" from "intentionally optional"
+            if (expectedActive) {
+              expectedMissing.push({ consumer: name, prop, service, impact: impact || null });
+            } else {
+              optionalSkipped.push({ consumer: name, prop, service });
+            }
             continue;
           }
           errors.push(`${name}.${prop} → ${service} (not registered)`);
@@ -241,11 +250,11 @@ class Container {
         }
 
         try {
-          const resolved = this.resolve(service);
+          const resolvedService = this.resolve(service);
 
           // v7.1.9 S-2: Contract validation — check expected methods exist
           if (expects && Array.isArray(expects) && expects.length > 0) {
-            const missing = expects.filter(m => typeof resolved[m] !== 'function');
+            const missing = expects.filter(m => typeof resolvedService[m] !== 'function');
             if (missing.length > 0) {
               const msg = `${name}.${prop} → ${service}: contract violation — missing: ${missing.join(', ')}`;
               contractViolations.push(msg);
@@ -258,11 +267,15 @@ class Container {
             }
           }
 
-          instance[prop] = resolved;
+          instance[prop] = resolvedService;
+          resolved_list.push({ consumer: name, prop, service });
           wired++;
         } catch (err) {
           if (optional) {
             skipped++;
+            if (expectedActive) {
+              expectedMissing.push({ consumer: name, prop, service, impact: impact || null });
+            }
           } else {
             errors.push(`${name}.${prop} → ${service}: ${err.message}`);
           }
@@ -277,7 +290,19 @@ class Container {
       console.warn(`[CONTAINER] Contract violations:`, contractViolations);
     }
 
-    return { wired, skipped, errors, contractViolations };
+    // v7.2.1: Emit structured binding report for Boot-Log, Dashboard, and self-awareness
+    const report = {
+      timestamp: Date.now(),
+      summary: { wired, skipped, expectedMissing: expectedMissing.length, contractViolations: contractViolations.length },
+      resolved: resolved_list,
+      expectedMissing,
+      optionalSkipped,
+      contractViolations,
+      errors,
+    };
+    this._lastBindingReport = report;
+
+    return { wired, skipped, errors, contractViolations, expectedMissing, report };
   }
 
   /**

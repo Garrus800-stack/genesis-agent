@@ -26,10 +26,11 @@ function phase8(ctx, R) {
     ['sessionPersistence', {
       phase: 8, deps: ['llm', 'memory', 'storage'], tags: ['revolution', 'memory'],
       lateBindings: [
-        { prop: '_knowledgeGraph', service: 'knowledgeGraph', optional: true },       // v7.1.4: Frontier
-        { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true }, // v7.1.5: Emotional Continuity
-        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true }, // v7.1.6: Persistent Self
-        { prop: '_goalStack', service: 'goalStack', optional: true },                 // v7.1.6: Pending goals for unfinished work
+        // v7.2.1: All expectedActive — v7.1.4 bug was exactly here (frontier bindings never wired)
+        { prop: '_knowledgeGraph', service: 'knowledgeGraph', optional: true, expectedActive: true, expects: ['connectToFrontier', 'decayFrontierEdges'], impact: 'No session frontier linking' },
+        { prop: '_emotionalFrontier', service: 'emotionalFrontier', optional: true, expectedActive: true, expects: ['writeImprint', 'restoreAtBoot'], impact: 'No emotional continuity across sessions' },
+        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true, expectedActive: true, expects: ['write'], impact: 'Unfinished work not persisted' },
+        { prop: '_goalStack', service: 'goalStack', optional: true, expectedActive: true, expects: ['getAll'], impact: 'Pending goals not captured at session end' },
       ],
       factory: (c) => new (R('SessionPersistence').SessionPersistence)({
         bus, model: c.resolve('llm'), memory: c.resolve('memory'),
@@ -44,9 +45,9 @@ function phase8(ctx, R) {
       lateBindings: [
         { prop: 'htnPlanner', service: 'htnPlanner', optional: true },
         { prop: 'taskDelegation', service: 'taskDelegation', optional: true },
-        { prop: 'verifier', service: 'verifier', optional: true },
+        { prop: 'verifier', service: 'verifier', optional: true, expectedActive: true, expects: ['verify'], impact: 'No programmatic verification of task outputs' },
         { prop: 'formalPlanner', service: 'formalPlanner', optional: true },
-        { prop: 'worldState', service: 'worldState', optional: true },
+        { prop: 'worldState', service: 'worldState', optional: true, expectedActive: true },
         { prop: 'episodicMemory', service: 'episodicMemory', optional: true },
         { prop: 'metaLearning', service: 'metaLearning', optional: true },
         // Phase 9: Cognitive Architecture (optional — graceful degradation)
@@ -56,13 +57,13 @@ function phase8(ctx, R) {
         // v5.5.0: Workspace factory via port — eliminates cross-phase import
         { prop: '_createWorkspace', service: 'workspaceFactory', optional: true },
         // v6.0.7: Earned Autonomy — trust-gated approval bypass
-        { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
+        { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true, expectedActive: true },
         // v6.0.8: Symbolic resolution — bypass LLM for known solutions
-        { prop: '_symbolicResolver', service: 'symbolicResolver', optional: true },
+        { prop: '_symbolicResolver', service: 'symbolicResolver', optional: true, expectedActive: true },
         // v7.0.9 Phase 1: Causal tracking — WorldState snapshot/diff per step
         { prop: '_causalAnnotation', service: 'causalAnnotation', optional: true },
         // v7.1.7: LessonsStore for lesson confirmation loop (AgentLoopCognition)
-        { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expects: ['updateLessonOutcome'] },
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expectedActive: true, expects: ['updateLessonOutcome'], impact: 'Lesson confirmation loop broken' },
       ],
       factory: (c) => new (R('AgentLoop').AgentLoop)({
         bus, model: c.resolve('llm'), goalStack: c.resolve('goalStack'),
@@ -100,7 +101,7 @@ function phase8(ctx, R) {
       tags: ['revolution', 'planning'],
       lateBindings: [
         // v4.10.0: EmotionalSteering for plan length limiting
-        { prop: '_emotionalSteering', service: 'emotionalSteering', optional: true, expects: ['getSignals'] },
+        { prop: '_emotionalSteering', service: 'emotionalSteering', optional: true, expectedActive: true, expects: ['getSignals'] },
       ],
       factory: (c) => new (R('FormalPlanner').FormalPlanner)({
         bus, worldState: c.resolve('worldState'),
@@ -117,7 +118,7 @@ function phase8(ctx, R) {
       phase: 8, deps: ['model', 'metaLearning', 'worldState'], tags: ['revolution', 'routing'],
       lateBindings: [
         // v4.10.0: EmotionalSteering for model escalation on frustration
-        { prop: '_emotionalSteering', service: 'emotionalSteering', optional: true, expects: ['getSignals'] },
+        { prop: '_emotionalSteering', service: 'emotionalSteering', optional: true, expectedActive: true, expects: ['getSignals'] },
       ],
       factory: (c) => new (R('ModelRouter').ModelRouter)({
         bus, modelBridge: c.resolve('model'),

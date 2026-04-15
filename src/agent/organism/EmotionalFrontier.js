@@ -37,15 +37,13 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('EmotionalFrontier');
 
 class EmotionalFrontier {
+  // NOTE: containerConfig is informational only — registered via phase8 manifest.
+  // Real lateBindings (_sessionPersistence, _idleMind) declared in manifest.
   static containerConfig = {
     name: 'emotionalFrontier',
     phase: 8,
     deps: ['emotionalState', 'knowledgeGraph', 'storage'],
     tags: ['organism', 'frontier', 'emotional', 'cross-layer'],
-    lateBindings: [
-      { prop: '_sessionPersistence', service: 'sessionPersistence', optional: true },
-      { prop: '_idleMind', service: 'idleMind', optional: true },
-    ],
   };
 
   /**

@@ -504,6 +504,7 @@ const SCHEMAS = {
   'chat:retry':             { attempt: 'required', error: 'required', delayMs: 'required' },
   'ci:analyzed':            { totalFailures: 'required', autoFixable: 'required' },
   'container:replaced':     { name: 'required' },
+  'container:binding-report': { timestamp: 'required', summary: 'required' }, // v7.2.1
   'context:built':          {},
   'editor:open':            { content: 'required', language: 'optional', filename: 'optional' },
   'embedding:ready':        { model: 'required', dimensions: 'required' },

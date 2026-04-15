@@ -479,7 +479,7 @@ class IdleMind {
         const energy = this.emotionalState?.getState?.()?.energy ?? 0.5;
         if (energy < 0.5) { scores.research = 0; return; }
         // Trust gate
-        const trustLevel = this._trustLevelSystem?.getCurrentLevel?.() ?? 1;
+        const trustLevel = this._trustLevelSystem?.getLevel?.() ?? 1;
         if (trustLevel < 1) { scores.research = 0; return; }
         // Rate limit: max 3 per hour
         const recentResearch = this.activityLog

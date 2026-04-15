@@ -8,16 +8,15 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.2.0_%22Self-Define%22-d4a017?style=flat-square" alt="Version">
-  <img src="https://github.com/Garrus800-stack/genesis-agent/actions/workflows/ci.yml/badge.svg" alt="CI">
-  <img src="https://img.shields.io/badge/tests-4344%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.2.1_%22Solid_Ground_II%22-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-4354%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-clean-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
   <img src="https://img.shields.io/badge/modules-247-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-152-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-334-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/events-364-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">
@@ -85,7 +84,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (7 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). Emotional-cognitive bridge: EmotionalSteering signals flow into AdaptiveStrategy (v7.1.7). **Empirically validated: +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4, kimi-k2.5:cloud).
 
-**Infrastructure** — 12-phase DI boot, EventBus (334 events, 369 schemas), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 hash-locked safety rules), DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
+**Infrastructure** — 12-phase DI boot, EventBus (385 event types, 364 schemas), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 semantic safety rules), 16 hash-locked files, DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
 
 **Self-Perception** — Introspection accuracy: verified facts from ArchitectureReflection, SelfModel, CognitiveSelfModel injected into prompt during self-reflect queries — prevents hallucinated metrics. Lesson confirmation loop: recalled lessons correlated with task outcomes (confirmed/contradicted). Research quality gate: Jaccard+specificity scoring before KG write. Frontier-driven GoalSynthesizer: unfinished work, anomalies, and contradicted lessons generate autonomous goals (v7.1.7).
 
@@ -227,7 +226,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked. Everything else is fair game for self-modification. v7.0.9: zero cross-layer violations, TSC clean, 5 new cognitive modules (CausalAnnotation, InferenceEngine, PatternMatcher, StructuralAbstraction, GoalSynthesizer), 12 fitness checks, 3447 tests passing. Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.2.1: zero cross-layer violations, TSC clean, 11 PreservationInvariants rules, 4354 tests passing, 152 services. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -288,7 +287,7 @@ Twelve layers with clear boundaries — star topology where every layer depends 
 
 **Kernel (immutable):** `main.js`, `preload.js`, `src/kernel/`. SHA-256 hashed at boot, verified periodically.
 
-**Critical Safety Files (hash-locked):** CodeSafetyScanner, VerificationEngine, Constants, EventBus, Container — locked via `SafeGuard.lockCritical()`. The agent cannot weaken the modules that enforce its own safety.
+**Critical Safety Files (hash-locked, 16 files):** CodeSafetyScanner, VerificationEngine, Constants, EventBus, Container, McpWorker, PreservationInvariants, Sandbox, CapabilityGuard, TrustLevelSystem, ModuleSigner, EarnedAutonomy, DisclosurePolicy, ApprovalGate, ImmuneSystem, SelfModificationPipeline — locked via `SafeGuard.lockCritical()`. The agent cannot weaken the modules that enforce its own safety.
 
 **Agent Core:** Self-modifiable modules — read, analyze, modify, hot-reload — but only after sandbox testing, safety scanning, and git snapshots.
 
@@ -511,11 +510,11 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Metric | Value |
 |---|---|
 | Source modules | 237 agent modules (src/agent/) |
-| Lines of code | ~80k src (agent) + ~42k test |
+| Lines of code | ~73k src (agent) + ~52k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
-| DI services | 131 at runtime |
-| Late-bindings | 468 cross-phase dependency bindings |
-| Test suites | 237 files, ~3311 tests (coverage gates: 81/76/80) |
+| DI services | 141 manifest + 11 bootstrap = 152 at runtime |
+| Late-bindings | 242 cross-phase dependency bindings |
+| Test suites | 260 files, 4354 tests (coverage gates: 80/75.9/78) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 55 invoke + 2 send + 6 receive = 63 (rate-limited, all in sync) |

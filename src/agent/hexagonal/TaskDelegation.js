@@ -31,14 +31,12 @@ const { NullBus } = require('../core/EventBus');
 const { safeJsonParse } = require('../core/utils');
 
 class TaskDelegation {
+  // NOTE: containerConfig is informational only — registered via phase manifest.
   static containerConfig = {
     name: 'taskDelegation',
     phase: 5,
     deps: ['bus', 'eventStore'],
     tags: ['collaboration', 'autonomy'],
-    lateBindings: [
-      { target: 'agentLoop', property: 'taskDelegation' },
-    ],
   };
 
   /** @param {{ bus?: object, network?: object, goalStack?: object, eventStore?: object, lang?: object }} [opts] */

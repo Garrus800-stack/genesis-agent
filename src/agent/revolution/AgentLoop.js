@@ -142,7 +142,7 @@ class AgentLoop {
     this.recovery = new AgentLoopRecoveryDelegate(this);   // v7.6.0: repair + verify
     this.approval = new ApprovalGate({                     // v7.6.0: approval lifecycle
       bus: this.bus,
-      trustLevelSystem: this.trustLevelSystem,
+      parent: this,            // v7.2.2: Lazy-read trustLevelSystem after late-binding
       timeoutMs: this._approvalTimeoutMs,
     });
   }

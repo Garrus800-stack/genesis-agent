@@ -70,6 +70,26 @@ describe('ApprovalGate', () => {
     assertEqual(autoApproved.action, 'write');
   });
 
+  // v7.2.2: Test lazy parent read — simulates late-binding scenario
+  // where trustLevelSystem is null at construction but set later on parent.
+  test('trust system auto-approves via parent lazy read', async () => {
+    const bus = createBus();
+    const parent = { trustLevelSystem: null }; // simulates AgentLoop before late-binding
+    const gate = new ApprovalGate({ bus, parent, timeoutMs: 5000 });
+
+    // Simulate late-binding setting trustLevelSystem on parent AFTER construction
+    parent.trustLevelSystem = {
+      checkApproval: (action) => ({ approved: true, reason: 'late-bound trust' }),
+    };
+
+    let autoApproved = null;
+    bus.on('agent-loop:auto-approved', (data) => { autoApproved = data; });
+    const result = await gate.request('write', 'Late-bound approval');
+    assertEqual(result, true);
+    assertEqual(gate.isPending, false);
+    assert(autoApproved !== null, 'should auto-approve via parent');
+  });
+
   test('trust system does not auto-approve low trust', async () => {
     const trustLevelSystem = {
       checkApproval: () => ({ approved: false, reason: 'trust too low' }),

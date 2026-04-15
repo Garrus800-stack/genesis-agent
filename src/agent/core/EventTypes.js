@@ -197,6 +197,7 @@ const EVENTS = Object.freeze({
   // ── Container ──────────────────────────────────────────
   CONTAINER: Object.freeze({
     REPLACED: 'container:replaced',
+    BINDING_REPORT: 'container:binding-report', // v7.2.1: Structured late-binding report
   }),
 
   // ── Context ────────────────────────────────────────────

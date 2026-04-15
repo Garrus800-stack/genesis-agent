@@ -176,6 +176,12 @@ function createMocks(overrides = {}) {
     get available() { return true; },
   };
 
+  // v7.2.1 (Adversarial Audit): PreservationInvariants now fail-closed when
+  // not bound. Tests that need to reach past the preservation gate need this mock.
+  pipeline._preservation = {
+    check: (filePath, oldCode, newCode) => ({ safe: true, violations: [] }),
+  };
+
   return { pipeline, bus, events, writes, selfModel, model, sandbox, guard, eventStore, hotReloader, astDiff, reasoning, tmpRoot };
 }
 

@@ -304,13 +304,13 @@ function phase9(ctx, R) {
     ['adaptiveStrategy', {
       phase: 9, deps: ['bus', 'storage'], tags: ['cognitive', 'metacognition', 'v6-0-2'],
       lateBindings: [
-        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
-        { prop: 'promptEvolution',    service: 'promptEvolution',    optional: true },
+        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true, expectedActive: true, expects: ['getCapabilityProfile', 'getBiasPatterns'] },
+        { prop: 'promptEvolution',    service: 'promptEvolution',    optional: true, expectedActive: true },
         { prop: 'modelRouter',        service: 'modelRouter',        optional: true },
         { prop: 'onlineLearner',      service: 'onlineLearner',      optional: true },
         { prop: 'quickBenchmark',     service: 'quickBenchmark',     optional: true },
         // v7.1.7 F5: Emotional-Cognitive Bridge — emotions influence adaptation strategy
-        { prop: 'emotionalSteering',  service: 'emotionalSteering',  optional: true, expects: ['getSignals'] },
+        { prop: 'emotionalSteering',  service: 'emotionalSteering',  optional: true, expectedActive: true, expects: ['getSignals'], impact: 'No emotional context in adaptation decisions' },
       ],
       factory: (c) => new (R('AdaptiveStrategy').AdaptiveStrategy)({
         bus, storage: c.resolve('storage'),
@@ -360,14 +360,14 @@ function phase9(ctx, R) {
     ['goalSynthesizer', {
       phase: 9, deps: [], tags: ['cognitive', 'autonomy', 'goals'],
       lateBindings: [
-        { prop: 'selfModel', service: 'cognitiveSelfModel', optional: true },
-        { prop: 'tracker', service: 'taskOutcomeTracker', optional: true },
+        { prop: 'selfModel', service: 'cognitiveSelfModel', optional: true, expectedActive: true, expects: ['getCapabilityProfile'], impact: 'No weakness-driven goal generation' },
+        { prop: 'tracker', service: 'taskOutcomeTracker', optional: true, expectedActive: true },
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
         { prop: 'inferenceEngine', service: 'inferenceEngine', optional: true },
         // v7.1.7 F4: Frontier-driven goal sources
-        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true, expects: ['getRecent'] },
-        { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true, expects: ['getRecent'] },
-        { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true, expects: ['getRecent'] },
+        { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true, expectedActive: true, expects: ['getRecent'] },
+        { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true, expectedActive: true, expects: ['getRecent'] },
+        { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true, expectedActive: true, expects: ['getRecent'] },
       ],
       factory: () => new (R('GoalSynthesizer').GoalSynthesizer)({
         bus,

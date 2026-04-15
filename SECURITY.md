@@ -27,7 +27,7 @@ Genesis is a self-modifying AI agent, which makes its security model uniquely im
 `main.js`, `preload.js`, `preload.mjs`, and `src/kernel/` are SHA-256 hash-locked at boot. The agent **cannot modify, delete, or replace** these files. `SafeGuard.lockKernel()` enforces this at every write operation.
 
 ### Layer 2: Hash-Locked Critical Files
-Fifteen agent files are hash-locked via `SafeGuard.lockCritical()` (expanded in v7.0.8, v7.1.3):
+Sixteen agent files are hash-locked via `SafeGuard.lockCritical()` (expanded in v7.0.8, v7.1.3, v7.2.1):
 - `CodeSafetyScanner.js` — AST-based code analysis
 - `VerificationEngine.js` — programmatic result verification
 - `Constants.js` — system limits and thresholds
@@ -43,6 +43,7 @@ Fifteen agent files are hash-locked via `SafeGuard.lockCritical()` (expanded in 
 - `DisclosurePolicy.js` — information sovereignty (v7.0.8)
 - `ApprovalGate.js` — approval workflow (v7.0.8)
 - `ImmuneSystem.js` — self-modification monitoring (v7.0.8)
+- `SelfModificationPipeline.js` — the only code-write path (v7.2.1)
 
 This prevents the agent from weakening its own safety checks through self-modification.
 

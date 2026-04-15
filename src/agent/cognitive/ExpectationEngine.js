@@ -46,12 +46,14 @@ const BASE_RATES = {
 const DEFAULT_BASE_RATE = { successRate: 0.60, avgLatencyMs: 5000 };
 
 class ExpectationEngine {
+  // NOTE: containerConfig is informational only — this module is registered
+  // via the phase manifest, not via ModuleRegistry auto-discovery.
+  // Real lateBindings are declared in the manifest entry.
   static containerConfig = {
     name: 'expectationEngine',
     phase: 9,
     deps: ['metaLearning', 'schemaStore', 'worldState', 'storage'],
     tags: ['cognitive', 'prediction'],
-    lateBindings: [],
   };
 
   constructor({ bus, metaLearning, schemaStore, worldState, storage, config }) {

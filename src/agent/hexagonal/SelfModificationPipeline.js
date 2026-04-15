@@ -110,11 +110,19 @@ class SelfModificationPipeline {
   }
 
   /**
-   * Self-Preservation Invariants check. FAIL-CLOSED when bound and throws.
-   * @returns {{ pass: boolean, reason?: string }}
+   * Self-Preservation Invariants check. FAIL-CLOSED in all cases:
+   * - Not bound → block (late-binding may have silently failed)
+   * - Throws → block
+   * - Violations found → block
    */
   _checkPreservation(filePath, oldCode, newCode) {
-    if (!this._preservation) return { pass: true }; // not bound — degrade gracefully
+    // v7.2.1 (Adversarial Audit): Changed from fail-open to fail-closed.
+    // Previously returned { pass: true } when _preservation was null, meaning
+    // a silent late-binding failure would bypass ALL preservation checks.
+    if (!this._preservation) {
+      _log.error('[SELF-MOD] PreservationInvariants not bound — blocking write (fail-closed)');
+      return { pass: false, reason: 'PreservationInvariants not available — self-modification blocked until preservation service is bound' };
+    }
     try {
       const result = this._preservation.check(filePath, oldCode, newCode);
       if (!result.safe) {

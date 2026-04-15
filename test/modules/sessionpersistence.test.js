@@ -207,6 +207,33 @@ describe('SessionPersistence', () => {
     sp.sessionHistory.push({ summary: 'no scores' });
     assertEqual(sp.getScoreTrends(), null);
   });
+
+  // v7.2.2: Verify store:CODE_MODIFIED unwraps EventStore envelope
+  test('store:CODE_MODIFIED tracks files from EventStore envelope', async () => {
+    const bus = createBus();
+    const sp = create({ bus });
+    // EventStore emits the full event object, NOT just the payload
+    await bus.emit('store:CODE_MODIFIED', {
+      id: 1, type: 'CODE_MODIFIED',
+      payload: { file: 'src/agent/AgentCore.js', method: 'ast-diff', success: true },
+      source: 'SelfModPipeline', timestamp: Date.now(),
+    });
+    assertEqual(sp.currentSession.codeFilesModified.length, 1);
+    assertEqual(sp.currentSession.codeFilesModified[0], 'src/agent/AgentCore.js');
+  });
+
+  test('store:CODE_MODIFIED tracks bulk files from EventStore envelope', async () => {
+    const bus = createBus();
+    const sp = create({ bus });
+    await bus.emit('store:CODE_MODIFIED', {
+      id: 2, type: 'CODE_MODIFIED',
+      payload: { files: ['a.js', 'b.js'], method: 'full-file', success: true },
+      source: 'SelfModPipeline', timestamp: Date.now(),
+    });
+    assertEqual(sp.currentSession.codeFilesModified.length, 2);
+    assertEqual(sp.currentSession.codeFilesModified[0], 'a.js');
+    assertEqual(sp.currentSession.codeFilesModified[1], 'b.js');
+  });
 });
 
 run();

@@ -39,14 +39,13 @@ const CONTRADICTIONS = [
 ];
 
 class InferenceEngine {
+  // NOTE: containerConfig is informational only — registered via phase9 manifest.
+  // Real lateBindings (graph→knowledgeGraph) declared in manifest.
   static containerConfig = {
     name: 'inferenceEngine',
     phase: 9,
     deps: [],
     tags: ['cognitive', 'reasoning', 'inference'],
-    lateBindings: [
-      { prop: 'graph', service: 'knowledgeGraph', optional: true },
-    ],
   };
 
   /**

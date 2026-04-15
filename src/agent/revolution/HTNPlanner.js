@@ -20,14 +20,12 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('HTNPlanner');
 
 class HTNPlanner {
+  // NOTE: containerConfig is informational only — registered via phase manifest.
   static containerConfig = {
     name: 'htnPlanner',
     phase: 4,
     deps: ['bus', 'storage', 'eventStore'],
     tags: ['intelligence', 'planning'],
-    lateBindings: [
-      { target: 'agentLoop', property: 'htnPlanner' },
-    ],
   };
 
   /** @param {{ bus?: *, sandbox?: *, selfModel?: *, guard?: *, eventStore?: *, storage?: *, rootDir?: string }} [deps] */
