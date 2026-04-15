@@ -1,3 +1,54 @@
+## [7.2.0] — Self-Define
+
+**Genesis describes itself. Not the other way around.**
+
+### Self-Define Activity (Phase 2)
+
+- **`IdleMindActivities.js`** — New `self-define` activity. Genesis periodically
+  reflects on its own data (KG, Journal, Lessons, CognitiveSelfModel) and writes
+  a self-description to `.genesis/self-identity.json`. Deterministic core (facts
+  from code), LLM shapes language only. Standalone validator rejects hallucinations,
+  self-negation, and excessive length.
+- **`phase6-autonomy.js`** — New late binding: IdleMind → LessonsStore
+  (with `expects: ['getAll', 'getStats']`).
+
+### Identity from Experience (Phase 1)
+
+- **`PromptBuilderSections.js`** — `_identity()` reads `self-identity.json`.
+  Falls back to 3-line minimal prompt if no self-definition exists yet.
+  Old 20-line static identity section with hardcoded organism claims removed.
+- **`PromptBuilderSections.js`** — `_formatting()` reduced from 17 rules to 4.
+  No more identity content, organism descriptions, or behavioral scripts.
+  Only directness, code blocks, language matching, and architecture silence.
+- **`PromptBuilder.js`** — Now receives `storage` for self-identity.json access.
+
+### Data-Driven Reflection (Phase 4)
+
+- **`SelfModificationPipeline.js`** — `reflect()` replaced. No longer dumps
+  full module tree, code snippets, and tool lists into the prompt. Now reads
+  self-identity.json + IdleMind status + Journal. Compact, relevant, honest.
+- **`SelfModificationPipeline.js`** — `_retry()` returns null when nothing to retry.
+  ChatOrchestrator falls through to general chat instead of "Nothing to retry."
+- **`ChatOrchestrator.js`** — Handler null-fallback: if a handler returns null/empty,
+  falls through to `_generalChat()`.
+- **`phase5-hexagonal.js`** — New late bindings: SelfModPipeline → IdleMind + Storage
+  (with `expects: ['getStatus', 'readJournal']`).
+
+### Module Count Fix
+
+- **`SelfModel.js`** — `moduleCount()` and `getModuleSummary()` now filter to `src/`
+  only. Reports 247 instead of 533 (was counting tests + scripts).
+- **`PromptBuilderSections.js`** — Introspection context uses same `src/` filter.
+
+### Stats
+- Changed files: 10
+- Identity section: 20 lines → 7 lines (with self-identity) or 3 lines (fallback)
+- Formatting section: 17 rules → 4 rules
+- reflect() prompt: ~60 lines of module dump → ~15 lines of experience data
+- New activity: self-define (13th IdleMind activity)
+
+---
+
 ## [7.1.9] — Solid Ground
 
 **No new features. Only strength.**

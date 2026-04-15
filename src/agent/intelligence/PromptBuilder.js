@@ -8,7 +8,7 @@
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('PromptBuilder');
 class PromptBuilder {
-  constructor({ selfModel, model, skills, knowledgeGraph, memory, anticipator, solutionAccumulator, selfOptimizer }) {
+  constructor({ selfModel, model, skills, knowledgeGraph, memory, anticipator, solutionAccumulator, selfOptimizer, storage }) {
     this.selfModel = selfModel;
     this.model = model;
     this.skills = skills;
@@ -17,6 +17,7 @@ class PromptBuilder {
     this.anticipator = anticipator || null;
     this.solutions = solutionAccumulator || null;
     this.optimizer = selfOptimizer || null;
+    this._storage = storage || null; // v7.2.0: reads self-identity.json
 
     // v2.8.1: Late-bound by AgentCore._wireAndStart() — declared here for clarity
     this.mcpClient = null;

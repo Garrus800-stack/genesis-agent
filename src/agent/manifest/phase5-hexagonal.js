@@ -70,6 +70,9 @@ function phase5(ctx, R) {
         { prop: '_preservation', service: 'preservation', optional: true },
         // v7.6.0: AwarenessPort — coherence-gated self-modification
         { prop: '_awareness', service: 'awareness', optional: true },
+        // v7.2.0: IdleMind + Storage — for self-reflect handler
+        { prop: '_idleMind', service: 'idleMind', optional: true, expects: ['getStatus', 'readJournal'] },
+        { prop: '_storage', service: 'storage', optional: true },
       ],
       factory: (c) => {
         const { lang } = R('Language');

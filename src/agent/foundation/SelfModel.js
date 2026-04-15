@@ -269,7 +269,10 @@ class SelfModel {
   }
 
   getModuleSummary() {
-    return Object.entries(this.manifest.modules).map(([file, mod]) => ({
+    // v7.1.9: Only source modules, not tests or scripts
+    return Object.entries(this.manifest.modules)
+      .filter(([file]) => file.startsWith('src/'))
+      .map(([file, mod]) => ({
       file,
       classes: mod.classes,
       functions: mod.functions.length,
@@ -284,7 +287,10 @@ class SelfModel {
   }
 
   moduleCount() {
-    return Object.keys(this.manifest.modules).length;
+    // v7.1.9: Count only source modules (src/), not tests or scripts
+    return Object.keys(this.manifest.modules)
+      .filter(p => p.startsWith('src/'))
+      .length;
   }
 
   readModule(fileOrName) {

@@ -87,6 +87,13 @@ class ChatOrchestrator {
 
       if (handler) {
         response = await handler(message, { history: this.history, intent });
+        // v7.1.9: If handler returns null/empty, fall through to general chat
+        // (e.g. retry with nothing to retry → treat as normal message)
+        if (!response) {
+          if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
+          if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
+          response = await this._generalChat(message);
+        }
       } else {
         // v6.0.4: Pass intent + budget to PromptBuilder
         if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);

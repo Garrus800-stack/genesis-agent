@@ -63,6 +63,9 @@ class IdleMind {
     this._webFetcher = null;
     this._trustLevelSystem = null;
 
+    // v7.2.0: LessonsStore — for self-define activity
+    this.lessonsStore = null;
+
     // v7.1.6: Research state
     this._pendingResearch = null;
     this._networkCheckCache = undefined;
@@ -218,6 +221,7 @@ class IdleMind {
         case 'consolidate':  result = await this._consolidateMemory(); break;
         case 'calibrate':   result = await this._calibrate(); break;
         case 'research':    result = await this._research(); break;
+        case 'self-define': result = await this._selfDefine(); break;
         default:             result = await this._reflect();
       }
 
@@ -325,11 +329,19 @@ class IdleMind {
       }
     } catch (_e) { /* no webFetcher or network */ }
 
+    // v7.2.0: self-define — Genesis writes its own identity
+    try {
+      if (this._cognitiveSelfModel && this.storage) {
+        candidates.push('self-define');
+      }
+    } catch (_e) { /* no cognitiveSelfModel */ }
+
     // ── Static weight table ─────────────────────────────
     const STATIC_WEIGHTS = {
       reflect: 1.5, plan: 1.0, explore: 1.2, ideate: 0.8,
       tidy: 0.6, journal: 0.5, 'mcp-explore': 1.0, dream: 2.0,
       consolidate: 1.3, calibrate: 1.5, improve: 1.8, research: 0.7,
+      'self-define': 0.4, // Low weight — runs infrequently (~every 6h)
     };
 
     // ── Initialize scores ───────────────────────────────

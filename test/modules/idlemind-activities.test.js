@@ -49,6 +49,7 @@ describe('IdleMindActivities: Delegation', () => {
       '_writeJournalEntry', '_reflect', '_plan', '_explore',
       '_exploreMcp', '_ideate', '_tidy', '_dream',
       '_consolidateMemory', '_journal',
+      '_selfDefine', '_validateSelfIdentity', // v7.2.0
     ];
     for (const name of expected) {
       assert(typeof activities[name] === 'function', `activities.${name} should be a function`);
@@ -281,6 +282,48 @@ describe('IdleMindActivities: _exploreMcp', () => {
     const result = await obj._exploreMcp();
     assert(result.includes('test-server'), 'should mention server');
     assert(stored, 'should store in KG');
+  });
+});
+
+// v7.2.0: Self-Define
+describe('IdleMindActivities: _validateSelfIdentity', () => {
+  test('accepts valid identity', () => {
+    const obj = createIdleMindLike({});
+    Object.assign(obj, activities);
+    const result = obj._validateSelfIdentity({
+      name: 'Genesis', operator: 'Daniel',
+      text: 'Ich bin Genesis. Ich arbeite mit Daniel.',
+    });
+    assert(result.valid, 'should be valid');
+  });
+
+  test('rejects self-negation', () => {
+    const obj = createIdleMindLike({});
+    Object.assign(obj, activities);
+    const result = obj._validateSelfIdentity({
+      name: 'Genesis', operator: 'Daniel',
+      text: 'Ich bin kein Agent und existiere nicht.',
+    });
+    assert(!result.valid, 'should reject');
+    assert(result.violations[0].includes('self-negation'), 'self-negation detected');
+  });
+
+  test('rejects too long text', () => {
+    const obj = createIdleMindLike({});
+    Object.assign(obj, activities);
+    const result = obj._validateSelfIdentity({
+      name: 'Genesis', operator: 'Daniel',
+      text: ('word ').repeat(600),
+    });
+    assert(!result.valid, 'should reject');
+    assert(result.violations[0].includes('too long'), 'length violation');
+  });
+
+  test('rejects missing name', () => {
+    const obj = createIdleMindLike({});
+    Object.assign(obj, activities);
+    const result = obj._validateSelfIdentity({ text: 'some text' });
+    assert(!result.valid, 'should reject');
   });
 });
 

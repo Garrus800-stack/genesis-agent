@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.1.9 · Last verified: all checks green (3839+ tests, 257 suites, TSC 0)
+> Version: 7.2.0 · Last verified: all checks green (4344 tests, 257+ suites, TSC 0)
 
 ---
 
@@ -11,7 +11,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~84k LOC of JavaScript (CommonJS), 247 source modules, 141 DI-managed services, with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~84k LOC of JavaScript (CommonJS), 247 source modules, 141 DI-managed services (152 total with bootstrap instances), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -367,7 +367,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # ~4200 tests, 0 failures
+node test/index.js                          # ~4300 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -516,6 +516,24 @@ Genesis learns to perceive itself accurately. The core problem: when asked about
 
 **Hardening:** Event-buffer size capped at 200 (H-1). Research topic labels sanitized before prompt injection (H-2). Event-audit cross-reference detects listeners without emitters (H-3) — would have caught the v6.1.1 shell:complete mismatch. `prompt-evolution:promoted` removed from EXCLUDED_EVENTS list.
 
+### 7.7 Solid Ground (v7.1.9)
+
+Stabilization release. No new features — only strength. `.genesis/` integrity guard (SHA-256 checksums + boot verify), auto-backup (24h rotation, max 3), late-binding contract validator (`expects` arrays on 12 critical bindings catch property-name mismatches at boot), event-schema CI-gate, bug taxonomy (29 bugs classified: 62% naming mismatches), 33 new tests for 3 previously untested modules (ExecutionProvenance, CognitiveBudget, ValueStore). Dead code cleanup. `moduleCount` filtered to `src/` only (533→247).
+
+### 7.8 Self-Define (v7.2.0)
+
+Genesis writes its own identity. The static prompt sections that described Genesis ("You ARE Genesis, you have IdleMind, EmotionalState...") are replaced by a self-generated description based on deterministic data.
+
+**Architecture:** New IdleMind activity `self-define` runs periodically. Two steps: (1) deterministic data collection from CognitiveSelfModel, Journal, KG, Lessons, GoalStack — no LLM, (2) LLM language shaping ("form these facts into 3-5 sentences, invent nothing"). Result stored in `.genesis/self-identity.json`, checksummed by v7.1.9 Integrity Guard.
+
+**Prompt diet:** `_identity()` reads `self-identity.json` instead of 20 static rules. Fallback to 3-line minimal prompt on first boot (before self-define runs). `_formatting()` reduced from 15 rules to 3 lines.
+
+**Invariants:** `self-identity.json` separates LLM-generated text (validated) from deterministic fields (name, operator, version — never LLM-touched). Validation: length cap, no hallucinated capabilities, no self-negation.
+
+**Self-reflect handler:** `SelfModificationPipeline.reflect()` replaced by data-driven handler that answers from self-identity.json + Journal + IdleMind status instead of sending full module tree to LLM.
+
+**Design:** Facts come from code. Language comes from LLM. Substance and style are separated. Model changes affect phrasing, not identity.
+
 ---
 
 ## 8. The CognitiveSelfModel
@@ -543,7 +561,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~4200 tests across 253 suites |
+| Tests | `node test/index.js` | ~4300 tests across 257+ suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
@@ -634,7 +652,7 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (~4200 tests)
+│   ├── index.js               → Module test runner (~4300 tests)
 │   └── modules/               → One test file per service
 ├── scripts/
 │   ├── architectural-fitness.js → 90/90 fitness score (9 checks)

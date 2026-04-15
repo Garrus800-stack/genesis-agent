@@ -607,6 +607,134 @@ const activities = {
     return { score, reason };
   },
 
+  // ── v7.2.0: Self-Define — Genesis writes its own identity ──────
+
+  async _selfDefine() {
+    try {
+      // ── STEP 1: Deterministic core (no LLM, code only) ────
+      const facts = {};
+
+      // Invariants
+      facts.name = 'Genesis';
+      facts.version = this.selfModel?.manifest?.version || 'unknown';
+      facts.operator = this.memory?.getUserName() || 'unknown';
+      facts.model = this.model?.activeModel || 'unknown';
+
+      // Empirical data
+      facts.sessionCount = this.storage?.readJSON('session-history.json', [])?.length || 0;
+      facts.kgNodes = this.kg?.getStats()?.nodes || 0;
+      facts.lessonCount = this.lessonsStore?.getStats()?.totalLessons || 0;
+
+      // Strengths/weaknesses from CognitiveSelfModel
+      const profile = this._cognitiveSelfModel?.getCapabilityProfile() || {};
+      facts.strengths = Object.entries(profile)
+        .filter(([, c]) => c.isStrong).map(([t]) => t).slice(0, 3);
+      facts.weaknesses = Object.entries(profile)
+        .filter(([, c]) => c.isWeak).map(([t]) => t).slice(0, 3);
+
+      // Recent confirmed lessons
+      facts.recentLessons = (this.lessonsStore?.getAll() || [])
+        .filter(l => (l.confirmed || 0) > 0).slice(0, 5)
+        .map(l => l.description || l.pattern || 'unknown');
+
+      // Current goal
+      const activeGoals = this.goalStack?.getActiveGoals() || [];
+      facts.currentGoal = activeGoals[0]?.description || null;
+
+      // Journal highlights
+      facts.journalHighlights = (this.readJournal(5) || [])
+        .map(j => `[${j.activity}] ${(j.thought || '').slice(0, 80)}`);
+
+      // IdleMind stats
+      const status = this.getStatus();
+      facts.thoughtCount = status.thoughtCount;
+      facts.journalEntries = status.journalEntries;
+
+      // ── STEP 2: LLM language shaping (form only, no invention) ──
+      const operatorLang = this.bus?._container?.resolve?.('lang')?.current || 'de';
+      const prompt = [
+        'Du bist Genesis. Forme die folgenden FAKTEN über dich in 3-5 natürliche Sätze.',
+        'Erfinde NICHTS dazu. Nur was hier steht.',
+        `Schreibe in Sprache: ${operatorLang}.`,
+        'Keine Aufzählungen. Natürliche Sprache. Max 200 Wörter.',
+        '',
+        JSON.stringify(facts, null, 2),
+      ].join('\n');
+
+      const text = await this.model.chat(prompt, [], 'analysis');
+      if (!text || text.length < 20) return 'self-define: LLM returned empty/short response';
+
+      // ── STEP 3: Validate + save ─────────────────────────
+      const existing = this.storage?.readJSON('self-identity.json', null);
+      const revision = (existing?.revision || 0) + 1;
+
+      const identity = {
+        name: facts.name,
+        operator: facts.operator,
+        version: facts.version,
+        revision,
+        generatedAt: new Date().toISOString(),
+        model: facts.model,
+        basedOn: {
+          sessions: facts.sessionCount,
+          kgNodes: facts.kgNodes,
+          lessons: facts.lessonCount,
+          journalEntries: facts.journalEntries,
+        },
+        facts: {
+          strengths: facts.strengths,
+          weaknesses: facts.weaknesses,
+          recentLessons: facts.recentLessons,
+          currentGoal: facts.currentGoal,
+        },
+        text,
+      };
+
+      const validation = this._validateSelfIdentity(identity);
+      if (!validation.valid) {
+        _log.warn(`[IDLE-MIND] self-define rejected: ${validation.violations.join(', ')}`);
+        this.bus.emit('health:degradation', {
+          service: 'idleMind', level: 'info',
+          reason: `self-define rejected: ${validation.violations.join(', ')}`,
+        }, { source: 'IdleMind' });
+        return `self-define: rejected (${validation.violations.join(', ')})`;
+      }
+
+      this.storage?.writeJSON('self-identity.json', identity);
+      _log.info(`[IDLE-MIND] self-define: identity updated (revision ${revision})`);
+      this.bus.emit('idle:self-defined', { revision }, { source: 'IdleMind' });
+
+      return `Self-identity updated (revision ${revision}): ${text.slice(0, 100)}...`;
+    } catch (err) {
+      _log.debug('[IDLE-MIND] self-define failed:', err.message);
+      return `self-define failed: ${err.message}`;
+    }
+  },
+
+  /**
+   * v7.2.0: Standalone identity validator.
+   * NOT in PreservationInvariants (those are for code-diffs).
+   */
+  _validateSelfIdentity(identity) {
+    const violations = [];
+
+    // Length check
+    const wordCount = (identity.text || '').split(/\s+/).length;
+    if (wordCount > 500) violations.push(`text too long: ${wordCount} words`);
+    if (wordCount < 5) violations.push('text too short');
+
+    // No self-negation
+    if (/ich bin kein|existiere nicht|bin nur ein|i don.t exist|i.m not real/i.test(identity.text)) {
+      violations.push('self-negation detected');
+    }
+
+    // Invariant fields must be present
+    if (!identity.name) violations.push('name missing');
+    if (!identity.operator) violations.push('operator missing');
+
+    return { valid: violations.length === 0, violations };
+  },
+
 };
 
 module.exports = { activities };

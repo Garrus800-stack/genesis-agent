@@ -56,6 +56,8 @@ function phase6(ctx, R) {
         { prop: '_webFetcher', service: 'webFetcher', optional: true },
         // v7.1.6: TrustLevelSystem — research trust gate
         { prop: '_trustLevelSystem', service: 'trustLevelSystem', optional: true },
+        // v7.2.0: LessonsStore — for self-define activity
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expects: ['getAll', 'getStats'] },
       ],
       factory: (c) => new (R('IdleMind').IdleMind)({
         bus, model: c.resolve('llm'), prompts: c.resolve('prompts'),

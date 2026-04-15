@@ -171,10 +171,10 @@ describe('SelfModPipeline — getGateStats', () => {
 // ════════════════════════════════════════════════════════════
 
 describe('SelfModPipeline — _retry', () => {
-  test('returns message when nothing to retry', async () => {
+  test('returns null when nothing to retry (falls through to general chat)', async () => {
     const p = createPipeline();
     const result = await p._retry();
-    assertEqual(result, 'Nothing to retry.');
+    assertEqual(result, null);
   });
 
   test('retries with error context appended', async () => {

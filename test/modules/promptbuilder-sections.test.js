@@ -51,8 +51,8 @@ describe('PromptBuilderSections: Identity', () => {
   test('returns default identity without user name', () => {
     const builder = createBuilder();
     const result = builder._identity();
-    assert(result.includes('You ARE Genesis'), 'should assert Genesis identity');
-    assert(result.includes('NOT that model'), 'should separate from LLM identity');
+    assert(result.includes('Genesis'), 'should mention Genesis');
+    assert(result.includes('Sei direkt'), 'should include directness rule');
   });
 
   test('returns personalized identity with user name', () => {
@@ -68,8 +68,8 @@ describe('PromptBuilderSections: Formatting', () => {
   test('returns formatting rules', () => {
     const builder = createBuilder();
     const result = builder._formatting();
-    assert(result.includes('RESPONSE RULES'), 'should include rules header');
-    assert(result.includes('code blocks'), 'should mention code blocks');
+    assert(result.includes('direkt'), 'should include directness');
+    assert(result.includes('Code'), 'should mention code blocks');
   });
 
   test('uses PromptEvolution when available', () => {

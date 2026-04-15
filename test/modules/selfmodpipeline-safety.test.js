@@ -86,6 +86,7 @@ function createMocks(overrides = {}) {
       return null;
     },
     moduleCount: () => 2,
+    getCapabilities: () => ['chat', 'self-modify'],
     scan: async () => {},
     commitSnapshot: async (msg) => { writes.push({ type: 'snapshot', msg }); },
   };

@@ -102,6 +102,7 @@ function phase2(ctx, R) {
       factory: (c) => new (R('PromptBuilder').PromptBuilder)({
         selfModel: c.resolve('selfModel'), model: c.resolve('llm'),
         skills: null, knowledgeGraph: c.resolve('knowledgeGraph'), memory: c.resolve('memory'),
+        storage: c.resolve('storage'), // v7.2.0: reads self-identity.json
       }),
     }],
 

@@ -41,7 +41,7 @@ npm test           # Run all tests (253 suites)
 | `npm run test:new` | Run only per-module tests |
 | `npm run test:legacy` | Run only legacy suite |
 | `npm run test:coverage` | Run tests with c8 coverage report |
-| `npm run test:ci` | Run tests with coverage enforcement (80/76/78) |
+| `npm run test:ci` | Run tests with coverage enforcement (80/75.9/78) |
 | `npm run ci` | Full CI: tests + event audit + channel audit + fitness gate |
 | `node scripts/audit-events.js` | Audit EventBus event flow |
 | `node scripts/audit-events.js --strict` | Audit with exit code on warnings |

@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.1.9 — What Genesis can do, organized by category.
-> Last updated: v7.1.9: .genesis/ integrity guard, late-binding contract validator, event-schema CI-gate, bug taxonomy, 33 new tests, 4340 tests, 141 services.
+> v7.2.0 — What Genesis can do, organized by category.
+> Last updated: v7.2.0: Self-Define, Prompt-Diät, self-reflect handler, 4344 tests, 152 services.
 
 ---
 

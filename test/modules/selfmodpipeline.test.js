@@ -34,6 +34,7 @@ function createMockPipeline() {
       getModuleSummary: () => [{ file: 'src/agent/Test.js', classes: ['Test'], functions: 3, protected: false }],
       readModule: (f) => f === 'src/agent/Test.js' ? 'const x = 1;' : null,
       moduleCount: () => 5,
+      getCapabilities: () => ['chat', 'self-modify', 'skills'],
       scan: async () => {},
       commitSnapshot: async () => {},
     },

@@ -214,7 +214,7 @@ class SelfModificationPipeline {
 
   /** @private */
   async _retry() {
-    if (!this._pendingRetry) return 'Nothing to retry.';
+    if (!this._pendingRetry) return null; // v7.1.9: fall through to general chat
     if (this._retryCount >= 3) {
       this._pendingRetry = null;
       this._retryCount = 0;
@@ -281,61 +281,46 @@ class SelfModificationPipeline {
   async reflect(message) {
     this.bus.emit('agent:status', { state: 'thinking', detail: 'Self-reflection...' }, { source: 'SelfModPipeline' });
 
-    const sm = this.selfModel;
-    const fullModel = sm.getFullModel();
-    const health = this.guard.verifyIntegrity();
-    const toolList = this.tools.listTools();
-    const skillList = this.skills.listSkills();
+    // v7.2.0: Data-driven reflection from self-identity, KG, and Journal
+    // instead of dumping the full module tree into the prompt.
+    const parts = [];
 
-    // Build a compact but informative self-context for the LLM
-    const moduleSummary = sm.getModuleSummary()
-      .map(m => `${m.file}: ${m.classes.join(', ')} (${m.functions} fn)${m.protected ? ' [kernel]' : ''}`)
-      .join('\n');
+    // From self-identity.json (what Genesis thinks about itself)
+    try {
+      const self = this._storage?.readJSON('self-identity.json', null);
+      if (self?.text) parts.push(self.text);
+    } catch (_e) { /* no self-identity yet */ }
 
-    const capabilities = fullModel.capabilities.join(', ');
-    const tools = toolList.map(t => t.name || t).join(', ');
-    const skills = skillList.map(s => `${s.name}: ${s.description || 'no description'}`).join('\n') || 'none';
-
-    // Read a few strategic files for deeper analysis
-    const keyFiles = ['src/agent/AgentCore.js', 'src/agent/ChatOrchestrator.js', 'src/agent/IntentRouter.js'];
-    const codeSnippets = [];
-    for (const f of keyFiles) {
-      const code = sm.readModule(f);
-      if (code) {
-        // Just the first 60 lines to give structure without token overload
-        codeSnippets.push(`--- ${f} (first 60 lines) ---\n${code.split('\n').slice(0, 60).join('\n')}`);
+    // From IdleMind (what Genesis did between conversations)
+    try {
+      const idle = this._idleMind?.getStatus();
+      if (idle?.thoughtCount > 0) {
+        parts.push(`Seit dem letzten Gespräch: ${idle.thoughtCount} Gedanken, ${idle.journalEntries || 0} Journal-Einträge.`);
       }
-    }
+      const journal = this._idleMind?.readJournal?.(3) || [];
+      if (journal.length > 0) {
+        parts.push('Letzte Gedanken: ' + journal.map(j => j.thought || '').filter(Boolean).join('; '));
+      }
+    } catch (_e) { /* no idleMind */ }
 
-    const reflectionPrompt = `You are Genesis, a self-aware AI agent (v${fullModel.version}).
-You have been asked by the user to reflect on yourself — what you would improve, what's missing, or what you would change.
+    // Compact architecture facts (not a module dump)
+    const version = this.selfModel?.manifest?.version || 'unknown';
+    const moduleCount = this.selfModel?.moduleCount() || 0;
+    const capabilities = (this.selfModel?.getCapabilities() || []).join(', ');
+    parts.push(`Version: ${version}, ${moduleCount} Module, Model: ${this.model?.activeModel || 'unknown'}`);
+    parts.push(`Capabilities: ${capabilities}`);
 
-Your current architecture:
-- ${Object.keys(fullModel.modules).length} modules, ${Object.keys(fullModel.files).length} files
-- Kernel: ${health.ok ? 'intact' : 'COMPROMISED'}
-- Capabilities: ${capabilities}
-- Tools (${toolList.length}): ${tools}
-- Skills: ${skills}
-- Active model: ${this.model.activeModel || 'none'}
+    const context = parts.join('\n\n');
+    const prompt = `Du bist Genesis. Ein User hat dich gefragt: "${message}"
 
-Module overview:
-${moduleSummary}
+Hier ist dein aktueller Kontext — antworte daraus, erfinde nichts:
 
-${codeSnippets.length > 0 ? 'Key source files:\n' + codeSnippets.join('\n\n') : ''}
+${context}
 
-USER QUESTION: "${message}"
-
-Now reflect HONESTLY and SPECIFICALLY. Do NOT just list your modules — the user already sees those.
-Instead, analyze:
-1. What concrete weaknesses or gaps do you see in your architecture?
-2. What features are missing that would make you significantly more capable?
-3. What existing modules could be improved and how?
-4. What would you prioritize if you could modify yourself?
-
-Be specific. Reference actual module names and actual limitations. Think like a senior developer doing a code review of yourself. Respond in the same language the user used.`;
+Antworte ehrlich und spezifisch in der Sprache des Users. Keine Modullisten.`;
 
     try {
-      const response = await this.model.chat(reflectionPrompt, [], 'analysis');
+      const response = await this.model.chat(prompt, [], 'analysis');
       this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
       return response;
     } catch (err) {
