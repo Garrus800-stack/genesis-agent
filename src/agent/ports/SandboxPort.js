@@ -14,15 +14,6 @@ class SandboxPort {
 }
 
 class SandboxAdapter extends SandboxPort {
-  static containerConfig = {
-    name: 'sbx',
-    phase: 1,
-    deps: ['sandbox'],
-    tags: ['port', 'foundation'],
-    lateBindings: [],
-    factory: (c) => new SandboxAdapter(c.resolve('sandbox')),
-  };
-
   constructor(sandbox) {
     super();
     this._sandbox = sandbox;

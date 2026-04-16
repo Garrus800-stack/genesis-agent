@@ -28,14 +28,6 @@ const SNAPSHOT_DIR = 'snapshots';
 const SNAPSHOT_TARGETS = ['src/agent'];
 
 class SnapshotManager {
-  static containerConfig = {
-    name: 'snapshotManager',
-    phase: 3,
-    deps: [],
-    tags: ['capabilities', 'safety'],
-    lateBindings: [],
-  };
-
   constructor({ rootDir, storage, guard }) {
     this.rootDir = rootDir;
     this.storage = storage;

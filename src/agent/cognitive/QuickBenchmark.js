@@ -61,17 +61,6 @@ class QuickBenchmark {
 
     this.stats = { runs: 0, comparisons: 0 };
   }
-
-  static containerConfig = {
-    name: 'quickBenchmark',
-    phase: 9,
-    deps: ['bus', 'storage'],
-    tags: ['cognitive', 'benchmark', 'v6-0-2'],
-    lateBindings: [
-      { prop: 'costGuard', service: 'costGuard', optional: true },
-    ],
-  };
-
   // ════════════════════════════════════════════════════════
   // PUBLIC API
   // ════════════════════════════════════════════════════════

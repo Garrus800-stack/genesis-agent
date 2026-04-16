@@ -53,14 +53,6 @@ const MAX_DELTA_PER_ADJUSTMENT = 0.05;
 const GENOME_FILE = 'genome.json';
 
 class Genome {
-  static containerConfig = {
-    name: 'genome',
-    phase: 7,
-    deps: ['storage'],
-    tags: ['organism', 'identity', 'heritable'],
-    lateBindings: [],
-  };
-
   constructor({ bus, storage, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

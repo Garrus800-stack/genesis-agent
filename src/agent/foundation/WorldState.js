@@ -32,14 +32,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('WorldState');
 
 class WorldState {
-  static containerConfig = {
-    name: 'worldState',
-    phase: 1,
-    deps: ['storage', 'settings'],
-    tags: ['foundation', 'perception'],
-    lateBindings: [],
-  };
-
   constructor({ bus, storage, rootDir, settings, guard }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

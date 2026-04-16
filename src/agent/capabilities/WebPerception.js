@@ -40,17 +40,6 @@ let puppeteer = null;
 try { puppeteer = require('puppeteer'); } catch (_e) { console.debug('[catch] lightweight mode only:', _e.message); }
 
 class WebPerception {
-  static containerConfig = {
-    name: 'webPerception',
-    phase: 3,
-    deps: ['storage', 'eventStore'],
-    tags: ['capabilities', 'perception'],
-    lateBindings: [
-      { prop: 'worldState', service: 'worldState', optional: true },
-    ],
-    optional: true,
-  };
-
   constructor({ bus, storage, eventStore, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

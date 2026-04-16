@@ -29,13 +29,6 @@ class FormalPlanner {
   // NOTE: containerConfig is informational only — this module is registered
   // via the phase manifest, not via ModuleRegistry auto-discovery.
   // Real lateBindings are declared in the manifest entry.
-  static containerConfig = {
-    name: 'formalPlanner',
-    phase: 8,
-    deps: ['worldState', 'verifier', 'tools', 'model', 'selfModel', 'sandbox', 'eventStore', 'storage'],
-    tags: ['revolution', 'planning'],
-  };
-
   constructor({ bus, worldState, verifier, toolRegistry, model, selfModel, sandbox, guard, eventStore, storage, rootDir }) {
     this.bus = bus || NullBus;
     this.worldState = worldState;

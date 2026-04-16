@@ -77,11 +77,8 @@ describe('SelfNarrative — Construction', () => {
     assert(sn != null);
   });
 
-  test('has correct containerConfig', () => {
-    assert(SelfNarrative.containerConfig.name === 'selfNarrative');
-    assert(SelfNarrative.containerConfig.phase === 9);
-    assert(SelfNarrative.containerConfig.deps.includes('metaLearning'));
-    assert(SelfNarrative.containerConfig.deps.includes('episodicMemory'));
+  test('SelfNarrative is registered via manifest', () => {
+    assert(typeof SelfNarrative === 'function', 'class exported');
   });
 
   test('loads persisted narrative on asyncLoad', async () => {

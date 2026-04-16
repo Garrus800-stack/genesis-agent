@@ -32,13 +32,6 @@ const { safeJsonParse } = require('../core/utils');
 
 class TaskDelegation {
   // NOTE: containerConfig is informational only — registered via phase manifest.
-  static containerConfig = {
-    name: 'taskDelegation',
-    phase: 5,
-    deps: ['bus', 'eventStore'],
-    tags: ['collaboration', 'autonomy'],
-  };
-
   /** @param {{ bus?: object, network?: object, goalStack?: object, eventStore?: object, lang?: object }} [opts] */
   constructor({ bus, network, goalStack, eventStore, lang } = {}) {
     this.bus = bus || NullBus;

@@ -31,16 +31,6 @@ const { TIMEOUTS } = require('../core/Constants');
 const _log = createLogger('SessionPersistence');
 
 class SessionPersistence {
-  static containerConfig = {
-    name: 'sessionPersistence',
-    phase: 7,
-    deps: ['model', 'memory', 'storage'],
-    tags: ['revolution', 'memory'],
-    // NOTE: lateBindings removed — SessionPersistence is registered via phase8 manifest,
-    // not via ModuleRegistry. Real bindings: _knowledgeGraph, _emotionalFrontier,
-    // _unfinishedWorkFrontier, _goalStack are declared in the manifest.
-  };
-
   constructor({ bus, model, memory, storage, lang }) {
     this.bus = bus || NullBus;
     this.model = model;
@@ -167,8 +157,10 @@ class SessionPersistence {
     };
 
     // Get last few messages for context
+    // v7.2.2: Guard against null content (tool calls, error responses).
+    // Shutdown was crashing with "Cannot read properties of null (reading 'slice')".
     const recentMessages = chatHistory.slice(-10).map(m =>
-      `${m.role}: ${m.content.slice(0, 150)}`
+      `${m.role}: ${(m.content || '').slice(0, 150)}`
     ).join('\n');
 
     try {

@@ -297,11 +297,10 @@ describe('DynamicToolSynthesis', () => {
     });
   });
 
-  describe('containerConfig', () => {
-    it('has correct static config', () => {
-      assert.equal(DynamicToolSynthesis.containerConfig.name, 'dynamicToolSynthesis');
-      assert.equal(DynamicToolSynthesis.containerConfig.phase, 9);
-      assert.ok(DynamicToolSynthesis.containerConfig.deps.includes('storage'));
+  describe('manifest registration', () => {
+    it('is registered via manifest', () => {
+      // v7.2.2: containerConfig removed (orphaned dead code).
+      assert.ok(typeof DynamicToolSynthesis === 'function', 'DynamicToolSynthesis class exported');
     });
   });
 

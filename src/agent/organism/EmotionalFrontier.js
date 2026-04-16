@@ -39,13 +39,6 @@ const _log = createLogger('EmotionalFrontier');
 class EmotionalFrontier {
   // NOTE: containerConfig is informational only — registered via phase8 manifest.
   // Real lateBindings (_sessionPersistence, _idleMind) declared in manifest.
-  static containerConfig = {
-    name: 'emotionalFrontier',
-    phase: 8,
-    deps: ['emotionalState', 'knowledgeGraph', 'storage'],
-    tags: ['organism', 'frontier', 'emotional', 'cross-layer'],
-  };
-
   /**
    * @param {object} opts
    * @param {*} opts.bus - EventBus

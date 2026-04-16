@@ -27,14 +27,6 @@ const { TIMEOUTS } = require('../core/Constants');
 const { safeJsonParse } = require('../core/utils');
 
 class NativeToolUse {
-  static containerConfig = {
-    name: 'nativeToolUse',
-    phase: 8,
-    deps: ['model', 'tools'],
-    tags: ['revolution'],
-    lateBindings: [],
-  };
-
   constructor({ bus, model, tools, lang }) {
     this.bus = bus || NullBus;
     this.model = model;

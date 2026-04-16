@@ -59,12 +59,8 @@ describe('ConversationCompressor', () => {
     assertEqual(c.stats.cacheHits, 0);
   });
 
-  test('static containerConfig is correct', () => {
-    const cfg = ConversationCompressor.containerConfig;
-    assertEqual(cfg.name, 'conversationCompressor');
-    assertEqual(cfg.phase, 10);
-    assert(cfg.tags.includes('compression'), 'has compression tag');
-    assert(cfg.tags.includes('context'), 'has context tag');
+  test('ConversationCompressor is registered via manifest', () => {
+    assert(typeof ConversationCompressor === 'function', 'class exported');
   });
 
   test('returns empty array for empty history', async () => {

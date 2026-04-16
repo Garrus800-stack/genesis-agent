@@ -38,14 +38,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('UserModel');
 
 class UserModel {
-  static containerConfig = {
-    name: 'userModel',
-    phase: 10,
-    deps: ['storage'],
-    tags: ['intelligence', 'social', 'theory-of-mind'],
-    lateBindings: [],
-  };
-
   constructor({ bus, storage, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

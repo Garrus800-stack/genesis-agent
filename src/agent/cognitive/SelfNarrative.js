@@ -35,17 +35,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('SelfNarrative');
 
 class SelfNarrative {
-  static containerConfig = {
-    name: 'selfNarrative',
-    phase: 9,
-    deps: ['metaLearning', 'episodicMemory', 'emotionalState',
-           'schemaStore', 'selfModel', 'model', 'storage'],
-    tags: ['organism', 'identity', 'cognitive'],
-    lateBindings: [
-      { prop: 'surpriseAccumulator', service: 'surpriseAccumulator', optional: true },
-    ],
-  };
-
   constructor({ bus, metaLearning, episodicMemory, emotionalState,
                 schemaStore, selfModel, model, storage, intervals, config }) {
     this.bus = bus || NullBus;

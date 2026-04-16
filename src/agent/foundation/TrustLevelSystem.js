@@ -83,16 +83,6 @@ const AUTO_UPGRADE_MIN_SAMPLES = 50;
 const AUTO_UPGRADE_MIN_SUCCESS = 0.90;
 
 class TrustLevelSystem {
-  static containerConfig = {
-    name: 'trustLevelSystem',
-    phase: 1,
-    deps: ['storage', 'settings'],
-    tags: ['foundation', 'security'],
-    lateBindings: [
-      { prop: 'metaLearning', service: 'metaLearning', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, settings, config }) {
     this.bus = bus || NullBus;
     this.storage = storage;

@@ -28,13 +28,6 @@ class LocalClassifier {
   // NOTE: containerConfig is informational only — this module is registered
   // via the phase manifest, not via ModuleRegistry auto-discovery.
   // Real lateBindings are declared in the manifest entry.
-  static containerConfig = {
-    name: 'localClassifier',
-    phase: 2,
-    deps: ['storage'],
-    tags: ['intelligence', 'classification'],
-  };
-
   constructor({ bus, storage, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

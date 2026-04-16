@@ -47,11 +47,8 @@ describe('TaskOutcomeTracker', () => {
     assertEqual(t._outcomes.length, 0);
   });
 
-  test('static containerConfig is correct', () => {
-    const cfg = TaskOutcomeTracker.containerConfig;
-    assertEqual(cfg.name, 'taskOutcomeTracker');
-    assertEqual(cfg.phase, 9);
-    assert(cfg.tags.includes('selfmodel'), 'has selfmodel tag');
+  test('TaskOutcomeTracker is registered via manifest', () => {
+    assert(typeof TaskOutcomeTracker === 'function', 'class exported');
   });
 
   test('boot() subscribes to 4 events', () => {

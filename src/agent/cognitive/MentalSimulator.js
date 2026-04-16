@@ -53,14 +53,6 @@ const STEP_VALUES = {
 const RETRYABLE = new Set(['CODE_GENERATE', 'RUN_TESTS', 'SHELL_EXEC', 'DELEGATE']);
 
 class MentalSimulator {
-  static containerConfig = {
-    name: 'mentalSimulator',
-    phase: 9,
-    deps: ['worldState', 'expectationEngine', 'storage'],
-    tags: ['cognitive', 'simulation'],
-    lateBindings: [],
-  };
-
   constructor({ bus, worldState, expectationEngine, storage, config }) {
     this.bus = bus || NullBus;
     this.worldState = worldState || null;

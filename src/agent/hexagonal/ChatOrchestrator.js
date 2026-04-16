@@ -105,6 +105,12 @@ class ChatOrchestrator {
         response = this.uncertainty.wrapResponse(response, message);
       }
 
+      // v7.2.2: Guard against undefined response (e.g. LLM circuit breaker opened,
+      // handler returned null, all retries failed). Schema requires response field.
+      if (response == null) {
+        response = this.lang.t('agent.error') + ': no response generated';
+      }
+
       this.history.push({ role: 'assistant', content: response });
       this._saveHistory();
       // v3.5.0: Record conversation as episodic memory (ChatOrchestratorHelpers mixin)

@@ -129,23 +129,6 @@ const SUBSYSTEM_SAMPLERS = [
 ];
 
 class BodySchema {
-  static containerConfig = {
-    name: 'bodySchema',
-    phase: 7,
-    deps: ['storage'],
-    tags: ['organism', 'embodiment', 'capabilities'],
-    lateBindings: [
-      { prop: 'tools', service: 'tools', optional: true },
-      { prop: 'circuitBreaker', service: 'circuitBreaker', optional: true },
-      { prop: 'homeostasis', service: 'homeostasis', optional: true },
-      { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
-      { prop: 'mcpClient', service: 'mcpClient', optional: true },
-      { prop: 'model', service: 'llm', optional: true },
-      { prop: 'effectorRegistry', service: 'effectorRegistry', optional: true },
-      { prop: 'embodiedPerception', service: 'embodiedPerception', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, config }) {
     this.bus = bus || NullBus;
     /** @type {Function[]} */ this._unsubs = [];

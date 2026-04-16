@@ -27,14 +27,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('SurpriseAccumulator');
 
 class SurpriseAccumulator {
-  static containerConfig = {
-    name: 'surpriseAccumulator',
-    phase: 9,
-    deps: ['episodicMemory', 'eventStore', 'storage'],
-    tags: ['cognitive', 'learning'],
-    lateBindings: [],
-  };
-
   constructor({ bus, episodicMemory, eventStore, storage, intervals, config }) {
     this.bus = bus || NullBus;
     this.episodicMemory = episodicMemory || null;

@@ -536,7 +536,7 @@ const SCHEMAS = {
   'net:local':              {},
   'surprise:processed':     { surprise: 'required' },
   'surprise:amplified-learning': { surprise: 'required' },
-  'steering:model-escalation':   { from: 'required', to: 'required' },
+  'steering:model-escalation':   { frustration: 'required' },
   'steering:rest-mode':          {},
   'intent:llm-classified':  { intent: 'required', message: 'optional' },
   'intent:learned':         { type: 'required' },

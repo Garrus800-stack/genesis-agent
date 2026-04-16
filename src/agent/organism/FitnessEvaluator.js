@@ -70,18 +70,6 @@ const SELF_BASELINE_THRESHOLD = 0.85; // below 85% of own median = weak
 
 
 class FitnessEvaluator {
-  static containerConfig = {
-    name:  'fitnessEvaluator',
-    phase: 10,
-    deps:  ['eventStore', 'storage'],
-    tags:  ['organism', 'evolution', 'fitness'],
-    lateBindings: [
-      { prop: 'genome',       service: 'genome',       optional: true },
-      { prop: 'metabolism',   service: 'metabolism',   optional: true },
-      { prop: 'immuneSystem', service: 'immuneSystem', optional: true },
-    ],
-  };
-
   constructor({ bus, eventStore, storage, intervals, config }) {
     this.bus        = bus || NullBus;
     /** @type {Function[]} */ this._unsubs = [];

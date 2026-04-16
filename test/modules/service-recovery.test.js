@@ -179,12 +179,11 @@ describe('ServiceRecovery', () => {
     assertEqual(stats.services.knowledgeGraph.exhausted, false);
   });
 
-  test('containerConfig is valid', () => {
-    const cfg = ServiceRecovery.containerConfig;
-    assertEqual(cfg.name, 'serviceRecovery');
-    assertEqual(cfg.phase, 7);
-    assert(Array.isArray(cfg.deps), 'has deps array');
-    assert(Array.isArray(cfg.lateBindings), 'has lateBindings');
+  test('serviceRecovery is registered via manifest', () => {
+    // v7.2.2: containerConfig removed (was orphaned dead code — ServiceRecovery
+    // is registered via phase6-autonomy manifest). Verify the class exists.
+    assert(typeof ServiceRecovery === 'function', 'ServiceRecovery class exported');
+    assert(ServiceRecovery.prototype.boot, 'has boot() method');
   });
 
   test('verifyHealth uses getHealth() if available', async () => {

@@ -90,17 +90,6 @@ const INTERLOCUTOR = Object.freeze({
 });
 
 class DisclosurePolicy {
-  static containerConfig = {
-    name: 'disclosurePolicy',
-    phase: 2,
-    deps: [],
-    tags: ['intelligence', 'security', 'sovereignty'],
-    lateBindings: [
-      { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
-      { prop: 'userModel', service: 'userModel', optional: true },
-    ],
-  };
-
   /** @param {{ bus?: *, config?: * }} [deps] */
   constructor({ bus, config } = {}) {
     this.bus = bus || require('../core/EventBus').NullBus;

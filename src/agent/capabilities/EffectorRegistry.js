@@ -50,17 +50,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('EffectorRegistry');
 
 class EffectorRegistry {
-  static containerConfig = {
-    name: 'effectorRegistry',
-    phase: 3,
-    deps: ['storage', 'eventStore'],
-    tags: ['capabilities', 'effectors'],
-    lateBindings: [
-      { prop: 'trustLevel', service: 'trustLevelSystem', optional: true },
-      { prop: 'worldState', service: 'worldState', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, eventStore, rootDir, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

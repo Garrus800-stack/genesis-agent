@@ -41,14 +41,6 @@ const DEFAULT_CONFIG = {
 };
 
 class ErrorAggregator {
-  static containerConfig = {
-    name: 'errorAggregator',
-    phase: 1,
-    deps: [],
-    tags: ['core', 'monitoring'],
-    lateBindings: [],
-  };
-
   /** @param {{ bus?: object, config?: object, intervals?: object }} [opts] */
   constructor({ bus, config, intervals } = {}) {
     this.bus = bus || NullBus;

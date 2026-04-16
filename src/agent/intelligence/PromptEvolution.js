@@ -48,14 +48,6 @@ const PROMOTION_THRESHOLD = 0.05;
 const MAX_ACTIVE_EXPERIMENTS = 1;
 
 class PromptEvolution {
-  static containerConfig = {
-    name: 'promptEvolution',
-    phase: 9,
-    deps: ['storage', 'metaLearning'],
-    tags: ['cognitive', 'learning'],
-    lateBindings: ['moduleSigner', 'model'],
-  };
-
   constructor({ bus, storage, metaLearning }) {
     this.bus = bus || NullBus;
     this.storage = storage;

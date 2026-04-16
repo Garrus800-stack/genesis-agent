@@ -66,19 +66,6 @@ const RECOVERY = {
 };
 
 class Metabolism {
-  static containerConfig = {
-    name: 'metabolism',
-    phase: 7,
-    deps: ['storage'],
-    tags: ['organism', 'metabolism', 'energy'],
-    lateBindings: [
-      { prop: 'emotionalState', service: 'emotionalState', optional: true },
-      { prop: 'needsSystem', service: 'needsSystem', optional: true },
-      { prop: 'homeostasis', service: 'homeostasis', optional: true },
-      { prop: 'genome', service: 'genome', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, intervals, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

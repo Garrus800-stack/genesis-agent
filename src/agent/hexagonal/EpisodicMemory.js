@@ -31,16 +31,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('EpisodicMemory');
 
 class EpisodicMemory {
-  static containerConfig = {
-    name: 'episodicMemory',
-    phase: 5,
-    deps: ['storage'],
-    tags: ['hexagonal', 'memory'],
-    lateBindings: [
-      { prop: '_embeddings', service: 'embeddingService', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, embeddingService, intervals }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

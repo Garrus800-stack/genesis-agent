@@ -81,17 +81,6 @@ class ConversationCompressor {
     /** @type {Array<Function>} */
     this._unsubs = [];
   }
-
-  static containerConfig = {
-    name: 'conversationCompressor',
-    phase: 10,
-    deps: ['bus'],
-    lateBindings: [
-      { prop: 'model', service: 'llm', optional: true },
-    ],
-    tags: ['intelligence', 'context', 'compression'],
-  };
-
   // ── Lifecycle ───────────────────────────────────────────
 
   boot() {

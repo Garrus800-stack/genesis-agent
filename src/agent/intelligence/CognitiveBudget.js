@@ -87,15 +87,6 @@ const EXTREME_INDICATORS = [
 ];
 
 class CognitiveBudget {
-
-  static containerConfig = {
-    name: 'cognitiveBudget',
-    phase: 2,
-    deps: [],
-    tags: ['intelligence', 'optimization'],
-    lateBindings: [],
-  };
-
   /** @param {{ bus?: *, config?: * }} [deps] */
   constructor({ bus, config } = {}) {
     this.bus = bus || { emit() {} };

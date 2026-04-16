@@ -78,21 +78,6 @@ class AdaptiveStrategy {
     // v7.1.2: Composition delegate for diagnose/propose/apply
     this._applyDelegate = new AdaptiveStrategyApplyDelegate(this);
   }
-
-  static containerConfig = {
-    name: 'adaptiveStrategy',
-    phase: 9,
-    deps: ['bus', 'storage'],
-    tags: ['cognitive', 'metacognition', 'v6-0-2'],
-    lateBindings: [
-      { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
-      { prop: 'promptEvolution',    service: 'promptEvolution',    optional: true },
-      { prop: 'modelRouter',        service: 'modelRouter',        optional: true },
-      { prop: 'onlineLearner',      service: 'onlineLearner',      optional: true },
-      { prop: 'quickBenchmark',     service: 'quickBenchmark',     optional: true },
-    ],
-  };
-
   // ════════════════════════════════════════════════════════
   // LIFECYCLE
   // ════════════════════════════════════════════════════════

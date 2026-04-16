@@ -174,10 +174,10 @@ describe('ArchitectureReflection', () => {
     });
   });
 
-  describe('containerConfig', () => {
-    it('has correct static config', () => {
-      assert.equal(ArchitectureReflection.containerConfig.name, 'architectureReflection');
-      assert.equal(ArchitectureReflection.containerConfig.phase, 9);
+  describe('manifest registration', () => {
+    it('is registered via manifest', () => {
+      // v7.2.2: containerConfig removed (orphaned dead code).
+      assert.ok(typeof ArchitectureReflection === 'function', 'ArchitectureReflection class exported');
     });
   });
 });

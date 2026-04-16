@@ -29,21 +29,6 @@ const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('HomeostasisEffectors');
 
 class HomeostasisEffectors {
-  static containerConfig = {
-    name: 'homeostasisEffectors',
-    phase: 7,
-    deps: ['storage'],
-    tags: ['organism', 'homeostasis', 'effectors'],
-    lateBindings: [
-      { prop: 'llmCache', service: 'llmCache', optional: true },
-      { prop: 'knowledgeGraph', service: 'knowledgeGraph', optional: true },
-      { prop: 'dynamicContextBudget', service: 'dynamicContextBudget', optional: true },
-      { prop: 'vectorMemory', service: 'vectorMemory', optional: true },
-      { prop: 'conversationMemory', service: 'memory', optional: true },
-      { prop: 'homeostasis', service: 'homeostasis', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, config }) {
     this.bus = bus || NullBus;
     /** @type {Function[]} */ this._unsubs = [];

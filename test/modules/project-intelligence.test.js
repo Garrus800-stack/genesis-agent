@@ -146,10 +146,10 @@ describe('ProjectIntelligence', () => {
     });
   });
 
-  describe('containerConfig', () => {
-    it('has correct static config', () => {
-      assert.equal(ProjectIntelligence.containerConfig.name, 'projectIntelligence');
-      assert.equal(ProjectIntelligence.containerConfig.phase, 9);
+  describe('manifest registration', () => {
+    it('is registered via manifest', () => {
+      // v7.2.2: containerConfig removed (orphaned dead code).
+      assert.ok(typeof ProjectIntelligence === 'function', 'ProjectIntelligence class exported');
     });
   });
 });

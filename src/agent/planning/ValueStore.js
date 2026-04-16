@@ -37,14 +37,6 @@ const { _round } = require('../core/utils');
 const _log = createLogger('ValueStore');
 
 class ValueStore {
-  static containerConfig = {
-    name: 'valueStore',
-    phase: 4,
-    deps: ['storage'],
-    tags: ['intelligence', 'values', 'ethics'],
-    lateBindings: [],
-  };
-
   constructor({ bus, storage, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

@@ -79,22 +79,6 @@ const SIGNATURES = {
 };
 
 class ImmuneSystem {
-  static containerConfig = {
-    name: 'immuneSystem',
-    phase: 7,
-    deps: ['storage'],
-    tags: ['organism', 'immune', 'self-repair'],
-    lateBindings: [
-      { prop: 'homeostasis', service: 'homeostasis', optional: true },
-      { prop: 'emotionalState', service: 'emotionalState', optional: true },
-      { prop: 'circuitBreaker', service: 'circuitBreaker', optional: true },
-      { prop: 'llmCache', service: 'llmCache', optional: true },
-      { prop: 'tools', service: 'tools', optional: true },
-      { prop: 'conversationMemory', service: 'memory', optional: true },
-      { prop: 'eventStore', service: 'eventStore', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, intervals, config }) {
     this.bus = bus || NullBus;
     /** @type {Function[]} */ this._unsubs = [];

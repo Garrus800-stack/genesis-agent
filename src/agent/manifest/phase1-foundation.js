@@ -140,6 +140,11 @@ function phase1(ctx, R) {
 
     ['llm', {
       phase: 1, deps: ['model'], tags: ['port', 'foundation'],
+      lateBindings: [
+        // v7.2.2: Migrated from orphaned containerConfig. Without this,
+        // cost budget checks were silently dead — _costGuard was always null.
+        { prop: '_costGuard', service: 'costGuard', optional: true },
+      ],
       factory: (c) => {
         const { ModelBridgeAdapter } = require('../ports/LLMPort');
         return new ModelBridgeAdapter(c.resolve('model'), bus);

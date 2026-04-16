@@ -59,16 +59,6 @@ const CONF = {
 };
 
 class CausalAnnotation {
-  static containerConfig = {
-    name: 'causalAnnotation',
-    phase: 9,
-    deps: [],
-    tags: ['cognitive', 'causal', 'reasoning'],
-    lateBindings: [
-      { prop: 'kg', service: 'knowledgeGraph', optional: true },
-    ],
-  };
-
   /**
    * @param {{ bus?: object, knowledgeGraph?: object, config?: object }} opts
    */

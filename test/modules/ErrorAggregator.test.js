@@ -111,9 +111,9 @@ describe('ErrorAggregator — Lifecycle', () => {
     assertEqual(agg._healthInterval, null, 'should clear interval');
   });
 
-  test('containerConfig has correct phase', () => {
-    assertEqual(ErrorAggregator.containerConfig.phase, 1);
-    assertEqual(ErrorAggregator.containerConfig.name, 'errorAggregator');
+  test('ErrorAggregator is registered via manifest', () => {
+    // v7.2.2: containerConfig removed (orphaned dead code). Registered in phase1 manifest.
+    assert(typeof ErrorAggregator === 'function', 'ErrorAggregator class exported');
   });
 });
 

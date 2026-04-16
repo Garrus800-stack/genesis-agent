@@ -50,14 +50,6 @@ const STATE = Object.freeze({
 });
 
 class CognitiveHealthTracker {
-  static containerConfig = {
-    name: 'cognitiveHealthTracker',
-    phase: 9,
-    deps: ['storage', 'eventStore'],
-    tags: ['cognitive', 'health'],
-    lateBindings: [],
-  };
-
   /**
    * @param {object} [opts]
    * @param {object} [opts.bus] - EventBus

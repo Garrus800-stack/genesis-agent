@@ -34,16 +34,6 @@ const MAX_RETRIES_LOW_CONF = 2;
 /** @typedef {'llm-timeout'|'parse-error'|'low-confidence'|'contradicts-existing'} FailureReason */
 
 class StructuralAbstraction {
-  static containerConfig = {
-    name: 'structuralAbstraction',
-    phase: 9,
-    deps: [],
-    tags: ['cognitive', 'learning', 'abstraction'],
-    lateBindings: [
-      { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
-    ],
-  };
-
   /**
    * @param {{ bus?: object, config?: object }} opts
    */

@@ -1,3 +1,41 @@
+## [7.2.2] — Solid Ground III: Orphan Cleanup
+
+**71 orphaned containerConfig blocks removed. 4 more silent features restored.**
+
+The v7.2.1 audit cleaned 11 orphaned `containerConfig` blocks. A deeper pass in v7.2.2 found **71 more** — all dead code, since every module is registered via manifest. Five of these orphans contained `lateBindings` that were NOT duplicated in the manifest, meaning the features they wired were silently dead.
+
+### Silent Features Restored
+
+- **`LLMPort._costGuard`** — Cost budget checks never activated. All LLM calls bypassed budget gates.
+- **`EmotionalSteering.bodySchema`** — Embodiment→steering feedback loop (v7.0.3 feature) never wired. `getEmbodimentModifiers()` always returned `{}`.
+- **`Metabolism.genome`** — Genome `consolidation` trait had no effect on metabolic regeneration rate.
+- **`AgentLoop._colonyOrchestrator`** — Colony delegation for plans with many steps never triggered (the `if (this._colonyOrchestrator && plan.steps.length > THRESHOLD)` branch was dead).
+
+### Log-Driven Fixes
+
+Boot log from user's machine revealed three issues caught by runtime validation:
+
+- **`chat:completed` missing `response` field** — `ChatOrchestrator` emitted the event with `response: undefined` when LLM circuit breaker opened mid-request. Added guard to never emit undefined payloads.
+- **`steering:model-escalation` schema mismatch** — Code sends `{frustration}`, schema required `{from, to}`. Event is a *signal* (frustration triggered threshold), not an actual model switch. Schema corrected.
+- **`ServiceRecovery` could not restart services** — Log showed `Recovery failed: llm — No container — cannot restart`. Root cause: `container` was never registered as a service, so `ServiceRecovery.container` was always null. Now registered via `c.registerInstance('container', c)`.
+
+### Cleanup
+
+- 71 orphaned `static containerConfig` blocks removed (one per source file)
+- All 4 missing `lateBindings` migrated into manifest files
+- 12 tests updated that asserted against the removed `containerConfig` properties
+- 1 stochastic test stabilized (`IdleMindResearch > prefers higher priority topics` — 100→1000 trials)
+
+### Stats
+
+- 80+ files changed
+- 4341 tests, 0 failures
+- 16 hash-locked files
+- Zero orphaned containerConfig blocks remaining
+- `lateBindings wired` count should increase by 4 at next boot
+
+---
+
 ## [7.2.1] — Binding Visibility
 
 **Silent feature failures are now visible. Every late-binding knows whether it should be there.**

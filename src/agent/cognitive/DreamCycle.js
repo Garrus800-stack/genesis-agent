@@ -33,18 +33,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('DreamCycle');
 
 class DreamCycle {
-  static containerConfig = {
-    name: 'dreamCycle',
-    phase: 9,
-    deps: ['episodicMemory', 'schemaStore', 'knowledgeGraph',
-           'metaLearning', 'model', 'eventStore', 'storage'],
-    tags: ['cognitive', 'consolidation'],
-    lateBindings: [
-      { prop: 'surpriseAccumulator', service: 'surpriseAccumulator', optional: true },
-      { prop: 'valueStore', service: 'valueStore', optional: true },
-    ],
-  };
-
   constructor({ bus, episodicMemory, schemaStore, knowledgeGraph,
                 metaLearning, model, eventStore, storage, intervals, config }) {
     this.bus = bus || NullBus;

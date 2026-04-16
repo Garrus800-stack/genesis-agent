@@ -54,17 +54,6 @@ const LAYER_PHASES = {
 };
 
 class ArchitectureReflection {
-
-  static containerConfig = {
-    name: 'architectureReflection',
-    phase: 9,
-    deps: ['selfModel'],
-    tags: ['cognitive', 'reflection', 'architecture'],
-    lateBindings: [
-      { prop: 'knowledgeGraph', service: 'knowledgeGraph', optional: true },
-    ],
-  };
-
   /**
    * @param {{ bus?: object, selfModel: object, config?: object }} opts
    */

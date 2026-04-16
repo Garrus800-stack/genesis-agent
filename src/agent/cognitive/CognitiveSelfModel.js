@@ -176,19 +176,6 @@ class CognitiveSelfModel {
 
     this.stats = { profileBuilds: 0, confidenceQueries: 0, biasScans: 0 };
   }
-
-  static containerConfig = {
-    name: 'cognitiveSelfModel',
-    phase: 9,
-    deps: ['bus'],
-    lateBindings: [
-      { prop: 'taskOutcomeTracker', service: 'taskOutcomeTracker', optional: true },
-      { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
-      { prop: 'reasoningTracer', service: 'reasoningTracer', optional: true },
-    ],
-    tags: ['cognitive', 'selfmodel', 'v6-11'],
-  };
-
   // ── Lifecycle ───────────────────────────────────────────
 
   boot() {

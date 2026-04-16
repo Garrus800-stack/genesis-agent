@@ -89,17 +89,6 @@ class TaskOutcomeTracker {
     /** @type {{ recorded: number, persisted: number, pruned: number }} */
     this.stats = { recorded: 0, persisted: 0, pruned: 0 };
   }
-
-  static containerConfig = {
-    name: 'taskOutcomeTracker',
-    phase: 9,
-    deps: ['bus'],
-    lateBindings: [
-      { prop: 'storage', service: 'storage', optional: true },
-    ],
-    tags: ['cognitive', 'learning', 'selfmodel'],
-  };
-
   // ── Lifecycle ───────────────────────────────────────────
 
   async asyncLoad() {

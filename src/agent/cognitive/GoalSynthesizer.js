@@ -40,19 +40,6 @@ const BOOTSTRAP_THRESHOLD = 20;
 const DEFAULT_MIN_CYCLES = 10;
 
 class GoalSynthesizer {
-  static containerConfig = {
-    name: 'goalSynthesizer',
-    phase: 9,
-    deps: [],
-    tags: ['cognitive', 'autonomy', 'goals'],
-    lateBindings: [
-      { prop: 'selfModel', service: 'cognitiveSelfModel', optional: true },
-      { prop: 'tracker', service: 'taskOutcomeTracker', optional: true },
-      { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
-      { prop: 'inferenceEngine', service: 'inferenceEngine', optional: true },
-    ],
-  };
-
   /**
    * @param {{ bus?: object, selfModel?: object, tracker?: object, lessonsStore?: object, config?: object, lessonCoverage?: object }} opts
    */

@@ -29,14 +29,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('MetaLearning');
 
 class MetaLearning {
-  static containerConfig = {
-    name: 'metaLearning',
-    phase: 4,
-    deps: ['storage'],
-    tags: ['intelligence', 'learning'],
-    lateBindings: [],
-  };
-
   constructor({ bus, storage, intervals }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

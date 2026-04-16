@@ -61,18 +61,6 @@ class SkillRegistry {
     /** @type {*} */
     this._settings = null;
   }
-
-  static containerConfig = {
-    name: 'skillRegistry',
-    phase: 3,
-    deps: ['bus'],
-    lateBindings: [
-      { prop: 'skillManager', service: 'skills', optional: true },
-      { prop: '_settings', service: 'settings', optional: true },
-    ],
-    tags: ['capabilities', 'skills', 'v6-6'],
-  };
-
   // ── Lifecycle ───────────────────────────────────────────
 
   async asyncLoad() {

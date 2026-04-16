@@ -97,19 +97,6 @@ class VectorClock {
 // ═══════════════════════════════════════════════════════════
 
 class PeerConsensus {
-  static containerConfig = {
-    name: 'peerConsensus',
-    phase: 5,
-    deps: ['storage', 'eventStore'],
-    tags: ['hexagonal', 'consensus', 'sync'],
-    lateBindings: [
-      { prop: 'network', service: 'network', optional: true },
-      { prop: 'settings', service: 'settings', optional: true },
-      { prop: 'knowledgeGraph', service: 'knowledgeGraph', optional: true },
-      { prop: 'schemaStore', service: 'schemaStore', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, eventStore, selfId, config }) {
     this.bus = bus || NullBus;
     this.storage = storage;

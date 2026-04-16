@@ -51,18 +51,6 @@ const THRESHOLDS = {
 };
 
 class EmotionalSteering {
-  static containerConfig = {
-    name: 'emotionalSteering',
-    phase: 7,
-    deps: ['emotionalState', 'storage'],
-    tags: ['organism', 'steering'],
-    lateBindings: [
-      { prop: 'modelRouter', service: 'modelRouter', optional: true },
-      { prop: 'needsSystem', service: 'needsSystem', optional: true },
-      { prop: 'bodySchema', service: 'bodySchema', optional: true },
-    ],
-  };
-
   constructor({ bus, emotionalState, storage, config, intervals }) {
     this.bus = bus || NullBus;
     this.emotions = emotionalState;

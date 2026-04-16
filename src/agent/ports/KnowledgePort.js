@@ -15,15 +15,6 @@ class KnowledgePort {
 }
 
 class KnowledgeGraphAdapter extends KnowledgePort {
-  static containerConfig = {
-    name: 'kg',
-    phase: 1,
-    deps: ['knowledgeGraph'],
-    tags: ['port', 'foundation'],
-    lateBindings: [],
-    factory: (c) => new KnowledgeGraphAdapter(c.resolve('knowledgeGraph')),
-  };
-
   constructor(knowledgeGraph) {
     super();
     this._kg = knowledgeGraph;

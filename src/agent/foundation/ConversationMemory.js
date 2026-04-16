@@ -55,8 +55,10 @@ class ConversationMemory {
       summary: summary || this._search.autoSummarize(conversation),
       topics: this._search.extractTopics(conversation),
       intents: this._search.extractIntents(conversation),
+      // v7.2.2: Guard against null/undefined content (tool calls, error responses).
+      // Shutdown was crashing with "Cannot read properties of null (reading 'slice')".
       lastExchange: conversation.length >= 2
-        ? conversation.slice(-2).map(m => ({ role: m.role, content: m.content.slice(0, 300) }))
+        ? conversation.slice(-2).map(m => ({ role: m.role, content: (m.content || '').slice(0, 300) }))
         : [],
     };
 

@@ -164,13 +164,6 @@ class FailureAnalyzer {
   }
 
   // ── Static container config (for DI) ────────────────────
-  static containerConfig = {
-    name: 'failureAnalyzer',
-    phase: 8,
-    deps: ['memory', 'knowledgeGraph', 'selfModel'],
-    tags: ['revolution', 'ci'],
-  };
-
   // ════════════════════════════════════════════════════════
   // PUBLIC API
   // ════════════════════════════════════════════════════════

@@ -26,14 +26,6 @@
 const { NullBus } = require('../core/EventBus');
 
 class ModelRouter {
-  static containerConfig = {
-    name: 'modelRouter',
-    phase: 8,
-    deps: ['model', 'metaLearning', 'worldState'],
-    tags: ['revolution', 'routing'],
-    lateBindings: [],
-  };
-
   constructor({ bus, modelBridge, metaLearning, worldState }) {
     this.bus = bus || NullBus;
     this.modelBridge = modelBridge;

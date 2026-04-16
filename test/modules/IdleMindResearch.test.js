@@ -119,14 +119,16 @@ describe('_pickResearchTopic', () => {
   });
 
   test('prefers higher priority topics', () => {
-    // Run 100 times and check that unfinished-work (1.4) appears more than weakness (1.1)
+    // Run 1000 times and check that unfinished-work (1.4) appears more than weakness (1.1)
+    // With priority 1.4 vs 1.1, expected ratio is 1.4/(1.4+1.1) = 56% vs 44%.
+    // At 100 trials, std-dev ~5 → fails ~5% of the time. At 1000 trials, std-dev ~1.5.
     const ctx = createResearchContext({
       unfinishedWorkFrontier: mockFrontierWriter([{ description: 'test' }]),
       cognitiveSelfModel: { getWeakestCapability: () => ({ taskType: 'debug' }) },
     });
 
     const counts = { 'unfinished-work': 0, weakness: 0 };
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 1000; i++) {
       const t = ctx._pickResearchTopic();
       if (t) counts[t.source]++;
     }

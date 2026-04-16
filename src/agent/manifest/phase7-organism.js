@@ -100,6 +100,9 @@ function phase7(ctx, R) {
         { prop: 'emotionalState', service: 'emotionalState', optional: true },
         { prop: 'needsSystem', service: 'needsSystem', optional: true },
         { prop: 'homeostasis', service: 'homeostasis', optional: true },
+        // v7.2.2: Migrated from orphaned containerConfig. Without this,
+        // genetic 'consolidation' trait had no effect on metabolism regen rate.
+        { prop: 'genome', service: 'genome', optional: true },
       ],
       factory: (c) => new (R('Metabolism').Metabolism)({
         bus, storage: c.resolve('storage'), intervals,

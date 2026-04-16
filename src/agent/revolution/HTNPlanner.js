@@ -21,13 +21,6 @@ const _log = createLogger('HTNPlanner');
 
 class HTNPlanner {
   // NOTE: containerConfig is informational only — registered via phase manifest.
-  static containerConfig = {
-    name: 'htnPlanner',
-    phase: 4,
-    deps: ['bus', 'storage', 'eventStore'],
-    tags: ['intelligence', 'planning'],
-  };
-
   /** @param {{ bus?: *, sandbox?: *, selfModel?: *, guard?: *, eventStore?: *, storage?: *, rootDir?: string }} [deps] */
   constructor({ bus, sandbox, selfModel, guard, eventStore, storage, rootDir } = {}) {
     this.bus = bus || NullBus;

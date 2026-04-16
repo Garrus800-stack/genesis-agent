@@ -57,6 +57,11 @@ class AgentCoreBoot {
     c.registerInstance('guard',   core.guard);
     c.registerInstance('bus',     this._bus);
 
+    // v7.2.2: Register container itself so services that need to resolve
+    // other services at runtime (e.g. ServiceRecovery for restart logic)
+    // can get it via late-binding.
+    c.registerInstance('container', c);
+
     // v7.0.1: Typed Event Facades — reduce direct EventBus coupling
     const { OrganismEvents }  = require('./organism/OrganismEvents');
     const { CognitiveEvents } = require('./cognitive/CognitiveEvents');

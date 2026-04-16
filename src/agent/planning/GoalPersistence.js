@@ -33,16 +33,6 @@ const ARCHIVE_MAX = 50;
 const GC_DAYS = 30;
 
 class GoalPersistence {
-  static containerConfig = {
-    name: 'goalPersistence',
-    phase: 4,
-    deps: ['storage', 'goalStack', 'eventStore'],
-    tags: ['planning', 'persistence'],
-    lateBindings: [
-      { prop: 'agentLoop', service: 'agentLoop', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, goalStack, eventStore, config }) {
     this.bus = bus || NullBus;
     this.storage = storage;

@@ -69,20 +69,6 @@ Rules:
 - Keep it simple, robust, and under 50 lines.`;
 
 class DynamicToolSynthesis {
-
-  static containerConfig = {
-    name: 'dynamicToolSynthesis',
-    phase: 9,
-    deps: ['storage'],
-    tags: ['cognitive', 'tools', 'synthesis'],
-    lateBindings: [
-      { prop: 'llm', service: 'llm', optional: true },
-      { prop: 'toolRegistry', service: 'toolRegistry', optional: true },
-      { prop: 'sandbox', service: 'sandbox', optional: true },
-      { prop: 'codeSafety', service: 'codeSafety', optional: true },
-    ],
-  };
-
   /**
    * @param {{ bus?: object, storage: object, config?: object }} opts
    */

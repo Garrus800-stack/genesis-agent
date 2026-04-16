@@ -89,17 +89,6 @@ const CAPABILITY_PATTERNS = [
 ];
 
 class FailureTaxonomy {
-  static containerConfig = {
-    name: 'failureTaxonomy',
-    phase: 2,
-    deps: ['eventStore'],
-    tags: ['intelligence', 'error-handling'],
-    lateBindings: [
-      { prop: 'modelRouter', service: 'modelRouter', optional: true },
-      { prop: 'worldState', service: 'worldState', optional: true },
-    ],
-  };
-
   constructor({ bus, eventStore, config }) {
     this.bus = bus || NullBus;
     this.eventStore = eventStore || null;

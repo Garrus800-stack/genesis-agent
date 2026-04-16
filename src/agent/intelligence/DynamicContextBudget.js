@@ -51,16 +51,6 @@ const DEFAULT_PROFILES = {
 };
 
 class DynamicContextBudget {
-  static containerConfig = {
-    name: 'dynamicContextBudget',
-    phase: 2,
-    deps: ['storage'],
-    tags: ['intelligence', 'context'],
-    lateBindings: [
-      { prop: 'metaLearning', service: 'metaLearning', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

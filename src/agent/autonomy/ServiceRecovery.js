@@ -67,17 +67,6 @@ class ServiceRecovery {
     this._unsubs = [];
   }
 
-  static containerConfig = {
-    name: 'serviceRecovery',
-    phase: 7,
-    deps: ['bus'],
-    lateBindings: [
-      { prop: 'container', service: 'container', optional: true },
-      { prop: 'healthMonitor', service: 'healthMonitor', optional: true },
-    ],
-    tags: ['autonomy', 'recovery'],
-  };
-
   // ── Lifecycle ──────────────────────────────────────────
 
   boot() {

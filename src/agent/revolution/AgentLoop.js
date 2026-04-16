@@ -50,16 +50,6 @@ const _log = createLogger('AgentLoop');
 
 class AgentLoop {
   // ModuleRegistry auto-discovery config
-  static containerConfig = {
-    name: 'agentLoop',
-    phase: 8,
-    deps: ['model', 'goalStack', 'sandbox', 'selfModel', 'memory', 'knowledgeGraph', 'tools', 'eventStore', 'shellAgent', 'selfModPipeline', 'storage'],
-    tags: ['revolution', 'autonomy'],
-    lateBindings: [
-      { prop: '_colonyOrchestrator', service: 'colonyOrchestrator', optional: true },
-    ],
-  };
-
   constructor({
     bus, model, goalStack, sandbox, selfModel, memory, knowledgeGraph,
     tools, guard, eventStore, shellAgent, selfModPipeline, lang,

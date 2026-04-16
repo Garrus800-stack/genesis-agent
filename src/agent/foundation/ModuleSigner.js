@@ -29,14 +29,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('ModuleSigner');
 
 class ModuleSigner {
-  static containerConfig = {
-    name: 'moduleSigner',
-    phase: 1,
-    deps: ['storage'],
-    tags: ['foundation', 'security'],
-    lateBindings: [],
-  };
-
   constructor({ bus, storage, guard, rootDir }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

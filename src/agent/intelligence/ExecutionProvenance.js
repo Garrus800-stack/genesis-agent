@@ -48,17 +48,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('Provenance');
 
 class ExecutionProvenance {
-
-  static containerConfig = {
-    name: 'executionProvenance',
-    phase: 2,
-    deps: [],
-    tags: ['intelligence', 'observability', 'provenance'],
-    lateBindings: [
-      { prop: 'cognitiveBudget', service: 'cognitiveBudget', optional: true },
-    ],
-  };
-
   /**
    * @param {{ bus?: object, config?: object }} opts
    */

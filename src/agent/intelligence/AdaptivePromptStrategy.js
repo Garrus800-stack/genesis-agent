@@ -57,18 +57,6 @@ const SKIP_THRESHOLD  = -0.02;  // Section doesn't help and adds tokens → reco
 const SIGNIFICANT_THRESHOLD = 0.05; // Must be ≥5pp to be significant
 
 class AdaptivePromptStrategy {
-
-  static containerConfig = {
-    name: 'adaptivePromptStrategy',
-    phase: 2,
-    deps: [],
-    tags: ['intelligence', 'optimization', 'adaptive'],
-    lateBindings: [
-      { prop: '_provenance', service: 'executionProvenance', optional: true },
-      { prop: '_storage', service: 'storage', optional: true },
-    ],
-  };
-
   /** @param {{ bus?: *, config?: * }} [deps] */
   constructor({ bus, config } = {}) {
     this.bus = bus || { emit() {}, on() { return () => {}; } };

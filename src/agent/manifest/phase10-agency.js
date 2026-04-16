@@ -84,6 +84,9 @@ function phase10(ctx, R) {
       lateBindings: [
         { prop: 'modelRouter', service: 'modelRouter', optional: true },
         { prop: 'needsSystem', service: 'needsSystem', optional: true },
+        // v7.2.2: Migrated from orphaned containerConfig. Without this,
+        // embodiment→steering feedback loop was silently dead (v7.0.3 feature).
+        { prop: 'bodySchema', service: 'bodySchema', optional: true },
       ],
       factory: (c) => new (R('EmotionalSteering').EmotionalSteering)({
         bus, intervals,

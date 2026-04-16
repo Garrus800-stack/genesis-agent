@@ -159,17 +159,6 @@ class LLMPort {
 // Wraps ModelBridge. Adds: metrics, rate limiting, events.
 
 class ModelBridgeAdapter extends LLMPort {
-  static containerConfig = {
-    name: 'llm',
-    phase: 1,
-    deps: ['model'],
-    tags: ['port', 'foundation'],
-    lateBindings: [
-      { prop: '_costGuard', service: 'costGuard', optional: true },
-    ],
-    factory: (c) => new ModelBridgeAdapter(c.resolve('model'), c.resolve('bus')),
-  };
-
   constructor(modelBridge, bus) {
     super();
     this._bridge = modelBridge;

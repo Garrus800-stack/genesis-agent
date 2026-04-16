@@ -62,16 +62,6 @@ function wilsonLower(successes, total, z = 1.96) {
 }
 
 class EarnedAutonomy {
-  static containerConfig = {
-    name: 'earnedAutonomy',
-    phase: 11,
-    deps: ['storage'],
-    tags: ['autonomy', 'trust'],
-    lateBindings: [
-      { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
-    ],
-  };
-
   constructor({ bus, storage, config }) {
     this.bus = bus || NullBus;
     /** @type {Function[]} */ this._unsubs = [];

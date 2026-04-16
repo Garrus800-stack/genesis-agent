@@ -33,17 +33,6 @@ const { TIMEOUTS } = require('../core/Constants');
 const _log = createLogger('VectorMemory');
 
 class VectorMemory {
-  static containerConfig = {
-    name: 'vectorMemory',
-    phase: 8,
-    deps: ['storage'],
-    tags: ['revolution', 'memory'],
-    // NOTE: lateBindings removed — VectorMemory is registered via phase8 manifest,
-    // not via ModuleRegistry auto-discovery. Injection into consumers (promptBuilder etc.)
-    // is handled by the consumers' own lateBindings declarations.
-    optional: true, // Works without embeddings, just less effective
-  };
-
   constructor({ bus, storage, embeddingService, storageDir }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

@@ -28,17 +28,6 @@ const { NullBus } = require('../core/EventBus');
 const WORKER_SCRIPT = path.join(__dirname, '_self-worker.js');
 
 class SelfSpawner {
-  static containerConfig = {
-    name: 'selfSpawner',
-    phase: 8,
-    deps: ['storage', 'eventStore'],
-    tags: ['capabilities', 'autonomy'],
-    lateBindings: [
-      { prop: 'model', service: 'model', optional: true },
-    ],
-    optional: true,
-  };
-
   constructor({ bus, storage, eventStore, rootDir, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

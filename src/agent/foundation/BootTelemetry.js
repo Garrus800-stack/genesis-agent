@@ -20,14 +20,6 @@ const _log = createLogger('BootTelemetry');
 const MAX_HISTORY = 100;
 
 class BootTelemetry {
-  static containerConfig = {
-    name: 'telemetry',
-    phase: 1,
-    deps: [],
-    tags: ['monitoring'],
-    lateBindings: [],
-  };
-
   constructor({ storage, bus, enabled = false }) {
     this.storage = storage;
     this.bus = bus;

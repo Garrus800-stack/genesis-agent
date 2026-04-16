@@ -31,14 +31,6 @@ const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('EmbodiedPerception');
 
 class EmbodiedPerception {
-  static containerConfig = {
-    name: 'embodiedPerception',
-    phase: 7,
-    deps: [],
-    tags: ['organism', 'embodiment', 'perception', 'sa-p4'],
-    lateBindings: [],
-  };
-
   constructor({ bus, config }) {
     this.bus = bus || NullBus;
 

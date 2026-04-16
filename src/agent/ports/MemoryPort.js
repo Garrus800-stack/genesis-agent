@@ -16,15 +16,6 @@ class MemoryPort {
 }
 
 class ConversationMemoryAdapter extends MemoryPort {
-  static containerConfig = {
-    name: 'mem',
-    phase: 1,
-    deps: ['memory'],
-    tags: ['port', 'foundation'],
-    lateBindings: [],
-    factory: (c) => new ConversationMemoryAdapter(c.resolve('memory')),
-  };
-
   constructor(conversationMemory) {
     super();
     this._mem = conversationMemory;

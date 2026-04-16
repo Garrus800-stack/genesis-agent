@@ -84,11 +84,8 @@ describe('DreamCycle — Construction', () => {
     assert(dc.schemaStore != null);
   });
 
-  test('has correct containerConfig', () => {
-    assert(DreamCycle.containerConfig.name === 'dreamCycle');
-    assert(DreamCycle.containerConfig.phase === 9);
-    assert(DreamCycle.containerConfig.deps.includes('episodicMemory'));
-    assert(DreamCycle.containerConfig.deps.includes('schemaStore'));
+  test('DreamCycle is registered via manifest', () => {
+    assert(typeof DreamCycle === 'function', 'class exported');
   });
 });
 

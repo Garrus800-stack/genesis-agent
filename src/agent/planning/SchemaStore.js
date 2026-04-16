@@ -28,14 +28,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('SchemaStore');
 
 class SchemaStore {
-  static containerConfig = {
-    name: 'schemaStore',
-    phase: 4,
-    deps: ['storage'],
-    tags: ['intelligence', 'memory', 'cognitive'],
-    lateBindings: [],
-  };
-
   constructor({ bus, storage, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;

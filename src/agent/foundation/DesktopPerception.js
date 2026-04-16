@@ -41,14 +41,6 @@ function getChokidar() {
 }
 
 class DesktopPerception {
-  static containerConfig = {
-    name: 'desktopPerception',
-    phase: 1,
-    deps: ['worldState'],
-    tags: ['foundation', 'perception'],
-    lateBindings: [],
-  };
-
   constructor({ bus, worldState, rootDir, intervals }) {
     this.bus = bus || NullBus;
     this.worldState = worldState;

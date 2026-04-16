@@ -28,14 +28,6 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('MultiFileRefactor');
 
 class MultiFileRefactor {
-  static containerConfig = {
-    name: 'multiFileRefactor',
-    phase: 7,
-    deps: ['selfModel', 'model', 'sandbox', 'eventStore'],
-    tags: ['revolution', 'self-modification'],
-    lateBindings: [],
-  };
-
   constructor({ bus, selfModel, model, sandbox, guard, eventStore, rootDir, astDiff }) {
     this.bus = bus || NullBus;
     this.selfModel = selfModel;

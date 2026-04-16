@@ -45,17 +45,6 @@ const CATEGORIES = {
 };
 
 class ProjectIntelligence {
-
-  static containerConfig = {
-    name: 'projectIntelligence',
-    phase: 9,
-    deps: ['storage'],
-    tags: ['cognitive', 'project', 'analysis'],
-    lateBindings: [
-      { prop: 'selfModel', service: 'selfModel', optional: true },
-    ],
-  };
-
   /**
    * @param {{ bus?: object, storage: object, config?: object }} opts
    */

@@ -40,16 +40,6 @@ const AMBIGUOUS = 'ambiguous';
 const WARN = 'warn';
 
 class VerificationEngine {
-  static containerConfig = {
-    name: 'verifier',
-    phase: 2,
-    deps: [],
-    tags: ['intelligence', 'verification'],
-    lateBindings: [
-      { prop: 'worldState', service: 'worldState', optional: true },
-    ],
-  };
-
   constructor({ bus, rootDir }) {
     this.bus = bus || NullBus;
     this.rootDir = rootDir;

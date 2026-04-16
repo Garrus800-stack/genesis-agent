@@ -50,6 +50,10 @@ function phase8(ctx, R) {
         { prop: 'worldState', service: 'worldState', optional: true, expectedActive: true },
         { prop: 'episodicMemory', service: 'episodicMemory', optional: true },
         { prop: 'metaLearning', service: 'metaLearning', optional: true },
+        // v7.2.2: Migrated from orphaned containerConfig. Without this,
+        // colony delegation for plans with many steps (>_COLONY_STEP_THRESHOLD)
+        // was silently dead — feature existed but never triggered.
+        { prop: '_colonyOrchestrator', service: 'colonyOrchestrator', optional: true },
         // Phase 9: Cognitive Architecture (optional — graceful degradation)
         { prop: 'expectationEngine', service: 'expectationEngine', optional: true },
         { prop: 'mentalSimulator', service: 'mentalSimulator', optional: true },
