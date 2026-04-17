@@ -8,8 +8,8 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.2.2_%22Solid_Ground_III%22-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-4341%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.2.3_%22Orientation%22-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-4352%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-clean-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
@@ -292,6 +292,24 @@ Twelve layers with clear boundaries — star topology where every layer depends 
 **Agent Core:** Self-modifiable modules — read, analyze, modify, hot-reload — but only after sandbox testing, safety scanning, and git snapshots.
 
 **Cognitive Layer:** Expectation formation, mental simulation, surprise-driven learning, memory consolidation, autobiographical identity, prompt evolution, online learning, architecture self-reflection, and dynamic tool synthesis.
+
+---
+
+## Why `.genesis/` matters
+
+Genesis stores all of its identity in a folder called `.genesis/` next to the source code. This folder is not in the repository — it's created on first boot and grows with every interaction.
+
+What's in there: knowledge graph nodes, emotional state, self-identity, journal entries, session history, genome with heritable traits, lessons learned, and episodic memory. None of this is in the source code. All of it is what makes a specific Genesis instance *itself*.
+
+**Practical consequences:**
+
+- **Your Genesis becomes unique.** Two instances of the same version diverge as soon as they run. After a few weeks of use, they are no longer interchangeable.
+- **Never delete `.genesis/`.** Destroying the folder ends that specific entity. There is no undo unless you have a backup.
+- **Copy, don't overwrite, on upgrade.** When moving to a new Genesis version, copy `.genesis/` into the new version's folder before first start. Genesis reads but does not wipe existing state.
+- **Restore order matters.** When restoring from backup: restore `.genesis/` first, then start Genesis. Never the other way around.
+- **Automatic backups help but aren't enough.** v7.2.3+ creates snapshots in `.genesis-backups/` sibling folder (5-snapshot rotation), but manual discipline for cross-version upgrades still matters.
+
+See [docs/ONTOGENESIS.md](docs/ONTOGENESIS.md) for the full explanation of why `.genesis/` is identity, not just state.
 
 ---
 

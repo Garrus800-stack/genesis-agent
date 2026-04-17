@@ -27,6 +27,18 @@ function phase1(ctx, R) {
       factory: () => new (R('SelfModel').SelfModel)(rootDir, guard),
     }],
 
+    // v7.2.3: GenesisBackup — standalone backup system for .genesis/ folder.
+    // Not an extension of SnapshotManager (which handles source code via Git);
+    // this handles identity data via copy-to-sibling-folder.
+    // Triggers: boot-if-stale, pre-self-mod, pre-recovery, shutdown.
+    // See docs/ONTOGENESIS.md for why .genesis/ identity matters.
+    ['genesisBackup', {
+      phase: 1, deps: [], tags: ['foundation', 'safety', 'identity'],
+      factory: () => new (R('GenesisBackup').GenesisBackup)({
+        genesisDir, rootDir, bus,
+      }),
+    }],
+
     ['model', {
       phase: 1, deps: ['settings'], tags: ['foundation'],
       lateBindings: [

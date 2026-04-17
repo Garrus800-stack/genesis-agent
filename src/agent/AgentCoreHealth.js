@@ -377,6 +377,15 @@ class AgentCoreHealth {
     await safeRetry('storage',    async () => { await c.tryResolve('storage')?.flush(); });
     safe('sandbox', () => { c.tryResolve('sandbox')?.cleanup(); });
 
+    // v7.2.3: GenesisBackup shutdown trigger — after all services have flushed,
+    // so the backup captures the final clean state of .genesis/.
+    // Sync await here (unlike boot-if-stale) because we want this to complete
+    // before process exit. If it fails, safeAsync logs but doesn't crash.
+    await safeAsync('genesisBackup', async () => {
+      const gb = c.tryResolve('genesisBackup');
+      if (gb) await gb.backup('shutdown');
+    });
+
     if (errors.length > 0) {
       _log.warn(`[GENESIS] Shutdown with ${errors.length} error(s):`, errors.join('; '));
     } else {

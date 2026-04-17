@@ -377,6 +377,18 @@ Antworte ehrlich und spezifisch in der Sprache des Users. Keine Modullisten.`;
     this._gateStats.passed++;
     this.bus.emit('agent:status', { state: 'self-modifying' }, { source: 'SelfModPipeline' });
 
+    // v7.2.3: Pre-self-mod backup. Snapshot .genesis/ before any writes.
+    // If backup fails, we continue anyway — self-mod has its own safety gates
+    // (PreservationInvariants, SnapshotManager rollback). But the backup
+    // provides an additional safety net specifically for .genesis/ data.
+    if (this._genesisBackup) {
+      try {
+        await this._genesisBackup.backup('pre-self-mod');
+      } catch (err) {
+        _log.debug('[SELFMOD] Pre-self-mod backup failed (non-fatal):', err.message);
+      }
+    }
+
     // Detect target file from message
     const fileMatch = message.match(/(?:in|bei|datei)\s+(\S+\.js)/i);
     const targetFile = fileMatch?.[1] || null;

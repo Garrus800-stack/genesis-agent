@@ -73,6 +73,8 @@ function phase5(ctx, R) {
         // v7.2.0: IdleMind + Storage — for self-reflect handler
         { prop: '_idleMind', service: 'idleMind', optional: true, expects: ['getStatus', 'readJournal'] },
         { prop: '_storage', service: 'storage', optional: true },
+        // v7.2.3: GenesisBackup — snapshot .genesis/ before self-modification writes
+        { prop: '_genesisBackup', service: 'genesisBackup', optional: true, expects: ['backup'] },
       ],
       factory: (c) => {
         const { lang } = R('Language');

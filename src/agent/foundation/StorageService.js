@@ -85,13 +85,21 @@ class StorageService {
     } catch (_e) { _log.debug('[STORAGE] Checksum save failed:', _e.message); }
   }
 
-  /** Update checksum for a file after successful write */
+  /** Update checksum for a file after successful write.
+   *  v7.2.3: Sync instead of debounced. The previous 2s debounce was a
+   *  performance optimization with an unacceptable cost: if the process
+   *  exited (crash or shutdown) before the timer fired, the on-disk hash
+   *  stayed stale → next boot saw a bogus integrity mismatch → users
+   *  learned to ignore the integrity guard that v7.1.9 introduced.
+   *
+   *  Sync checksums are <1ms for typical .genesis/ files. That's cheaper
+   *  than the debounce bookkeeping we removed. Integrity warnings are now
+   *  meaningful again: if the guard fires, the corruption is real. */
   _updateChecksum(filename, jsonStr) {
     try {
       const hash = require('crypto').createHash('sha256').update(jsonStr).digest('hex');
       this._checksums.set(filename, hash);
-      if (this._checksumTimer) clearTimeout(this._checksumTimer);
-      this._checksumTimer = setTimeout(() => this._saveChecksums(), 2000);
+      this._saveChecksums();
     } catch (_e) { /* best-effort */ }
   }
 
@@ -471,6 +479,9 @@ class StorageService {
       for (const [, p] of this._writeQueue) drains.push(p.catch(() => { /* best effort */ }));
       if (drains.length > 0) await Promise.all(drains);
       this._writeQueue.clear();
+
+      // v7.2.3: Checksum updates are now synchronous (see _updateChecksum),
+      // so no checksum timer to drain here. Removed obsolete drain code.
     } finally {
       this._flushing = false;
     }

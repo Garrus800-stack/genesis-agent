@@ -82,7 +82,7 @@ class AgentCore {
       const { BootRecovery }   = require('./foundation/BootRecovery');
       const { SnapshotManager }= require('./capabilities/SnapshotManager');
       const snapshotMgr = new SnapshotManager({ rootDir: this.rootDir, storage: null, guard: this.guard });
-      this._bootRecovery = new BootRecovery({ genesisDir: this.genesisDir, snapshotManager: snapshotMgr });
+      this._bootRecovery = new BootRecovery({ genesisDir: this.genesisDir, snapshotManager: snapshotMgr, rootDir: this.rootDir });
       recoveryResult = this._bootRecovery.preBootCheck();
       if (recoveryResult.recovered) {
         _log.warn(`[GENESIS] Recovered from crash — restored snapshot "${recoveryResult.snapshot}"`);

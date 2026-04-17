@@ -332,6 +332,16 @@ class SelfModel {
       await execFileAsync('git', ['add', '-A'], _gitOpts(this.rootDir));
       await execFileAsync('git', ['commit', '-m', String(message), '--allow-empty'], _gitOpts(this.rootDir));
     } catch (err) {
+      // v7.2.3: Filter benign Git housekeeping output.
+      // Git's `gc --auto` can trigger during commit and emit "Auto packing"
+      // on stderr with a non-zero exit code, even though the commit itself
+      // succeeded. That's Git being loud about housekeeping, not a failure.
+      // Without this filter, every shutdown logged a WARN for a success.
+      const stderr = err.stderr || '';
+      if (stderr.includes('Auto packing') || stderr.includes('git help gc')) {
+        _log.debug('[SELF-MODEL] Git housekeeping notice (commit likely succeeded):', stderr.trim().slice(0, 100));
+        return;
+      }
       _log.warn('[SELF-MODEL] Git commit failed:', err.message);
     }
   }

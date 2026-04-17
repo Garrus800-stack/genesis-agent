@@ -443,6 +443,20 @@ class AgentCoreBoot {
     core.intervals.register('health-full', () => core._health._periodicHealthCheck(), INTERVALS.HEALTH_FULL);
     core.intervals.register('health-push', () => core._health._pushHealthTick(),      INTERVALS.HEALTH_PUSH);
 
+    // v7.2.3: GenesisBackup boot-if-stale trigger.
+    // Async, non-blocking — we don't want to delay boot for a 24h stale check.
+    // If a backup is already running (from another trigger), this call returns fast.
+    if (c.has('genesisBackup')) {
+      setImmediate(async () => {
+        try {
+          const gb = c.resolve('genesisBackup');
+          await gb.backupIfStale('boot-if-stale');
+        } catch (err) {
+          _log.debug('[BACKUP] boot-if-stale error:', err.message);
+        }
+      });
+    }
+
     // Boot event
     c.resolve('eventStore').append('SYSTEM_BOOT', {
       duration: Date.now() - core._bootStart,

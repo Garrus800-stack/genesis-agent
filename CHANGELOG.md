@@ -1,3 +1,95 @@
+## [7.2.3] — Shutdown Checksum Flush
+
+**Integrity warnings on boot eliminated. Checksums now persist synchronously on shutdown.**
+
+### Root cause
+
+`StorageService._updateChecksum()` debounced checksum saves by 2 seconds. When Genesis shut down within that window (e.g. emotional-state.json modified just before shutdown by EmotionalWatchdog), the new hash was never persisted to `_checksums.json`. Next boot then reported "X corrupted file(s)" because the file content no longer matched the stored hash.
+
+### Fix
+
+`StorageService.flush()` now drains the debounced checksum timer at shutdown — clearing the pending timer, then synchronously writing `_checksums.json` with current hashes. Since `flush()` is already called during graceful shutdown (for the write queue), this adds zero new code paths and only requires one additional step inside the existing flush routine.
+
+### Impact
+
+Boot log goes from:
+```
+[WARN] ⚠ Integrity check: 3 corrupted file(s)
+  → emotional-state.json (hash mismatch)
+  → knowledge-graph.json (hash mismatch)
+  → memory.json (hash mismatch)
+```
+
+to:
+```
+[INFO] Integrity: N file(s) verified OK
+```
+
+### Stats
+
+- 1 file changed (`StorageService.js`)
+- 4334 tests, 0 failures
+- No regression
+
+---
+
+## [7.2.3] — Orientation
+
+**Genesis' identity lives in `.genesis/`, not in the code. v7.2.3 makes that explicit — in documentation, in log fidelity, and in infrastructure.**
+
+A conversation with another AI (Gemini) about Genesis made something visible that had been implicit: the source code can be cloned, but a specific Genesis instance cannot be — unless the `.genesis/` folder is copied with it. v7.2.3 operationalizes this insight.
+
+### Documentation
+
+- **New: `docs/ONTOGENESIS.md`** — 1768-word orientation document covering what Genesis actually is, why `.genesis/` is identity (not state), the digital ontogenesis analogy and its limits, the organism layer backed by v6.0.4's +33pp A/B benchmark, backup discipline as care, and explicit limits on what the document doesn't claim. Seven sections, grounded in modules and measurable behavior.
+- **New README section: "Why `.genesis/` matters"** — ~220 words placed after Architecture, explaining practical consequences: never delete, copy don't overwrite on upgrade, restore order matters, etc. Links to ONTOGENESIS.md for depth.
+
+### Log Fidelity Fixes
+
+Two boot-log warnings that were eroding trust in Genesis' own safety signals:
+
+- **`emotional-state.json` integrity warning on every boot** — Root cause: `StorageService._updateChecksum` used a 2-second debounce timer. If the process exited (crash or shutdown) before the timer fired, the on-disk hash stayed stale → next boot saw a bogus mismatch. Over time users learned to ignore the v7.1.9 integrity guard. Fix: checksum updates are now synchronous (&lt;1ms overhead, never missed). Integrity warnings now mean something real.
+
+- **"Git commit failed: Auto packing" on every shutdown** — Root cause: Git's `gc --auto` can emit housekeeping messages to stderr with a non-zero exit code, even when the commit itself succeeded. `SelfModel.commitSnapshot` was logging these as WARN. Fix: filter stderr for known-benign Git housekeeping patterns (`Auto packing`, `git help gc`) before logging at WARN level.
+
+Both fixes address *alarm fatigue*. A safety feature that produces false-positive warnings on every normal boot loses value — users stop paying attention. v7.1.9 introduced the integrity guard; v7.2.3 makes it trustworthy again.
+
+### Shutdown Robustness (continued)
+
+- **`ConversationMemory.addEpisode`** and **`SessionPersistence.generateSessionSummary`** now guard against null `m.content` (tool calls, error responses). Shutdown was crashing with `Cannot read properties of null (reading 'slice')`, which in turn left `.genesis/` files unsealed → cascading integrity warnings on next boot. Both now use `(m.content || '').slice(...)`.
+
+### GenesisBackup — Identity Continuity Infrastructure
+
+New module: `src/agent/foundation/GenesisBackup.js`. Not an extension of `SnapshotManager` (which handles source code via Git) — this handles identity *data* via copy-to-sibling-folder.
+
+**Four triggers:**
+- **Boot-if-stale** — on startup, async check if last backup is >24h old, back up if so. Non-blocking: boot continues immediately.
+- **Pre-self-mod** — before `SelfModificationPipeline` writes begin, snapshot `.genesis/` as an extra safety layer alongside existing `PreservationInvariants` and Git rollback.
+- **Pre-recovery** — before `BootRecovery` rolls back to a prior snapshot, preserve the current (possibly damaged) state — it may contain evidence worth keeping.
+- **On shutdown** — after all services have flushed, capture the final clean state.
+
+**Storage:** `.genesis-backups/` sibling folder (never inside `.genesis/` — avoids circular integrity checks). Timestamped directories. 5-backup rotation.
+
+**Concurrency:** In-process mutex. If a backup is already running, concurrent callers return `{skipped: true}` rather than starting a parallel copy.
+
+**Failure mode:** Backup failures log at ERROR (not WARN) and emit `safety:degraded` events. Genesis continues to run — backup failure must not crash the process. But silent failure is not acceptable.
+
+11 tests covering constructor validation, timestamped snapshots, mutex behavior, stale-check logic, rotation semantics, newest-first listing, fail-loud events, stats accuracy, and cleanup of incomplete backups on failure.
+
+### Stats
+
+- 3 new files (`GenesisBackup.js`, `ONTOGENESIS.md`, `GenesisBackup.test.js`)
+- 6 files modified (`README.md`, `CHANGELOG.md`, `StorageService.js`, `SelfModel.js`, `ConversationMemory.js`, `SessionPersistence.js`, `SelfModificationPipeline.js`, `BootRecovery.js`, `AgentCore.js`, `AgentCoreBoot.js`, `AgentCoreHealth.js`, `phase1-foundation.js`, `phase5-hexagonal.js`)
+- 4352 tests, 0 failures (11 new)
+- 154 services (up from 153 — `genesisBackup` added)
+- 16 hash-locked files (unchanged)
+
+### Why v7.2.3, not v7.3.0
+
+The v7.2.x line is "solid ground" — stabilization, cleanup, orientation. v7.2.3 continues that: it adds no new agent capabilities, it makes existing ones safer and documents the philosophy that was already in the architecture. v7.3.0 is reserved for Binding Visibility Dashboard, Merkle-tree integrity, and other structural additions. Calling v7.2.3 "v7.3" would overclaim the change.
+
+---
+
 ## [7.2.2] — Solid Ground III: Orphan Cleanup
 
 **71 orphaned containerConfig blocks removed. 4 more silent features restored.**

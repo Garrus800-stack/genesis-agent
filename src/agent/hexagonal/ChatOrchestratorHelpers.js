@@ -97,7 +97,7 @@ const helpers = {
 
     // Semantic pruning: score each message by relevance to recent conversation
     const lastUserMsg = [...this.history].reverse().find(m => m.role === 'user');
-    const queryWords = lastUserMsg
+    const queryWords = lastUserMsg?.content
       ? new Set(lastUserMsg.content.toLowerCase().replace(/[^a-zäöüß0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2))
       : new Set();
 
@@ -112,14 +112,18 @@ const helpers = {
     // Score middle messages by relevance
     const scored = this.history.map((msg, idx) => {
       if (protected_.has(idx)) return { msg, idx, score: Infinity };
-      const words = msg.content.toLowerCase().replace(/[^a-zäöüß0-9\s]/g, '').split(/\s+/);
+      // v7.2.3: Guard against null content (tool calls, error responses).
+      // Without this, _trimHistory crashes with "Cannot read properties of null
+      // (reading 'toLowerCase')" and blocks the entire chat channel.
+      const content = msg.content || '';
+      const words = content.toLowerCase().replace(/[^a-zäöüß0-9\s]/g, '').split(/\s+/);
       let score = 0;
       // Relevance to current query
       for (const w of words) { if (queryWords.has(w)) score += 2; }
       // Recency bonus (newer = higher)
       score += (idx / this.history.length) * 3;
       // Code blocks and errors are important
-      if (msg.content.includes('```') || msg.content.includes('Error')) score += 3;
+      if (content.includes('```') || content.includes('Error')) score += 3;
       return { msg, idx, score };
     });
 

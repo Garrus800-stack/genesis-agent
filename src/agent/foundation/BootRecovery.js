@@ -27,9 +27,10 @@ const SENTINEL_FILE = 'boot-sentinel.json';
 const MAX_CRASH_RECOVERIES = 3; // After 3 failed recoveries, boot clean
 
 class BootRecovery {
-  constructor({ genesisDir, snapshotManager }) {
+  constructor({ genesisDir, snapshotManager, rootDir }) {
     this._genesisDir = genesisDir;
     this._snapshotManager = snapshotManager;
+    this._rootDir = rootDir || null; // v7.2.3: for direct GenesisBackup instantiation
     this._sentinelPath = path.join(genesisDir, SENTINEL_FILE);
   }
 
@@ -84,6 +85,28 @@ class BootRecovery {
       try {
         this._snapshotManager.create(`_crash_recovery_${Date.now()}`);
       } catch (_e) { /* best effort */ }
+
+      // v7.2.3: Pre-recovery backup of .genesis/ data.
+      // Even though we're about to restore from a good snapshot, the current
+      // (possibly damaged) .genesis/ state might contain evidence worth keeping —
+      // recent journal entries, emotional imprints, error patterns. Snapshot it
+      // before the restore overwrites anything.
+      // Direct instantiation because DI container is not yet built at this phase.
+      if (this._rootDir) {
+        try {
+          const { GenesisBackup } = require('./GenesisBackup');
+          const gb = new GenesisBackup({
+            genesisDir: this._genesisDir,
+            rootDir: this._rootDir,
+          });
+          // Sync-await: we want the backup to complete before restore overwrites
+          gb.backup('pre-recovery').catch(err => {
+            _log.debug('[RECOVERY] Pre-recovery backup failed (non-fatal):', err.message);
+          });
+        } catch (err) {
+          _log.debug('[RECOVERY] Pre-recovery backup init failed:', err.message);
+        }
+      }
 
       // Restore the good snapshot
       const result = this._snapshotManager.restore(goodSnapshot.name);
