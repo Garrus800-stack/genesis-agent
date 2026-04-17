@@ -8,8 +8,8 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.2.3_%22Orientation%22-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-4352%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.2.4_%22Signal_Fidelity%22-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-4335%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-clean-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
@@ -82,7 +82,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Cognition & awareness** — ExpectationEngine (quantitative predictions), SurpriseAccumulator (information-theoretic), AwarenessPort (lightweight coherence gating for self-modification), CognitiveWorkspace (9-slot transient working memory), ArchitectureReflection (live queryable self-model of own architecture), DynamicToolSynthesis (generates new tools on demand via LLM + sandbox).
 
-**Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (7 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). Emotional-cognitive bridge: EmotionalSteering signals flow into AdaptiveStrategy (v7.1.7). **Empirically validated: +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4, kimi-k2.5:cloud).
+**Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (7 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). Emotional-cognitive bridge: EmotionalSteering signals flow into AdaptiveStrategy (v7.1.7). **Empirically validated: +16pp to +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4–v7.2.3, kimi-k2.5:cloud).
 
 **Infrastructure** — 12-phase DI boot, EventBus (385 event types, 364 schemas), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 semantic safety rules), 16 hash-locked files, DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
 
@@ -620,6 +620,7 @@ No LangChain. No LlamaIndex. Everything self-written.
 | Document | What it covers |
 |---|---|
 | [QUICK-START.md](docs/QUICK-START.md) | **Start here** — first conversation, first goal, self-modification, boot profiles |
+| [ONTOGENESIS.md](docs/ONTOGENESIS.md) | Why `.genesis/` is identity — digital ontogenesis, backup discipline, non-replicability |
 | [ARCHITECTURE-DEEP-DIVE.md](docs/ARCHITECTURE-DEEP-DIVE.md) | Technical deep-dive — boot sequence, DI container, service lifecycle, data flows |
 | [EVENT-FLOW.md](docs/EVENT-FLOW.md) | EventBus event map — which modules emit/consume which events |
 | [CAPABILITIES.md](docs/CAPABILITIES.md) | Complete feature overview — what Genesis can do, organized by category |

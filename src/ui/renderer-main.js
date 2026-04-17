@@ -69,30 +69,51 @@ async function onAgentReady(status) {
   await loadI18n();
   loadModels();
   try {
+    // v7.2.4: Use filesystem check for first-boot detection.
+    // Health data was unreliable due to IPC timing — facts/episodes/KG could
+    // all be 0 even after boot completed. The filesystem check reads .genesis/
+    // directly and doesn't depend on any service being loaded.
+    const bootCheck = await window.genesis.invoke('agent:is-first-boot');
+    const isFirstBoot = bootCheck?.firstBoot !== false;
+    console.debug('[UI] First boot check:', JSON.stringify(bootCheck));
+
+    if (isFirstBoot) {
+      addMessage('agent', t('welcome.first'));
+      return;
+    }
+
+    // Not first boot — get health data for the personalized greeting
     const health = await window.genesis.invoke('agent:get-health');
     const goals = await window.genesis.invoke('agent:get-goals');
     const activeGoals = (goals || []).filter(g => g.status === 'active');
-    const memFacts = health.memory?.facts || 0;
-    const thoughts = health.idleMind?.thoughtCount || 0;
+    const thoughts = health?.idleMind?.thoughtCount || 0;
+    const memFacts = health?.memory?.facts || 0;
+
     const lines = [];
-    if (memFacts === 0 && thoughts === 0) {
-      lines.push(t('welcome.first'));
+    const userName = health?.userName;
+    const episodes = health?.memory?.episodes || 0;
+    if (userName) {
+      lines.push(t('welcome.returning', { name: userName }));
+    } else if (episodes <= 5) {
+      lines.push(t('welcome.returning_anon'));
     } else {
-      const userName = health.userName;
-      lines.push(userName ? t('welcome.returning', { name: userName }) : t('welcome.returning_anon'));
-      if (activeGoals.length > 0) {
-        lines.push(''); lines.push('**' + t('welcome.working_on') + '**');
-        for (const g of activeGoals.slice(0, 3)) {
-          const progress = g.steps?.length > 0 ? ` (${g.currentStep || 0}/${g.steps.length})` : '';
-          lines.push(`- ${g.description}${progress}`);
-        }
-      }
-      if (thoughts > 0) {
-        lines.push(''); lines.push(t('welcome.thoughts', { thoughts, facts: memFacts }));
+      lines.push(t('welcome.returning_familiar'));
+    }
+    if (activeGoals.length > 0) {
+      lines.push(''); lines.push('**' + t('welcome.working_on') + '**');
+      for (const g of activeGoals.slice(0, 3)) {
+        const progress = g.steps?.length > 0 ? ` (${g.currentStep || 0}/${g.steps.length})` : '';
+        lines.push(`- ${g.description}${progress}`);
       }
     }
+    if (thoughts > 0) {
+      lines.push(''); lines.push(t('welcome.thoughts', { thoughts, facts: memFacts }));
+    }
     addMessage('agent', lines.join('\n'));
-  } catch (err) { addMessage('agent', "I'm Genesis. Ask me anything."); }
+  } catch (err) {
+    console.error('[UI] onAgentReady error:', err);
+    addMessage('agent', "I'm Genesis. Ask me anything.");
+  }
 }
 
 // ── DOMContentLoaded ───────────────────────────────────

@@ -438,15 +438,17 @@ Genesis.UI.boot = (() => {
   let ready = false;
   async function onReady(status) {
     ready = true; console.debug('[UI] Genesis ready'); await Genesis.UI.i18n.load(); Genesis.UI.models.load();
-    try { const h = await window.genesis.invoke('agent:get-health'), goals = await window.genesis.invoke('agent:get-goals');
-      const active = (goals||[]).filter(g => g.status==='active'), facts = h.memory?.facts||0, thoughts = h.idleMind?.thoughtCount||0, episodes = h.memory?.episodes||0, lines = [];
-      const u = h.userName;
-      // First ever boot: no facts, no thoughts, no episodes
-      if (facts===0&&thoughts===0&&episodes===0) lines.push(t('welcome.first'));
-      else if (u) lines.push(t('welcome.returning', { name: u }));
-      // Second session without name: gentle hint
+    try {
+      // v7.2.4: Filesystem-based first-boot detection (bypasses health data timing issues)
+      const bootCheck = await window.genesis.invoke('agent:is-first-boot');
+      const isFirst = bootCheck?.firstBoot !== false;
+      if (isFirst) { Genesis.UI.chat.addMessage('agent', t('welcome.first')); return; }
+      // Not first boot — get greeting data
+      const h = await window.genesis.invoke('agent:get-health'), goals = await window.genesis.invoke('agent:get-goals');
+      const active = (goals||[]).filter(g => g.status==='active'), facts = h?.memory?.facts||0, thoughts = h?.idleMind?.thoughtCount||0, episodes = h?.memory?.episodes||0, lines = [];
+      const u = h?.userName;
+      if (u) lines.push(t('welcome.returning', { name: u }));
       else if (episodes<=5) lines.push(t('welcome.returning_anon'));
-      // 3+ sessions without name: user doesn't want to share, just greet
       else lines.push(t('welcome.returning_familiar'));
       if (active.length>0) { lines.push('','**'+t('welcome.working_on')+'**'); for (const g of active.slice(0,3)) { const p = g.steps?.length>0?` (${g.currentStep||0}/${g.steps.length})`:''; lines.push(`- ${g.description}${p}`); } }
       if (thoughts>0) lines.push('', t('welcome.thoughts', { thoughts, facts }));

@@ -1,14 +1,29 @@
+# Dependencies
 node_modules/
-sandbox/
-.genesis/
-.genesis-lessons/
-.genesis-tmp-*/
+
+# Build output
 dist/
-uploads/
-*.log
-*.tmp
+
+# Genesis identity & state (copy separately, never commit)
+.genesis/
+.genesis-backups/
+
+# OS files
 .DS_Store
 Thumbs.db
-.fitness-history/
+Desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
 coverage/
-.c8_output/
+.nyc_output/

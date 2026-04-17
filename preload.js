@@ -83,6 +83,8 @@ const ALLOWED_INVOKE = [
   'agent:get-provenance-report',
   // v6.0.7: Earned Autonomy
   'agent:get-autonomy-report',
+  // v7.2.4: Filesystem-based first-boot detection
+  'agent:is-first-boot',
 ];
 
 const ALLOWED_SEND = [

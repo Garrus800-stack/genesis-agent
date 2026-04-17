@@ -160,7 +160,12 @@ class ChatOrchestrator {
       // Check for registered handler (non-streaming path)
       const handler = this.handlers.get(intent.type);
       if (handler) {
-        const response = await handler(message, { history: this.history, intent });
+        let response = await handler(message, { history: this.history, intent });
+        // v7.2.4: Guard against null handler response (same as non-streaming path v7.2.2).
+        // Handlers can return null on LLM timeout, circuit breaker, or error.
+        if (response == null) {
+          response = this.lang.t('agent.error') + ': no response generated';
+        }
         onChunk(response);
         this.history.push({ role: 'assistant', content: response });
         this._saveHistory();

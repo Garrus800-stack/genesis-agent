@@ -1,35 +1,38 @@
-## [7.2.3] — Shutdown Checksum Flush
+## [7.2.4] — Signal Fidelity
 
-**Integrity warnings on boot eliminated. Checksums now persist synchronously on shutdown.**
+**Genesis knows who he is from the first frame. No more cold starts, no more English defaults, no more ghost warnings.**
 
-### Root cause
+### Startup Identity Fix
 
-`StorageService._updateChecksum()` debounced checksum saves by 2 seconds. When Genesis shut down within that window (e.g. emotional-state.json modified just before shutdown by EmotionalWatchdog), the new hash was never persisted to `_checksums.json`. Next boot then reported "X corrupted file(s)" because the file content no longer matched the stored hash.
+The most user-visible bug since v7.0: on every normal start, Genesis showed the English intro prompt instead of the personalized greeting. Force Reload fixed it, but the first impression was always wrong.
 
-### Fix
+Three layered fixes were needed to fully resolve this:
 
-`StorageService.flush()` now drains the debounced checksum timer at shutdown — clearing the pending timer, then synchronously writing `_checksums.json` with current hashes. Since `flush()` is already called during graceful shutdown (for the write queue), this adds zero new code paths and only requires one additional step inside the existing flush routine.
+1. **`agent:get-health` returned `{}` when agent was null** — `{}` is truthy in JavaScript, so the renderer called `onReady()` prematurely with empty data and locked in the wrong greeting. Fix: return `null` instead. Also fixed `agent:get-settings` (same pattern).
 
-### Impact
+2. **Health-based first-boot detection was unreliable** — Even after the null fix, health data could be empty due to IPC timing between Electron renderer and agent backend. Fix: new `agent:is-first-boot` IPC handler that checks `.genesis/` files directly on the filesystem (memory.json, session-history.json, knowledge-graph.json, emotional-state.json). No timing dependency. Added to preload.js and preload.mjs channel whitelists.
 
-Boot log goes from:
-```
-[WARN] ⚠ Integrity check: 3 corrupted file(s)
-  → emotional-state.json (hash mismatch)
-  → knowledge-graph.json (hash mismatch)
-  → memory.json (hash mismatch)
-```
+3. **Language didn't survive restarts** — `detect()` set confidence to 0.4 on first language switch, but `init()` required confidence > 0.5 to restore. Result: German detected, persisted, but silently ignored on every restart. Fix: initial switch confidence raised to 0.55, restore threshold lowered to 0.3. Language now survives restarts after a single German message.
 
-to:
-```
-[INFO] Integrity: N file(s) verified OK
-```
+### Event Schema Cleanup
+
+Five event-schema mismatches eliminated from boot logs:
+
+- **`chat:completed`** — null-guard for handler responses in streaming path
+- **`goal:create-file`** — added missing `goalId` and `path` fields
+- **`goal:failed`** — added fallback for missing `reason`
+- **`needs:high-drive`** — added required `need` field from `getMostUrgent()`
+- **`frontier:*:written`** — registered 3 FrontierWriter dynamic events in EventTypes catalog and EventPayloadSchemas
+
+### Infrastructure
+
+- **`.gitignore` added** — prevents `node_modules/`, `.genesis/`, `.genesis-backups/`, `dist/` from being tracked. Eliminates the massive LF/CRLF warnings on `git add`.
 
 ### Stats
 
-- 1 file changed (`StorageService.js`)
-- 4334 tests, 0 failures
-- No regression
+- 154 services, 4335 tests, 0 failures
+- 7 files in startup path fixed
+- Boot log clean — no schema warnings on normal operation
 
 ---
 

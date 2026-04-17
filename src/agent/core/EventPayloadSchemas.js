@@ -109,6 +109,11 @@ const SCHEMAS = {
   'emotional-frontier:imprint-written': { sessionId: 'required', peaks: 'required', sustained: 'required', dominantMood: 'required' },
   'emotional-frontier:boot-restored':   { shifted: 'required', imprintId: 'required' },
 
+  // FrontierWriter (generic) — v7.2.4
+  'frontier:unfinishedWork:written':    { sessionId: 'required', edgeType: 'required' },
+  'frontier:suspicion:written':         { sessionId: 'required', edgeType: 'required' },
+  'frontier:lessonTracking:written':    { sessionId: 'required', edgeType: 'required' },
+
   // Metabolism
   'metabolism:cost':        { cost: 'required', tokens: 'required' },
 

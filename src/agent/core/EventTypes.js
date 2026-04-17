@@ -262,6 +262,17 @@ const EVENTS = Object.freeze({
     BOOT_RESTORED: 'emotional-frontier:boot-restored',
   }),
 
+  // ── FrontierWriter (generic) ────────────────────────────
+  // v7.2.4: Dynamic events emitted by FrontierWriter instances.
+  FRONTIER: Object.freeze({
+    /** @payload {{ sessionId: string, edgeType: string }} */
+    UNFINISHED_WORK_WRITTEN: 'frontier:unfinishedWork:written',
+    /** @payload {{ sessionId: string, edgeType: string }} */
+    SUSPICION_WRITTEN: 'frontier:suspicion:written',
+    /** @payload {{ sessionId: string, edgeType: string }} */
+    LESSON_WRITTEN: 'frontier:lessonTracking:written',
+  }),
+
   // ── Episodic Memory ────────────────────────────────────
   EPISODIC: Object.freeze({
     RECORDED: 'episodic:recorded',

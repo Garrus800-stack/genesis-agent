@@ -76,7 +76,7 @@ Respond with EXACTLY one word: YES or NO. Then briefly explain why.`;
   },
 
   async _stepCreateFile(step, goal) {
-    this.bus.emit('goal:create-file', { step, goal: goal.description }, { source: 'GoalStack' });
+    this.bus.emit('goal:create-file', { goalId: goal.id, path: step.detail || step.action || 'unknown', step, goal: goal.description }, { source: 'GoalStack' });
     return { success: true, output: this.lang.t('goal.file_requested', { detail: step.detail || step.action }) };
   },
 

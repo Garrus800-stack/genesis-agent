@@ -29,7 +29,7 @@ class Language {
     try {
       if (fs.existsSync(this._settingsPath)) {
         const data = safeJsonParse(fs.readFileSync(this._settingsPath, 'utf-8'), {}, 'Language');
-        if (data.lang && data.confidence > 0.5) {
+        if (data.lang && data.confidence > 0.3) {
           this.current = data.lang;
           this.confidence = data.confidence;
         }

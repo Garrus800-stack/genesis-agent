@@ -410,8 +410,34 @@ const CHANNELS = {
   },
 
   'agent:get-health': async () => {
-    if (!agent) return {};
+    if (!agent) return null;
     return agent.getHealth();
+  },
+
+  // v7.2.4: Direct filesystem check for first-boot detection.
+  // The health-based check was unreliable due to IPC timing — health data
+  // could be empty even after boot completed. This handler checks the
+  // filesystem directly: if memory.json or session-history.json exist in
+  // .genesis/, it's not a first boot. No timing dependency.
+  'agent:is-first-boot': async () => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const genesisDir = path.join(__dirname, '.genesis');
+      if (!fs.existsSync(genesisDir)) return { firstBoot: true };
+      // Check for ANY sign of previous activity
+      const markers = ['memory.json', 'session-history.json', 'knowledge-graph.json', 'emotional-state.json'];
+      for (const f of markers) {
+        const fp = path.join(genesisDir, f);
+        if (fs.existsSync(fp)) {
+          try {
+            const stat = fs.statSync(fp);
+            if (stat.size > 10) return { firstBoot: false }; // non-trivial content
+          } catch (_e) { /* stat failed, try next */ }
+        }
+      }
+      return { firstBoot: true };
+    } catch (_e) { return { firstBoot: true }; }
   },
 
   'agent:switch-model': async (event, modelName) => {
@@ -474,7 +500,7 @@ const CHANNELS = {
   },
 
   'agent:get-settings': async () => {
-    if (!agent) return {};
+    if (!agent) return null;
     const settings = JSON.parse(JSON.stringify(agent.container.resolve('settings').getAll()));
     // FIX v4.12.4 (M-03): Mask API keys before sending to renderer.
     // Keys are stored in full but never exposed via IPC to reduce

@@ -163,7 +163,7 @@ class GoalStack {
           const replanned = await _exe._replan(goal, result.error);
           if (!replanned) {
             goal.status = 'failed';
-            this.bus.emit('goal:failed', { id: goal.id, reason: result.error }, { source: 'GoalStack' });
+            this.bus.emit('goal:failed', { id: goal.id, reason: result.error || 'step failed (no error details)' }, { source: 'GoalStack' });
           }
         }
       }

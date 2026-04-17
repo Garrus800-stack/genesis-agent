@@ -299,6 +299,7 @@ class NeedsSystem {
     const drive = this.getTotalDrive();
     if (drive > 0.6) {
       this.bus.emit('needs:high-drive', {
+        need: this.getMostUrgent() || 'unknown',
         totalDrive: drive,
         mostUrgent: this.getMostUrgent(),
       }, { source: 'NeedsSystem' });

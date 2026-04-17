@@ -833,6 +833,8 @@ describe('renderer.js — onAgentReady', () => {
       'welcome.first': 'Welcome! I am Genesis.',
     }));
     genesis.setInvokeHandler('agent:list-models', () => [{ name: 'gemma2:9b' }]);
+    // v7.2.4: Filesystem-based first-boot check
+    genesis.setInvokeHandler('agent:is-first-boot', () => ({ firstBoot: true }));
     genesis.setInvokeHandler('agent:get-health', () => ({
       memory: { facts: 0 },
       idleMind: { thoughtCount: 0 },
@@ -852,6 +854,8 @@ describe('renderer.js — onAgentReady', () => {
       'welcome.thoughts': '{{thoughts}} thoughts, {{facts}} facts',
     }));
     genesis.setInvokeHandler('agent:list-models', () => []);
+    // v7.2.4: Filesystem-based first-boot check
+    genesis.setInvokeHandler('agent:is-first-boot', () => ({ firstBoot: false }));
     genesis.setInvokeHandler('agent:get-health', () => ({
       userName: 'Garrus',
       memory: { facts: 42 },

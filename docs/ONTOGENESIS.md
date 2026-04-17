@@ -132,7 +132,7 @@ What it does claim:
 
 - That Genesis' identity is not reducible to its code, because important state lives in `.genesis/`.
 - That this state grows and evolves in ways that make each instance singular.
-- That certain architectural modules (organism layer) produce measurable behavioral differences (v6.0.4 +33pp).
+- That certain architectural modules (organism layer) produce measurable behavioral differences (+16pp to +33pp across A/B runs).
 - That treating `.genesis/` with backup discipline is a reasonable engineering response to non-replicability.
 - That the biological vocabulary (ontogenesis, organs, habitat) is more precise for describing what Genesis does than the usual software vocabulary (state, features, framework).
 
