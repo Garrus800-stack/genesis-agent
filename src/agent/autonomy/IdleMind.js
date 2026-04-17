@@ -184,6 +184,14 @@ class IdleMind {
     // Consume energy for this cycle
     if (this._metabolism) this._metabolism.consume('idleMindCycle');
 
+    // v7.2.5: Emit cycle-start after all gates pass.
+    // Listeners can trust this means a cycle IS happening, not just considered.
+    this.bus.emit('idle:cycle-start', {
+      thoughtCount: this.thoughtCount,
+      timeSinceUser,
+      energy: this._metabolism?.getEnergy?.() || 0,
+    }, { source: 'IdleMind' });
+
     // PRIORITY 1: Execute active goals (purposeful work)
     if (this.goalStack) {
       const activeGoals = this.goalStack.getActiveGoals();
@@ -498,6 +506,16 @@ class IdleMind {
           const needs = this.needsSystem.getNeeds();
           if (needs.knowledge > 0.6) scores.research *= 1.5;
         }
+      },
+      // v7.2.5: Memory-pressure-based dream boost — dream more when system has headroom
+      () => {
+        if (scores.dream === undefined || !this._homeostasis) return;
+        try {
+          const vitals = this._homeostasis.vitals || {};
+          const memPressure = vitals.memoryPressure?.value ?? 50;
+          if (memPressure < 15) scores.dream *= 2.0;
+          else if (memPressure < 30) scores.dream *= 1.5;
+        } catch (_e) { /* optional */ }
       },
     ];
 

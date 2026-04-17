@@ -390,7 +390,7 @@ class Metabolism {
       this._lastEnergyState = state;
       _log.info(`[METABOLISM] Energy state: ${prevState} → ${state} (${Math.round(this._energy)}/${this._maxEnergy})`);
       this.bus.emit('metabolism:state-changed', {
-        from: prevState, to: state,
+        state: state, from: prevState, to: state,
         energy: Math.round(this._energy),
         max: this._maxEnergy,
       }, { source: 'Metabolism' });

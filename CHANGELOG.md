@@ -1,3 +1,31 @@
+## [7.2.5] — Schema Complete
+
+Last remaining event-schema warning eliminated. Idle-Dream Event Bridge connects IdleMind's idle cycles to resource-aware dream consolidation.
+
+### Schema Fix
+
+- **`metabolism:state-changed`** — Emit sent `{ from, to, energy, max }` but schema required `{ state }`. Added `state` field. Automated scan confirms zero remaining mismatches across all 336 registered events.
+
+### Idle-Dream Event Bridge
+
+Genesis asked for an event-driven connection between IdleMind and DreamCycle. Analysis showed 80% of the wiring already existed — what was missing was resource-awareness and intensity scaling.
+
+- **`idle:cycle-start` event** — Emitted after all gates pass (homeostasis, metabolism, user-recency). Listeners can trust this means a cycle IS happening, not just considered. Registered in EventTypes + EventPayloadSchemas.
+
+- **Memory-pressure dream boost** — New scorer in `_pickActivity()`: dream score ×1.5 when memoryPressure < 30%, ×2.0 when < 15%. Genesis dreams more when the system has headroom.
+
+- **Dream intensity scaling** — DreamCycle.dream() accepts `{ intensity }` parameter:
+  - `1.0`: Full 5-phase cycle including LLM insight (energy ≥ 250 AND pressure < 30%)
+  - `0.5`: Phases 1–4, heuristic only, no LLM call (energy ≥ 100 AND pressure < 50%)
+  - `0.25`: Consolidation + decay only (cheapest, always runs)
+
+### Stats
+
+- 154 services, 4335 tests, 0 failures
+- ~50 lines new code, 0 new modules, backwards compatible
+
+---
+
 ## [7.2.4] — Signal Fidelity
 
 **Genesis knows who he is from the first frame. No more cold starts, no more English defaults, no more ghost warnings.**

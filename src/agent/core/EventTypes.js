@@ -366,6 +366,8 @@ const EVENTS = Object.freeze({
 
   // ── Idle Mind ──────────────────────────────────────────
   IDLE: Object.freeze({
+    /** @payload {{ thoughtCount: number, timeSinceUser: number, energy: number }} */
+    CYCLE_START:     'idle:cycle-start',
     THINKING:        'idle:thinking',
     THOUGHT_COMPLETE: 'idle:thought-complete',
     /** v5.7.0: Proactive insight shared with user @payload {{ activity: string, insight: string }} */

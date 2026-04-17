@@ -108,8 +108,11 @@ class DreamCycle {
    * Run a dream cycle. Called by IdleMind when DREAM activity is selected.
    * @returns {Promise<object>}
    */
-  async dream() {
+  async dream(options = {}) {
     const startTime = Date.now();
+    // v7.2.5: Intensity scaling — lighter cycles when resources are tight.
+    // 1.0 = full 5-phase cycle, 0.5 = heuristic only (no LLM), 0.25 = consolidation + decay only
+    const intensity = options.intensity ?? 1.0;
 
     // Cooldown check
     if (startTime - this._lastDreamAt < this._consolidationIntervalMs) {
@@ -121,6 +124,7 @@ class DreamCycle {
 
     this.bus.emit('dream:started', {
       dreamNumber: this._dreamCount,
+      intensity,
     }, { source: 'DreamCycle' });
 
     const report = {
@@ -148,20 +152,32 @@ class DreamCycle {
         return report;
       }
 
-      // ── Phase 2: PATTERN DETECTION (heuristic, no LLM) ──
       const _dca = /** @type {any} */ (this); // DreamCycleAnalysis mixin cast
-      const patterns = _dca._detectPatterns(episodes);
-      report.phases.push({ name: 'pattern-detection', patternCount: patterns.length });
 
-      // ── Phase 3: SCHEMA EXTRACTION ─────────────────────
-      const qualifiedPatterns = patterns.filter(p => p.occurrences >= this._schemaMinOccurrences);
-      const newSchemas = await this._dreamPhaseSchemas(qualifiedPatterns, startTime);
-      report.newSchemas = newSchemas;
-      report.phases.push({ name: 'schema-extraction', newSchemas: newSchemas.length });
-      this._stats.totalSchemas += newSchemas.length;
+      // v7.2.5: At intensity 0.25, skip pattern detection + schema extraction.
+      // Only run consolidation + decay (cheapest cycle).
+      if (intensity >= 0.5) {
+        // ── Phase 2: PATTERN DETECTION (heuristic, no LLM) ──
+        const patterns = _dca._detectPatterns(episodes);
+        report.phases.push({ name: 'pattern-detection', patternCount: patterns.length });
 
-      // ── Phase 3b: VALUE CRYSTALLIZATION (v4.12.4) ──────
-      this._dreamPhaseCrystallize(newSchemas);
+        // ── Phase 3: SCHEMA EXTRACTION ─────────────────────
+        // v7.2.5: At intensity 0.5, force heuristic-only (no LLM call)
+        const savedUseLLM = this._useLLM;
+        if (intensity < 1.0) this._useLLM = false;
+        const qualifiedPatterns = patterns.filter(p => p.occurrences >= this._schemaMinOccurrences);
+        const newSchemas = await this._dreamPhaseSchemas(qualifiedPatterns, startTime);
+        this._useLLM = savedUseLLM; // restore
+        report.newSchemas = newSchemas;
+        report.phases.push({ name: 'schema-extraction', newSchemas: newSchemas.length });
+        this._stats.totalSchemas += newSchemas.length;
+
+        // ── Phase 3b: VALUE CRYSTALLIZATION (v4.12.4) ──────
+        this._dreamPhaseCrystallize(newSchemas);
+      } else {
+        report.phases.push({ name: 'pattern-detection', patternCount: 0, skipped: 'low-intensity' });
+        report.phases.push({ name: 'schema-extraction', newSchemas: 0, skipped: 'low-intensity' });
+      }
 
       // ── Phase 4: MEMORY CONSOLIDATION ──────────────────
       const consolidation = _dca._consolidateMemories(episodes);
@@ -179,7 +195,8 @@ class DreamCycle {
       }
 
       // ── Phase 5: INSIGHT GENERATION ────────────────────
-      if (report.newSchemas.length > 0 && this._withinTimeLimit(startTime)) {
+      // v7.2.5: Only run insights at full intensity (requires LLM headroom)
+      if (intensity >= 1.0 && report.newSchemas.length > 0 && this._withinTimeLimit(startTime)) {
         report.insights = _dca._generateInsights(report.newSchemas);
         this._stats.totalInsights += report.insights.length;
       }

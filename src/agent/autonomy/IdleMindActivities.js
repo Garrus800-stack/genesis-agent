@@ -224,7 +224,17 @@ const activities = {
   async _dream() {
     if (!this.dreamCycle) return 'DreamCycle not available.';
 
-    const report = await this.dreamCycle.dream();
+    // v7.2.5: Intensity mapping — energy is primary, memoryPressure secondary.
+    // Full cycle with LLM: ~50-100 AU (needs ≥250 buffer)
+    // Heuristic only: ~10-20 AU (needs ≥100 buffer)
+    // Consolidation only: ~5 AU (always affordable if metabolism allowed the cycle)
+    let intensity = 0.25;
+    const energy = this._metabolism?.getEnergy?.() ?? 500;
+    const memPressure = this._homeostasis?.vitals?.memoryPressure?.value ?? 50;
+    if (energy >= 250 && memPressure < 30) intensity = 1.0;
+    else if (energy >= 100 && memPressure < 50) intensity = 0.5;
+
+    const report = await this.dreamCycle.dream({ intensity });
 
     if (report.skipped) {
       return `Dream skipped: ${report.reason}`;

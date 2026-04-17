@@ -62,6 +62,8 @@ const SCHEMAS = {
   'health:recovery-exhausted': { service: 'required', totalAttempts: 'required' },
 
   // Idle Mind
+  // v7.2.5: Idle cycle lifecycle
+  'idle:cycle-start':       { thoughtCount: 'required', timeSinceUser: 'required', energy: 'required' },
   'idle:thinking':         { activity: 'required', thought: 'required' },
   // v7.1.6: Autonomous research
   'idle:research-started': { topic: 'required', source: 'required' },
