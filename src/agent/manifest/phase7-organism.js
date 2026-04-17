@@ -46,14 +46,15 @@ function phase7(ctx, R) {
     ['bodySchema', {
       phase: 7, deps: ['storage'], tags: ['organism', 'embodiment', 'capabilities'],
       lateBindings: [
-        { prop: 'tools', service: 'tools', optional: true },
+        // v7.2.6: expectedActive on core capability-tracking bindings
+        { prop: 'tools', service: 'tools', optional: true, expectedActive: true, expects: ['listTools'] },
         { prop: 'circuitBreaker', service: 'circuitBreaker', optional: true },
-        { prop: 'homeostasis', service: 'homeostasis', optional: true },
+        { prop: 'homeostasis', service: 'homeostasis', optional: true, expectedActive: true },
         { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
         { prop: 'mcpClient', service: 'mcpClient', optional: true },
-        { prop: 'model', service: 'llm', optional: true },
+        { prop: 'model', service: 'llm', optional: true, expectedActive: true },
         { prop: 'effectorRegistry', service: 'effectorRegistry', optional: true },
-        { prop: 'embodiedPerception', service: 'embodiedPerception', optional: true },
+        { prop: 'embodiedPerception', service: 'embodiedPerception', optional: true, expectedActive: true, expects: ['getEngagement', 'getUIState'], impact: 'No UI engagement tracking' },
         // v6.0.5 (V6-10): Real connectivity status from NetworkSentinel
         { prop: 'networkSentinel', service: 'networkSentinel', optional: true },
       ],
@@ -79,12 +80,13 @@ function phase7(ctx, R) {
     ['homeostasisEffectors', {
       phase: 7, deps: ['storage'], tags: ['organism', 'homeostasis', 'effectors'],
       lateBindings: [
+        // v7.2.6: expectedActive on correction-critical bindings
         { prop: 'llmCache', service: 'llmCache', optional: true },
-        { prop: 'knowledgeGraph', service: 'knowledgeGraph', optional: true },
+        { prop: 'knowledgeGraph', service: 'knowledgeGraph', optional: true, expectedActive: true, expects: ['pruneStale'], impact: 'No KG pruning on memory pressure' },
         { prop: 'dynamicContextBudget', service: 'dynamicContextBudget', optional: true },
         { prop: 'vectorMemory', service: 'vectorMemory', optional: true },
         { prop: 'conversationMemory', service: 'memory', optional: true },
-        { prop: 'homeostasis', service: 'homeostasis', optional: true },
+        { prop: 'homeostasis', service: 'homeostasis', optional: true, expectedActive: true, impact: 'Effector corrections not reflected in vitals' },
       ],
       factory: (c) => new (R('HomeostasisEffectors').HomeostasisEffectors)({
         bus, storage: c.resolve('storage'),
@@ -97,12 +99,13 @@ function phase7(ctx, R) {
     ['metabolism', {
       phase: 7, deps: ['storage'], tags: ['organism', 'metabolism', 'energy'],
       lateBindings: [
-        { prop: 'emotionalState', service: 'emotionalState', optional: true },
-        { prop: 'needsSystem', service: 'needsSystem', optional: true },
-        { prop: 'homeostasis', service: 'homeostasis', optional: true },
+        // v7.2.6: All expectedActive — Metabolism is central to the Organism loop
+        { prop: 'emotionalState', service: 'emotionalState', optional: true, expectedActive: true, expects: ['_adjust'], impact: 'Energy changes not reflected in emotional state' },
+        { prop: 'needsSystem', service: 'needsSystem', optional: true, expectedActive: true, impact: 'Energy spend not reflected in rest needs' },
+        { prop: 'homeostasis', service: 'homeostasis', optional: true, expectedActive: true },
         // v7.2.2: Migrated from orphaned containerConfig. Without this,
         // genetic 'consolidation' trait had no effect on metabolism regen rate.
-        { prop: 'genome', service: 'genome', optional: true },
+        { prop: 'genome', service: 'genome', optional: true, expectedActive: true, expects: ['trait'], impact: 'Genome traits not influencing energy regeneration' },
       ],
       factory: (c) => new (R('Metabolism').Metabolism)({
         bus, storage: c.resolve('storage'), intervals,
@@ -115,8 +118,9 @@ function phase7(ctx, R) {
     ['immuneSystem', {
       phase: 7, deps: ['storage'], tags: ['organism', 'immune', 'self-repair'],
       lateBindings: [
-        { prop: 'homeostasis', service: 'homeostasis', optional: true },
-        { prop: 'emotionalState', service: 'emotionalState', optional: true },
+        // v7.2.6: expectedActive on core immune-loop bindings
+        { prop: 'homeostasis', service: 'homeostasis', optional: true, expectedActive: true, impact: 'Immune system blind to vital signs' },
+        { prop: 'emotionalState', service: 'emotionalState', optional: true, expectedActive: true, expects: ['_adjust'], impact: 'Self-repair not reflected in emotional state' },
         { prop: 'circuitBreaker', service: 'circuitBreaker', optional: true },
         { prop: 'llmCache', service: 'llmCache', optional: true },
         { prop: 'tools', service: 'tools', optional: true },

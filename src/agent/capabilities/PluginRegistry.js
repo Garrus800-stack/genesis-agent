@@ -128,7 +128,7 @@ class PluginRegistry {
     if (manifest.type === 'skill' || manifest.type === 'extension') {
       const safety = this._codeSafety.scanCode(code, `plugins/${name}/${manifest.entry || 'index.js'}`);
       if (!safety.safe) {
-        this.bus.fire('code:safety-blocked', { plugin: name, issues: safety.blocked }, { source: 'PluginRegistry' });
+        this.bus.emit('code:safety-blocked', { plugin: name, issues: safety.blocked }, { source: 'PluginRegistry' });
         return { ok: false, error: `Code safety block: ${safety.blocked.map(b => b.description).join(', ')}` };
       }
       if (safety.warnings.length > 0) {

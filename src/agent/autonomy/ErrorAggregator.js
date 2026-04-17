@@ -225,7 +225,7 @@ class ErrorAggregator {
 
     // Spike detection
     if (recentCount >= this.config.spikeThreshold) {
-      this.bus.fire('error:trend', {
+      this.bus.emit('error:trend', {
         category,
         type: 'spike',
         rate: recentCount,
@@ -240,7 +240,7 @@ class ErrorAggregator {
       const recent = history.slice(-this.config.risingThreshold);
       const isRising = recent.every((p, i) => i === 0 || p.rate > recent[i - 1].rate);
       if (isRising && recent[recent.length - 1].rate > 1) {
-        this.bus.fire('error:trend', {
+        this.bus.emit('error:trend', {
           category,
           type: 'rising',
           rates: recent.map(p => p.rate),

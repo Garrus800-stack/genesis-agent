@@ -68,6 +68,7 @@ const SCHEMAS = {
   // v7.1.6: Autonomous research
   'idle:research-started': { topic: 'required', source: 'required' },
   'idle:research-complete': { topic: 'required', source: 'required', insight: 'optional' },
+  'idle:self-defined':      { revision: 'required' },
   'idle:thought-complete': {},
   'idle:proactive-insight': { activity: 'required', insight: 'required' },
 
@@ -506,6 +507,7 @@ const SCHEMAS = {
   'prompt-evolution:experiment-started':   { section: 'required', hypothesis: 'required' },
   'prompt-evolution:experiment-completed': { section: 'required', promoted: 'required' },
   'prompt-evolution:rollback':             { section: 'required', reason: 'required' },
+  'prompt-evolution:promoted':             { section: 'required', variantId: 'required', improvement: 'required' },
 
   // Misc single-event domains
   'chat:retry':             { attempt: 'required', error: 'required', delayMs: 'required' },

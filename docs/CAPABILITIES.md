@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.2.1 — What Genesis can do, organized by category.
-> Last updated: v7.2.1: Solid Ground II — deep audit, adversarial hardening, 4354 tests, 152 services.
+> v7.2.6 — What Genesis can do, organized by category.
+> Last updated: v7.2.6: Event Hygiene — static analysis cleanup, 4335 tests, 154 services.
 
 ---
 
@@ -242,7 +242,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **260 test suites** | 4354 tests, coverage gates: 80% lines, 75.9% branches, 78% functions |
+| **261 test suites** | 4335 tests, coverage gates: 80% lines, 75.9% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

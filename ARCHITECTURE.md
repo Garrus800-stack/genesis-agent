@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.2.0 · Last verified: all checks green (4344 tests, 257+ suites, TSC 0)
+> Version: 7.2.6 · Last verified: all checks green (4335 tests, 261 suites)
 
 ---
 
@@ -11,7 +11,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~84k LOC of JavaScript (CommonJS), 247 source modules, 141 DI-managed services (152 total with bootstrap instances), with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~73k LOC of JavaScript (CommonJS), 221 source modules, 154 DI-managed services, with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -192,7 +192,12 @@ Homeostasis monitors memory pressure, token costs, and error rates. When stresse
 
 EmotionalState tracks success/failure patterns. After repeated failures, the "frustration" signal causes the prompt to include "try a fundamentally different approach". After sustained success, "confidence" allows more autonomous multi-step plans.
 
-**Empirical validation (v5.9.9):** The A/B benchmark (`npm run benchmark:agent:ab`) tested 8 tasks (now 12 in v6.0.0) with and without Organism signals using kimi-k2.5:cloud. Result: **50% success rate with Organism (4/8) vs. 13% without (1/8)** — a 37 percentage-point improvement. The Organism layer helped on 4 code-gen and bug-fix tasks, hurt on 1 async task, and was neutral on 3. This is the first empirical evidence that bio-inspired self-regulation improves AI agent task performance. Full results in `.genesis/benchmark-ab.json`.
+**Empirical validation:** The A/B benchmark (`npm run benchmark:agent:ab`) tests 12 tasks with and without Organism signals using kimi-k2.5:cloud. Results across versions:
+
+- **v6.0.4:** +33pp (67% vs 33%, 12 tasks)
+- **v7.2.3:** +16pp (83% vs 67%, 12 tasks — 2 baseline timeouts on CPU-only)
+
+The Organism layer consistently helps on complex tasks (code smell detection, strategy pattern extraction) while having no impact on simple tasks. Full results in `.genesis/benchmark-ab.json` and `docs/BENCHMARKING.md`.
 
 ---
 
@@ -561,7 +566,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~4300 tests across 257+ suites |
+| Tests | `node test/index.js` | ~4335 tests across 261 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |

@@ -1,6 +1,6 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.2.0 · Last updated: v7.2.0 release
+> Version: 7.2.6 · Last updated: v7.2.6 release
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
@@ -51,11 +51,11 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
 
 ### O-1: Benchmark Re-Run with InferenceEngine Live
 - **Since:** v7.1.1
-- **Status:** OPEN
-- **Detail:** InferenceEngine was wired into the hot path in v7.1.1 (added to NON_ESSENTIAL boot list).
-  Benchmark timeout raised 120s→180s. But no new baseline has been run to confirm inference rate
-  is measurable (was 0% in v7.0.9/v7.1.0). The 8/12 (67%) baseline is stale.
-- **Action:** Run `node scripts/benchmark-agent.js` with kimi-k2.5:cloud and record new baseline.
+- **Status:** DONE (v7.2.3)
+- **Detail:** Full A/B re-run on Daniel's machine with kimi-k2.5:cloud.
+  Result: 83% vs 67% = +16pp with Organism active. Baseline timeouts (ETIMEDOUT)
+  on CPU-only inflated delta slightly. Organism helped on an-1 (code smells) and
+  rf-2 (strategy pattern extraction). Results in BENCHMARKING.md.
 
 ### O-2: GateStats Data Collection (AwarenessPort Validation)
 - **Since:** v7.0.0
@@ -116,7 +116,7 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
 | M-5 | 47 TS errors remaining | **0 errors.** All 62 @ts-ignore eliminated (23 prototype-delegated + 39 TS inference). | v7.1.2 |
 | M-6 | 14 unused exports (barrel re-exports) | **Moot.** `src/agent/index.js` barrel deleted in v7.0.1. | v7.0.1 |
 | M-7 | 2 legacy test files (autonomy.test.js, hardening.test.js) | **Deleted.** Both redundant, all coverage in dedicated files. | v7.0.6 |
-| M-8 | Organism A/B evidence from v5.9.9 only (8 tasks, 1 model) | **Confirmed.** v6.0.4 re-benchmark: +33pp with kimi-k2.5:cloud. | v6.0.4 |
+| M-8 | Organism A/B evidence from v5.9.9 only (8 tasks, 1 model) | **Confirmed.** v6.0.4: +33pp, v7.2.3: +16pp (both kimi-k2.5:cloud, 12 tasks). | v7.2.3 |
 | M-9 | Electron ^39.0.0 not exact-pinned | **Accepted.** Dev dependency, caret is acceptable risk. | — |
 | M-10 | 111 magic numbers across source | **Partially addressed.** THRESHOLDS section in Constants.js covers behavioral constants. Remaining are ring buffer caps and percentage thresholds — structural, not behavioral. | v7.0.0 |
 | M-12 | 85 @ts-ignore remaining | **0 remaining.** Eliminated in two sessions (v7.1.1 + v7.1.2). | v7.1.2 |

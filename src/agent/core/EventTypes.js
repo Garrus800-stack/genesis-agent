@@ -380,6 +380,8 @@ const EVENTS = Object.freeze({
     RESEARCH_STARTED:  'idle:research-started',
     /** @payload {{ topic: string, source: string, insight: string }} v7.1.6: Research complete */
     RESEARCH_COMPLETE: 'idle:research-complete',
+    /** @payload {{ revision: number }} v7.2.0: Self-identity definition written */
+    SELF_DEFINED: 'idle:self-defined',
   }),
 
   // ── Intent Router ──────────────────────────────────────
@@ -898,6 +900,8 @@ const EVENTS = Object.freeze({
     EXPERIMENT_COMPLETED: 'prompt-evolution:experiment-completed',
     /** @payload {{ section: string, generation: number }} */
     ROLLBACK:             'prompt-evolution:rollback',
+    /** @payload {{ section: string, variantId: string, improvement: number }} */
+    PROMOTED:             'prompt-evolution:promoted',
   }),
 
   // ── Adaptive Prompt Strategy (v6.0.4) ─────────────────────

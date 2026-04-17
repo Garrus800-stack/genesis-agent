@@ -1,9 +1,8 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.2.1 — Event flow documentation. Updated for v7.2.1 deep audit,
-> v7.2.0 self-define activity, research quality gate, introspection accuracy,
-> emotional-cognitive bridge, v7.1.7 hardening, v7.1.8 schema-drift fixes,
-> and v7.1.9 stabilization.
+> v7.2.6 — Event flow documentation. Updated for v7.2.6 event hygiene,
+> v7.2.5 idle-dream event bridge, v7.2.4 signal fidelity,
+> v7.2.1 deep audit, v7.2.0 self-define activity, v7.1.7 hardening.
 > This document maps which modules emit and consume which EventBus events.
 
 ## System Overview

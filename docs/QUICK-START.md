@@ -110,15 +110,15 @@ If any step fails, it rolls back automatically.
 Genesis supports three boot profiles for different use cases:
 
 ```bash
-npm start                        # Full mode (default) — all 12 phases, ~139 services
+npm start                        # Full mode (default) — all 12 phases, ~154 services
 npm start -- --minimal           # Minimal — core + intelligence + planning (~90 services)
-npm start -- --cognitive         # Cognitive — all 12 phases (~139 services, identical to default)
+npm start -- --cognitive         # Cognitive — all 12 phases (~154 services, identical to default)
 ```
 
 | Profile | Services | Use case |
 |---|---|---|
-| `--full` | ~139 | All 12 phases active (identical to `--cognitive` as of v7.0.0) |
-| `--cognitive` | ~139 | Default — all 12 phases. Phase 13 (Consciousness) removed in v7.0.0, replaced by lightweight AwarenessPort. |
+| `--full` | ~154 | All 12 phases active (identical to `--cognitive` as of v7.0.0) |
+| `--cognitive` | ~154 | Default — all 12 phases. Phase 13 (Consciousness) removed in v7.0.0, replaced by lightweight AwarenessPort. |
 | `--minimal` | ~90 | Learning — core agent loop, planning, and tools (phases 1–8 only) |
 
 ## 7. Things to Try
@@ -185,7 +185,7 @@ Settings persist in `.genesis/settings.json`.
 - Read [ARCHITECTURE-DEEP-DIVE.md](docs/ARCHITECTURE-DEEP-DIVE.md) to understand the 12-phase boot
 - Read [CAPABILITIES.md](docs/CAPABILITIES.md) for the full feature list
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) if you want to extend Genesis
-- Run `npm test` to see all 3311 tests pass
+- Run `npm test` to see all 4335 tests pass
 - Run `node scripts/architectural-fitness.js` to check code health
 
 ## CLI Commands (REPL Mode)

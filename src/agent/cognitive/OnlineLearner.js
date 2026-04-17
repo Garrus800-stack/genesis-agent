@@ -86,22 +86,7 @@ class OnlineLearner {
     this.adaptiveStrategy = null;  // AdaptiveStrategy - for immediate adaptation cycles
   }
 
-  static get containerConfig() {
-    return {
-      name: 'onlineLearner',
-      phase: 9,
-      deps: ['bus'],
-      tags: ['cognitive', 'learning'],
-      lateBindings: [
-        { prop: 'metaLearning', service: 'metaLearning', optional: true },
-        { prop: 'promptEvolution', service: 'promptEvolution', optional: true },
-        { prop: 'modelRouter', service: 'modelRouter', optional: true },
-        { prop: 'emotionalState', service: 'emotionalState', optional: true },
-        // v6.0.7: Reactive prescription — streak triggers immediate adaptation
-        { prop: 'adaptiveStrategy', service: 'adaptiveStrategy', optional: true },
-      ],
-    };
-  }
+  // v7.2.6: containerConfig removed — authoritative registration in phase9-cognitive.js manifest
 
   // ════════════════════════════════════════════════════════
   // LIFECYCLE

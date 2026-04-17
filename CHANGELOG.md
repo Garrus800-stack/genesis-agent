@@ -1,3 +1,52 @@
+## [7.2.6] — Event Hygiene
+
+Static analysis cleanup. Zero new features, zero behavioral changes — only catalog completeness.
+
+### Event Catalog Gaps
+
+Two events were emitted but not registered in EventTypes:
+
+- `idle:self-defined` — emitted by IdleMindActivities when Genesis writes self-identity
+- `prompt-evolution:promoted` — emitted by PromptEvolution when a variant wins A/B
+
+Both now registered in EventTypes with JSDoc payload annotations + EventPayloadSchemas.
+
+### Test Suite
+
+Test suite banner updated from `v7.2.0` to `v7` — won't need updating again until v8.
+
+### Static Analysis Results (v7.2.6 baseline)
+
+Full codebase scan confirms:
+
+- 0 circular dependencies
+- 0 unused npm dependencies  
+- 0 event-schema mismatches
+- 0 events used with both fire and emit (earlier report was false positive from comment matching)
+- 2 unregistered events → fixed (now 0)
+- 280 events emitted but never listened to (known — mostly IPC/UI bridge and forward-declarations)
+
+### Comprehensive Documentation Update
+
+All docs checked for stale version numbers, test counts, and service counts:
+
+- ARCHITECTURE.md — 73k LOC, 221 modules, 154 services, benchmark range updated
+- ARCHITECTURE-DEEP-DIVE.md — 154 services, 221 files, 4335 tests
+- CAPABILITIES.md — 4335 tests, 154 services, 261 suites
+- QUICK-START.md — service counts 139→154, test count 3311→4335
+- DEGRADATION-MATRIX.md — 154 services, 245 bindings
+- AUDIT-BACKLOG.md — O-1 benchmark marked DONE (+16pp), M-8 updated
+- EVENT-FLOW.md, COMMUNICATION.md, SKILL-SECURITY.md, MCP-SERVER-SETUP.md — version headers
+
+### Stats
+
+- 154 services, 4335 tests, 0 failures
+- 221 source files, 73,028 LOC
+- 261 test files, 50,081 LOC
+- 380 EventTypes, 370 schemas
+
+---
+
 ## [7.2.5] — Schema Complete
 
 Last remaining event-schema warning eliminated. Idle-Dream Event Bridge connects IdleMind's idle cycles to resource-aware dream consolidation.

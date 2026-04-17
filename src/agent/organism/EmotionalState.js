@@ -309,7 +309,7 @@ class EmotionalState {
 
     // Emit significant changes (>threshold shift)
     if (Math.abs(dim.value - oldValue) > this._significantShift) {
-      this.bus.fire('emotion:shift', {
+      this.bus.emit('emotion:shift', {
         dimension: name,
         from: Math.round(oldValue * 100) / 100,
         to: Math.round(dim.value * 100) / 100,
