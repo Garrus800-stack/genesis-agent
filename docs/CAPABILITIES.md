@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.2.6 — What Genesis can do, organized by category.
-> Last updated: v7.2.6: Event Hygiene — static analysis cleanup, 4335 tests, 154 services.
+> v7.2.7 — What Genesis can do, organized by category.
+> Last updated: v7.2.7: Autonomy Awareness — autonomy context in prompts, 4335 tests, 154 services.
 
 ---
 

@@ -1,7 +1,7 @@
 # Genesis Agent — Architecture Deep-Dive
 
 > Comprehensive technical analysis of Genesis Agent. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.2.6: 12 boot phases, 154 services, 221 source files, 4335 tests, 16 hash-locked files, 11 PreservationInvariants rules.
+> Last updated for v7.2.7: 12 boot phases, 154 services, 221 source files, 4335 tests, 16 hash-locked files, 11 PreservationInvariants rules.
 
 ---
 

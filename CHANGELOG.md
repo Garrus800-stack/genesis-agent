@@ -1,3 +1,46 @@
+## [7.2.7] — Autonomy Awareness
+
+Genesis learns what he already does. Not by gaining new abilities, but by being told about the ones he has.
+
+### Problem
+
+Genesis has autonomous systems that run between conversations — IdleMind thinks, Daemon repairs, DreamCycle consolidates. But when asked "do you exist between conversations?", he answered "No." The data existed but wasn't in the prompt.
+
+### Fix
+
+New `_autonomyContext()` PromptBuilder section. Pure data, no instructions:
+
+```
+[Autonomy Report — activity between user messages]
+Since last user message (47 min ago):
+- IdleMind: 10 cycles (reflect ×3, dream ×2, journal ×2, explore ×2, plan ×1), 46 journal entries
+- Daemon: 12 cycles completed, 8 skills loaded, 1 auto-repaired
+- DreamCycle: last dream 25 min ago
+```
+
+The LLM interprets the data; we don't prescribe how. This follows the v7.2.0 Self-Define principle: facts from code, interpretation from the model.
+
+### Changes
+
+- **`_autonomyContext()`** — new PromptBuilder section with IdleMind, Daemon, and DreamCycle data
+- **IdleMind block removed from `_organismContext()`** — replaced by more detailed autonomy section
+- **Guard Rule #4 softened** — removed aggressive "NEVER claim" instruction, replaced with pointer to data
+- **Daemon + DreamCycle late-bindings** — added to PromptBuilder with `expectedActive: true`
+- **Model gating** — `'autonomy'` added to gated array, re-enable loop, and A/B baseline
+- **Budget** — `[7, 'autonomy', 200]` (~69 tokens typical, 200 max)
+- **Guard**: section returns empty when `idleSince < 60s` AND `thoughtCount === 0`
+
+### Schema Scanner
+
+New `scripts/scan-schemas.js` (`npm run scan:schemas`) — static analysis tool that checks all `bus.emit/fire` calls against `EventPayloadSchemas`. Correctly handles ES6 shorthand properties, multi-line payloads, nested objects, and spread operators. Previous scanner was silently broken (checked wrong export object). Found 75 pre-existing schema mismatches (existing debt, not regressions).
+
+### Stats
+
+- 154 services, 4335 tests, 0 failures
+- 75 known schema mismatches (pre-existing, runtime validation catches them)
+
+---
+
 ## [7.2.6] — Event Hygiene
 
 Static analysis cleanup. Zero new features, zero behavioral changes — only catalog completeness.

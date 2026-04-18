@@ -99,6 +99,9 @@ function phase2(ctx, R) {
         { prop: '_unfinishedWorkFrontier', service: 'unfinishedWorkFrontier', optional: true, expectedActive: true },
         { prop: '_suspicionFrontier', service: 'suspicionFrontier', optional: true, expectedActive: true },
         { prop: '_lessonFrontier', service: 'lessonFrontier', optional: true, expectedActive: true },
+        // v7.2.7: Autonomy Awareness — daemon + dreamCycle data for autonomy report
+        { prop: '_daemon', service: 'daemon', optional: true, expectedActive: true },
+        { prop: '_dreamCycle', service: 'dreamCycle', optional: true, expectedActive: true },
       ],
       factory: (c) => new (R('PromptBuilder').PromptBuilder)({
         selfModel: c.resolve('selfModel'), model: c.resolve('llm'),
