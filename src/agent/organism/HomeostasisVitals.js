@@ -7,7 +7,7 @@
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('Homeostasis');
 
-// v7.6.0: Use V8 heap limit (actual max ~1.4-4GB) instead of dynamic heapTotal.
+// Use V8 heap limit (actual max ~1.4-4GB) instead of dynamic heapTotal.
 // heapUsed/heapTotal naturally sits at 85-95% because V8 sizes heapTotal close
 // to heapUsed. This caused constant false alarms on machines with plenty of RAM.
 let _heapLimit = 0;

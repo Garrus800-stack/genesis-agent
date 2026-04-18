@@ -106,7 +106,7 @@ function buildManifest(ctx) {
   };
 
   // ── Boot profiles ──────────────────────────────────────
-  // v7.6.0: Phase 13 (Consciousness) removed — replaced by
+  // Phase 13 (Consciousness) removed — replaced by
   // AwarenessPort in Phase 1. All profiles now cap at phase 12.
   //   full      → all 12 phases
   //   cognitive → phases 1-12 (same as full)

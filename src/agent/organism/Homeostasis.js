@@ -53,7 +53,7 @@ class Homeostasis {
       },
       memoryPressure: {
         value: 0, unit: '%',
-        // v7.6.0: Now measured against V8 heap_size_limit (~1.4-4GB) instead of
+        // Now measured against V8 heap_size_limit (~1.4-4GB) instead of
         // dynamic heapTotal. Normal usage: 3-15%. Alarm only near actual OOM risk.
         healthy: { min: 0, max: thresholds.memoryPressure?.healthy ?? 75 },
         warning: { min: thresholds.memoryPressure?.healthy ?? 75, max: thresholds.memoryPressure?.warning ?? 90 },

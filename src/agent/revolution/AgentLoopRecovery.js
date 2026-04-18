@@ -1,6 +1,6 @@
 // @ts-checked-v7.6
 // ============================================================
-// GENESIS — AgentLoopRecovery.js (v7.6.0)
+// GENESIS — AgentLoopRecovery.js
 //
 // V7-5: Extracted from AgentLoop.js to reduce God-class size.
 // Handles error classification, repair attempts, goal verification,

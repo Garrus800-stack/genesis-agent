@@ -110,16 +110,17 @@ const searchMethods = {
   learnFromText(text, source = 'conversation') {
     let learned = 0;
     // v7.2.8: isValidLabel filters stop words and fragments (min 4 chars, no pure stop-word labels)
-    for (const m of text.matchAll(/(\w[\w\s]{1,30}?)\s+(?:ist|sind|war|waren)\s+(?:ein[e]?\s+)?(\w[\w\s]{1,30})/gi)) {
+    // v7.2.9: Unicode-aware patterns (\p{L}) — \w was truncating German umlauts ("größer" → "gr")
+    for (const m of text.matchAll(/([\p{L}][\p{L}\s]{1,30}?)\s+(?:ist|sind|war|waren)\s+(?:ein[e]?\s+)?([\p{L}][\p{L}\s]{1,30})/giu)) {
       if (isValidLabel(m[1].trim()) && isValidLabel(m[2].trim())) { this.connect(m[1].trim(), 'is', m[2].trim()); learned++; }
     }
-    for (const m of text.matchAll(/(\w[\w\s]{1,30}?)\s+(?:benutzt|verwendet|nutzt|braucht)\s+(\w[\w\s]{1,30})/gi)) {
+    for (const m of text.matchAll(/([\p{L}][\p{L}\s]{1,30}?)\s+(?:benutzt|verwendet|nutzt|braucht)\s+([\p{L}][\p{L}\s]{1,30})/giu)) {
       if (isValidLabel(m[1].trim()) && isValidLabel(m[2].trim())) { this.connect(m[1].trim(), 'uses', m[2].trim()); learned++; }
     }
-    for (const m of text.matchAll(/(?:ich hei(?:ss|ß)e|mein name ist|i'm|my name is)\s+(\w+)/gi)) {
+    for (const m of text.matchAll(/(?:ich hei(?:ss|ß)e|mein name ist|i'm|my name is)\s+([\p{L}]+)/giu)) {
       this.addNode('entity', m[1].trim(), { type: 'person', role: 'user' }); learned++;
     }
-    for (const m of text.matchAll(/(?:arbeite|arbeiten|work)\s+(?:mit|an|on|with)\s+(\w[\w\s]{1,30})/gi)) {
+    for (const m of text.matchAll(/(?:arbeite|arbeiten|work)\s+(?:mit|an|on|with)\s+([\p{L}][\p{L}\s]{1,30})/giu)) {
       const pid = this.addNode('entity', m[1].trim(), { type: 'project' });
       const u = this.findNode('user');
       const uid = u ? u.id : this.addNode('entity', 'user', { type: 'person' });

@@ -1,6 +1,6 @@
 // GENESIS — ports/AwarenessPort.js
 // ═══════════════════════════════════════════════════════════════
-// V7-6: Lightweight Awareness port replacing the 14-module
+// Lightweight Awareness port replacing the 14-module
 // Consciousness Layer. All consumers depend on this contract
 // instead of 5 separate consciousness services.
 //

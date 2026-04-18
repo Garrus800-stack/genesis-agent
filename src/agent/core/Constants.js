@@ -344,7 +344,7 @@ const PHASE12 = {
 
 };
 
-// ── v7.6.0: Behavioral Thresholds ───────────────────────────
+// ── v7.0.1: Behavioral Thresholds ───────────────────────────
 // Decision-making parameters previously hardcoded as magic numbers.
 // Centralizing enables tuning without source changes.
 const THRESHOLDS = {

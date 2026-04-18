@@ -60,7 +60,7 @@ class SelfModificationPipeline {
     this.verifier = null;          // VerificationEngine
     this._genome = null;           // Genome (v5.0.0)
     this._metabolism = null;       // Metabolism (v5.0.0)
-    this._awareness = null;        // AwarenessPort (v7.6.0)
+    this._awareness = null;        // AwarenessPort
     this._preservation = null;     // PreservationInvariants (v5.5.0)
 
     // ── Circuit breaker (v4.12.8) ─────────────────────────
@@ -349,7 +349,7 @@ Antworte ehrlich und spezifisch in der Sprache des Users. Keine Modullisten.`;
         `To resume: say "/self-repair-reset" or restart Genesis.`;
     }
 
-    // v7.6.0: Awareness gate — don't modify self when fragmented
+    // Awareness gate — don't modify self when fragmented
     if (this._awareness) {
       try {
         const coherence = this._awareness.getCoherence();

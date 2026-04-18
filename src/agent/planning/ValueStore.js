@@ -84,7 +84,7 @@ class ValueStore {
   }
 
   start() {
-    // v7.6.0: consciousness:apprehension removed (Consciousness Layer replaced by AwarenessPort)
+    // consciousness:apprehension removed (Consciousness Layer replaced by AwarenessPort)
   }
 
   // FIX D-1: Sync write on shutdown.

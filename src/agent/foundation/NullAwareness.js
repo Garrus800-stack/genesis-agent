@@ -1,6 +1,6 @@
 // GENESIS — foundation/NullAwareness.js
 // ═══════════════════════════════════════════════════════════════
-// V7-6: Default no-op implementation of AwarenessPort.
+// Default no-op implementation of AwarenessPort.
 // Registered as 'awareness' in the DI container.
 // Zero overhead, zero side effects, all queries return safe defaults.
 // ═══════════════════════════════════════════════════════════════

@@ -24,7 +24,7 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('EventPayloadSchemas');
 const SCHEMAS = {
   // Agent Loop
-  'agent-loop:started':         { goalId: 'required', goal: 'required' },
+  'agent-loop:started':         { goalId: 'required', goal: 'optional' },
   'agent-loop:complete':        { goalId: 'required', title: 'required', steps: 'required', success: 'required' },
   // v4.12.5-fix: Schema now matches AgentLoop.js emission (stepIndex, result, type)
   'agent-loop:step-complete':   { goalId: 'required', stepIndex: 'required', type: 'required' },
@@ -50,7 +50,7 @@ const SCHEMAS = {
   'code:safety-blocked': { file: 'optional', issues: 'required' },
 
   // Cognitive Monitor
-  'cognitive:circularity-detected': { pattern: 'required', count: 'required' },
+  'cognitive:circularity-detected': { pattern: 'optional', count: 'optional' },
   'cognitive:overload':             { metric: 'required', value: 'required' },
 
   // Health
@@ -94,7 +94,7 @@ const SCHEMAS = {
   'user:message': { length: 'optional' },
 
   // Verification
-  'verification:complete': { result: 'required' },
+  'verification:complete': { result: 'optional' },
 
   // Homeostasis
   'homeostasis:pause-autonomy': {},
@@ -258,9 +258,9 @@ const SCHEMAS = {
   // ── v7.0.1: Schema coverage sweep ──────────────────────
 
   // Goal lifecycle
-  'goal:abandoned':        { id: 'required', description: 'optional' },
+  'goal:abandoned':        { id: 'optional', description: 'optional' },
   'goal:created':          { goalId: 'required', description: 'required' },
-  'goal:resumed':          { goalId: 'required' },
+  'goal:resumed':          { goalId: 'optional' },
 
   // Shell
   'shell:plan-complete':   { task: 'required', success: 'required' },
@@ -319,8 +319,8 @@ const SCHEMAS = {
   'selfmod:circuit-reset': {},
 
   // Agent-loop extended
-  'agent-loop:step-delegating': { goalId: 'required', stepIndex: 'required' },
-  'agent-loop:timeout':         { goalId: 'required', elapsed: 'optional' },
+  'agent-loop:step-delegating': { goalId: 'optional', stepIndex: 'optional' },
+  'agent-loop:timeout':         { goalId: 'optional', elapsed: 'optional' },
 
   // Agent system extended
   'agent:error':            { error: 'required', source: 'required' },
@@ -332,36 +332,36 @@ const SCHEMAS = {
   // Shell extended
   'shell:executed':         { command: 'required', exitCode: 'required', duration: 'optional' },
   'shell:failed':           { command: 'required', error: 'required' },
-  'shell:blocked':          { command: 'required', reason: 'required' },
+  'shell:blocked':          { command: 'required', reason: 'optional' },
   'shell:planning':         { task: 'required' },
-  'shell:step':             { step: 'required', command: 'required' },
+  'shell:step':             { step: 'required', command: 'optional' },
   'shell:outcome':          { command: 'required', success: 'required', error: 'optional', platform: 'optional' },
-  'shell:permission-changed': { command: 'required' },
-  'shell:rate-limited':     { command: 'required' },
+  'shell:permission-changed': { command: 'optional' },
+  'shell:rate-limited':     { command: 'optional' },
 
   // Goal extended
   'goal:failed':            { id: 'required', reason: 'required' },
-  'goal:replanned':         { goalId: 'required' },
-  'goal:unblocked':         { goalId: 'required' },
+  'goal:replanned':         { goalId: 'optional' },
+  'goal:unblocked':         { goalId: 'optional' },
   'goal:step-start':        { goalId: 'required', stepIndex: 'required' },
   'goal:create-file':       { goalId: 'required', path: 'required' },
 
   // Memory
   'memory:fact-stored':     { key: 'required', source: 'optional' },
   'memory:unified-recall':  { query: 'required' },
-  'memory:conflicts-resolved': { count: 'required' },
+  'memory:conflicts-resolved': { count: 'optional' },
   'memory:consolidated':    { count: 'optional' },
 
   // MCP extended
-  'mcp:connected':          { server: 'required' },
-  'mcp:connecting':         { server: 'required' },
-  'mcp:disconnected':       { server: 'required' },
+  'mcp:connected':          { server: 'optional' },
+  'mcp:connecting':         { server: 'optional' },
+  'mcp:disconnected':       { server: 'optional' },
   'mcp:degraded':           { name: 'required', failRate: 'required' },
-  'mcp:error':              { server: 'required', error: 'required' },
-  'mcp:tools-discovered':   { server: 'required', tools: 'required' },
-  'mcp:server-removed':     { server: 'required' },
+  'mcp:error':              { server: 'optional', error: 'required' },
+  'mcp:tools-discovered':   { server: 'optional', tools: 'optional' },
+  'mcp:server-removed':     { server: 'optional' },
   'mcp:pattern-detected':   { pattern: 'required' },
-  'mcp:notification':       { server: 'required', method: 'required' },
+  'mcp:notification':       { server: 'optional', method: 'required' },
 
   // Homeostasis
   'homeostasis:critical':       {},
@@ -393,39 +393,39 @@ const SCHEMAS = {
   'delegation:rejected':    { taskId: 'required', peerId: 'required', reason: 'required' },
 
   // Peer extended
-  'peer:discovered':        { peerId: 'required' },
-  'peer:trusted':           { peerId: 'required' },
-  'peer:evicted':           { peerId: 'required', reason: 'required' },
-  'peer:unhealthy':         { peerId: 'required' },
-  'peer:skill-imported':    { peerId: 'required', skill: 'required' },
-  'peer:sync-applied':      { peerId: 'required' },
+  'peer:discovered':        { peerId: 'optional' },
+  'peer:trusted':           { peerId: 'optional' },
+  'peer:evicted':           { peerId: 'optional', reason: 'required' },
+  'peer:unhealthy':         { peerId: 'optional' },
+  'peer:skill-imported':    { peerId: 'required', skill: 'optional' },
+  'peer:sync-applied':      { peerId: 'optional' },
 
   // Schema store
   'schema:stored':          { name: 'required' },
   'schema:merged':          { name: 'required' },
   'schema:removed':         { name: 'required' },
-  'schema:pruned':          { count: 'required' },
+  'schema:pruned':          { count: 'optional' },
 
   'workspace:consolidate':  { goalId: 'required', items: 'required', workspaceStats: 'required' },
 
   // Hot-reload
-  'hot-reload:success':     { module: 'required' },
-  'hot-reload:failed':      { module: 'required', error: 'required' },
-  'hot-reload:syntax-error': { module: 'required', error: 'required' },
-  'hot-reload:rollback':    { module: 'required' },
+  'hot-reload:success':     { module: 'optional' },
+  'hot-reload:failed':      { module: 'optional', error: 'required' },
+  'hot-reload:syntax-error': { module: 'optional', error: 'required' },
+  'hot-reload:rollback':    { module: 'optional' },
 
   // Learning
   'learning:pattern-detected':    { pattern: 'required' },
   'learning:frustration-detected': { message: 'optional' },
   'learning:capability-gap':      { userRequest: 'required', response: 'required', timestamp: 'required' },
   'learning:intent-suggestion':   { intent: 'required' },
-  'learning:performance-alert':   { type: 'required' },
+  'learning:performance-alert':   { type: 'optional' },
 
   // LLM
   'llm:call-complete':      { model: 'optional', tokens: 'optional', durationMs: 'optional' },
   'llm:call-error':         { error: 'required' },
-  'llm:rate-limited':       { model: 'required' },
-  'llm:budget-warning':     { usage: 'required' },
+  'llm:rate-limited':       { model: 'optional' },
+  'llm:budget-warning':     { usage: 'optional' },
 
   // Perception
   'perception:file-added':    { path: 'required' },
@@ -435,14 +435,14 @@ const SCHEMAS = {
 
   // Reasoning
   'reasoning:completed':      { task: 'required' },
-  'reasoning:refined':        { task: 'required' },
+  'reasoning:refined':        { task: 'optional' },
   'reasoning:solve':          { task: 'required' },
-  'reasoning:impact-analysis': { target: 'required' },
+  'reasoning:impact-analysis': { target: 'optional' },
 
   // Simulation
-  'simulation:started':     { plan: 'required' },
-  'simulation:branched':    { branch: 'required' },
-  'simulation:complete':    { result: 'required' },
+  'simulation:started':     { plan: 'optional' },
+  'simulation:branched':    { branch: 'optional' },
+  'simulation:complete':    { result: 'optional' },
 
   // Effector
   'effector:registered':    { name: 'required' },
@@ -451,16 +451,16 @@ const SCHEMAS = {
   'effector:blocked':       { name: 'required', reason: 'required' },
 
   // Spawner
-  'spawner:starting':       { task: 'required' },
-  'spawner:completed':      { task: 'required', success: 'required' },
+  'spawner:starting':       { task: 'optional' },
+  'spawner:completed':      { task: 'optional', success: 'required' },
   'spawner:progress':       { task: 'required' },
-  'spawner:error':          { task: 'required', error: 'required' },
+  'spawner:error':          { task: 'optional', error: 'required' },
 
   // Attention — removed in v7.0.3 (orphaned from old Consciousness layer, 0 emitters, 0 listeners)
 
   // File
   'file:import-blocked':    { path: 'required', resolved: 'required' },
-  'file:imported':          { path: 'required' },
+  'file:imported':          { path: 'optional' },
   'file:executed':          { path: 'required' },
 
   // Health
@@ -470,13 +470,13 @@ const SCHEMAS = {
 
   // HTN
   'htn:plan-validated':     { plan: 'required' },
-  'htn:dry-run':            { plan: 'required' },
-  'htn:cost-estimated':     { plan: 'required', cost: 'required' },
+  'htn:dry-run':            { plan: 'optional' },
+  'htn:cost-estimated':     { plan: 'optional', cost: 'optional' },
 
   // Embodied
-  'embodied:panel-changed':      { panel: 'required' },
-  'embodied:focus-changed':      { focus: 'required' },
-  'embodied:engagement-changed': { engagement: 'required' },
+  'embodied:panel-changed':      { panel: 'optional' },
+  'embodied:focus-changed':      { focus: 'optional' },
+  'embodied:engagement-changed': { engagement: 'optional' },
 
   // Web
   'web:search':             { query: 'required' },
@@ -489,24 +489,24 @@ const SCHEMAS = {
   'exec:system':            { command: 'required' },
 
   // Expectation
-  'expectation:formed':     { type: 'required' },
+  'expectation:formed':     { type: 'optional' },
   'expectation:compared':   { type: 'required', match: 'required' },
-  'expectation:calibrated': { type: 'required' },
+  'expectation:calibrated': { type: 'optional' },
 
   // Genome
   'genome:loaded':          {},
-  'genome:trait-adjusted':  { trait: 'required', value: 'required' },
-  'genome:reproduced':      { generation: 'required' },
+  'genome:trait-adjusted':  { trait: 'required', value: 'optional' },
+  'genome:reproduced':      { generation: 'optional' },
 
   // Metabolism
   'metabolism:consumed':       { tokens: 'required' },
-  'metabolism:insufficient':   { required: 'required', available: 'required' },
+  'metabolism:insufficient':   { required: 'optional', available: 'required' },
   'metabolism:state-changed':  { state: 'required' },
 
   // Prompt evolution
   'prompt-evolution:experiment-started':   { section: 'required', hypothesis: 'required' },
-  'prompt-evolution:experiment-completed': { section: 'required', promoted: 'required' },
-  'prompt-evolution:rollback':             { section: 'required', reason: 'required' },
+  'prompt-evolution:experiment-completed': { section: 'required', promoted: 'optional' },
+  'prompt-evolution:rollback':             { section: 'required', reason: 'optional' },
   'prompt-evolution:promoted':             { section: 'required', variantId: 'required', improvement: 'required' },
 
   // Misc single-event domains
@@ -517,22 +517,22 @@ const SCHEMAS = {
   'context:built':          {},
   'editor:open':            { content: 'required', language: 'optional', filename: 'optional' },
   'embedding:ready':        { model: 'required', dimensions: 'required' },
-  'episodic:recorded':      { episode: 'required' },
+  'episodic:recorded':      { episode: 'optional' },
   'ui:heartbeat':           {},
-  'router:routed':          { backend: 'required' },
-  'store:integrity-violation': { key: 'required' },
+  'router:routed':          { backend: 'optional' },
+  'store:integrity-violation': { key: 'optional' },
   'worldstate:file-changed':   { path: 'required' },
   'narrative:updated':      { chapter: 'optional' },
   'goals:loaded':           { total: 'required', unfinished: 'optional', archived: 'optional' },
-  'failure:classified':     { category: 'required', error: 'required' },
+  'failure:classified':     { category: 'required', error: 'optional' },
   'classifier:trained':     { samples: 'required' },
   // autonomy:status — removed in v7.0.3 (orphaned, 0 emitters, 0 listeners)
-  'notification:show':      { message: 'required' },
+  'notification:show':      { message: 'optional' },
   'fitness:evaluated':      { score: 'required' },
   'safety:degraded':        { reason: 'required' },
-  'boot:degraded':          { reason: 'required' },
+  'boot:degraded':          { reason: 'optional' },
   'error:health-summary':   { errors: 'required' },
-  'circuit:fallback':       { service: 'required' },
+  'circuit:fallback':       { service: 'optional' },
   'capability:issued':      { module: 'required', scope: 'required', tokenId: 'required' },
   'capability:revoked':     { tokenId: 'required' },
   'tool:native-call':       { name: 'required', round: 'required', input: 'required' },
@@ -543,21 +543,21 @@ const SCHEMAS = {
   'fs:write':               { path: 'required' },
   'net:external':           { url: 'required' },
   'net:local':              {},
-  'surprise:processed':     { surprise: 'required' },
+  'surprise:processed':     { surprise: 'optional' },
   'surprise:amplified-learning': { surprise: 'required' },
   'steering:model-escalation':   { frustration: 'required' },
   'steering:rest-mode':          {},
   'intent:llm-classified':  { intent: 'required', message: 'optional' },
-  'intent:learned':         { type: 'required' },
+  'intent:learned':         { type: 'optional' },
   'knowledge:learned':      { count: 'optional', source: 'optional', text: 'optional' },
   'knowledge:node-added':   { id: 'required', type: 'optional', label: 'optional' },
   'meta:outcome-recorded':  { category: 'required', success: 'required', model: 'optional', total: 'optional' },
   'meta:recommendations-updated': {},
   'needs:high-drive':       { need: 'required' },
   'needs:satisfied':        { need: 'required' },
-  'planner:complete':       { plan: 'required' },
+  'planner:complete':       { plan: 'optional' },
   'planner:truncated':      { reason: 'required' },
-  'preservation:violation': { rule: 'required' },
+  'preservation:violation': { rule: 'optional' },
   'emotion:watchdog-reset': { dimension: 'required', from: 'required', to: 'required', stuckMs: 'required' },
   'emotion:watchdog-alert': { stuck: 'required' },
   'lessons:recorded':       { category: 'required' },

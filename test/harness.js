@@ -181,9 +181,7 @@ async function run() {
   const duration = Date.now() - startTime;
 
   // ── Summary ──
-  console.log('\n═══════════════════════════════════════');
-  console.log(`  Results: ${passed} passed, ${failed} failed (${totalAssertions} assertions) [${duration}ms]`);
-  console.log('═══════════════════════════════════════');
+  console.log(`\n    ${passed} passed · ${failed} failed · ${totalAssertions} assertions · ${duration}ms`);
 
   if (failures.length > 0) {
     console.log('\n  Failures:');

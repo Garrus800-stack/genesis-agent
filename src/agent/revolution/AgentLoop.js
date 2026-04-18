@@ -36,9 +36,9 @@ const { AgentLoopPlannerDelegate } = require('./AgentLoopPlanner');
 const { AgentLoopStepsDelegate } = require('./AgentLoopSteps');
 // v4.0: Phase 9 cognitive hooks (graceful degradation if services missing)
 const { AgentLoopCognitionDelegate } = require('./AgentLoopCognition');
-// v7.6.0: Error recovery, verification, reflection (extracted from AgentLoop)
+// Error recovery, verification, reflection (extracted from AgentLoop)
 const { AgentLoopRecoveryDelegate } = require('./AgentLoopRecovery');
-// v7.6.0: Approval lifecycle (extracted from AgentLoop)
+// Approval lifecycle (extracted from AgentLoop)
 const { ApprovalGate } = require('./ApprovalGate');
 const { createLogger } = require('../core/Logger');
 const { CorrelationContext } = require('../core/CorrelationContext');
@@ -129,8 +129,8 @@ class AgentLoop {
     this.planner = new AgentLoopPlannerDelegate(this);
     this.steps = new AgentLoopStepsDelegate(this);
     this.cognition = new AgentLoopCognitionDelegate(this); // v4.0: Phase 9
-    this.recovery = new AgentLoopRecoveryDelegate(this);   // v7.6.0: repair + verify
-    this.approval = new ApprovalGate({                     // v7.6.0: approval lifecycle
+    this.recovery = new AgentLoopRecoveryDelegate(this);   // repair + verify
+    this.approval = new ApprovalGate({                     // approval lifecycle
       bus: this.bus,
       parent: this,            // v7.2.2: Lazy-read trustLevelSystem after late-binding
       timeoutMs: this._approvalTimeoutMs,

@@ -212,7 +212,7 @@ class AgentLoopCognitionDelegate {
   }
 
   // ════════════════════════════════════════════════════════════
-  // v7.6.0: AWARENESS CONSULTATION
+  // AWARENESS CONSULTATION
   //
   // Delegates to AwarenessPort.consult() + ValueStore enrichment.
   // AwarenessPort replaces the former 14-module Consciousness Layer.
@@ -227,7 +227,7 @@ class AgentLoopCognitionDelegate {
    * @returns {object} { paused, concerns, valueContext }
    */
   consultConsciousness(plan) {
-    // v7.6.0: Delegate to AwarenessPort
+    // Delegate to AwarenessPort
     const awareness = this._resolveOptional('awareness');
     const result = awareness
       ? { ...awareness.consult(plan) }

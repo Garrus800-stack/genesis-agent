@@ -399,7 +399,7 @@ class AgentLoopStepsDelegate {
   }
 
   // ═══════════════════════════════════════════════════════════
-  // v7.6.0: Extracted from AgentLoop — repair, verification, tags
+  // Extracted from AgentLoop — repair, verification, tags
   // ═══════════════════════════════════════════════════════════
 
   /**

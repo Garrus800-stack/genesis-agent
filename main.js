@@ -4,6 +4,16 @@
 // The agent CANNOT modify this file or the kernel/ directory.
 // ============================================================
 
+// v7.2.9: Windows console UTF-8 — prevents "ÔÇö" / "ÔåÆ" garbage
+// in log output. chcp 65001 sets the active codepage for the
+// console, which is required for Node's UTF-8 stdout to render
+// em-dashes, arrows, and non-ASCII characters correctly.
+if (process.platform === 'win32') {
+  try {
+    require('child_process').execSync('chcp 65001', { stdio: 'ignore', windowsHide: true });
+  } catch { /* non-fatal: some terminals don't support chcp */ }
+}
+
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');

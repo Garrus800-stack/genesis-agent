@@ -230,8 +230,8 @@ class IdleMind {
         case 'calibrate':   result = await this._calibrate(); break;
         case 'research':    result = await this._research(); break;
         case 'self-define': result = await this._selfDefine(); break;
-        case 'improve':    result = await this._improve(); break;   // v7.2.10: was missing since v7.0.9
-        case 'study':      result = await this._study(); break;     // v7.2.10: LLM-based learning
+        case 'improve':    result = await this._improve(); break;   // v7.2.8: was missing since v7.0.9
+        case 'study':      result = await this._study(); break;     // v7.2.8: LLM-based learning
         default:             result = await this._reflect();
       }
 
@@ -349,7 +349,7 @@ class IdleMind {
       }
     } catch (_e) { /* no cognitiveSelfModel */ }
 
-    // v7.2.10: study — learn from LLM's training knowledge
+    // v7.2.8: study — learn from LLM's training knowledge
     try {
       if (this.model?.activeModel && this.kg) {
         candidates.push('study');
@@ -396,7 +396,7 @@ class IdleMind {
         if (scores.explore !== undefined)        scores.explore        *= curMul;
         if (scores.ideate !== undefined)         scores.ideate         *= curMul;
         if (scores['mcp-explore'] !== undefined) scores['mcp-explore'] *= curMul;
-        // v7.2.10: research + study are curiosity-driven
+        // v7.2.8: research + study are curiosity-driven
         if (scores.research !== undefined)     scores.research     *= curMul;
         if (scores.study !== undefined)        scores.study        *= curMul;
         if (scores.dream !== undefined)          scores.dream          *= conMul;
@@ -452,7 +452,7 @@ class IdleMind {
             if (curiositySust.length > 0 && scores.ideate !== undefined) {
               scores.ideate *= (1 + 0.4 * cooldownFactor);
             }
-            // v7.2.10: sustained curiosity also boosts research
+            // v7.2.8: sustained curiosity also boosts research
             if (curiositySust.length > 0 && scores.research !== undefined) {
               scores.research *= (1 + 0.3 * cooldownFactor);
             }
@@ -558,7 +558,7 @@ class IdleMind {
       }
     }
 
-    // v7.2.9: Debug — why is research never picked?
+    // v7.2.8: Debug — why is research never picked?
     if (scores.research !== undefined) {
       _log.debug(`[IDLE] Activity scores: research=${scores.research.toFixed(2)}, winner=${bestActivity}(${bestScore.toFixed(2)}), candidates=${Object.keys(scores).join(',')}`);
     }

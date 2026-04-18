@@ -36,7 +36,7 @@ class PromptBuilder {
     // v3.5.0: Metacognitive layer (late-bound)
     this.cognitiveMonitor = null;
 
-    // v7.6.0: AwarenessPort (late-bound) — replaces 5 consciousness services
+    // AwarenessPort (late-bound) — replaces 5 consciousness services
     this.awareness = null;
     // v5.7.0 (SA-P3): Architecture self-reflection
     this.architectureReflection = null;

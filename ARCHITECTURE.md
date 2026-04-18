@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.2.8 · Last verified: all checks green (4335 tests, 261 suites)
+> Version: 7.2.9 · Last verified: all checks green (4518 tests · 154 core + 4364 modules, 0 schema mismatches)
 
 ---
 
@@ -11,7 +11,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~73k LOC of JavaScript (CommonJS), 221 source modules, 154 DI-managed services, with zero external runtime frameworks. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~73k LOC of JavaScript (CommonJS), 221 source modules, with zero external runtime frameworks. The manifest statically registers 142 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 154 — this is what you'll see in the final boot log line (`Boot complete — 154 services`). Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -566,7 +566,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~4335 tests across 261 suites |
+| Tests | `node test/index.js` | ~4518 tests across 261 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |

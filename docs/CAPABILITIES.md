@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.2.8 — What Genesis can do, organized by category.
-> Last updated: v7.2.8: Idle Intelligence — research scoring fix, LLM study, improve bug fix, 4335 tests, 154 services.
+> v7.2.9 — What Genesis can do, organized by category.
+> Last updated: v7.2.9: Signal Compliance — schema compliance (75→0 mismatches), Unicode regex, doc truth, 4518 tests, 142→154 services.
 
 ---
 
@@ -242,7 +242,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **261 test suites** | 4335 tests, coverage gates: 80% lines, 75.9% branches, 78% functions |
+| **261 test suites** | 4518 tests, coverage gates: 80% lines, 75.9% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

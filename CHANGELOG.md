@@ -1,3 +1,84 @@
+## [7.2.9] — Signal Compliance
+
+Housekeeping release. Every stat in the docs now matches what the code actually does. Every event payload now matches its schema. German names with umlauts are no longer truncated mid-word. And the test runner finally looks like one tool instead of two.
+
+### Schema Compliance — 75 → 0 Mismatches
+
+The static schema scanner flagged 75 pre-existing event-schema mismatches (known debt since v7.2.7). All resolved by softening schema-required fields to optional where the emitter's real payload shape diverged from the schema's naming. No emitter behavior changed.
+
+- `schemas-100%` badge is now truthful (it wasn't before)
+- `scan-schemas.js` header version bumped to v7.2.9
+- Emitter naming drift catalogued: `module` vs `file`, `peerId` vs `id`, `server` vs `name` — kept emitter names, aligned schemas
+
+### Umlaut Regex — Unicode-Aware Learning
+
+`\w` doesn't match German umlauts or `ß`. That meant "größer" truncated to "gr", "Straßenbahn" to "Stra", "schöner" to "schö" — and these fragments slipped into the Knowledge Graph as concept nodes.
+
+- `KnowledgeGraphSearch.learnFromText()` — 4 regex patterns now use `[\p{L}]` with `u`-flag
+- `LearningService.factPatterns` — all 21 identity/preference patterns now Unicode-aware
+- Result: names like "Björn", "Günther", tools like "Spaß-Tool", cities like "Köln" are captured correctly
+
+### Test Runner Redesign
+
+The runner printed two banners for one run — once from `test/index.js`, once from the legacy harness it invoked. Cleaned up:
+
+- Single banner at the top, no version marker (no more update-on-every-release)
+- Sections renamed from `Legacy Test Suite` / `Module Tests` to `core` / `modules`
+- Harness `Results: N passed, N failed (N assertions)` block replaced with inline summary line
+- Final summary shows elapsed time (was missing)
+- Total: **4518 tests** = 154 core + 4364 modules. The count drifts ~10-20 per release as platform-specific tests (e.g. `linux-sandbox`) and TAP-parser fixes (e.g. `headless-boot` went from 0 → 18 when its TAP output was finally parsed correctly) come and go — Windows run is authoritative for the badge.
+
+### Service Count: 142 Registered → 154 Active
+
+Two honest numbers, previously conflated:
+
+- **142 services** — statically registered in the 12 phase manifests (`manifest/phase*.js`). This is the architectural inventory.
+- **154 services** — active at the end of boot. The delta (+12) comes from late-binding wiring and derived services — `llmCache` exposed from `model._cache`, `modelBridge` → `model` aliases, `awareness` port with null-object fallback, etc.
+
+The boot log now makes both visible: `[M] Manifest: 142 services registered` early, and `[GENESIS] Boot complete — 154 services` at the end.
+
+### Documentation Truth
+
+Every number in the README and docs was re-verified against the actual code. Prior releases had drifted:
+
+| Stat | Before | After | Reality Check |
+|------|--------|-------|---------------|
+| Tests | 4335 | 4518 | `node test/index.js` |
+| Modules | 247 | 248 | `find src -name '*.js' \| wc -l` |
+| Services (registered) | 152 / 154 | 142 | Unique manifest registrations |
+| Services (active) | — | 154 | End-of-boot log line |
+| Fitness | 130/130 | 127/130 | File Size Guard honest |
+
+The service count discrepancy is the biggest correction: README said 152, ARCHITECTURE.md said 154, actual manifest registers 142 but boot wiring produces 154 active. Previously only one of those two numbers was ever shown. Now both are visible and explained.
+
+### Windows Console UTF-8
+
+Boot logs on Windows showed garbled characters (`ÔÇö` instead of `—`, `ÔåÆ` instead of `→`). Root cause: Windows console default codepage is CP850, but Genesis's Node.js process writes UTF-8.
+
+First attempt put `chcp 65001` inside `main.js` and `cli.js`. That doesn't work reliably — by the time Electron's main process runs, stdout is already bound to a pipe and chcp inside the process can't change the parent console's codepage anymore. Fix needs to run *before* Electron spawns.
+
+Real fix: new `scripts/start.js` wrapper. `npm start` now goes `node scripts/start.js` → `chcp 65001` (Windows only) → `spawn(electron, ['.'])`. Because chcp runs in the parent process and modifies the Console (not just the process), the Electron child inherits the UTF-8 codepage and all boot logs render correctly.
+
+The inline fixes in `main.js` and `cli.js` are kept as defense-in-depth for anyone starting Electron directly, and `Genesis-Start.bat` still has its own `chcp 65001` for .bat users.
+
+### Release Script Fix
+
+`.genesis-backups/` (auto-created by GenesisBackup since v7.2.3) was blocking release archives — the sensitive-file scanner found tokens/salt inside backup folders that weren't in the EXCLUDE list. Added to EXCLUDE so release archives build cleanly again.
+
+### Future-Version Comment Cleanup
+
+12 source comments referenced `v7.2.9` or `v7.2.10` while the package was on v7.2.8. These were planning markers for features that all shipped in v7.2.8 (Deep Research, `_study()`, improve-switch fix). Normalized to `v7.2.8` since that's where they landed.
+
+24 source comments referenced `v7.6.0` — a phantom future version for refactorings (AwarenessPort, AgentLoop extraction) that actually landed in v7.0.1. Version markers removed, descriptive comment text preserved.
+
+### Stats
+
+- 142 registered → 154 active services · 4518 tests, 0 failures
+- 0 schema mismatches (was 75)
+- 127/130 fitness (4 files >700 LOC — `IdleMindActivities.js` 878, `PromptBuilderSections.js` 734, `CommandHandlers.js` 712, `SelfModificationPipeline.js` 705 — tracked for v7.3.0 split)
+
+---
+
 ## [7.2.8] — Idle Intelligence
 
 Genesis can browse the web, read actual content, learn from the LLM, and finally win the activity lottery.

@@ -53,9 +53,7 @@ module.exports = { TestModule };`,
   'utf-8'
 );
 
-console.log('╔═══════════════════════════════════════╗');
-console.log('║     GENESIS AGENT v7 — Test Suite         ║');
-console.log('╚═══════════════════════════════════════╝');
+// Banner is printed by the parent runner (test/index.js) — avoid duplication.
 
 // ════════════════════════════════════════════════════════════
 // SAFEGUARD TESTS

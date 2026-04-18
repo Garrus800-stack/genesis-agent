@@ -34,30 +34,31 @@ class LearningService {
     this._intervals = intervals || null;
 
     // ── Fact extraction patterns (DE + EN) ──────────────
+    // v7.2.9: Unicode-aware (\p{L}) — captures German names/words with umlauts correctly
     this.factPatterns = [
       // German identity
-      { regex: /ich heisse (\w+)/i, key: 'user.name' },
-      { regex: /ich bin (\w+)/i, key: 'user.role' },
-      { regex: /mein name ist (\w+)/i, key: 'user.name' },
-      { regex: /nenn mich (\w+)/i, key: 'user.name' },
+      { regex: /ich heisse ([\p{L}]+)/iu, key: 'user.name' },
+      { regex: /ich bin ([\p{L}]+)/iu, key: 'user.role' },
+      { regex: /mein name ist ([\p{L}]+)/iu, key: 'user.name' },
+      { regex: /nenn mich ([\p{L}]+)/iu, key: 'user.name' },
       { regex: /ich arbeite (?:an|mit|bei) (.+?)(?:\.|,|$)/i, key: 'user.work' },
-      { regex: /ich benutze (\w[\w\s]*\w)/i, key: 'user.tool' },
+      { regex: /ich benutze ([\p{L}][\p{L}\s]*[\p{L}])/iu, key: 'user.tool' },
       { regex: /mein.* (?:name|projekt) ist (.+?)(?:\.|,|$)/i, key: 'user.info' },
-      { regex: /ich mag (\w[\w\s]*\w)/i, key: 'user.preference' },
-      { regex: /ich spreche (\w+)/i, key: 'user.language' },
+      { regex: /ich mag ([\p{L}][\p{L}\s]*[\p{L}])/iu, key: 'user.preference' },
+      { regex: /ich spreche ([\p{L}]+)/iu, key: 'user.language' },
       { regex: /ich wohne (?:in|bei) (.+?)(?:\.|,|$)/i, key: 'user.location' },
-      { regex: /mein betriebssystem ist (\w+)/i, key: 'user.os' },
-      { regex: /ich programmiere (?:in|mit) (\w+)/i, key: 'user.language_prog' },
+      { regex: /mein betriebssystem ist ([\p{L}]+)/iu, key: 'user.os' },
+      { regex: /ich programmiere (?:in|mit) ([\p{L}]+)/iu, key: 'user.language_prog' },
       // English identity
-      { regex: /my name is (\w+)/i, key: 'user.name' },
-      { regex: /call me (\w+)/i, key: 'user.name' },
-      { regex: /i(?:'m| am) (\w+)/i, key: 'user.role' },
+      { regex: /my name is ([\p{L}]+)/iu, key: 'user.name' },
+      { regex: /call me ([\p{L}]+)/iu, key: 'user.name' },
+      { regex: /i(?:'m| am) ([\p{L}]+)/iu, key: 'user.role' },
       { regex: /i work (?:at|on|with) (.+?)(?:\.|,|$)/i, key: 'user.work' },
-      { regex: /i use (\w[\w\s]*\w)/i, key: 'user.tool' },
+      { regex: /i use ([\p{L}][\p{L}\s]*[\p{L}])/iu, key: 'user.tool' },
       { regex: /i live in (.+?)(?:\.|,|$)/i, key: 'user.location' },
-      { regex: /i speak (\w+)/i, key: 'user.language' },
-      { regex: /i prefer (\w[\w\s]*\w)/i, key: 'user.preference' },
-      { regex: /my (?:favorite|fav) (?:\w+ )?is (\w[\w\s]*\w)/i, key: 'user.preference' },
+      { regex: /i speak ([\p{L}]+)/iu, key: 'user.language' },
+      { regex: /i prefer ([\p{L}][\p{L}\s]*[\p{L}])/iu, key: 'user.preference' },
+      { regex: /my (?:favorite|fav) (?:[\p{L}]+ )?is ([\p{L}][\p{L}\s]*[\p{L}])/iu, key: 'user.preference' },
     ];
 
     // ── Outcome tracking ────────────────────────────────

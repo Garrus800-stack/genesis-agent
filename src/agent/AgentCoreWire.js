@@ -261,7 +261,7 @@ class AgentCoreWire {
     // Phase 4: Planning
     start('valueStore');
 
-    // Phase 13 → v7.6.0: AwarenessPort (no-op by default)
+    // Phase 13 → AwarenessPort (no-op by default)
     start('awareness');
   }
 }

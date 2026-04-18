@@ -1,6 +1,6 @@
 // GENESIS — revolution/ApprovalGate.js
 // ═══════════════════════════════════════════════════════════════
-// v7.6.0: Extracted from AgentLoop — approval/rejection lifecycle.
+// Extracted from AgentLoop — approval/rejection lifecycle.
 // Trust-gated bypass via TrustLevelSystem.
 // ═══════════════════════════════════════════════════════════════
 

@@ -189,7 +189,7 @@ function apply(Dashboard) {
     el.innerHTML = html;
   };
 
-  // ── v7.6.0: Awareness Panel (replaces Consciousness) ────
+  // ── v7.0.1: Awareness Panel (replaces Consciousness) ────
 
   proto._renderConsciousness = function(data, gateStats) {
     const el = this._el('dash-consciousness-body');

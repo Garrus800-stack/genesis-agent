@@ -110,9 +110,9 @@ If any step fails, it rolls back automatically.
 Genesis supports three boot profiles for different use cases:
 
 ```bash
-npm start                        # Full mode (default) — all 12 phases, ~154 services
+npm start                        # Full mode (default) — all 12 phases, ~142 services
 npm start -- --minimal           # Minimal — core + intelligence + planning (~90 services)
-npm start -- --cognitive         # Cognitive — all 12 phases (~154 services, identical to default)
+npm start -- --cognitive         # Cognitive — all 12 phases (~142 services, identical to default)
 ```
 
 | Profile | Services | Use case |
@@ -185,7 +185,7 @@ Settings persist in `.genesis/settings.json`.
 - Read [ARCHITECTURE-DEEP-DIVE.md](docs/ARCHITECTURE-DEEP-DIVE.md) to understand the 12-phase boot
 - Read [CAPABILITIES.md](docs/CAPABILITIES.md) for the full feature list
 - Read [CONTRIBUTING.md](CONTRIBUTING.md) if you want to extend Genesis
-- Run `npm test` to see all 4335 tests pass
+- Run `npm test` to see all 4518 tests pass
 - Run `node scripts/architectural-fitness.js` to check code health
 
 ## CLI Commands (REPL Mode)

@@ -27,16 +27,19 @@ const runNew = !args.includes('--legacy');
 const CONCURRENCY = 4;
 
 async function main() {
-  console.log('\n╔══════════════════════════════════════════╗');
-  console.log('║       GENESIS TEST SUITE v7              ║');
-  console.log('╚══════════════════════════════════════════╝\n');
+  const startTime = Date.now();
+
+  console.log('');
+  console.log('  Genesis · Test Suite');
+  console.log('  ────────────────────────────────────────');
 
   let totalPassed = 0;
   let totalFailed = 0;
 
-  // ── Legacy Suite ──────────────────────────────────────────
+  // ── Core Suite (formerly "Legacy") ───────────────────────
   if (runLegacy) {
-    console.log('━━━ Legacy Test Suite ━━━');
+    console.log('');
+    console.log('  ── core ────────────────────────────────');
     try {
       const { stdout } = await execFileAsync('node', ['test/run-tests.js'], {
         cwd: path.join(__dirname, '..'),
@@ -59,9 +62,10 @@ async function main() {
     }
   }
 
-  // ── New Per-Module Tests ──────────────────────────────────
+  // ── Module Suite (per-module test files) ─────────────────
   if (runNew) {
-    console.log('\n━━━ Module Tests ━━━');
+    console.log('');
+    console.log('  ── modules ─────────────────────────────');
     const testDir = path.join(__dirname, 'modules');
 
     if (fs.existsSync(testDir)) {
@@ -149,9 +153,12 @@ async function main() {
   }
 
   // ── Summary ──────────────────────────────────────────────
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(`  TOTAL: ${totalPassed} passed, ${totalFailed} failed`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  const status = totalFailed > 0 ? '❌' : '✓';
+  console.log('');
+  console.log('  ────────────────────────────────────────');
+  console.log(`  ${status} ${totalPassed} passed · ${totalFailed} failed · ${elapsed}s`);
+  console.log('');
 
   process.exit(totalFailed > 0 ? 1 : 0);
 }

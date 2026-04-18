@@ -440,7 +440,7 @@ const activities = {
 
     if (!fetchResult?.body) { this._pendingResearch = null; return; }
 
-    // v7.2.9: Phase 2 — Deep Read (fetch actual content, not just metadata)
+    // v7.2.8: Phase 2 — Deep Read (fetch actual content, not just metadata)
     const deepUrl = this._getDeepReadUrl(topic, fetchResult.body);
     if (deepUrl) {
       try {
@@ -482,7 +482,7 @@ const activities = {
       if (quality.score >= 0.5) {
         this.kg.addNode('research', `${topic.label}: ${insight.slice(0, 60)}`, {
           type: 'research-finding',
-          topic: topic.label,         // v7.2.10: enables study/research complementarity filter
+          topic: topic.label,         // v7.2.8: enables study/research complementarity filter
           source: topic.source,
           url: url,
           insight: insight.slice(0, 500),
@@ -609,7 +609,7 @@ const activities = {
     return strategies[Math.floor(Math.random() * strategies.length)];
   },
 
-  // v7.2.9: Construct deep-read URL from Phase 1 discovery result
+  // v7.2.8: Construct deep-read URL from Phase 1 discovery result
   _getDeepReadUrl(topic, rawBody) {
     try {
       const data = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody;
@@ -636,7 +636,7 @@ const activities = {
     return null;
   },
 
-  // v7.2.9: Extract readable content from deep-read response
+  // v7.2.8: Extract readable content from deep-read response
   _extractDeepContent(url, rawBody) {
     try {
       // StackOverflow: JSON with answer body (HTML) → strip tags
@@ -795,7 +795,7 @@ const activities = {
     }
   },
 
-  // v7.2.10: Study — learn from LLM's training knowledge during idle time.
+  // v7.2.8: Study — learn from LLM's training knowledge during idle time.
   // Picks a topic from KG, asks the LLM to teach, stores insight.
   // Two anti-feedback-loop mechanisms:
   //   1. 2h cooldown per topic (skip if studied recently)

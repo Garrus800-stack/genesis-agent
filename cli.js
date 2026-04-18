@@ -18,6 +18,13 @@
 
 'use strict';
 
+// v7.2.9: Windows console UTF-8 — see main.js for rationale
+if (process.platform === 'win32') {
+  try {
+    require('child_process').execSync('chcp 65001', { stdio: 'ignore', windowsHide: true });
+  } catch { /* non-fatal */ }
+}
+
 const path = require('path');
 const fs   = require('fs');
 const readline = require('readline');
