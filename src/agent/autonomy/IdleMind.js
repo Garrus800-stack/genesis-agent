@@ -230,6 +230,8 @@ class IdleMind {
         case 'calibrate':   result = await this._calibrate(); break;
         case 'research':    result = await this._research(); break;
         case 'self-define': result = await this._selfDefine(); break;
+        case 'improve':    result = await this._improve(); break;   // v7.2.10: was missing since v7.0.9
+        case 'study':      result = await this._study(); break;     // v7.2.10: LLM-based learning
         default:             result = await this._reflect();
       }
 
@@ -332,10 +334,13 @@ class IdleMind {
 
     // v7.1.6: research — web-based learning from trusted domains
     try {
-      if (this._webFetcher && this._isNetworkAvailable()) {
+      const hasWeb = !!this._webFetcher;
+      const netOk = hasWeb ? this._isNetworkAvailable() : false;
+      _log.debug(`[IDLE] Research check: webFetcher=${hasWeb}, network=${netOk}`);
+      if (hasWeb && netOk) {
         candidates.push('research');
       }
-    } catch (_e) { /* no webFetcher or network */ }
+    } catch (_e) { _log.debug(`[IDLE] Research check failed: ${_e.message}`); }
 
     // v7.2.0: self-define — Genesis writes its own identity
     try {
@@ -344,12 +349,19 @@ class IdleMind {
       }
     } catch (_e) { /* no cognitiveSelfModel */ }
 
+    // v7.2.10: study — learn from LLM's training knowledge
+    try {
+      if (this.model?.activeModel && this.kg) {
+        candidates.push('study');
+      }
+    } catch (_e) { /* no model or kg */ }
+
     // ── Static weight table ─────────────────────────────
     const STATIC_WEIGHTS = {
       reflect: 1.5, plan: 1.0, explore: 1.2, ideate: 0.8,
       tidy: 0.6, journal: 0.5, 'mcp-explore': 1.0, dream: 2.0,
-      consolidate: 1.3, calibrate: 1.5, improve: 1.8, research: 0.7,
-      'self-define': 0.4, // Low weight — runs infrequently (~every 6h)
+      consolidate: 1.3, calibrate: 1.5, improve: 1.8, research: 1.2,
+      'self-define': 0.4, study: 0.9,
     };
 
     // ── Initialize scores ───────────────────────────────
@@ -384,6 +396,9 @@ class IdleMind {
         if (scores.explore !== undefined)        scores.explore        *= curMul;
         if (scores.ideate !== undefined)         scores.ideate         *= curMul;
         if (scores['mcp-explore'] !== undefined) scores['mcp-explore'] *= curMul;
+        // v7.2.10: research + study are curiosity-driven
+        if (scores.research !== undefined)     scores.research     *= curMul;
+        if (scores.study !== undefined)        scores.study        *= curMul;
         if (scores.dream !== undefined)          scores.dream          *= conMul;
         if (scores.consolidate !== undefined)    scores.consolidate    *= conMul;
         if (scores.calibrate !== undefined)     scores.calibrate      *= conMul;
@@ -436,6 +451,10 @@ class IdleMind {
             const curiositySust = (imp.sustained || []).filter(s => s.dim === 'curiosity');
             if (curiositySust.length > 0 && scores.ideate !== undefined) {
               scores.ideate *= (1 + 0.4 * cooldownFactor);
+            }
+            // v7.2.10: sustained curiosity also boosts research
+            if (curiositySust.length > 0 && scores.research !== undefined) {
+              scores.research *= (1 + 0.3 * cooldownFactor);
             }
 
             // Satisfaction deficit → boost reflect on unresolved problems
@@ -537,6 +556,11 @@ class IdleMind {
         bestScore = jittered;
         bestActivity = activity;
       }
+    }
+
+    // v7.2.9: Debug — why is research never picked?
+    if (scores.research !== undefined) {
+      _log.debug(`[IDLE] Activity scores: research=${scores.research.toFixed(2)}, winner=${bestActivity}(${bestScore.toFixed(2)}), candidates=${Object.keys(scores).join(',')}`);
     }
 
     return bestActivity;

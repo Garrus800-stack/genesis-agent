@@ -116,7 +116,27 @@ function swallow(promise, label = 'swallow') {
   });
 }
 
-module.exports = { robustJsonParse, safeJsonParse, atomicWriteFile, atomicWriteFileSync, _round, swallow };
+// v7.2.8: Shared stop word list for KG concept extraction and preference parsing (DE + EN)
+const STOP_WORDS = new Set([
+  'ich', 'du', 'er', 'sie', 'es', 'wir', 'ihr', 'das', 'die', 'der',
+  'den', 'dem', 'des', 'ein', 'eine', 'einer', 'einem', 'einen',
+  'nicht', 'nur', 'auch', 'noch', 'schon', 'aber', 'und', 'oder',
+  'wenn', 'dass', 'weil', 'hier', 'dort', 'jetzt', 'dann', 'so',
+  'wie', 'was', 'wer', 'wo', 'sehr', 'gut', 'mehr', 'viel', 'ganz',
+  'oft', 'froh', 'recht', 'ja', 'nein', 'doch', 'mal', 'man',
+  'this', 'that', 'the', 'is', 'are', 'was', 'were', 'not', 'just',
+  'also', 'but', 'and', 'or', 'if', 'then', 'here', 'there', 'now',
+  'very', 'well', 'more', 'much', 'yes', 'no', 'can', 'will',
+]);
+
+function isValidLabel(label) {
+  if (!label || label.length < 4) return false;
+  const words = label.toLowerCase().split(/\s+/);
+  if (words.every(w => STOP_WORDS.has(w))) return false;
+  return true;
+}
+
+module.exports = { robustJsonParse, safeJsonParse, atomicWriteFile, atomicWriteFileSync, _round, swallow, STOP_WORDS, isValidLabel };
 
 // ── Atomic File Write Utilities (v4.10.0) ─────────────────
 // Write to temp file in same directory, then rename.

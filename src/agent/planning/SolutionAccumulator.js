@@ -78,7 +78,7 @@ class SolutionAccumulator {
         type: 'solution', intent,
       });
       if (problemNode && solutionNode) {
-        this.kg.connect(problemNode, 'solved-by', solutionNode, 0.8);
+        this.kg.addEdge(problemNode, solutionNode, 'solved-by', 0.8); // v7.2.8: was connect(id) — created garbage concept nodes
       }
     }
   }

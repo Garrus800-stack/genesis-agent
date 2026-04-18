@@ -1,3 +1,71 @@
+## [7.2.8] — Idle Intelligence
+
+Genesis can browse the web, read actual content, learn from the LLM, and finally win the activity lottery.
+
+### Chat: Domain Recognition
+
+Two-layer fix for "öffne nodejs.org" → "Gib eine URL an":
+
+- **IntentRouter** — new pattern recognizes "öffne/open/geh auf/zeig mir/besuche + domain" as `web-lookup` intent
+- **CommandHandlers** — domain detection fallback auto-prepends `https://` for bare domains, supports subdomains (`docs.python.org`, `registry.npmjs.org`)
+
+### Two-Phase Deep Research
+
+Research was fetching only metadata (package names, star counts, question titles). Now follows the links:
+
+| Source | Before | After |
+|--------|--------|-------|
+| npm | Package name + description | Full README via GitHub (`links.repository`) |
+| GitHub | Repo name + stars | Full README.md from `raw.githubusercontent.com` |
+| StackOverflow | Question title | Top answer with code examples |
+
+- Distillation input: 3000 → 5000 chars
+- DISTILL_FOCUS: Added `curiosity` prompt
+- npm packages link to GitHub via `links.repository` — no Cloudflare issues
+
+### Research Scoring Fix
+
+Research never won the activity selection (3.08 vs plan 7.50). Three missing boosts:
+
+- **NeedsSystem:** Added `research` recommendation tied to knowledge need (×3 multiplier)
+- **Genome curiosity:** Research now benefits from curiosity trait (was only explore/ideate)
+- **EmotionalFrontier:** Sustained curiosity now boosts research (was only ideate)
+
+### New Activity: `_study()`
+
+Genesis asks the LLM questions about KG topics during idle time. No web needed.
+
+- **2h cooldown per topic** — prevents studying the same thing repeatedly
+- **Research/study complementarity** — skips topics already covered by web research
+
+### Bug Fixes
+
+- **`improve` switch case** (pre-existing since v7.0.9) — weight 1.8, registered as candidate but missing from switch. Fell through to `_reflect()` for ten versions. Fixed.
+- **Research weight 0.7 → 1.2** — competitive with explore, below dream
+- **Curiosity topic source** — KG nodes as research seeds when no frontier data exists
+- **Research nodes** now include `topic` property for study/research complementarity
+- **SolutionAccumulator** — `connect(id)` → `addEdge(id)`. Was creating 83 garbage concept nodes with IDs as labels.
+- **KG concept extraction** — `learnFromText()` now filters stop words (DE+EN) and rejects labels < 4 chars. Prevents fragments like "Das", "gro", "nur leise" from becoming concept nodes.
+- **User preference parser** — `ich bin (\w+)` no longer captures stop words as user roles. "ich bin oft" → skipped, "ich bin Daniel" → stored.
+- **Ping handler word order** — supports both "ping nodejs.org" and "nodejs.org erreichbar" (was keyword-before-domain only).
+- **Naked domains** — "nodejs.org" alone (without verb) now recognized as web-lookup intent via `^domain$` anchored pattern.
+- **WebFetcher gzip** — sends `Accept-Encoding: gzip, deflate` header, auto-decompresses responses with `zlib`. StackOverflow Deep Research now works.
+
+### Schema Scanner
+
+New `scripts/scan-schemas.js` (`npm run scan:schemas`) — static analysis tool that checks all `bus.emit/fire` calls against `EventPayloadSchemas`. Handles ES6 shorthand, multi-line payloads, spread operators. Found 75 pre-existing schema mismatches (existing debt, runtime validation catches them).
+
+### Known Limitations
+
+- `\w` regex doesn't match German umlauts — "größer" truncated to "gr". Filtered by min-length but not properly captured. Unicode-aware regex (`[\p{L}]`) deferred.
+- StackOverflow gzip decompression is synchronous — acceptable for <512KB responses
+
+### Stats
+
+- 154 services, 4335 tests, 0 failures
+
+---
+
 ## [7.2.7] — Autonomy Awareness
 
 Genesis learns what he already does. Not by gaining new abilities, but by being told about the ones he has.

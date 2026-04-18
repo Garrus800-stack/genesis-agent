@@ -216,7 +216,10 @@ class WebFetcher {
       // FIX v4.0.0: DNS-pinning — validate resolved IP at socket level
       const reqOpts = {
         timeout,
-        headers: { 'User-Agent': 'Genesis/1.1' },
+        headers: {
+          'User-Agent': 'Genesis/1.1',
+          'Accept-Encoding': 'gzip, deflate', // v7.2.8: enable compressed responses
+        },
         lookup: (hostname, options, cb) => this._safeLookup(hostname, options, cb),
       };
       const req = client.get(url, reqOpts, (res) => {
@@ -243,11 +246,21 @@ class WebFetcher {
         });
 
         res.on('end', () => {
-          const body = Buffer.concat(chunks).toString('utf-8');
+          let body = Buffer.concat(chunks);
+          // v7.2.8: Auto-decompress gzip/deflate responses
+          const encoding = res.headers['content-encoding'];
+          if (encoding === 'gzip' || encoding === 'deflate') {
+            try {
+              const zlib = require('zlib');
+              body = encoding === 'gzip'
+                ? zlib.gunzipSync(body)
+                : zlib.inflateSync(body);
+            } catch (_e) { /* decompression failed — use raw body */ }
+          }
           resolve({
             ok: res.statusCode >= 200 && res.statusCode < 400,
             status: res.statusCode,
-            body,
+            body: body.toString('utf-8'),
             headers: res.headers,
             error: null,
           });

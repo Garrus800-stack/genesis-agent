@@ -19,6 +19,7 @@ const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
 const { INTERVALS } = require('../core/Constants');
+const { STOP_WORDS } = require('../core/utils');
 const _log = createLogger('LearningService');
 
 class LearningService {
@@ -299,6 +300,8 @@ class LearningService {
       const match = message.match(regex);
       if (match) {
         const value = match[1].trim();
+        // v7.2.8: Skip stop words for role patterns ("ich bin oft" → skip "oft")
+        if (key === 'user.role' && (STOP_WORDS.has(value.toLowerCase()) || value.length < 3)) continue;
         this.memory?.learnFact(key, value, 0.85, 'conversation');
         if (this.kg) {
           const type = key.startsWith('user.') ? 'preference' : 'fact';

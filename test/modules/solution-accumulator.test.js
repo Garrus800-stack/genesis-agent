@@ -11,6 +11,7 @@ function make(opts = {}) {
     knowledgeGraph: opts.kg === false ? null : {
       addNode(type, label, meta) { const n = { id: `${type}-${kgNodes.length}`, type, label, meta }; kgNodes.push(n); return n; },
       connect(from, rel, to, w) { kgEdges.push({ from, rel, to, w }); },
+      addEdge(from, to, rel, w) { kgEdges.push({ from, rel, to, w }); },
       _nodes: kgNodes,
       _edges: kgEdges,
     },

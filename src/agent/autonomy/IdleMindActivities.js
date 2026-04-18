@@ -387,6 +387,7 @@ const activities = {
     if (this._pendingResearch) return null; // Already researching
 
     const topic = this._pickResearchTopic();
+    _log.debug(`[IDLE] Research topic: ${topic ? topic.label + ' (source: ' + topic.source + ')' : 'null — no topic found'}`);
     if (!topic) return null;
 
     this._pendingResearch = { topic, startedAt: Date.now() };
@@ -439,14 +440,27 @@ const activities = {
 
     if (!fetchResult?.body) { this._pendingResearch = null; return; }
 
+    // v7.2.9: Phase 2 — Deep Read (fetch actual content, not just metadata)
+    const deepUrl = this._getDeepReadUrl(topic, fetchResult.body);
+    if (deepUrl) {
+      try {
+        const deepFn = deepUrl.includes('raw.githubusercontent.com') ? 'fetchText' : 'fetch';
+        const deepResult = await this._webFetcher[deepFn](deepUrl);
+        if (deepResult?.ok && deepResult.body?.length > 100) {
+          fetchResult.body = this._extractDeepContent(deepUrl, deepResult.body);
+        }
+      } catch (_e) { /* fallback to Phase 1 content */ }
+    }
+
     // B) LLM distillation
     if (!this.model) { this._pendingResearch = null; return; }
-    const body = (typeof fetchResult.body === 'string' ? fetchResult.body : JSON.stringify(fetchResult.body)).slice(0, 3000);
+    const body = (typeof fetchResult.body === 'string' ? fetchResult.body : JSON.stringify(fetchResult.body)).slice(0, 5000);
     // v7.1.6: Topic-source-dependent distillation prompts
     const DISTILL_FOCUS = {
       'unfinished-work': 'Focus on actionable next steps and concrete techniques to complete this work.',
       'suspicion': 'Focus on root cause analysis and what to watch out for.',
       'weakness': 'Focus on reusable techniques and patterns to improve this capability.',
+      'curiosity': 'Focus on the most interesting or surprising facts. What would you want to remember?',
     };
     const focus = DISTILL_FOCUS[topic.source] || 'Focus on actionable knowledge.';
     // v7.1.7 H-2: Sanitize label — frontier data is indirectly LLM-sourced
@@ -468,6 +482,7 @@ const activities = {
       if (quality.score >= 0.5) {
         this.kg.addNode('research', `${topic.label}: ${insight.slice(0, 60)}`, {
           type: 'research-finding',
+          topic: topic.label,         // v7.2.10: enables study/research complementarity filter
           source: topic.source,
           url: url,
           insight: insight.slice(0, 500),
@@ -547,6 +562,23 @@ const activities = {
       } catch (_e) { /* optional */ }
     }
 
+    // v7.2.8 D) General curiosity — recent KG topics as research seeds
+    if (sources.length === 0 && this.kg) {
+      try {
+        const nodes = [...this.kg.graph.nodes.values()]
+          .filter(n => n.type !== 'system' && n.label?.length > 3)
+          .sort((a, b) => (b.accessed || 0) - (a.accessed || 0))
+          .slice(0, 5);
+        const interesting = nodes[0];
+        if (interesting) sources.push({
+          query: `${interesting.label} tutorial guide`,
+          label: `curiosity: ${interesting.label}`,
+          source: 'curiosity',
+          priority: 0.8,
+        });
+      } catch (_e) { /* optional */ }
+    }
+
     if (sources.length === 0) return null;
 
     // Weighted random selection
@@ -575,6 +607,48 @@ const activities = {
     if (topic.source === 'suspicion') return strategies[1]; // GitHub for code patterns
     if (topic.source === 'unfinished-work') return strategies[Math.random() < 0.5 ? 0 : 2];
     return strategies[Math.floor(Math.random() * strategies.length)];
+  },
+
+  // v7.2.9: Construct deep-read URL from Phase 1 discovery result
+  _getDeepReadUrl(topic, rawBody) {
+    try {
+      const data = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody;
+
+      // npm: extract GitHub repo from repository link → raw README
+      if (data?.objects?.[0]?.package) {
+        const repoUrl = data.objects[0].package.links?.repository || '';
+        const match = repoUrl.match(/github\.com\/([^/]+\/[^/]+?)(?:\.git)?$/);
+        if (match) return `https://raw.githubusercontent.com/${match[1]}/HEAD/README.md`;
+        return null; // No GitHub repo — skip deep read
+      }
+
+      // GitHub: search result → raw README
+      if (data?.items?.[0]?.full_name) {
+        return `https://raw.githubusercontent.com/${data.items[0].full_name}/HEAD/README.md`;
+      }
+
+      // StackOverflow: search result → top answer with body
+      if (data?.items?.[0]?.question_id) {
+        const id = data.items[0].question_id;
+        return `https://api.stackexchange.com/2.3/questions/${id}/answers?order=desc&sort=votes&site=stackoverflow&filter=withbody&pagesize=1`;
+      }
+    } catch (_e) { /* not parseable — skip deep read */ }
+    return null;
+  },
+
+  // v7.2.9: Extract readable content from deep-read response
+  _extractDeepContent(url, rawBody) {
+    try {
+      // StackOverflow: JSON with answer body (HTML) → strip tags
+      if (url.includes('stackexchange.com')) {
+        const data = JSON.parse(rawBody);
+        const answer = data.items?.[0]?.body || '';
+        return answer.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+    } catch (_e) { /* parse failed — return raw */ }
+
+    // GitHub/npm README (Markdown): already clean from fetchText()
+    return rawBody;
   },
 
   /**
@@ -719,6 +793,59 @@ const activities = {
       _log.debug('[IDLE-MIND] self-define failed:', err.message);
       return `self-define failed: ${err.message}`;
     }
+  },
+
+  // v7.2.10: Study — learn from LLM's training knowledge during idle time.
+  // Picks a topic from KG, asks the LLM to teach, stores insight.
+  // Two anti-feedback-loop mechanisms:
+  //   1. 2h cooldown per topic (skip if studied recently)
+  //   2. Skip topics with existing web research findings (complementarity)
+  async _study() {
+    if (!this.model || !this.kg) return null;
+
+    // Direct graph access — no public "getAllNodes" API
+    const allNodes = [...this.kg.graph.nodes.values()]
+      .filter(n => typeof n.type === 'string' && n.type !== 'system' && n.label?.length > 3);
+
+    if (allNodes.length === 0) return null;
+
+    // Filter 1: skip topics studied in last 2h (prevent feedback loop)
+    const recentStudies = this.kg.getNodesByType('learning')
+      .filter(n => n.properties?.source === 'idle-study'
+        && Date.now() - (n.created || 0) < 2 * 60 * 60 * 1000);
+    const studiedLabels = new Set(recentStudies.map(n => (n.properties?.topic || '').toLowerCase()));
+
+    // Filter 2: skip topics already covered by web research (complementarity)
+    const researchedLabels = new Set(
+      this.kg.getNodesByType('research').map(n => (n.properties?.topic || '').toLowerCase())
+    );
+
+    const candidates = allNodes
+      .filter(n => !studiedLabels.has(n.label.toLowerCase())
+        && !researchedLabels.has(n.label.toLowerCase()))
+      .sort((a, b) => (b.accessCount || 0) - (a.accessCount || 0))
+      .slice(0, 10);
+
+    if (candidates.length === 0) return null;
+
+    // Weighted-random from top 10 (avoid always studying #1)
+    const topic = candidates[Math.floor(Math.random() * candidates.length)];
+
+    const prompt = `You are Genesis, an autonomous AI agent. You are studying during idle time — the user cannot see this.\n\nTopic: "${topic.label}"\n\nTeach yourself something useful about this topic. Focus on:\n- Practical techniques or patterns\n- Common pitfalls to avoid\n- Connections to other concepts\n\nRespond in 3-4 sentences. Be specific, not generic.`;
+
+    const insight = await this.model.chat(prompt, [], 'analysis');
+
+    if (insight && insight.length > 20) {
+      this.kg.addNode('learning', insight.slice(0, 80), {
+        type: 'llm-study',
+        topic: topic.label,
+        full: insight.slice(0, 500),
+        source: 'idle-study',
+      });
+      return `Studied "${topic.label}": ${insight.slice(0, 100)}...`;
+    }
+
+    return null;
   },
 
   /**

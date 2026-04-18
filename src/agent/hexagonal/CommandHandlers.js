@@ -323,14 +323,26 @@ class CommandHandlers {
       return `**${urlMatch[1]}** (${result.status}):\n\n${result.body.slice(0, 3000)}`;
     }
 
-    // Ping check
-    const pingMatch = message.match(/(?:erreichbar|reachable|online|ping).*?(https?:\/\/\S+|\S+\.\w{2,})/i);
+    // Ping check — v7.2.8: supports both word orders ("ping X" and "X erreichbar")
+    const pingMatch = message.match(/(?:erreichbar|reachable|online|ping).*?(https?:\/\/\S+|\S+\.\w{2,})/i)
+      || message.match(/(\S+\.\w{2,})\s+(?:erreichbar|reachable|online|up|running)/i);
     if (pingMatch) {
       const url = pingMatch[1].startsWith('http') ? pingMatch[1] : 'https://' + pingMatch[1];
       const result = await this.web.ping(url);
       return result.reachable
         ? this.lang.t('web.reachable', { url, status: result.status })
         : this.lang.t('web.unreachable', { url, error: result.error });
+    }
+
+    // v7.2.8: Domain without protocol (e.g. "nodejs.org", "docs.python.org")
+    const domainMatch = message.match(
+      /\b((?:[a-zA-Z0-9][\w-]*\.)+(?:com|org|net|io|dev|de|ch|at|eu|co|uk|info|app|ai|fr|nl|se|ru))\b/i
+    );
+    if (domainMatch) {
+      const url = 'https://' + domainMatch[1];
+      const result = await this.web.fetchText(url);
+      if (!result.ok) return this.lang.t('web.fetch_failed', { url, error: result.error });
+      return `**${url}** (${result.status}):\n\n${result.body.slice(0, 3000)}`;
     }
 
     return this.lang.t('web.hint');

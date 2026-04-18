@@ -10,6 +10,7 @@
 // ============================================================
 
 const { createLogger } = require('../core/Logger');
+const { isValidLabel } = require('../core/utils');
 const _log = createLogger('KnowledgeGraph');
 
 const searchMethods = {
@@ -108,11 +109,12 @@ const searchMethods = {
 
   learnFromText(text, source = 'conversation') {
     let learned = 0;
+    // v7.2.8: isValidLabel filters stop words and fragments (min 4 chars, no pure stop-word labels)
     for (const m of text.matchAll(/(\w[\w\s]{1,30}?)\s+(?:ist|sind|war|waren)\s+(?:ein[e]?\s+)?(\w[\w\s]{1,30})/gi)) {
-      if (m[1].trim().length > 2 && m[2].trim().length > 2) { this.connect(m[1].trim(), 'is', m[2].trim()); learned++; }
+      if (isValidLabel(m[1].trim()) && isValidLabel(m[2].trim())) { this.connect(m[1].trim(), 'is', m[2].trim()); learned++; }
     }
     for (const m of text.matchAll(/(\w[\w\s]{1,30}?)\s+(?:benutzt|verwendet|nutzt|braucht)\s+(\w[\w\s]{1,30})/gi)) {
-      this.connect(m[1].trim(), 'uses', m[2].trim()); learned++;
+      if (isValidLabel(m[1].trim()) && isValidLabel(m[2].trim())) { this.connect(m[1].trim(), 'uses', m[2].trim()); learned++; }
     }
     for (const m of text.matchAll(/(?:ich hei(?:ss|ß)e|mein name ist|i'm|my name is)\s+(\w+)/gi)) {
       this.addNode('entity', m[1].trim(), { type: 'person', role: 'user' }); learned++;

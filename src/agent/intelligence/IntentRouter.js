@@ -148,6 +148,10 @@ const INTENT_DEFINITIONS = [
     /(?:look|search|check|fetch).*(?:web|online|npm|docs)/i,
     /(?:ist|does).*(?:erreichbar|reachable|online)/i,
     /npm.*(?:paket|package|suche|search)/i,
+    // v7.2.8: Bare domain with verb (e.g. "öffne nodejs.org", "go to github.com")
+    /(?:öffne|open|geh\s+auf|go\s+to|zeig\s+mir|show\s+me|schau\s+auf|besuche|visit)\s+\S+\.\w{2,}/i,
+    // v7.2.8: Naked domain (just "nodejs.org" without verb — only if entire message)
+    /^[a-zA-Z0-9][\w-]*\.(?:com|org|net|io|dev|de|ch|at|eu|co|uk|info|app|ai|fr|nl|se|ru)$/i,
   ], 12, ['web', 'online', 'suchen', 'npm', 'dokumentation']],
 
   ['undo', [

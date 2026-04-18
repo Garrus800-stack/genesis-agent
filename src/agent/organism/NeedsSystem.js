@@ -194,6 +194,9 @@ class NeedsSystem {
       { activity: 'journal',  score: n.rest * 1.2 + n.knowledge * 0.2 },
       { activity: 'ideate',   score: n.knowledge * 0.8 + (energy > 0.6 ? 0.3 : 0) },
       { activity: 'goal',     score: (energy > 0.5 ? 0.4 : 0) + (1 - n.rest) * 0.3 },
+      // v7.2.10: research + study — knowledge-driven idle activities
+      { activity: 'research', score: n.knowledge * 1.0 + (energy > 0.5 ? 0.2 : 0) },
+      { activity: 'study',    score: n.knowledge * 0.7 + n.rest * 0.3 },
     ];
 
     // If energy is very low, strongly prefer rest-like activities
