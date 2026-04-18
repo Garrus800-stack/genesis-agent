@@ -1,3 +1,84 @@
+## [7.3.0] — Capability Honesty
+
+Genesis now knows what he can already do. The hardcoded 9-element list of capabilities that `_detectCapabilities()` returned since v3.x has been replaced by systematic derivation from four signals: file path, class name, header comment, and DI manifest tags. The old behavior is the direct cause of the Goal-Wiederholungsmuster documented in the v7.2.8 session notes — Genesis proposing features he already had, just under a different name, because the capability list presented to the LLM missed everything except nine specific classes.
+
+This release is data only. No new activities, no new autonomy. Just a more truthful answer to the question "what can I do?".
+
+### The Root Cause
+
+In `IdleMindActivities._plan()` and `_ideate()`, Genesis gets a list of his capabilities injected into the LLM prompt:
+
+```
+Your capabilities: chat, self-awareness, code-execution, self-reflection, self-repair,
+                   skill-creation, self-cloning, model-switching, code-analysis
+```
+
+That was the complete list. `Homeostasis`, `Metabolism`, `EmotionalFrontier`, `NeedsSystem`, `Genome`, `ImmuneSystem`, `BodySchema`, `EmbodiedPerception`, `DreamCycle`, `IdleMind` — none of them were visible to the LLM. When Genesis proposed "Implement Homeostatic Throttling" as an improvement goal, the LLM was not hallucinating the gap — it was correctly reasoning from bad data.
+
+### The Fix — Four-Stage Derivation
+
+Every class in `src/agent/` that has a top-level `class` declaration becomes a capability. For each one, four signals contribute:
+
+1. **File path** → category (`src/agent/organism/Homeostasis.js` → category `organism`)
+2. **Class name** → ID and keyword seed (`CognitiveSelfModel` → id `cognitive-self-model`, keywords `[cognitive, self, model]`)
+3. **Header comment** → description + content keywords (parsed from the first JSDoc/comment block)
+4. **Manifest tags** → curated semantic labels from the DI container (`homeostasis` service registered with `tags: ['organism', 'homeostasis', 'effectors']`)
+
+The capability list grows from ~9 to **240+** in a typical boot. Each entry has the structure:
+
+```js
+{
+  id: 'homeostasis',
+  module: 'src/agent/organism/Homeostasis.js',
+  class: 'Homeostasis',
+  category: 'organism',
+  tags: ['organism', 'homeostasis', 'effectors'],
+  description: 'Regulates internal state via corrective feedback',
+  keywords: ['biological', 'blood', 'body', 'effectors', 'feedback',
+             'homeostasis', 'organism', 'regulate', 'state', ...]
+}
+```
+
+### API: Additive, Zero Breaking Changes
+
+Ten call-sites consume capabilities today — four with `.join(', ')`, one with `.includes()`, one sent over the PeerNetwork wire protocol. Breaking them would have cascaded badly. Instead:
+
+- `getCapabilities()` — unchanged signature, still returns `string[]`. Each of the 10 consumers works without modification. The string array just gets longer and more accurate.
+- `getCapabilitiesDetailed()` — **new**. Returns the full object array. Reserved for v7.3.1's GoalStack Capability-Gate, which needs the `keywords` field for duplicate detection.
+
+PeerNetwork wire protocol stays byte-compatible — peers exchange `string[]` and no older Genesis instance needs to learn a new format.
+
+### Injection Pattern
+
+SelfModel doesn't read the DI container. The container reads itself (via `getDependencyGraph()`) and injects the relevant metadata into SelfModel via a new `setManifestMeta(meta)` call from `AgentCoreBoot`, placed between manifest registration and `selfModel.scan()`. Three lines in the boot sequence, zero coupling increase.
+
+This also means `scan()` keeps its current signature — none of its seven call-sites across `AgentCore`, `SelfModificationPipeline`, and `SelfModel` itself need to change. Post-self-modification re-scans automatically use whatever metadata was last injected at boot.
+
+### Test Gates
+
+Three new test suites protect against regression:
+
+1. **Class Presence** — 10 hardcoded classes (`Homeostasis`, `Metabolism`, ... `IdleMind`) must appear as capabilities. Refactors that silently remove self-recognition will fail here.
+2. **Manifest Tag Pipeline** — when `homeostasis` is injected with three tags, all three must surface in the capability's `tags` array AND in its `keywords`. Protects the injection contract.
+3. **Backward Compatibility** — `getCapabilities()` returns `string[]`, `.join()` produces no `[object Object]`, JSON serialization stays compact for PeerNetwork.
+
+22 new assertions across these three gates. All 4500+ pre-existing tests remain green.
+
+### What This Enables
+
+Nothing user-visible changes today. Genesis's behavior with the `_plan()` and `_ideate()` activities now depends on a 240-element capability list instead of a 9-element one — which should weaken the Goal-Wiederholungsmuster observably, but we'll see.
+
+The bigger payoff is v7.3.1. With real capability data, the `GoalStack.addGoal()` Capability-Gate has the keyword density it needs for a useful duplicate check. Without v7.3.0, that gate would have been checking goals against nine strings — and would have been nearly useless. Now it has 240 capability entries with hundreds of keywords.
+
+### Stats
+
+- 142 registered → 154 active services · 240+ capabilities (was ~9)
+- All pre-existing tests green + 22 new Capability Honesty assertions
+- 0 schema mismatches
+- 127/130 fitness (File Size Guard still warns — planned for v7.3.1 split)
+
+---
+
 ## [7.2.9] — Signal Compliance
 
 Housekeeping release. Every stat in the docs now matches what the code actually does. Every event payload now matches its schema. German names with umlauts are no longer truncated mid-word. And the test runner finally looks like one tool instead of two.

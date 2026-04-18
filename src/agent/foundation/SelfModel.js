@@ -36,7 +36,7 @@ class SelfModel {
   constructor(rootDir, guard) {
     this.rootDir = rootDir;
     this.guard = guard;
-    /** @type {{ identity: string, version: string, scannedAt: string|null, modules: object, files: object, capabilities: string[], dependencies: object }} */
+    /** @type {{ identity: string, version: string, scannedAt: string|null, modules: object, files: object, capabilities: string[], capabilitiesDetailed: object[], dependencies: object }} */
     this.manifest = {
       identity: 'genesis',
       version: '0.1.0',
@@ -44,9 +44,27 @@ class SelfModel {
       modules: {},
       files: {},
       capabilities: [],
+      capabilitiesDetailed: [],
       dependencies: {},
     };
     this.gitAvailable = false;
+
+    // v7.3.0: Manifest metadata injected by AgentCoreBoot before scan().
+    // Maps serviceName → { tags: string[], phase: number, deps: string[] }.
+    // Used by _detectCapabilities() to derive semantic tags from the DI
+    // container's curated registration data.
+    this._manifestMeta = null;
+  }
+
+  /**
+   * v7.3.0: Inject container metadata (service registrations with tags) before scan().
+   * Called once from AgentCoreBoot after buildManifest() populates the container,
+   * but before selfModel.scan() runs. Keeps SelfModel uncoupled from the Container —
+   * it just receives data.
+   * @param {object} meta - Map of serviceName → { tags, phase, deps }
+   */
+  setManifestMeta(meta) {
+    this._manifestMeta = meta || null;
   }
 
   /** Scan the entire project and build the self-model */
@@ -247,19 +265,130 @@ class SelfModel {
     return info;
   }
 
+  // v7.3.0: Capability Honesty — systematic derivation from four signals
+  // (file path, class name, header comment, manifest tags) instead of a
+  // hardcoded 9-element list. See CHANGELOG v7.3.0 for rationale.
+  //
+  // Produces two outputs:
+  //   manifest.capabilities          → string[] (IDs only, backward compatible)
+  //   manifest.capabilitiesDetailed  → object[] (full detail for richer consumers)
   _detectCapabilities() {
-    const caps = ['chat', 'self-awareness'];
-    const modules = Object.values(this.manifest.modules);
-    const allClasses = modules.flatMap(m => m.classes);
+    const detailed = [];
+    const seenIds = new Set();
 
-    if (allClasses.includes('Sandbox')) caps.push('code-execution');
-    if (allClasses.includes('Reflector')) caps.push('self-reflection', 'self-repair');
-    if (allClasses.includes('SkillManager')) caps.push('skill-creation');
-    if (allClasses.includes('CloneFactory')) caps.push('self-cloning');
-    if (allClasses.includes('ModelBridge')) caps.push('model-switching');
-    if (allClasses.includes('CodeAnalyzer')) caps.push('code-analysis');
+    // Seed: always-present core capabilities (not tied to specific modules)
+    const seeds = [
+      { id: 'chat', category: 'core', description: 'Converse with the user', keywords: ['chat', 'talk', 'conversation', 'dialogue'] },
+      { id: 'self-awareness', category: 'core', description: 'Reflect on own state', keywords: ['self', 'aware', 'introspect', 'reflect'] },
+    ];
+    for (const s of seeds) {
+      detailed.push({ id: s.id, module: null, class: null, category: s.category, tags: [], description: s.description, keywords: s.keywords });
+      seenIds.add(s.id);
+    }
 
-    return caps;
+    // Build serviceName → tags lookup from injected manifest meta
+    const metaByClass = new Map();
+    if (this._manifestMeta) {
+      for (const [svcName, svcMeta] of Object.entries(this._manifestMeta)) {
+        // Heuristic: serviceName is typically camelCase(ClassName)
+        // e.g. 'homeostasis' ↔ 'Homeostasis', 'cognitiveSelfModel' ↔ 'CognitiveSelfModel'
+        const candidateClass = svcName.charAt(0).toUpperCase() + svcName.slice(1);
+        metaByClass.set(candidateClass, svcMeta);
+      }
+    }
+
+    // Iterate all source modules
+    for (const [filePath, mod] of Object.entries(this.manifest.modules)) {
+      if (!filePath.startsWith('src/')) continue;
+      if (!mod.classes || mod.classes.length === 0) continue;
+
+      for (const className of mod.classes) {
+        const id = this._classToCapId(className);
+        if (seenIds.has(id)) continue;
+        seenIds.add(id);
+
+        // Signal 1: path → category
+        // e.g. "src/agent/organism/Homeostasis.js" → "organism"
+        const pathParts = filePath.split(/[\\/]/);
+        const agentIdx = pathParts.indexOf('agent');
+        const category = (agentIdx >= 0 && pathParts[agentIdx + 1]) ? pathParts[agentIdx + 1] : 'misc';
+
+        // Signal 2: class name → id (already computed above) + keyword seed
+        // e.g. "CognitiveSelfModel" → ["cognitive", "self", "model"]
+        const classKeywords = this._splitCamelCase(className).map(w => w.toLowerCase());
+
+        // Signal 3: header comment → description + keywords
+        const description = (mod.description || '').trim();
+        const headerKeywords = this._extractKeywordsFromHeader(description);
+
+        // Signal 4: manifest tags → curated semantic labels
+        const meta = metaByClass.get(className);
+        const manifestTags = meta ? [...(meta.tags || [])] : [];
+
+        // Compose unified keyword set
+        const keywords = new Set([
+          id,
+          ...classKeywords,
+          ...headerKeywords,
+          ...manifestTags.map(t => t.toLowerCase()),
+          category.toLowerCase(),
+        ]);
+        // Filter stop-words and 1-2 char noise
+        const STOP = new Set(['a', 'an', 'the', 'of', 'to', 'for', 'and', 'or', 'is', 'as', 'on', 'in', 'at', 'by', 'js', 'misc']);
+        const cleanKeywords = [...keywords].filter(k => k && k.length >= 3 && !STOP.has(k));
+
+        detailed.push({
+          id,
+          module: filePath.replace(/\\/g, '/'),
+          class: className,
+          category,
+          tags: manifestTags,
+          description: description.slice(0, 200),
+          keywords: cleanKeywords.sort(),
+        });
+      }
+    }
+
+    // Store detailed form; derive id-only list for backward compatibility
+    this.manifest.capabilitiesDetailed = detailed;
+    return detailed.map(c => c.id);
+  }
+
+  // v7.3.0: Convert "HomeostasisV2" → "homeostasis-v2", "IdleMind" → "idle-mind"
+  _classToCapId(className) {
+    return className
+      .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+      .toLowerCase();
+  }
+
+  // v7.3.0: Split "CognitiveSelfModel" → ["Cognitive", "Self", "Model"]
+  _splitCamelCase(s) {
+    return s
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+
+  // v7.3.0: Parse header description for meaningful keywords.
+  // "Regulates internal state via corrective feedback" →
+  //    ["regulate", "internal", "state", "corrective", "feedback"]
+  _extractKeywordsFromHeader(description) {
+    if (!description) return [];
+    const STOP_HEADER = new Set([
+      'the', 'a', 'an', 'of', 'to', 'for', 'and', 'or', 'is', 'as', 'on', 'in', 'at', 'by',
+      'via', 'with', 'from', 'into', 'that', 'this', 'can', 'are', 'was', 'be', 'has', 'its',
+      'it', 'all', 'any', 'not', 'but', 'also', 'when', 'then', 'if', 'how', 'what', 'who',
+      'genesis', 'agent', 'module', 'class', 'file', 'code', 'line', 'see',
+    ]);
+    const words = description
+      .toLowerCase()
+      .replace(/[^\p{L}\s-]/gu, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 4 && !STOP_HEADER.has(w));
+    const uniq = [...new Set(words)];
+    return uniq.slice(0, 12);
   }
 
   // ── Public API ───────────────────────────────────────────
@@ -282,8 +411,18 @@ class SelfModel {
     }));
   }
 
+  // v7.3.0: Backward-compatible string[] getter. Consumers using .join(','),
+  // .includes(), .slice() etc. keep working unchanged. List is now longer
+  // and more accurate because _detectCapabilities() derives from 4 signals.
   getCapabilities() {
     return this.manifest.capabilities;
+  }
+
+  // v7.3.0: New detailed getter. Returns Array<{id, module, class, category,
+  // tags, description, keywords}>. For consumers that want to match goals
+  // against capabilities (v7.3.1 GoalStack Capability-Gate will use this).
+  getCapabilitiesDetailed() {
+    return this.manifest.capabilitiesDetailed || [];
   }
 
   moduleCount() {

@@ -154,6 +154,24 @@ class AgentCoreBoot {
     // ── Pre-bootAll: eager resolution ───────────────────
     // SelfModel must scan before anything else reads module info
     const selfModel = c.resolve('selfModel');
+
+    // v7.3.0: Capability Honesty — inject container's service metadata (tags,
+    // phase, deps) into SelfModel before scan(). _detectCapabilities() uses
+    // the curated manifest tags as its most semantic signal. See
+    // CHANGELOG v7.3.0 for rationale.
+    try {
+      const graph = c.getDependencyGraph ? c.getDependencyGraph() : null;
+      if (graph && selfModel.setManifestMeta) {
+        const meta = {};
+        for (const [name, info] of Object.entries(graph)) {
+          meta[name] = { tags: info.tags || [], phase: info.phase || 0, deps: info.deps || [] };
+        }
+        selfModel.setManifestMeta(meta);
+      }
+    } catch (err) {
+      _log.warn('[BOOT] SelfModel manifest meta injection skipped:', err.message);
+    }
+
     await selfModel.scan();
 
     // Eagerly resolve stateful foundation services
