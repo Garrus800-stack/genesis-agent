@@ -21,6 +21,32 @@ const { safeJsonParse, atomicWriteFileSync } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('IdleMind');
 
+// v7.3.1: Activity-Registry. Replaces the 14 prototype-delegated
+// method definitions from IdleMindActivities.js with discrete modules
+// exposing { name, weight, cooldown, shouldTrigger(ctx), run(idleMind) }.
+// The legacy IdleMindActivities.js mixin is still attached at the
+// bottom of this file for backward compatibility — registry-based
+// dispatch takes precedence.
+const { buildPickContext } = require('./activities/PickContext');
+const ACTIVITY_MODULES = [
+  require('./activities/Reflect'),
+  require('./activities/Plan'),
+  require('./activities/Explore'),
+  require('./activities/Ideate'),
+  require('./activities/Tidy'),
+  require('./activities/Journal'),
+  require('./activities/MCPExplore'),
+  require('./activities/Dream'),
+  require('./activities/Consolidate'),
+  require('./activities/Calibrate'),
+  require('./activities/Improve'),
+  require('./activities/Research'),
+  require('./activities/SelfDefine'),
+  require('./activities/Study'),
+  require('./activities/ReadSource'), // v7.3.1
+];
+const ACTIVITY_BY_NAME = Object.fromEntries(ACTIVITY_MODULES.map(a => [a.name, a]));
+
 class IdleMind {
   constructor({ bus,  model, prompts, selfModel, memory, knowledgeGraph, eventStore, storageDir, goalStack, intervals, storage }) {
     this.bus = bus || NullBus;
@@ -217,23 +243,10 @@ class IdleMind {
 
     try {
       let result;
-      switch (activity) {
-        case 'reflect':      result = await this._reflect(); break;
-        case 'plan':         result = await this._plan(); break;
-        case 'explore':      result = await this._explore(); break;
-        case 'ideate':       result = await this._ideate(); break;
-        case 'tidy':         result = await this._tidy(); break;
-        case 'journal':      result = await this._writeJournalEntry(); break;
-        case 'mcp-explore':  result = await this._exploreMcp(); break;
-        case 'dream':        result = await this._dream(); break;
-        case 'consolidate':  result = await this._consolidateMemory(); break;
-        case 'calibrate':   result = await this._calibrate(); break;
-        case 'research':    result = await this._research(); break;
-        case 'self-define': result = await this._selfDefine(); break;
-        case 'improve':    result = await this._improve(); break;   // v7.2.8: was missing since v7.0.9
-        case 'study':      result = await this._study(); break;     // v7.2.8: LLM-based learning
-        default:             result = await this._reflect();
-      }
+      // v7.3.1: Registry-based dispatch. Falls back to Reflect on unknown
+      // activity names (preserves legacy `default: _reflect()` behavior).
+      const act = ACTIVITY_BY_NAME[activity] || ACTIVITY_BY_NAME['reflect'];
+      result = await act.run(this);
 
       if (result) {
         this._journal(activity, result);
@@ -298,273 +311,65 @@ class IdleMind {
   }
 
   _pickActivity() {
-    const recent = this.activityLog.slice(-5).map(a => a.activity);
+    // v7.3.1: Registry-based dispatch. Replaces the 267-LOC pipeline of
+    // 10 scorers with hardcoded activity-name references. Each activity's
+    // shouldTrigger(ctx) self-reports its boost from the shared PickContext.
+    // Behavior is preserved via the activities-split.test.js snapshot tests.
+    const ctx = buildPickContext(this);
 
-    // ── Candidate list (conditionally extended) ─────────
-    const candidates = ['reflect', 'plan', 'explore', 'ideate', 'tidy', 'journal'];
-
-    try {
-      if (this.mcpClient?.getStatus().connectedCount > 0) candidates.push('mcp-explore');
-    } catch (_e) { /* no MCP */ }
-
-    try {
-      if (this.dreamCycle) {
-        const timeSince = this.dreamCycle.getTimeSinceLastDream();
-        const unprocessed = this.dreamCycle.getUnprocessedCount();
-        if (timeSince > 30 * 60 * 1000 && unprocessed >= 10) candidates.push('dream');
-      }
-    } catch (_e) { /* no dream */ }
-
-    // v6.0.0: consolidate always available — MemoryConsolidator handles deps
-    candidates.push('consolidate');
-
-    // v6.0.2: calibrate available when AdaptiveStrategy is registered
-    try {
-      if (this.bus._container?.resolve?.('adaptiveStrategy')) {
-        candidates.push('calibrate');
-      }
-    } catch (_e) { /* no adaptiveStrategy */ }
-
-    // v7.0.9 Phase 4: improve — GoalSynthesizer-driven self-improvement
-    try {
-      if (this.bus._container?.resolve?.('goalSynthesizer')) {
-        candidates.push('improve');
-      }
-    } catch (_e) { /* no goalSynthesizer */ }
-
-    // v7.1.6: research — web-based learning from trusted domains
-    try {
-      const hasWeb = !!this._webFetcher;
-      const netOk = hasWeb ? this._isNetworkAvailable() : false;
-      _log.debug(`[IDLE] Research check: webFetcher=${hasWeb}, network=${netOk}`);
-      if (hasWeb && netOk) {
-        candidates.push('research');
-      }
-    } catch (_e) { _log.debug(`[IDLE] Research check failed: ${_e.message}`); }
-
-    // v7.2.0: self-define — Genesis writes its own identity
-    try {
-      if (this._cognitiveSelfModel && this.storage) {
-        candidates.push('self-define');
-      }
-    } catch (_e) { /* no cognitiveSelfModel */ }
-
-    // v7.2.8: study — learn from LLM's training knowledge
-    try {
-      if (this.model?.activeModel && this.kg) {
-        candidates.push('study');
-      }
-    } catch (_e) { /* no model or kg */ }
-
-    // ── Static weight table ─────────────────────────────
-    const STATIC_WEIGHTS = {
-      reflect: 1.5, plan: 1.0, explore: 1.2, ideate: 0.8,
-      tidy: 0.6, journal: 0.5, 'mcp-explore': 1.0, dream: 2.0,
-      consolidate: 1.3, calibrate: 1.5, improve: 1.8, research: 1.2,
-      'self-define': 0.4, study: 0.9,
-    };
-
-    // ── Initialize scores ───────────────────────────────
+    // Compute initial scores: base (1.0 + weight) * shouldTrigger-boost.
+    // Activities returning 0 are implicitly excluded (not candidates).
     const scores = {};
-    for (const c of candidates) scores[c] = 1.0 + (STATIC_WEIGHTS[c] || 0);
-
-    // ── Scoring pipeline ────────────────────────────────
-    const scorers = [
-      // NeedsSystem recommendations
-      () => {
-        if (!this.needsSystem) return;
-        const recs = this.needsSystem.getActivityRecommendations();
-        for (const rec of recs) {
-          if (scores[rec.activity] !== undefined) scores[rec.activity] += rec.score * 3;
-        }
-      },
-      // EmotionalState idle priorities
-      () => {
-        if (!this.emotionalState) return;
-        const priorities = this.emotionalState.getIdlePriorities();
-        for (const [activity, weight] of Object.entries(priorities)) {
-          if (scores[activity] !== undefined) scores[activity] += weight * 2;
-        }
-      },
-      // Genome trait influence
-      () => {
-        if (!this._genome) return;
-        const curiosity = this._genome.trait('curiosity');
-        const consolidation = this._genome.trait('consolidation');
-        const curMul = 0.5 + curiosity;
-        const conMul = 0.5 + consolidation;
-        if (scores.explore !== undefined)        scores.explore        *= curMul;
-        if (scores.ideate !== undefined)         scores.ideate         *= curMul;
-        if (scores['mcp-explore'] !== undefined) scores['mcp-explore'] *= curMul;
-        // v7.2.8: research + study are curiosity-driven
-        if (scores.research !== undefined)     scores.research     *= curMul;
-        if (scores.study !== undefined)        scores.study        *= curMul;
-        if (scores.dream !== undefined)          scores.dream          *= conMul;
-        if (scores.consolidate !== undefined)    scores.consolidate    *= conMul;
-        if (scores.calibrate !== undefined)     scores.calibrate      *= conMul;
-        if (scores.tidy !== undefined)           scores.tidy           *= conMul;
-      },
-      // v6.0.8: Directed curiosity — boost explore when weak areas exist
-      () => {
-        if (!this._cognitiveSelfModel) return;
-        try {
-          const profile = this._cognitiveSelfModel.getCapabilityProfile();
-          const weakAreas = Object.entries(profile).filter(([, p]) => p.isWeak);
-          if (weakAreas.length > 0) {
-            if (scores.explore !== undefined) scores.explore *= (1 + weakAreas.length * 0.5);
-            // v7.0.9: Boost improve when weak areas exist
-            if (scores.improve !== undefined) scores.improve *= (1 + weakAreas.length * 0.8);
-            // Store weakest area for targeted exploration
-            this._currentWeakness = weakAreas
-              .sort((a, b) => (a[1].successRate || 0) - (b[1].successRate || 0))[0];
-          }
-        } catch (_e) { /* optional */ }
-      },
-      // v7.0.9: selfAwareness trait boosts improve activity
-      () => {
-        if (!this._genome) return;
-        const sa = this._genome.trait('selfAwareness');
-        if (sa !== undefined && scores.improve !== undefined) {
-          scores.improve *= (0.5 + sa); // selfAwareness=1.0 → 1.5x boost
-        }
-      },
-      // v7.1.5: EmotionalFrontier — emotion-aware activity targeting
-      // Frustration peaks → boost EXPLORE toward the pain point
-      // Curiosity sustained → boost IDEATE toward the interest
-      // Imprint cooldown → halve score if same imprint was used in last 2 picks
-      () => {
-        if (!this._emotionalFrontier) return;
-        try {
-          const imprints = this._emotionalFrontier.getRecentImprints(3);
-          if (imprints.length === 0) return;
-
-          for (const imp of imprints) {
-            const cooldownFactor = this._recentImprintIds.has(imp.nodeId) ? 0.5 : 1.0;
-
-            // Frustration peaks → boost explore
-            const frustPeaks = (imp.peaks || []).filter(p => p.dim === 'frustration');
-            if (frustPeaks.length > 0 && scores.explore !== undefined) {
-              scores.explore *= (1 + 0.4 * cooldownFactor);
-            }
-
-            // Curiosity sustained → boost ideate
-            const curiositySust = (imp.sustained || []).filter(s => s.dim === 'curiosity');
-            if (curiositySust.length > 0 && scores.ideate !== undefined) {
-              scores.ideate *= (1 + 0.4 * cooldownFactor);
-            }
-            // v7.2.8: sustained curiosity also boosts research
-            if (curiositySust.length > 0 && scores.research !== undefined) {
-              scores.research *= (1 + 0.3 * cooldownFactor);
-            }
-
-            // Satisfaction deficit → boost reflect on unresolved problems
-            const satDeficit = (imp.peaks || []).filter(p => p.dim === 'satisfaction' && p.value < p.baseline);
-            if (satDeficit.length > 0 && scores.reflect !== undefined) {
-              scores.reflect *= (1 + 0.3 * cooldownFactor);
-            }
-          }
-
-          // Update cooldown: track which imprints were used this pick
-          this._recentImprintIds = new Set(imprints.slice(0, 2).map(i => i.nodeId).filter(Boolean));
-        } catch (_e) { /* optional */ }
-      },
-      // v7.1.6: UNFINISHED_WORK → boost plan activity
-      () => {
-        if (!this._unfinishedWorkFrontier) return;
-        try {
-          const items = this._unfinishedWorkFrontier.getRecent(2);
-          if (items.length > 0 && scores.plan !== undefined) {
-            scores.plan *= 1.6;
-          }
-        } catch (_e) { /* optional */ }
-      },
-      // v7.1.6: HIGH_SUSPICION → boost explore for affected category
-      () => {
-        if (!this._suspicionFrontier) return;
-        try {
-          const items = this._suspicionFrontier.getRecent(2);
-          if (items.length > 0 && scores.explore !== undefined) {
-            scores.explore *= 1.5;
-          }
-        } catch (_e) { /* optional */ }
-      },
-      // v7.1.6: LESSON_APPLIED low confirmation → boost reflect
-      () => {
-        if (!this._lessonFrontier) return;
-        try {
-          const items = this._lessonFrontier.getRecent(1);
-          if (items.length > 0 && scores.reflect !== undefined) {
-            // Low lesson count in session could indicate lessons aren't being applied
-            if ((items[0].count || 0) <= 1) scores.reflect *= 1.3;
-          }
-        } catch (_e) { /* optional */ }
-      },
-      // v7.1.6: Research gates — energy, trust, rate limit, frontier-driven boost
-      () => {
-        if (scores.research === undefined) return;
-        // Energy gate
-        const energy = this.emotionalState?.getState?.()?.energy ?? 0.5;
-        if (energy < 0.5) { scores.research = 0; return; }
-        // Trust gate
-        const trustLevel = this._trustLevelSystem?.getLevel?.() ?? 1;
-        if (trustLevel < 1) { scores.research = 0; return; }
-        // Rate limit: max 3 per hour
-        const recentResearch = this.activityLog
-          .filter(a => a.activity === 'research' && Date.now() - a.timestamp < 60 * 60 * 1000);
-        if (recentResearch.length >= 3) { scores.research = 0; return; }
-        // Cooldown: 30min after last research
-        const lastR = recentResearch[recentResearch.length - 1];
-        if (lastR && Date.now() - lastR.timestamp < 30 * 60 * 1000) {
-          scores.research *= 0.1;
-        }
-        // Frontier-driven boost: topics available → higher score
-        if (this._unfinishedWorkFrontier?.getRecent(1).length > 0) scores.research *= 1.4;
-        if (this._suspicionFrontier?.getRecent(1).length > 0) scores.research *= 1.3;
-        // Knowledge need boost
-        if (this.needsSystem) {
-          const needs = this.needsSystem.getNeeds();
-          if (needs.knowledge > 0.6) scores.research *= 1.5;
-        }
-      },
-      // v7.2.5: Memory-pressure-based dream boost — dream more when system has headroom
-      () => {
-        if (scores.dream === undefined || !this._homeostasis) return;
-        try {
-          const vitals = this._homeostasis.vitals || {};
-          const memPressure = vitals.memoryPressure?.value ?? 50;
-          if (memPressure < 15) scores.dream *= 2.0;
-          else if (memPressure < 30) scores.dream *= 1.5;
-        } catch (_e) { /* optional */ }
-      },
-    ];
-
-    for (const scorer of scorers) {
-      try { scorer(); } catch (err) { _log.debug('[IDLE-MIND] Scorer error:', err.message); }
+    for (const act of ACTIVITY_MODULES) {
+      let boost;
+      try {
+        boost = act.shouldTrigger(ctx);
+      } catch (err) {
+        _log.debug(`[IDLE-MIND] ${act.name}.shouldTrigger error:`, err.message);
+        continue;
+      }
+      if (!Number.isFinite(boost) || boost <= 0) continue;
+      scores[act.name] = (1.0 + act.weight) * boost;
     }
 
-    // ── Repetition penalty ──────────────────────────────
+    // Repetition penalty: recently-run activities get their score reduced.
+    // Preserved from legacy _pickActivity() behavior.
+    const recent = this.activityLog.slice(-5).map(a => a.activity);
     for (const a of recent) {
       if (scores[a] !== undefined) scores[a] *= 0.2;
     }
 
-    // ── Pick best with jitter ───────────────────────────
+    // Pick best with jitter (also preserved from legacy).
     let bestActivity = 'reflect';
     let bestScore = -1;
-    for (const [activity, score] of Object.entries(scores)) {
+    for (const [name, score] of Object.entries(scores)) {
       const jittered = score + Math.random() * 0.5;
       if (jittered > bestScore) {
         bestScore = jittered;
-        bestActivity = activity;
+        bestActivity = name;
       }
     }
 
-    // v7.2.8: Debug — why is research never picked?
+    // Debug trace — matches legacy format for continuity.
     if (scores.research !== undefined) {
       _log.debug(`[IDLE] Activity scores: research=${scores.research.toFixed(2)}, winner=${bestActivity}(${bestScore.toFixed(2)}), candidates=${Object.keys(scores).join(',')}`);
     }
 
+    // Persist cross-cycle state that activities may have updated.
+    // (ctx.cycleState carries e.g. recentImprintIds and currentWeakness.)
+    this._recentImprintIds = ctx.cycleState.recentImprintIds || this._recentImprintIds;
+
+    // v7.3.1: Preserve legacy scorer #4 side-effect — update currentWeakness
+    // from the weakest area so Explore.run() can target it. In the legacy
+    // _pickActivity(), this was an inline mutation inside the scorer.
+    const weakAreas = ctx.snap.weakAreas || [];
+    if (weakAreas.length > 0) {
+      this._currentWeakness = weakAreas[0]; // already sorted by successRate asc
+    }
+
     return bestActivity;
   }
+
 
   // ── Activity implementations → IdleMindActivities.js ──
   // (prototype delegation, see bottom of file)
@@ -675,14 +480,43 @@ class IdleMind {
       journalEntries: journalCount,
     };
   }
+
+  // v7.3.1: _journal moved from IdleMindActivities.js into IdleMind itself.
+  // Previously attached via prototype-delegation; now lives here as a real
+  // instance method because activities/*.js (Calibrate, Improve) call it
+  // via idleMind._journal(...) rather than through a prototype chain.
+  _journal(activity, content) {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      activity,
+      thought: content.slice(0, 500),
+      thoughtNumber: this.thoughtCount,
+    };
+
+    try {
+      if (this.storage) {
+        this.storage.appendText('journal.jsonl', JSON.stringify(entry) + '\n');
+      } else {
+        if (!fs.existsSync(this.storageDir)) fs.mkdirSync(this.storageDir, { recursive: true });
+        fs.appendFileSync(this.journalPath, JSON.stringify(entry) + '\n', 'utf-8');
+      }
+    } catch (err) {
+      _log.warn('[IDLE-MIND] Journal write failed:', err.message);
+    }
+
+    if (this.eventStore) {
+      this.eventStore.append('IDLE_THOUGHT', { activity, summary: content.slice(0, 200) }, 'IdleMind');
+    }
+  }
 }
 
 
 
-// ── Prototype delegation: activity implementations ────────
-// Extracted to IdleMindActivities.js (v5.6.0) — same pattern
-// as Dashboard → DashboardRenderers, PromptBuilder → PromptBuilderSections.
-const { activities } = require('./IdleMindActivities');
-Object.assign(IdleMind.prototype, activities);
+// v7.3.1: Prototype delegation removed. Activity implementations now
+// live as separate modules in ./activities/ and are dispatched through
+// the ACTIVITY_BY_NAME registry defined at the top of this file. The
+// legacy IdleMindActivities.js is retained for test/modules/idlemind-
+// activities.test.js (which loads its `activities` object directly for
+// unit-level assertions) but is no longer part of the runtime path.
 
 module.exports = { IdleMind };

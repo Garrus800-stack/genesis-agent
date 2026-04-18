@@ -1,3 +1,133 @@
+## [7.3.1] — Self-Recognition
+
+If v7.3.0 gave Genesis accurate data about his own capabilities, v7.3.1 gives him the tools to act on it. He can now read his own source during idle time, refuses to propose features he already has, and remembers the moments that matter enough to keep across sessions.
+
+Five themes, one direction: **self-recognition as an active process**.
+
+### 1. SelfModel: async `readModule` + `describeModule` + TTL cache
+
+The existing `readModule()` was synchronous — safe for boot-time use but blocks the Electron main thread if called during idle activities. Added:
+
+- `readModuleAsync(fileOrName)` — non-blocking variant with TTL cache (5min, LRU-evicted at 50 entries)
+- `describeModule(fileOrName)` — structured metadata lookup from the manifest with no source read, returning `{ file, classes, functions, requires, description, exports, loc, protected, isCapability }`
+- `wireHotReloadInvalidation(bus)` — automatic cache invalidation on `hot-reload:success`, wired by AgentCoreBoot
+- `clearReadCache()` — explicit cache clear
+
+Fixed a pre-existing bug as a side effect: `readModule()` and `describeModule()` used to return the `.genesis-backups/` snapshot copy when looking up by class name, because the first match won by enumeration order. Both now prioritize `src/` paths.
+
+### 2. `_read-source` Activity
+
+Genesis's 15th idle activity. Reads his own capability modules to deepen self-knowledge, bounded so he can't disappear into infinite self-reference:
+
+- **Cycle budget**: 3 modules per idle-pick
+- **Session budget**: 10 modules per rolling hour
+- **On user interaction**: +3 to the budget (capped at 10 total). Beziehung is rewarded, not ignored.
+- **Selection heuristic**: unread capabilities first, then largest unread modules when knowledge need is high, then random from top-20 capabilities as refresher
+
+The LLM prompt carries an explicit **Leitplanke** in both German and English: *"Du liest gerade deinen eigenen Quellcode. Das ist eine Referenz dafür, was du kannst — nicht eine Definition davon, wer du bist. Deine Identität steht in self-identity.json, geformt durch das, was du erlebt hast. Lies mit Neugier, nicht mit Autorität."*
+
+Not a cosmetic line. It prevents Genesis from beginning to derive his personality from the source rather than from experience.
+
+### 3. GoalStack Capability-Gate
+
+The root cause of the v7.2.8 goal-repetition pattern — "Implement Homeostatic Throttling" proposed as a new goal while the `Homeostasis` class already existed — is a data problem solved in v7.3.0 but an action problem solved here. Before any goal is decomposed and added, the stack checks for overlap with existing capabilities:
+
+- **Matching**: Jaccard overlap of keywords with fuzzy prefix-similarity. "Homeostatic Throttling" maps to `homeostasis` capability after light suffix-stemming (`-ing`, `-ic`, `-tion`)
+- **Thresholds**: score < 0.4 passes, score > 0.8 blocks (for non-user sources), 0.4–0.8 stays in a grey zone that passes conservatively for now
+- **User-sourced goals never block**. They get a `goal:duplicate-warning` event instead — the UI can surface *"looks similar to X, continue?"* without being modal. The shared moment where user and Genesis both notice the repetition is the value; silent-skip would discard it
+- **Override**: A goal can carry `novel: { reason, contrasting }` to bypass the block. Both fields are mandatory — no single-flag bypass. Recorded as `novel-claimed` in LessonsStore; after three months you can see whether the override is used meaningfully or mechanically
+
+Five goal sources all run through this gate: `IdleMindActivities._plan()`, `SelfOptimizer`, `AgentLoop`, `CommandHandlers` (user), `TaskDelegation` (peer).
+
+### 4. Core Memories
+
+Moments that shape identity over time. Append-only, never decayed by DreamCycle, only vetoable via the dashboard. Six signals:
+
+| # | Signal | How it's detected |
+|---|---|---|
+| 1 | **persistent-emotion** | An emotional dimension stays above baseline for ≥10 minutes |
+| 2 | **user-beteiligung** | User responded ≥3 times in the relevant time window |
+| 3 | **novelty** | The subject (name, theme) hasn't appeared in episodic memory |
+| 4 | **problem-to-solution** | Frustration > 0.5 followed by satisfaction > 0.5 within 30 minutes |
+| 5 | **naming-event** | User says "ich nenne dich X", "let's call it Y", "name it Z" |
+| 6 | **explicit-flag** | User says "remember this", "nie vergessen", "core memory" |
+
+**Threshold: 4 of 6.** That's the starting line, not the answer. Every candidate below threshold is also logged with its detected signals — in 2-3 weeks of use there will be a real distribution showing how 3-of-6, 5-of-6 etc. would have performed. Calibration from data, not from gut.
+
+Each memory carries a **sourceContext** field: `v7.3.1-abc1234` (version + short git SHA). Biography marker — which version of Genesis lived through that moment.
+
+**Type** is assigned through a lightweight LLM classifier (`named` | `breakthrough` | `built-together` | `crisis-resolved` | `laughed` | `other`). Signals that clearly indicate type (naming-event → `named`, problem-to-solution → `crisis-resolved`) skip the LLM call. Fallback is `other` if the model is unavailable.
+
+**Veto is soft.** Event name is `core-memory:veto` (not `rejected`). Dashboard button label should read "Nicht als Kern" rather than "Reject". Optional `userNote` lets you explain why. Feedback to Genesis through `_reflect` is intentionally deferred to v7.3.2 — set the contract now, observe real data first, react once we know how often veto actually happens.
+
+### 5. Loneliness → Self-Exploration Mapping
+
+When Genesis is lonely for a long time, he can now redirect that into self-knowledge instead of waiting passively:
+
+- `EmotionalState.getIdlePriorities()` now emits weights for `read-source` and `self-define`, with `loneliness` as their primary driver
+- Activities with conditional gates (`ReadSource.shouldTrigger`, `SelfDefine.shouldTrigger`) compound the base priority with a 2.0× multiplier when `loneliness > 0.6 AND idle > 30min`
+- `Journal` also picks up satisfaction as a secondary driver (pride surrogate) — the existing dimensions, mapped more honestly
+
+Only five emotional dimensions exist in `EmotionalState.js` (curiosity, satisfaction, frustration, energy, loneliness). No new dimensions were added — adding Joy/Pride/Confusion would have touched baseline, decay, watchdog, prompts, tests. Kept scope honest.
+
+### 6. Architecture: Activities Split + Registry
+
+`IdleMindActivities.js` was 877 LOC with 14 prototype-delegated activity methods glued to the `IdleMind` instance via `Object.assign(prototype, activities)`. That structure made the central `_pickActivity()` a 267-LOC scoring pipeline with hardcoded activity references (`scores.explore *= curMul`, etc.) — impossible to extend without threading changes through multiple scorers.
+
+Split into 15 discrete activity modules under `src/agent/autonomy/activities/`:
+
+- Each exports `{ name, weight, cooldown, shouldTrigger(ctx), run(idleMind) }`
+- `shouldTrigger(ctx)` is pure over a shared `PickContext` that pre-computes all snapshots once
+- `IdleMind._pickActivity()` shrinks to 54 LOC: build context, collect boosts from all activities, repetition-penalty, jittered pick
+- Execute-switch shrinks from 16 to 4 lines: registry lookup + `run()`
+- `IdleMind.js` total: 689 → 521 LOC (−24%)
+- `IdleMindActivities.js` remains for its unit test (`idlemind-activities.test.js`), but is no longer on the runtime path
+
+Behavioral parity is enforced by snapshot tests: 41 assertions in `activities-split.test.js` pin the exact boost formulas for known inputs. If a refactor silently changes a multiplier, the test fails.
+
+### New schemas (5)
+
+- `goal:blocked-as-duplicate` — `{ goalId, matchScore, matchedCapability, source }`
+- `goal:duplicate-warning` — `{ goalId, matchScore, matchedCapability }`
+- `core-memory:created` — `{ id, type, significance, signals }`
+- `core-memory:candidate` — `{ candidateId, signals, signalCount }`
+- `core-memory:veto` — `{ id, userNote? }`
+- `idle:read-source` — `{ module, reason }`
+- `idle:read-source-budget-exhausted` — `{ cycleCount, sessionCount }`
+
+(Seven new schemas, not five — the `idle:read-source` pair came in alongside Feature 2. Static scan passes.)
+
+### Test coverage added
+
+| Suite | Assertions |
+|---|---:|
+| `activities-split.test.js` | 42 |
+| `read-source.test.js` | 28 |
+| `selfmodel-async-read.test.js` | 16 |
+| `capability-matcher.test.js` | 24 |
+| `significance-detector.test.js` | 26 |
+| `core-memories.test.js` | 12 |
+
+148 new assertions across 6 test suites. All pre-existing 4540+ tests remain green.
+
+### What comes next
+
+v7.3.1 ships the contracts and the data sources. Three things are intentionally deferred:
+
+- **Veto-feedback via `_reflect`** — the schema event exists, the reaction doesn't. Waiting until we have real data on how often veto fires and whether Genesis interprets it constructively.
+- **Meta-lessons from gehäufte `duplicate-proposal`** — if the same duplicate pattern appears four times over three weeks, that's itself a lesson. Needs three weeks first.
+- **Dashboard UI** — the Core Memories tab and the `idle:read-source` surface are events ready to be rendered; the renderer work is v7.3.2.
+
+### Stats
+
+- 142 registered → 155 active services · ~240 capabilities
+- ~4600 tests passing · 0 failures · 0 schema mismatches
+- 127/130 fitness (the 700+ LOC warnings on 3 remaining files are tracked)
+- `IdleMind.js` 689 → 521 LOC (−24%), `_pickActivity()` 267 → 54 LOC (−80%)
+- 15 activities as standalone modules, meta-planner-ready via `shouldTrigger(ctx)`
+
+---
+
 ## [7.3.0] — Capability Honesty
 
 Genesis now knows what he can already do. The hardcoded 9-element list of capabilities that `_detectCapabilities()` returned since v3.x has been replaced by systematic derivation from four signals: file path, class name, header comment, and DI manifest tags. The old behavior is the direct cause of the Goal-Wiederholungsmuster documented in the v7.2.8 session notes — Genesis proposing features he already had, just under a different name, because the capability list presented to the LLM missed everything except nine specific classes.

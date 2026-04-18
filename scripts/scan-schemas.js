@@ -153,7 +153,7 @@ for (const filePath of files) {
 
 // ── Report ───────────────────────────────────────────────────
 if (!quiet) {
-  console.log(`\n  Genesis Schema Scanner v7.3.0`);
+  console.log(`\n  Genesis Schema Scanner v7.3.1`);
   console.log(`  ─────────────────────────────`);
   console.log(`  Source files scanned:  ${files.length}`);
   console.log(`  Total emit/fire calls: ${totalEmits}`);

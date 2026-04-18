@@ -8,12 +8,12 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.3.0_%22Capability_Honesty%22-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-4540%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.3.1_%22Self-Recognition%22-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-4600%2B%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-clean-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-249-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/modules-265-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-142%20%E2%86%92%20154-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">

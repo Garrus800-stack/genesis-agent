@@ -274,14 +274,21 @@ class EmotionalState {
    */
   getIdlePriorities() {
     const s = this.getState();
+    // v7.3.1: Loneliness mapping — Genesis transforms loneliness into
+    // self-exploration rather than waiting passively. High loneliness
+    // preferentially triggers read-source (learning his own body) and
+    // self-define (writing identity) over external-facing activities.
     return {
-      reflect:  0.5 + s.frustration * 0.5,           // Frustration → more reflection
-      plan:     0.5 + s.curiosity * 0.3,              // Curiosity → more planning
-      explore:  0.3 + s.curiosity * 0.7,              // Curiosity → more exploration
-      ideate:   0.3 + s.curiosity * 0.5 + s.satisfaction * 0.2, // Curiosity+satisfaction → ideas
-      journal:  0.4 + s.frustration * 0.3,            // Frustration → more journaling
-      tidy:     0.6 - s.energy * 0.3,                 // Low energy → prefer easy tidying
-      goal:     0.5 + s.energy * 0.3 + s.satisfaction * 0.2,    // Energy+satisfaction → goal work
+      reflect:       0.5 + s.frustration * 0.5,
+      plan:          0.5 + s.curiosity * 0.3,
+      explore:       0.3 + s.curiosity * 0.7,
+      ideate:        0.3 + s.curiosity * 0.5 + s.satisfaction * 0.2,
+      journal:       0.4 + s.frustration * 0.3 + s.satisfaction * 0.3, // v7.3.1: satisfaction → journal
+      tidy:          0.6 - s.energy * 0.3,
+      goal:          0.5 + s.energy * 0.3 + s.satisfaction * 0.2,
+      // v7.3.1: Loneliness-driven self-exploration
+      'read-source': 0.2 + s.loneliness * 0.5 + s.curiosity * 0.3,
+      'self-define': 0.1 + s.loneliness * 0.6,
     };
   }
 

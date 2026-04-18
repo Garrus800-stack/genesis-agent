@@ -612,6 +612,19 @@ const SCHEMAS = {
   'abstraction:extracted':      { lessonId: 'required', category: 'required' },
   'abstraction:contradiction':  { lessonId: 'required', category: 'required' },
   'abstraction:obsolete':       { lessonId: 'required', retries: 'required', lastReason: 'required' },
+
+  // v7.3.1: Self-Recognition — GoalStack Capability-Gate
+  'goal:blocked-as-duplicate':  { goalId: 'required', matchScore: 'required', matchedCapability: 'required', source: 'required' },
+  'goal:duplicate-warning':     { goalId: 'required', matchScore: 'required', matchedCapability: 'required' },
+
+  // v7.3.1: Self-Recognition — _read-source activity
+  'idle:read-source':           { module: 'required', reason: 'optional' },
+  'idle:read-source-budget-exhausted': { cycleCount: 'optional', sessionCount: 'optional' },
+
+  // v7.3.1: Self-Recognition — Core Memories
+  'core-memory:created':        { id: 'required', type: 'required', significance: 'required', signals: 'required' },
+  'core-memory:candidate':      { candidateId: 'required', signals: 'required', signalCount: 'required' },
+  'core-memory:veto':           { id: 'required', userNote: 'optional' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

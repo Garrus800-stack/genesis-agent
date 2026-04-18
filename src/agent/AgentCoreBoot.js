@@ -174,6 +174,17 @@ class AgentCoreBoot {
 
     await selfModel.scan();
 
+    // v7.3.1: Wire hot-reload cache invalidation. The readModuleAsync cache
+    // must be invalidated when HotReloader re-loads a module, otherwise
+    // _read-source activity could read stale content after self-modification.
+    try {
+      if (typeof selfModel.wireHotReloadInvalidation === 'function' && this._bus) {
+        selfModel.wireHotReloadInvalidation(this._bus);
+      }
+    } catch (err) {
+      _log.warn('[BOOT] SelfModel hot-reload wiring skipped:', err.message);
+    }
+
     // Eagerly resolve stateful foundation services
     for (const name of [
       'settings', 'model', 'prompts', 'sandbox', 'memory',

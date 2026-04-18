@@ -54,6 +54,17 @@ class SelfModel {
     // Used by _detectCapabilities() to derive semantic tags from the DI
     // container's curated registration data.
     this._manifestMeta = null;
+
+    // v7.3.1: readModule cache — TTL-based, invalidated on hot-reload:success.
+    // Key: normalized file path. Value: { content, loadedAt }.
+    // Caps total size at 50 entries (LRU via Map insertion order) to prevent
+    // unbounded growth during long idle sessions of _read-source activity.
+    this._readCache = new Map();
+    this._readCacheTTL = 5 * 60 * 1000; // 5min
+    this._readCacheMax = 50;
+
+    // v7.3.1: hot-reload listener unsubscribe; wired lazily when bus is available.
+    this._hotReloadUnsub = null;
   }
 
   /**
@@ -61,10 +72,22 @@ class SelfModel {
    * Called once from AgentCoreBoot after buildManifest() populates the container,
    * but before selfModel.scan() runs. Keeps SelfModel uncoupled from the Container —
    * it just receives data.
+   *
+   * v7.3.1: If scan() already ran, re-derives capabilities from the updated meta
+   * without re-walking the filesystem. This is important both for correctness
+   * (late-injected meta should be visible) and for testability (unit tests can
+   * inject different meta against a single scanned fixture).
+   *
    * @param {object} meta - Map of serviceName → { tags, phase, deps }
    */
   setManifestMeta(meta) {
     this._manifestMeta = meta || null;
+    // If we've already scanned, re-run capability detection with the new meta.
+    // scan() populated manifest.modules — which is all _detectCapabilities needs
+    // besides the meta injection.
+    if (this.manifest.scannedAt) {
+      this.manifest.capabilities = this._detectCapabilities();
+    }
   }
 
   /** Scan the entire project and build the self-model */
@@ -436,9 +459,13 @@ class SelfModel {
     // Accept either full path or class name
     let filePath = fileOrName;
     if (!fileOrName.includes('/')) {
-      const entry = Object.entries(this.manifest.modules)
-        .find(([_, m]) => m.classes.includes(fileOrName) || m.file.includes(fileOrName));
-      if (entry) filePath = entry[0];
+      // v7.3.1: Prefer src/ over .genesis-backups snapshot copies
+      const entries = Object.entries(this.manifest.modules)
+        .filter(([_, m]) => m.classes.includes(fileOrName) || m.file.includes(fileOrName));
+      if (entries.length > 0) {
+        const prioritized = entries.find(([p]) => p.startsWith('src/')) || entries[0];
+        filePath = prioritized[0];
+      }
     }
 
     const fullPath = path.join(this.rootDir, filePath);
@@ -447,6 +474,131 @@ class SelfModel {
       return fs.readFileSync(fullPath, 'utf-8');
     }
     return null;
+  }
+
+  /**
+   * v7.3.1: Async variant of readModule. Preferred for idle-time reads
+   * (_read-source activity) to keep the Electron main thread responsive.
+   * Uses TTL cache (5min) invalidated on hot-reload:success events.
+   *
+   * @param {string} fileOrName - full path or class name
+   * @returns {Promise<string|null>}
+   */
+  async readModuleAsync(fileOrName) {
+    let filePath = fileOrName;
+    if (!fileOrName.includes('/')) {
+      // v7.3.1: Prefer src/ over .genesis-backups snapshot copies
+      const entries = Object.entries(this.manifest.modules)
+        .filter(([_, m]) => m.classes.includes(fileOrName) || m.file.includes(fileOrName));
+      if (entries.length > 0) {
+        const prioritized = entries.find(([p]) => p.startsWith('src/')) || entries[0];
+        filePath = prioritized[0];
+      }
+    }
+
+    // Check cache
+    const cacheKey = filePath;
+    const cached = this._readCache.get(cacheKey);
+    if (cached && Date.now() - cached.loadedAt < this._readCacheTTL) {
+      // LRU bump: remove + re-insert
+      this._readCache.delete(cacheKey);
+      this._readCache.set(cacheKey, cached);
+      return cached.content;
+    }
+
+    // Cache miss or stale — read from disk
+    const fullPath = path.join(this.rootDir, filePath);
+    try {
+      const stat = await fsp.stat(fullPath);
+      if (!stat.isFile()) return null;
+      const content = await fsp.readFile(fullPath, 'utf-8');
+
+      // Insert into cache with LRU eviction
+      this._readCache.set(cacheKey, { content, loadedAt: Date.now() });
+      while (this._readCache.size > this._readCacheMax) {
+        const firstKey = this._readCache.keys().next().value;
+        this._readCache.delete(firstKey);
+      }
+
+      return content;
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  /**
+   * v7.3.1: Structured description of a module using already-parsed metadata
+   * from scan(). Answers "what do I know about X?" without re-reading the
+   * source file. For _read-source activity to decide whether to deep-read.
+   *
+   * @param {string} fileOrName - full path or class name
+   * @returns {object|null} { file, classes, functions, requires, description,
+   *   exports, loc, protected, isCapability } or null if not found.
+   */
+  describeModule(fileOrName) {
+    let filePath = fileOrName;
+    if (!fileOrName.includes('/')) {
+      // v7.3.1: Prefer src/ paths. A class may appear in both the live
+      // source tree AND in .genesis-backups/*/snapshots/, and without
+      // this filter the snapshot copy wins by enumeration order.
+      const entries = Object.entries(this.manifest.modules)
+        .filter(([_, m]) => m.classes.includes(fileOrName) || m.file.includes(fileOrName));
+      if (entries.length === 0) return null;
+      const prioritized = entries.find(([p]) => p.startsWith('src/')) || entries[0];
+      filePath = prioritized[0];
+    }
+
+    const mod = this.manifest.modules[filePath];
+    if (!mod) return null;
+
+    const fileInfo = this.manifest.files[filePath] || {};
+    const isCapability = (this.manifest.capabilitiesDetailed || [])
+      .some(c => c.module === filePath.replace(/\\/g, '/'));
+
+    return {
+      file: filePath,
+      classes: mod.classes || [],
+      functions: (mod.functions || []).map(f => typeof f === 'string' ? f : f.name),
+      requires: mod.requires || [],
+      description: mod.description || '',
+      exports: mod.exports || [],
+      loc: fileInfo.lines || 0,
+      protected: fileInfo.protected || false,
+      isCapability,
+    };
+  }
+
+  /**
+   * v7.3.1: Wire cache invalidation to the event bus.
+   * Called by AgentCoreBoot after the bus is constructed. Safe to call
+   * multiple times — previous subscription is cleaned up first.
+   *
+   * @param {object} bus - EventBus with .on()/.off() or returning unsub from .on()
+   */
+  wireHotReloadInvalidation(bus) {
+    if (!bus || typeof bus.on !== 'function') return;
+    if (this._hotReloadUnsub) {
+      try { this._hotReloadUnsub(); } catch (_e) { /* ignore */ }
+      this._hotReloadUnsub = null;
+    }
+    const unsub = bus.on('hot-reload:success', (data) => {
+      if (data && data.file) {
+        // Invalidate specific file (and any class-name-based key pointing to it)
+        this._readCache.delete(data.file);
+      } else {
+        // No file specified — invalidate all
+        this._readCache.clear();
+      }
+    }, { source: 'SelfModel' });
+    this._hotReloadUnsub = typeof unsub === 'function' ? unsub : null;
+  }
+
+  /**
+   * v7.3.1: Clear the read cache explicitly. Called on teardown or when
+   * stale-data suspicion arises (e.g. external git checkout).
+   */
+  clearReadCache() {
+    this._readCache.clear();
   }
 
   getFileTree() {

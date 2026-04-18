@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.3.0 · Last verified: all checks green (tests + 22 new Capability Honesty assertions, 0 schema mismatches, 240+ capabilities detected)
+> Version: 7.3.1 · Last verified: all checks green (v7.3.0 + 120 new assertions across 5 feature test suites, 0 schema mismatches)
 
 ---
 
@@ -566,7 +566,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~4540 tests across 262 suites |
+| Tests | `node test/index.js` | ~4600 tests across 268 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |

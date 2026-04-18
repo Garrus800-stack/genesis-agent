@@ -9,6 +9,11 @@ function phase4(ctx, R) {
   return [
     ['goalStack', {
       phase: 4, deps: ['llm', 'prompts', 'storage'], tags: ['intelligence'],
+      // v7.3.1: Late-bind selfModel + lessonsStore for Capability-Gate
+      lateBindings: [
+        { prop: 'selfModel', service: 'selfModel', optional: true },
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
+      ],
       factory: (c) => {
         const { lang } = R('Language');
         return new (R('GoalStack').GoalStack)({

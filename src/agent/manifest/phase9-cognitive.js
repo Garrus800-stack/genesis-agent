@@ -266,6 +266,22 @@ function phase9(ctx, R) {
       }),
     }],
 
+    // v7.3.1: CoreMemories — significant moments that shape identity.
+    // Append-only, protected from DreamCycle decay, user-actionable via
+    // dashboard veto. 6-signal detector at threshold 4/6. Candidates
+    // (below threshold) logged separately for calibration.
+    ['coreMemories', {
+      phase: 9, deps: ['bus', 'storage'], tags: ['cognitive', 'identity', 'v7.3.1'],
+      lateBindings: [
+        { prop: 'model', service: 'llm', optional: true },
+        { prop: 'selfModel', service: 'selfModel', optional: true },
+      ],
+      factory: (c) => new (R('CoreMemories').CoreMemories)({
+        bus,
+        storage: c.resolve('storage'),
+      }),
+    }],
+
     // v6.0.0 (V6-7): MemoryConsolidator — KG + LessonsStore hygiene
     ['memoryConsolidator', {
       phase: 9, deps: ['bus'], tags: ['cognitive', 'memory', 'v6-7'],
