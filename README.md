@@ -656,7 +656,6 @@ No LangChain. No LlamaIndex. Everything self-written.
 | Document | What it covers |
 |---|---|
 | [schemas/skill-manifest.schema.json](schemas/skill-manifest.schema.json) | JSON Schema for third-party skill/plugin manifests |
-| [typedoc.json](typedoc.json) | TypeDoc config — run `npx typedoc` to generate API docs |
 
 ---
 

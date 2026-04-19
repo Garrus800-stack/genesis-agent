@@ -90,12 +90,15 @@ class ChatOrchestrator {
         // v7.1.9: If handler returns null/empty, fall through to general chat
         // (e.g. retry with nothing to retry → treat as normal message)
         if (!response) {
+          if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
           if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
           if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
           response = await this._generalChat(message);
         }
       } else {
         // v6.0.4: Pass intent + budget to PromptBuilder
+        // v7.3.3: setQuery — lets sourceAccessContext detect file/class/service references
+        if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
         if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
         if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
         response = await this._generalChat(message);
@@ -105,10 +108,14 @@ class ChatOrchestrator {
         response = this.uncertainty.wrapResponse(response, message);
       }
 
-      // v7.2.2: Guard against undefined response (e.g. LLM circuit breaker opened,
-      // handler returned null, all retries failed). Schema requires response field.
+      // v7.3.3: Graceful fallback when the LLM stream ends without output
+      // (circuit breaker opened, stream timeout, all retries exhausted).
+      // The schema requires a response field, so we can't return null, but
+      // we can at least say something human instead of a raw error string.
       if (response == null) {
-        response = this.lang.t('agent.error') + ': no response generated';
+        response = this.lang.current === 'de'
+          ? 'Ich konnte gerade keine Antwort formulieren — Modell vielleicht kurz weg. Probier es nochmal.'
+          : "I couldn't produce a response just now — the model may be briefly unavailable. Try again.";
       }
 
       this.history.push({ role: 'assistant', content: response });
@@ -161,21 +168,25 @@ class ChatOrchestrator {
       const handler = this.handlers.get(intent.type);
       if (handler) {
         let response = await handler(message, { history: this.history, intent });
-        // v7.2.4: Guard against null handler response (same as non-streaming path v7.2.2).
-        // Handlers can return null on LLM timeout, circuit breaker, or error.
-        if (response == null) {
-          response = this.lang.t('agent.error') + ': no response generated';
+        // v7.3.3: If a handler returns null (LLM timeout, circuit breaker, empty stream),
+        // fall through to the streaming general-chat path instead of surfacing
+        // "no response generated" to the user. This way Genesis actually speaks.
+        if (response != null) {
+          onChunk(response);
+          this.history.push({ role: 'assistant', content: response });
+          this._saveHistory();
+          this.bus.fire('chat:completed', { message, response, intent: intent.type, success: true }, { source: 'ChatOrchestrator' });
+          onDone();
+          return;
         }
-        onChunk(response);
-        this.history.push({ role: 'assistant', content: response });
-        this._saveHistory();
-        this.bus.fire('chat:completed', { message, response, intent: intent.type, success: true }, { source: 'ChatOrchestrator' });
-        onDone();
-        return;
+        // Handler returned null — log and continue into the regular streaming path below.
+        if (traceId) this._provenance.recordIntent(traceId, { type: intent.type, note: 'handler-null-fallback-to-general' });
       }
 
-      // Build context for streaming
+      // Build context for streaming (also reached when a handler returned null above)
       // v6.0.4: Pass intent + budget to PromptBuilder for adaptive section optimization
+      // v7.3.3: setQuery — lets sourceAccessContext detect file/class/service references
+      if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
       if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
       if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
       const systemPrompt = this.promptBuilder.buildAsync
@@ -201,13 +212,58 @@ class ChatOrchestrator {
 
       let fullResponse = '';
       const _h = /** @type {any} */ (this); // ChatOrchestratorHelpers mixin cast
+      // v7.3.3: Filter <tool_call>...</tool_call> blocks out of the streamed output
+      // before it reaches the UI. The raw markup is still accumulated in
+      // fullResponse (needed by _processToolLoop) — we just don't show it to the user.
+      // State machine: track whether we're currently inside a tool_call block so
+      // chunks spanning token boundaries still filter correctly.
+      let inToolCall = false;
+      let streamBuffer = '';
+      const filteredOnChunk = (chunk) => {
+        streamBuffer += chunk;
+        let out = '';
+        while (streamBuffer.length > 0) {
+          if (!inToolCall) {
+            const openIdx = streamBuffer.indexOf('<tool_call>');
+            if (openIdx === -1) {
+              // No open tag — but we might be mid-tag (e.g. "<tool_" waiting for "call>")
+              // Keep last 11 chars (length of '<tool_call>') in buffer as lookahead.
+              if (streamBuffer.length > 11) {
+                out += streamBuffer.slice(0, -11);
+                streamBuffer = streamBuffer.slice(-11);
+              }
+              break;
+            }
+            out += streamBuffer.slice(0, openIdx);
+            streamBuffer = streamBuffer.slice(openIdx + 11); // skip '<tool_call>'
+            inToolCall = true;
+          } else {
+            const closeIdx = streamBuffer.indexOf('</tool_call>');
+            if (closeIdx === -1) {
+              // Still inside tool call, no close yet — drop everything buffered,
+              // but keep last 12 chars as lookahead for '</tool_call>'.
+              if (streamBuffer.length > 12) {
+                streamBuffer = streamBuffer.slice(-12);
+              }
+              break;
+            }
+            streamBuffer = streamBuffer.slice(closeIdx + 12); // skip '</tool_call>'
+            inToolCall = false;
+          }
+        }
+        if (out) onChunk(out);
+      };
       await _h._withRetry(() => this.cb.execute(
         () => this.model.streamChat(ctx.system, ctx.messages, (chunk) => {
           if (this.abortController?.signal.aborted) return;
           fullResponse += chunk;
-          onChunk(chunk);
+          filteredOnChunk(chunk);
         }, this.abortController.signal)
       ));
+      // Flush any remaining non-tool-call buffer at end of stream
+      if (!inToolCall && streamBuffer.length > 0) {
+        onChunk(streamBuffer);
+      }
 
       // Multi-round tool execution loop
       fullResponse = await _h._processToolLoop(fullResponse, onChunk);

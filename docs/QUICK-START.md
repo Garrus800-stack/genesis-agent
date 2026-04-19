@@ -174,6 +174,27 @@ All settings are in the Settings panel (gear icon in the UI):
 
 **Autonomy:** Trust level (0–3), max steps per goal, idle thinking interval
 
+You can also change the trust level directly from the chat — no settings panel needed. Just type:
+
+| What you type | Result |
+|---|---|
+| `trust level` or `vertrauensstufe` | Show current level + table of what each level allows |
+| `trust level 2` or `trust autonomous` | Set to AUTONOMOUS — Genesis auto-approves safe + medium actions |
+| `autonomie freigeben` | German equivalent — raises trust by one step |
+| `trust level 3` or `trust full` | Set to FULL AUTONOMY — includes shell + self-modification |
+| `trust level 1` or `einschränken` | Back down to ASSISTED (default) |
+
+**What each level allows autonomously (without asking you first):**
+
+| Level | Name | Auto-approved actions |
+|---|---|---|
+| 0 | SANDBOX | Read, analyze, search only |
+| 1 | ASSISTED (default) | + safe actions (file reads, listings) |
+| 2 | AUTONOMOUS | + medium actions (code generation, file writes, tests, git snapshots, task delegation) |
+| 3 | FULL AUTONOMY | + high/critical (shell exec, self-modification, deployment) |
+
+Trust level is persisted in `.genesis/settings.json` and survives restarts. `EarnedAutonomy` can also suggest upgrades automatically after 50+ successful actions of a given type with >90% success rate.
+
 **Memory:** Retention policies, consolidation frequency, knowledge graph size
 
 **MCP:** External tool servers (semantic discovery, auto-registration)
@@ -182,11 +203,52 @@ Settings persist in `.genesis/settings.json`.
 
 ## 10. What's Next?
 
-- Read [ARCHITECTURE-DEEP-DIVE.md](docs/ARCHITECTURE-DEEP-DIVE.md) to understand the 12-phase boot
-- Read [CAPABILITIES.md](docs/CAPABILITIES.md) for the full feature list
-- Read [CONTRIBUTING.md](CONTRIBUTING.md) if you want to extend Genesis
+- Read [ARCHITECTURE-DEEP-DIVE.md](ARCHITECTURE-DEEP-DIVE.md) to understand the 12-phase boot
+- Read [CAPABILITIES.md](CAPABILITIES.md) for the full feature list
+- Read [CONTRIBUTING.md](../CONTRIBUTING.md) if you want to extend Genesis
 - Run `npm test` to see all 4600+ tests pass
 - Run `node scripts/architectural-fitness.js` to check code health
+
+## Chat Commands (UI and CLI)
+
+These work anywhere you talk to Genesis — the main chat window, REPL, or any frontend that streams through the ChatOrchestrator.
+
+**Core Memories** — moments you want Genesis to keep as significant.
+
+| Command | Effect |
+|---|---|
+| `/mark <text>` | Mark the given text as a core memory. Stays even across session resets. |
+| `/memories` or `/mem` | List your core memories with IDs, signal score, and status. |
+| `/veto <memory-id>` | Remove a core memory by its ID (e.g. `/veto cm_2026-04-19T18-40-11_u5`). |
+
+The slash is required — free-text phrases like "remember this" or "zeig mir deine Erinnerungen" intentionally do NOT trigger memory actions. This was a deliberate v7.3.3 change so normal conversation doesn't collide with memory commands.
+
+**Trust & Autonomy** — how much Genesis can do without asking you first.
+
+| What you type | Effect |
+|---|---|
+| `trust level` or `vertrauensstufe` | Show current level and a table of what each level allows. |
+| `trust level 2` / `trust autonomous` / `autonomie freigeben` | Raise to AUTONOMOUS (auto-approves safe + medium actions). |
+| `trust level 3` / `trust full` | Raise to FULL AUTONOMY (includes shell + self-modification). |
+| `trust level 1` / `einschränken` | Back down to ASSISTED (the default). |
+| `hoch` / `grant` / `erhöh` | Raise by one step. |
+| `runter` / `lower` / `weniger` | Lower by one step. |
+
+Level persists in `.genesis/settings.json` and survives restarts.
+
+**Self-Inspection** — let Genesis read his own code or state.
+
+| What you type | Effect |
+|---|---|
+| `self-inspect` | Summary of services, uptime, health, available tools. |
+| `zeig mir <file>.js` or `show me ChatOrchestrator` | Genesis reads the named file or service and talks about it. |
+
+**Goals** — Genesis's own goal stack (separate from tasks).
+
+| What you type | Effect |
+|---|---|
+| `welche Ziele hast du?` / `what are your goals?` | List active goals. |
+| `füge Ziel hinzu: <description>` / `add goal: <description>` | Push a new goal onto the stack. |
 
 ## CLI Commands (REPL Mode)
 

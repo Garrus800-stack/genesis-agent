@@ -270,7 +270,7 @@ The socket path defaults to `.genesis/daemon.sock` (Linux/macOS) or a Named Pipe
 
 ## Getting Help
 
-1. Check the [docs/](docs/) directory for architecture details
+1. Check the [docs/](.) directory for architecture details
 2. Run `self-inspect` in the Genesis chat to see the agent's self-model
 3. Open an [issue](https://github.com/Garrus800-stack/genesis-agent/issues) with:
    - Genesis version (`package.json`)

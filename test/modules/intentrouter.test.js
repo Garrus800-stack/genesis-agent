@@ -11,7 +11,10 @@ console.log('\n  📦 IntentRouter Online Learning');
 
 test('classifies known intents via regex', () => {
   const r = new IntentRouter();
-  const result = r.classify('zeig mir deine Architektur');
+  // v7.3.3: "Architektur" alone no longer triggers self-inspect —
+  // that's a conversational question, goes to general (LLM). Only
+  // explicit "show modules / list source" imperatives trigger self-inspect.
+  const result = r.classify('zeig mir deine module');
   assert(result.type === 'self-inspect', `Expected self-inspect, got ${result.type}`);
   assert(result.confidence >= 0.9, 'High confidence for regex match');
 });

@@ -233,6 +233,7 @@ function createMiniDOM() {
 function createGenesisMock() {
   const listeners = {};
   const invokeMock = {};
+  const sent = [];
 
   return {
     mock: {
@@ -240,7 +241,7 @@ function createGenesisMock() {
         if (invokeMock[channel]) return invokeMock[channel](...args);
         return null;
       },
-      send: (channel, data) => { /* no-op */ },
+      send: (channel, data) => { sent.push([channel, data]); },
       on: (channel, cb) => {
         if (!listeners[channel]) listeners[channel] = [];
         listeners[channel].push(cb);
@@ -257,6 +258,7 @@ function createGenesisMock() {
       invokeMock[channel] = fn;
     },
     listeners,
+    sent,
   };
 }
 
@@ -846,29 +848,21 @@ describe('renderer.js — onAgentReady', () => {
     assert(elements['chat-messages'].children.length >= 1, 'Welcome message shown');
   });
 
-  test('shows returning user welcome with goals', async () => {
+  test('returning boot shows no welcome — chat stays empty until user speaks', async () => {
     const { api, genesis, elements } = loadRenderer();
-    genesis.setInvokeHandler('agent:get-lang-strings', () => ({
-      'welcome.returning': 'Welcome back, {{name}}!',
-      'welcome.working_on': 'Working on:',
-      'welcome.thoughts': '{{thoughts}} thoughts, {{facts}} facts',
-    }));
+    genesis.setInvokeHandler('agent:get-lang-strings', () => ({}));
     genesis.setInvokeHandler('agent:list-models', () => []);
-    // v7.2.4: Filesystem-based first-boot check
     genesis.setInvokeHandler('agent:is-first-boot', () => ({ firstBoot: false }));
-    genesis.setInvokeHandler('agent:get-health', () => ({
-      userName: 'Garrus',
-      memory: { facts: 42 },
-      idleMind: { thoughtCount: 7 },
-    }));
-    genesis.setInvokeHandler('agent:get-goals', () => [
-      { status: 'active', description: 'Build UI tests', steps: ['A', 'B'], currentStep: 1 },
-    ]);
 
     await api.onAgentReady({ state: 'ready' });
-    const msg = elements['chat-messages'].children[0];
-    assert(msg.innerHTML.includes('Garrus'), 'Personalized welcome');
-    assert(msg.innerHTML.includes('Build UI tests'), 'Active goal shown');
+
+    // Returning boot is silent. No welcome-request, no stream bubble, no message.
+    const sent = genesis.sent || [];
+    const requestedWelcome = sent.some(([channel]) => channel === 'agent:request-welcome');
+    assert(!requestedWelcome, 'returning boot must NOT send agent:request-welcome');
+
+    const msgs = elements['chat-messages'].children;
+    assert(msgs.length === 0, `returning boot must leave chat empty, got ${msgs.length} bubble(s)`);
   });
 });
 

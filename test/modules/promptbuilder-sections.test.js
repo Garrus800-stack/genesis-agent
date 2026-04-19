@@ -7,6 +7,12 @@
 const { describe, test, assert, assertEqual, run } = require('../harness');
 const { PromptBuilder } = require('../../src/agent/intelligence/PromptBuilder');
 const { sections } = require('../../src/agent/intelligence/PromptBuilderSections');
+const { sectionsExtra } = require('../../src/agent/intelligence/PromptBuilderSectionsExtra');
+
+// v7.3.3: sections were split across two files for the 700-LOC size guard.
+// The test treats them as a unified namespace — callers (the PromptBuilder
+// prototype) see all of them as instance methods via Object.assign anyway.
+const allSections = { ...sections, ...sectionsExtra };
 
 function createBuilder(overrides = {}) {
   return new PromptBuilder({
@@ -32,11 +38,13 @@ describe('PromptBuilderSections: Delegation', () => {
       '_architectureContext', '_projectContext', '_taskPerformanceContext',
       '_disclosureContext', '_introspectionContext', '_versionContext',
       '_autonomyContext',
+      // v7.3.3: new sections (live in PromptBuilderSectionsExtra.js)
+      '_groundednessContext', '_sourceAccessContext', '_buildSourceBlock',
     ];
     for (const name of expected) {
-      assert(typeof sections[name] === 'function', `sections.${name} should be a function`);
+      assert(typeof allSections[name] === 'function', `sections.${name} should be a function`);
     }
-    assertEqual(Object.keys(sections).length, expected.length);
+    assertEqual(Object.keys(allSections).length, expected.length);
   });
 
   test('prototype delegation attaches methods to PromptBuilder', () => {

@@ -82,6 +82,8 @@ function phase9(ctx, R) {
       lateBindings: [
         { prop: 'surpriseAccumulator', service: 'surpriseAccumulator', optional: true },
         { prop: 'valueStore', service: 'valueStore', optional: true },
+        // v7.3.3: Phase-6 goal review — optional, cross-phase P9→P4
+        { prop: 'goalStack', service: 'goalStack', optional: true },
       ],
       factory: (c) => new (R('DreamCycle').DreamCycle)({
         bus,

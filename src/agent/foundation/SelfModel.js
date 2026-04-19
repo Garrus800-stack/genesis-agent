@@ -154,7 +154,7 @@ class SelfModel {
   // Uses fs.promises to avoid blocking the main thread during boot.
   // On a 100+ module project, sync scan blocked for ~50-80ms.
   async _scanDirAsync(dir, relativeBase) {
-    const IGNORE = ['node_modules', '.git', '.genesis', 'sandbox', 'dist'];
+    const IGNORE = ['node_modules', '.git', '.genesis', '.genesis-backups', 'sandbox', 'dist', 'vendor', 'coverage'];
     let entries;
     try {
       entries = await fsp.readdir(dir, { withFileTypes: true });
@@ -192,7 +192,7 @@ class SelfModel {
 
   // Sync fallback for callers that can't await (e.g. tests, quick checks)
   _scanDir(dir, relativeBase) {
-    const IGNORE = ['node_modules', '.git', '.genesis', 'sandbox', 'dist'];
+    const IGNORE = ['node_modules', '.git', '.genesis', '.genesis-backups', 'sandbox', 'dist', 'vendor', 'coverage'];
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -249,8 +249,55 @@ class SelfModel {
     }
 
     // Extract class names
-    const classMatches = code.matchAll(/class\s+(\w+)/g);
-    for (const m of classMatches) info.classes.push(m[1]);
+    // v7.3.3 fix: Strip strings and comments first so class names inside a
+    // string literal or comment (e.g. acorn's "class enum extends super") are
+    // not mistaken for real class declarations. Also filter JS reserved words
+    // that would otherwise end up as bogus "capabilities" like enum, static,
+    // extends, method, field, getters, identifiers, foo.
+    //
+    // Important: string stripping is done PER LINE. Applied to the full file,
+    // greedy string matches can span across regex literals containing quote
+    // characters (e.g. /["']?X/) and accidentally consume real code including
+    // actual `class Foo` declarations. Per-line stripping bounds that risk.
+    const JS_RESERVED_AND_NOISE = new Set([
+      'enum', 'extends', 'super', 'static', 'const', 'let', 'var',
+      'function', 'return', 'if', 'else', 'for', 'while', 'do', 'switch',
+      'case', 'break', 'continue', 'default', 'typeof', 'instanceof',
+      'new', 'delete', 'void', 'yield', 'async', 'await', 'true', 'false',
+      'null', 'undefined', 'this', 'try', 'catch', 'finally', 'throw',
+      'import', 'export', 'from', 'as', 'of', 'in',
+      // common noise that's not a class name but appears as 'class X' in docs
+      'method', 'field', 'getters', 'identifiers', 'escape', 'declaration',
+      'definition', 'double', 'size', 'names', 'name', 'may', 'matching',
+      'rolling', 'found', 'foo', 'bar', 'baz', 'to', 'for', 'into',
+      // Specific example-class names embedded in template-string code snippets
+      // (e.g. PromptEngine's "class SkillName { ... }" example)
+      'skillname', 'mycomponent', '_unsafe_html', 'genesiselement',
+    ]);
+    // Strip block comments globally (they're by-design multi-line).
+    // Template literals are NOT stripped — they can contain backticks in regex
+    // literals (e.g. /^```/) that confuse any ungrammared strip pass and cause
+    // it to consume real code including class declarations.
+    let codeStripped = code.replace(/\/\*[\s\S]*?\*\//g, '');
+    // Strip line comments and quote-delimited strings per-line. Per-line bounds
+    // a risk where a greedy quote match (e.g. due to quotes in regex literals)
+    // would otherwise span from one side of the file to the other, swallowing
+    // real code like `class Foo` along the way.
+    codeStripped = codeStripped.split('\n').map((line) => {
+      return line
+        .replace(/\/\/[^\n]*$/, '')
+        .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+        .replace(/"(?:[^"\\]|\\.)*"/g, '""');
+    }).join('\n');
+    const classMatches = codeStripped.matchAll(/\bclass\s+([A-Z]\w*)/g);
+    for (const m of classMatches) {
+      const name = m[1];
+      // Only accept PascalCase class names — anonymous or lowercase identifiers
+      // after 'class' are either parser artifacts or keyword noise.
+      if (!JS_RESERVED_AND_NOISE.has(name.toLowerCase()) && /^[A-Z]/.test(name)) {
+        info.classes.push(name);
+      }
+    }
 
     // Extract function names (top-level and method-like)
     const fnMatches = code.matchAll(/(?:async\s+)?(\w+)\s*\([^)]*\)\s*{/g);

@@ -194,6 +194,88 @@ function validateNovelOverride(novel) {
   return { valid: violations.length === 0, violations };
 }
 
+/**
+ * v7.3.3: LLM-based resolver for grey-zone duplicate candidates.
+ *
+ * When Jaccard similarity lands in the grey band (0.4–0.8), lexical matching
+ * alone can't tell whether two goals with shared vocabulary are actually
+ * duplicates. This resolver asks the LLM with a tightly scoped prompt.
+ *
+ * Returns:
+ *   { decision: 'block', reason: <llm-explanation> } — LLM said DUPLICATE
+ *   { decision: 'pass',  reason: <llm-explanation> } — LLM said NOT_DUPLICATE
+ *   { decision: 'grey',  reason: <failure-cause>    } — LLM unavailable / broken / unparseable / timed out
+ *
+ * The caller decides what to do with 'grey' (usually: fall back to the
+ * existing jaccard-based thresholds).
+ *
+ * @param {object} params
+ * @param {string} params.description   - The new goal's description
+ * @param {object|null} params.matched  - The existing capability (description, name, keywords)
+ * @param {number} params.score         - The jaccard score that put us in grey zone
+ * @param {object|null} params.model    - LLM adapter with .chat(prompt, msgs?, role?)
+ * @param {number} [params.timeoutMs=5000]
+ * @returns {Promise<{decision: 'block'|'pass'|'grey', reason: string}>}
+ */
+async function resolveGreyWithLLM({ description, matched, score, model, timeoutMs = 5000 }) {
+  if (!model || typeof model.chat !== 'function') {
+    return { decision: 'grey', reason: 'no-llm' };
+  }
+  if (!matched) {
+    return { decision: 'grey', reason: 'no-matched-capability' };
+  }
+
+  const newDesc = String(description || '').slice(0, 400);
+  const capName = String(matched.name || matched.id || 'unknown').slice(0, 100);
+  const capDesc = String(matched.description || '').slice(0, 400);
+  const capKeywords = Array.isArray(matched.keywords) ? matched.keywords.slice(0, 8).join(', ') : '';
+
+  const prompt = [
+    'DUPLICATE DETECTION — are these two goals actually duplicates?',
+    '',
+    'IMPORTANT: Two goals sharing vocabulary are NOT automatically duplicates.',
+    'Terms like "homeostasis", "cache", "refactor" can appear in goals that',
+    'pursue different outcomes on different subsystems. Judge by OUTCOME, not',
+    'by shared words.',
+    '',
+    `EXISTING CAPABILITY: ${capName}`,
+    `  Description: ${capDesc}`,
+    capKeywords ? `  Keywords: ${capKeywords}` : '',
+    '',
+    `NEW GOAL: ${newDesc}`,
+    `  (Lexical similarity score: ${score.toFixed(2)})`,
+    '',
+    'Answer with this exact format (two lines):',
+    'VERDICT: DUPLICATE  (or NOT_DUPLICATE)',
+    'REASON: <one short sentence explaining why>',
+  ].filter(Boolean).join('\n');
+
+  try {
+    const chatPromise = Promise.resolve(model.chat(prompt, [], 'user'));
+    const timeoutPromise = new Promise((_, rej) =>
+      setTimeout(() => rej(new Error('timeout')), timeoutMs));
+    const response = await Promise.race([chatPromise, timeoutPromise]);
+    const text = String(response?.content || response?.text || response || '');
+
+    // Parse VERDICT line
+    const verdictMatch = text.match(/VERDICT\s*:\s*(NOT_DUPLICATE|NOT\s+DUPLICATE|DUPLICATE)/i);
+    const reasonMatch = text.match(/REASON\s*:\s*(.+?)(?:\n|$)/i);
+    if (!verdictMatch) {
+      return { decision: 'grey', reason: 'llm-parse-failed' };
+    }
+    const verdict = verdictMatch[1].toUpperCase().replace(/\s+/g, '_');
+    const reason = reasonMatch ? reasonMatch[1].trim().slice(0, 300) : 'llm-decision';
+    if (verdict === 'DUPLICATE') return { decision: 'block', reason };
+    if (verdict === 'NOT_DUPLICATE') return { decision: 'pass', reason };
+    return { decision: 'grey', reason: 'llm-parse-failed' };
+  } catch (err) {
+    if (err.message === 'timeout') {
+      return { decision: 'grey', reason: 'timeout' };
+    }
+    return { decision: 'grey', reason: `llm-error:${err.message}` };
+  }
+}
+
 module.exports = {
   match,
   extractKeywords,
@@ -202,6 +284,7 @@ module.exports = {
   prefixSimilarity,
   stem,
   validateNovelOverride,
+  resolveGreyWithLLM,
   THRESHOLDS,
   STOP_WORDS,
 };

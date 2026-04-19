@@ -14,7 +14,7 @@
 // ============================================================
 
 const { t, loadI18n } = require('./modules/i18n');
-const { addMessage, appendToStream, finishStream, sendMessage, stopGeneration } = require('./modules/chat');
+const { addMessage, startStreamingMessage, appendToStream, finishStream, sendMessage, stopGeneration } = require('./modules/chat');
 const { initMonaco, setCurrentFile } = require('./modules/editor');
 const { updateStatus, showToast, showHealth, showSelfModel } = require('./modules/statusbar');
 const { loadFileTree } = require('./modules/filetree');
@@ -78,41 +78,12 @@ async function onAgentReady(status) {
     console.debug('[UI] First boot check:', JSON.stringify(bootCheck));
 
     if (isFirstBoot) {
-      addMessage('agent', t('welcome.first'));
-      return;
+      // First boot: onboarding template as system message.
+      addMessage('system', t('welcome.first'));
     }
-
-    // Not first boot — get health data for the personalized greeting
-    const health = await window.genesis.invoke('agent:get-health');
-    const goals = await window.genesis.invoke('agent:get-goals');
-    const activeGoals = (goals || []).filter(g => g.status === 'active');
-    const thoughts = health?.idleMind?.thoughtCount || 0;
-    const memFacts = health?.memory?.facts || 0;
-
-    const lines = [];
-    const userName = health?.userName;
-    const episodes = health?.memory?.episodes || 0;
-    if (userName) {
-      lines.push(t('welcome.returning', { name: userName }));
-    } else if (episodes <= 5) {
-      lines.push(t('welcome.returning_anon'));
-    } else {
-      lines.push(t('welcome.returning_familiar'));
-    }
-    if (activeGoals.length > 0) {
-      lines.push(''); lines.push('**' + t('welcome.working_on') + '**');
-      for (const g of activeGoals.slice(0, 3)) {
-        const progress = g.steps?.length > 0 ? ` (${g.currentStep || 0}/${g.steps.length})` : '';
-        lines.push(`- ${g.description}${progress}`);
-      }
-    }
-    if (thoughts > 0) {
-      lines.push(''); lines.push(t('welcome.thoughts', { thoughts, facts: memFacts }));
-    }
-    addMessage('agent', lines.join('\n'));
+    // Returning boot: empty. Genesis speaks when spoken to.
   } catch (err) {
     console.error('[UI] onAgentReady error:', err);
-    addMessage('agent', "I'm Genesis. Ask me anything.");
   }
 }
 

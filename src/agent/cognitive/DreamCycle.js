@@ -46,6 +46,7 @@ class DreamCycle {
     this._intervals = intervals || null;
     this.surpriseAccumulator = null; // lateBinding
     this.valueStore = null;          // lateBinding v4.12.4
+    this.goalStack = null;           // v7.3.3 lateBinding — optional, used in Phase 6 goal review
 
     // ── Configuration ────────────────────────────────────
     const cfg = config || {};
@@ -216,6 +217,30 @@ class DreamCycle {
             dreamNumber: this._dreamCount,
           }, { source: 'DreamCycle' });
           _log.info(`[DREAM] Actionable insight emitted: ${(insight.description || '').slice(0, 60)}`);
+        }
+      }
+
+      // ── Phase 6: GOAL REVIEW (v7.3.3) ───────────────────
+      // Dream cycle is also when Genesis audits his own goal list.
+      // The 6/8-stuck-forever bug is fixed here: reviewGoals walks
+      // active goals and transitions those that should have moved on
+      // (completed, failed, stalled). User-sourced goals are touched
+      // with permission (default on for dreams — Genesis decides).
+      // Skipped at low intensity to respect the cost-tier scaling.
+      if (this.goalStack && typeof this.goalStack.reviewGoals === 'function' && intensity >= 0.5) {
+        try {
+          const reviewReport = this.goalStack.reviewGoals();
+          report.phases.push({
+            name: 'goal-review',
+            reviewed: reviewReport.reviewed,
+            changed: reviewReport.changed.length,
+          });
+          if (reviewReport.changed.length > 0) {
+            _log.info(`[DREAM] Goal review: ${reviewReport.changed.length}/${reviewReport.reviewed} goals transitioned`);
+          }
+          /** @type {*} */ (report).goalReview = reviewReport;
+        } catch (err) {
+          _log.warn('[DREAM] Goal review failed (non-critical):', err.message);
         }
       }
 

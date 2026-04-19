@@ -349,6 +349,128 @@ class GoalStack {
     if (g) { g.status = 'abandoned'; g.updated = new Date().toISOString(); this._save(); }
   }
 
+  // ── v7.3.3: Extended lifecycle states ───────────────────
+
+  /**
+   * Mark a goal as stalled — it's active but has made no progress for too long.
+   * Stalled goals remain visible but don't block new proposals. They can be
+   * resumed (set back to active) or abandoned by the user.
+   *
+   * Use this when Genesis decides, during self-review, that a goal is stuck
+   * and wants to acknowledge it honestly instead of pretending to still work on it.
+   *
+   * @param {string} goalId
+   * @param {string} reason - Why it's stalled (recorded on the goal)
+   */
+  markStalled(goalId, reason = 'no-progress') {
+    const g = this.goals.find(g => g.id === goalId);
+    if (!g) return false;
+    if (g.status === 'completed' || g.status === 'failed' || g.status === 'abandoned') return false;
+    g.status = 'stalled';
+    g.stalledReason = String(reason).slice(0, 200);
+    g.updated = new Date().toISOString();
+    this._save();
+    this.bus.emit('goal:stalled', {
+      id: g.id, description: g.description, reason: g.stalledReason,
+    }, { source: 'GoalStack' });
+    return true;
+  }
+
+  /**
+   * Mark a goal as obsolete — the world changed and the goal is no longer
+   * relevant. Distinct from abandoned (user gave up) and stalled (stuck but
+   * still relevant). Obsolete means: there's no point in pursuing this anymore,
+   * regardless of whether progress was possible.
+   *
+   * Example: "Implement feature X" becomes obsolete if X is deprecated.
+   *
+   * @param {string} goalId
+   * @param {string} reason
+   */
+  markObsolete(goalId, reason = 'no-longer-relevant') {
+    const g = this.goals.find(g => g.id === goalId);
+    if (!g) return false;
+    if (g.status === 'completed' || g.status === 'failed' || g.status === 'abandoned') return false;
+    g.status = 'obsolete';
+    g.obsoleteReason = String(reason).slice(0, 200);
+    g.updated = new Date().toISOString();
+    this._save();
+    this.bus.emit('goal:obsolete', {
+      id: g.id, description: g.description, reason: g.obsoleteReason,
+    }, { source: 'GoalStack' });
+    return true;
+  }
+
+  /**
+   * v7.3.3: Autonomous goal review — Genesis walks his own goal list and
+   * decides, for each active goal, whether it's still a live pursuit.
+   *
+   * Three conditions that trigger automatic state changes:
+   *  - stalled: active and no progress for >= stallThresholdHours (default 72h)
+   *  - auto-complete: all steps complete but status never got flipped (bug)
+   *  - auto-fail: attempts exhausted on a step but status never got flipped (bug)
+   *
+   * Returns a summary of what was changed. User-sourced goals are only
+   * auto-transitioned when closeOwnGoals: true (the default for dream-cycle
+   * autonomous review).
+   *
+   * @param {object} [opts]
+   * @param {number} [opts.stallThresholdHours=72] - Hours of inactivity for stalled
+   * @param {boolean} [opts.closeOwnGoals=true] - Genesis auto-closes his own goals
+   * @returns {{ changed: Array<{id:string, from:string, to:string, reason:string}>, reviewed: number }}
+   */
+  reviewGoals({ stallThresholdHours = 72, closeOwnGoals = true } = {}) {
+    const now = Date.now();
+    const stallMs = stallThresholdHours * 60 * 60 * 1000;
+    const changed = [];
+    let reviewed = 0;
+
+    for (const g of this.goals) {
+      if (g.status !== 'active') continue;
+      reviewed++;
+
+      // Auto-complete: all steps done but status never flipped
+      if (g.steps?.length > 0 && g.currentStep >= g.steps.length) {
+        g.status = 'completed';
+        g.updated = new Date().toISOString();
+        changed.push({ id: g.id, from: 'active', to: 'completed', reason: 'all-steps-done-but-status-was-active' });
+        this.bus.emit('goal:completed', { id: g.id, description: g.description, auto: true }, { source: 'GoalStack:review' });
+        continue;
+      }
+
+      // Auto-fail: attempts exhausted on a step but status never flipped
+      if (g.attempts >= (g.maxAttempts || 3) && g.currentStep < (g.steps?.length || 0)) {
+        g.status = 'failed';
+        g.updated = new Date().toISOString();
+        changed.push({ id: g.id, from: 'active', to: 'failed', reason: 'attempts-exhausted-but-status-was-active' });
+        this.bus.emit('goal:failed', { id: g.id, reason: 'auto-review: attempts exhausted', auto: true }, { source: 'GoalStack:review' });
+        continue;
+      }
+
+      // Stalled: no updates for too long
+      const lastUpdate = new Date(g.updated || g.created).getTime();
+      if (Number.isFinite(lastUpdate) && (now - lastUpdate) > stallMs) {
+        // User-sourced goals: only flag, don't auto-change
+        if (g.source === 'user' && !closeOwnGoals) continue;
+        if (g.source !== 'user' || closeOwnGoals) {
+          g.status = 'stalled';
+          g.stalledReason = `no progress for ${Math.floor((now - lastUpdate) / (60 * 60 * 1000))}h`;
+          g.updated = new Date().toISOString();
+          changed.push({ id: g.id, from: 'active', to: 'stalled', reason: g.stalledReason });
+          this.bus.emit('goal:stalled', {
+            id: g.id, description: g.description, reason: g.stalledReason, auto: true,
+          }, { source: 'GoalStack:review' });
+        }
+      }
+    }
+
+    if (changed.length > 0) {
+      this._save();
+      _log.info(`[GOAL-REVIEW] ${changed.length} state changes across ${reviewed} active goals`);
+    }
+    return { changed, reviewed };
+  }
+
   // ── Hierarchy ───────────────────────────────────────────
 
   /** Get sub-goals of a parent goal */

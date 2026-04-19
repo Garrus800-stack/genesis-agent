@@ -17,12 +17,18 @@ const _log = createLogger('IntentRouter');
 /** @type {Array<[string, RegExp[], number, string[]]>} */
 const INTENT_DEFINITIONS = [
   ['self-inspect', [
-    /zeig.*dein.*(code|quell|struktur|module)/i, /woraus bestehst/i,
-    /architektur/i, /self.?model/i,
-    /stell dich vor/i,
-    /(?:liste|zeig|nenn).*(?:deine? )?(?:module|skills?|tools?|faehigkeit)/i,
-    /(?:show|list|display).*(?:modules?|capabilities|skills?|tools?)/i,
-  ], 20, ['struktur', 'aufbau', 'module', 'quellcode', 'architektur', 'bestehen']],
+    // v7.3.3: IMPERATIVE-ONLY patterns for module/source listing.
+    // Conversational questions ("was kannst du?", "wie bist du aufgebaut?",
+    // "zeig mir deine Architektur") fall through to 'general' where Genesis
+    // answers via the LLM with module/capability context injected.
+    /(?:zeig|liste?|nenn|show|list|display|gib).*?(?:deine?\s+)?(?:modules?|modul-?liste|quellcodes?|sources?|source\s+files?|strukture?n?|directory|dateien|files?)\b/i,
+    /(?:welche|which)\s+(?:modules?|modul-?liste|dateien|files?)\s+(?:hast|gibt|are\s+there|do\s+you\s+have)/i,
+    // v7.3.3 fix: "self-model" was matching ANY mention of SelfModel in a normal
+    // conversation (e.g. "SelfModel.js ist hash-locked" triggered self-inspect).
+    // Now requires imperative: "zeig mir dein self-model" / "show your self-model" / "/self-model".
+    /^\/self.?model\b/i,
+    /(?:zeig|liste?|nenn|show|list|display|gib).*?\bself.?model\b/i,
+  ], 20, ['module', 'modulliste', 'quellcode', 'source', 'dateien', 'struktur']],
 
   // Self-reflect: QUESTIONS about what Genesis would improve/change/need
   // Must be ABOVE self-modify to catch questions before they match imperative patterns
@@ -134,10 +140,27 @@ const INTENT_DEFINITIONS = [
   ], 10, ['vorhaben', 'plan', 'ideen']],
 
   ['goals', [
-    /ziel/i, /goal/i, /setze.*ziel/i, /was arbeitest du/i, /woran arbeitest/i, /fortschritt/i,
-    /cancel.*(?:goal|ziel|all)/i, /(?:lösch|entfern|abandon|clear).*(?:goal|ziel)/i,
-    /(?:goal|ziel).*(?:lösch|entfern|cancel|abandon|clear)/i,
-  ], 12, ['ziel', 'goal', 'fortschritt', 'aufgabe', 'cancel', 'abandon', 'lösche']],
+    // v7.3.3: IMPERATIVE-ONLY patterns. Conversational questions like
+    // "was sind deine Ziele?" fall through to 'general' and are answered
+    // by Genesis via the LLM with goal data injected as context.
+    //
+    // Previously /ziel/i matched any message containing "Ziel" anywhere,
+    // including meta-questions. That turned a natural question into a
+    // template-dump from the goals handler.
+    //
+    // Priority raised to 16 so explicit "setze ein ziel:" doesn't get
+    // swallowed by shell-task (pri 14) via leading verbs like "setze".
+    //
+    // Cancel / abandon — explicit imperatives with goal reference
+    /(?:cancel|abandon|clear|reset)\s+(?:all\s+)?(?:the\s+)?(?:goal|ziel|ziele|goals)\b/i,
+    /(?:lösch|entfern|abbrech|stopp).*?(?:ziel|goal|ziele|goals)\b/i,
+    /(?:ziel|goal|ziele|goals).*?(?:lösch|entfern|abbrech|stopp|cancel|abandon|clear|reset)/i,
+    // Cancel / abandon a specific numbered goal
+    /(?:cancel|abandon|lösch|entfern|stopp|abbrech).*?(?:goal|ziel)\s*#?\s*\d+/i,
+    // Set / add — imperatives (with or without colon)
+    /(?:setze?|set|erstelle?|create|add|hinzufueg|hinzufüg|füg)\s+.{0,30}?(?:ziel|goal)\b/i,
+    /(?:ziel|goal)\s+(?:setzen|erstellen|hinzufügen|hinzufuegen|add|create|addieren)/i,
+  ], 16, ['ziel', 'goal', 'goals', 'ziele', 'setze', 'lösche', 'abbrechen', 'cancel', 'abandon', 'clear']],
 
   ['settings', [
     /einstellung/i, /settings/i, /api.?key/i, /konfigur/i, /config/i,
@@ -202,23 +225,15 @@ const INTENT_DEFINITIONS = [
   ['memory-list', [
     /^\/memories\b/i,
     /^\/mem\b/i,
-    /(?:zeig|zeige|liste|show|list).{0,20}(?:erinnerung|memor|kern)/i,
-    /welche\s+(?:kern.?)?erinnerungen/i,
-    /deine (?:kern.?)?erinnerungen\s*\??$/i,
-  ], 24, ['memories', 'erinnerungen', 'kernerinnerungen']],
+  ], 24, []],
 
   ['memory-veto', [
     /^\/veto\b/i,
-    /nicht\s+als\s+kern/i,
-    /verwerf(?:en|e)?/i,
-    /(?:das|diese)\s+erinnerung\s+(?:ist\s+)?nicht\s+wichtig/i,
-  ], 23, ['veto', 'verwerfen']],
+  ], 23, []],
 
   ['memory-mark', [
     /^\/mark\b/i,
-    /^(?:merk(?:e)? dir|remember this|remember that)\b/i,
-    /erinnere\s+dich\s+(?:an|daran)/i,
-  ], 22, ['mark', 'merken', 'remember']],
+  ], 22, []],
 
   ['greeting', [
     /^(hi|hallo|hey|moin|servus|guten (morgen|tag|abend)|hello|good (morning|evening)|bonjour|buenas?)\s*[!.]?$/i,

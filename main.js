@@ -435,17 +435,37 @@ const CHANNELS = {
       const path = require('path');
       const genesisDir = path.join(__dirname, '.genesis');
       if (!fs.existsSync(genesisDir)) return { firstBoot: true };
-      // Check for ANY sign of previous activity
-      const markers = ['memory.json', 'session-history.json', 'knowledge-graph.json', 'emotional-state.json'];
-      for (const f of markers) {
-        const fp = path.join(genesisDir, f);
-        if (fs.existsSync(fp)) {
-          try {
-            const stat = fs.statSync(fp);
-            if (stat.size > 10) return { firstBoot: false }; // non-trivial content
-          } catch (_e) { /* stat failed, try next */ }
-        }
+
+      // v7.3.3 fix: Genesis creates .genesis/ and default JSON files on
+      // its very first run, so file existence + size alone isn't enough.
+      // What really defines "not-first-boot" is: has the user ever talked
+      // to Genesis? That's a non-zero episode count in memory.json.
+      const memoryPath = path.join(genesisDir, 'memory.json');
+      if (fs.existsSync(memoryPath)) {
+        try {
+          const raw = fs.readFileSync(memoryPath, 'utf-8');
+          const mem = JSON.parse(raw);
+          const episodes = Array.isArray(mem.episodes) ? mem.episodes
+            : Array.isArray(mem) ? mem
+            : [];
+          if (episodes.length > 0) return { firstBoot: false };
+        } catch (_e) { /* malformed memory.json → treat as first boot */ }
       }
+
+      // Also check session-history as a secondary signal (some builds store there)
+      const sessionPath = path.join(genesisDir, 'session-history.json');
+      if (fs.existsSync(sessionPath)) {
+        try {
+          const raw = fs.readFileSync(sessionPath, 'utf-8');
+          const sess = JSON.parse(raw);
+          const sessions = Array.isArray(sess.sessions) ? sess.sessions
+            : Array.isArray(sess) ? sess
+            : [];
+          if (sessions.length > 0) return { firstBoot: false };
+        } catch (_e) { /* malformed → next */ }
+      }
+
+      // Empty .genesis/ or only default files with zero real interaction → first boot
       return { firstBoot: true };
     } catch (_e) { return { firstBoot: true }; }
   },
@@ -951,6 +971,10 @@ ipcMain.on('agent:request-stream', (event, message) => {
   });
 });
 
+// v7.3.3: Welcome streaming — generates a returning-boot greeting through
+// the WelcomeService. If the service is not available or the LLM is not
+// ready, the renderer gets { ok: false, reason } and should display a
+// system message rather than a fake agent utterance.
 // v5.6.0 SA-P4: Forward UI heartbeat to EventBus for EmbodiedPerception
 ipcMain.on('ui:heartbeat', (_event, data) => {
   if (!agent || typeof data !== 'object') return;

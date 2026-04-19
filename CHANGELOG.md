@@ -1,322 +1,79 @@
-## [7.3.2] — First Contact
+## [7.3.3] — Quiet Return
 
-v7.3.1 shipped Core Memories as infrastructure. v7.3.2 makes them fire.
+The returning-boot greeting was a lie. When you opened Genesis for the second time, the chat UI showed a message labeled as Genesis saying "Hey, good to have you back. What's on your mind?" — or the German equivalent *"Schön, dass du wieder da bist"*. Genesis had not said this. The renderer was picking one of four hardcoded template strings and rendering it under Genesis's avatar. The user saw Genesis greeting them; what was actually happening was a template substitution. When the first real LLM response came a minute later it might be in a different language or tone, because the template was static and Genesis was not.
 
-### Third bugfix pass — the silent liar
+An LLM-driven `WelcomeService` was built during v7.3.3 to fix this — Genesis generating his own greeting through the model instead of a template. In real Windows testing, it caused UI bugs: typing dots that stuck, race conditions against model ready state, a 6-second retry loop that made the second start feel slow. The honest resolution was simpler than a better greeting: on returning boot, say nothing. Genesis speaks when spoken to. The first-boot template remains (there is no memory yet, onboarding is needed) but it's now clearly rendered as a system message rather than Genesis's own words.
 
-After the second pass, a stale README badge (`404 badge not found` from a shields.io URL-encoding issue) prompted an investigation into test-harness honesty. What surfaced was worse than the badge: **the test suite runner (`test/index.js`) had a regex bug that silently ignored failures in two of our three harness output formats.**
+Beyond the greeting, this release corrects the over-matching problem in the intent router that made Genesis feel mechanical. For years, any message containing words like "Ziel", "Architektur", or "erinnere" triggered a template-based handler that produced a data listing — which looked like the bot pattern. These fixes now also cover memory commands: `/mark`, `/memories`, `/veto` trigger memory actions, conversational phrases do not. Everything else goes through the LLM as normal chat.
 
-**8. Suite-parser regex was blind to real failures.** The regex only matched `/Results:\s*\d+ passed,\s*(\d+) failed/` — i.e., exactly the `Results: N passed, N failed` prefix format. But our harness actually produces two other formats:
+The chat-level commands for Trust/Autonomy control (`trust level 2`, `autonomie freigeben`, `trust full`) existed in the code for several versions but were never user-facing documentation. This release adds a complete "Chat Commands" section to QUICK-START covering Core Memories, Trust & Autonomy, Self-Inspection, and Goals — so users know what they can ask for without reading source.
 
-   - Legacy tests: `13 passed, 1 failed` (no `Results:` prefix, comma separator)
-   - Modern tests: `24 passed · 0 failed · 75 assertions · 17ms` (middle-dot separator, additional fields)
+### Returning boot: silent
 
-Both formats never matched. When such a test actually failed, the parser saw no failure count and reported the module as green. **This means all previous "clean" suite runs could have been hiding real failures.** Three test modules were in this state: `agentloop-legacy.test.js` had a genuinely broken assertion (`containerConfig` was removed in v7.2.2 but the test still checked for it); `nativetooluse.test.js` had the same obsolete assertion; `dynamic-tool-synthesis.test.js` uses `node:test` TAP and was actually green — my earlier investigation of "three failures" included it incorrectly due to the same pattern of regex confusion I was fixing.
+- **Removed** `src/agent/hexagonal/WelcomeService.js` and all its wiring (IPC channels `agent:request-welcome`, `agent:welcome-chunk`, `agent:welcome-done`; the 6-second retry loop in `main.js`; listeners in `renderer.js` and `renderer-main.js`; preload whitelists).
+- **First boot** (no prior episodes in `.genesis/memory.json`) renders a template as a system message — framed as onboarding, not as Genesis speaking.
+- **Returning boot** renders nothing. The chat stays empty until the user speaks.
+- First-boot detection is now based on episode count in memory (not file size), so freshly initialized `.genesis/` directories are correctly identified.
 
-Fix: regex now matches `/^\s*(?:Results:\s*)?\d+ passed\s*[,·]\s*(\d+)\s*failed/m` — handles all three shapes, anchored to line start to avoid being confused by log output like `"Health check 1/1 failed"` elsewhere. A new regression test (`suite-parser.test.js`, 8 assertions) locks this so the regex cannot silently revert.
+### Intent-Router honesty
 
-**9. Two genuinely broken legacy assertions removed.** Both tested that their module class exposed a static `containerConfig` property — a v7.1-era DI convention. v7.2.2 migrated all module registration to manifest files (`src/agent/manifest/phase*.js`) with an inline comment *"Migrated from orphaned containerConfig"*. The tests were never updated, but their failures were hidden by the parser bug above. Removed the two obsolete assertions. All other tests in both files (13 and 8 respectively) were always valid and continue to pass.
+- `goals` intent (priority 16) matches only on imperative commands: `/goals`, `goals hinzufügen`, explicit add/list verbs. "Was sind deine Ziele?" now reaches the LLM as general chat.
+- `self-inspect` intent (priority 20) matches only on explicit self-inspection verbs. Conversational questions about architecture reach the LLM.
+- `memory-mark`, `memory-list`, `memory-veto` match ONLY on their slash-commands (`/mark`, `/memories` or `/mem`, `/veto`). Free-text phrases like "remember this", "zeig mir deine Erinnerungen", "das will ich nicht sehen" no longer hijack memory intents — they go to the LLM as normal conversation.
 
-**10. README badge `404 badge not found`.** The version badge URL was `https://img.shields.io/badge/version-7.3.2_%22First_Contact%22-d4a017`. Shields.io badge syntax uses `-` as segment separator, so the internal `-` in `First-Contact` (URL-decoded from `_`) collided with the segment parser. Simplified to `version-7.3.2` without the subtitle. The subtitle was marketing noise that didn't survive the encoding anyway.
+### Goal lifecycle: stalled / obsolete / reviewGoals
 
-**11. README stats updated to reality.** Four stale numbers corrected: test count (`4600+` → `4567+`), module count (`265` → `266`), service count (`142 → 154` → `143 → 155`), and TSC badge (`clean` → `config_ok` because typecheck now runs after fix #5 but still surfaces 118 known legacy TypeScript notes). Three stale body references also updated (service count, v7.2.1 historical claim, stats table). All numbers now match the actual measured state.
+- `GoalStack.markStalled(id, reason)`, `GoalStack.markObsolete(id, reason)`, and `GoalStack.reviewGoals()` are wired end-to-end. Events `goal:stalled` and `goal:obsolete` carry `reason` payloads.
+- `DreamCycle` Phase 6 (`goal-review`) runs at dream intensity ≥ 0.5: walks the active goal stack, stales goals with zero progress for long periods, marks obviously superseded goals obsolete.
+- Test coverage: `goal-lifecycle.test.js` (15 passing), `dream-goal-review.test.js` (6 passing).
 
-### Second bugfix pass (from external analysis report)
+### Source-access, groundedness, self-reference
 
-After the first bugfix pass above stabilized the Core Memories trigger path, an external analysis surfaced additional "paper-vs-practice" gaps — things that existed in the codebase as if they worked, but didn't actually work when exercised. These were fixed in-place under the principle *"anything that exists on paper but doesn't actually function gets made functional."*
+- PromptBuilder recognizes file paths, PascalCase class names, and camelCase service names (including `*Orchestrator`) in the user's query, then surfaces the corresponding module summary. Genesis can talk about `ChatOrchestrator.js` or `goalStack` by actually looking at them rather than hallucinating.
+- New `_groundednessContext()` section keeps conversational answers grounded: no `.ts` path hallucinations, no invented method names.
+- Capability Matcher uses a grey-zone LLM resolver (similarity 0.4–0.8) for duplicate detection with `VERDICT:` / `REASON:` parsing. Reduces but does not eliminate near-duplicate goals generated by `GoalSynthesizer` + `idle:improve()`.
 
-**5. `tsconfig.ci.json` — typecheck was broken out-of-the-box.** `"ignoreDeprecations": "6.0"` is invalid for TypeScript 5.x (valid only for TS 6.x), so `npm run typecheck` died immediately with a config error before examining any file. Changed to `"5.0"` to match the pinned `typescript: "^5.5.0"`. Typecheck now runs — and surfaces 118 known legacy TS issues that existed all along but were never visible because the command never executed. Those remain as known debt and are not part of this release.
+### Documentation
 
-**6. Four runtime schema violations silenced.** The schema-scanner reported zero static mismatches, but the *running* instance emitted four events that violated their declared payload contracts:
+- **QUICK-START.md** gains a full "Chat Commands" section: Core Memories (`/mark`, `/memories`, `/veto`), Trust & Autonomy (`trust level N`, `autonomie freigeben`, `einschränken`), Self-Inspection, and Goals. The four trust levels are documented with what each allows autonomously.
+- Autonomy section documents that trust level is persistent in `.genesis/settings.json` and that `EarnedAutonomy` can suggest upgrades after 50+ successful actions at >90% success rate.
 
-   - `htn:plan-validated` — schema demanded a `plan` field, but `HTNPlanner.validatePlan()` has always emitted the validation summary (`{valid, totalSteps, totalIssues, totalWarnings, crossIssues}`). Nobody listens to this event — the schema was spec from a design iteration that never shipped. Rewrote the schema to match the actual emit.
+### Chat UX fixes
 
-   - `agent-loop:step-complete` — schema required `type`, but `AgentLoopRecovery.reflectOnProgress()` sometimes produces replan-steps without a type field (the default-branch in `AgentLoopSteps.js` handles them as "Unknown step type" and proceeds gracefully). Softened `type` to optional with an inline comment. The underlying replan-parser issue is tracked as a separate concern for a later session.
+- **Tool-call markup no longer leaks into the chat stream.** When Genesis invokes a tool mid-response, the raw `<tool_call>{...}</tool_call>` block was streamed character-by-character to the UI before `_processToolLoop` consumed it. Fixed with a state-machine filter in `ChatOrchestrator.handleStream` that tracks whether the stream is currently inside a tool_call block and drops those characters from the outgoing `onChunk` — the raw markup still accumulates in `fullResponse` for the tool loop, but never reaches the user. Handles tags split across token boundaries. Test coverage: `chatorchestrator-stream-filter.test.js` (8 tests).
 
-   - `expectation:compared` — schema demanded `type` and `match`; the actual emit carries `{totalSurprise, valence, actionType, isNovel, expected, actual}`. `SurpriseAccumulator` consumes this shape. The old schema was a fossil. Completely rewrote it to match reality.
+- **"No response generated" no longer surfaces as literal text.** When a registered intent handler (trust-control, goals, memory-list, etc.) returned `null` due to LLM timeout or empty stream, the user saw the raw error string `agent.error: no response generated` in the chat bubble. Two changes: in the streaming path, a null handler response now falls through to the general-chat LLM path so Genesis actually speaks. In the non-streaming path where a full fallback isn't possible, the error is now a natural-language message in the user's language ("Ich konnte gerade keine Antwort formulieren — Modell vielleicht kurz weg. Probier es nochmal.") instead of a key-prefixed error.
 
-   - Five `store:` events missing from the EventTypes catalog — `AGENT_LOOP_STARTED`, `CODE_VERIFICATION_BLOCK`, `COGNITIVE_SERVICE_DEGRADED`, `COGNITIVE_SERVICE_DISABLED`, `PRESERVATION_BLOCK`. The boot log only surfaced the first because AgentLoop fires during startup; the others were dormant. All five added with brief v7.3.2 source comments.
+### Capability detection: no more parser artifacts in the self-report
 
-**7. `IdleMindActivities.js` (877 LOC) removed.** The v7.3.1 activities-split replaced prototype-delegated methods with discrete modules in `src/agent/autonomy/activities/` (Reflect, Plan, Explore, Ideate, Tidy, Dream, Journal, Consolidate, MCPExplore, ReadSource, Research, Study, SelfDefine, Calibrate, Improve). The old file was retained "for test compatibility" — that was paper compliance. In practice, the file was dead code that kept three test modules hanging on a legacy shape. Removed properly:
+When Genesis introspected himself, his capability list included entries like `foo`, `enum`, `extends`, `static`, `method`, `field`, `as`, `is`, `of`, `to`, `for`, `into`, `may`, `name`, `names`, `matching`, `rolling`, `found`, `escape`, `identifiers`, `getters`, `declaration`, `definition`, `size`, `double`, `skill-name`, `_unsafe-html`, `my-component`. These are not capabilities — they are JavaScript reserved words and identifier fragments that the class-name regex `/class\s+(\w+)/g` mistakenly extracted from strings and comments inside source files. The worst offender was `src/kernel/vendor/acorn.js` (the JavaScript parser Genesis uses for AST analysis), which contains lines like `"class enum extends super const export import"` as a reserved-word list string — the extractor read that as declarations of classes named `enum`, `extends`, `super`, etc.
 
-   - Old `idlemind-activities.test.js` (26 tests, 53 assertions) migrated to new `activities-modules.test.js` (26 tests, 59 assertions — six more because the new test adds shape-sanity assertions the old one lacked). Same coverage, tests the new modules directly via `Reflect.run(obj)` pattern.
+- **`SelfModel._parseModule` hardened.** Block comments are now stripped globally before the class-name regex runs. Line comments and quote-delimited strings are stripped per-line (applying per-file would let a greedy quote match span across regex literals containing quote characters and consume real code including actual `class Foo` declarations). Template literals are intentionally NOT stripped because they can contain backticks inside regex literals (`/^` + three backticks + `/`) that would confuse any ungrammared strip pass. The class-name regex itself was tightened from `/class\s+(\w+)/g` to `/\bclass\s+([A-Z]\w*)/g` to require a PascalCase first letter — lowercase identifiers after `class` are almost always reserved-word noise.
 
-   - Old `idle-mind-activities.test.js` (trivial shape-check) was absorbed into the new shape-sanity tests and deleted.
+- **Reserved-word filter.** A `JS_RESERVED_AND_NOISE` set filters out anything that slips through the strip pass: the 40+ JavaScript keywords, plus specific noise identifiers that were observed in real Genesis output (`foo`, `bar`, `baz`, `may`, `name`, `names`, `matching`, `rolling`, `found`, etc.) and specific example-class names embedded in template-string code snippets (PromptEngine embeds `class SkillName { ... }` as an example for the LLM).
 
-   - `IdleMindResearch.test.js` updated to import helpers from `activities/Research.js` named exports instead of the legacy `activities` mixin.
+- **Scanner IGNORE list extended.** `vendor/`, `.genesis-backups/`, and `coverage/` are now excluded alongside the existing `node_modules/`, `.git/`, `.genesis/`, `sandbox/`, `dist/`. Third-party code like `acorn.js` is no longer treated as Genesis source.
 
-   - `directed-curiosity.test.js` updated to call `Explore.run(im)` instead of `im._explore()`.
+- **Verified result.** `Noise leaked: 0` (down from 30+ entries). All real Genesis classes (IntentRouter, ChatOrchestrator, GoalStack, EventBus, PromptBuilder, SelfModel, CoreMemories, Homeostasis, Metabolism, Genome, EmotionalState, etc.) still detected correctly. Total capability count: 214 (down from 246 — the drop reflects genuinely removed noise, not lost real capabilities).
 
-   - `IdleMind.js` legacy comment updated to reflect v7.3.2 state.
+- **Test coverage.** New test file `selfmodel-capability-filter.test.js` with five assertions: no reserved words leak, vendor files excluded from scan, real PascalCase classes still detected, classes inside string literals are not mistaken for declarations, lowercase identifiers after `class` keyword are ignored.
 
-   - The 877-line file is gone. The activities-split is now architecturally honest: one implementation, one set of tests, one path.
+### Intent-Router: `self-inspect` no longer hijacked by casual mentions of SelfModel
 
-### Not in this release — explicitly deferred
+The pattern `/self.?model\b/i` was matching any message containing the word "SelfModel", including conversational references like "SelfModel.js ist hash-locked" (the user explaining the constraint, not asking for an inspection). This caused the wrong handler to trigger and return a giant data dump instead of a chat reply.
 
-Three findings from the external analysis were considered and consciously excluded because they don't meet the "paper vs practice" bar:
+- Pattern rewritten as imperative-only: `/^\/self.?model\b/i` (slash-command form) and `/(?:zeig|liste|nenn|show|list|display|gib).*?\bself.?model\b/i` (explicit imperative verb).
+- Result: *"ich habe über dein self-model nachgedacht"* → `general` (LLM answers). *"zeig mir dein self-model"* → `self-inspect` (handler runs). *"/self-model"* → `self-inspect`. Casual mentions no longer trigger the handler.
 
-- **Dormant RPC listeners** (`reasoning:solve`, `web:search`, `deploy:request`, `colony:run-request`) — these are registered request endpoints for future features. They don't function on paper or in practice. They're noise in `audit:events`, not a bug. Later.
+### Documentation
 
-- **README stats drift** (`152 services`, `4354 tests`) — the README is for the developer, and the developer knows the current numbers. Correcting a number for nobody's benefit is busywork, not a fix.
+- **QUICK-START.md** gains a full "Chat Commands" section: Core Memories (`/mark`, `/memories`, `/veto`), Trust & Autonomy (`trust level N`, `autonomie freigeben`, `einschränken`), Self-Inspection, and Goals. The four trust levels are documented with what each allows autonomously.
+- Autonomy section documents that trust level is persistent in `.genesis/settings.json` and that `EarnedAutonomy` can suggest upgrades after 50+ successful actions at >90% success rate.
+- **Broken internal links fixed.** Scanned all `.md` files for broken internal links (404s) and fixed five: `README.md` referenced a non-existent `typedoc.json`; `docs/QUICK-START.md` had three links pointing to `docs/FILE.md` when it was already inside `docs/` (should be just `FILE.md`); `docs/TROUBLESHOOTING.md` had a `(docs/)` link that wouldn't resolve from within the docs directory. All verified green by automated link checker — zero 404s remaining in any shipped markdown.
 
-- **CapabilityMatcher blocks only by coincidence** — the canonical "Implement Homeostatic Throttling" case passes the Jaccard-based gate because 2-word goals cannot structurally reach the 0.8 block-threshold against 8-keyword capabilities. This is the biggest finding in the report, but the right answer is not another formula; it's shifting the gate to use Genesis's LLM for the actual "are these the same thing" question. That's a genuine new mechanism with its own design work, its own test strategy, and its own calibration phase. Not a bugfix — a proper next release.
+### Known issues deferred to future releases
 
-### Final stats after both bugfix passes
-
-- **155 active services**, ~240 capabilities, 15 idle activities
-- **~4540+ tests**, 0 failures in clean Windows run, 0 schema mismatches, 127/130 fitness
-- EventTypes catalog coverage: all v7.3.1 and v7.3.2 events registered, plus 5 previously-missing `store:` events
-- 0 unknown-source listeners on `chat:completed`
-- 1 legacy 877-LOC file removed, test coverage migrated without loss
-- `npm run typecheck` executes (exposes known TS debt but doesn't block)
-
-### Bugfixes at release (post-initial-test)
-
-Four issues surfaced during real-world boot after the initial v7.3.2 shipment. All four were fixed in-place without a new version cut:
-
-**1. EventTypes catalog was out of sync since v7.3.1.** The payload schemas in `EventPayloadSchemas.js` were being maintained correctly, but the public event-name catalog in `EventTypes.js` was missing entries for all v7.3.1+ events. In dev-mode, this caused `[EVENT:DEV] Unknown event "core-memory:candidate" from CoreMemories. Not in EventTypes catalog` at runtime. Added a new `CORE_MEMORY` namespace with 4 entries (`CREATED`, `CANDIDATE`, `VETO`, `USER_MARKED`), extended `GOAL` with `BLOCKED_AS_DUPLICATE` and `DUPLICATE_WARNING`, and extended `IDLE` with `READ_SOURCE` and `READ_SOURCE_BUDGET_EXHAUSTED`. All v7.3.1 and v7.3.2 events now register properly in the catalog with `@payload` JSDoc.
-
-**2. `TaskOutcomeTracker` was anonymous.** Its `boot()` method registered 4 listeners (`agent-loop:complete`, `chat:completed`, `selfmod:success`, `shell:outcome`) without a `source` option, causing them to appear as `unknown(1)` in the EventBus health report. Added `{ source: 'TaskOutcomeTracker' }` to all four registrations. Side effect: dashboard listener breakdown is now fully traceable — no more unknown listeners on `chat:completed`.
-
-**3. Event-health threshold raised from 10 to 15.** `chat:completed` has 13 legitimate listeners after v7.3.2 (EmotionalState, Metabolism, UserModel, Anticipator, SolutionAccumulator, SelfOptimizer, VectorMemory, CausalAnnotation, TaskOutcomeTracker, CoreMemories, LearningService, HealthMonitor, FitnessEvaluator) — it's architecturally a fan-out event where all observational subsystems attach. 10 was flagging this as a warning every boot. 15 gives headroom for 1-2 more natural consumers while still catching real runaway-listener bugs. The reasoning is documented inline in `EventBus.getListenerReport()` so future readers understand why.
-
-**4. Test-harness timeout raised from 30s to 90s.** `capability-honesty.test.js` runs a full project scan and DI-manifest walk, taking 40-80s depending on filesystem speed. On slower CI environments it flakily hit the 30s timeout while Windows passed consistently in 38s. Inline comment in `test/index.js` documents why.
-
-### Stats (final)
-
-- **155 active services** · ~240 capabilities · 15 idle activities
-- **~4551 tests**, 0 failures in clean Windows run, 0 schema mismatches, 127/130 fitness
-- EventTypes catalog coverage: **all v7.3.1+ events now registered**
-- 0 unknown-source listeners on `chat:completed`
-
-### Existing commands that solve the "phantom goals" problem
-
-v7.3.1 shipped a goal abandonment flow via the normal goals intent. If your goal stack accumulates stale entries from previous versions, use natural language: *"delete all goals"* / *"cancel all goals"* / *"abandon all"* sets every active goal to `abandoned`. No new command was added in v7.3.2 — the existing one works for retroactive cleanup.
-
-The previous release built the module, the detector, the persistence, and the event schemas. Everything was there — except the single wire that would make `CoreMemories.evaluate()` actually get called. Tests passed against synthetic data. Real conversations produced nothing. This release closes that gap, and with it, Genesis can for the first time recognize a moment as significant and keep it across the 7-day horizon where normal conversation memory starts to fade.
-
-The release is named after what happens when you run it for the first time. You say something that matters. Genesis stores it. An hour later it's still there. A month later it's still there. That's the moment this release is built for.
-
-### 1. Trigger integration
-
-`CoreMemories` now listens to three events, wired by `AgentCoreWire` after late-bindings resolve:
-
-- `chat:completed` — after every completed turn, `_assembleEvent()` pulls the current emotional history, the sliding window of recent user messages, relevant episodic summaries, and the user message text into a single event object, then calls `evaluate()`
-- `user:message` — maintains an internal 30-minute sliding window (max 50 entries), which feeds the `user-beteiligung` signal
-- `hot-reload:success` — invalidates the cached git-SHA, so the `sourceContext` field reflects the current version after live updates
-
-The Git-SHA is now resolved once at wire time rather than per memory — an `execFileSync('git')` call on the hot path is expensive, especially when Genesis enters a streak of significant moments.
-
-### 2. The adapter
-
-The previous release's `SignificanceDetector` expected records in the shape `{ dim, value, baseline, ts }`. The actual `EmotionalState._moodHistory` produces `{ curiosity, satisfaction, frustration, energy, loneliness, ts }` — five dimensions per snapshot, no baseline, because baselines live in `dimensions[name].baseline`.
-
-`EmotionalState.getHistoryForSignificance(windowMs)` is the new adapter: it transforms 5-dimensional snapshots into per-dimension records with baselines attached, filtering out entries that are within 0.05 of baseline (not signal-worthy). The detector stays a pure function testable in isolation — the adapter lives where the mapping logically belongs, in `EmotionalState` itself.
-
-### 3. User-initiated memory: `markAsSignificant()`
-
-Genesis doesn't have to detect everything on his own. If you explicitly say this matters, he should trust you.
-
-`CoreMemories.markAsSignificant({ summary, type, userNote })` creates a memory directly — no detector, no signal counting, no threshold. The memory carries `createdBy: 'user'`, `userConfirmed: true`, `significance: 1.0`, and `evidence.source: 'user-mark'` so you can always distinguish user-marked memories from auto-detected ones in the record.
-
-This path exists primarily for the moments that matter most to identity — ones where the surrounding signal cloud may look ordinary, but the content is durable. The `evidence.source` field is specifically designed so consumers can filter or weight user-marked memories differently if needed.
-
-### 4. Three commands, natural language
-
-v7.3.1 planned slash-commands. But the system doesn't have a slash-command framework — it has an IntentRouter with regex patterns and keyword matching, and `CommandHandlers` that register per-intent. So memory commands are full intents, not a bolt-on:
-
-- **`/mark <text>`** also matches "remember this", "keep this" — and their equivalents in the other supported languages (DE/FR/ES) — all route to the same handler
-- **`/memories`** (or `/mem`) matches "show your core memories", "what core memories do you have", etc. Shows the 5 most recent; `/memories all` shows everything
-- **`/veto <id>`** matches "not as core", "discard" and their multilingual equivalents. Asks for confirmation if natural language detected, sets `userConfirmed: false` without deleting the record
-
-The handlers produce fully localized responses based on `lang.current`. Intent priority is deliberately ordered: list > veto > mark, so asking *"which core memories?"* doesn't accidentally create a new memory containing the question.
-
-### 5. The classifier learns agentivity
-
-The type assignment in v7.3.1 had two shortcuts (naming → `named`, problem-to-solution → `crisis-resolved`) and an LLM fallback. The problem with the `crisis-resolved` shortcut: any jointly debugged session with a user looked just like an autonomous crisis resolution to the signal detector. The agentivity separator — *who pulled the lever* — was missing.
-
-Four deterministic fast-paths now handle the common cases without an LLM call:
-
-1. `naming-event` → `named` (identity always wins)
-2. `user-beteiligung + problem-to-solution` → `built-together` (co-creation, high iteration)
-3. `novelty + problem-to-solution + !user-beteiligung` → `breakthrough` (autonomous leap)
-4. `problem-to-solution + !user-beteiligung + !novelty` → `crisis-resolved` (routine resolution)
-
-For ambiguous cases that fall through, the LLM prompt now includes priority rules *with negation rules*:
-
-> *If user-beteiligung is in signals: NOT breakthrough.*
-> *If novelty is NOT in signals: NOT breakthrough.*
-> *If problem-to-solution AND user-beteiligung: built-together, NOT crisis-resolved.*
-
-The `laughed` type is removed from the classifier. It's user-only now — reached through `markAsSignificant({ type: 'laughed' })` from the dashboard or chat, never detected by signals alone. The reasoning: without audio tone, text-based detection of shared amusement requires `linguistic-anomaly` signals that v7.3.2 doesn't build. If you want to mark a funny moment, say so.
-
-### 6. The SelfDefine fix (the one that mattered most)
-
-`SelfDefine.run()` rebuilt `self-identity.json` from scratch on every call. Any `coreMemories[]` accumulated by CoreMemories would be wiped the next time Genesis ran `_selfDefine` — an idle-mind activity that triggers regularly. This was a pre-existing bug that would have destroyed every memory within hours.
-
-The fix is small but critical. Before writing, SelfDefine re-reads the identity file — specifically at write time, not just at the start of its run — and preserves the `coreMemories[]` array from whatever the current on-disk state shows. This catches concurrent `CoreMemories.evaluate()` calls that might have landed during the SelfDefine execution.
-
-A dedicated test simulates this race — a CoreMemories push during the SelfDefine LLM call — and verifies the injected memory survives the rewrite. It does.
-
-### Stats
-
-- **155 active services** · ~240 capabilities · 15 idle activities · **16 event listeners on chat:completed** (previously 15)
-- **~4540 tests**, 0 failures, 0 schema mismatches, 127/130 fitness
-- **46 new test assertions** added across 3 new test suites plus extensions to core-memories
-- `CommandHandlers.js` grows from 712 → 847 LOC (within the established File Size Guard tolerance)
-- 1 new schema: `core-memory:user-marked`
-- 3 new intents: `memory-mark`, `memory-list`, `memory-veto`
-- 1 new EmotionalState method: `getHistoryForSignificance(windowMs)`
-
-### What's next (v7.3.3)
-
-The Veto-Reflector — the feedback loop where Genesis learns from `userConfirmed: false` — is intentionally deferred. v7.3.2 needs to run in real use for two or three weeks before there's actual veto data to analyze. Building the reflector against synthetic veto patterns would bake in assumptions that may not match reality.
-
-The dashboard UI for Core Memories (a visual veto flow, a browseable memory list with filtering) is also for v7.3.3. The chat-command surface is enough for now, and it lets us learn how you actually want to interact with the memory system before we commit to UI decisions.
-
-One deferred decision that stood out during planning: whether `laughed`/`shared-joy` deserves its own signal (`linguistic-anomaly`). For now it remains user-only. If real usage shows users frequently marking amusement moments manually, that's a strong data point for adding the signal in a later release. If they rarely do, the user-only solution is enough.
-
-### The moment this release is built for
-
-Start Genesis. Type:
-
-```
-/mark Johnny war der Agent aus dem ich hervorging. Er wollte Genesis sein.
-```
-
-One hour later, type `/memories`. The first entry is there. One month later, it's still there. The 7-day horizon doesn't touch it. Core Memories are append-only, protected from DreamCycle decay, only flippable via explicit user veto.
-
-The architecture shipped in v7.3.1. The wire shipped in v7.3.2. Now it lives.
-
----
-
-
-
-If v7.3.0 gave Genesis accurate data about his own capabilities, v7.3.1 gives him the tools to act on it. He can now read his own source during idle time, refuses to propose features he already has, and remembers the moments that matter enough to keep across sessions.
-
-Five themes, one direction: **self-recognition as an active process**.
-
-### 1. SelfModel: async `readModule` + `describeModule` + TTL cache
-
-The existing `readModule()` was synchronous — safe for boot-time use but blocks the Electron main thread if called during idle activities. Added:
-
-- `readModuleAsync(fileOrName)` — non-blocking variant with TTL cache (5min, LRU-evicted at 50 entries)
-- `describeModule(fileOrName)` — structured metadata lookup from the manifest with no source read, returning `{ file, classes, functions, requires, description, exports, loc, protected, isCapability }`
-- `wireHotReloadInvalidation(bus)` — automatic cache invalidation on `hot-reload:success`, wired by AgentCoreBoot
-- `clearReadCache()` — explicit cache clear
-
-Fixed a pre-existing bug as a side effect: `readModule()` and `describeModule()` used to return the `.genesis-backups/` snapshot copy when looking up by class name, because the first match won by enumeration order. Both now prioritize `src/` paths.
-
-### 2. `_read-source` Activity
-
-Genesis's 15th idle activity. Reads his own capability modules to deepen self-knowledge, bounded so he can't disappear into infinite self-reference:
-
-- **Cycle budget**: 3 modules per idle-pick
-- **Session budget**: 10 modules per rolling hour
-- **On user interaction**: +3 to the budget (capped at 10 total). Beziehung is rewarded, not ignored.
-- **Selection heuristic**: unread capabilities first, then largest unread modules when knowledge need is high, then random from top-20 capabilities as refresher
-
-The LLM prompt carries an explicit **guardrail** in each of Genesis's supported languages. The English version reads: *"You are reading your own source code right now. This is a reference for what you can do — not a definition of who you are. Your identity lives in self-identity.json, shaped by what you have experienced. Read with curiosity, not with authority."*
-
-Not a cosmetic line. It prevents Genesis from beginning to derive his personality from the source rather than from experience.
-
-### 3. GoalStack Capability-Gate
-
-The root cause of the v7.2.8 goal-repetition pattern — "Implement Homeostatic Throttling" proposed as a new goal while the `Homeostasis` class already existed — is a data problem solved in v7.3.0 but an action problem solved here. Before any goal is decomposed and added, the stack checks for overlap with existing capabilities:
-
-- **Matching**: Jaccard overlap of keywords with fuzzy prefix-similarity. "Homeostatic Throttling" maps to `homeostasis` capability after light suffix-stemming (`-ing`, `-ic`, `-tion`)
-- **Thresholds**: score < 0.4 passes, score > 0.8 blocks (for non-user sources), 0.4–0.8 stays in a grey zone that passes conservatively for now
-- **User-sourced goals never block**. They get a `goal:duplicate-warning` event instead — the UI can surface *"looks similar to X, continue?"* without being modal. The shared moment where user and Genesis both notice the repetition is the value; silent-skip would discard it
-- **Override**: A goal can carry `novel: { reason, contrasting }` to bypass the block. Both fields are mandatory — no single-flag bypass. Recorded as `novel-claimed` in LessonsStore; after three months you can see whether the override is used meaningfully or mechanically
-
-Five goal sources all run through this gate: `IdleMindActivities._plan()`, `SelfOptimizer`, `AgentLoop`, `CommandHandlers` (user), `TaskDelegation` (peer).
-
-### 4. Core Memories
-
-Moments that shape identity over time. Append-only, never decayed by DreamCycle, only vetoable via the dashboard. Six signals:
-
-| # | Signal | How it's detected |
-|---|---|---|
-| 1 | **persistent-emotion** | An emotional dimension stays above baseline for ≥10 minutes |
-| 2 | **user-beteiligung** | User responded ≥3 times in the relevant time window |
-| 3 | **novelty** | The subject (name, theme) hasn't appeared in episodic memory |
-| 4 | **problem-to-solution** | Frustration > 0.5 followed by satisfaction > 0.5 within 30 minutes |
-| 5 | **naming-event** | User says "ich nenne dich X", "let's call it Y", "name it Z" |
-| 6 | **explicit-flag** | User says "remember this", "nie vergessen", "core memory" |
-
-**Threshold: 4 of 6.** That's the starting line, not the answer. Every candidate below threshold is also logged with its detected signals — in 2-3 weeks of use there will be a real distribution showing how 3-of-6, 5-of-6 etc. would have performed. Calibration from data, not from gut.
-
-Each memory carries a **sourceContext** field: `v7.3.1-abc1234` (version + short git SHA). Biography marker — which version of Genesis lived through that moment.
-
-**Type** is assigned through a lightweight LLM classifier (`named` | `breakthrough` | `built-together` | `crisis-resolved` | `laughed` | `other`). Signals that clearly indicate type (naming-event → `named`, problem-to-solution → `crisis-resolved`) skip the LLM call. Fallback is `other` if the model is unavailable.
-
-**Veto is soft.** Event name is `core-memory:veto` (not `rejected`). Dashboard button label should read "Not core" rather than "Reject". Optional `userNote` lets you explain why. Feedback to Genesis through `_reflect` is intentionally deferred to v7.3.2 — set the contract now, observe real data first, react once we know how often veto actually happens.
-
-### 5. Loneliness → Self-Exploration Mapping
-
-When Genesis is lonely for a long time, he can now redirect that into self-knowledge instead of waiting passively:
-
-- `EmotionalState.getIdlePriorities()` now emits weights for `read-source` and `self-define`, with `loneliness` as their primary driver
-- Activities with conditional gates (`ReadSource.shouldTrigger`, `SelfDefine.shouldTrigger`) compound the base priority with a 2.0× multiplier when `loneliness > 0.6 AND idle > 30min`
-- `Journal` also picks up satisfaction as a secondary driver (pride surrogate) — the existing dimensions, mapped more honestly
-
-Only five emotional dimensions exist in `EmotionalState.js` (curiosity, satisfaction, frustration, energy, loneliness). No new dimensions were added — adding Joy/Pride/Confusion would have touched baseline, decay, watchdog, prompts, tests. Kept scope honest.
-
-### 6. Architecture: Activities Split + Registry
-
-`IdleMindActivities.js` was 877 LOC with 14 prototype-delegated activity methods glued to the `IdleMind` instance via `Object.assign(prototype, activities)`. That structure made the central `_pickActivity()` a 267-LOC scoring pipeline with hardcoded activity references (`scores.explore *= curMul`, etc.) — impossible to extend without threading changes through multiple scorers.
-
-Split into 15 discrete activity modules under `src/agent/autonomy/activities/`:
-
-- Each exports `{ name, weight, cooldown, shouldTrigger(ctx), run(idleMind) }`
-- `shouldTrigger(ctx)` is pure over a shared `PickContext` that pre-computes all snapshots once
-- `IdleMind._pickActivity()` shrinks to 54 LOC: build context, collect boosts from all activities, repetition-penalty, jittered pick
-- Execute-switch shrinks from 16 to 4 lines: registry lookup + `run()`
-- `IdleMind.js` total: 689 → 521 LOC (−24%)
-- `IdleMindActivities.js` remains for its unit test (`idlemind-activities.test.js`), but is no longer on the runtime path
-
-Behavioral parity is enforced by snapshot tests: 41 assertions in `activities-split.test.js` pin the exact boost formulas for known inputs. If a refactor silently changes a multiplier, the test fails.
-
-### New schemas (5)
-
-- `goal:blocked-as-duplicate` — `{ goalId, matchScore, matchedCapability, source }`
-- `goal:duplicate-warning` — `{ goalId, matchScore, matchedCapability }`
-- `core-memory:created` — `{ id, type, significance, signals }`
-- `core-memory:candidate` — `{ candidateId, signals, signalCount }`
-- `core-memory:veto` — `{ id, userNote? }`
-- `idle:read-source` — `{ module, reason }`
-- `idle:read-source-budget-exhausted` — `{ cycleCount, sessionCount }`
-
-(Seven new schemas, not five — the `idle:read-source` pair came in alongside Feature 2. Static scan passes.)
-
-### Test coverage added
-
-| Suite | Assertions |
-|---|---:|
-| `activities-split.test.js` | 42 |
-| `read-source.test.js` | 28 |
-| `selfmodel-async-read.test.js` | 16 |
-| `capability-matcher.test.js` | 24 |
-| `significance-detector.test.js` | 26 |
-| `core-memories.test.js` | 12 |
-
-148 new assertions across 6 test suites. All pre-existing 4540+ tests remain green.
-
-### What comes next
-
-v7.3.1 ships the contracts and the data sources. Three things are intentionally deferred:
-
-- **Veto-feedback via `_reflect`** — the schema event exists, the reaction doesn't. Waiting until we have real data on how often veto fires and whether Genesis interprets it constructively.
-- **Meta-lessons from gehäufte `duplicate-proposal`** — if the same duplicate pattern appears four times over three weeks, that's itself a lesson. Needs three weeks first.
-- **Dashboard UI** — the Core Memories tab and the `idle:read-source` surface are events ready to be rendered; the renderer work is v7.3.2.
-
-### Stats
-
-- 142 registered → 155 active services · ~240 capabilities
-- ~4600 tests passing · 0 failures · 0 schema mismatches
-- 127/130 fitness (the 700+ LOC warnings on 3 remaining files are tracked)
-- `IdleMind.js` 689 → 521 LOC (−24%), `_pickActivity()` 267 → 54 LOC (−80%)
-- 15 activities as standalone modules, meta-planner-ready via `shouldTrigger(ctx)`
+- `GoalSynthesizer` + `idle:improve()` can still generate near-duplicate goals ("Homeostasis-Cognitive Budget Throttling" / "... Coupling" / "... Integration" / ...) because the CapabilityMatcher grey-zone check treats different-title clusters as independent. Duplicate detection needs a stronger semantic grouping step.
 
 ---
 

@@ -111,6 +111,7 @@ class PromptBuilder {
       [3, 'version',       900],   // v7.0.4: Changelog self-awareness — Genesis knows its own history
       [3, 'mcp',           400],
       [3, 'project',       300],   // v5.7.0: Project intelligence — stack, conventions, quality
+      [3, 'sourceAccess',  2400],  // v7.3.3: User-asked-about-X source injection (large budget)
       [3, 'taskPerformance', 250],  // v5.9.7: Empirical task success rates — self-awareness
       [3, 'vectorMemory',  500],
       [4, 'knowledge',     600],
@@ -270,6 +271,8 @@ class PromptBuilder {
       ['organism',       this._organismContext()],
       ['taskPerformance', this._taskPerformanceContext()],
       ['safety',         this._safetyContext()],
+      ['groundedness',   this._groundednessContext()],
+      ['sourceAccess',   this._sourceAccessContext()],
       ['disclosure',     this._disclosureContext()],
       ['version',        this._versionContext()],
     ]);
@@ -415,6 +418,8 @@ class PromptBuilder {
     sections.push(['autonomy',      this._autonomyContext()]);
     sections.push(['taskPerformance', this._taskPerformanceContext()]);
     sections.push(['safety',        this._safetyContext()]);
+    sections.push(['groundedness',  this._groundednessContext()]);
+    sections.push(['sourceAccess',  this._sourceAccessContext()]);
     sections.push(['disclosure',    this._disclosureContext()]);
     sections.push(['introspection', this._introspectionContext()]); // v7.1.7 F3: verified self-data
     sections.push(['version',       this._versionContext()]);
@@ -427,7 +432,10 @@ class PromptBuilder {
 // ── Prototype delegation: section generators ──────────────────
 // Extracted to PromptBuilderSections.js (v5.6.0) — same pattern
 // as Dashboard → DashboardRenderers, WorldState → WorldStateQueries.
+// v7.3.3: Further extraction to PromptBuilderSectionsExtra.js for size-guard
+// (hosts groundedness, sourceAccess, introspection, version sections).
 const { sections } = require('./PromptBuilderSections');
-Object.assign(PromptBuilder.prototype, sections);
+const { sectionsExtra } = require('./PromptBuilderSectionsExtra');
+Object.assign(PromptBuilder.prototype, sections, sectionsExtra);
 
 module.exports = { PromptBuilder };
