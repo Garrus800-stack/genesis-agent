@@ -196,6 +196,30 @@ const INTENT_DEFINITIONS = [
     /^(?:yes|ja|yep|yeah|ok|okay|sure|klar|mach|nochmal|try again|retry|erneut)[\s!.]*$/i,
   ], 25, ['yes', 'ja', 'nochmal', 'retry', 'erneut']],
 
+  // v7.3.2: Core-Memory commands — support both slash-form and natural language.
+  // Priority: list > veto > mark (so "Kernerinnerung" in a list/veto question
+  // doesn't accidentally trigger a mark)
+  ['memory-list', [
+    /^\/memories\b/i,
+    /^\/mem\b/i,
+    /(?:zeig|zeige|liste|show|list).{0,20}(?:erinnerung|memor|kern)/i,
+    /welche\s+(?:kern.?)?erinnerungen/i,
+    /deine (?:kern.?)?erinnerungen\s*\??$/i,
+  ], 24, ['memories', 'erinnerungen', 'kernerinnerungen']],
+
+  ['memory-veto', [
+    /^\/veto\b/i,
+    /nicht\s+als\s+kern/i,
+    /verwerf(?:en|e)?/i,
+    /(?:das|diese)\s+erinnerung\s+(?:ist\s+)?nicht\s+wichtig/i,
+  ], 23, ['veto', 'verwerfen']],
+
+  ['memory-mark', [
+    /^\/mark\b/i,
+    /^(?:merk(?:e)? dir|remember this|remember that)\b/i,
+    /erinnere\s+dich\s+(?:an|daran)/i,
+  ], 22, ['mark', 'merken', 'remember']],
+
   ['greeting', [
     /^(hi|hallo|hey|moin|servus|guten (morgen|tag|abend)|hello|good (morning|evening)|bonjour|buenas?)\s*[!.]?$/i,
   ], 5, ['hallo', 'hello', 'hi', 'moin', 'servus']],

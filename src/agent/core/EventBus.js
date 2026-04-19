@@ -366,7 +366,19 @@ class EventBus {
    * @returns {{ total: number, events: number, suspects: Array, breakdown: object }}
    */
   getListenerReport(options = {}) {
-    const warnThreshold = options.warnThreshold || 10;
+    // v7.3.2: Default threshold raised from 10 to 15.
+    //
+    // Rationale: chat:completed is architecturally a fan-out point — it's where
+    // ~all observational subsystems hook in (EmotionalState, Metabolism, UserModel,
+    // Anticipator, SolutionAccumulator, SelfOptimizer, VectorMemory, CausalAnnotation,
+    // TaskOutcomeTracker, CoreMemories, LearningService, HealthMonitor,
+    // FitnessEvaluator = 13 as of v7.3.2). This is by design — these are all
+    // passive observers that need to track conversation outcomes.
+    //
+    // The previous threshold of 10 would flag this every boot. 15 gives us
+    // headroom for 1-2 more natural consumers without becoming noise, while
+    // still catching actual runaway listener-accumulation bugs.
+    const warnThreshold = options.warnThreshold || 15;
     let total = 0;
     const breakdown = {};
     const suspects = [];

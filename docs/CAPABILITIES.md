@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.3.1 — What Genesis can do, organized by category.
-> Last updated: v7.2.9: Signal Compliance — schema compliance (75→0 mismatches), Unicode regex, doc truth, 4518 tests, 142→154 services.
+> v7.3.2 — What Genesis can do, organized by category.
+> Last updated: v7.3.2: First Contact — Core Memories trigger-integration, four bugfix passes (EventTypes sync, schema violations, orphan removal, suite-parser honesty), 4567 tests, 143→155 services.
 
 ---
 

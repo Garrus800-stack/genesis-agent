@@ -96,7 +96,11 @@ async function main() {
               const { stdout, stderr: nodeStderr } = await execFileAsync('node', nodeArgs, {
                 cwd: path.join(__dirname, '..'),
                 encoding: 'utf-8',
-                timeout: 30000,
+                // v7.3.2: Raised from 30s to 90s — capability-honesty.test.js
+                // performs full project scan + DI-manifest walk, runs ~40-80s
+                // depending on filesystem speed. 30s caused flaky failures on
+                // slower Linux containers while Windows passed consistently.
+                timeout: 90000,
               });
               // On some platforms node:test may write TAP to stderr; merge both
               const combinedOut = stdout + (nodeStderr || '');
@@ -114,14 +118,17 @@ async function main() {
           const passMatch = stdout.match(/(\d+) passed/);
           // node:test TAP summary uses "# pass N" format instead of "N passed"
           const tapSummaryPass = !passMatch ? stdout.match(/^# pass (\d+)/m) : null;
-          // CRITICAL: Match "N failed" ONLY in harness summary lines ("Results: N passed, N failed")
-          // or standalone summary format, NOT in log output like "Health check 1/1 failed".
-          // On Windows, stderr (log lines) is appended after stdout (summary), so a naive
-          // "last match" approach picks up log lines instead of the actual test summary.
-          const summaryFailMatch = stdout.match(/Results:\s*\d+ passed,\s*(\d+) failed/);
+          // v7.3.2: Match "N failed" in all harness summary formats. We have
+          // two output shapes in the codebase:
+          //   old:  "13 passed, 1 failed"                    (comma separator)
+          //   new:  "24 passed · 0 failed · 75 assertions"   (middle-dot, with more fields)
+          // Plus the original "Results: N passed, N failed" prefix form.
+          // The regex anchors to a leading indent + "N passed" + [,·] + "N failed"
+          // to avoid matching log lines like "Health check 1/1 failed" elsewhere.
+          // Multiline flag + ^\s* anchor ensures we only hit summary lines.
+          const summaryFailMatch = stdout.match(/^\s*(?:Results:\s*)?\d+ passed\s*[,·]\s*(\d+)\s*failed/m);
           const tapSummaryFail = stdout.match(/^# fail (\d+)/m);
-          // Fallback: if no summary-format match, try matching "N failed" at end of line
-          // but only as last resort (for custom harness formats)
+          // Fallback: standalone "N failed" at end-of-line (legacy format)
           const standaloneFailMatch = !summaryFailMatch && !tapSummaryFail
             ? stdout.match(/^\s*(\d+) failed\s*$/m) : null;
           const failMatch = summaryFailMatch || standaloneFailMatch || (error ? [null, '0'] : null);

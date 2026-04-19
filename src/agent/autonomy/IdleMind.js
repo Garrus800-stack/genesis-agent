@@ -514,9 +514,11 @@ class IdleMind {
 
 // v7.3.1: Prototype delegation removed. Activity implementations now
 // live as separate modules in ./activities/ and are dispatched through
-// the ACTIVITY_BY_NAME registry defined at the top of this file. The
-// legacy IdleMindActivities.js is retained for test/modules/idlemind-
-// activities.test.js (which loads its `activities` object directly for
-// unit-level assertions) but is no longer part of the runtime path.
+// the ACTIVITY_BY_NAME registry defined at the top of this file.
+// v7.3.2: Legacy IdleMindActivities.js removed. The old tests
+// (idlemind-activities.test.js, idle-mind-activities.test.js) were
+// migrated to test/modules/activities-modules.test.js which tests
+// the new modules directly. IdleMindResearch.test.js was updated to
+// import from activities/Research.js.
 
 module.exports = { IdleMind };

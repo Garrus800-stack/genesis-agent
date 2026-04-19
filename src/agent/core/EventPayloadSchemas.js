@@ -27,8 +27,13 @@ const SCHEMAS = {
   'agent-loop:started':         { goalId: 'required', goal: 'optional' },
   'agent-loop:complete':        { goalId: 'required', title: 'required', steps: 'required', success: 'required' },
   // v4.12.5-fix: Schema now matches AgentLoop.js emission (stepIndex, result, type)
-  'agent-loop:step-complete':   { goalId: 'required', stepIndex: 'required', type: 'required' },
-  'agent-loop:step-failed':     { goalId: 'required', stepIndex: 'required', type: 'required', error: 'required' },
+  // v7.3.2: 'type' softened to optional — LLM-generated replan steps (via
+  // AgentLoopRecovery.reflectOnProgress) sometimes produce steps without
+  // type field. The default-branch in AgentLoopSteps.js handles them
+  // gracefully as "Unknown step type". Fixing the replan parser is tracked
+  // separately; this schema reflects reality.
+  'agent-loop:step-complete':   { goalId: 'required', stepIndex: 'required', type: 'optional' },
+  'agent-loop:step-failed':     { goalId: 'required', stepIndex: 'required', type: 'optional', error: 'required' },
   // v7.0.3 — C1: Colony auto-escalation
   'agentloop:colony-escalated': { runId: 'required', reason: 'required', subtasks: 'required' },
   'agent-loop:approval-needed': { action: 'required', description: 'required' },
@@ -469,7 +474,16 @@ const SCHEMAS = {
   'health:metric':          { service: 'required', metric: 'required', value: 'required' },
 
   // HTN
-  'htn:plan-validated':     { plan: 'required' },
+  // v7.3.2: Schema matches actual HTNPlanner.validatePlan() emit. Previous
+  // 'plan: required' was from a design iteration that never shipped — the
+  // emitter has always sent the validation summary, not the plan itself.
+  'htn:plan-validated':     {
+    valid: 'required',
+    totalSteps: 'required',
+    totalIssues: 'optional',
+    totalWarnings: 'optional',
+    crossIssues: 'optional',
+  },
   'htn:dry-run':            { plan: 'optional' },
   'htn:cost-estimated':     { plan: 'optional', cost: 'optional' },
 
@@ -490,7 +504,18 @@ const SCHEMAS = {
 
   // Expectation
   'expectation:formed':     { type: 'optional' },
-  'expectation:compared':   { type: 'required', match: 'required' },
+  // v7.3.2: Schema rewritten to match actual ExpectationEngine.compare() emit.
+  // Previous schema required 'type' and 'match' — neither field exists in the
+  // emitted signal. The signal contains surprise metrics, valence, actionType,
+  // and nested expected/actual objects. SurpriseAccumulator consumes this shape.
+  'expectation:compared':   {
+    totalSurprise: 'required',
+    valence: 'optional',
+    actionType: 'optional',
+    isNovel: 'optional',
+    expected: 'optional',
+    actual: 'optional',
+  },
   'expectation:calibrated': { type: 'optional' },
 
   // Genome
@@ -625,6 +650,8 @@ const SCHEMAS = {
   'core-memory:created':        { id: 'required', type: 'required', significance: 'required', signals: 'required' },
   'core-memory:candidate':      { candidateId: 'required', signals: 'required', signalCount: 'required' },
   'core-memory:veto':           { id: 'required', userNote: 'optional' },
+  // v7.3.2: User-initiated marking
+  'core-memory:user-marked':    { id: 'required', type: 'required' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

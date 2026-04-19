@@ -209,6 +209,24 @@ const EVENTS = Object.freeze({
     OVERFLOW_PREVENTED: 'context:overflow-prevented',
   }),
 
+  // ── Core Memories (v7.3.1) ─────────────────────────────
+  // Biographical memory system. Append-only, protected from DreamCycle decay.
+  // 6-signal detector at threshold 4/6. Candidates also logged for calibration.
+  CORE_MEMORY: Object.freeze({
+    /** v7.3.1: Memory created — threshold met OR user-marked via /mark */
+    /** @payload {{ id: string, type: string, significance: number, signals: string[] }} */
+    CREATED:     'core-memory:created',
+    /** v7.3.1: Candidate evaluated (may or may not have triggered creation) */
+    /** @payload {{ candidateId: string, signals: string[], signalCount: number }} */
+    CANDIDATE:   'core-memory:candidate',
+    /** v7.3.1: User marked a memory as not-significant (soft, not delete) */
+    /** @payload {{ id: string, userNote?: string }} */
+    VETO:        'core-memory:veto',
+    /** v7.3.2: User explicitly marked a moment via /mark or markAsSignificant */
+    /** @payload {{ id: string, type: string }} */
+    USER_MARKED: 'core-memory:user-marked',
+  }),
+
   // ── Daemon ─────────────────────────────────────────────
   DAEMON: Object.freeze({
     STARTED:       'daemon:started',
@@ -295,6 +313,12 @@ const EVENTS = Object.freeze({
     STEP_START:  'goal:step-start',
     CREATE_FILE: 'goal:create-file',
     ABANDONED:   'goal:abandoned',
+    /** v7.3.1: Capability-gate blocked a duplicate goal proposal */
+    /** @payload {{ goalId: string, matchScore: number, matchedCapability: string, source: string }} */
+    BLOCKED_AS_DUPLICATE: 'goal:blocked-as-duplicate',
+    /** v7.3.1: User-sourced goal looks similar to existing capability (non-blocking) */
+    /** @payload {{ goalId: string, matchScore: number, matchedCapability: string }} */
+    DUPLICATE_WARNING:    'goal:duplicate-warning',
   }),
 
   // ── Health Monitor ─────────────────────────────────────
@@ -382,6 +406,12 @@ const EVENTS = Object.freeze({
     RESEARCH_COMPLETE: 'idle:research-complete',
     /** @payload {{ revision: number }} v7.2.0: Self-identity definition written */
     SELF_DEFINED: 'idle:self-defined',
+    /** v7.3.1: Genesis is reading its own source module during idle */
+    /** @payload {{ module: string, reason: string }} */
+    READ_SOURCE:  'idle:read-source',
+    /** v7.3.1: Read-source budget for this cycle/session is exhausted */
+    /** @payload {{ cycleCount: number, sessionCount: number }} */
+    READ_SOURCE_BUDGET_EXHAUSTED: 'idle:read-source-budget-exhausted',
   }),
 
   // ── Intent Router ──────────────────────────────────────
@@ -648,10 +678,17 @@ const EVENTS = Object.freeze({
   // ── Store (EventStore.append dynamic events) ────────────
   STORE: Object.freeze({
     AGENT_LOOP_COMPLETE: 'store:AGENT_LOOP_COMPLETE',
+    /** v7.3.2: Was emitted by AgentLoop since v4.12.5 but missing from catalog */
+    AGENT_LOOP_STARTED:  'store:AGENT_LOOP_STARTED',
     CHAT_MESSAGE:        'store:CHAT_MESSAGE',
     CODE_MODIFIED:       'store:CODE_MODIFIED',
     CODE_SAFETY_BLOCK:   'store:CODE_SAFETY_BLOCK',
     CODE_SAFETY_WARN:    'store:CODE_SAFETY_WARN',
+    /** v7.3.2: Emitted by SelfModificationPipeline but missing from catalog */
+    CODE_VERIFICATION_BLOCK: 'store:CODE_VERIFICATION_BLOCK',
+    /** v7.3.2: Emitted by CognitiveAgent degradation path but missing from catalog */
+    COGNITIVE_SERVICE_DEGRADED: 'store:COGNITIVE_SERVICE_DEGRADED',
+    COGNITIVE_SERVICE_DISABLED: 'store:COGNITIVE_SERVICE_DISABLED',
     COGNITIVE_SNAPSHOT:   'store:COGNITIVE_SNAPSHOT',
     ERROR_OCCURRED:      'store:ERROR_OCCURRED',
     HEALTH_ALERT:        'store:HEALTH_ALERT',
@@ -662,6 +699,8 @@ const EVENTS = Object.freeze({
     MCP_TOOL_CALL:       'store:MCP_TOOL_CALL',
     MODEL_FAILOVER:      'store:MODEL_FAILOVER',
     MULTI_FILE_REFACTOR: 'store:MULTI_FILE_REFACTOR',
+    /** v7.3.2: Emitted by SelfModificationPipeline preservation blocker path */
+    PRESERVATION_BLOCK:  'store:PRESERVATION_BLOCK',
     SHELL_PLAN_EXECUTED: 'store:SHELL_PLAN_EXECUTED',
     SKILL_CREATED:       'store:SKILL_CREATED',
     SURPRISE_NOVEL:      'store:SURPRISE_NOVEL',

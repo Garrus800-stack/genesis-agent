@@ -1,29 +1,29 @@
 # Genesis Agent — Architecture Deep-Dive
 
 > Comprehensive technical analysis of Genesis Agent. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.3.1: 12 boot phases, 142→155 services, 226 source files, 4600 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules.
+> Last updated for v7.3.2: 12 boot phases, 143→155 services, 266 source files, 4567 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules.
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **231 JS source modules** across **~79,000 LOC** of production code, supported by **277 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **266 JS source modules** across **~87,000 LOC** of production code, supported by **270 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
 
 ### Key Numbers
 
 | Metric | Value |
 |--------|-------|
-| Production LOC (src/) | ~79,000 |
-| Source Modules | 230 JS files |
-| Test Suites / Tests | 237 / 3375 |
-| DI Services | 140 (132 manifest + 8 kernel) |
+| Production LOC (src/) | ~87,000 |
+| Source Modules | 266 JS files |
+| Test Suites / Tests | 270 / 4567 |
+| DI Services | 155 (143 manifest + 12 kernel) |
 | Boot Phases | 12 |
-| npm Dependencies | 3 production + 2 dev |
-| Event Types (catalogued) | 356 |
+| npm Dependencies | 3 production + 3 optional + 6 dev |
+| Event Types (catalogued) | 385 |
 | IPC Channels | 55 invoke + 2 send + 6 receive = 63 |
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
-| Coverage Gates | 81% lines, 76% branches, 80% functions |
-| Fitness Score | 90/90 (100%) |
+| Coverage Gates | 80% lines, 75.9% branches, 78% functions |
+| Fitness Score | 127/130 (98%) |
 | Circular Dependencies | 0 |
 | Cross-Layer Violations | 0 |
 | @ts-nocheck Files | 0 |

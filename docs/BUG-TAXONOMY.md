@@ -1,7 +1,11 @@
 # Genesis — Bug Taxonomy (v7.1.1 → v7.1.8)
 
-> 29 bugs found and fixed across 10 audits. This document classifies them
-> by root cause to identify where process improvements have the highest ROI.
+> 29 bugs found and fixed across 10 audits during the v7.1.x stabilization arc.
+> This document classifies them by root cause to identify where process improvements
+> have the highest ROI. The S-2 Contract Validator and S-9 Schema CI-Gate
+> (both shipped in v7.1.9) were the direct result of this analysis and have
+> prevented recurrences of the two dominant bug classes ever since.
+> Retained as historical reference; post-v7.1.9 bugs are tracked in the CHANGELOG.
 
 ## Classification
 

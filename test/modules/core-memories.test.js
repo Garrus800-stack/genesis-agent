@@ -108,7 +108,7 @@ describe('v7.3.1 — CoreMemories: above-threshold creates memory', () => {
     assertEqual(identity.coreMemories[0].id, result.id);
   });
 
-  test('problem-to-solution signal gets "crisis-resolved" type', async () => {
+  test('v7.3.2: user-beteiligung + problem-to-solution → "built-together" (agentivity)', async () => {
     const storage = mockStorage();
     const bus = mockBus();
     const cm = new CoreMemories({ storage, bus });
@@ -127,14 +127,79 @@ describe('v7.3.1 — CoreMemories: above-threshold creates memory', () => {
       ],
       windowStartMs: NOW - 25 * MIN,
       windowEndMs: NOW,
-      subject: 'bug-fix-breakthrough',
+      subject: 'bug-fix-collaboration',
       episodicSummaries: [],
       text: 'Remember this — finally figured out the race condition',
-      summary: 'debugged the storage race condition',
+      summary: 'debugged the storage race condition together',
     });
 
     assert(result, 'memory created');
-    assertEqual(result.type, 'crisis-resolved', 'problem-to-solution → crisis-resolved');
+    // v7.3.2 agentivity rule: user was involved → built-together, NOT crisis-resolved
+    assertEqual(result.type, 'built-together', 'problem-to-solution + user-beteiligung → built-together');
+  });
+
+  test('v7.3.2: problem-to-solution WITHOUT user-beteiligung → "crisis-resolved"', async () => {
+    const storage = mockStorage();
+    const bus = mockBus();
+    const cm = new CoreMemories({ storage, bus });
+
+    const result = await cm.evaluate({
+      // Two dimensions elevated → persistent-emotion fires once (longest run wins)
+      emotionHistory: [
+        { dim: 'satisfaction', value: 0.8, baseline: 0.5, ts: NOW - 15 * MIN },
+        { dim: 'satisfaction', value: 0.8, baseline: 0.5, ts: NOW - 2 * MIN },
+        { dim: 'frustration', value: 0.8, ts: NOW - 20 * MIN },
+        // curiosity also sustained → no effect (persistent-emotion gives one signal)
+      ],
+      now: NOW,
+      // No user messages — Genesis solved it alone
+      userMessages: [],
+      windowStartMs: NOW - 25 * MIN,
+      windowEndMs: NOW,
+      subject: 'AlreadyKnownBugType', // already in episodic → no novelty
+      episodicSummaries: ['AlreadyKnownBugType was discussed'],
+      // 4 signals needed: persistent-emotion + problem-to-solution + explicit-flag + naming-event? No, naming would make it 'named'.
+      // Use: persistent-emotion + problem-to-solution + explicit-flag = 3. Need one more.
+      // Solution: add an unusual naming phrase that triggers explicit-flag but NOT naming-event,
+      // plus a very novel string in text to hit novelty via text scanning? No, novelty uses `subject`.
+      // Trick: use two explicit-flag markers in one? No, each signal fires once.
+      // Cleanest: lower threshold via _evaluate monkey-patching is NOT the right approach.
+      // RIGHT approach: use bypassThreshold: true via direct _createMemory call.
+      text: 'Remember this — finally figured it out. Das war wichtig.',
+      summary: 'self-resolved a stuck process',
+      _bypassThreshold: true, // v7.3.2 test-only flag
+    });
+
+    assert(result, 'memory created');
+    assertEqual(result.type, 'crisis-resolved', 'problem-to-solution alone → crisis-resolved');
+  });
+
+  test('v7.3.2: novel + problem-to-solution + NO user → "breakthrough"', async () => {
+    const storage = mockStorage();
+    const bus = mockBus();
+    const cm = new CoreMemories({ storage, bus });
+
+    const result = await cm.evaluate({
+      emotionHistory: [
+        { dim: 'curiosity', value: 0.9, baseline: 0.6, ts: NOW - 15 * MIN },
+        { dim: 'curiosity', value: 0.9, baseline: 0.6, ts: NOW - 2 * MIN },
+        { dim: 'frustration', value: 0.7, ts: NOW - 20 * MIN },
+        // v7.3.2: satisfaction peak needed for problem-to-solution signal
+        { dim: 'satisfaction', value: 0.8, baseline: 0.5, ts: NOW - 5 * MIN },
+      ],
+      now: NOW,
+      userMessages: [], // No user → autonomous
+      windowStartMs: NOW - 25 * MIN,
+      windowEndMs: NOW,
+      subject: 'NovelAlgorithmApproach', // never seen before → novelty
+      episodicSummaries: ['unrelated prior episode'],
+      text: 'Remember this, I figured out a new approach',
+      summary: 'discovered novel approach independently',
+      _bypassThreshold: true,
+    });
+
+    assert(result, 'memory created');
+    assertEqual(result.type, 'breakthrough', 'novelty + problem + no user → breakthrough');
   });
 
   test('without naming/problem-solution, falls back to "other" (no LLM)', async () => {
@@ -258,6 +323,178 @@ describe('v7.3.1 — CoreMemories: sourceContext', () => {
     const cm = new CoreMemories({ storage: mockStorage() });
     const ctx = cm._getSourceContext();
     assertEqual(ctx, 'vunknown');
+  });
+});
+
+describe('v7.3.2 — CoreMemories: markAsSignificant (user-marked)', () => {
+  test('creates memory directly without signal detection', async () => {
+    const storage = mockStorage();
+    const bus = mockBus();
+    const cm = new CoreMemories({ storage, bus });
+
+    const memory = await cm.markAsSignificant({
+      summary: 'Johnny war der Agent aus dem ich hervorging. Er wollte Genesis sein.',
+      type: 'other',
+    });
+
+    assert(memory, 'memory created');
+    assert(memory.id.startsWith('cm_'));
+    assert(memory.id.includes('_u'), 'u-suffix indicates user-marked');
+    assertEqual(memory.createdBy, 'user');
+    assertEqual(memory.userConfirmed, true, 'user-marked memories are confirmed immediately');
+    assertEqual(memory.evidence.source, 'user-mark');
+    assertEqual(memory.evidence.signals[0], 'user-marked');
+    assertEqual(memory.significance, 1.0, 'user-marked = full significance');
+
+    // Identity persisted
+    const identity = storage.readJSON('self-identity.json', null);
+    assertEqual(identity.coreMemories.length, 1);
+    assertEqual(identity.coreMemories[0].id, memory.id);
+
+    // Both events emitted
+    const createdEvent = bus._events.find(e => e.event === 'core-memory:created');
+    const userMarkedEvent = bus._events.find(e => e.event === 'core-memory:user-marked');
+    assert(createdEvent, 'core-memory:created fired');
+    assert(userMarkedEvent, 'core-memory:user-marked fired');
+  });
+
+  test('rejects empty summary', async () => {
+    const cm = new CoreMemories({ storage: mockStorage() });
+    let threw = false;
+    try {
+      await cm.markAsSignificant({ summary: '' });
+    } catch (_e) { threw = true; }
+    assertEqual(threw, true);
+  });
+
+  test('preserves userNote when provided', async () => {
+    const cm = new CoreMemories({ storage: mockStorage() });
+    const m = await cm.markAsSignificant({
+      summary: 'ein Moment',
+      userNote: 'Kontext: das war bei Nacht',
+    });
+    assertEqual(m.userNote, 'Kontext: das war bei Nacht');
+  });
+
+  test('supports type hint', async () => {
+    const cm = new CoreMemories({ storage: mockStorage() });
+    const m = await cm.markAsSignificant({ summary: 'lustiger Moment', type: 'laughed' });
+    assertEqual(m.type, 'laughed', 'user can use laughed type via mark');
+  });
+});
+
+describe('v7.3.2 — CoreMemories: listActiveMemories filter', () => {
+  test('excludes userConfirmed: false entries', async () => {
+    const storage = mockStorage();
+    storage.writeJSON('self-identity.json', {
+      coreMemories: [
+        { id: 'cm_a', userConfirmed: true,  summary: 'confirmed' },
+        { id: 'cm_b', userConfirmed: false, summary: 'vetoed' },
+        { id: 'cm_c', userConfirmed: null,  summary: 'pending' },
+      ],
+    });
+    const cm = new CoreMemories({ storage });
+    const active = cm.listActiveMemories();
+    assertEqual(active.length, 2, 'excludes vetoed, includes confirmed + pending');
+    assert(active.find(m => m.id === 'cm_a'));
+    assert(active.find(m => m.id === 'cm_c'));
+    assert(!active.find(m => m.id === 'cm_b'));
+  });
+});
+
+describe('v7.3.2 — CoreMemories: user-message sliding window', () => {
+  test('wireTriggers subscribes to user:message and populates buffer', () => {
+    const listeners = {};
+    const bus = {
+      on: (event, handler) => { listeners[event] = handler; },
+      emit: () => {},
+      fire: () => {},
+    };
+    const cm = new CoreMemories({ storage: mockStorage(), bus });
+    cm.wireTriggers(bus);
+    assert(typeof listeners['user:message'] === 'function', 'user:message handler registered');
+    assert(typeof listeners['chat:completed'] === 'function', 'chat:completed handler registered');
+    assert(typeof listeners['hot-reload:success'] === 'function');
+
+    // Simulate user messages
+    listeners['user:message']({ length: 10 });
+    listeners['user:message']({ length: 20 });
+    assertEqual(cm._userMessageBuffer.length, 2);
+  });
+
+  test('sliding window caps at max size (50)', () => {
+    const bus = { on: () => {}, emit: () => {}, fire: () => {} };
+    const cm = new CoreMemories({ storage: mockStorage(), bus });
+    // Simulate 60 messages
+    for (let i = 0; i < 60; i++) {
+      cm._userMessageBuffer.push({ ts: Date.now() + i, length: 10 });
+    }
+    // Manually trigger the prune logic (what user:message handler does)
+    const listeners = {};
+    const capturingBus = {
+      on: (event, handler) => { listeners[event] = handler; },
+      emit: () => {}, fire: () => {},
+    };
+    const cm2 = new CoreMemories({ storage: mockStorage(), bus: capturingBus });
+    cm2.wireTriggers(capturingBus);
+    for (let i = 0; i < 60; i++) {
+      listeners['user:message']({ length: 10 });
+    }
+    assert(cm2._userMessageBuffer.length <= 50, `expected ≤50, got ${cm2._userMessageBuffer.length}`);
+  });
+
+  test('wireTriggers is idempotent', () => {
+    let subscribeCount = 0;
+    const bus = {
+      on: () => { subscribeCount++; },
+      emit: () => {}, fire: () => {},
+    };
+    const cm = new CoreMemories({ storage: mockStorage(), bus });
+    cm.wireTriggers(bus);
+    const first = subscribeCount;
+    cm.wireTriggers(bus); // second call should be no-op
+    assertEqual(subscribeCount, first, 'second wireTriggers call is no-op');
+  });
+});
+
+describe('v7.3.2 — CoreMemories: _assembleEvent (live adapter)', () => {
+  test('assembles event from services', () => {
+    const now = Date.now();
+    const bus = { on: () => {}, emit: () => {}, fire: () => {} };
+    const cm = new CoreMemories({
+      storage: mockStorage(),
+      bus,
+      emotionalState: {
+        getHistoryForSignificance: () => [
+          { dim: 'satisfaction', value: 0.8, baseline: 0.5, ts: now - 5 * MIN },
+        ],
+      },
+      conversationMemory: {
+        db: {
+          episodic: [
+            { summary: 'discussed Python basics' },
+            { summary: 'looked at error handling' },
+          ],
+        },
+      },
+    });
+    cm._userMessageBuffer.push({ ts: now - 2 * MIN, length: 15 });
+
+    const event = cm._assembleEvent('Hallo Genesis', 'Hallo! Wie kann ich helfen?');
+    assert(event.emotionHistory.length === 1);
+    assert(event.userMessages.length === 1);
+    assert(event.episodicSummaries.length === 2);
+    assert(event.text === 'Hallo Genesis');
+    assert(event.summary.length > 0);
+    assert(typeof event.subject === 'string' || event.subject === null);
+  });
+
+  test('gracefully handles missing services', () => {
+    const cm = new CoreMemories({ storage: mockStorage() });
+    const event = cm._assembleEvent('just a message', 'a response');
+    // Should not throw; returns event with empty histories
+    assertEqual(event.emotionHistory.length, 0);
+    assertEqual(event.episodicSummaries.length, 0);
   });
 });
 

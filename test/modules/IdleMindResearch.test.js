@@ -36,8 +36,11 @@ function mockFrontierWriter(items = []) {
 }
 
 // Minimal IdleMind-like object with research methods mixed in
+// v7.3.2: Migration von IdleMindActivities (legacy mixin) auf
+// die neuen Module — Research.js exposes _pickResearchTopic,
+// _buildResearchUrl etc. as named exports for testing.
 function createResearchContext(overrides = {}) {
-  const { activities } = require('../../src/agent/autonomy/IdleMindActivities');
+  const Research = require('../../src/agent/autonomy/activities/Research');
   const bus = mockBus();
 
   const ctx = {
@@ -63,9 +66,19 @@ function createResearchContext(overrides = {}) {
     _networkCheckTs: Date.now(),
   };
 
-  // Mix in activities
-  for (const [key, fn] of Object.entries(activities)) {
-    if (typeof fn === 'function') ctx[key] = fn.bind(ctx);
+  // Mix in research helpers. v7.3.1 Research.js exposes them as
+  // plain functions taking `idleMind` as first argument (not `this`),
+  // so we wrap them to match the pre-v7.3.1 calling convention of
+  // the test (`ctx._pickResearchTopic()` without args).
+  const helpers = ['_pickResearchTopic', '_buildResearchUrl', '_getDeepReadUrl', '_extractDeepContent', '_scoreResearchInsight'];
+  for (const key of helpers) {
+    if (typeof Research[key] === 'function') {
+      const fn = Research[key];
+      // Most helpers take idleMind as first arg; _buildResearchUrl takes a topic.
+      ctx[key] = function (...args) {
+        return args.length > 0 ? fn(...args) : fn(ctx);
+      };
+    }
   }
 
   return ctx;

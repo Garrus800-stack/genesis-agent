@@ -1,28 +1,28 @@
 # Genesis — Graceful Degradation Matrix
 
-Generated: 2026-04-17
-Services: 154 | Bindings: 245
+Generated: 2026-04-19T11:29:58.077Z
+Services: 143 | Bindings: 532
 
 ## Critical Services (removal breaks dependents)
 
 | Service | Phase | Required By | Dependents |
 |---------|-------|-------------|------------|
 | eventStore | P1 | 25 | shellAgent, mcpClient, anticipator, selfOptimizer, unifiedMemory, selfModPipeline, learningService, taskDelegation, peerConsensus, idleMind, healthMonitor, cognitiveMonitor, agentLoop, multiFileRefactor, htnPlanner, formalPlanner, cognitiveHealthTracker, surpriseAccumulator, dreamCycle, goalPersistence, failureTaxonomy, fitnessEvaluator, effectorRegistry, webPerception, selfSpawner |
+| knowledgeGraph | P1 | 19 | uncertaintyGuard, embeddingService, kg, promptBuilder, shellAgent, mcpClient, anticipator, solutionAccumulator, unifiedMemory, learningService, idleMind, agentLoop, failureAnalyzer, emotionalFrontier, unfinishedWorkFrontier, dreamCycle, suspicionFrontier, lessonFrontier, graphReasoner |
 | selfModel | P1 | 18 | promptBuilder, context, analyzer, reflector, cloner, network, shellAgent, selfModPipeline, daemon, idleMind, agentLoop, multiFileRefactor, htnPlanner, formalPlanner, failureAnalyzer, selfNarrative, architectureReflection, graphReasoner |
 | memory | P1 | 17 | uncertaintyGuard, embeddingService, mem, promptBuilder, context, shellAgent, anticipator, solutionAccumulator, selfOptimizer, unifiedMemory, chatOrchestrator, learningService, daemon, idleMind, sessionPersistence, agentLoop, failureAnalyzer |
 | llm | P1 | 16 | promptBuilder, reasoning, analyzer, skills, reflector, cloner, network, goalStack, anticipator, chatOrchestrator, selfModPipeline, daemon, nativeToolUse, sessionPersistence, multiFileRefactor, formalPlanner |
-| knowledgeGraph | P1 | 15 | uncertaintyGuard, embeddingService, kg, promptBuilder, shellAgent, mcpClient, anticipator, solutionAccumulator, unifiedMemory, learningService, idleMind, agentLoop, failureAnalyzer, dreamCycle, graphReasoner |
 | sandbox | P1 | 14 | sbx, skills, reflector, fileProcessor, shellAgent, mcpClient, pluginRegistry, selfModPipeline, commandHandlers, daemon, agentLoop, multiFileRefactor, htnPlanner, formalPlanner |
 | settings | P1 | 10 | model, worldState, mcpClient, commandHandlers, healthServer, emotionalState, homeostasis, needsSystem, agentLoop, trustLevelSystem |
 | model | P1 | 10 | llmCache, llm, context, shellAgent, idleMind, agentLoop, modelRouter, colonyOrchestrator, dreamCycle, selfNarrative |
 | prompts | P1 | 10 | reasoning, analyzer, skills, reflector, cloner, network, goalStack, selfModPipeline, daemon, idleMind |
 | tools | P2 | 9 | reasoning, mcpClient, pluginRegistry, mcpToolBridge, chatOrchestrator, selfModPipeline, nativeToolUse, agentLoop, formalPlanner |
 | goalStack | P4 | 6 | selfOptimizer, commandHandlers, taskDelegation, idleMind, agentLoop, goalPersistence |
-| emotionalState | P7 | 6 | promptBuilder, idleMind, homeostasis, needsSystem, selfNarrative, emotionalSteering |
 | worldState | P1 | 5 | desktopPerception, formalPlanner, modelRouter, expectationEngine, mentalSimulator |
 | codeSafety | P2 | 5 | skills, cloner, network, pluginRegistry, selfModPipeline |
 | metaLearning | P4 | 5 | modelRouter, expectationEngine, dreamCycle, selfNarrative, promptEvolution |
-| skills | P3 | 4 | promptBuilder, network, selfModPipeline, daemon |
+| emotionalState | P7 | 5 | homeostasis, needsSystem, emotionalFrontier, selfNarrative, emotionalSteering |
+| skills | P3 | 3 | network, selfModPipeline, daemon |
 | schemaStore | P4 | 3 | expectationEngine, dreamCycle, selfNarrative |
 | episodicMemory | P5 | 3 | surpriseAccumulator, dreamCycle, selfNarrative |
 | astDiff | P1 | 2 | selfModPipeline, multiFileRefactor |
@@ -30,11 +30,6 @@ Services: 154 | Bindings: 245
 | reflector | P3 | 2 | selfModPipeline, daemon |
 | network | P3 | 2 | commandHandlers, taskDelegation |
 | shellAgent | P3 | 2 | commandHandlers, agentLoop |
-| unifiedMemory | P5 | 2 | promptBuilder, chatOrchestrator |
-| learningService | P5 | 2 | promptBuilder, idleMind |
-| daemon | P6 | 2 | commandHandlers, daemonController |
-| homeostasis | P7 | 2 | promptBuilder, idleMind |
-| needsSystem | P7 | 2 | promptBuilder, idleMind |
 | webFetcher | P1 | 1 | commandHandlers |
 | uncertaintyGuard | P1 | 1 | chatOrchestrator |
 | intentRouter | P2 | 1 | chatOrchestrator |
@@ -47,23 +42,20 @@ Services: 154 | Bindings: 245
 | cloner | P3 | 1 | selfModPipeline |
 | fileProcessor | P3 | 1 | commandHandlers |
 | hotReloader | P3 | 1 | selfModPipeline |
-| anticipator | P4 | 1 | promptBuilder |
-| solutionAccumulator | P4 | 1 | promptBuilder |
-| selfOptimizer | P4 | 1 | promptBuilder |
+| unifiedMemory | P5 | 1 | chatOrchestrator |
 | selfModPipeline | P5 | 1 | agentLoop |
-| idleMind | P6 | 1 | commandHandlers |
-| vectorMemory | P8 | 1 | promptBuilder |
-| sessionPersistence | P8 | 1 | promptBuilder |
+| daemon | P6 | 1 | daemonController |
 | expectationEngine | P9 | 1 | mentalSimulator |
 
 ## Optional Services (graceful degradation)
 
 | Service | Phase | Consumers | Lost Features |
 |---------|-------|-----------|---------------|
+| genesisBackup | P1 | 1 | selfModPipeline._genesisBackup |
 | llmCache | P1 | 2 | homeostasisEffectors.llmCache, immuneSystem.llmCache |
 | moduleSigner | P1 | 1 | promptEvolution.moduleSigner |
 | preservation | P1 | 1 | selfModPipeline._preservation |
-| costGuard | P1 | 1 | quickBenchmark.costGuard |
+| costGuard | P1 | 2 | llm._costGuard, quickBenchmark.costGuard |
 | awareness | P1 | 2 | promptBuilder.awareness, selfModPipeline._awareness |
 | cognitiveBudget | P2 | 3 | promptBuilder._cognitiveBudget, executionProvenance.cognitiveBudget, chatOrchestrator._cognitiveBudget |
 | executionProvenance | P2 | 2 | adaptivePromptStrategy._provenance, chatOrchestrator._provenance |
@@ -71,32 +63,45 @@ Services: 154 | Bindings: 245
 | symbolicResolver | P2 | 1 | agentLoop._symbolicResolver |
 | disclosurePolicy | P2 | 1 | promptBuilder.disclosurePolicy |
 | mcpClient | P3 | 4 | promptBuilder.mcpClient, mcpToolBridge._mcpClient, idleMind.mcpClient, bodySchema.mcpClient |
+| snapshotManager | P3 | 1 | deploymentManager._snapshotManager |
+| anticipator | P4 | 1 | promptBuilder.anticipator |
+| solutionAccumulator | P4 | 1 | promptBuilder.solutions |
+| selfOptimizer | P4 | 1 | promptBuilder.optimizer |
 | valueStore | P4 | 2 | promptBuilder.valueStore, dreamCycle.valueStore |
+| learningService | P5 | 2 | promptBuilder.learningService, idleMind.learningService |
 | taskDelegation | P5 | 2 | agentLoop.taskDelegation, colonyOrchestrator.delegation |
 | peerConsensus | P5 | 2 | network.peerConsensus, colonyOrchestrator.consensus |
+| idleMind | P6 | 4 | promptBuilder._idleMind, selfModPipeline._idleMind, commandHandlers.idleMind, emotionalFrontier._idleMind |
 | healthMonitor | P6 | 2 | serviceRecovery.healthMonitor, deploymentManager.healthMonitor |
 | cognitiveMonitor | P6 | 1 | promptBuilder.cognitiveMonitor |
 | errorAggregator | P6 | 1 | promptBuilder.errorAggregator |
 | deploymentManager | P6 | 1 | autoUpdater._deploymentManager |
 | networkSentinel | P6 | 1 | bodySchema.networkSentinel |
-| bodySchema | P7 | 1 | promptBuilder.bodySchema |
+| homeostasis | P7 | 6 | promptBuilder.homeostasis, idleMind._homeostasis, bodySchema.homeostasis, homeostasisEffectors.homeostasis, metabolism.homeostasis, immuneSystem.homeostasis |
+| needsSystem | P7 | 4 | promptBuilder.needsSystem, idleMind.needsSystem, metabolism.needsSystem, emotionalSteering.needsSystem |
+| bodySchema | P7 | 2 | promptBuilder.bodySchema, emotionalSteering.bodySchema |
 | embodiedPerception | P7 | 1 | bodySchema.embodiedPerception |
 | metabolism | P7 | 4 | promptBuilder._metabolism, selfModPipeline._metabolism, idleMind._metabolism, fitnessEvaluator.metabolism |
 | immuneSystem | P7 | 2 | promptBuilder.immuneSystem, fitnessEvaluator.immuneSystem |
-| genome | P7 | 5 | promptBuilder._genome, cloner.genome, selfModPipeline._genome, idleMind._genome, fitnessEvaluator.genome |
+| genome | P7 | 6 | promptBuilder._genome, cloner.genome, selfModPipeline._genome, idleMind._genome, metabolism.genome, fitnessEvaluator.genome |
 | nativeToolUse | P8 | 1 | chatOrchestrator.nativeToolUse |
+| vectorMemory | P8 | 2 | promptBuilder.vectorMemory, homeostasisEffectors.vectorMemory |
+| sessionPersistence | P8 | 2 | promptBuilder.sessionPersistence, emotionalFrontier._sessionPersistence |
 | agentLoop | P8 | 2 | daemonController.agentLoop, goalPersistence.agentLoop |
 | htnPlanner | P8 | 1 | agentLoop.htnPlanner |
 | formalPlanner | P8 | 1 | agentLoop.formalPlanner |
 | modelRouter | P8 | 5 | chatOrchestrator.modelRouter, onlineLearner.modelRouter, adaptiveStrategy.modelRouter, failureTaxonomy.modelRouter, emotionalSteering.modelRouter |
+| colonyOrchestrator | P8 | 1 | agentLoop._colonyOrchestrator |
+| emotionalFrontier | P8 | 3 | promptBuilder._emotionalFrontier, idleMind._emotionalFrontier, sessionPersistence._emotionalFrontier |
+| unfinishedWorkFrontier | P8 | 4 | promptBuilder._unfinishedWorkFrontier, idleMind._unfinishedWorkFrontier, sessionPersistence._unfinishedWorkFrontier, goalSynthesizer._unfinishedWorkFrontier |
 | cognitiveHealthTracker | P9 | 1 | agentLoop.cognitiveHealthTracker |
 | surpriseAccumulator | P9 | 2 | dreamCycle.surpriseAccumulator, selfNarrative.surpriseAccumulator |
 | mentalSimulator | P9 | 1 | agentLoop.mentalSimulator |
-| dreamCycle | P9 | 1 | idleMind.dreamCycle |
+| dreamCycle | P9 | 2 | promptBuilder._dreamCycle, idleMind.dreamCycle |
 | selfNarrative | P9 | 2 | promptBuilder.selfNarrative, idleMind.selfNarrative |
 | promptEvolution | P9 | 3 | promptBuilder.promptEvolution, onlineLearner.promptEvolution, adaptiveStrategy.promptEvolution |
 | onlineLearner | P9 | 1 | adaptiveStrategy.onlineLearner |
-| lessonsStore | P9 | 9 | promptBuilder.lessonsStore, symbolicResolver.lessonsStore, mcpToolBridge._lessonsStore, chatOrchestrator.lessonsStore, networkSentinel._lessonsStore, cognitiveSelfModel.lessonsStore, memoryConsolidator.lessonsStore, structuralAbstraction.lessonsStore, goalSynthesizer.lessonsStore |
+| lessonsStore | P9 | 12 | promptBuilder.lessonsStore, symbolicResolver.lessonsStore, mcpToolBridge._lessonsStore, goalStack.lessonsStore, chatOrchestrator.lessonsStore, idleMind.lessonsStore, networkSentinel._lessonsStore, agentLoop.lessonsStore, cognitiveSelfModel.lessonsStore, memoryConsolidator.lessonsStore, structuralAbstraction.lessonsStore, goalSynthesizer.lessonsStore |
 | reasoningTracer | P9 | 1 | cognitiveSelfModel.reasoningTracer |
 | workspaceFactory | P9 | 1 | agentLoop._createWorkspace |
 | architectureReflection | P9 | 2 | promptBuilder.architectureReflection, mcpToolBridge._archReflection |
@@ -104,16 +109,19 @@ Services: 154 | Bindings: 245
 | projectIntelligence | P9 | 2 | promptBuilder.projectIntelligence, mcpToolBridge._projectIntel |
 | taskOutcomeTracker | P9 | 3 | promptBuilder.taskOutcomeTracker, cognitiveSelfModel.taskOutcomeTracker, goalSynthesizer.tracker |
 | cognitiveSelfModel | P9 | 4 | promptBuilder.cognitiveSelfModel, idleMind._cognitiveSelfModel, adaptiveStrategy.cognitiveSelfModel, goalSynthesizer.selfModel |
+| coreMemories | P9 | 1 | commandHandlers.coreMemories |
 | quickBenchmark | P9 | 1 | adaptiveStrategy.quickBenchmark |
 | causalAnnotation | P9 | 1 | agentLoop._causalAnnotation |
 | inferenceEngine | P9 | 3 | reasoning._inferenceEngine, symbolicResolver._inferenceEngine, goalSynthesizer.inferenceEngine |
 | patternMatcher | P9 | 1 | lessonsStore._patternMatcher |
+| suspicionFrontier | P9 | 3 | promptBuilder._suspicionFrontier, idleMind._suspicionFrontier, goalSynthesizer._suspicionFrontier |
+| lessonFrontier | P9 | 3 | promptBuilder._lessonFrontier, idleMind._lessonFrontier, goalSynthesizer._lessonFrontier |
 | dynamicContextBudget | P10 | 2 | context._dynamicBudget, homeostasisEffectors.dynamicContextBudget |
 | conversationCompressor | P10 | 1 | context._compressor |
-| emotionalSteering | P10 | 3 | promptBuilder.emotionalSteering, formalPlanner._emotionalSteering, modelRouter._emotionalSteering |
+| emotionalSteering | P10 | 4 | promptBuilder.emotionalSteering, formalPlanner._emotionalSteering, modelRouter._emotionalSteering, adaptiveStrategy.emotionalSteering |
 | localClassifier | P10 | 1 | intentRouter._localClassifier |
 | userModel | P10 | 3 | promptBuilder.userModel, disclosurePolicy.userModel, needsSystem.userModel |
-| trustLevelSystem | P11 | 6 | disclosurePolicy.trustLevelSystem, daemon.trustLevelSystem, bodySchema.trustLevelSystem, agentLoop.trustLevelSystem, earnedAutonomy.trustLevelSystem, effectorRegistry.trustLevel |
+| trustLevelSystem | P11 | 7 | disclosurePolicy.trustLevelSystem, daemon.trustLevelSystem, idleMind._trustLevelSystem, bodySchema.trustLevelSystem, agentLoop.trustLevelSystem, earnedAutonomy.trustLevelSystem, effectorRegistry.trustLevel |
 | effectorRegistry | P11 | 1 | bodySchema.effectorRegistry |
 | selfSpawner | P11 | 1 | colonyOrchestrator.selfSpawner |
 | graphReasoner | P12 | 1 | reasoning._graphReasoner |
@@ -142,7 +150,6 @@ Services: 154 | Bindings: 245
 | homeostasisEffectors | P7 | organism, homeostasis, effectors |
 | multiFileRefactor | P8 | revolution |
 | failureAnalyzer | P8 | revolution, ci |
-| colonyOrchestrator | P8 | revolution, colony, multi-agent |
 | memoryConsolidator | P9 | cognitive, memory, v6-7 |
 | taskRecorder | P9 | cognitive, replay, v6-8 |
 | adaptiveStrategy | P9 | cognitive, metacognition, v6-0-2 |

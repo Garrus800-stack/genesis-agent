@@ -10,6 +10,8 @@ const fs = require('fs');
 
 // Inline require to avoid circular deps
 const { IdleMind } = require('../../src/agent/autonomy/IdleMind');
+// v7.3.2: IdleMindActivities.js removed — _explore now lives in activities/Explore.js
+const Explore = require('../../src/agent/autonomy/activities/Explore');
 
 // ── Minimal mocks ────────────────────────────────────────────
 const tmpDir = path.join(os.tmpdir(), `genesis-dc-test-${Date.now()}`);
@@ -115,7 +117,7 @@ describe('DirectedCuriosity — targeted explore', () => {
     });
     im._currentWeakness = ['debug', { successRate: 0.3, isWeak: true }];
 
-    const result = await im._explore();
+    const result = await Explore.run(im);
     if (!result) throw new Error('Should return an insight');
     // Verify curiosity-targeted event was emitted
     const events = bus.getEmitted('idle:curiosity-targeted');
@@ -134,7 +136,7 @@ describe('DirectedCuriosity — targeted explore', () => {
     });
     im._currentWeakness = ['debug', { successRate: 0.3, isWeak: true }];
 
-    const result = await im._explore();
+    const result = await Explore.run(im);
     if (!result) throw new Error('Should fall back to random module and still produce insight');
   });
 });

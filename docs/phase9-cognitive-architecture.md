@@ -35,7 +35,7 @@ New Constants: `PHASE9` section.
 
 ```
                     ┌──────────────────────────┐
-                    │      SelfNarrative        │  "Wer bin ich?"
+                    │      SelfNarrative        │  "Who am I?"
                     │  (autobiographical self)  │
                     └────────────┬─────────────┘
                                  │ reads
@@ -1584,7 +1584,7 @@ SimulationResult { expectedValue, riskScore, recommendation }
                    ExpectationEngine uses schemas → better predictions
                             │
                             ▼
-                   SelfNarrative.update() → "Wer bin ich jetzt?"
+                   SelfNarrative.update() → "Who am I now?"
                             │
                             ▼
                    PromptBuilder injects identity → better reasoning

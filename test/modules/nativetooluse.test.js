@@ -63,14 +63,6 @@ test('constructs without errors', () => {
   assert(ntu._stats.totalCalls === 0);
 });
 
-test('static containerConfig is defined', () => {
-  assert(NativeToolUse.containerConfig, 'Missing containerConfig');
-  assert(NativeToolUse.containerConfig.name === 'nativeToolUse');
-  assert(NativeToolUse.containerConfig.phase === 8);
-  assert(NativeToolUse.containerConfig.deps.includes('model'));
-  assert(NativeToolUse.containerConfig.deps.includes('tools'));
-});
-
 test('_buildToolSchemas generates schemas from registry', () => {
   const ntu = new NativeToolUse({
     bus: NullBus, model: createMockModel(), tools: createMockToolRegistry(),

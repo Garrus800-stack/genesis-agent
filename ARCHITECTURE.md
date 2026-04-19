@@ -3,7 +3,7 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.3.1 · Last verified: all checks green (v7.3.0 + 120 new assertions across 5 feature test suites, 0 schema mismatches)
+> Version: 7.3.2 · Last verified: all checks green (v7.3.1 + 46 new assertions across 3 feature test suites, trigger integration end-to-end, 0 schema mismatches)
 
 ---
 
@@ -40,7 +40,7 @@ Genesis boots in 12 phases. Each phase registers services into a dependency inje
 
 ## 3. Follow the Message
 
-This traces what happens when a user types "Erstelle eine REST API für mich" (Create a REST API for me) from keystroke to response.
+This traces what happens when a user types "Create a REST API for me" from keystroke to response.
 
 ### 3.1 Entry Point
 
@@ -64,7 +64,7 @@ IntentRouter.classifyAsync(message)
   → 4. LLM classification (last resort, ~500ms)
 ```
 
-For "Erstelle eine REST API", the regex catches `execute-code` or `analyze-code` patterns. Result: `{ type: 'general', confidence: 0.5 }` (no strong regex match → falls through to LLM streaming path).
+For "Create a REST API", the regex catches `execute-code` or `analyze-code` patterns. Result: `{ type: 'general', confidence: 0.5 }` (no strong regex match → falls through to LLM streaming path).
 
 **Files:** `src/agent/intelligence/IntentRouter.js`
 **Events:** `user:message`, `intent:classified`
@@ -566,7 +566,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~4600 tests across 268 suites |
+| Tests | `node test/index.js` | ~4540 tests across 271 suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |

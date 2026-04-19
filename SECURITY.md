@@ -4,8 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 7.2.x  | ✅ Active |
-| 7.1.x  | ⚠️ Critical fixes only |
+| 7.3.x  | ✅ Active |
+| 7.2.x  | ⚠️ Critical fixes only |
 | 7.0.x  | ❌ Unsupported |
 | < 6.0  | ❌ Unsupported |
 

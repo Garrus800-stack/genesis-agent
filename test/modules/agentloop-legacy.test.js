@@ -124,13 +124,6 @@ test('constructs without errors', () => {
   assert(loop.maxStepsPerGoal === 20);
 });
 
-test('static containerConfig is defined', () => {
-  assert(AgentLoop.containerConfig, 'Missing containerConfig');
-  assert(AgentLoop.containerConfig.name === 'agentLoop');
-  assert(AgentLoop.containerConfig.phase === 8);
-  assert(Array.isArray(AgentLoop.containerConfig.deps));
-});
-
 test('stop() works when not running', () => {
   const deps = createMockDeps();
   const loop = new AgentLoop(deps);

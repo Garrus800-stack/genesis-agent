@@ -110,15 +110,15 @@ If any step fails, it rolls back automatically.
 Genesis supports three boot profiles for different use cases:
 
 ```bash
-npm start                        # Full mode (default) — all 12 phases, ~142 services
+npm start                        # Full mode (default) — all 12 phases, ~155 services
 npm start -- --minimal           # Minimal — core + intelligence + planning (~90 services)
-npm start -- --cognitive         # Cognitive — all 12 phases (~142 services, identical to default)
+npm start -- --cognitive         # Cognitive — all 12 phases (~155 services, identical to default)
 ```
 
 | Profile | Services | Use case |
 |---|---|---|
-| `--full` | ~154 | All 12 phases active (identical to `--cognitive` as of v7.0.0) |
-| `--cognitive` | ~154 | Default — all 12 phases. Phase 13 (Consciousness) removed in v7.0.0, replaced by lightweight AwarenessPort. |
+| `--full` | ~155 | All 12 phases active (identical to `--cognitive` as of v7.0.0) |
+| `--cognitive` | ~155 | Default — all 12 phases. Phase 13 (Consciousness) removed in v7.0.0, replaced by lightweight AwarenessPort. |
 | `--minimal` | ~90 | Learning — core agent loop, planning, and tools (phases 1–8 only) |
 
 ## 7. Things to Try

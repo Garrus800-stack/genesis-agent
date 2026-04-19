@@ -112,6 +112,18 @@ class AgentCoreWire {
         source: 'ChatOrchestrator',
       }, { source: 'AgentCore:relay' });
     }, { source: 'AgentCore:wire', priority: -20 });
+
+    // v7.3.2: CoreMemories subscribes to chat:completed, user:message,
+    // hot-reload:success. Late-binding happens at container-wire; here we
+    // trigger the subscription wiring (idempotent, safe to call more than once).
+    try {
+      const coreMemories = this._core?.container?.tryResolve?.('coreMemories');
+      if (coreMemories && typeof coreMemories.wireTriggers === 'function') {
+        coreMemories.wireTriggers(bus);
+      }
+    } catch (err) {
+      _log.debug('[WIRE] CoreMemories trigger wiring skipped:', err.message);
+    }
   }
 
   // ════════════════════════════════════════════════════════

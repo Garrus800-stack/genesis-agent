@@ -692,7 +692,14 @@ const CHANNELS = {
       // FIX v4.12.8: Raised from 8 to 12. With 95 services across 13 phases,
       // high-traffic events like chat:completed (10) and user:message (9) have
       // legitimately many listeners. 8 caused constant false-positive warnings.
-      listenerReport: bus.getListenerReport({ warnThreshold: 12 }),
+      // FIX v7.3.2: Raised from 12 to 15. chat:completed now has 13 listeners
+      // after CoreMemories wired in v7.3.2 — it's architecturally a fan-out
+      // event (EmotionalState, Metabolism, UserModel, Anticipator,
+      // SolutionAccumulator, SelfOptimizer, VectorMemory, CausalAnnotation,
+      // TaskOutcomeTracker, CoreMemories, LearningService, HealthMonitor,
+      // FitnessEvaluator). 15 gives headroom for 1-2 more natural consumers
+      // while still catching real runaway-listener bugs.
+      listenerReport: bus.getListenerReport({ warnThreshold: 15 }),
       registeredEvents: bus.getRegisteredEvents().length,
     };
   },

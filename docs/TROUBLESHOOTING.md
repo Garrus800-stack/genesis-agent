@@ -10,7 +10,7 @@ Common issues and their solutions. If your problem isn't listed here, [open an i
 
 **Symptom:** Errors mentioning `node-gyp`, `prebuild`, or compilation failures.
 
-**Fix:** Genesis has only 5 production dependencies — none require native compilation. Check:
+**Fix:** Genesis has only 3 production + 3 optional dependencies — none require native compilation. Check:
 ```bash
 node --version    # Must be ≥ 18.0.0
 npm --version     # Should be ≥ 9
@@ -56,13 +56,13 @@ npm install
 
 **Fix:** Run `node scripts/validate-channels.js` and `node scripts/validate-events.js` to check consistency. Ensure the module file exists in `src/agent/<category>/`.
 
-### "Booting" badge stuck after startup (v7.1.3+)
+### "Booting" badge stuck after startup (historical — fixed in v7.1.3)
 
 **Symptom:** The UI badge shows "Booting" indefinitely even though Genesis is running and responding.
 
-**Cause (fixed in v7.1.3):** The health check required a `model` field in the ready-status response. If the model was still loading when the renderer connected, the check failed silently and the badge never transitioned.
+**Cause:** Prior to v7.1.3 the health check required a `model` field in the ready-status response. If the model was still loading when the renderer connected, the check failed silently and the badge never transitioned.
 
-**Fix:** Update to v7.1.3 or later. If the issue persists on v7.1.3+, verify Genesis is running via `node cli.js ctl ping`. If ping responds, the renderer missed the ready event — reload the window (Ctrl+R / Cmd+R).
+**Fix:** Update to v7.1.3 or later — this has been resolved since. If you see this on a current build, verify Genesis is running via `node cli.js ctl ping`. If ping responds, the renderer missed the ready event — reload the window (Ctrl+R / Cmd+R).
 
 ---
 

@@ -29,7 +29,7 @@ git clone https://github.com/Garrus800-stack/genesis-agent.git
 cd genesis-agent
 npm install
 npm start          # Launch the Electron app
-npm test           # Run all tests (253 suites)
+npm test           # Run all tests (270 suites, 4567 tests)
 ```
 
 ### Useful Commands
@@ -37,7 +37,7 @@ npm test           # Run all tests (253 suites)
 | Command | Description |
 |---------|-------------|
 | `npm start` | Launch Electron app |
-| `npm test` | Run full test suite (legacy + per-module, 253 suites) |
+| `npm test` | Run full test suite (legacy + per-module, 270 suites) |
 | `npm run test:new` | Run only per-module tests |
 | `npm run test:legacy` | Run only legacy suite |
 | `npm run test:coverage` | Run tests with c8 coverage report |
@@ -268,7 +268,7 @@ run();  // ← MUST be called at end of file
 ### Running Tests
 
 ```bash
-npm test                              # All tests (253 suites)
+npm test                              # All tests (270 suites, 4567 tests)
 node test/modules/myservice.test.js   # Single module
 npm run test:new                      # Only per-module tests
 npm run test:coverage                 # With c8 coverage report
@@ -277,7 +277,7 @@ npm run test:coverage                 # With c8 coverage report
 ### Test Expectations
 
 - Every new service must have a test file
-- Minimum: constructor tests, containerConfig validation, core logic tests
+- Minimum: constructor tests, manifest registration check, core logic tests
 - Use mocks for external dependencies (see existing tests for patterns)
 - Tests must pass on Node 18, 20, and 22
 - Tests must not require Ollama, internet, or any external service

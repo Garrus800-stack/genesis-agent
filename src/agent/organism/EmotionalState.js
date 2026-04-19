@@ -234,6 +234,33 @@ class EmotionalState {
   }
 
   /**
+   * v7.3.2: Adapter for SignificanceDetector.
+   * Transforms 5-dimensional snapshots into per-dimension records with baselines.
+   * Only emits records where value meaningfully differs from baseline
+   * (>= 0.05 deviation), to reduce noise in signal detection.
+   *
+   * @param {number} windowMs - How far back to look (default 30 min)
+   * @returns {Array<{ dim: string, value: number, baseline: number, ts: number }>}
+   */
+  getHistoryForSignificance(windowMs = 30 * 60 * 1000) {
+    const cutoff = Date.now() - windowMs;
+    const relevantSnapshots = this._moodHistory.filter(s => s.ts >= cutoff);
+
+    const records = [];
+    for (const snap of relevantSnapshots) {
+      for (const [dim, config] of Object.entries(this.dimensions)) {
+        const value = snap[dim];
+        if (value === undefined) continue;
+        const baseline = config.baseline;
+        // Skip records too close to baseline — they aren't signal
+        if (Math.abs(value - baseline) < 0.05) continue;
+        records.push({ dim, value, baseline, ts: snap.ts });
+      }
+    }
+    return records;
+  }
+
+  /**
    * Build a context block for PromptBuilder.
    * Translates emotional state into natural language hints
    * that subtly influence Genesis's response tone.

@@ -157,9 +157,29 @@ describe('E2E Electron — Package Config', () => {
     assert(electronVer.includes('39'), `Expected ^39, got ${electronVer}`);
   });
 
-  test('start script uses electron', () => {
+  test('start script launches electron (directly or via wrapper)', () => {
     const pkg = require(path.join(ROOT, 'package.json'));
-    assert(pkg.scripts.start.includes('electron'), 'Start script should use electron');
+    const fs = require('fs');
+    const startCmd = pkg.scripts.start;
+
+    // v7.2.9+: start may wrap electron via scripts/start.js (for chcp/UTF-8
+    // setup on Windows). Follow the wrapper one level down to verify it
+    // actually invokes electron.
+    let launchesElectron = startCmd.includes('electron');
+
+    if (!launchesElectron) {
+      // Match either direct invocation or a node wrapper script
+      const wrapperMatch = startCmd.match(/node\s+(\S+\.js)/);
+      if (wrapperMatch) {
+        const wrapperPath = path.join(ROOT, wrapperMatch[1]);
+        if (fs.existsSync(wrapperPath)) {
+          const wrapperSrc = fs.readFileSync(wrapperPath, 'utf8');
+          launchesElectron = /\belectron\b/i.test(wrapperSrc);
+        }
+      }
+    }
+
+    assert(launchesElectron, `Start script (or its wrapper) must launch electron. Got: ${startCmd}`);
   });
 });
 

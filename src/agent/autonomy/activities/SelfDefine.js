@@ -124,8 +124,20 @@ module.exports = {
         return `self-define: rejected (${validation.violations.join(', ')})`;
       }
 
+      // v7.3.2: Preserve CoreMemories field. SelfDefine rebuilds the identity
+      // text but must not wipe accumulated Core Memories that CoreMemories.js
+      // owns. Additionally, re-read at write-time to minimize race window
+      // with concurrent CoreMemories.evaluate() or markAsSignificant().
+      const fresh = idleMind.storage?.readJSON('self-identity.json', null);
+      if (Array.isArray(fresh?.coreMemories)) {
+        identity.coreMemories = fresh.coreMemories;
+      } else if (Array.isArray(existing?.coreMemories)) {
+        // Fallback to stale read if fresh is unavailable
+        identity.coreMemories = existing.coreMemories;
+      }
+
       idleMind.storage?.writeJSON('self-identity.json', identity);
-      _log.info(`[IDLE-MIND] self-define: identity updated (revision ${revision})`);
+      _log.info(`[IDLE-MIND] self-define: identity updated (revision ${revision}, ${identity.coreMemories?.length || 0} core memories preserved)`);
       idleMind.bus.emit('idle:self-defined', { revision }, { source: 'IdleMind' });
 
       return `Self-identity updated (revision ${revision}): ${text.slice(0, 100)}...`;

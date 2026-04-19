@@ -1,6 +1,6 @@
 # Genesis MCP Server — Setup Guide
 
-> v7.3.0 — Last verified with MCP 2025-03-26 protocol.
+> v7.3.2 — Last verified with MCP 2025-03-26 protocol.
 
 Genesis exposes its capabilities as an MCP server. External tools (VSCode, Cursor, Claude Desktop, other agents) can invoke Genesis tools and read Genesis resources via the standard MCP protocol.
 

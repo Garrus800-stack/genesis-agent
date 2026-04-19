@@ -138,7 +138,7 @@
   <text class="title" x="400" y="112" text-anchor="middle">GENESIS</text>
   <text class="sub" x="400" y="133" text-anchor="middle">SELF-MODIFYING COGNITIVE AI AGENT</text>
   <text class="codename" x="400" y="148" text-anchor="middle">SELF-DEFINE</text>
-  <text class="ver" x="400" y="163" text-anchor="middle">v7.3.1  &#x2022;  265 modules  &#x2022;  155 services  &#x2022;  4600 tests  &#x2022;  12 boot phases</text>
+  <text class="ver" x="400" y="163" text-anchor="middle">v7.3.2  &#x2022;  266 modules  &#x2022;  155 services  &#x2022;  4566 tests  &#x2022;  12 boot phases</text>
   <line x1="200" y1="172" x2="600" y2="172" stroke="#6c8cff" stroke-width=".3" opacity=".3"/>
   <text class="sub" x="400" y="186" text-anchor="middle">PERCEIVE &#x2022; PLAN &#x2022; ACT &#x2022; VERIFY &#x2022; LEARN &#x2022; DREAM &#x2022; EVOLVE &#x2022; REMEMBER</text>
 </svg>

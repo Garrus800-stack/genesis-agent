@@ -270,11 +270,15 @@ function phase9(ctx, R) {
     // Append-only, protected from DreamCycle decay, user-actionable via
     // dashboard veto. 6-signal detector at threshold 4/6. Candidates
     // (below threshold) logged separately for calibration.
+    // v7.3.2: Wired to chat:completed + user:message for live triggering.
     ['coreMemories', {
       phase: 9, deps: ['bus', 'storage'], tags: ['cognitive', 'identity', 'v7.3.1'],
       lateBindings: [
         { prop: 'model', service: 'llm', optional: true },
         { prop: 'selfModel', service: 'selfModel', optional: true },
+        { prop: 'emotionalState', service: 'emotionalState', optional: true, expectedActive: true, expects: ['getHistoryForSignificance'] },
+        { prop: 'conversationMemory', service: 'memory', optional: true },
+        { prop: 'knowledgeGraph', service: 'knowledgeGraph', optional: true },
       ],
       factory: (c) => new (R('CoreMemories').CoreMemories)({
         bus,

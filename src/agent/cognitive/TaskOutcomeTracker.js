@@ -106,11 +106,12 @@ class TaskOutcomeTracker {
   }
 
   boot() {
+    // v7.3.2: source tags added — previously appeared as 'unknown' in EventBus health check
     this._unsubs.push(
-      this.bus.on('agent-loop:complete', (data) => this._onAgentLoopComplete(data)),
-      this.bus.on('chat:completed', (data) => this._onChatCompleted(data)),
-      this.bus.on('selfmod:success', (data) => this._onSelfModSuccess(data)),
-      this.bus.on('shell:outcome', (data) => this._onShellComplete(data)),
+      this.bus.on('agent-loop:complete', (data) => this._onAgentLoopComplete(data), { source: 'TaskOutcomeTracker' }),
+      this.bus.on('chat:completed', (data) => this._onChatCompleted(data), { source: 'TaskOutcomeTracker' }),
+      this.bus.on('selfmod:success', (data) => this._onSelfModSuccess(data), { source: 'TaskOutcomeTracker' }),
+      this.bus.on('shell:outcome', (data) => this._onShellComplete(data), { source: 'TaskOutcomeTracker' }),
     );
   }
 

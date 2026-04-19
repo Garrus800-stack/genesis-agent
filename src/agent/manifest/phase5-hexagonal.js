@@ -99,6 +99,8 @@ function phase5(ctx, R) {
         { prop: 'daemon', service: 'daemon', optional: true },
         { prop: 'idleMind', service: 'idleMind', optional: true },
         { prop: 'skillManager', service: 'skills', optional: true },
+        // v7.3.2: P5→P9 for memory-mark / memory-list / memory-veto commands
+        { prop: 'coreMemories', service: 'coreMemories', optional: true },
       ],
       factory: (c) => {
         const { lang } = R('Language');
