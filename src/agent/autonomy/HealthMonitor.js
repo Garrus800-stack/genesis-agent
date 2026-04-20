@@ -21,6 +21,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('HealthMonitor');
 
 class HealthMonitor {
@@ -82,16 +83,10 @@ class HealthMonitor {
   }
 
 
-  /** @private Subscribe to bus event with auto-cleanup in stop() */
-  _sub(event, handler, opts) {
-    const unsub = this.bus.on(event, handler, opts);
-    this._unsubs.push(typeof unsub === 'function' ? unsub : () => {});
-    return unsub;
-  }
+  /** @private Subscribe to bus event with auto-cleanup in stop() — see subscription-helper.js */
 
   stop() {
-    for (const unsub of this._unsubs) { try { unsub(); } catch (_) { /* best effort */ } }
-    this._unsubs = [];
+    this._unsubAll();
     if (this._intervals) {
       this._intervals.clear('healthmonitor-tick');
     } else if (this._interval) {
@@ -435,5 +430,7 @@ class HealthMonitor {
     }, { source: 'HealthMonitor' });
   }
 }
+
+applySubscriptionHelper(HealthMonitor);
 
 module.exports = { HealthMonitor };

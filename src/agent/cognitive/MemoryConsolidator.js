@@ -33,6 +33,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('MemoryConsolidator');
 
 const DEFAULT_CONFIG = {
@@ -433,11 +434,9 @@ class MemoryConsolidator {
   // INTERNALS
   // ════════════════════════════════════════════════════════
 
-  /** @private Subscribe to bus with auto-cleanup */
-  _sub(event, handler) {
-    const unsub = this.bus.on(event, handler, { source: 'MemoryConsolidator' });
-    this._unsubs.push(typeof unsub === 'function' ? unsub : () => {});
-  }
+  /** @private Subscribe to bus with auto-cleanup — see subscription-helper.js */
 }
+
+applySubscriptionHelper(MemoryConsolidator, { defaultSource: 'MemoryConsolidator' });
 
 module.exports = { MemoryConsolidator };

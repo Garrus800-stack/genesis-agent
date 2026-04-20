@@ -227,7 +227,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.3.2: zero cross-layer violations, typecheck config ok (118 known legacy TS notes), 11 PreservationInvariants rules, 4566+ tests passing, 155 services. Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.3.4: zero cross-layer violations, typecheck config ok (118 known legacy TS notes), 11 PreservationInvariants rules, 4682+ tests passing, 155 services, 0 schema mismatches, 0 static drift (385 catalog = 385 schemas). Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

@@ -34,6 +34,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('TaskRecorder');
 
 const MAX_RECORDINGS = 50;
@@ -131,10 +132,7 @@ class TaskRecorder {
       this._stopRecording(goalId, 'shutdown', {});
     }
 
-    for (const unsub of this._unsubs) {
-      try { unsub(); } catch (_) { /* best effort */ }
-    }
-    this._unsubs = [];
+    this._unsubAll();
     _log.info(`[RECORDER] Stopped — ${this._stats.totalRecordings} recordings, ${this._stats.totalSteps} steps`);
   }
 
@@ -631,11 +629,9 @@ class TaskRecorder {
     }
   }
 
-  /** @private Subscribe to bus with auto-cleanup */
-  _sub(event, handler) {
-    const unsub = this.bus.on(event, handler, { source: 'TaskRecorder' });
-    this._unsubs.push(typeof unsub === 'function' ? unsub : () => {});
-  }
+  /** @private Subscribe to bus with auto-cleanup — see subscription-helper.js */
 }
+
+applySubscriptionHelper(TaskRecorder, { defaultSource: 'TaskRecorder' });
 
 module.exports = { TaskRecorder };

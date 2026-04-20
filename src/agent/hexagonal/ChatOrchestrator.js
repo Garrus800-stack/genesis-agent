@@ -12,6 +12,7 @@ const { NullBus } = require('../core/EventBus');
 const { LIMITS } = require('../core/Constants');
 const { safeJsonParse } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
+const { createToolCallStreamFilter } = require('../core/tool-call-stream-filter');
 const _log = createLogger('ChatOrchestrator');
 
 class ChatOrchestrator {
@@ -212,45 +213,13 @@ class ChatOrchestrator {
 
       let fullResponse = '';
       const _h = /** @type {any} */ (this); // ChatOrchestratorHelpers mixin cast
-      // v7.3.3: Filter <tool_call>...</tool_call> blocks out of the streamed output
-      // before it reaches the UI. The raw markup is still accumulated in
-      // fullResponse (needed by _processToolLoop) — we just don't show it to the user.
-      // State machine: track whether we're currently inside a tool_call block so
-      // chunks spanning token boundaries still filter correctly.
-      let inToolCall = false;
-      let streamBuffer = '';
+      // v7.3.4: Tool-call markup filter extracted to core/tool-call-stream-filter.js
+      // as a pure, unit-testable function. Keeps <tool_call>...</tool_call> blocks
+      // out of the streamed output while still letting fullResponse capture them
+      // for the tool-execution loop.
+      const toolCallFilter = createToolCallStreamFilter();
       const filteredOnChunk = (chunk) => {
-        streamBuffer += chunk;
-        let out = '';
-        while (streamBuffer.length > 0) {
-          if (!inToolCall) {
-            const openIdx = streamBuffer.indexOf('<tool_call>');
-            if (openIdx === -1) {
-              // No open tag — but we might be mid-tag (e.g. "<tool_" waiting for "call>")
-              // Keep last 11 chars (length of '<tool_call>') in buffer as lookahead.
-              if (streamBuffer.length > 11) {
-                out += streamBuffer.slice(0, -11);
-                streamBuffer = streamBuffer.slice(-11);
-              }
-              break;
-            }
-            out += streamBuffer.slice(0, openIdx);
-            streamBuffer = streamBuffer.slice(openIdx + 11); // skip '<tool_call>'
-            inToolCall = true;
-          } else {
-            const closeIdx = streamBuffer.indexOf('</tool_call>');
-            if (closeIdx === -1) {
-              // Still inside tool call, no close yet — drop everything buffered,
-              // but keep last 12 chars as lookahead for '</tool_call>'.
-              if (streamBuffer.length > 12) {
-                streamBuffer = streamBuffer.slice(-12);
-              }
-              break;
-            }
-            streamBuffer = streamBuffer.slice(closeIdx + 12); // skip '</tool_call>'
-            inToolCall = false;
-          }
-        }
+        const out = toolCallFilter.push(chunk);
         if (out) onChunk(out);
       };
       await _h._withRetry(() => this.cb.execute(
@@ -260,10 +229,9 @@ class ChatOrchestrator {
           filteredOnChunk(chunk);
         }, this.abortController.signal)
       ));
-      // Flush any remaining non-tool-call buffer at end of stream
-      if (!inToolCall && streamBuffer.length > 0) {
-        onChunk(streamBuffer);
-      }
+      // Flush any safe tail buffered at end of stream
+      const tail = toolCallFilter.flush();
+      if (tail) onChunk(tail);
 
       // Multi-round tool execution loop
       fullResponse = await _h._processToolLoop(fullResponse, onChunk);

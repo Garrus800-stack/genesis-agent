@@ -26,6 +26,7 @@
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
 const { ORGANISM } = require('../core/Constants');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('HomeostasisEffectors');
 
 class HomeostasisEffectors {
@@ -74,16 +75,10 @@ class HomeostasisEffectors {
   }
 
 
-  /** @private Subscribe to bus event with auto-cleanup in stop() */
-  _sub(event, handler, opts) {
-    const unsub = this.bus.on(event, handler, opts);
-    this._unsubs.push(typeof unsub === 'function' ? unsub : () => {});
-    return unsub;
-  }
+  /** @private Subscribe to bus event with auto-cleanup in stop() — see subscription-helper.js */
 
   stop() {
-    for (const unsub of this._unsubs) { try { unsub(); } catch (_) { /* best effort */ } }
-    this._unsubs = [];
+    this._unsubAll();
     if (this._contextPressureTimeout) {
       clearTimeout(this._contextPressureTimeout);
       this._contextPressureTimeout = null;
@@ -306,5 +301,7 @@ class HomeostasisEffectors {
     };
   }
 }
+
+applySubscriptionHelper(HomeostasisEffectors);
 
 module.exports = { HomeostasisEffectors };

@@ -1,14 +1,23 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — audit-schemas.js (v7.1.9)
+// GENESIS — audit-schemas.js (v7.3.4)
 //
-// Validates EventPayloadSchemas against actual bus.emit() calls.
-// Detects: stale schemas, missing schemas, payload-shape mismatches.
+// Cross-references EventTypes catalog ↔ EventPayloadSchemas.
+// Reports two classes of drift:
+//   - Missing schemas: events in catalog without a schema entry
+//   - Orphan schemas: schema entries without a matching catalog event
+//
+// Payload-shape validation is handled by scripts/scan-schemas.js,
+// which runs the real Node module loader and the same validation
+// path the runtime uses. This script used to attempt a regex-based
+// payload check, but the regex could not handle multi-line emits,
+// nested braces, or template-literal payloads — it produced false
+// positives that masked real issues.  Retired in v7.3.4.
 //
 // Usage:
 //   node scripts/audit-schemas.js           — human-readable output
 //   node scripts/audit-schemas.js --json    — JSON output
-//   node scripts/audit-schemas.js --strict  — exit 1 on mismatches
+//   node scripts/audit-schemas.js --strict  — exit 1 on drift
 // ============================================================
 
 const fs = require('fs');
@@ -26,14 +35,21 @@ const schemaBlock = epsCode.match(/const SCHEMAS = \{([\s\S]+?)\n\};/);
 if (!schemaBlock) { console.error('Could not parse SCHEMAS block'); process.exit(1); }
 
 const schemas = {};
-const schemaLines = schemaBlock[1].split('\n');
-for (const line of schemaLines) {
-  const m = line.match(/'([^']+)'\s*:\s*\{([^}]+)\}/);
-  if (!m) continue;
+// Match each `'event:name': { ... }` entry across one OR multiple lines.
+// The previous per-line parser missed entries whose body spanned lines like:
+//   'expectation:compared': {
+//     totalSurprise: 'required',
+//     ...
+//   }
+// causing audit-schemas to falsely report them as missing.  v7.3.4 fix.
+const entryRegex = /['"]([^'"\n]+)['"]\s*:\s*\{([^{}]*)\}/g;
+for (const m of schemaBlock[1].matchAll(entryRegex)) {
   const event = m[1];
+  // Skip non-event-looking keys (need a ':' in the name to be a Genesis event)
+  if (!event.includes(':')) continue;
   const fields = {};
-  const pairs = m[2].matchAll(/(\w+)\s*:\s*'(required|optional)'/g);
-  for (const p of pairs) fields[p[1]] = p[2];
+  const fieldMatches = m[2].matchAll(/(\w+)\s*:\s*['"](\w+)['"]/g);
+  for (const fm of fieldMatches) fields[fm[1]] = fm[2];
   schemas[event] = fields;
 }
 
@@ -42,57 +58,16 @@ for (const line of schemaLines) {
 const etPath = path.resolve(__dirname, '../src/agent/core/EventTypes.js');
 const etCode = fs.readFileSync(etPath, 'utf8');
 const catalogEvents = new Set();
-const etMatches = etCode.matchAll(/:\s+'([a-z][^']+)'/g);
-for (const m of etMatches) catalogEvents.add(m[1]);
+const catalogMatches = etCode.matchAll(/['"]([\w-]+:[\w-:]+)['"]/g);
+for (const cm of catalogMatches) catalogEvents.add(cm[1]);
 
-// ── 3. Scan all bus.emit()/bus.fire() calls ─────────────
-
-const srcDir = path.resolve(__dirname, '../src/agent');
-const srcFiles = [];
-function walk(dir) {
-  for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (f.name === 'node_modules' || f.name === 'vendor' || f.name === 'dist') continue;
-    const full = path.join(dir, f.name);
-    if (f.isDirectory()) walk(full);
-    else if (f.name.endsWith('.js')) srcFiles.push(full);
-  }
-}
-walk(srcDir);
-
-const mismatches = [];
-for (const file of srcFiles) {
-  const src = fs.readFileSync(file, 'utf8');
-  const lines = src.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const m = line.match(/\.(?:emit|fire)\(\s*'([^']+)'\s*,\s*\{([^}]*)\}/);
-    if (!m) continue;
-    const event = m[1];
-    const payloadStr = m[2];
-    if (!schemas[event]) continue;
-
-    const emittedFields = new Set();
-    const fieldMatches = payloadStr.matchAll(/(\w+)\s*[,:]/g);
-    for (const fm of fieldMatches) emittedFields.add(fm[1]);
-
-    const schema = schemas[event];
-    for (const [field, req] of Object.entries(schema)) {
-      if (req === 'required' && !emittedFields.has(field)) {
-        mismatches.push({
-          event, field, file: path.relative(path.resolve(__dirname, '..'), file), line: i + 1,
-        });
-      }
-    }
-  }
-}
-
-// ── 4. Cross-reference: catalog vs schemas ──────────────
+// ── 3. Cross-reference ──────────────────────────────────
 
 const schemaEvents = new Set(Object.keys(schemas));
 const missingSchemas = [...catalogEvents].filter(e => !schemaEvents.has(e)).sort();
 const orphanSchemas = [...schemaEvents].filter(e => !catalogEvents.has(e)).sort();
 
-// ── 5. Report ───────────────────────────────────────────
+// ── 4. Report ───────────────────────────────────────────
 
 const report = {
   summary: {
@@ -100,11 +75,9 @@ const report = {
     schemaEvents: schemaEvents.size,
     missingSchemas: missingSchemas.length,
     orphanSchemas: orphanSchemas.length,
-    payloadMismatches: mismatches.length,
   },
   missingSchemas,
   orphanSchemas,
-  payloadMismatches: mismatches,
 };
 
 if (jsonOutput) {
@@ -114,17 +87,17 @@ if (jsonOutput) {
   console.log('║       GENESIS EVENT SCHEMA AUDIT         ║');
   console.log('╚══════════════════════════════════════════╝\n');
 
-  console.log(`  Catalog events:     ${report.summary.catalogEvents}`);
-  console.log(`  Schema entries:     ${report.summary.schemaEvents}`);
-  console.log(`  Missing schemas:    ${report.summary.missingSchemas}`);
-  console.log(`  Orphan schemas:     ${report.summary.orphanSchemas}`);
-  console.log(`  Payload mismatches: ${report.summary.payloadMismatches}`);
+  console.log(`  Catalog events:  ${report.summary.catalogEvents}`);
+  console.log(`  Schema entries:  ${report.summary.schemaEvents}`);
+  console.log(`  Missing schemas: ${report.summary.missingSchemas}`);
+  console.log(`  Orphan schemas:  ${report.summary.orphanSchemas}`);
+  console.log('');
+  console.log('  Payload validation: run scripts/scan-schemas.js');
   console.log('');
 
   if (missingSchemas.length > 0) {
     console.log('⚠  CATALOG EVENTS WITHOUT SCHEMA:');
-    for (const e of missingSchemas.slice(0, 20)) console.log(`   "${e}"`);
-    if (missingSchemas.length > 20) console.log(`   ... and ${missingSchemas.length - 20} more`);
+    for (const e of missingSchemas) console.log(`   "${e}"`);
     console.log('');
   }
 
@@ -134,29 +107,15 @@ if (jsonOutput) {
     console.log('');
   }
 
-  if (mismatches.length > 0) {
-    console.log('🔴 PAYLOAD MISMATCHES (emit missing required schema fields):');
-    const byEvent = {};
-    for (const m of mismatches) {
-      if (!byEvent[m.event]) byEvent[m.event] = [];
-      byEvent[m.event].push(m);
-    }
-    for (const [event, ms] of Object.entries(byEvent).sort()) {
-      console.log(`   "${event}":`);
-      for (const m of ms) console.log(`     missing "${m.field}" at ${m.file}:${m.line}`);
-    }
-    console.log('');
-  }
-
-  const issues = missingSchemas.length + orphanSchemas.length + mismatches.length;
+  const issues = missingSchemas.length + orphanSchemas.length;
   if (issues === 0) {
-    console.log('✅ All schemas match catalog and payloads.');
+    console.log('✅ Catalog and schemas are in sync.');
   } else {
-    console.log(`⚠  ${issues} issue(s) found.`);
+    console.log(`⚠  ${issues} drift issue(s) found.`);
   }
   console.log('');
 }
 
 // Exit code
-const hasIssues = mismatches.length > 0 || orphanSchemas.length > 0;
+const hasIssues = missingSchemas.length > 0 || orphanSchemas.length > 0;
 process.exit(strict && hasIssues ? 1 : 0);

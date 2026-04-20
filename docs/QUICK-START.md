@@ -221,6 +221,8 @@ These work anywhere you talk to Genesis — the main chat window, REPL, or any f
 | `/memories` or `/mem` | List your core memories with IDs, signal score, and status. |
 | `/veto <memory-id>` | Remove a core memory by its ID (e.g. `/veto cm_2026-04-19T18-40-11_u5`). |
 
+The signal score displayed next to each memory (e.g. `[1/6]` or `[4/6]`) is the count of significance criteria the Significance Detector matched on that memory — higher means more signals agreed it was meaningful. It is **not** a storage limit. Genesis can hold arbitrarily many core memories; the `/6` refers to the six heuristics the detector evaluates, not a cap on how many memories you can have.
+
 The slash is required — free-text phrases like "remember this" or "zeig mir deine Erinnerungen" intentionally do NOT trigger memory actions. This was a deliberate v7.3.3 change so normal conversation doesn't collide with memory commands.
 
 **Trust & Autonomy** — how much Genesis can do without asking you first.

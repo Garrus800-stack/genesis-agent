@@ -26,6 +26,7 @@ const http = require('http');
 const https = require('https');
 const { createLogger } = require('../core/Logger');
 const { swallow } = require('../core/utils');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('NetworkSentinel');
 
 // ── Configuration Defaults ────────────────────────────────
@@ -135,10 +136,7 @@ class NetworkSentinel {
       clearInterval(this._probeTimer);
       this._probeTimer = null;
     }
-    for (const unsub of this._unsubs) {
-      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
-    }
-    this._unsubs = [];
+    this._unsubAll();
     _log.info('[NET] Sentinel stopped');
   }
 
@@ -450,14 +448,9 @@ class NetworkSentinel {
   // INTERNAL
   // ════════════════════════════════════════════════════════
 
-  /** @private Subscribe with auto-cleanup */
-  _sub(event, handler, opts) {
-    const unsub = this.bus.on?.(event, handler, { source: 'NetworkSentinel', ...opts });
-    if (typeof unsub === 'function') this._unsubs.push(unsub);
-    else if (this.bus.removeListener) {
-      this._unsubs.push(() => this.bus.removeListener(event, handler));
-    }
-  }
+  /** @private Subscribe with auto-cleanup — see subscription-helper.js */
 }
+
+applySubscriptionHelper(NetworkSentinel, { defaultSource: 'NetworkSentinel' });
 
 module.exports = { NetworkSentinel };

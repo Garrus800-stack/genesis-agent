@@ -19,6 +19,7 @@ const { NullBus } = require('../core/EventBus');
 const { INTERVALS } = require('../core/Constants');
 const { safeJsonParse, atomicWriteFileSync } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('IdleMind');
 
 // v7.3.1: Activity-Registry. Replaces the 14 prototype-delegated
@@ -151,16 +152,10 @@ class IdleMind {
     _log.info('[IDLE-MIND] Active — autonomous thinking enabled');
   }
 
-  /** @private Subscribe to bus event with auto-cleanup in stop() */
-  _sub(event, handler, opts) {
-    const unsub = this.bus.on(event, handler, opts);
-    this._unsubs.push(typeof unsub === 'function' ? unsub : () => {});
-    return unsub;
-  }
+  /** @private Subscribe to bus event with auto-cleanup in stop() — see subscription-helper.js */
 
   stop() {
-    for (const unsub of this._unsubs) { try { unsub(); } catch (_) { /* best effort */ } }
-    this._unsubs = [];
+    this._unsubAll();
     this.running = false;
     if (this._intervals) {
       this._intervals.clear('idlemind-think');
@@ -520,5 +515,7 @@ class IdleMind {
 // migrated to test/modules/activities-modules.test.js which tests
 // the new modules directly. IdleMindResearch.test.js was updated to
 // import from activities/Research.js.
+
+applySubscriptionHelper(IdleMind);
 
 module.exports = { IdleMind };

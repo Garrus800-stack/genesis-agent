@@ -116,8 +116,6 @@ const EXCLUDED_EVENTS = new Set([
   // ConsciousnessExtension internal EventEmitter (not Genesis EventBus)
   'started', 'stopped', 'state-change', 'frame-processed', 'keyframe',
   'hypervigilant-entered', 'dream-complete', 'awakened', 'daydream-reflection',
-  // UI component DOM-style events (GenesisChat custom element)
-  'chat-send', 'chat-stop', 'chat-copy', 'chat-open-editor',
   // IPC bridge events (emitted by Electron renderer, not Genesis EventBus)
   'chat:message', 'agent:stream-chunk', 'agent:stream-done',
   // v7.1.7 H-3: Removed 'prompt-evolution:promoted' — it IS a Bus event since v7.1.6

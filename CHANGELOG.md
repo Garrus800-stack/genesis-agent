@@ -1,3 +1,101 @@
+## [7.3.4] — Cleanup Pass
+
+No new features. Eight commits of targeted debt removal after v7.3.3 shipped. Each one small enough that if something broke later, bisection would point at exactly the change. The release has three shapes: dead code actually deleted, static drift between catalog and schemas closed, and a duplicated pattern consolidated into a reusable helper.
+
+What was carrying weight that it didn't need to: a historical patch-description file masquerading as live code; a pair of re-export barrels where one had zero consumers; four UI Web Components defined as custom elements but never mounted in any HTML; a payload-check in `audit-schemas.js` whose regex couldn't handle multi-line emits and produced noise that masked real issues; the same seven-LOC `_sub()` / `stop()` boilerplate copy-pasted across twelve services that subscribe to the event bus.
+
+What was in drift: two goal-lifecycle events (`goal:stalled`, `goal:obsolete`) shipped and emitting correctly in v7.3.3 but missing from the EventTypes catalog and the payload schema registry; five store-append events in the same situation plus two bus events (`expectation:compared`, `htn:plan-validated`) whose payloads were simply never declared.
+
+What was a quiet test-smell: the `chatorchestrator-stream-filter.test.js` file added in v7.3.3 replicated the state machine inline and tested its own copy — if the production filter drifted, the tests would stay green. The filter is now a pure function in its own module; the test calls real code.
+
+### Dead code deleted
+
+- **`src/agent/foundation/backends/index.js`** — barrel re-exporting OllamaBackend, AnthropicBackend, OpenAIBackend, MockBackend. No consumers. All four backends are loaded directly by their users. Deleted. The parallel `src/agent/ports/index.js` barrel is kept — it has active consumers (`cognitive-modules.test.js` imports mocks through it, `CodeSafetyPort.test.js:175-176` explicitly asserts its existence) and is the legitimate public API of the hexagonal port layer.
+
+- **`src/agent/revolution/AgentLoopDelegate.js` + test** — a v3.5.0 patch-description artifact. The file documented how to integrate a DELEGATE step into `AgentLoop.js`: change 1 was a constructor slot, change 2 was a switch case, change 3 was an `_inferStepType` branch, change 4 was a new method. Over time, the real implementation migrated to `AgentLoopSteps.js` where it lives as `_stepDelegate` + `_extractSkills` methods. The standalone functions in `AgentLoopDelegate.js` were no longer imported by any production code — only by their own test. Both deleted.
+
+- **Four UI Web Components — 772 LOC total.** `GenesisChat.js` (373), `GenesisElement.js` (241), `GenesisStatus.js` (71), `GenesisToast.js` (87). Each one called `customElements.define(...)` but nobody ever included `<genesis-chat>`, `<genesis-status>`, `<genesis-toast>`, or `<genesis-element>` in any HTML. Since v4.10.0 the active UI has used direct DOM manipulation on `#chat-input`, `#chat-messages`, etc. through `renderer.js` / `renderer-main.js`. The components were forgotten code from an alternative architecture that never shipped. Side benefit: these files were the source of `genesis-chat`, `genesis-status`, `genesis-toast`, `genesis-element` appearing as parser artifacts in the capability list before v7.3.3's filter caught them — removing the source kills the noise at its origin. Also cleaned: four orphan event names (`chat-send`, `chat-stop`, `chat-copy`, `chat-open-editor`) from `scripts/audit-events.js` allowlist that were only emitted by the deleted components.
+
+### Goal lifecycle events registered
+
+- **`goal:stalled`** and **`goal:obsolete`** were introduced in v7.3.3 (emitted from `GoalStack.markStalled()`, `markObsolete()`, and `reviewGoals()` with payload `{ id, description, reason }`), but they were missing from two static registries. Now both are first-class citizens:
+  - Added to `EventTypes.js` `EVENTS.GOAL` catalog with JSDoc `@payload` annotations, alongside existing `CREATED`, `COMPLETED`, `FAILED`, `ABANDONED`, etc.
+  - Added to `EventPayloadSchemas.js` with `{ id: required, description: required, reason: required }` so runtime validation enforces the contract.
+- No runtime behavior change. The paper-trail gap is now closed so `audit-events` and `scan-schemas` see them as declared events.
+
+### Dormant emits documented, not deleted
+
+Plan was: remove three "dead" emits (`error:trend`, `reasoning:started`, `symbolic:resolved`). Analysis changed the plan. Each one turned out to be a **consciously-designed instrumentation point** with a well-formed payload and a registered schema — missing only a listener, not missing a purpose:
+
+- `error:trend` (ErrorAggregator): emits on error spikes and rising-failure-rate trends. Intended consumer: ImmuneSystem or CircuitBreaker hardening once a self-healing loop exists.
+- `reasoning:started` (ReasoningEngine): pair event to `reasoning:completed` which `AutonomousDaemon:280` already consumes. Half of a start/end telemetry pair, deliberate design.
+- `symbolic:resolved` (SymbolicResolver): tracks resolution level (INFERRED/DIRECT/GUIDED) and confidence. Useful for learning metrics.
+
+None of these is dead in the sense that the Web Components were. Removing them would force a schema-migrating re-introduction when the consumers are built. Instead: a new "Dormant Emits" section in `docs/EVENT-FLOW.md` lists all three with source, planned consumer, and purpose. The section states explicitly that emitting without a listener is an API contract, not a bug. Truly-dead emits remain eligible for deletion — just not these three.
+
+### Audit-schemas reduced to catalog-drift check
+
+The payload-shape check in `audit-schemas.js` has been false-positive noisy since v7.1.9. The regex at its heart —
+
+```
+/\.(?:emit|fire)\(\s*'([^']+)'\s*,\s*\{([^}]*)\}/
+```
+
+— cannot handle multi-line emits, nested braces in payloads, template literals, or conditional field expressions. It reported 17 payload "mismatches" while `scan-schemas.js`, which loads the real modules and runs the real validation path, reported zero. Two validators pointing at the same thing and disagreeing is worse than one validator.
+
+- Retired the payload-check section. `audit-schemas.js` now only does what it can do correctly: cross-reference `EventTypes` catalog against `EventPayloadSchemas` dictionary, reporting **missing** (catalog entry without schema) and **orphan** (schema without catalog entry) drift. That is a pure set-difference task a regex parser handles fine.
+- Script shrunk from 162 to 114 LOC. Header comment explicitly delegates payload validation to `scan-schemas.js`.
+- The reduction revealed real drift that the old parser had obscured: 7 missing schemas, not 32. Closed in the same release.
+
+### Seven missing schemas closed
+
+- **`expectation:compared`** (ExpectationEngine): rich surprise-signal payload; `SurpriseAccumulator._processSurprise` defensively checks only `signal.totalSurprise` as a number, so the schema declares `{ totalSurprise: required, valence: optional, actionType: optional }`.
+- **`htn:plan-validated`** (HTNPlanner): validation summary `{ valid, totalSteps, totalIssues, totalWarnings, crossIssues }`. Schema requires `valid` + `totalSteps`, treats counts as optional (they default to 0 in the emit).
+- **Five store-append events** — `store:AGENT_LOOP_STARTED`, `store:CODE_VERIFICATION_BLOCK`, `store:COGNITIVE_SERVICE_DEGRADED`, `store:COGNITIVE_SERVICE_DISABLED`, `store:PRESERVATION_BLOCK`. All five follow the uniform `store:*` shape used by the other 22 store events already in the registry: `{ id: required, type: required, payload: required }`. These are `EventStore.append()` entries, not `bus.emit()` events, and their payload is opaque to the event system (stored as-is). The schema enforces the envelope, not the domain payload.
+
+Result: 385 catalog events, 385 schema entries, 0 missing, 0 orphan. `scan-schemas` runtime validation still reports 0 mismatches.
+
+### Subscription helper extracted
+
+Twelve services — `HealthMonitor`, `IdleMind`, `NetworkSentinel`, `MemoryConsolidator`, `SelfNarrative`, `TaskRecorder`, `LearningService`, `BodySchema`, `FitnessEvaluator`, `HomeostasisEffectors`, `ImmuneSystem`, `NeedsSystem` — were each carrying the same ~7 LOC of bus-subscription bookkeeping: a private `_sub(event, handler, opts)` method wrapping `bus.on()`, and a `for`-loop in `stop()` that drained `this._unsubs` calling each unsub. Pure boilerplate, and it had drifted: two variants pinned a hardcoded `source` string, one had a defensive fallback to `this.bus.removeListener` that never fired because Genesis' EventBus always returns a function.
+
+- **New module** `src/agent/core/subscription-helper.js` (98 LOC + 156 LOC of unit tests covering registration, teardown, idempotency, error swallowing, mixin non-override, and the default-source option). Exports `applySubscriptionHelper(Class, { defaultSource? })`.
+- **`defaultSource` option** was added to cover `MemoryConsolidator` and `TaskRecorder` — they pinned their own class name as `source` on every subscription. Passing `defaultSource: 'MemoryConsolidator'` preserves the behavior without making every `_sub()` call longer. An explicit `opts.source` still wins over the default; a test locks the precedence.
+- **`NetworkSentinel`**'s custom `_sub` used `this.bus.on?.()` with a fallback to `this.bus.removeListener`. Verified against the real EventBus and NullBus — both always return an unsub function, so the fallback was dead code. Removed as part of the migration.
+- Every migrated class now ends with `applySubscriptionHelper(ClassName[, { defaultSource: 'ClassName' }])` followed by the module.exports line.
+- **Net production LOC:** −84 (twelve copies of the helper removed, replaced by one import + one mixin call per file, plus the shared helper itself).
+- **Not touched:** 18 other services in `src/agent/` that track unsubs manually without using a `_sub()` method. Those are a separate pattern; the migration target was specifically the `_sub()`-style duplication. A second adoption round is a v7.3.5+ candidate.
+
+### Stream-filter test smell fixed
+
+`chatorchestrator-stream-filter.test.js` (added in v7.3.3) replicated the `<tool_call>...</tool_call>` filtering state machine inline and then tested its own copy. If the production filter drifted, tests stayed green and the bug shipped. Classic test-smell.
+
+- **Extracted** the filter logic out of `ChatOrchestrator.handleStream` into `src/agent/core/tool-call-stream-filter.js` as `createToolCallStreamFilter()` — a pure factory returning `{ push(chunk), flush(), inToolCall }`. Single source of truth. Stateless between calls; instances are per-stream.
+- **`ChatOrchestrator.handleStream` reduced** — the ~40 LOC inline state machine is now a two-line `const filter = createToolCallStreamFilter(); const tail = filter.flush();` around the stream callback. Behavior unchanged.
+- **Test rewritten** to call the real exported function. Ten assertions cover plain text, complete tool_call, token-by-token streaming, multiple blocks, tags split across chunk boundaries, false-positive prevention, truncated-mid-block silence, state accuracy, and empty-chunk safety.
+
+### O-6 branch coverage
+
+Coverage gap open since v7.2.0 — 75.9% vs. the 76% target. Closed with `o6-coverage-push.test.js`: three tests on `PromptBuilderSections._identity` (fallback path when no `self-identity.json`, fallback with user name, and populated path) and five tests on `_scoreResearchInsight` (null input, too-short input, filler-heavy low-scoring insight, on-topic specific high-scoring insight, empty-topic edge case).
+
+### Documentation
+
+- **Core Memory signal score explained.** `docs/QUICK-START.md` now states clearly that the `[N/6]` next to each memory is the count of significance criteria the detector matched (out of six heuristics), not a storage limit. Genesis can hold arbitrarily many core memories; the `/6` is never a cap.
+- **Dormant emits table** added to `docs/EVENT-FLOW.md` (see "Dormant Emits" section above).
+- All internal documentation links remain green — verified by automated checker, 0 broken.
+
+### Numbers
+
+- **4682 tests passing**, 0 failed
+- **0 schema mismatches** (runtime validation via `scan-schemas.js`)
+- **0 missing / 0 orphan** (static drift via reduced `audit-schemas.js`)
+- **127/130 fitness** (unchanged)
+- **0 broken internal links** in markdown
+- **385 catalog events = 385 schema entries** (full synchronization)
+- **Net LOC:** roughly −1000 across deleted dead code, net −84 after subtracting the subscription helper + tests and the stream-filter module + tests
+
+---
+
 ## [7.3.3] — Quiet Return
 
 The returning-boot greeting was a lie. When you opened Genesis for the second time, the chat UI showed a message labeled as Genesis saying "Hey, good to have you back. What's on your mind?" — or the German equivalent *"Schön, dass du wieder da bist"*. Genesis had not said this. The renderer was picking one of four hardcoded template strings and rendering it under Genesis's avatar. The user saw Genesis greeting them; what was actually happening was a template substitution. When the first real LLM response came a minute later it might be in a different language or tone, because the template was static and Genesis was not.

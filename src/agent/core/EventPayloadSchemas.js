@@ -350,6 +350,8 @@ const SCHEMAS = {
   'goal:unblocked':         { goalId: 'optional' },
   'goal:step-start':        { goalId: 'required', stepIndex: 'required' },
   'goal:create-file':       { goalId: 'required', path: 'required' },
+  'goal:stalled':           { id: 'required', description: 'required', reason: 'required' },
+  'goal:obsolete':          { id: 'required', description: 'required', reason: 'required' },
 
   // Memory
   'memory:fact-stored':     { key: 'required', source: 'optional' },
@@ -620,6 +622,11 @@ const SCHEMAS = {
   'store:SYSTEM_BOOT':          { id: 'required', type: 'required', payload: 'required' },
   'store:SYSTEM_SHUTDOWN':      { id: 'required', type: 'required', payload: 'required' },
   'store:TASK_DELEGATED':      { id: 'required', type: 'required', payload: 'required' },
+  'store:AGENT_LOOP_STARTED':   { id: 'required', type: 'required', payload: 'required' },
+  'store:CODE_VERIFICATION_BLOCK':     { id: 'required', type: 'required', payload: 'required' },
+  'store:COGNITIVE_SERVICE_DEGRADED':  { id: 'required', type: 'required', payload: 'required' },
+  'store:COGNITIVE_SERVICE_DISABLED':  { id: 'required', type: 'required', payload: 'required' },
+  'store:PRESERVATION_BLOCK':          { id: 'required', type: 'required', payload: 'required' },
 
   // v7.1.2: Causal Annotation
   'causal:recorded':            { stepId: 'required', changes: 'required', relation: 'required' },

@@ -319,6 +319,12 @@ const EVENTS = Object.freeze({
     /** v7.3.1: User-sourced goal looks similar to existing capability (non-blocking) */
     /** @payload {{ goalId: string, matchScore: number, matchedCapability: string }} */
     DUPLICATE_WARNING:    'goal:duplicate-warning',
+    /** v7.3.3: Goal marked as stuck — still relevant but unable to progress */
+    /** @payload {{ id: string, description: string, reason: string }} */
+    STALLED:     'goal:stalled',
+    /** v7.3.3: Goal no longer relevant — world changed, not worth pursuing */
+    /** @payload {{ id: string, description: string, reason: string }} */
+    OBSOLETE:    'goal:obsolete',
   }),
 
   // ── Health Monitor ─────────────────────────────────────

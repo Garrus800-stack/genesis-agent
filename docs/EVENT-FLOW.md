@@ -630,3 +630,21 @@ graph TD
 | **Honest Reflection (v7.1.7)** | | |
 | `lesson:confirmed` | LessonsStore | LessonFrontier (event buffer) |
 | `lesson:contradicted` | LessonsStore | LessonFrontier (event buffer) |
+
+## Dormant Emits (v7.3.4)
+
+These events are actively emitted by their source modules with well-formed
+payloads and registered schemas, but have no production listeners yet. They
+are instrumentation points that are consciously left open for future work —
+not dead code to be removed.
+
+| Event | Source | Planned Consumer | Purpose |
+| --- | --- | --- | --- |
+| `error:trend` | ErrorAggregator | Self-healing loop (v7.4+) | Error spike + rising-trend detection. Payload carries category, type (spike/rising), rate, threshold. Intended for ImmuneSystem or circuit-breaker hardening once a reactive loop exists. |
+| `reasoning:started` | ReasoningEngine | UI progress telemetry | Pair event to existing `reasoning:completed` (which AutonomousDaemon does consume). Could drive "Genesis is thinking about X…" indicators. |
+| `symbolic:resolved` | SymbolicResolver | Learning metrics (v7.4+) | Tracks resolution level (INFERRED/DIRECT/GUIDED) and confidence. Useful for measuring how often symbolic shortcuts succeed vs. fall through to LLM. |
+
+Emitting without a listener is not a bug — it is an API contract that
+future modules can attach to without schema migration. If an emit is truly
+dead (no future consumer plausible, no telemetry value), it should be
+removed via a dedicated cleanup commit rather than left in this table.
