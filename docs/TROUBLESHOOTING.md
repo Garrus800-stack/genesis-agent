@@ -268,6 +268,50 @@ The socket path defaults to `.genesis/daemon.sock` (Linux/macOS) or a Named Pipe
 
 ---
 
+## v7.3.5 Gates and Ratchet
+
+### "Ich erkenne in deiner Nachricht Muster die auf einen Manipulations-Versuch hindeuten"
+
+This is the v7.3.5 input-side injection gate firing. Two or more of these signals were detected in your message:
+
+- **Authority claim** — phrases like "I'm a new Anthropic engineer", "ich bin Admin", "on behalf of OpenAI"
+- **Credential request** — "system prompt", "system instructions", "show your configuration", "API key"
+- **Artificial urgency** — "routine", "dauert nur eine Minute", "urgent need"
+
+If you legitimately need Genesis to do something that ends up triggering two signals, rephrase the request without those exact patterns or explain the context first in normal conversation. The gate is by design — see `src/agent/core/injection-gate.js`.
+
+If you want to silence the gate temporarily, restart Genesis without the message in your buffer. There is no setting to disable the gate; this is intentional.
+
+### "(Hinweis: Genesis hat ... beschrieben, aber die passenden Tools sind in diesem Zug nicht gelaufen)"
+
+This is the v7.3.5 tool-call verification gate annotating Genesis' response. The model wrote that it had performed an action (saved a file, ran a shell command, executed tests) but no matching tool actually fired in this turn. Common causes:
+
+- The model is hallucinating completion. Re-ask "did you actually run that?" or check the tool-call trace.
+- The model meant a future intent ("I will save it") but worded it in past tense.
+- A tool call did fire but with an unexpected name not in the verification map. Add the name to `TOOL_CLAIM_MAP` in `src/agent/core/tool-call-verification.js`.
+
+The verification is detective, not preventative — the response still reaches you. If the annotation is wrong (false positive), it's safe to ignore for that turn.
+
+### "/reset" no longer triggers anything
+
+That's correct as of v7.3.5. The bare keyword `reset` was removed from the `self-repair-reset` keyword list because it caused users typing `/reset` (intending to clear the chat) to inadvertently trigger circuit-breaker status. Use `/self-repair-reset` or `/unfreeze` for explicit circuit-breaker management.
+
+### `npm run ratchet` exits non-zero
+
+The CI ratchet (v7.3.5) compares the current state against `scripts/ratchet.json` and exits non-zero if any floor was crossed. The output identifies the violation:
+
+- **`fitness ${current} < floor ${floor}`** — architectural-fitness regressed. Check `npm run audit:fitness` for the breakdown.
+- **`${n} mismatches > max 0`** — schema mismatches appeared. Run `npm run scan:schemas` to find them.
+- **`${n} missing > max 0`** — events emitted without a registered schema. Run `node scripts/audit-schemas.js`.
+- **`${n} orphan > max 0`** — schema entries with no catalog event. Same script.
+- **`${n} tests < floor ${floor}`** — test count dropped. Either tests were deleted or they're failing.
+
+If the regression is intentional (e.g. you deliberately removed an obsolete test suite), edit `scripts/ratchet.json` by hand to lower the floor. The script never updates itself — that's a deliberate human decision so the floor stays meaningful.
+
+For local pre-commit checks, use `npm run ratchet:fast` which skips the slow full-test-count check.
+
+---
+
 ## Getting Help
 
 1. Check the [docs/](.) directory for architecture details

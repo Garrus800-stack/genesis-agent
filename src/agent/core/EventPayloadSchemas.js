@@ -48,6 +48,12 @@ const SCHEMAS = {
   'chat:completed': { message: 'required', response: 'required', intent: 'required', success: 'required' },
   'chat:error':     { message: 'required' },
 
+  // Injection Gate (v7.3.5)
+  'injection:blocked': { signals: 'required', toolCount: 'required' },
+
+  // Tool-call Verification (v7.3.5)
+  'tool-call:unverified': { verdict: 'required', flagCount: 'required', categories: 'required' },
+
   // Circuit Breaker
   'circuit:state-change': { from: 'required', to: 'required' },
 

@@ -21,6 +21,7 @@
 
 const { LIMITS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
+const { buildPlannerStepTypeList, normalizeStepType } = require('./step-types');
 const _log = createLogger('AgentLoopPlanner');
 
 class AgentLoopPlannerDelegate {
@@ -77,6 +78,8 @@ class AgentLoopPlannerDelegate {
 
     // v4.12.4: Inject BodySchema constraints — tells planner what's unavailable
     let bodyContext = '';
+    let canExecuteCode = true;
+    let canDelegate = false;
     try {
       const bodySchema = (/** @type {any} */ (loop)).bodySchema || (loop._container?.has?.('bodySchema') ? loop._container.resolve('bodySchema') : null);
       if (bodySchema) {
@@ -87,9 +90,19 @@ class AgentLoopPlannerDelegate {
         const caps = bodySchema.getCapabilities?.() || {};
         if (caps.circuitOpen) bodyContext += '\n- LLM backend is unstable — minimize LLM-heavy steps';
         if (!caps.canModifySelf) bodyContext += '\n- Self-modification is RESTRICTED — do not plan CODE steps that modify Genesis source';
-        if (!caps.canExecuteCode) bodyContext += '\n- Code execution is UNAVAILABLE — skip SANDBOX and SHELL steps';
+        if (!caps.canExecuteCode) {
+          bodyContext += '\n- Code execution is UNAVAILABLE — skip SANDBOX and SHELL steps';
+          canExecuteCode = false;
+        }
       }
     } catch (err) { _log.debug('[PLANNER] bodySchema enrichment failed:', err.message); }
+
+    // v7.3.5: DELEGATE only if TaskDelegation is wired
+    canDelegate = !!loop.taskDelegation;
+
+    // v7.3.5: Step-type list comes from the central catalog (step-types.js).
+    // Both planner prompt and executor switch are driven by the same source.
+    const stepTypeList = buildPlannerStepTypeList({ canExecuteCode, canDelegate });
 
     const planPrompt = `You are Genesis, an autonomous AI agent. You need to create an execution plan.
 
@@ -106,12 +119,9 @@ YOUR CAPABILITIES:
 YOUR MODULES: ${modules.length} modules across core, foundation, intelligence, capabilities, planning, cognitive, organism, revolution, hexagonal, autonomy
 
 Create a plan with concrete, executable steps. Each step must be ONE of:
-- CODE: Write or modify a specific file
-- SHELL: Run a shell command
-- SANDBOX: Test code in the sandbox
-- ANALYZE: Read and analyze existing code
-- SEARCH: Look up documentation or information
-- ASK: Ask the user for clarification (use sparingly)
+${stepTypeList}
+
+Do NOT invent new step types. If a sub-task does not fit one of these, express it as an ANALYZE step. Inventing types (e.g. "WRITE_FILE", "GIT_SNAPSHOT", "CODE_GENERATE") will make the plan fail verification.
 
 Respond ONLY with this JSON format:
 {
@@ -132,6 +142,25 @@ Keep it to 3-8 steps. Be specific. Each step must be independently verifiable.`;
     if (response._parseError) {
       // Try to salvage a plan from raw text
       return this._salvagePlan(response._raw, goalDescription);
+    }
+
+    // v7.3.5: Normalize step types against the central catalog. The LLM
+    // sometimes invents types (GIT_SNAPSHOT, WRITE_FILE, CODE_GENERATE).
+    // Known aliases are rewritten to a valid type; unmappable types fall
+    // back to ANALYZE with a note so the plan can still run (worst case
+    // the executor just reads instead of writes — safer than failing mid-plan).
+    if (Array.isArray(response.steps)) {
+      for (const step of response.steps) {
+        const normalized = normalizeStepType(step.type);
+        if (normalized && normalized !== step.type) {
+          _log.info(`[PLANNER] Normalized step type "${step.type}" → "${normalized}"`);
+          step.type = normalized;
+        } else if (!normalized) {
+          _log.warn(`[PLANNER] Unknown step type "${step.type}" — falling back to ANALYZE`);
+          step.description = `[was ${step.type}] ${step.description || ''}`.trim();
+          step.type = 'ANALYZE';
+        }
+      }
     }
 
     return response;

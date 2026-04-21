@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.3.2 — What Genesis can do, organized by category.
-> Last updated: v7.3.2: First Contact — Core Memories trigger-integration, four bugfix passes (EventTypes sync, schema violations, orphan removal, suite-parser honesty), 4567 tests, 143→155 services.
+> v7.3.5 — What Genesis can do, organized by category.
+> Last updated: v7.3.5: Impulskontrolle — eight-commit release narrowing the gap between intent and execution. Step-types catalog as single source of truth (commit 1), slash-only command handlers (commit 2+6), pre-tool-call injection gate with 3-signal detection (commit 3), HTN catch-all for invented step types (commit 4), goal-lifecycle auto-review on daemon cycle (commit 5), tool-call verification gate against agentic hallucination (commit 7), CI ratchet locking the v7.3.5 baseline (commit 8). Two new bus events: `injection:blocked` and `tool-call:unverified`. 4818 tests, 387 catalog = 387 schemas.
 
 ---
 

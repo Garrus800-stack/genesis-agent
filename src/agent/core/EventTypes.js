@@ -140,6 +140,18 @@ const EVENTS = Object.freeze({
     RETRY:     'chat:retry',
   }),
 
+  // ── Injection Gate (v7.3.5) ─────────────────────────────
+  INJECTION: Object.freeze({
+    /** @payload {{ signals: Array<{kind: string, note: string}>, toolCount: number }} */
+    BLOCKED: 'injection:blocked',
+  }),
+
+  // ── Tool-call Verification (v7.3.5) ─────────────────────
+  TOOL_CALL: Object.freeze({
+    /** @payload {{ verdict: string, flagCount: number, categories: Array<string> }} */
+    UNVERIFIED: 'tool-call:unverified',
+  }),
+
   // ── Circuit Breaker ────────────────────────────────────
   CIRCUIT: Object.freeze({
     /** @payload {{ from: string, to: 'closed'|'open'|'half-open' }} */

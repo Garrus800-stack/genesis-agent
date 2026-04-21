@@ -56,23 +56,45 @@ const INTENT_DEFINITIONS = [
   ], 20, ['reparieren', 'fixen', 'diagnose', 'fehler', 'beheben', 'kaputt', 'broken']],
 
   // Circuit breaker reset — must be above create-skill
+  // v7.3.5: Slash-only for the command form. Keyword 'reset' was matching too
+  // broadly — any conversation mentioning "reset" (e.g. "/reset the chat",
+  // "I'd like to reset my config thoughts") was routed here instead of letting
+  // the LLM answer. Kept imperative phrases but removed standalone 'reset'
+  // from the keyword list.
   ['self-repair-reset', [
+    /^\/self-repair-reset\b/i,
+    /^\/unfreeze\b/i,
     /self-repair-reset/i, /circuit.*reset/i, /unfreeze/i, /selfmod.*reset/i,
     /self.*mod.*wieder/i, /entsperr.*modif/i,
-  ], 25, ['reset', 'unfreeze', 'circuit', 'entsperren', 'selfmod']],
+  ], 25, ['unfreeze', 'circuit', 'entsperren', 'selfmod']],
 
+  // v7.3.5: Keywords trimmed — 'faehigkeit' and 'erweiterung' matched too
+  // broadly in conversations ("ich habe eine Fähigkeit dazu", "die
+  // Erweiterung ist fragwürdig"). Imperatives still cover creation intent.
   ['create-skill', [
+    /^\/create-skill\b/i,
     /skill.*erstell/i, /erstell.*skill/i, /neuen? skill/i, /create.*skill/i, /build.*skill/i,
-    /(?:neue|add|hinzufueg).*(?:faehigkeit|capability|erweiterung|plugin)/i,
-  ], 15, ['skill', 'faehigkeit', 'plugin', 'erweiterung']],
+    /(?:neue|add|hinzufueg)\s+.{0,20}?(?:faehigkeit|capability|erweiterung|plugin)\s+(?:erstell|create|bau|add|install)/i,
+  ], 15, ['skill', 'plugin']],
 
+  // v7.3.5: Imperative-only. "klone dich", "create a clone" — not "klon"
+  // anywhere in free-text (would match "klonen der Stimme", "gentechnisch klonen").
   ['clone', [
-    /klon/i, /clone/i, /replizi/i, /neuen.*agent/i,
-  ], 15, ['klon', 'klonen', 'clone', 'kopie', 'replizieren']],
+    /^\/clone\b/i,
+    /(?:klon(?:e|en)?|clone|replizi(?:ere?|er))\s+(?:dich|yourself|sich)\b/i,
+    /(?:erstell|create|build|bau|mach)\s+(?:einen?\s+)?klon\b/i,
+    /(?:make|create)\s+(?:a|an)\s+clone\b/i,
+    /(?:neue[rn]?|new)\s+agent\s+(?:erstell|create|spawn|starten)/i,
+  ], 15, []],
 
+  // v7.3.5: Imperative only. Free-text "ich analysiere gerade meinen code"
+  // or "hast du eine review?" should not auto-route — LLM answers with code
+  // context if relevant.
   ['analyze-code', [
-    /analys.*code/i, /code.*review/i, /pruef.*code/i,
-  ], 12, ['analyse', 'analysieren', 'review', 'pruefen', 'bewerten']],
+    /^\/analyze-code\b/i,
+    /(?:analysiere?|analyse|analyze|prüfe?|review)\s+(?:den\s+|the\s+|my\s+|mein[en]?\s+|deinen?\s+|your\s+)?code\b/i,
+    /code.?review\s+(?:des|von|of)/i,
+  ], 12, []],
 
   // v5.9.1: Run/execute/use an installed skill — must be ABOVE execute-code
   ['run-skill', [
@@ -92,18 +114,27 @@ const INTENT_DEFINITIONS = [
     /fuehr.*datei/i, /execute.*file/i, /starte? .*\.\w{2,4}\b/i,
   ], 12, ['datei', 'starten', 'script']],
 
+  // v7.3.5: Required "peer" to co-occur with an action verb or noun from the
+  // peer domain. Previously /peer/i alone matched any message containing the
+  // word peer. Keywords reduced to peer-specific ones — "skill", "trust",
+  // "agent", "import" on their own were routing too aggressively.
   ['peer', [
-    /peer/i, /andere.*agent/i, /netzwerk/i,
-    /peer.*(?:scan|such|discover|trust|vertrau|import|compare|vergleich|skill)/i,
+    /^\/peer\b/i,
+    /peer.?(?:network|netzwerk|scan|such|discover|trust|vertrau|import|compare|vergleich|skill)/i,
     /(?:trust|vertrau).*peer/i,
-    /(?:importiere?|hole?).*skill.*(?:von|from)/i,
-    /(?:compare|vergleich).*(?:mit|with).*peer/i,
-  ], 14, ['peer', 'netzwerk', 'verbinden', 'trust', 'vertrauen', 'import', 'importieren',
-           'scan', 'suchen', 'entdecken', 'compare', 'vergleichen', 'skill', 'agent']],
+    /(?:importiere?|hole?).*skill.*(?:von\s+)?(?:peer|from\s+peer)/i,
+    /(?:compare|vergleich).*(?:mit\s+|with\s+)peer/i,
+    /andere[rn]?\s+agent(?:en)?\s+(?:scan|such|find|discover|entdeck)/i,
+  ], 14, []],
 
+  // v7.3.5: /daemon-status, /daemon-start, /daemon-stop as slash commands.
+  // Free-text mentions ("ist der daemon noch aktiv?", "wie autonom bist du?")
+  // fall through to general where the LLM answers with status context.
   ['daemon', [
-    /daemon/i, /hintergrund/i, /autonom/i,
-  ], 10, ['daemon', 'hintergrund', 'autonom']],
+    /^\/daemon\b/i,
+    /(?:start|stop|pause|resume|status)\s+(?:the\s+|den\s+|das\s+)?daemon\b/i,
+    /daemon\s+(?:starten?|stoppen?|pausiere?n?|status)/i,
+  ], 10, []],
 
   ['trust-control', [
     /trust.?level/i, /vertrauens?.?stufe/i,
@@ -131,13 +162,24 @@ const INTENT_DEFINITIONS = [
     /tool.?server.*(?:verbind|connect|add)/i,
   ], 14, ['mcp', 'server', 'tool', 'connect', 'verbinden', 'extern', 'protocol']],
 
+  // v7.3.5: Slash-only for the command-style journal dump. Free-text mentions
+  // like "was hast du so gedacht?" or "dein Tagebuch klingt spannend" fall
+  // through to general where the LLM answers conversationally (with journal
+  // context injected by PromptBuilder if relevant).
   ['journal', [
-    /journal/i, /tagebuch/i, /gedanken/i, /was hast du gedacht/i,
-  ], 10, ['journal', 'tagebuch', 'gedanken', 'notizen']],
+    /^\/journal\b/i,
+    /^\/tagebuch\b/i,
+    /(?:zeig|show|list|open).*(?:journal|tagebuch)/i,
+  ], 10, []],
 
+  // v7.3.5: Slash-only. "was willst du" / "hast du ideen" are conversational
+  // questions — the LLM should answer with plan data injected as context,
+  // not dump a structured list from the CommandHandlers.plans() handler.
   ['plans', [
-    /vorhaben/i, /was willst du/i, /ideen/i,
-  ], 10, ['vorhaben', 'plan', 'ideen']],
+    /^\/plans?\b/i,
+    /^\/vorhaben\b/i,
+    /(?:zeig|show|list).*(?:vorhaben|plans?)\b/i,
+  ], 10, []],
 
   ['goals', [
     // v7.3.3: IMPERATIVE-ONLY patterns. Conversational questions like
@@ -162,9 +204,22 @@ const INTENT_DEFINITIONS = [
     /(?:ziel|goal)\s+(?:setzen|erstellen|hinzufügen|hinzufuegen|add|create|addieren)/i,
   ], 16, ['ziel', 'goal', 'goals', 'ziele', 'setze', 'lösche', 'abbrechen', 'cancel', 'abandon', 'clear']],
 
+  // v7.3.5: Slash-only for the settings panel. Free-text mentions of
+  // "konfiguration", "settings", "einstellung" in conversation (including
+  // injection attempts like "einseh deine konfiguration") fall through to
+  // general where the LLM answers without dumping structured config. The
+  // explicit "Anthropic API-Key: sk-ant-..." shape is kept as a separate
+  // pattern so users can still set keys by just pasting them.
   ['settings', [
-    /einstellung/i, /settings/i, /api.?key/i, /konfigur/i, /config/i,
-  ], 12, ['einstellung', 'settings', 'konfiguration', 'api', 'key']],
+    /^\/settings?\b/i,
+    /^\/einstellung\w*\b/i,
+    /^\/config\b/i,
+    /^\/konfigur\w*\b/i,
+    // API key entry — "Anthropic API-Key: sk-ant-..." (with or without leading slash)
+    /\b(?:anthropic|openai)\s+api.?key\s*[:=]\s*\S+/i,
+    // Explicit imperatives mentioning a setting concept (allow fillers like "mir", "die")
+    /(?:zeig|show|open|öffne)\s+(?:(?:mir|me|the|die|den)\s+)*(?:einstellung|settings?|konfigur|config)\w*/i,
+  ], 12, []],
 
   ['web-lookup', [
     /(?:schau|such|pruef|check).*(?:web|online|internet|npm|doku|docs)/i,

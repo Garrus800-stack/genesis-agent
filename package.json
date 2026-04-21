@@ -1,6 +1,6 @@
 {
   "name": "genesis-agent",
-  "version": "7.3.4",
+  "version": "7.3.5",
   "description": "A self-aware, self-verifying, self-evolving cognitive AI agent. Works with any LLM backend — Anthropic Claude, OpenAI, or local models via Ollama. It reads its own source code. It fixes its own bugs. It builds its own features. It thinks while you're away. It feels the consequences of its actions. It pursues goals autonomously. It verifies its own output programmatically. It learns what works for its specific model.",
   "main": "main.js",
   "scripts": {
@@ -33,6 +33,8 @@
     "audit:events:validate": "node scripts/validate-events.js",
     "audit:fitness": "node scripts/architectural-fitness.js",
     "audit:fitness:ci": "node scripts/architectural-fitness.js --ci",
+    "ratchet": "node scripts/check-ratchet.js",
+    "ratchet:fast": "node scripts/check-ratchet.js --skip-tests",
     "audit:fitness:json": "node scripts/architectural-fitness.js --json",
     "audit:channels": "node scripts/validate-channels.js",
     "ci": "npm test && node scripts/architectural-fitness.js --ci && node scripts/audit-events.js --strict && node scripts/validate-events.js && node scripts/validate-channels.js",

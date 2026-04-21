@@ -1,6 +1,7 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.3.2 — Event flow documentation. Updated for v7.3.2 schema honesty (all 399 emits validated, 0 mismatches),
+> v7.3.5 — Event flow documentation. Updated for v7.3.5 impulse-control gates (`injection:blocked`, `tool-call:unverified`),
+> v7.3.4 dormant-emit annotations, v7.3.2 schema honesty (all 399 emits validated, 0 mismatches),
 > v7.3.1 activities split, v7.2.8 idle intelligence, v7.2.7 autonomy awareness,
 > v7.2.5 idle-dream event bridge, v7.2.4 signal fidelity,
 > v7.2.1 deep audit, v7.2.0 self-define activity, v7.1.7 hardening.
@@ -648,3 +649,20 @@ Emitting without a listener is not a bug — it is an API contract that
 future modules can attach to without schema migration. If an emit is truly
 dead (no future consumer plausible, no telemetry value), it should be
 removed via a dedicated cleanup commit rather than left in this table.
+
+## Impulse Control Gates (v7.3.5)
+
+Two new event categories were added in v7.3.5 to surface gate decisions
+that block or annotate Genesis' actions before they reach the user.
+
+| Event | Source | Listener | Purpose |
+| --- | --- | --- | --- |
+| `injection:blocked` | ChatOrchestrator (via `injection-gate.js`) | Dashboard / metrics (planned) | Fires when the input-side injection gate blocks an LLM-decided tool call. Two or more signals from {authority claim, credential request, artificial urgency} were detected in the user message. Payload: `{ signals: Array<{kind, note}>, toolCount }`. The tool call is not executed; the gate response is sent to the chat instead. |
+| `tool-call:unverified` | ChatOrchestrator (via `tool-call-verification.js`) | Dashboard / metrics (planned) | Fires when Genesis' final response claims concrete action (file write, shell, sandbox) but no matching tool fired in the turn. Detective signal — the response still reaches the user, with an annotation suggesting verification. Payload: `{ verdict: 'suspicious'\|'unverified', flagCount, categories: Array<string> }`. |
+
+Both events are part of v7.3.5's "impulse control" theme: narrowing the
+gap between what Genesis says and what Genesis actually did. Listeners
+are not yet wired in production — the dashboard will surface these in a
+future release. Until then, the events serve as bus-level instrumentation
+for anyone debugging gate behaviour.
+

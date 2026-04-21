@@ -8,8 +8,8 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.3.2-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-4566%2B%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.3.5-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-4818%2B%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-config_ok-fbbf24?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
@@ -227,7 +227,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.3.4: zero cross-layer violations, typecheck config ok (118 known legacy TS notes), 11 PreservationInvariants rules, 4682+ tests passing, 155 services, 0 schema mismatches, 0 static drift (385 catalog = 385 schemas). Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.3.5: zero cross-layer violations, typecheck config ok (118 known legacy TS notes), 11 PreservationInvariants rules, 4818+ tests passing, 155 services, 0 schema mismatches, 0 static drift (387 catalog = 387 schemas), CI ratchet locked at v7.3.5 baseline. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -533,11 +533,11 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 143 manifest + 12 bootstrap = 155 at runtime |
 | Late-bindings | 255 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 270 files, 4566+ tests (coverage gates: 80/75.9/78) |
+| Test suites | 280+ files, 4818+ tests (coverage gates: 80/75.9/78, ratchet floor 4700) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 55 invoke + 2 send + 6 receive = 63 (rate-limited, all in sync) |
-| Event types | 385 across ~95 namespaces (catalogued in EventTypes.js) |
+| Event types | 387 across ~96 namespaces (catalogued in EventTypes.js) |
 | Event schemas | 399/399 emit sites validated (0 mismatches, enforced by CI ratchet) |
 | Cross-layer event flows | 339 emitted events, 69 listeners (via EventBus, no direct imports) |
 | Hexagonal ports | 7 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace, Awareness) |

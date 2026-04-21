@@ -30,6 +30,8 @@ class AutonomousDaemon {
     this._intervals = intervals || null;
     // v6.0.7: Trust-gated optimization
     this.trustLevelSystem = null; // late-bound
+    // v7.3.5: Goal lifecycle review
+    this.goalStack = null; // late-bound
 
     this.running = false;
     this.intervalHandle = null;
@@ -45,6 +47,7 @@ class AutonomousDaemon {
       gapInterval: 24,                 // Gap detection every 24 cycles (2 hours)
       consolidateInterval: 6,          // Memory consolidation every 6 cycles
       learnInterval: 6,                // Pattern learning every 6 cycles
+      goalReviewInterval: 12,          // v7.3.5: Goal lifecycle review every 12 cycles (1 hour)
       maxAutoRepairs: 3,               // Max auto-repairs per cycle
       autoRepair: true,                // Auto-repair syntax errors
       autoOptimize: false,             // Don't auto-apply optimizations (too risky)
@@ -148,6 +151,16 @@ class AutonomousDaemon {
       if (this.cycleCount % this.config.gapInterval === 0) {
         const gaps = await this._detectCapabilityGaps();
         actions.push({ type: 'gaps', ...gaps });
+      }
+
+      // v7.3.5: GOAL LIFECYCLE REVIEW — auto-complete, auto-fail, auto-stall
+      // Prevents the "6/8 forever" pattern observed before v7.3.5: goals that
+      // hit their final step but whose status never flipped, and goals that
+      // quietly stalled with no update for days. GoalStack.reviewGoals() does
+      // the walk, this just schedules it.
+      if (this.cycleCount % this.config.goalReviewInterval === 0) {
+        const review = await this._reviewGoals();
+        actions.push({ type: 'goal-review', ...review });
       }
 
     } catch (err) {
@@ -340,6 +353,28 @@ class AutonomousDaemon {
     const newSkills = await this._attemptSkillBuilds(gaps);
     this.knownGaps = gaps;
     return { gaps: gaps.length, newSkills, details: gaps };
+  }
+
+  // ── Goal Lifecycle Review (v7.3.5) ───────────────────────
+  // Fixes the observed "goals at 6/8 or 7/8 forever" pattern: goals whose
+  // status never flips when all steps finish, goals that quietly stall
+  // with no update for days, goals that exhausted their retry budget but
+  // stayed active. The walk logic lives in GoalStack.reviewGoals — the
+  // daemon's job is just to schedule it.
+  async _reviewGoals() {
+    if (!this.goalStack || typeof this.goalStack.reviewGoals !== 'function') {
+      return { changed: 0, reviewed: 0, skipped: 'no-goal-stack' };
+    }
+    try {
+      const report = this.goalStack.reviewGoals();
+      if (report.changed && report.changed.length > 0) {
+        this._log('info', `[GOAL-REVIEW] ${report.changed.length} state changes across ${report.reviewed} active goals`);
+      }
+      return { changed: report.changed?.length || 0, reviewed: report.reviewed || 0, detail: report.changed };
+    } catch (err) {
+      this._log('warn', `goal review failed: ${err.message}`);
+      return { changed: 0, reviewed: 0, error: err.message };
+    }
   }
 
   /** Analyze recent episodes for repeated failure topics */

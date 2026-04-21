@@ -1,0 +1,30 @@
+{
+  "_description": "v7.3.5 Ratchet — Floor values that must not be crossed. Raise by editing after a successful release; never lower. check-ratchet.js enforces these in CI.",
+  "_locked_at": "v7.3.5",
+  "_date": "2026-04-20",
+  "testCount": {
+    "floor": 4700,
+    "note": "v7.3.4 shipped with 4703, v7.3.5 adds ~85 new tests across step-types, slash-audit, injection-gate, htn-step-validation, daemon-goal-review, intent-overmatch-final, and tool-call-verification. Floor 4700 leaves small margin for minor test consolidations but catches any accidental deletion."
+  },
+  "fitnessScore": {
+    "floor": 127,
+    "max": 130,
+    "note": "File-size WARNs on CommandHandlers.js (847), SelfModificationPipeline.js (705), PromptBuilderSections.js (734) account for the missing 3 points. Those are intentional and scheduled for a domain-split refactoring release."
+  },
+  "schemaMismatches": {
+    "max": 0,
+    "note": "scan-schemas.js must always report 0. Runtime event payloads must match declared schemas."
+  },
+  "schemaMissing": {
+    "max": 0,
+    "note": "audit-schemas.js missing check — catalog entries without schema registrations must be 0."
+  },
+  "schemaOrphan": {
+    "max": 0,
+    "note": "audit-schemas.js orphan check — schemas without catalog entries must be 0."
+  },
+  "brokenLinks": {
+    "max": 0,
+    "note": "docs/ internal links must all resolve. Prevents accidental rename-without-update."
+  }
+}

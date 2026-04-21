@@ -15,6 +15,7 @@
 
 const { TIMEOUTS, THRESHOLDS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
+const { normalizeStepType } = require('./step-types');
 const path = require('path');
 const fs = require('fs');
 const _log = createLogger('AgentLoopSteps');
@@ -82,6 +83,15 @@ class AgentLoopStepsDelegate {
 
     let stepResult;
     try {
+      // v7.3.5: Normalize step type before dispatch. Catches plans from any
+      // source — AgentLoopPlanner, FormalPlanner, _salvagePlan, manually-set
+      // goals, HTN-produced plans — so aliases like WRITE_FILE or GIT_SNAPSHOT
+      // are rewritten to CODE/SHELL instead of hitting the default branch.
+      const normalizedType = normalizeStepType(step.type);
+      if (normalizedType && normalizedType !== step.type) {
+        _log.debug(`[STEPS] Normalized step type "${step.type}" → "${normalizedType}"`);
+        step.type = normalizedType;
+      }
       switch (step.type) {
         case 'ANALYZE':
           stepResult = { ...(await this._stepAnalyze(step, enrichedContext)), durationMs: Date.now() - start };

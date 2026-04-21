@@ -14,6 +14,9 @@ function phase6(ctx, R) {
       // v6.0.7: Trust-gated repair scope
       lateBindings: [
         { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
+        // v7.3.5: Goal lifecycle review scheduling (cross-phase 6→4 to goalStack)
+        { prop: 'goalStack', service: 'goalStack', optional: true, expects: ['reviewGoals'],
+          impact: 'No periodic goal lifecycle review (goals stay active even after all steps done)' },
       ],
       factory: (c) => new (R('AutonomousDaemon').AutonomousDaemon)({
         bus, reflector: c.resolve('reflector'), selfModel: c.resolve('selfModel'),

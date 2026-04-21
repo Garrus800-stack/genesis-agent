@@ -1,7 +1,7 @@
 # Genesis Agent — Architecture Deep-Dive
 
 > Comprehensive technical analysis of Genesis Agent. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.3.2: 12 boot phases, 143→155 services, 266 source files, 4567 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules.
+> Last updated for v7.3.5: 12 boot phases, 155 services, 262 source files, 4818 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules, two new impulse-control gates (input-side injection scan + tool-call verification), CI ratchet locked at the v7.3.5 baseline.
 
 ---
 
@@ -14,12 +14,12 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~87,000 |
-| Source Modules | 266 JS files |
-| Test Suites / Tests | 270 / 4567 |
+| Source Modules | 262 JS files |
+| Test Suites / Tests | 280+ / 4818 |
 | DI Services | 155 (143 manifest + 12 kernel) |
 | Boot Phases | 12 |
 | npm Dependencies | 3 production + 3 optional + 6 dev |
-| Event Types (catalogued) | 385 |
+| Event Types (catalogued) | 387 |
 | IPC Channels | 55 invoke + 2 send + 6 receive = 63 |
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
 | Coverage Gates | 80% lines, 75.9% branches, 78% functions |

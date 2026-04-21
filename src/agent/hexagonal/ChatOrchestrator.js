@@ -234,7 +234,7 @@ class ChatOrchestrator {
       if (tail) onChunk(tail);
 
       // Multi-round tool execution loop
-      fullResponse = await _h._processToolLoop(fullResponse, onChunk);
+      fullResponse = await _h._processToolLoop(fullResponse, onChunk, message);
 
       this.history.push({ role: 'assistant', content: fullResponse });
       this._saveHistory();

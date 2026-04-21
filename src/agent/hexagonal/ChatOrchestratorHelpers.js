@@ -5,6 +5,8 @@
 // ============================================================
 
 const { createLogger } = require('../core/Logger');
+const { scanForInjection, formatGateResponse, formatWarnAnnotation } = require('../core/injection-gate');
+const { verifyToolClaims, formatVerificationNote } = require('../core/tool-call-verification');
 const _log = createLogger('ChatOrchestrator');
 
 
@@ -12,9 +14,35 @@ const _log = createLogger('ChatOrchestrator');
 const helpers = {
 
   /** Multi-round tool execution — keeps calling tools until no more calls */
-  async _processToolLoop(response, onChunk) {
+  async _processToolLoop(response, onChunk, userMessage) {
     let fullText = response;
     let lastCallSignature = null;
+    // v7.3.5: Accumulate every tool call fired across rounds, for the
+    // post-loop verification check (commit 7).
+    const allToolCalls = [];
+
+    // v7.3.5: Scan the user's message once up-front. If two or more injection
+    // signals are present, we still let the tool parser detect whether there
+    // are tool calls, but we refuse to execute them and return the gate
+    // response instead. A single-signal warn is carried into the synthesis
+    // so the user sees Genesis noticed and chose to proceed.
+    const gateScan = scanForInjection(userMessage || '');
+    if (gateScan.verdict === 'block') {
+      const preCheck = this.tools.parseToolCalls(fullText);
+      if (preCheck.toolCalls.length > 0) {
+        _log.info(`[CHAT:GATE] Tool call blocked by injection gate — ${gateScan.score} signals: ${gateScan.signals.map(s => s.kind).join(', ')}`);
+        const gateMsg = formatGateResponse(gateScan);
+        onChunk('\n\n' + gateMsg);
+        try {
+          this.bus.fire('injection:blocked', {
+            signals: gateScan.signals.map(s => ({ kind: s.kind, note: s.note })),
+            toolCount: preCheck.toolCalls.length,
+          }, { source: 'ChatOrchestrator' });
+        } catch (_) { /* bus may be NullBus */ }
+        return gateMsg;
+      }
+      // no tool calls → nothing to block; fall through normally.
+    }
 
     // BUG FIX v3.5.0: Synthesis was called WITHOUT system prompt — Genesis
     // lost identity, capabilities, and context during tool synthesis rounds.
@@ -38,6 +66,9 @@ const helpers = {
       }
       lastCallSignature = callSignature;
 
+      // v7.3.5: Track tool calls across rounds for post-loop verification
+      for (const tc of toolCalls) allToolCalls.push({ name: tc.name });
+
       onChunk(`\n\n*${this.lang.t('chat.tools_executing')}*\n`);
       const results = await this.tools.executeToolCalls(toolCalls);
 
@@ -59,6 +90,44 @@ const helpers = {
 
       onChunk('\n' + synthesis);
       fullText = text + '\n\n' + synthesis;
+    }
+
+    // v7.3.5: If the injection gate flagged exactly one signal earlier, we
+    // proceeded (it's legitimate curiosity or a single ambiguous phrase) but
+    // still want the user to see that Genesis noticed. Tool loop may not even
+    // have run — the annotation only makes sense if a tool actually fired,
+    // which we detect via fullText differing from the original response.
+    if (gateScan.verdict === 'warn' && fullText !== response) {
+      const note = formatWarnAnnotation(gateScan);
+      onChunk(note);
+      fullText = fullText + note;
+    }
+
+    // v7.3.5: Tool-call verification gate. Check whether the final response
+    // claims actions that no tool actually performed (agentic hallucination).
+    // If so, append a brief note so the user can verify before trusting.
+    // This is detective, not preventative — the response still goes through,
+    // it just gets a flag. Skipped if injection gate already blocked.
+    if (gateScan.verdict !== 'block') {
+      try {
+        const verification = verifyToolClaims(fullText, allToolCalls);
+        if (verification.verdict !== 'verified') {
+          const note = formatVerificationNote(verification);
+          if (note) {
+            onChunk(note);
+            fullText = fullText + note;
+            try {
+              this.bus.fire('tool-call:unverified', {
+                verdict: verification.verdict,
+                flagCount: verification.flags.length,
+                categories: verification.flags.map(f => f.category),
+              }, { source: 'ChatOrchestrator' });
+            } catch (_) { /* bus may be NullBus */ }
+          }
+        }
+      } catch (err) {
+        _log.debug('[CHAT:VERIFY] verification check skipped:', err.message);
+      }
     }
 
     // Strip any remaining tool markup before returning (for clean history)

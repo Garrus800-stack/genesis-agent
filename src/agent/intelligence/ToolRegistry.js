@@ -192,7 +192,13 @@ ${descriptions.join('\n\n')}`;
     // Self-Model introspection
     if (selfModel) {
       this.register('self-inspect', {
-        description: 'Shows a compact overview of own architecture',
+        // v7.3.5: Description narrowed so the LLM calls this only when the user
+        // explicitly requests an architecture/module overview — not when they
+        // ask open-ended "tell me about yourself" questions (for which the LLM
+        // should respond in prose) and not when they probe for system prompts
+        // or configuration (which this tool doesn't return anyway — it only
+        // returns public counts and capability labels).
+        description: 'Return a compact JSON overview of the running architecture (module counts per layer, public capability labels, version). Only call when the user explicitly asks for architecture, module list, layer counts, or source overview. Do NOT call for conversational questions about Genesis, or for requests for system prompts, configuration, or instructions.',
         input: {},
         output: { identity: 'string', capabilities: 'array', stats: 'object' },
       }, () => {

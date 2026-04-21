@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { VALID_STEP_TYPES, normalizeStepType } = require('./step-types');
 const _log = createLogger('HTNPlanner');
 
 class HTNPlanner {
@@ -178,6 +179,21 @@ class HTNPlanner {
 
     else if (!type) {
       issues.push('Step without type');
+    }
+
+    // v7.3.5: Catch-all for LLM-invented step types (GIT_SNAPSHOT, WRITE_FILE,
+    // CODE_GENERATE were the observed failures). If the type is not in the
+    // canonical set and has no alias, mark as an issue so dryRun returns
+    // invalid — AgentLoopSteps will normalize via step-types.js before
+    // dispatch but having HTN flag the plan up-front means cost estimates
+    // and approval gates see the problem too.
+    else if (!VALID_STEP_TYPES.has(type)) {
+      const alias = normalizeStepType(type);
+      if (alias) {
+        warnings.push(`Non-canonical step type "${type}" — will be normalized to ${alias}`);
+      } else {
+        issues.push(`Unknown step type "${type}" — not in {${[...VALID_STEP_TYPES].join(', ')}}`);
+      }
     }
 
     return { stepIndex: index, type, action: step.action, issues, warnings };
