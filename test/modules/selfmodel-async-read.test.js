@@ -11,11 +11,25 @@ const { SafeGuard } = require('../../src/kernel/SafeGuard');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
+// v7.3.6 patch: scan() is expensive (~6-7s in CI, full filesystem walk + git)
+// and was called 15× from the test suite, approaching the 90s test timeout
+// under parallel load. Cache one scanned instance and reset its mutable
+// state between tests. Each test still runs against a "fresh" semantic
+// view — the underlying manifest is shared (read-only to the tests),
+// only _readCache and _readSourceState are reset.
+let _sharedScanned = null;
 async function buildScanned() {
-  const guard = new SafeGuard([path.join(ROOT, 'src', 'kernel')], ROOT);
-  const sm = new SelfModel(ROOT, guard);
-  await sm.scan();
-  return sm;
+  if (!_sharedScanned) {
+    const guard = new SafeGuard([path.join(ROOT, 'src', 'kernel')], ROOT);
+    _sharedScanned = new SelfModel(ROOT, guard);
+    await _sharedScanned.scan();
+  }
+  // Reset mutable state between tests so each gets a clean cache
+  _sharedScanned._readCache.clear();
+  _sharedScanned._readCacheMax = 50;
+  _sharedScanned._hotReloadUnsub = null;
+  _sharedScanned.resetReadSourceSession();
+  return _sharedScanned;
 }
 
 describe('v7.3.1 — readModuleAsync', () => {

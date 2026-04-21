@@ -35,6 +35,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('UserModel');
 
 class UserModel {
@@ -74,6 +75,9 @@ class UserModel {
     this._recentGaps = [];          // Last 20 response gaps
     this._maxRecent = 20;
 
+    // v7.3.6 patch: track bus subscriptions for clean shutdown
+    this._unsubs = [];
+
     this._wireEvents();
   }
 
@@ -96,7 +100,11 @@ class UserModel {
   }
 
   // FIX D-1: Sync write on shutdown.
-  stop() { this._saveSync(); }
+  // v7.3.6 patch: also unsubscribe tracked listeners.
+  stop() {
+    this._unsubAll();
+    this._saveSync();
+  }
 
   // ════════════════════════════════════════════════════════════
   // OBSERVATION — pure heuristics, no LLM
@@ -239,7 +247,7 @@ class UserModel {
     // BUT: 'user:message' only carries { length }, not the message text.
     // Use 'chat:completed' which carries { message, response, intent, success }
     // for observe() — this records user patterns after each exchange.
-    this.bus.on('chat:completed', (data) => {
+    this._sub('chat:completed', (data) => {
       // Observe the user's message for pattern tracking
       const msg = data?.message || '';
       if (msg) this.observe(msg);
@@ -277,5 +285,8 @@ class UserModel {
 function _lerp(current, target, rate) {
   return current + (target - current) * rate;
 }
+
+// v7.3.6 patch: apply subscription-helper mixin (provides _sub / _unsubAll)
+applySubscriptionHelper(UserModel, { defaultSource: 'UserModel' });
 
 module.exports = { UserModel };

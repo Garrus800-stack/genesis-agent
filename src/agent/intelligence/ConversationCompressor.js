@@ -77,9 +77,6 @@ class ConversationCompressor {
 
     /** @type {{ compressions: number, cacheHits: number, tokensSaved: number }} */
     this.stats = { compressions: 0, cacheHits: 0, tokensSaved: 0 };
-
-    /** @type {Array<Function>} */
-    this._unsubs = [];
   }
   // ── Lifecycle ───────────────────────────────────────────
 
@@ -88,8 +85,6 @@ class ConversationCompressor {
   }
 
   stop() {
-    for (const unsub of this._unsubs) unsub();
-    this._unsubs.length = 0;
     this._cache.clear();
   }
 

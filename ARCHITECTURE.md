@@ -3,7 +3,8 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.3.2 · Last verified: all checks green (v7.3.1 + 46 new assertions across 3 feature test suites, trigger integration end-to-end, 0 schema mismatches)
+> Version: 7.3.6 · Last verified: all checks green (5036 tests, fitness 127/130,
+> 0 schema mismatches, 0 orphan / missing, 0 stale refs, 0 broken links).
 
 ---
 
@@ -11,7 +12,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~73k LOC of JavaScript (CommonJS), 221 source modules, with zero external runtime frameworks. The manifest statically registers 142 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 154 — this is what you'll see in the final boot log line (`Boot complete — 154 services`). Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~89k LOC of JavaScript (CommonJS), 270 source modules, with zero external runtime frameworks. The manifest statically registers 142+ DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count above 150 — this is what you'll see in the final boot log line. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -372,7 +373,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # ~4300 tests, 0 failures
+node test/index.js                          # 5036 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -411,7 +412,7 @@ Every event emitted must be:
 
 The `audit:events:strict` CI step enforces this. Unregistered events fail the build.
 
-**Current stats:** 357 catalogued events, 357 payload schemas (100% coverage).
+**Current stats:** 391 catalogued events, 391 payload schemas (100% coverage).
 
 ### 6.3 EventStore
 
@@ -566,13 +567,17 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | ~4540 tests across 271 suites |
+| Tests | `node test/index.js` | 5036 tests across 298+ suites |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
 | Channel sync | `node scripts/validate-channels.js` | IPC channels match between main/preload |
-| Fitness score | `node scripts/architectural-fitness.js --ci` | 130/130: no circular deps, no god objects, full shutdown coverage |
-| Coverage | `npm run test:coverage:enforce` | 78% lines, 75% branches, 71% functions |
+| Fitness score | `node scripts/architectural-fitness.js --ci` | 127/130: see section 4 for current warnings |
+| Schema scan | `node scripts/scan-schemas.js` | Runtime event payloads match declared schemas |
+| Schema audit | `node scripts/audit-schemas.js` | Catalog/schema entries in sync |
+| Stale-refs | `node scripts/check-stale-refs.js` | No references to deleted symbols, contract-marker tests present |
+| Ratchet | `npm run ratchet` | All scores meet or exceed locked floors in `scripts/ratchet.json` |
+| Coverage | `npm run test:coverage:enforce` | 80% lines, 75.9% branches, 78% functions on `src/agent/` |
 | Benchmark | `node scripts/benchmark-agent.js --quick` | 3 tasks, pass/fail with duration |
 | A/B Organism | `node scripts/benchmark-agent.js --ab` | Runs each task with/without organism, compares |
 
@@ -657,13 +662,17 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (~4300 tests)
+│   ├── index.js               → Module test runner (5036 tests)
 │   └── modules/               → One test file per service
 ├── scripts/
-│   ├── architectural-fitness.js → 90/90 fitness score (9 checks)
+│   ├── architectural-fitness.js → Fitness score (13 checks, 127/130 at v7.3.6)
 │   ├── audit-events.js        → Event catalog audit
+│   ├── audit-schemas.js       → Catalog/schema static sync check
+│   ├── scan-schemas.js        → Runtime payload validation against declared schemas
 │   ├── validate-events.js     → Event registration validation
 │   ├── validate-channels.js   → IPC channel sync check
+│   ├── check-stale-refs.js    → Symbol-scan + contract-marker-test check
+│   ├── check-ratchet.js       → Ratchet floor/max enforcement (fitness, tests, schemas, links)
 │   ├── benchmark-agent.js     → Agent capability benchmark (12 tasks)
 │   └── release.js             → Version bump across 7 locations
 ├── types/

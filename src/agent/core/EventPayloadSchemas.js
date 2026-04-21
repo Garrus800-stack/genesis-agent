@@ -54,6 +54,14 @@ const SCHEMAS = {
   // Tool-call Verification (v7.3.5)
   'tool-call:unverified': { verdict: 'required', flagCount: 'required', categories: 'required' },
 
+  // Source Read (v7.3.6 #9)
+  'read-source:called': { path: 'required', bytes: 'required', turnId: 'optional' },
+  'read-source:soft-limit': { turnCount: 'required', softLimit: 'required', hardLimit: 'required', turnId: 'optional' },
+
+  // Self-Gate (v7.3.6 #2)
+  'self-gate:blocked': { actionType: 'required', signals: 'required', triggerSource: 'required' },
+  'self-gate:warned':  { actionType: 'required', signals: 'required', triggerSource: 'required' },
+
   // Circuit Breaker
   'circuit:state-change': { from: 'required', to: 'required' },
 

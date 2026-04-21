@@ -56,6 +56,8 @@ const BOOST_THRESHOLD = 0.10;   // +10pp → recommend boosting
 const SKIP_THRESHOLD  = -0.02;  // Section doesn't help and adds tokens → recommend skipping
 const SIGNIFICANT_THRESHOLD = 0.05; // Must be ≥5pp to be significant
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class AdaptivePromptStrategy {
   /** @param {{ bus?: *, config?: * }} [deps] */
   constructor({ bus, config } = {}) {
@@ -88,23 +90,18 @@ class AdaptivePromptStrategy {
     this._load();
 
     // Listen for completed traces
-    this._unsubs.push(
-      this.bus.on('chat:completed', (data) => {
+    this._sub('chat:completed', (data) => {
         this._tracesAnalyzed++;
         if (this._tracesAnalyzed % this._autoAnalyzeInterval === 0) {
           this._analyze();
         }
-      }, { source: 'AdaptivePromptStrategy', priority: -30 })
-    );
+      }, { source: 'AdaptivePromptStrategy', priority: -30 });
 
     _log.info(`[ADAPTIVE] Active — ${Object.keys(this._recommendations).length} intent strategies loaded`);
   }
 
   stop() {
-    for (const unsub of this._unsubs) {
-      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
-    }
-    this._unsubs = [];
+    this._unsubAll();
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -323,5 +320,7 @@ class AdaptivePromptStrategy {
     } catch (_e) { /* ok, start fresh */ }
   }
 }
+
+applySubscriptionHelper(AdaptivePromptStrategy);
 
 module.exports = { AdaptivePromptStrategy, PROTECTED_SECTIONS };

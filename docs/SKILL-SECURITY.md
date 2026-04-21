@@ -1,6 +1,6 @@
 # Skill Security Model
 
-**v7.3.5 — What community skills can and cannot do.**
+**v7.3.6 — What community skills can and cannot do.**
 
 Genesis runs all community skills inside a security sandbox. This document defines the exact boundary — what your skill has access to, what it doesn't, and why.
 

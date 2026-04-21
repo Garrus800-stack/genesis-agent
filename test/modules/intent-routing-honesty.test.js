@@ -106,11 +106,14 @@ describe('v7.3.3 — self-inspect: conversational questions go to general', () =
   }
 });
 
-// ── Explicit "list modules" imperatives SHOULD still trigger self-inspect ──
-describe('v7.3.3 — self-inspect: imperatives still route correctly', () => {
+// ── v7.3.6 #1: Slash-Discipline — module-listing imperatives must now
+//    fall through to general; slash commands take their place.
+//    The tests below are the v7.3.3-imperatives inverted: what previously
+//    had to trigger self-inspect now must NOT trigger it.
+describe('v7.3.6 — self-inspect: imperatives fall through to general (slash-only)', () => {
   const router = new IntentRouter();
 
-  const imperatives = [
+  const formerImperatives = [
     'zeig mir deine module',
     'liste alle module auf',
     'nenn mir die module',
@@ -121,12 +124,12 @@ describe('v7.3.3 — self-inspect: imperatives still route correctly', () => {
     'show me the source files',
   ];
 
-  for (const msg of imperatives) {
-    test(`"${msg}" → self-inspect`, () => {
+  for (const msg of formerImperatives) {
+    test(`"${msg}" → NOT self-inspect (v7.3.6 slash-discipline)`, () => {
       const result = router.classify(msg);
       assert(
-        result.type === 'self-inspect',
-        `Expected self-inspect, got '${result.type}' (conf=${result.confidence}) — module-listing imperatives must still reach the handler`
+        result.type !== 'self-inspect',
+        `Expected not-self-inspect, got '${result.type}' — v7.3.6 makes self-inspect slash-only`
       );
     });
   }

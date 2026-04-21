@@ -11,10 +11,10 @@ console.log('\n  📦 IntentRouter Online Learning');
 
 test('classifies known intents via regex', () => {
   const r = new IntentRouter();
-  // v7.3.3: "Architektur" alone no longer triggers self-inspect —
-  // that's a conversational question, goes to general (LLM). Only
-  // explicit "show modules / list source" imperatives trigger self-inspect.
-  const result = r.classify('zeig mir deine module');
+  // v7.3.6 #1: Slash-Discipline — self-inspect and 8 other handlers now
+  // trigger ONLY on explicit /command. Free-text "zeig mir deine module"
+  // falls through to general chat by design.
+  const result = r.classify('/self-inspect');
   assert(result.type === 'self-inspect', `Expected self-inspect, got ${result.type}`);
   assert(result.confidence >= 0.9, 'High confidence for regex match');
 });

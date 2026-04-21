@@ -30,6 +30,8 @@ const { createLogger } = require('../core/Logger');
 const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('EmbodiedPerception');
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class EmbodiedPerception {
   constructor({ bus, config }) {
     this.bus = bus || NullBus;
@@ -77,8 +79,7 @@ class EmbodiedPerception {
 
   // FIX v6.0.3 (SA-P4): Cleanup listener on stop — prevents accumulation on hot-reload
   stop() {
-    for (const unsub of this._unsubs) unsub();
-    this._unsubs = [];
+    this._unsubAll();
   }
   async asyncLoad() {}
 
@@ -243,12 +244,12 @@ class EmbodiedPerception {
   _wireEvents() {
     // Listen for UI heartbeats forwarded from main.js IPC bridge
     // FIX v6.0.3 (SA-P4): Track subscription for cleanup in stop()
-    this._unsubs.push(
-      this.bus.on('ui:heartbeat', (data) => {
+    this._sub('ui:heartbeat', (data) => {
         this.processHeartbeat(data);
-      }, { source: 'EmbodiedPerception', priority: -10 })
-    );
+      }, { source: 'EmbodiedPerception', priority: -10 });
   }
 }
+
+applySubscriptionHelper(EmbodiedPerception);
 
 module.exports = { EmbodiedPerception };

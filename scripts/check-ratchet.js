@@ -122,6 +122,96 @@ function reportCheck(label, r) {
   return false;
 }
 
+// ── Broken links check (v7.3.6 #12) ─────────────────────────
+//
+// Scans all .md files under docs/ and the repo root (README, CHANGELOG,
+// CONTRIBUTING, SECURITY, etc.) for Markdown links of the form
+// [text](relative/path). For each relative link, checks that the target
+// actually exists on disk. Ignores:
+//   - Fragment-only links (#anchor)
+//   - External links (http://, https://, mailto:)
+//   - Image links (!(alt)(path)) — intentionally out of scope for v7.3.6
+// ============================================================
+
+function findMarkdownFiles() {
+  const roots = [
+    ROOT,                       // README.md, CHANGELOG.md, etc.
+    path.join(ROOT, 'docs'),    // docs/*.md
+  ];
+  const out = [];
+  for (const r of roots) {
+    if (!fs.existsSync(r)) continue;
+    // Single-level scan is enough: docs/ is flat, root has no nested .md
+    try {
+      for (const entry of fs.readdirSync(r, { withFileTypes: true })) {
+        if (entry.isFile() && entry.name.endsWith('.md')) {
+          out.push(path.join(r, entry.name));
+        }
+      }
+    } catch (_) { /* skip */ }
+  }
+  return out;
+}
+
+function extractLinks(content) {
+  // Matches [text](target) but not ![alt](target). Use negative lookbehind.
+  // Keep simple: (?<!!) before [.
+  const re = /(?<!!)\[([^\]]+)\]\(([^)]+)\)/g;
+  const out = [];
+  let m;
+  while ((m = re.exec(content)) !== null) {
+    out.push({ text: m[1], target: m[2] });
+  }
+  return out;
+}
+
+function isExternalOrAnchor(target) {
+  if (!target || typeof target !== 'string') return true;
+  const t = target.trim();
+  if (!t) return true;
+  if (t.startsWith('#')) return true;
+  if (/^(https?|mailto|ftp|data):/i.test(t)) return true;
+  return false;
+}
+
+function checkBrokenLinks(maxAllowed) {
+  const files = findMarkdownFiles();
+  const broken = [];
+  for (const file of files) {
+    let content;
+    try { content = fs.readFileSync(file, 'utf8'); }
+    catch (_) { continue; }
+    const links = extractLinks(content);
+    for (const link of links) {
+      if (isExternalOrAnchor(link.target)) continue;
+      // Strip any fragment (path.md#anchor → path.md)
+      const relTarget = link.target.split('#')[0].trim();
+      if (!relTarget) continue;
+      // Resolve relative to the file's directory
+      const resolved = path.normalize(path.join(path.dirname(file), relTarget));
+      if (!fs.existsSync(resolved)) {
+        broken.push({
+          file: path.relative(ROOT, file),
+          target: link.target,
+          text: link.text,
+        });
+      }
+    }
+  }
+  const current = broken.length;
+  return {
+    ok: current <= maxAllowed,
+    current,
+    max: maxAllowed,
+    reason: current > maxAllowed
+      ? `${current} broken link(s) found (max ${maxAllowed}): ` +
+        broken.slice(0, 5).map(b => `${b.file} → ${b.target}`).join('; ') +
+        (broken.length > 5 ? ` (+${broken.length - 5} more)` : '')
+      : null,
+    _broken: broken,
+  };
+}
+
 // ── Main ────────────────────────────────────────────────────
 
 function main() {
@@ -158,6 +248,12 @@ function main() {
     console.log(`  ${yellow('⚠')}  schema orphan — could not parse`);
   }
 
+  // Broken links (v7.3.6 #12) — only check if brokenLinks is defined in ratchet.json
+  if (ratchet.brokenLinks && Number.isFinite(ratchet.brokenLinks.max)) {
+    const linksResult = checkBrokenLinks(ratchet.brokenLinks.max);
+    if (!reportCheck('broken links', linksResult)) failures.push('broken-links');
+  }
+
   // Test count (slow — optional skip)
   if (skipTests) {
     console.log(`  ${yellow('⚠')}  test count — skipped (--skip-tests)`);
@@ -179,4 +275,7 @@ function main() {
   }
 }
 
-main();
+// Export for testing
+module.exports = { checkBrokenLinks, extractLinks, isExternalOrAnchor, findMarkdownFiles };
+
+if (require.main === module) main();

@@ -1,30 +1,30 @@
 {
-  "_description": "v7.3.5 Ratchet — Floor values that must not be crossed. Raise by editing after a successful release; never lower. check-ratchet.js enforces these in CI.",
-  "_locked_at": "v7.3.5",
-  "_date": "2026-04-20",
+  "_description": "Ratchet — floor/max values enforced by check-ratchet.js in CI.",
+  "_locked_at": "v7.3.6",
+  "_date": "2026-04-21",
   "testCount": {
     "floor": 4700,
-    "note": "v7.3.4 shipped with 4703, v7.3.5 adds ~85 new tests across step-types, slash-audit, injection-gate, htn-step-validation, daemon-goal-review, intent-overmatch-final, and tool-call-verification. Floor 4700 leaves small margin for minor test consolidations but catches any accidental deletion."
+    "note": "Minimum passing test count. Floor acts as a safety net against accidental deletion; a full-suite run should comfortably exceed it."
   },
   "fitnessScore": {
     "floor": 127,
     "max": 130,
-    "note": "File-size WARNs on CommandHandlers.js (847), SelfModificationPipeline.js (705), PromptBuilderSections.js (734) account for the missing 3 points. Those are intentional and scheduled for a domain-split refactoring release."
+    "note": "Architectural fitness score from audit:fitness. File-size warnings on CommandHandlers.js, SelfModificationPipeline.js, PromptBuilderSections.js, AgentLoop.js, and SelfModel.js account for the 3-point gap."
   },
   "schemaMismatches": {
     "max": 0,
-    "note": "scan-schemas.js must always report 0. Runtime event payloads must match declared schemas."
+    "note": "scan-schemas.js must report 0. Runtime event payloads must match declared schemas."
   },
   "schemaMissing": {
     "max": 0,
-    "note": "audit-schemas.js missing check — catalog entries without schema registrations must be 0."
+    "note": "audit-schemas.js missing check — catalog entries without schema registrations."
   },
   "schemaOrphan": {
     "max": 0,
-    "note": "audit-schemas.js orphan check — schemas without catalog entries must be 0."
+    "note": "audit-schemas.js orphan check — schemas without catalog entries."
   },
   "brokenLinks": {
     "max": 0,
-    "note": "docs/ internal links must all resolve. Prevents accidental rename-without-update."
+    "note": "Internal docs/ links must all resolve."
   }
 }

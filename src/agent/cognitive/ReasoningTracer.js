@@ -62,6 +62,8 @@ const TRACE_SUBSCRIPTIONS = [
     summarize: (d) => d.success === false ? `Step failed: ${d.action || d.step || 'unknown'} — ${d.error || 'no detail'}` : null },
 ];
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class ReasoningTracer {
   constructor({ bus }) {
     this.bus = bus;
@@ -81,10 +83,7 @@ class ReasoningTracer {
   }
 
   stop() {
-    for (const unsub of this._unsubs) {
-      try { unsub(); } catch (_) { /* best effort */ }
-    }
-    this._unsubs = [];
+    this._unsubAll();
     _log.info(`[REASONING] Stopped — ${this._traces.length} traces collected`);
   }
 
@@ -122,8 +121,7 @@ class ReasoningTracer {
   // ── Internals ──────────────────────────────────────────
 
   _subscribe(event, handler) {
-    const unsub = this.bus.on(event, handler, { key: `reasoning-${event}` });
-    this._unsubs.push(typeof unsub === 'function' ? unsub : () => {});
+    this._sub(event, handler, { key: `reasoning-${event}` });
   }
 
   _record(type, summary, detail) {
@@ -149,5 +147,7 @@ function _formatAge(ms) {
   if (ms < 3600000) return `${Math.floor(ms / 60000)}m ago`;
   return `${Math.floor(ms / 3600000)}h ago`;
 }
+
+applySubscriptionHelper(ReasoningTracer);
 
 module.exports = { ReasoningTracer };

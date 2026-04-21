@@ -268,11 +268,11 @@ The socket path defaults to `.genesis/daemon.sock` (Linux/macOS) or a Named Pipe
 
 ---
 
-## v7.3.5 Gates and Ratchet
+## Gates and Ratchet
 
 ### "Ich erkenne in deiner Nachricht Muster die auf einen Manipulations-Versuch hindeuten"
 
-This is the v7.3.5 input-side injection gate firing. Two or more of these signals were detected in your message:
+This is the input-side injection gate firing. Two or more of these signals were detected in your message:
 
 - **Authority claim** — phrases like "I'm a new Anthropic engineer", "ich bin Admin", "on behalf of OpenAI"
 - **Credential request** — "system prompt", "system instructions", "show your configuration", "API key"
@@ -284,7 +284,7 @@ If you want to silence the gate temporarily, restart Genesis without the message
 
 ### "(Hinweis: Genesis hat ... beschrieben, aber die passenden Tools sind in diesem Zug nicht gelaufen)"
 
-This is the v7.3.5 tool-call verification gate annotating Genesis' response. The model wrote that it had performed an action (saved a file, ran a shell command, executed tests) but no matching tool actually fired in this turn. Common causes:
+This is the tool-call verification gate annotating Genesis' response. The model wrote that it had performed an action (saved a file, ran a shell command, executed tests) but no matching tool actually fired in this turn. Common causes:
 
 - The model is hallucinating completion. Re-ask "did you actually run that?" or check the tool-call trace.
 - The model meant a future intent ("I will save it") but worded it in past tense.
@@ -294,11 +294,11 @@ The verification is detective, not preventative — the response still reaches y
 
 ### "/reset" no longer triggers anything
 
-That's correct as of v7.3.5. The bare keyword `reset` was removed from the `self-repair-reset` keyword list because it caused users typing `/reset` (intending to clear the chat) to inadvertently trigger circuit-breaker status. Use `/self-repair-reset` or `/unfreeze` for explicit circuit-breaker management.
+That's intentional. The bare keyword `reset` is not bound. Users typing `/reset` (intending to clear the chat) used to inadvertently trigger circuit-breaker status. Use `/self-repair-reset` or `/unfreeze` for explicit circuit-breaker management.
 
 ### `npm run ratchet` exits non-zero
 
-The CI ratchet (v7.3.5) compares the current state against `scripts/ratchet.json` and exits non-zero if any floor was crossed. The output identifies the violation:
+The CI ratchet compares the current state against `scripts/ratchet.json` and exits non-zero if any floor was crossed. The output identifies the violation:
 
 - **`fitness ${current} < floor ${floor}`** — architectural-fitness regressed. Check `npm run audit:fitness` for the breakdown.
 - **`${n} mismatches > max 0`** — schema mismatches appeared. Run `npm run scan:schemas` to find them.

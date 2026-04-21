@@ -24,6 +24,7 @@
 // ============================================================
 
 const { NullBus } = require('../core/EventBus');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 
 // ── Thresholds ───────────────────────────────────────────
 const THRESHOLDS = {
@@ -78,9 +79,11 @@ class EmotionalSteering {
     // ── React to emotional changes ──────────────────────
     // v4.12.5-fix: Was 'emotion:significant-shift' / 'emotion:mood-trend' (neither existed).
     // EmotionalState emits 'emotion:shift' on every significant dimension change.
-    this.bus.on('emotion:shift', () => this._updateSignals(), { source: 'EmotionalSteering' });
+    // v7.3.6 patch: track subscriptions for clean shutdown
+    this._unsubs = [];
+    this._sub('emotion:shift', () => this._updateSignals(), { source: 'EmotionalSteering' });
     // Also react to homeostasis state changes (energy/health is deeply relevant to steering)
-    this.bus.on('homeostasis:state-change', () => this._updateSignals(), { source: 'EmotionalSteering' });
+    this._sub('homeostasis:state-change', () => this._updateSignals(), { source: 'EmotionalSteering' });
 
     this._tickTimer = null;
   }
@@ -104,6 +107,8 @@ class EmotionalSteering {
   }
 
   stop() {
+    // v7.3.6 patch: unsubscribe tracked bus listeners
+    this._unsubAll();
     if (this._intervals) {
       this._intervals.clear('emotional-steering-tick');
     } else if (this._tickTimer) {
@@ -323,5 +328,8 @@ class EmotionalSteering {
     return result;
   }
 }
+
+// v7.3.6 patch: apply subscription-helper mixin
+applySubscriptionHelper(EmotionalSteering, { defaultSource: 'EmotionalSteering' });
 
 module.exports = { EmotionalSteering, THRESHOLDS };

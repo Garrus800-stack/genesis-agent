@@ -61,7 +61,11 @@ module.exports = {
 
       if (idleMind.goalStack && idleMind.goalStack.getActiveGoals().length < 3) {
         try {
-          await idleMind.goalStack.addGoal(title, 'idle-mind', priority);
+          // v7.3.6 patch: pass triggerSource so Self-Gate can detect reflexivity
+          // in the LLM output that produced this goal (e.g. "ich sollte X erstellen").
+          await idleMind.goalStack.addGoal(title, 'idle-mind', priority, {
+            triggerSource: thought.slice(0, 500),
+          });
         } catch (err) {
           _log.warn('[IDLE-MIND] Goal creation failed:', err.message);
         }

@@ -1,7 +1,10 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.3.5 — What Genesis can do, organized by category.
-> Last updated: v7.3.5: Impulskontrolle — eight-commit release narrowing the gap between intent and execution. Step-types catalog as single source of truth (commit 1), slash-only command handlers (commit 2+6), pre-tool-call injection gate with 3-signal detection (commit 3), HTN catch-all for invented step types (commit 4), goal-lifecycle auto-review on daemon cycle (commit 5), tool-call verification gate against agentic hallucination (commit 7), CI ratchet locking the v7.3.5 baseline (commit 8). Two new bus events: `injection:blocked` and `tool-call:unverified`. 4818 tests, 387 catalog = 387 schemas.
+> v7.3.6 — What Genesis can do, organized by category.
+> Scale: 5036 tests, 391 catalog = 391 schemas, fitness 127/130, 156 DI services across 12 boot phases.
+> Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry),
+> Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard).
+> Synchronous source-read in chat with per-turn + session budget (`read-source:called`, `read-source:soft-limit`).
 
 ---
 

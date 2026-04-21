@@ -25,6 +25,7 @@
 const { NullBus } = require('../core/EventBus');
 const { WATCHDOG, ORGANISM } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('EmotionalState');
 
 class EmotionalState {
@@ -155,6 +156,9 @@ class EmotionalState {
 
     // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()
     // this._load();
+
+    // v7.3.6 patch: track bus subscriptions for clean shutdown
+    this._unsubs = [];
     this._wireEvents();
   }
 
@@ -182,6 +186,8 @@ class EmotionalState {
   }
 
   stop() {
+    // v7.3.6 patch: unsubscribe tracked bus listeners
+    this._unsubAll();
     if (this._intervals) {
       this._intervals.clear('emotional-decay');
       this._intervals.clear('emotional-loneliness');
@@ -470,7 +476,7 @@ class EmotionalState {
   /** Wire into EventBus for automatic emotional reactions */
   _wireEvents() {
     for (const [event, handler] of Object.entries(this._reactivity)) {
-      this.bus.on(event, (data) => {
+      this._sub(event, (data) => {
         try { handler(data); } catch (err) { _log.debug('[EMOTION] Reactivity handler error:', err.message); }
       }, { source: 'EmotionalState', priority: -5 });
     }
@@ -606,5 +612,8 @@ class EmotionalState {
     return sustained;
   }
 }
+
+// v7.3.6 patch: apply subscription-helper mixin
+applySubscriptionHelper(EmotionalState, { defaultSource: 'EmotionalState' });
 
 module.exports = { EmotionalState };

@@ -152,6 +152,22 @@ const EVENTS = Object.freeze({
     UNVERIFIED: 'tool-call:unverified',
   }),
 
+  // ── Source Read (v7.3.6 #9) — synchronous source read in chat ──
+  READ_SOURCE: Object.freeze({
+    /** @payload {{ path: string, bytes: number, turnId?: string }} */
+    CALLED: 'read-source:called',
+    /** @payload {{ turnCount: number, softLimit: number, hardLimit: number, turnId?: string }} */
+    SOFT_LIMIT: 'read-source:soft-limit',
+  }),
+
+  // ── Self-Gate (v7.3.6 #2) — reflexivity check on self-actions ──
+  SELF_GATE: Object.freeze({
+    /** @payload {{ actionType: string, signals: Array<{kind: string, note: string}>, triggerSource: string }} */
+    BLOCKED: 'self-gate:blocked',
+    /** @payload {{ actionType: string, signals: Array<{kind: string, note: string}>, triggerSource: string }} */
+    WARNED:  'self-gate:warned',
+  }),
+
   // ── Circuit Breaker ────────────────────────────────────
   CIRCUIT: Object.freeze({
     /** @payload {{ from: string, to: 'closed'|'open'|'half-open' }} */

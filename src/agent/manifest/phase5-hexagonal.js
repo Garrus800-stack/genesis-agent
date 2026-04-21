@@ -39,6 +39,12 @@ function phase5(ctx, R) {
         { prop: '_provenance', service: 'executionProvenance', optional: true },
         // FIX v6.1.1: Wire learning — record tool outcomes for reuse
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
+        // v7.3.6 #2: Self-Gate — telemetry observation on tool calls
+        { prop: 'selfGate', service: 'selfGate', optional: true },
+        // v7.3.6 #9: SelfModel for startReadSourceTurn / resetReadSourceSession —
+        // used to signal chat-turn boundaries to the source-read budget.
+        { prop: 'selfModel', service: 'selfModel', optional: true,
+          expects: ['startReadSourceTurn', 'resetReadSourceSession'] },
       ],
       factory: (c) => {
         const { lang } = R('Language');
@@ -50,6 +56,7 @@ function phase5(ctx, R) {
           uncertaintyGuard: c.resolve('uncertaintyGuard'),
           memory: c.resolve('memory'), unifiedMemory: c.resolve('unifiedMemory'),
           storageDir: genesisDir, storage: c.resolve('storage'),
+          selfGate: c.tryResolve('selfGate'),
         });
       },
     }],

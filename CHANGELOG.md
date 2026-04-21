@@ -1,3 +1,106 @@
+## [7.3.6]
+
+### Chat UX
+
+- **Slash-Discipline** — 13 command handlers (`self-inspect`, `self-reflect`,
+  `self-modify`, `self-repair`, `self-repair-reset`, `create-skill`,
+  `clone`, `analyze-code`, `peer`, `daemon`, `settings`, `journal`, `plans`)
+  trigger only on explicit `/command`. Free-text mentions fall through
+  to general chat. Embedded slashes match (e.g. `kannst du mal /settings öffnen`).
+  Quote-escaped slashes (`Er sagte '/self-inspect'`) do not fire.
+  `IntentRouter.classifyAsync` has a post-classification guard that
+  rewrites any slash-command verdict from LLM or LocalClassifier to
+  `general` when the message contains no `/`. Exception: the
+  `Anthropic API-Key: sk-ant-...` paste pattern routes to settings
+  for setup convenience.
+- **Injection-Gate** re-checks its verdict on every tool-loop round.
+  Two Gate-Behavior-Contract tests (`gate contract: ...`) lock this
+  pattern; `scripts/check-stale-refs.js` enforces they remain in the
+  suite.
+- **Unicode-aware tokenization** across Research insight scoring,
+  LocalClassifier, AutonomousDaemon topic cleanup, CognitiveMonitor
+  hashing, McpClient keyword extraction. Uses `\p{L}\p{N}` with `/u`.
+  CloneFactory and SnapshotManager stay ASCII for filesystem safety.
+
+### Observability
+
+- **Self-Gate** (`src/agent/core/self-gate.js`) — observation layer on
+  Genesis' own actions. Two signal families: LLM-self-imperatives
+  ("I should add", "ich sollte erstellen") without matching user
+  context, and action/user-topic mismatch. Wired into ChatOrchestrator
+  tool-calls and GoalStack pushes (non-user sources only — idle-mind,
+  self-improvement, self-optimizer, peer-delegation, goal-decomposition).
+  Records to GateStats and fires `self-gate:warned` as telemetry.
+  Does not block actions. The `mode` constructor parameter is an
+  annotation label, not a filter.
+- **GateStats** (`src/agent/cognitive/GateStats.js`) — central
+  aggregator for gate verdicts. Wired into injection-gate,
+  tool-call-verification, self-gate. `docs/GATE-INVENTORY.md`
+  catalogs further gate sites in the codebase.
+- **Synchronous source-read in chat** — `readSourceSync` on SelfModel
+  with budget Soft-5/Hard-10 per turn, Hard-20 per session, 20 KB
+  file cap, session-wide cache. Fires `read-source:called` on every
+  read and `read-source:soft-limit` when the soft-per-turn threshold
+  is reached (read still returns, event is telemetry).
+  `ChatOrchestrator.handleChat`/`handleStream` signal turn boundaries
+  via `selfModel.startReadSourceTurn(traceId)` so the per-turn counter
+  resets correctly and `turnId` propagates into events.
+  `SafeGuard.validateRead` permits kernel and `.genesis/` reads,
+  blocks path-escape, `.git/`, `node_modules/`. ToolRegistry entry
+  `read-source`.
+
+### Structural
+
+- **CapabilityMatcher** uses TF-IDF cosine similarity. Corpus per
+  call is the goal description plus all capability
+  descriptions/keywords. Thresholds: PASS < 0.4, BLOCK ≥ 0.75.
+  Short goals (≤5 tokens) fall back to fuzzy-overlap when cosine
+  stays under PASS, handling stem-divergent forms
+  (`homeostatic` vs `homeostasis`). New module `src/agent/core/tfidf.js`
+  holds the pure-function library: tokenize (Unicode), buildVocabulary,
+  textToVector (augmented TF), cosineSimilarity (safe against NaN).
+- **Subscription-helper** — 23 services use the `applySubscriptionHelper`
+  mixin for tracked bus subscriptions and clean teardown:
+  DeploymentManager, ErrorAggregator, ServiceRecovery, AdaptiveStrategy,
+  CausalAnnotation, CognitiveSelfModel, ReasoningTracer, TaskOutcomeTracker,
+  EarnedAutonomy, AdaptivePromptStrategy, ExecutionProvenance,
+  EmbodiedPerception, GoalPersistence, ColonyOrchestrator, SessionPersistence,
+  UserModel, EmotionalState, Metabolism, EmotionalSteering, SchemaStore,
+  SurpriseAccumulator, DynamicToolSynthesis, AutonomousDaemon. Remaining
+  bus subscribers without stop() (three `*Events.js` forwarders plus a
+  handful of passive observers) have process-lifetime subscriptions by
+  design and are intentionally not migrated.
+- **FormalPlanner SoT comment** in `step-types.js` documents that the
+  step-type catalog is the source of truth for AgentLoop's executor,
+  not for FormalPlanner's STRIPS-action domain.
+
+### Tooling
+
+- **`scripts/check-stale-refs.js`** (`npm run check:stale`) — symbol
+  scan in `src/` and `docs/` for known-deleted names, plus a
+  Contract-Marker check enforcing minimum counts of critical
+  regression tests by prefix. `contracts` section in
+  `stale-refs.json` is optional.
+- **Broken-Links Check** in `check-ratchet.js` — scans `.md` files
+  under `docs/` and repo root, verifies relative link targets exist.
+  Cap: 0.
+
+### Events
+
+Registered in `EventTypes.js` + `EventPayloadSchemas.js`:
+- `read-source:called` — `{path, bytes, turnId?}`
+- `read-source:soft-limit` — `{turnCount, softLimit, hardLimit, turnId?}`
+- `self-gate:blocked` — `{actionType, signals, triggerSource}` (reserved, not fired)
+- `self-gate:warned` — `{actionType, signals, triggerSource}`
+
+### Ratchet
+
+- `fitnessScore.floor` = 127, `fitnessScore.max` = 130
+- `testCount.floor` = 4700
+- `schemaMismatches.max` = `schemaMissing.max` = `schemaOrphan.max` = 0
+- `brokenLinks.max` = 0
+
+
 ## [7.3.5] — Impulskontrolle
 
 A themed release, not a grab-bag. v7.3.4 shipped clean debt removal; v7.3.5 fixes a specific class of bug that became visible under real use: Genesis acting before checking. The theme is impulse control — every commit narrows the gap between intent and execution, either when something comes in from outside (a user message, a potential injection) or when Genesis triggers itself (a reflexive goal, a planner-hallucinated step type, an unverified claim of completed work).

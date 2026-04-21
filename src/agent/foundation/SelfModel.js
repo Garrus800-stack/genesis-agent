@@ -65,6 +65,25 @@ class SelfModel {
 
     // v7.3.1: hot-reload listener unsubscribe; wired lazily when bus is available.
     this._hotReloadUnsub = null;
+
+    // v7.3.6 #9: Synchronous Source-Read — per-turn and per-session budget.
+    // Soft limit triggers a warning but still returns content.
+    // Hard limit blocks further reads in the same turn.
+    // Session limit blocks further reads in the same session regardless of turn.
+    // File-size cap truncates long files so one giant file doesn't blow the
+    // token budget for the whole chat.
+    this._readSourceBudget = {
+      softPerTurn: 5,
+      hardPerTurn: 10,
+      hardPerSession: 20,
+      maxFileBytes: 20 * 1024,  // 20 KB
+    };
+    this._readSourceState = {
+      turnCount: 0,
+      sessionCount: 0,
+      currentTurnId: null,
+      sessionCache: new Map(),  // path → content (dedupes re-reads within session)
+    };
   }
 
   /**
@@ -521,6 +540,147 @@ class SelfModel {
       return fs.readFileSync(fullPath, 'utf-8');
     }
     return null;
+  }
+
+  /**
+   * v7.3.6 #9: Synchronous source read for chat context. Unlike readModule
+   * (used by idle _read-source activity), this is budget-enforced and fires
+   * a read-source:called event for telemetry.
+   *
+   * Budget semantics:
+   *   - Soft per-turn (5): warning event, content still returned.
+   *   - Hard per-turn (10): block — returns null, logs, no content.
+   *   - Hard per-session (20): block — session-wide cap.
+   *   - File-size cap (20 KB): truncates content with a marker.
+   *
+   * Cache: same path in same session reads from memory, not disk.
+   * Turn boundaries are signaled via startReadSourceTurn(turnId).
+   *
+   * @param {string} filePath - path relative to rootDir, or absolute
+   * @param {{ bus?: object }} [opts]
+   * @returns {string|null} content, or null when blocked/missing/unsafe
+   */
+  readSourceSync(filePath, opts = {}) {
+    const state = this._readSourceState;
+    const budget = this._readSourceBudget;
+
+    // Hard per-session check
+    if (state.sessionCount >= budget.hardPerSession) {
+      return null;
+    }
+    // Hard per-turn check
+    if (state.turnCount >= budget.hardPerTurn) {
+      return null;
+    }
+
+    // Resolve path (allow both relative to rootDir and absolute)
+    const absPath = path.isAbsolute(filePath)
+      ? filePath
+      : path.join(this.rootDir, filePath);
+
+    // Cache hit
+    const cached = state.sessionCache.get(absPath);
+    if (cached !== undefined) {
+      // Count as a read for budget purposes but skip disk I/O
+      state.turnCount++;
+      state.sessionCount++;
+      return cached;
+    }
+
+    // Validate via SafeGuard
+    try {
+      this.guard.validateRead(absPath);
+    } catch (_err) {
+      return null;
+    }
+
+    // Read from disk
+    let content;
+    try {
+      if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
+        return null;
+      }
+      content = fs.readFileSync(absPath, 'utf-8');
+    } catch (_err) {
+      return null;
+    }
+
+    // Truncate if over size cap
+    let bytes = Buffer.byteLength(content, 'utf-8');
+    if (bytes > budget.maxFileBytes) {
+      content = content.slice(0, budget.maxFileBytes) +
+        `\n\n[... truncated, full file is ${bytes} bytes, cap is ${budget.maxFileBytes}]`;
+      bytes = budget.maxFileBytes;
+    }
+
+    // Cache + increment counters
+    state.sessionCache.set(absPath, content);
+    state.turnCount++;
+    state.sessionCount++;
+
+    // Emit event. Fire soft-limit warning if the post-increment count
+    // reaches the soft threshold (turnCount === softPerTurn marks the
+    // boundary crossing — first call that spent the nth read). The read
+    // itself still succeeds; the event is telemetry.
+    const bus = opts.bus;
+    if (bus && typeof bus.fire === 'function') {
+      try {
+        const payload = { path: filePath, bytes };
+        if (state.currentTurnId) payload.turnId = state.currentTurnId;
+        bus.fire('read-source:called', payload, { source: 'SelfModel' });
+        if (state.turnCount === budget.softPerTurn) {
+          const softPayload = {
+            turnCount: state.turnCount,
+            softLimit: budget.softPerTurn,
+            hardLimit: budget.hardPerTurn,
+          };
+          if (state.currentTurnId) softPayload.turnId = state.currentTurnId;
+          bus.fire('read-source:soft-limit', softPayload, { source: 'SelfModel' });
+        }
+      } catch (_e) { /* bus may be NullBus */ }
+    }
+
+    return content;
+  }
+
+  /**
+   * v7.3.6 #9: Signal the start of a new chat turn. Resets the per-turn
+   * budget counter. Session counter persists.
+   */
+  startReadSourceTurn(turnId) {
+    this._readSourceState.turnCount = 0;
+    this._readSourceState.currentTurnId = turnId || null;
+  }
+
+  /**
+   * v7.3.6 #9: Read the current read-source budget state (for tests and UI).
+   */
+  getReadSourceBudget() {
+    return {
+      ...this._readSourceBudget,
+      turnCount: this._readSourceState.turnCount,
+      sessionCount: this._readSourceState.sessionCount,
+      currentTurnId: this._readSourceState.currentTurnId,
+      cacheSize: this._readSourceState.sessionCache.size,
+    };
+  }
+
+  /**
+   * v7.3.6 #9: Reset the session-wide read-source state.
+   *
+   * Currently called only from tests — Genesis has no explicit chat-session
+   * boundary (history is constructor-initialized and persists for the whole
+   * process lifetime). This method exists so that when such a boundary is
+   * introduced (UI "clear chat" action, `/reset`-style command, external
+   * control), the budget can be reset cleanly. Without a call, the session
+   * counter caps reads at hardPerSession (20) for the whole process run,
+   * which is intentional for a conservative budget.
+   */
+  resetReadSourceSession() {
+    this._readSourceState.turnCount = 0;
+    this._readSourceState.sessionCount = 0;
+    this._readSourceState.currentTurnId = null;
+    this._readSourceState.sessionCache.clear();
   }
 
   /**

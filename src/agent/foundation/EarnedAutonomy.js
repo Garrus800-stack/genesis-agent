@@ -61,6 +61,8 @@ function wilsonLower(successes, total, z = 1.96) {
   return Math.max(0, numerator / denominator);
 }
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class EarnedAutonomy {
   constructor({ bus, storage, config }) {
     this.bus = bus || NullBus;
@@ -104,27 +106,24 @@ class EarnedAutonomy {
 
   start() {
     // Listen to AgentLoop step outcomes
-    const unsub1 = this.bus.on('agent-loop:step-complete', (payload) => {
+    this._sub('agent-loop:step-complete', (payload) => {
       if (payload && typeof payload.type === 'string') {
         this.record(payload.type, payload.success !== false);
       }
     }, { source: 'EarnedAutonomy' });
-    this._unsubs.push(unsub1);
 
     // Listen to step failures explicitly
-    const unsub2 = this.bus.on('agent-loop:step-failed', (payload) => {
+    this._sub('agent-loop:step-failed', (payload) => {
       if (payload && typeof payload.type === 'string') {
         this.record(payload.type, false);
       }
     }, { source: 'EarnedAutonomy' });
-    this._unsubs.push(unsub2);
 
     _log.info(`[EARNED] Active — tracking ${this._actions.size} action types`);
   }
 
   stop() {
-    for (const unsub of this._unsubs) unsub?.();
-    this._unsubs.length = 0;
+    this._unsubAll();
     this._save();
     _log.info(`[EARNED] Stopped — ${this._stats.promotions} promotions, ${this._stats.revocations} revocations`);
   }
@@ -267,5 +266,7 @@ class EarnedAutonomy {
     }
   }
 }
+
+applySubscriptionHelper(EarnedAutonomy);
 
 module.exports = { EarnedAutonomy, wilsonLower };

@@ -33,6 +33,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const { ORGANISM } = require('../core/Constants');
 const _log = createLogger('Metabolism');
 
@@ -108,6 +109,8 @@ class Metabolism {
     // Without this, energyEfficiency degrades monotonically to ~0 over time.
     this._periodEnergySpent = 0;
 
+    // v7.3.6 patch: track bus subscriptions for clean shutdown
+    this._unsubs = [];
     this._wireEvents();
   }
 
@@ -126,6 +129,8 @@ class Metabolism {
   }
 
   stop() {
+    // v7.3.6 patch: unsubscribe tracked bus listeners
+    this._unsubAll();
     if (this._intervals) {
       this._intervals.clear('metabolism-recovery');
     }
@@ -269,12 +274,12 @@ class Metabolism {
 
   _wireEvents() {
     // Snapshot before call
-    this.bus.on('user:message', () => {
+    this._sub('user:message', () => {
       this._onChatStarting();
     }, { source: 'Metabolism', priority: -20 });
 
     // Process after call (lower priority so EmotionalState reacts first)
-    this.bus.on('chat:completed', (data) => {
+    this._sub('chat:completed', (data) => {
       this._onChatCompleted(data);
     }, { source: 'Metabolism', priority: -15 });
   }
@@ -543,5 +548,8 @@ class Metabolism {
     } catch (err) { _log.warn('[METABOLISM] Load error:', err.message); }
   }
 }
+
+// v7.3.6 patch: apply subscription-helper mixin
+applySubscriptionHelper(Metabolism, { defaultSource: 'Metabolism' });
 
 module.exports = { Metabolism };

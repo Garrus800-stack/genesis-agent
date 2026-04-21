@@ -123,7 +123,6 @@ class AgentLoop {
 
     /** @type {function(string, string): Promise<boolean>} */
     this._requestApproval = async () => true;
-    this._unsubs = [];
 
     // v3.8.0: Composition delegates (replace prototype mixins)
     this.planner = new AgentLoopPlannerDelegate(this);
@@ -408,8 +407,6 @@ class AgentLoop {
     this._aborted = true;
     this._cancelToken?.cancel('Stopped by user');
     this.running = false;
-    for (const unsub of this._unsubs) { if (typeof unsub === 'function') unsub(); }
-    this._unsubs = [];
     if (this.approval.isPending) {
       this.approval.cancel();
     }
@@ -650,7 +647,8 @@ class AgentLoop {
   // ════════════════════════════════════════════════════════
   // _executeStep, _stepAnalyze, _stepCode, _stepSandbox,
   // _stepShell, _stepSearch, _stepAsk, _stepDelegate, _extractSkills
-  // → mixed in via prototype at bottom of file
+  // → delegated via composition (this.steps, this.planner,
+  //   this.cognition, this.recovery — see bottom of file)
 
   // ════════════════════════════════════════════════════════
   // ════════════════════════════════════════════════════════

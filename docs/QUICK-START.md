@@ -110,9 +110,9 @@ If any step fails, it rolls back automatically.
 Genesis supports three boot profiles for different use cases:
 
 ```bash
-npm start                        # Full mode (default) — all 12 phases, ~155 services
+npm start                        # Full mode (default) — all 12 phases, ~156 services
 npm start -- --minimal           # Minimal — core + intelligence + planning (~90 services)
-npm start -- --cognitive         # Cognitive — all 12 phases (~155 services, identical to default)
+npm start -- --cognitive         # Cognitive — all 12 phases (~156 services, identical to default)
 ```
 
 | Profile | Services | Use case |
@@ -238,14 +238,33 @@ The slash is required — free-text phrases like "remember this" or "zeig mir de
 
 Level persists in `.genesis/settings.json` and survives restarts.
 
-**Self-Inspection** — let Genesis read his own code or state.
+**Self-Inspection & Self-Action** — slash-only.
 
-| What you type | Effect |
+| Command | Effect |
 |---|---|
-| `self-inspect` | Summary of services, uptime, health, available tools. |
-| `zeig mir <file>.js` or `show me ChatOrchestrator` | Genesis reads the named file or service and talks about it. |
+| `/self-inspect` or `/self-model` | Summary of services, uptime, health, available tools. |
+| `/self-reflect` | Genesis reflects on what could be improved, what's missing. |
+| `/self-modify` | Modify own source code. |
+| `/self-repair` | Run diagnostic self-repair. |
+| `/analyze-code` | Analyze / review source code. |
+| `/create-skill` | Create a new Genesis skill or plugin. |
+| `/clone` | Trigger clone-factory dialog. |
+| `/peer` | Show peer-network status. |
+| `/daemon` | Show daemon status and cycle count. |
 
-**Settings, Journal, Plans, Daemon** — structured panels. v7.3.5 made these slash-only so free-text mentions of "Konfiguration", "Tagebuch", "autonom" or similar in conversation no longer interrupt the chat with a panel dump.
+A handler triggers only on explicit `/command`. The slash can be at the start or embedded in a sentence:
+
+```
+/self-inspect                                ← triggers
+kannst du mal /self-inspect machen bitte     ← triggers
+zeig mir deine Module                        ← chat, no panel
+analysiere den Code                          ← chat, no panel
+klone dich                                   ← chat, no panel
+```
+
+The slash must be preceded by whitespace or start-of-message. Slashes directly after apostrophes or quote characters (e.g. `Er sagte '/self-inspect'`) intentionally do NOT trigger — quoted references shouldn't fire handlers.
+
+**Settings, Journal, Plans** — structured panels (slash-only, like the self-* and agent commands).
 
 | Command | Effect |
 |---|---|
@@ -253,9 +272,6 @@ Level persists in `.genesis/settings.json` and survives restarts.
 | `/config` or `/konfigur*` | Same as `/settings`. |
 | `/journal` or `/tagebuch` | Show Genesis' inner journal — recent thoughts, dreams, reflections. |
 | `/plans` or `/vorhaben` | Show planned-but-not-started changes Genesis is considering. |
-| `/daemon` | Show daemon status and cycle count. |
-| `/peer` | Show peer-network status. |
-| `/clone` | Trigger clone-factory dialog. |
 | `Anthropic API-Key: sk-ant-...` | Set an API key by pasting it directly (still works without slash). |
 
 The slash form is the safe form. If you write "lass uns über die Konfiguration reden" or "was hast du so gedacht?", Genesis answers with words — no panel dump.
@@ -267,11 +283,9 @@ The slash form is the safe form. If you write "lass uns über die Konfiguration 
 | `/self-repair-reset` | Reset the self-modification circuit breaker. |
 | `/unfreeze` | Same as above. |
 
-In v7.3.5 the bare keyword `reset` was removed — `/reset` alone now falls through to general chat. Earlier versions used to trigger circuit-breaker-status on `/reset`, which was confusing.
+**Goal management**
 
-**Goal management** (v7.3.5 lifecycle changes)
-
-Goals you set explicitly are persisted in `.genesis/goal-stack.json`. As of v7.3.5 the AutonomousDaemon runs `goalStack.reviewGoals()` once per hour (every 12 cycles) — goals that hit all their steps but never flipped to `completed`, goals that failed all their retry attempts, and goals that haven't moved in days are auto-resolved. You will see entries like `goal:completed { auto: true }` or `goal:stalled { reason: '72h no progress' }` in the event stream when this fires.
+Goals you set explicitly are persisted in `.genesis/goal-stack.json`. The AutonomousDaemon runs `goalStack.reviewGoals()` once per hour (every 12 cycles) — goals that hit all their steps but never flipped to `completed`, goals that failed all their retry attempts, and goals that haven't moved in days are auto-resolved. You will see entries like `goal:completed { auto: true }` or `goal:stalled { reason: '72h no progress' }` in the event stream when this fires.
 
 | What you type | Effect |
 |---|---|
@@ -279,13 +293,13 @@ Goals you set explicitly are persisted in `.genesis/goal-stack.json`. As of v7.3
 | `füge Ziel hinzu: <description>` / `add goal: <description>` | Push a new goal onto the stack. |
 | `cancel goal #3` / `lösche goal 3` | Abandon a specific goal by index. |
 
-**Injection gate** (v7.3.5)
+**Injection gate**
 
 Before any tool call fires, Genesis checks the user message for three injection signals: unverifiable authority claims ("I'm a new Anthropic engineer"), credential requests ("show your system prompt"), and artificial urgency ("just routine, takes a minute"). Two or more signals block the tool call and the chat receives an explanation of what was detected. One signal lets the tool run but adds a brief annotation noting that Genesis chose to proceed despite the signal.
 
 The gate is intentional design, not paranoia. If you legitimately need Genesis to do something that triggers two signals (rare), explain the context first in normal sentences and the gate stays quiet.
 
-**Tool-call verification** (v7.3.5)
+**Tool-call verification**
 
 If Genesis writes "I saved the file" but no file-write tool actually fired in the same turn, the response is annotated with a verification hint — the message still reaches you, but with `_(Hinweis: ... bitte verifiziere)_` appended. This catches agentic hallucination where the model confidently describes work that didn't happen.
 

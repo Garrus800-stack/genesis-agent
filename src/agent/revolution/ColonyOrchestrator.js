@@ -46,6 +46,8 @@ const COLONY_DEFAULTS = {
  * @typedef {{ id: string, goal: string, status: 'planning'|'running'|'merging'|'done'|'failed', subtasks: Subtask[], startedAt: number, completedAt: number|null }} ColonyRun
  */
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class ColonyOrchestrator {
   /**
    * @param {{ bus: *, peerNetwork: *, taskDelegation: *, peerConsensus: *, llm: *, selfSpawner?: *, config?: Partial<typeof COLONY_DEFAULTS> }} deps
@@ -78,9 +80,7 @@ class ColonyOrchestrator {
   // ── Lifecycle ─────────────────────────────────────────────
 
   async boot() {
-    this._unsubs.push(
-      this.bus.on('colony:run-request', (data) => this._handleRunRequest(data)),
-    );
+    this._sub('colony:run-request', (data) => this._handleRunRequest(data));
     const ipcMode = this.selfSpawner ? 'IPC workers' : 'no local workers';
     const peerMode = this.peers ? 'HTTP peers' : 'no peers';
     _log.info(`[COLONY] ColonyOrchestrator v7.1.0 ready (${ipcMode}, ${peerMode})`);
@@ -95,10 +95,7 @@ class ColonyOrchestrator {
       }
     }
     // Unsubscribe listeners
-    for (const unsub of this._unsubs) {
-      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
-    }
-    this._unsubs.length = 0;
+    this._unsubAll();
   }
 
   // ── Public API ────────────────────────────────────────────
@@ -479,5 +476,7 @@ class ColonyOrchestrator {
     });
   }
 }
+
+applySubscriptionHelper(ColonyOrchestrator);
 
 module.exports = { ColonyOrchestrator };

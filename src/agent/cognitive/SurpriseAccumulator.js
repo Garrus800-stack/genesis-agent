@@ -24,6 +24,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('SurpriseAccumulator');
 
 class SurpriseAccumulator {
@@ -67,6 +68,9 @@ class SurpriseAccumulator {
     // Prevent event storms during rapid execution
     this._lastEventAt = 0;
     this._minEventIntervalMs = 200; // Max ~5 events/sec
+
+    // v7.3.6 patch: track bus subscriptions for clean shutdown
+    this._unsubs = [];
   }
 
   // ════════════════════════════════════════════════════════
@@ -84,12 +88,14 @@ class SurpriseAccumulator {
   }
 
   start() {
-    this.bus.on('expectation:compared', (signal) => {
+    this._sub('expectation:compared', (signal) => {
       this._processSurprise(signal);
     }, { source: 'SurpriseAccumulator' });
   }
 
   stop() {
+    // v7.3.6 patch: unsubscribe tracked bus listeners
+    this._unsubAll();
     // FIX D-1: Sync write on shutdown.
     this._saveSync();
   }
@@ -350,5 +356,8 @@ class SurpriseAccumulator {
     };
   }
 }
+
+// v7.3.6 patch: apply subscription-helper mixin
+applySubscriptionHelper(SurpriseAccumulator, { defaultSource: 'SurpriseAccumulator' });
 
 module.exports = { SurpriseAccumulator };

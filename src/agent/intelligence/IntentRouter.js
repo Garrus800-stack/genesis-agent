@@ -8,7 +8,38 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { allCommandNames } = require('./slash-commands');
 const _log = createLogger('IntentRouter');
+
+// v7.3.6 — post-classification guard. The 13 slash-commands registered in
+// slash-commands.js must NEVER be returned from classifyAsync() unless the
+// user's message contains an actual '/'. The sync regex patterns in
+// INTENT_DEFINITIONS already enforce this, but classifyAsync() has two
+// bypass paths that don't:
+//
+//   1. LocalClassifier — learns from LLM-labeled samples. If the LLM ever
+//      labeled "zeig mir deine settings" as 'settings' (it would, semantically),
+//      LocalClassifier learns that and then returns settings on future
+//      matches — without any slash in the message.
+//
+//   2. LLM fallback — directly returns the LLM's verdict. The LLM classifies
+//      by meaning ("user wants settings → settings"), not by the slash rule.
+//
+// The guard below intercepts any slash-command verdict from either path and
+// rewrites it to 'general' if there is no '/' anywhere in the message. That
+// gives us a single chokepoint that can't be bypassed by prompt tweaks,
+// model changes, or learned false-positives.
+const SLASH_ONLY_INTENTS = new Set(allCommandNames());
+
+function _enforceSlashDiscipline(result, message) {
+  if (!result || !SLASH_ONLY_INTENTS.has(result.type)) return result;
+  // A literal / anywhere in the message is sufficient. The per-intent
+  // patterns then decide WHICH slash-command was meant; this guard only
+  // decides whether ANY slash-command is allowed at all.
+  if (typeof message === 'string' && message.includes('/')) return result;
+  // Rewrite: slash-only intent without slash → general.
+  return { type: 'general', confidence: 0.3, match: 'slash-discipline-guard' };
+}
 
 // FIX v5.1.0 (N-5): Declarative intent definitions.
 // Previously 157 lines of imperative register() calls (CC=124).
@@ -16,84 +47,53 @@ const _log = createLogger('IntentRouter');
 // Each entry: [name, patterns, priority, keywords]
 /** @type {Array<[string, RegExp[], number, string[]]>} */
 const INTENT_DEFINITIONS = [
-  ['self-inspect', [
-    // v7.3.3: IMPERATIVE-ONLY patterns for module/source listing.
-    // Conversational questions ("was kannst du?", "wie bist du aufgebaut?",
-    // "zeig mir deine Architektur") fall through to 'general' where Genesis
-    // answers via the LLM with module/capability context injected.
-    /(?:zeig|liste?|nenn|show|list|display|gib).*?(?:deine?\s+)?(?:modules?|modul-?liste|quellcodes?|sources?|source\s+files?|strukture?n?|directory|dateien|files?)\b/i,
-    /(?:welche|which)\s+(?:modules?|modul-?liste|dateien|files?)\s+(?:hast|gibt|are\s+there|do\s+you\s+have)/i,
-    // v7.3.3 fix: "self-model" was matching ANY mention of SelfModel in a normal
-    // conversation (e.g. "SelfModel.js ist hash-locked" triggered self-inspect).
-    // Now requires imperative: "zeig mir dein self-model" / "show your self-model" / "/self-model".
-    /^\/self.?model\b/i,
-    /(?:zeig|liste?|nenn|show|list|display|gib).*?\bself.?model\b/i,
-  ], 20, ['module', 'modulliste', 'quellcode', 'source', 'dateien', 'struktur']],
+  // v7.3.6 #1 — Slash-Discipline.
+  // Nine handlers below (self-inspect, self-reflect, self-modify, self-repair,
+  // create-skill, clone, analyze-code, peer, daemon) match ONLY on a slash
+  // command — either at the start of the message or embedded with whitespace
+  // before it (Variant A: /(^|\s)\/name\b/i). Keyword and imperative matches
+  // removed: they broke chat flow when conversational messages contained
+  // words like "struktur", "module", "quellcode", "reparieren", "autonom",
+  // "klonen". Slash registry: src/agent/intelligence/slash-commands.js.
+  //
+  // Handlers that still accept imperatives (goals, run-skill, execute-code,
+  // execute-file, trust-control, ...) are intentionally unchanged — they
+  // act on content the user is referring to, not on Genesis' self.
 
-  // Self-reflect: QUESTIONS about what Genesis would improve/change/need
-  // Must be ABOVE self-modify to catch questions before they match imperative patterns
+  ['self-inspect', [
+    /(?:^|\s)\/(?:self-inspect|self-model)\b/i,
+  ], 20, []],
+
   ['self-reflect', [
-    /was (?:wuerdest|würdest|solltest|koenntest|könntest) du.*(verbess|optimier|aender|anders|hinzufueg|hinzufüg)/i,
-    /was (?:fehlt|brauchst|benoetigst|benötigst) (?:dir|du)/i,
-    /was (?:wuerdest|würdest) du.*(machen|tun|ändern)/i,
-    /(?:was|welche).*(?:schwaeche|schwäche|luecke|lücke|mangel|problem)/i,
-    /(?:beurteile|bewerte|analysiere|reflektiere).*(?:dich|deinen? code)/i,
-    /(?:hast du|gibt es).*(?:ideen?|vorschlae?ge?|vorschläge)/i,
-    /(?:where|what).*(?:improve|missing|lacking|weakness|optimize|add)/i,
-    /what would you.*(change|improve|add|do different)/i,
-    /(?:siehst du|findest du).*(?:verbess|optimier|problem|schwach)/i,
-  ], 22, ['verbessern', 'optimieren', 'fehlen', 'brauchen', 'schwaeche', 'mangel', 'hinzufuegen', 'bewerten', 'beurteilen', 'reflektieren']],
+    /(?:^|\s)\/self-reflect\b/i,
+  ], 22, []],
 
   ['self-modify', [
-    // IMPERATIVES only: "optimier dich", "verbessere X", "ändere Y"
-    /(?:aender|modifiz|verbess|optimier).*(?:dich|dein|deinen?)\b/i,
-    /(?:aender|modifiz|verbess|optimier)\s+(?:das|die|den|dein)/i,
-    /(?:improve|change|modify|upgrade|refactor)\s+(?:your|the|this)/i,
-  ], 20, ['aendern', 'modifizieren', 'upgrade', 'refactor']],
+    /(?:^|\s)\/self-modify\b/i,
+  ], 20, []],
 
   ['self-repair', [
-    /repari/i, /fix.*dich/i, /diagnos/i, /fehler.*beheb/i,
-  ], 20, ['reparieren', 'fixen', 'diagnose', 'fehler', 'beheben', 'kaputt', 'broken']],
+    /(?:^|\s)\/self-repair\b/i,
+  ], 20, []],
 
-  // Circuit breaker reset — must be above create-skill
-  // v7.3.5: Slash-only for the command form. Keyword 'reset' was matching too
-  // broadly — any conversation mentioning "reset" (e.g. "/reset the chat",
-  // "I'd like to reset my config thoughts") was routed here instead of letting
-  // the LLM answer. Kept imperative phrases but removed standalone 'reset'
-  // from the keyword list.
+  // Circuit breaker reset — must be above self-repair so the longer name wins.
+  // (Pattern order still matters for slash-style matches: self-repair-reset
+  // must be registered BEFORE self-repair to avoid /self-repair-reset being
+  // classified as self-repair.)
   ['self-repair-reset', [
-    /^\/self-repair-reset\b/i,
-    /^\/unfreeze\b/i,
-    /self-repair-reset/i, /circuit.*reset/i, /unfreeze/i, /selfmod.*reset/i,
-    /self.*mod.*wieder/i, /entsperr.*modif/i,
-  ], 25, ['unfreeze', 'circuit', 'entsperren', 'selfmod']],
+    /(?:^|\s)\/(?:self-repair-reset|unfreeze)\b/i,
+  ], 25, []],
 
-  // v7.3.5: Keywords trimmed — 'faehigkeit' and 'erweiterung' matched too
-  // broadly in conversations ("ich habe eine Fähigkeit dazu", "die
-  // Erweiterung ist fragwürdig"). Imperatives still cover creation intent.
   ['create-skill', [
-    /^\/create-skill\b/i,
-    /skill.*erstell/i, /erstell.*skill/i, /neuen? skill/i, /create.*skill/i, /build.*skill/i,
-    /(?:neue|add|hinzufueg)\s+.{0,20}?(?:faehigkeit|capability|erweiterung|plugin)\s+(?:erstell|create|bau|add|install)/i,
-  ], 15, ['skill', 'plugin']],
-
-  // v7.3.5: Imperative-only. "klone dich", "create a clone" — not "klon"
-  // anywhere in free-text (would match "klonen der Stimme", "gentechnisch klonen").
-  ['clone', [
-    /^\/clone\b/i,
-    /(?:klon(?:e|en)?|clone|replizi(?:ere?|er))\s+(?:dich|yourself|sich)\b/i,
-    /(?:erstell|create|build|bau|mach)\s+(?:einen?\s+)?klon\b/i,
-    /(?:make|create)\s+(?:a|an)\s+clone\b/i,
-    /(?:neue[rn]?|new)\s+agent\s+(?:erstell|create|spawn|starten)/i,
+    /(?:^|\s)\/create-skill\b/i,
   ], 15, []],
 
-  // v7.3.5: Imperative only. Free-text "ich analysiere gerade meinen code"
-  // or "hast du eine review?" should not auto-route — LLM answers with code
-  // context if relevant.
+  ['clone', [
+    /(?:^|\s)\/clone\b/i,
+  ], 15, []],
+
   ['analyze-code', [
-    /^\/analyze-code\b/i,
-    /(?:analysiere?|analyse|analyze|prüfe?|review)\s+(?:den\s+|the\s+|my\s+|mein[en]?\s+|deinen?\s+|your\s+)?code\b/i,
-    /code.?review\s+(?:des|von|of)/i,
+    /(?:^|\s)\/analyze-code\b/i,
   ], 12, []],
 
   // v5.9.1: Run/execute/use an installed skill — must be ABOVE execute-code
@@ -114,26 +114,16 @@ const INTENT_DEFINITIONS = [
     /fuehr.*datei/i, /execute.*file/i, /starte? .*\.\w{2,4}\b/i,
   ], 12, ['datei', 'starten', 'script']],
 
-  // v7.3.5: Required "peer" to co-occur with an action verb or noun from the
-  // peer domain. Previously /peer/i alone matched any message containing the
-  // word peer. Keywords reduced to peer-specific ones — "skill", "trust",
-  // "agent", "import" on their own were routing too aggressively.
+  // v7.3.6 #1 — Slash-only (continues the slash-discipline from the group above).
   ['peer', [
-    /^\/peer\b/i,
-    /peer.?(?:network|netzwerk|scan|such|discover|trust|vertrau|import|compare|vergleich|skill)/i,
-    /(?:trust|vertrau).*peer/i,
-    /(?:importiere?|hole?).*skill.*(?:von\s+)?(?:peer|from\s+peer)/i,
-    /(?:compare|vergleich).*(?:mit\s+|with\s+)peer/i,
-    /andere[rn]?\s+agent(?:en)?\s+(?:scan|such|find|discover|entdeck)/i,
+    /(?:^|\s)\/peer\b/i,
   ], 14, []],
 
-  // v7.3.5: /daemon-status, /daemon-start, /daemon-stop as slash commands.
-  // Free-text mentions ("ist der daemon noch aktiv?", "wie autonom bist du?")
-  // fall through to general where the LLM answers with status context.
+  // v7.3.6 #1 — Slash-only. Free-text mentions ("ist der daemon noch aktiv?",
+  // "wie autonom bist du?") fall through to general where the LLM answers with
+  // status context if relevant.
   ['daemon', [
-    /^\/daemon\b/i,
-    /(?:start|stop|pause|resume|status)\s+(?:the\s+|den\s+|das\s+)?daemon\b/i,
-    /daemon\s+(?:starten?|stoppen?|pausiere?n?|status)/i,
+    /(?:^|\s)\/daemon\b/i,
   ], 10, []],
 
   ['trust-control', [
@@ -162,23 +152,21 @@ const INTENT_DEFINITIONS = [
     /tool.?server.*(?:verbind|connect|add)/i,
   ], 14, ['mcp', 'server', 'tool', 'connect', 'verbinden', 'extern', 'protocol']],
 
-  // v7.3.5: Slash-only for the command-style journal dump. Free-text mentions
-  // like "was hast du so gedacht?" or "dein Tagebuch klingt spannend" fall
-  // through to general where the LLM answers conversationally (with journal
-  // context injected by PromptBuilder if relevant).
+  // Slash-only. Free-text mentions ("was hast du so gedacht?",
+  // "dein Tagebuch klingt spannend") fall through to general where
+  // the LLM answers conversationally with journal context injected
+  // by PromptBuilder if relevant.
   ['journal', [
-    /^\/journal\b/i,
-    /^\/tagebuch\b/i,
-    /(?:zeig|show|list|open).*(?:journal|tagebuch)/i,
+    /(?:^|\s)\/journal\b/i,
+    /(?:^|\s)\/tagebuch\b/i,
   ], 10, []],
 
-  // v7.3.5: Slash-only. "was willst du" / "hast du ideen" are conversational
-  // questions — the LLM should answer with plan data injected as context,
-  // not dump a structured list from the CommandHandlers.plans() handler.
+  // Slash-only. Conversational questions ("was willst du", "hast du ideen")
+  // fall through to general where the LLM answers with plan data injected
+  // as context — not a structured dump from CommandHandlers.plans().
   ['plans', [
-    /^\/plans?\b/i,
-    /^\/vorhaben\b/i,
-    /(?:zeig|show|list).*(?:vorhaben|plans?)\b/i,
+    /(?:^|\s)\/plans?\b/i,
+    /(?:^|\s)\/vorhaben\b/i,
   ], 10, []],
 
   ['goals', [
@@ -204,21 +192,18 @@ const INTENT_DEFINITIONS = [
     /(?:ziel|goal)\s+(?:setzen|erstellen|hinzufügen|hinzufuegen|add|create|addieren)/i,
   ], 16, ['ziel', 'goal', 'goals', 'ziele', 'setze', 'lösche', 'abbrechen', 'cancel', 'abandon', 'clear']],
 
-  // v7.3.5: Slash-only for the settings panel. Free-text mentions of
-  // "konfiguration", "settings", "einstellung" in conversation (including
-  // injection attempts like "einseh deine konfiguration") fall through to
-  // general where the LLM answers without dumping structured config. The
-  // explicit "Anthropic API-Key: sk-ant-..." shape is kept as a separate
-  // pattern so users can still set keys by just pasting them.
+  // Slash-only. Free-text mentions of "konfiguration" / "settings" /
+  // "einstellung" in conversation fall through to general; the LLM
+  // answers without dumping structured config. The API-key paste
+  // pattern is an intentional exception — if a user pastes a key,
+  // it is saved directly.
   ['settings', [
-    /^\/settings?\b/i,
-    /^\/einstellung\w*\b/i,
-    /^\/config\b/i,
-    /^\/konfigur\w*\b/i,
-    // API key entry — "Anthropic API-Key: sk-ant-..." (with or without leading slash)
+    /(?:^|\s)\/settings?\b/i,
+    /(?:^|\s)\/einstellung\w*\b/i,
+    /(?:^|\s)\/config\b/i,
+    /(?:^|\s)\/konfigur\w*\b/i,
+    // API-key paste: "Anthropic API-Key: sk-ant-..."
     /\b(?:anthropic|openai)\s+api.?key\s*[:=]\s*\S+/i,
-    // Explicit imperatives mentioning a setting concept (allow fillers like "mir", "die")
-    /(?:zeig|show|open|öffne)\s+(?:(?:mir|me|the|die|den)\s+)*(?:einstellung|settings?|konfigur|config)\w*/i,
   ], 12, []],
 
   ['web-lookup', [
@@ -362,7 +347,10 @@ class IntentRouter {
     if (this._localClassifier) {
       const local = this._localClassifier.classify(message);
       if (local && local.confidence > fast.confidence) {
-        return local;
+        // v7.3.6: Enforce slash-discipline. Rewrites to 'general' if a
+        // slash-command intent was returned without an actual '/' in the
+        // message. See _enforceSlashDiscipline() for rationale.
+        return _enforceSlashDiscipline(local, message);
       }
     }
 
@@ -373,7 +361,8 @@ class IntentRouter {
         if (this._localClassifier) {
           this._localClassifier.addSample(message, llm.type);
         }
-        return llm;
+        // v7.3.6: Enforce slash-discipline after LLM verdict too.
+        return _enforceSlashDiscipline(llm, message);
       }
     }
     return fast;

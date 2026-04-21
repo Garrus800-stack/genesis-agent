@@ -34,6 +34,7 @@
 const { NullBus } = require('../core/EventBus');
 const { TIMEOUTS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 
 const _log = createLogger('ToolSynth');
 
@@ -97,6 +98,9 @@ class DynamicToolSynthesis {
       maxAttempts: (config?.maxAttempts) || MAX_ATTEMPTS,
       autoSynthesize: (config?.autoSynthesize) !== false,
     };
+
+    // v7.3.6 patch: track bus subscriptions for clean shutdown
+    this._unsubs = [];
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -108,7 +112,7 @@ class DynamicToolSynthesis {
 
     // Listen for tool-not-found to auto-synthesize
     if (this._config.autoSynthesize) {
-      this.bus.on('tools:error', (data) => {
+      this._sub('tools:error', (data) => {
         if (data.error?.includes('Tool not found') && data.name) {
           this._autoSynthesize(data.name).catch(err => {
             _log.debug(`[SYNTH] Auto-synthesis for "${data.name}" failed:`, err.message);
@@ -121,6 +125,8 @@ class DynamicToolSynthesis {
   }
 
   stop() {
+    // v7.3.6 patch: unsubscribe tracked bus listeners
+    this._unsubAll();
     this._saveSync();
   }
 
@@ -501,5 +507,8 @@ class DynamicToolSynthesis {
     }
   }
 }
+
+// v7.3.6 patch: apply subscription-helper mixin
+applySubscriptionHelper(DynamicToolSynthesis, { defaultSource: 'DynamicToolSynthesis' });
 
 module.exports = { DynamicToolSynthesis };

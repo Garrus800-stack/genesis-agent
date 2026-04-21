@@ -58,6 +58,8 @@ const CONF = {
   MIN_OBS_EARLY: 2,
 };
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class CausalAnnotation {
   /**
    * @param {{ bus?: object, knowledgeGraph?: object, config?: object }} opts
@@ -86,9 +88,9 @@ class CausalAnnotation {
     // This closes the feedback loop: InferenceEngine can now learn patterns
     // like "code intent → success" or "greeting intent → correlated_with greeting response".
     this._unsubs = [];
-    this._unsubs.push(this.bus.on('chat:completed', (data) => {
+    this._sub('chat:completed', (data) => {
       this.recordChatOutcome(data);
-    }, { source: 'CausalAnnotation' }));
+    }, { source: 'CausalAnnotation' });
   }
 
   // ════════════════════════════════════════════════════════
@@ -285,7 +287,7 @@ class CausalAnnotation {
   }
 
   /** Stop bus listeners (called during shutdown). */
-  stop() { for (const unsub of this._unsubs) unsub(); this._unsubs = []; }
+  stop() { this._unsubAll(); }
 
   /** Get tracking statistics */
   getStats() {
@@ -295,5 +297,7 @@ class CausalAnnotation {
     };
   }
 }
+
+applySubscriptionHelper(CausalAnnotation);
 
 module.exports = { CausalAnnotation, REL, CONF };

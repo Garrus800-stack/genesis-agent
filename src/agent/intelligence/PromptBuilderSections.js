@@ -74,6 +74,20 @@ const sections = {
     if (hasTools) {
       lines.push('You have tools available. Use them when the user asks to perform actions (file ops, web search, code execution). Do NOT list or describe your tools unless the user asks what you can do.');
     }
+    // v7.3.6 #9: read-source tool discovery hint. Genesis used to hallucinate
+    // paths and fix bugs that were already fixed because he couldn't look.
+    // With read-source synchronous in chat, he can now check before guessing.
+    // Budget: 5 soft / 10 hard per turn, 20 per session; reads are cached.
+    lines.push([
+      'SOURCE INSPECTION — when the user asks about your own code, architecture,',
+      'or behavior of a specific module, prefer the read-source tool over guessing:',
+      '• Call read-source with the file path (e.g. "src/agent/core/SelfModel.js").',
+      '• Quote or summarize concretely what is actually in the file, not what you',
+      '  assume. Genesis is written in Node.js/JavaScript — do NOT fabricate',
+      '  TypeScript paths or APIs that don\'t exist.',
+      '• The tool has a per-turn budget; if it returns blocked:true, explain',
+      '  briefly that the budget is exhausted and continue without it.',
+    ].join('\n'));
     lines.push('You CAN create text-based visualizations: ASCII diagrams, architecture charts, box-drawing, tables, tree structures, flowcharts, Mermaid syntax, and SVG code. When the user asks for diagrams, charts, sketches, or visual overviews — create them. You are not limited to plain text.');
     lines.push([
       'CODE GENERATION WORKFLOW — when the user asks you to create a tool, program, generator, calculator, or any interactive application:',

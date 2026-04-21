@@ -18,7 +18,7 @@ const _log = createLogger('GoalStack');
 // v7.3.1: Capability-gate for duplicate detection
 const CapabilityMatcher = require('./CapabilityMatcher');
 class GoalStack {
-  constructor({ lang, bus,  model, prompts, storageDir, storage}) {
+  constructor({ lang, bus,  model, prompts, storageDir, storage, selfGate}) {
     this.lang = lang || { t: (k) => k, detect: () => {}, current: 'en' };
     this.bus = bus || NullBus;
     this.model = model;
@@ -38,6 +38,10 @@ class GoalStack {
     // Container wires this via late-binding; may be null in tests.
     this.selfModel = null;
     this.lessonsStore = null;
+
+    // v7.3.6 #2: Self-Gate — optional telemetry. Records observations
+    // on non-user goal pushes; never blocks.
+    this.selfGate = selfGate || null;
   }
 
 
@@ -54,6 +58,23 @@ class GoalStack {
    * @param {object} options - { parentId, blockedBy: [goalId], tags: [] }
    */
   async addGoal(description, source = 'self', priority = 'medium', options = {}) {
+    // v7.3.6 #2: Self-Gate observation. Only fires for non-user sources
+    // — user-originated goals are always responsive. Idle, daemon, and
+    // self-originated goals get observed for topic mismatch. Telemetry
+    // event fires; the goal always pushes.
+    if (this.selfGate && source !== 'user') {
+      try {
+        this.selfGate.check({
+          actionType: 'goal-push',
+          actionPayload: { label: description, description },
+          userContext: options.userContext || '',
+          triggerSource: options.triggerSource || `goal source: ${source}`,
+        });
+      } catch (err) {
+        _log.debug('[SELF-GATE] goal-push check skipped:', err?.message);
+      }
+    }
+
     // v7.3.1: Capability-Gate — prevent duplicate goal proposals.
     // Runs before decomposition (saves LLM calls on blocks).
     // Skipped when override is claimed via options.novel.
@@ -223,7 +244,12 @@ class GoalStack {
    * Create a sub-goal under an existing goal
    */
   async addSubGoal(parentId, description, priority = 'medium') {
-    return this.addGoal(description, 'goal-decomposition', priority, { parentId });
+    // v7.3.6 patch: propagate parent identity into triggerSource so Self-Gate
+    // can see where decomposition-pushed sub-goals originate.
+    return this.addGoal(description, 'goal-decomposition', priority, {
+      parentId,
+      triggerSource: `decomposition from parent goal ${parentId}`,
+    });
   }
 
   /**

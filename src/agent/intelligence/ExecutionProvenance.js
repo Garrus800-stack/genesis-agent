@@ -45,6 +45,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('Provenance');
 
 class ExecutionProvenance {
@@ -85,10 +86,7 @@ class ExecutionProvenance {
   }
 
   stop() {
-    for (const unsub of this._unsubs) {
-      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
-    }
-    this._unsubs = [];
+    this._unsubAll();
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -375,52 +373,40 @@ class ExecutionProvenance {
   /** @private */
   _wireEvents() {
     // Observe intent classification
-    this._unsubs.push(
-      this.bus.on('intent:classified', (data) => {
-        if (this._activeTraceId && data) {
-          this.recordIntent(this._activeTraceId, data);
-        }
-      }, { source: 'ExecutionProvenance', priority: -20 })
-    );
+    this._sub('intent:classified', (data) => {
+      if (this._activeTraceId && data) {
+        this.recordIntent(this._activeTraceId, data);
+      }
+    }, { source: 'ExecutionProvenance', priority: -20 });
 
     // Observe context compression
-    this._unsubs.push(
-      this.bus.on('context:compressed', (data) => {
-        if (this._activeTraceId && data) {
-          const trace = this._traces.get(this._activeTraceId);
-          if (trace) {
-            trace.context = trace.context || {};
-            trace.context.compressed = true;
-          }
+    this._sub('context:compressed', (data) => {
+      if (this._activeTraceId && data) {
+        const trace = this._traces.get(this._activeTraceId);
+        if (trace) {
+          trace.context = trace.context || {};
+          trace.context.compressed = true;
         }
-      }, { source: 'ExecutionProvenance', priority: -20 })
-    );
+      }
+    }, { source: 'ExecutionProvenance', priority: -20 });
 
     // Observe agent loop activity
-    this._unsubs.push(
-      this.bus.on('agent-loop:complete', (data) => {
-        if (this._activeTraceId && data) {
-          this.recordAgentLoop(this._activeTraceId, data);
-        }
-      }, { source: 'ExecutionProvenance', priority: -20 })
-    );
+    this._sub('agent-loop:complete', (data) => {
+      if (this._activeTraceId && data) {
+        this.recordAgentLoop(this._activeTraceId, data);
+      }
+    }, { source: 'ExecutionProvenance', priority: -20 });
 
     // Track side effects
-    this._unsubs.push(
-      this.bus.on('selfmod:success', (data) => {
-        this._recordSideEffect('selfmod:success', data);
-      }, { source: 'ExecutionProvenance', priority: -20 })
-    );
-    this._unsubs.push(
-      this.bus.on('shell:executed', (data) => {
-        this._recordSideEffect('shell:executed', data);
-      }, { source: 'ExecutionProvenance', priority: -20 })
-    );
-    this._unsubs.push(
-      this.bus.on('tool:synthesized', (data) => {
-        this._recordSideEffect('tool:synthesized', data);
-      }, { source: 'ExecutionProvenance', priority: -20 })
-    );
+    this._sub('selfmod:success', (data) => {
+      this._recordSideEffect('selfmod:success', data);
+    }, { source: 'ExecutionProvenance', priority: -20 });
+    this._sub('shell:executed', (data) => {
+      this._recordSideEffect('shell:executed', data);
+    }, { source: 'ExecutionProvenance', priority: -20 });
+    this._sub('tool:synthesized', (data) => {
+      this._recordSideEffect('tool:synthesized', data);
+    }, { source: 'ExecutionProvenance', priority: -20 });
   }
 
   /** @private */
@@ -439,5 +425,7 @@ class ExecutionProvenance {
     return `t-${ts}-${rand}`;
   }
 }
+
+applySubscriptionHelper(ExecutionProvenance);
 
 module.exports = { ExecutionProvenance };

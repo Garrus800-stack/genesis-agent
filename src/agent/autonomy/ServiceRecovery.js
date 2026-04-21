@@ -47,6 +47,8 @@ const REINIT_SERVICES = new Set([
 const MAX_RETRIES = 3;
 const WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class ServiceRecovery {
   /**
    * @param {{ bus: *, container?: *, healthMonitor?: * }} deps
@@ -70,17 +72,12 @@ class ServiceRecovery {
   // ── Lifecycle ──────────────────────────────────────────
 
   boot() {
-    this._unsubs.push(
-      this.bus.on('health:degradation', (data, meta) => this._onDegradation(data, meta))
-    );
+    this._sub('health:degradation', (data, meta) => this._onDegradation(data, meta));
     _log.info('ServiceRecovery active — listening for health:degradation');
   }
 
   stop() {
-    for (const unsub of this._unsubs) {
-      if (typeof unsub === 'function') unsub();
-    }
-    this._unsubs.length = 0;
+    this._unsubAll();
   }
 
   // ── Core Recovery Logic ────────────────────────────────
@@ -322,5 +319,7 @@ class ServiceRecovery {
     return { ...this.stats, services };
   }
 }
+
+applySubscriptionHelper(ServiceRecovery);
 
 module.exports = { ServiceRecovery };

@@ -32,6 +32,8 @@ const GOAL_STATUSES = new Set(['active', 'paused', 'blocked', 'running']);
 const ARCHIVE_MAX = 50;
 const GC_DAYS = 30;
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class GoalPersistence {
   constructor({ bus, storage, goalStack, eventStore, config }) {
     this.bus = bus || NullBus;
@@ -63,14 +65,12 @@ class GoalPersistence {
     this._unsubs = [];
 
     // ── Wire into GoalStack events ──────────────────────
-    this._unsubs.push(
-      this.bus.on('goal:created', (data) => this._onGoalCreated(data), { source: 'GoalPersistence' }),
-      this.bus.on('goal:completed', (data) => this._onGoalCompleted(data), { source: 'GoalPersistence' }),
-      this.bus.on('goal:failed', (data) => this._onGoalFailed(data), { source: 'GoalPersistence' }),
-      this.bus.on('goal:abandoned', (data) => this._onGoalAbandoned(data), { source: 'GoalPersistence' }),
-      // v4.12.5-fix: Standardized from 'agentloop:step-complete' to 'agent-loop:step-complete'
-      this.bus.on('agent-loop:step-complete', (data) => this._onStepComplete(data), { source: 'GoalPersistence' }),
-    );
+    this._sub('goal:created', (data) => this._onGoalCreated(data), { source: 'GoalPersistence' });
+    this._sub('goal:completed', (data) => this._onGoalCompleted(data), { source: 'GoalPersistence' });
+    this._sub('goal:failed', (data) => this._onGoalFailed(data), { source: 'GoalPersistence' });
+    this._sub('goal:abandoned', (data) => this._onGoalAbandoned(data), { source: 'GoalPersistence' });
+    // v4.12.5-fix: Standardized from 'agentloop:step-complete' to 'agent-loop:step-complete'
+    this._sub('agent-loop:step-complete', (data) => this._onStepComplete(data), { source: 'GoalPersistence' });
   }
 
   // ════════════════════════════════════════════════════════
@@ -328,10 +328,7 @@ class GoalPersistence {
 
   // v5.9.9: Lifecycle compliance — unsubscribe listeners + sync persist
   stop() {
-    for (const unsub of this._unsubs) {
-      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
-    }
-    this._unsubs.length = 0;
+    this._unsubAll();
 
     // Sync persist active goals on shutdown
     try {
@@ -341,5 +338,7 @@ class GoalPersistence {
     }
   }
 }
+
+applySubscriptionHelper(GoalPersistence);
 
 module.exports = { GoalPersistence };

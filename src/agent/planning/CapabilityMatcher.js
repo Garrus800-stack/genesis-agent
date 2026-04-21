@@ -23,6 +23,11 @@
 
 'use strict';
 
+// v7.3.6 #8: TF-IDF-based similarity. Replaces Jaccard with cosine
+// similarity on TF-IDF vectors built from the goal description +
+// all capability descriptions+keywords as the corpus.
+const tfidf = require('../core/tfidf');
+
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'of', 'to', 'for', 'and', 'or', 'is', 'as', 'on', 'in', 'at', 'by',
   'via', 'with', 'from', 'into', 'that', 'this', 'can', 'are', 'was', 'be', 'has', 'its',
@@ -32,8 +37,8 @@ const STOP_WORDS = new Set([
 ]);
 
 const THRESHOLDS = {
-  PASS: 0.4,   // below → clearly novel
-  BLOCK: 0.8,  // above → clearly duplicate
+  PASS: 0.4,   // below → clearly novel (low cosine)
+  BLOCK: 0.75, // v7.3.6 #8: lowered from 0.8 (Jaccard) to 0.75 (cosine)
 };
 
 /**
@@ -130,46 +135,88 @@ function fuzzyOverlap(setA, setB) {
 }
 
 /**
- * Match a goal description against a capability list.
+ * Match a goal description against a capability list using TF-IDF cosine.
+ *
+ * v7.3.6 #8: replaces the Jaccard/fuzzy-overlap approach. Corpus is
+ * built from the goal description + one document per capability (its
+ * description plus keywords joined). Rare-but-distinctive words
+ * (e.g. "homeostasis", "dream-cycle") weigh more than common ones
+ * (e.g. "system", "add") because of IDF weighting.
+ *
+ * API unchanged: returns {score, matched, decision}.
  *
  * @param {string} description - Goal text (title + description)
  * @param {Array<object>} capabilities - getCapabilitiesDetailed() output
  * @returns {{ score: number, matched: object|null, decision: string }}
- *   decision: 'pass' | 'warn' | 'block'
+ *   decision: 'pass' | 'grey' | 'block'
  */
 function match(description, capabilities) {
   if (!description || !Array.isArray(capabilities) || capabilities.length === 0) {
     return { score: 0, matched: null, decision: 'pass' };
   }
 
-  const goalKeywords = extractKeywords(description);
-  if (goalKeywords.length === 0) {
+  // Build one document per capability combining description + keywords.
+  // Keywords carry domain-specific terms (homeostasis, dream-cycle)
+  // that the description may not repeat.
+  const capDocs = capabilities.map(cap => {
+    const desc = String(cap.description || cap.name || cap.id || '');
+    const kws  = Array.isArray(cap.keywords) ? cap.keywords.join(' ') : '';
+    return `${desc} ${kws}`.trim();
+  });
+
+  // Corpus = goal + all capability docs, so IDF reflects what's rare
+  // across this goal-vs-capability comparison specifically.
+  const corpus = [String(description), ...capDocs];
+  const vocabulary = tfidf.buildVocabulary(corpus, { useStemming: true });
+
+  // If vocabulary is empty (all stop-words, too-short tokens), fall back
+  // gracefully: no match, decision=pass.
+  if (vocabulary.vocab.length === 0) {
     return { score: 0, matched: null, decision: 'pass' };
   }
 
+  const goalVec = tfidf.textToVector(String(description), vocabulary);
+
   let best = { score: 0, matched: null };
-  for (const cap of capabilities) {
-    const capKeywords = cap.keywords || [];
-    if (capKeywords.length === 0) continue;
-    // Stem capability keywords on-the-fly for symmetric comparison.
-    // Cap.keywords come from SelfModel unstemmed; extractKeywords() stems
-    // the goal side. Stem both for Jaccard to work as expected.
-    const stemmedCapKeywords = capKeywords
-      .map(k => k.toLowerCase())
-      .map(stem)
-      .filter(k => k.length >= 3);
-    const score = fuzzyOverlap(goalKeywords, stemmedCapKeywords);
-    if (score > best.score) {
-      best = { score, matched: cap };
+  for (let i = 0; i < capabilities.length; i++) {
+    const capDoc = capDocs[i];
+    if (!capDoc) continue;
+    const capVec = tfidf.textToVector(capDoc, vocabulary);
+    const sim = tfidf.cosineSimilarity(goalVec, capVec);
+    if (sim > best.score) {
+      best = { score: sim, matched: capabilities[i] };
+    }
+  }
+
+  // Prefix-rescue for short goals: TF-IDF treats "homeostat" (from
+  // stemming "homeostatic") and "homeostas" (from "homeostasis") as
+  // different words. For short goals (≤5 tokens) where cosine stays
+  // low, run the legacy fuzzy-overlap as a fallback. Real duplicates
+  // with stem-divergent forms still get caught; genuinely novel goals
+  // stay low because fuzzyOverlap would be low too.
+  const goalTokens = extractKeywords(String(description));
+  const isShortGoal = goalTokens.length <= 5;
+  if (isShortGoal && best.score < THRESHOLDS.PASS) {
+    for (const cap of capabilities) {
+      const capKws = (cap.keywords || []).map(k => k.toLowerCase()).map(stem).filter(k => k.length >= 3);
+      if (capKws.length === 0) continue;
+      const fuzzy = fuzzyOverlap(goalTokens, capKws);
+      if (fuzzy > best.score) {
+        best = { score: fuzzy, matched: cap };
+      }
     }
   }
 
   let decision;
-  if (best.score < THRESHOLDS.PASS) decision = 'pass';
-  else if (best.score > THRESHOLDS.BLOCK) decision = 'block';
-  else decision = 'grey';
+  if (best.score < THRESHOLDS.PASS)       decision = 'pass';
+  else if (best.score >= THRESHOLDS.BLOCK) decision = 'block';
+  else                                     decision = 'grey';
 
-  return { score: Math.round(best.score * 100) / 100, matched: best.matched, decision };
+  return {
+    score: Math.round(best.score * 100) / 100,
+    matched: best.matched,
+    decision,
+  };
 }
 
 /**

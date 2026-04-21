@@ -10,15 +10,19 @@ function phase4(ctx, R) {
     ['goalStack', {
       phase: 4, deps: ['llm', 'prompts', 'storage'], tags: ['intelligence'],
       // v7.3.1: Late-bind selfModel + lessonsStore for Capability-Gate
+      // v7.3.6 #2: Self-Gate — late-bound because phase1 but kept optional
+      //            for tests that don't wire it.
       lateBindings: [
         { prop: 'selfModel', service: 'selfModel', optional: true },
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
+        { prop: 'selfGate', service: 'selfGate', optional: true },
       ],
       factory: (c) => {
         const { lang } = R('Language');
         return new (R('GoalStack').GoalStack)({
           bus, lang, model: c.resolve('llm'), prompts: c.resolve('prompts'),
           storageDir: genesisDir, storage: c.resolve('storage'),
+          selfGate: c.tryResolve('selfGate'),
         });
       },
     }],

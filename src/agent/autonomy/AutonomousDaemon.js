@@ -14,6 +14,7 @@
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
 const { INTERVALS } = require('../core/Constants');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('AutonomousDaemon');
 
 class AutonomousDaemon {
@@ -32,6 +33,9 @@ class AutonomousDaemon {
     this.trustLevelSystem = null; // late-bound
     // v7.3.5: Goal lifecycle review
     this.goalStack = null; // late-bound
+
+    // v7.3.6 patch: track bus subscriptions for clean shutdown
+    this._unsubs = [];
 
     this.running = false;
     this.intervalHandle = null;
@@ -71,9 +75,12 @@ class AutonomousDaemon {
     // FIX v6.1.1: Listen for capability gaps detected by LearningService
     // When Genesis says "I can't", queue it for skill creation on next cycle
     this._dynamicGaps = [];
-    this.bus.on('learning:capability-gap', (data) => {
+    this._sub('learning:capability-gap', (data) => {
       if (!data) return;
-      const topic = ( data.userRequest || '').slice(0, 100).replace(/[^a-zA-ZäöüÄÖÜß0-9\s-]/g, '').trim();
+      // v7.3.6 #10: Unicode-aware cleanup. Was restricted to ASCII+German.
+      // Now preserves all letter/digit characters (plus whitespace and hyphen)
+      // across scripts — user topics in any language stay intact.
+      const topic = ( data.userRequest || '').slice(0, 100).replace(/[^\p{L}\p{N}\s-]/gu, '').trim();
       const _ad = /** @type {any} */ (this);
       if (topic.length > 5 && _ad._dynamicGaps.length < 20) {
         _ad._dynamicGaps.push({ id: `gap:user:${Date.now()}`, topic, type: 'user-request', request: data.userRequest });
@@ -98,6 +105,8 @@ class AutonomousDaemon {
 
   stop() {
     this.running = false;
+    // v7.3.6 patch: unsubscribe tracked bus listeners
+    this._unsubAll();
     // FIX v5.0.0: Clear boot-delay timer to prevent post-stop cycle
     if (this._bootTimer) {
       clearTimeout(this._bootTimer);
@@ -473,5 +482,8 @@ class AutonomousDaemon {
     }
   }
 }
+
+// v7.3.6 patch: apply subscription-helper mixin
+applySubscriptionHelper(AutonomousDaemon, { defaultSource: 'AutonomousDaemon' });
 
 module.exports = { AutonomousDaemon };

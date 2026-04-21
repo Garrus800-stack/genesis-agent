@@ -1,10 +1,12 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.3.5 — Event flow documentation. Updated for v7.3.5 impulse-control gates (`injection:blocked`, `tool-call:unverified`),
-> v7.3.4 dormant-emit annotations, v7.3.2 schema honesty (all 399 emits validated, 0 mismatches),
-> v7.3.1 activities split, v7.2.8 idle intelligence, v7.2.7 autonomy awareness,
-> v7.2.5 idle-dream event bridge, v7.2.4 signal fidelity,
-> v7.2.1 deep audit, v7.2.0 self-define activity, v7.1.7 hardening.
+> v7.3.6 — Event flow documentation. 391 catalogued events, 391 payload schemas,
+> all 399 emit sites validated (0 mismatches). Active gates with bus events:
+> Injection-Gate (`injection:blocked`), Tool-Call-Verification (`tool-call:unverified`),
+> Self-Gate (`self-gate:warned`, telemetry only), Source-Read (`read-source:called`,
+> `read-source:soft-limit`). Dormant-emit annotations from v7.3.4, activities split
+> from v7.3.1, idle intelligence from v7.2.8, autonomy awareness from v7.2.7,
+> idle-dream event bridge from v7.2.5, signal fidelity from v7.2.4.
 > This document maps which modules emit and consume which EventBus events.
 
 ## System Overview
@@ -650,19 +652,24 @@ future modules can attach to without schema migration. If an emit is truly
 dead (no future consumer plausible, no telemetry value), it should be
 removed via a dedicated cleanup commit rather than left in this table.
 
-## Impulse Control Gates (v7.3.5)
+## Gate Events
 
-Two new event categories were added in v7.3.5 to surface gate decisions
-that block or annotate Genesis' actions before they reach the user.
+Events that surface gate decisions on Genesis' own actions — both
+inbound (user-facing input passing through Injection-Gate) and
+outbound (Genesis' own response or tool-call verified by
+Tool-Call-Verification and Self-Gate).
 
 | Event | Source | Listener | Purpose |
 | --- | --- | --- | --- |
 | `injection:blocked` | ChatOrchestrator (via `injection-gate.js`) | Dashboard / metrics (planned) | Fires when the input-side injection gate blocks an LLM-decided tool call. Two or more signals from {authority claim, credential request, artificial urgency} were detected in the user message. Payload: `{ signals: Array<{kind, note}>, toolCount }`. The tool call is not executed; the gate response is sent to the chat instead. |
 | `tool-call:unverified` | ChatOrchestrator (via `tool-call-verification.js`) | Dashboard / metrics (planned) | Fires when Genesis' final response claims concrete action (file write, shell, sandbox) but no matching tool fired in the turn. Detective signal — the response still reaches the user, with an annotation suggesting verification. Payload: `{ verdict: 'suspicious'\|'unverified', flagCount, categories: Array<string> }`. |
+| `self-gate:warned` | ChatOrchestrator tool-calls, GoalStack pushes (non-user) — via `self-gate.js` | GateStats, Dashboard (planned) | Telemetry event when a Self-Gate observation detects reflexivity (LLM self-imperative without user request) or user-topic-mismatch on an action. Does not block — records the pattern for later analysis. Payload: `{ actionType, signals: Array<{kind, note}>, triggerSource }`. |
+| `self-gate:blocked` | — | — | Reserved in the catalog for a potential future enforcement mode. Not currently fired; the design commitment is that Self-Gate stays observational. |
+| `read-source:called` | SelfModel.readSourceSync | Dashboard (planned) | Fires on every successful source-read during a chat turn. Payload: `{ path, bytes, turnId? }`. Turn IDs propagate from ChatOrchestrator via `startReadSourceTurn(traceId)`. |
+| `read-source:soft-limit` | SelfModel.readSourceSync | Dashboard (planned) | Fires when `turnCount` crosses `softPerTurn` (5) within a single chat turn. Telemetry only — the read succeeds. Payload: `{ turnCount, softLimit, hardLimit, turnId? }`. |
 
-Both events are part of v7.3.5's "impulse control" theme: narrowing the
-gap between what Genesis says and what Genesis actually did. Listeners
-are not yet wired in production — the dashboard will surface these in a
-future release. Until then, the events serve as bus-level instrumentation
-for anyone debugging gate behaviour.
+Listeners on most of these are not yet wired in production — the
+dashboard will surface them in a future release. Until then they
+serve as bus-level instrumentation for anyone debugging gate
+behaviour.
 

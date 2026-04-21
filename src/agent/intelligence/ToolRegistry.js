@@ -233,6 +233,25 @@ ${descriptions.join('\n\n')}`;
         input: { file: 'string' },
         output: { code: 'string' },
       }, (input) => ({ code: selfModel.readModule(input.file) || `Not found: ${input.file}` }), 'builtin');
+
+      // v7.3.6 #9: Synchronous source-read for chat turns. Unlike read-own-code
+      // (which is used by the idle _read-source activity and ignores budgets),
+      // this tool enforces a Soft-5 / Hard-10 per-turn and Hard-20 per-session
+      // budget, caches reads within a session, and fires read-source:called
+      // for telemetry. Use this in chat when Genesis needs to inspect actual
+      // source before answering, rather than guessing / hallucinating paths.
+      this.register('read-source', {
+        description: 'Read a source file synchronously during a chat turn (budget-enforced, cached). Returns null if budget exhausted, path blocked, or file not found.',
+        input: { file: 'string' },
+        output: { code: 'string', truncated: 'boolean', blocked: 'boolean' },
+      }, (input) => {
+        const content = selfModel.readSourceSync(input.file, { bus: this.bus });
+        if (content === null) {
+          return { code: '', truncated: false, blocked: true };
+        }
+        const truncated = /\[\.\.\. truncated,/.test(content);
+        return { code: content, truncated, blocked: false };
+      }, 'builtin');
     }
 
     // Memory

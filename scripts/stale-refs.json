@@ -1,0 +1,51 @@
+{
+  "_description": "v7.3.6 — Known-deleted symbols and required test contracts. Updated per release.",
+  "_locked_at": "v7.3.6",
+  "symbols": [
+    {
+      "name": "AgentLoopDelegate",
+      "removedIn": "v7.3.4",
+      "note": "Split into AgentLoopPlanner/Steps/Cognition/Recovery delegates via composition"
+    },
+    {
+      "name": "GenesisChat",
+      "removedIn": "v7.3.3",
+      "note": "Orphan Web Component, never wired"
+    },
+    {
+      "name": "GenesisStatus",
+      "removedIn": "v7.3.3",
+      "note": "Orphan Web Component, never wired"
+    },
+    {
+      "name": "GenesisToast",
+      "removedIn": "v7.3.3",
+      "note": "Orphan Web Component, never wired"
+    },
+    {
+      "name": "GenesisElement",
+      "removedIn": "v7.3.3",
+      "note": "Orphan Web Component base class, never used"
+    },
+    {
+      "name": "backends/index",
+      "removedIn": "v7.3.3",
+      "note": "Barrel export with 0 references"
+    }
+  ],
+  "contracts": [
+    {
+      "prefix": "gate contract: ",
+      "minCount": 2,
+      "note": "v7.3.6 #11 — Injection-Gate Multi-Round-Bypass-Schließung. Two regression-guard tests in chatorchestrator.test.js: 'block verdict prevents tools in any loop round' and 'safe verdict lets multi-round tools proceed normally'. Do not delete or rename without rethinking the gate pattern."
+    }
+  ],
+  "_scanRoots": [
+    "src",
+    "docs"
+  ],
+  "_excludePaths": [
+    "CHANGELOG.md",
+    "node_modules"
+  ]
+}

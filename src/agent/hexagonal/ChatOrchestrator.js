@@ -16,7 +16,7 @@ const { createToolCallStreamFilter } = require('../core/tool-call-stream-filter'
 const _log = createLogger('ChatOrchestrator');
 
 class ChatOrchestrator {
-  constructor({ lang, bus,  intentRouter, model, context, tools, circuitBreaker, promptBuilder, uncertaintyGuard, memory, unifiedMemory, storageDir, storage}) {
+  constructor({ lang, bus,  intentRouter, model, context, tools, circuitBreaker, promptBuilder, uncertaintyGuard, memory, unifiedMemory, storageDir, storage, gateStats, selfGate}) {
     this.lang = lang || { t: (k) => k, detect: () => {}, current: 'en' };
     this.bus = bus || NullBus;
     this.router = intentRouter;
@@ -30,6 +30,20 @@ class ChatOrchestrator {
     this.unifiedMemory = unifiedMemory || null;
     this.storage = storage || null;
     this.abortController = null;
+
+    // v7.3.6 #6: Central gate-stats — optional injection. Services that gate
+    // decisions call this.gateStats?.recordGate(name, verdict). When null,
+    // instrumentation is silent (optional chaining).
+    this.gateStats = gateStats || null;
+
+    // v7.3.6 #2: Self-Gate — optional telemetry on own tool calls.
+    // Never blocks; events/logs only. If null, the check is skipped.
+    this.selfGate = selfGate || null;
+
+    // v7.3.6 #9: SelfModel — late-bound. Used to signal chat-turn boundaries
+    // to the source-read budget (startReadSourceTurn resets the per-turn
+    // counter; currentTurnId is propagated into read-source:called events).
+    this.selfModel = null;
 
     // FIX v3.5.0: NativeToolUse integration (late-bound from AgentCore)
     this.nativeToolUse = null; // Set by AgentCore._wireAndStart()
@@ -75,6 +89,12 @@ class ChatOrchestrator {
     const budget = this._cognitiveBudget?.assess?.(message) || null;
     const traceId = this._provenance?.beginTrace?.(message) || '';
     if (traceId && budget) this._provenance.recordBudget(traceId, budget);
+    // v7.3.6 #9: Signal new chat turn to source-read budget. Uses traceId
+    // as turnId when available, otherwise falls back to a timestamp.
+    // Safe-op when selfModel not late-bound yet.
+    try {
+      this.selfModel?.startReadSourceTurn(traceId || `turn-${Date.now()}`);
+    } catch (_e) { /* optional */ }
     const t0 = Date.now();
 
     try {
@@ -156,6 +176,10 @@ class ChatOrchestrator {
     if (traceId && budget) {
       this._provenance.recordBudget(traceId, budget);
     }
+    // v7.3.6 #9: Signal new chat turn to source-read budget.
+    try {
+      this.selfModel?.startReadSourceTurn(traceId || `turn-${Date.now()}`);
+    } catch (_e) { /* optional */ }
 
     const t0 = Date.now();
 

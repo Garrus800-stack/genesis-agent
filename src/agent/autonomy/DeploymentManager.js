@@ -17,6 +17,7 @@
 
 const { createLogger } = require('../core/Logger');
 const { TIMEOUTS } = require('../core/Constants');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('DeploymentManager');
 
 /**
@@ -73,17 +74,12 @@ class DeploymentManager {
   // ── Lifecycle ─────────────────────────────────────────────
 
   async boot() {
-    this._unsubs.push(
-      this.bus.on('deploy:request', (data) => this._handleDeployRequest(data)),
-    );
+    this._sub('deploy:request', (data) => this._handleDeployRequest(data));
     _log.info('[DEPLOY] DeploymentManager ready (foundation mode)');
   }
 
   async stop() {
-    for (const unsub of this._unsubs) {
-      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
-    }
-    this._unsubs.length = 0;
+    this._unsubAll();
   }
 
   // ── Public API ────────────────────────────────────────────
@@ -460,5 +456,7 @@ class DeploymentManager {
     });
   }
 }
+
+applySubscriptionHelper(DeploymentManager);
 
 module.exports = { DeploymentManager };

@@ -80,7 +80,8 @@ const analysis = {
    * Uses trigram frequency as a poor-man's embedding.
    */
   _hashText(text) {
-    const normalized = text.toLowerCase().replace(/[^a-z0-9äöüß\s]/g, '').trim();
+    // v7.3.6 #10: Unicode-aware — was [^a-z0-9äöüß\s] (German only).
+    const normalized = text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').trim();
     const words = normalized.split(/\s+/).filter(w => w.length > 2);
     const trigrams = {};
     for (const word of words) {

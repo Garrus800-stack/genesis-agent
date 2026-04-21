@@ -37,6 +37,8 @@ const DEFAULTS = {
   dataMaxAgeMs:        7 * 24 * 3600_000,
 };
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class AdaptiveStrategy {
   /**
    * @param {{ bus: *, storage: * }} deps
@@ -97,9 +99,7 @@ class AdaptiveStrategy {
 
   boot() {
     // Listen for task outcomes to check if active adaptations need validation
-    this._unsubs.push(
-      this.bus.on('task-outcome:recorded', () => this._onNewOutcome()),
-    );
+    this._sub('task-outcome:recorded', () => this._onNewOutcome());
     _log.info('[ADAPT] AdaptiveStrategy active — meta-cognitive feedback loop enabled');
   }
 
@@ -452,6 +452,8 @@ class AdaptiveStrategy {
     return `${sign}${Math.round(value * 100)}pp`;
   }
 }
+
+applySubscriptionHelper(AdaptiveStrategy);
 
 module.exports = { AdaptiveStrategy, BIAS_HYPOTHESES: require('./AdaptiveStrategyApply').BIAS_HYPOTHESES, STATUS, DEFAULTS };
 

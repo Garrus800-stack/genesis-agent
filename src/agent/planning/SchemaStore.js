@@ -25,6 +25,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('SchemaStore');
 
 class SchemaStore {
@@ -54,6 +55,9 @@ class SchemaStore {
 
     this._lastDecayAt = Date.now();
     this._dirty = false;
+
+    // v7.3.6 patch: track bus subscriptions for clean shutdown
+    this._unsubs = [];
   }
 
 
@@ -80,12 +84,14 @@ class SchemaStore {
 
   start() {
     // Periodic confidence decay — schemas that are never matched lose confidence
-    this.bus.on('idle:thought-complete', () => {
+    this._sub('idle:thought-complete', () => {
     this._maybeDecay();
     }, { source: 'SchemaStore' });
   }
 
   stop() {
+    // v7.3.6 patch: unsubscribe tracked bus listeners
+    this._unsubAll();
     // FIX D-1: Sync write on shutdown.
     this._saveSync();
   }
@@ -361,3 +367,8 @@ module.exports = { SchemaStore };
 
 const { indexMethods } = require('./SchemaStoreIndex');
 Object.assign(SchemaStore.prototype, indexMethods);
+
+// v7.3.6 patch: apply subscription-helper mixin (provides _sub / _unsubAll).
+// Placed AFTER Object.assign(indexMethods) so that the mixin applies onto
+// the finalized prototype.
+applySubscriptionHelper(SchemaStore, { defaultSource: 'SchemaStore' });

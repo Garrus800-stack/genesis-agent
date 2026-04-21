@@ -11,8 +11,9 @@ describe('daemon: no more catch-all /autonom/i', () => {
     if (classify('/daemon') !== 'daemon') throw new Error('slash should route');
   });
 
-  test('explicit "start daemon" works', () => {
-    if (classify('start the daemon') !== 'daemon') throw new Error('imperative should work');
+  test('v7.3.6 #1: "start daemon" free-text NO LONGER routes (slash-only)', () => {
+    const got = classify('start the daemon');
+    if (got === 'daemon') throw new Error('v7.3.6 slash-discipline: "start daemon" free-text should NOT route, got ' + got);
   });
 
   test('"wie autonom bist du?" falls through to general', () => {
@@ -36,12 +37,14 @@ describe('clone: imperative-only', () => {
     if (classify('/clone') !== 'clone') throw new Error('slash should route');
   });
 
-  test('"klone dich" routes', () => {
-    if (classify('klone dich') !== 'clone') throw new Error('imperative should work');
+  test('v7.3.6 #1: "klone dich" NO LONGER routes (slash-only)', () => {
+    const got = classify('klone dich');
+    if (got === 'clone') throw new Error('v7.3.6 slash-discipline: "klone dich" should NOT route, got ' + got);
   });
 
-  test('"create a clone" routes', () => {
-    if (classify('create a clone') !== 'clone') throw new Error('imperative should work');
+  test('v7.3.6 #1: "create a clone" NO LONGER routes (slash-only)', () => {
+    const got = classify('create a clone');
+    if (got === 'clone') throw new Error('v7.3.6 slash-discipline: "create a clone" should NOT route, got ' + got);
   });
 
   test('"klonen der Stimme ist ein thema" falls through', () => {
@@ -60,8 +63,9 @@ describe('analyze-code: imperative-only', () => {
     if (classify('/analyze-code') !== 'analyze-code') throw new Error('slash should route');
   });
 
-  test('"analysiere den code" routes', () => {
-    if (classify('analysiere den code') !== 'analyze-code') throw new Error('imperative should work');
+  test('v7.3.6 #1: "analysiere den code" NO LONGER routes (slash-only)', () => {
+    const got = classify('analysiere den code');
+    if (got === 'analyze-code') throw new Error('v7.3.6 slash-discipline: free-text "analysiere den code" should NOT route, got ' + got);
   });
 
   test('"ich analysiere gerade" falls through', () => {
@@ -86,8 +90,9 @@ describe('peer: narrowed', () => {
     if (classify('/peer') !== 'peer') throw new Error('slash should route');
   });
 
-  test('"scan peer network" routes', () => {
-    if (classify('scan the peer network') !== 'peer') throw new Error('imperative should work');
+  test('v7.3.6 #1: "scan peer network" NO LONGER routes (slash-only)', () => {
+    const got = classify('scan the peer network');
+    if (got === 'peer') throw new Error('v7.3.6 slash-discipline: "scan the peer network" should NOT route, got ' + got);
   });
 
   test('"peer review this code" falls through (not a peer-network command)', () => {
@@ -106,8 +111,9 @@ describe('create-skill: no overbroad faehigkeit', () => {
     if (classify('/create-skill') !== 'create-skill') throw new Error('slash should route');
   });
 
-  test('"create a new skill" routes', () => {
-    if (classify('create a new skill for this') !== 'create-skill') throw new Error('imperative should work');
+  test('v7.3.6 #1: "create a new skill" NO LONGER routes (slash-only)', () => {
+    const got = classify('create a new skill for this');
+    if (got === 'create-skill') throw new Error('v7.3.6 slash-discipline: "create a new skill" should NOT route, got ' + got);
   });
 
   test('"ich habe die Fähigkeit zu Y" falls through', () => {

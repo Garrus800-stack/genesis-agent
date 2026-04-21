@@ -131,6 +131,46 @@ class SafeGuard {
     return this.validateWrite(filePath); // Same rules
   }
 
+  /**
+   * v7.3.6 #9: Validate a synchronous source read for chat context.
+   *
+   * Reading is laxer than writing: Genesis MAY read its own .genesis/
+   * directory (identity/memory inspection), kernel files (understand
+   * its own boundaries), and critical safety files (reason about what
+   * it can't modify). But the same Path-Traversal and System-Directory
+   * rules apply as for writes.
+   *
+   * Throws on:
+   *   - paths outside the project root (Path-Escape defence)
+   *   - .git/ internals (repository metadata exposure)
+   *   - node_modules/ (irrelevant to Genesis' own code, noise)
+   *
+   * @param {string} filePath
+   * @returns {true} on success
+   * @throws Error when read would escape root or hit blacklisted paths
+   */
+  validateRead(filePath) {
+    const resolved = path.resolve(filePath);
+
+    // Rule 1: Cannot read outside project root (prevents ../ escape
+    //         to arbitrary host files — /etc/passwd, ~/.ssh/…).
+    if (!resolved.startsWith(this.rootDir)) {
+      throw new Error(`[SAFEGUARD] Read outside project root blocked: ${filePath}`);
+    }
+
+    // Rule 2: Blacklist — infrastructure paths that should never be
+    //         read during chat-context source access, even though
+    //         they live inside the project root.
+    if (resolved.includes('.git' + path.sep) || resolved.endsWith(path.sep + '.git')) {
+      throw new Error(`[SAFEGUARD] Read of .git internals blocked: ${filePath}`);
+    }
+    if (resolved.includes('node_modules' + path.sep)) {
+      throw new Error(`[SAFEGUARD] Read of node_modules blocked: ${filePath}`);
+    }
+
+    return true;
+  }
+
   /** Verify kernel + critical file integrity — call periodically */
   verifyIntegrity() {
     const issues = [];

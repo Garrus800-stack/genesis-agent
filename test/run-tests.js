@@ -925,7 +925,9 @@ describe('IntentRouter v2', () => {
   const router = new IntentRouter();
 
   test('should classify exact regex matches', () => {
-    const result = router.classify('Zeig mir deinen Quellcode');
+    // v7.3.6 #1: Slash-Discipline — self-inspect requires /self-inspect.
+    // Free-text "Zeig mir deinen Quellcode" falls through to general.
+    const result = router.classify('/self-inspect');
     assertEqual(result.type, 'self-inspect');
     assertEqual(result.confidence, 1.0);
   });
@@ -940,11 +942,15 @@ describe('IntentRouter v2', () => {
     assertEqual(result.type, 'execute-code');
   });
 
-  test('should fuzzy match keywords', () => {
+  test('should NOT fuzzy match self-inspect from free text (v7.3.6 #1 Slash-Discipline)', () => {
+    // v7.3.6 #1: the previous fuzzy-match behavior on free text
+    // ("Zeig mir den Aufbau und die Struktur der Module") is the
+    // exact pattern that Slash-Discipline was designed to suppress —
+    // it interrupted normal conversation. Free text now falls through
+    // to general chat; self-inspect requires explicit /self-inspect.
     const result = router.classify('Zeig mir den Aufbau und die Struktur der Module');
-    // Should match self-inspect via fuzzy keywords: zeigen, aufbau, struktur, module
-    assert(result.type === 'self-inspect' || result.confidence > 0.3,
-      `Expected self-inspect or high confidence, got ${result.type} (${result.confidence})`);
+    assert(result.type !== 'self-inspect',
+      `Expected NOT self-inspect, got ${result.type} — Slash-Discipline broken`);
   });
 
   test('should fall back to general for unknown input', () => {
@@ -959,11 +965,15 @@ describe('IntentRouter v2', () => {
     assertEqual(r2.type, 'undo');
   });
 
-  test('should list all intents with keyword counts', () => {
+  test('should list all intents — self-inspect is slash-only (v7.3.6 #1)', () => {
     const intents = router.listIntents();
     assert(intents.length > 10, 'Should have many intents');
     const selfInspect = intents.find(i => i.name === 'self-inspect');
-    assert(selfInspect.keywordCount > 0, 'self-inspect should have keywords');
+    assert(selfInspect, 'self-inspect intent must exist');
+    // v7.3.6 #1: self-inspect is slash-only — patterns only, no keywords.
+    // Previously expected keywordCount > 0; that was the free-text
+    // fuzzy-match path which Slash-Discipline removed.
+    assert(selfInspect.patternCount > 0, 'self-inspect should have regex pattern');
   });
 
   test('should accept model injection', () => {

@@ -316,9 +316,14 @@ function _scoreResearchInsight(insight, topic) {
     return { score: 0, reason: 'too short' };
   }
 
-  const insightWords = new Set(insight.toLowerCase().split(/\W+/).filter(w => w.length > 2));
+  // v7.3.6 #10 — Unicode-aware tokenization. Previously used /\W+/ which
+  // splits on everything except [A-Za-z0-9_], so "Müller" became ['M','ller']
+  // and "Fähigkeit" became ['F','higkeit']. With /[^\p{L}\p{N}_]+/u we split
+  // only on true non-letters/-digits across all scripts, keeping umlauts
+  // and accented chars inside their words.
+  const insightWords = new Set(insight.toLowerCase().split(/[^\p{L}\p{N}_]+/u).filter(w => w.length > 2));
   const topicWords = new Set(
-    `${topic.label || ''} ${topic.query || ''}`.toLowerCase().split(/\W+/).filter(w => w.length > 2)
+    `${topic.label || ''} ${topic.query || ''}`.toLowerCase().split(/[^\p{L}\p{N}_]+/u).filter(w => w.length > 2)
   );
   const intersection = [...insightWords].filter(w => topicWords.has(w)).length;
   const union = new Set([...insightWords, ...topicWords]).size;

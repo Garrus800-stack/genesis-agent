@@ -17,6 +17,17 @@
 //   - The executor switch is generated/driven from it
 //   - The planner prompt is generated from the list (incl. description)
 //   - Validation rejects LLM-invented types deterministically
+//
+// ── Scope note (v7.3.6) ─────────────────────────────────────
+// This file is SoT for the AgentLoop executor pipeline specifically.
+// FormalPlanner operates on its own STRIPS-style action domain with
+// preconditions, effects, and verifier types (see FormalPlanner.js).
+// Its action names (CODE_GENERATE, WRITE_FILE, RUN_TESTS, SHELL_EXEC,
+// SEARCH) are mapped to canonical step types via normalizeStepType()
+// when a FormalPlanner-produced plan reaches AgentLoopSteps for
+// execution. A full vocabulary harmonization between the two would
+// be a design decision about the plan-action domain, not a refactor,
+// and belongs in a dedicated planner-refactor release.
 // ============================================================
 
 /**

@@ -265,9 +265,13 @@ class LocalClassifier {
   }
 
   _tokenize(text) {
+    // v7.3.6 #10 — Unicode-aware. Was [^a-z0-9äöüß\s] which covered German
+    // but dropped é/à/ñ/ó/ø etc. Now \p{L}\p{N} covers all letters/digits
+    // across scripts with /u flag. Preserves tokens in any language
+    // Genesis might encounter via user input or research content.
     return text
       .toLowerCase()
-      .replace(/[^a-z0-9äöüß\s]/g, ' ')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
       .split(/\s+/)
       .filter(t => t.length > 1 && t.length < 30);
   }

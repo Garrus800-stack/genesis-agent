@@ -27,6 +27,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('ErrorAggregator');
 
 const DEFAULT_CONFIG = {
@@ -74,9 +75,7 @@ class ErrorAggregator {
     ];
 
     for (const pattern of errorPatterns) {
-      this._unsubs.push(
-        this.bus.on(pattern, (data, meta) => this.record(meta?.event || pattern, data, meta), { source: 'ErrorAggregator' })
-      );
+      this._sub(pattern, (data, meta) => this.record(meta?.event || pattern, data, meta), { source: 'ErrorAggregator' });
     }
 
     // Periodic health summary
@@ -92,8 +91,7 @@ class ErrorAggregator {
   }
 
   stop() {
-    for (const unsub of this._unsubs) unsub();
-    this._unsubs = [];
+    this._unsubAll();
     if (this._intervals) {
       this._intervals.clear('erroragg-health');
     } else if (this._healthInterval) {
@@ -307,5 +305,7 @@ class ErrorAggregator {
     }
   }
 }
+
+applySubscriptionHelper(ErrorAggregator);
 
 module.exports = { ErrorAggregator };

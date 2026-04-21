@@ -30,6 +30,8 @@ const { createLogger } = require('../core/Logger');
 const { TIMEOUTS } = require('../core/Constants');
 const _log = createLogger('SessionPersistence');
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class SessionPersistence {
   constructor({ bus, model, memory, storage, lang }) {
     this.bus = bus || NullBus;
@@ -271,56 +273,54 @@ UNFINISHED: ...`;
   // ════════════════════════════════════════════════════════
 
   _wireEvents() {
-    this._unsubs.push(
-      this.bus.on('user:message', (data) => {
-        this.currentSession.messageCount++;
-        // v7.1.4: Save checkpoint every N messages (crash-safe)
-        if (this.currentSession.messageCount % this._checkpointInterval === 0) {
-          this._saveCheckpoint();
-        }
-      }, { source: 'SessionPersistence', priority: -10 }),
+    this._sub('user:message', (data) => {
+      this.currentSession.messageCount++;
+      // v7.1.4: Save checkpoint every N messages (crash-safe)
+      if (this.currentSession.messageCount % this._checkpointInterval === 0) {
+        this._saveCheckpoint();
+      }
+    }, { source: 'SessionPersistence', priority: -10 });
 
-      this.bus.on('intent:classified', (data) => {
-        if (data?.type && data.type !== 'general' && data.type !== 'greeting') {
-          if (!this.currentSession.topicsDiscussed.includes(data.type)) {
-            this.currentSession.topicsDiscussed.push(data.type);
-          }
+    this._sub('intent:classified', (data) => {
+      if (data?.type && data.type !== 'general' && data.type !== 'greeting') {
+        if (!this.currentSession.topicsDiscussed.includes(data.type)) {
+          this.currentSession.topicsDiscussed.push(data.type);
         }
-      }, { source: 'SessionPersistence', priority: -10 }),
+      }
+    }, { source: 'SessionPersistence', priority: -10 });
 
-      this.bus.on('chat:error', (data) => {
-        this.currentSession.errorsEncountered.push(
-          (data?.message || 'unknown').slice(0, 100)
-        );
-      }, { source: 'SessionPersistence', priority: -10 }),
+    this._sub('chat:error', (data) => {
+      this.currentSession.errorsEncountered.push(
+        (data?.message || 'unknown').slice(0, 100)
+      );
+    }, { source: 'SessionPersistence', priority: -10 });
 
-      this.bus.on('agent-loop:started', (data) => {
-        if (data?.title) {
-          this.currentSession.goalsWorkedOn.push(data.title);
-        }
-      }, { source: 'SessionPersistence', priority: -10 }),
+    this._sub('agent-loop:started', (data) => {
+      if (data?.title) {
+        this.currentSession.goalsWorkedOn.push(data.title);
+      }
+    }, { source: 'SessionPersistence', priority: -10 });
 
-      // v4.12.5-fix: Was 'CODE_MODIFIED' — SelfModPipeline emits via EventStore.append(),
-      // which fires 'store:CODE_MODIFIED'. Also handle bulk file list.
-      // FIX v7.2.2: EventStore emits the full event object { id, type, payload, ... },
-      // NOT just the payload. Previously read data.file (always undefined) — must
-      // unwrap data.payload first. This caused codeFilesModified to be permanently empty.
-      this.bus.on('store:CODE_MODIFIED', (data) => {
-        const p = data?.payload || data; // unwrap EventStore envelope; fallback for direct emit
-        if (p?.file) {
-          this.currentSession.codeFilesModified.push(p.file);
-        } else if (p?.files) {
-          this.currentSession.codeFilesModified.push(...p.files);
-        }
-      }, { source: 'SessionPersistence', priority: -10 }),
+    // v4.12.5-fix: Was 'CODE_MODIFIED' — SelfModPipeline emits via EventStore.append(),
+    // which fires 'store:CODE_MODIFIED'. Also handle bulk file list.
+    // FIX v7.2.2: EventStore emits the full event object { id, type, payload, ... },
+    // NOT just the payload. Previously read data.file (always undefined) — must
+    // unwrap data.payload first. This caused codeFilesModified to be permanently empty.
+    this._sub('store:CODE_MODIFIED', (data) => {
+      const p = data?.payload || data; // unwrap EventStore envelope; fallback for direct emit
+      if (p?.file) {
+        this.currentSession.codeFilesModified.push(p.file);
+      } else if (p?.files) {
+        this.currentSession.codeFilesModified.push(...p.files);
+      }
+    }, { source: 'SessionPersistence', priority: -10 });
 
-      // Learn user profile from conversation
-      this.bus.on('memory:fact-stored', (data) => {
-        if (data?.key === 'user.name' && data?.value) {
-          this.updateUserProfile({ name: data.value });
-        }
-      }, { source: 'SessionPersistence', priority: -10 }),
-    );
+    // Learn user profile from conversation
+    this._sub('memory:fact-stored', (data) => {
+      if (data?.key === 'user.name' && data?.value) {
+        this.updateUserProfile({ name: data.value });
+      }
+    }, { source: 'SessionPersistence', priority: -10 });
   }
 
   _getSessionDuration() {
@@ -537,11 +537,10 @@ UNFINISHED: ...`;
 
   // v5.9.9: Lifecycle compliance — unsubscribe listeners
   stop() {
-    for (const unsub of this._unsubs) {
-      try { if (typeof unsub === 'function') unsub(); } catch (_e) { /* ok */ }
-    }
-    this._unsubs.length = 0;
+    this._unsubAll();
   }
 }
+
+applySubscriptionHelper(SessionPersistence);
 
 module.exports = { SessionPersistence };

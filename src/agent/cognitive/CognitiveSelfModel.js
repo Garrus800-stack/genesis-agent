@@ -153,6 +153,8 @@ const BIAS_DETECTORS = [
   },
 ];
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class CognitiveSelfModel {
   /**
    * @param {{ bus: *, config?: object }} deps
@@ -179,16 +181,13 @@ class CognitiveSelfModel {
   // ── Lifecycle ───────────────────────────────────────────
 
   boot() {
-    this._unsubs.push(
-      this.bus.on('task-outcome:recorded', () => this._invalidateCache()),
-      this.bus.on('task-outcome:stats-updated', () => this._invalidateCache()),
-    );
+    this._sub('task-outcome:recorded', () => this._invalidateCache());
+    this._sub('task-outcome:stats-updated', () => this._invalidateCache());
     _log.info('CognitiveSelfModel active — empirical self-awareness enabled');
   }
 
   stop() {
-    for (const unsub of this._unsubs) unsub();
-    this._unsubs.length = 0;
+    this._unsubAll();
   }
 
   // ════════════════════════════════════════════════════════
@@ -466,6 +465,8 @@ class CognitiveSelfModel {
     return Date.now() - this._cache.timestamp > this._cacheMaxAge;
   }
 }
+
+applySubscriptionHelper(CognitiveSelfModel);
 
 module.exports = { CognitiveSelfModel, wilsonLower, BIAS_DETECTORS };
 

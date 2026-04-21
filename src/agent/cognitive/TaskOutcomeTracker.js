@@ -65,6 +65,8 @@ const INTENT_TO_TASK_TYPE = {
   'deploy':         'deployment',
 };
 
+const { applySubscriptionHelper } = require('../core/subscription-helper');
+
 class TaskOutcomeTracker {
   /**
    * @param {{ bus: *, storage?: * }} deps
@@ -107,17 +109,14 @@ class TaskOutcomeTracker {
 
   boot() {
     // v7.3.2: source tags added — previously appeared as 'unknown' in EventBus health check
-    this._unsubs.push(
-      this.bus.on('agent-loop:complete', (data) => this._onAgentLoopComplete(data), { source: 'TaskOutcomeTracker' }),
-      this.bus.on('chat:completed', (data) => this._onChatCompleted(data), { source: 'TaskOutcomeTracker' }),
-      this.bus.on('selfmod:success', (data) => this._onSelfModSuccess(data), { source: 'TaskOutcomeTracker' }),
-      this.bus.on('shell:outcome', (data) => this._onShellComplete(data), { source: 'TaskOutcomeTracker' }),
-    );
+    this._sub('agent-loop:complete', (data) => this._onAgentLoopComplete(data), { source: 'TaskOutcomeTracker' });
+    this._sub('chat:completed', (data) => this._onChatCompleted(data), { source: 'TaskOutcomeTracker' });
+    this._sub('selfmod:success', (data) => this._onSelfModSuccess(data), { source: 'TaskOutcomeTracker' });
+    this._sub('shell:outcome', (data) => this._onShellComplete(data), { source: 'TaskOutcomeTracker' });
   }
 
   stop() {
-    for (const unsub of this._unsubs) unsub();
-    this._unsubs.length = 0;
+    this._unsubAll();
     if (this._persistTimer) {
       clearTimeout(this._persistTimer);
       this._persistTimer = null;
@@ -345,6 +344,8 @@ class TaskOutcomeTracker {
     }
   }
 }
+
+applySubscriptionHelper(TaskOutcomeTracker);
 
 module.exports = { TaskOutcomeTracker };
 

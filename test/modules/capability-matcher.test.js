@@ -125,9 +125,12 @@ describe('v7.3.1 — CapabilityMatcher: match (the real test)', () => {
     assertEqual(result.decision, 'pass');
   });
 
-  test('decision thresholds: pass < 0.4, block > 0.8', () => {
+  test('decision thresholds: pass < 0.4, block >= 0.75 (v7.3.6 #8)', () => {
+    // v7.3.6 #8: Jaccard replaced with TF-IDF cosine. Cosine thresholds
+    // are calibrated to that scale — BLOCK lowered from 0.8 (Jaccard)
+    // to 0.75 (cosine), PASS unchanged.
     assertEqual(CapabilityMatcher.THRESHOLDS.PASS, 0.4);
-    assertEqual(CapabilityMatcher.THRESHOLDS.BLOCK, 0.8);
+    assertEqual(CapabilityMatcher.THRESHOLDS.BLOCK, 0.75);
   });
 
   test('empty capability list → decision: pass', () => {

@@ -336,7 +336,12 @@ class TaskDelegation {
         task.result = result;
       } else if (this.goalStack) {
         // Fallback: create a sub-goal
-        const goal = await this.goalStack.addGoal(description, 'peer-delegation', 'medium');
+        // v7.3.6 patch: pass triggerSource so Self-Gate can log peer-delegated
+        // goals with their origin description (not an LLM reflex, but the
+        // telemetry field still documents the cause).
+        const goal = await this.goalStack.addGoal(description, 'peer-delegation', 'medium', {
+          triggerSource: `peer-delegation task ${taskId}: ${description.slice(0, 300)}`,
+        });
         task.status = 'done';
         task.result = { goalId: goal.id, status: 'goal-created' };
       } else {

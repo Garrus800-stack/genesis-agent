@@ -297,7 +297,7 @@ class McpClient {
       'fuer', 'mit', 'von', 'auf', 'aus', 'bei', 'nach',
     ]);
     return text.toLowerCase()
-      .replace(/[^a-z0-9äöüß\s]/g, '')
+      .replace(/[^\p{L}\p{N}\s]/gu, '')  // v7.3.6 #10: Unicode-aware (was German-only)
       .split(/\s+/)
       .filter(w => w.length > 3 && !stop.has(w))
       .slice(0, 8);

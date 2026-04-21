@@ -8,7 +8,7 @@
 //   AgentCoreWire   — event handler wiring + UI relay + service start
 //   AgentCoreHealth — health snapshot + periodic checks + shutdown
 //
-// Same pattern as AgentLoop → AgentLoopDelegate/Steps/Planner/Cognition.
+// Same pattern as AgentLoop → AgentLoopPlanner/Steps/Cognition/Recovery delegates.
 // Public API is identical to v5.0.0 — no IPC changes required.
 //
 // Previous: 1,036 lines / 4 responsibilities

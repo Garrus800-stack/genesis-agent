@@ -27,6 +27,12 @@ const helpers = {
     // response instead. A single-signal warn is carried into the synthesis
     // so the user sees Genesis noticed and chose to proceed.
     const gateScan = scanForInjection(userMessage || '');
+    // v7.3.6 #6 — Central gate-stats recording. 'safe' is mapped to 'pass'
+    // since GateStats tracks pass/block/warn only. Optional injection.
+    try {
+      const v = gateScan.verdict === 'safe' ? 'pass' : gateScan.verdict;
+      this.gateStats?.recordGate('injection-gate', v);
+    } catch (_) { /* gateStats optional */ }
     if (gateScan.verdict === 'block') {
       const preCheck = this.tools.parseToolCalls(fullText);
       if (preCheck.toolCalls.length > 0) {
@@ -58,6 +64,33 @@ const helpers = {
       const { text, toolCalls } = this.tools.parseToolCalls(fullText);
       if (toolCalls.length === 0) break;
 
+      // v7.3.6 #11 — Multi-Round Gate Re-Check.
+      // The initial preCheck at line 30-45 caught block-verdict + tools in the
+      // first response. But the loop was running on a single scan: if tools
+      // materialized in any later round (synthesis re-emission, mock/test
+      // bypass, or any future path that mutates fullText), they would execute
+      // unchecked. Safety invariant: once gateScan.verdict === 'block', NO
+      // tool executes in this turn — regardless of which round surfaces it.
+      // The verdict is based on the immutable user message, so re-scanning
+      // is unnecessary; we just honor the original verdict every round.
+      // See GATE-BEHAVIOR-CONTRACT tests in chatorchestrator.test.js.
+      if (gateScan.verdict === 'block') {
+        _log.info(`[CHAT:GATE] Tool call blocked by injection gate at round ${round + 1} — ${gateScan.score} signals: ${gateScan.signals.map(s => s.kind).join(', ')}`);
+        const gateMsg = formatGateResponse(gateScan);
+        onChunk('\n\n' + gateMsg);
+        try {
+          this.bus.fire('injection:blocked', {
+            signals: gateScan.signals.map(s => ({ kind: s.kind, note: s.note })),
+            toolCount: toolCalls.length,
+          }, { source: 'ChatOrchestrator' });
+        } catch (_) { /* bus may be NullBus */ }
+        // Append gate message to fullText with a clear separator — bisheriger
+        // Output wurde bereits gestreamt, ersetzen würde die User-Sicht
+        // inkonsistent machen.
+        fullText = fullText + '\n\n' + gateMsg;
+        break;
+      }
+
       // Detect repeated identical tool calls (LLM stuck in a loop)
       const callSignature = toolCalls.map(tc => `${tc.name}:${JSON.stringify(tc.input)}`).sort().join('|');
       if (callSignature === lastCallSignature) {
@@ -68,6 +101,30 @@ const helpers = {
 
       // v7.3.5: Track tool calls across rounds for post-loop verification
       for (const tc of toolCalls) allToolCalls.push({ name: tc.name });
+
+      // v7.3.6 #2 — Self-Gate observation. Records pattern-signals on
+      // each tool call (reflexivity, user-mismatch) into GateStats
+      // and fires self-gate:warned when a signal triggers. The tool
+      // call itself always proceeds — this is telemetry, not a filter.
+      //
+      // Contract with #11: the per-round injection-gate check above
+      // IS a filter and must remain in front of this telemetry step.
+      // The gate-contract tests ('gate contract: ...') lock that
+      // ordering.
+      if (this.selfGate) {
+        for (const tc of toolCalls) {
+          try {
+            this.selfGate.check({
+              actionType: 'tool-call',
+              actionPayload: { label: tc.name, ...tc.input },
+              userContext: userMessage,
+              triggerSource: text,  // the LLM output that produced this call
+            });
+          } catch (err) {
+            _log.debug('[SELF-GATE] check skipped:', err.message);
+          }
+        }
+      }
 
       onChunk(`\n\n*${this.lang.t('chat.tools_executing')}*\n`);
       const results = await this.tools.executeToolCalls(toolCalls);
@@ -111,6 +168,12 @@ const helpers = {
     if (gateScan.verdict !== 'block') {
       try {
         const verification = verifyToolClaims(fullText, allToolCalls);
+        // v7.3.6 #6 — Tool-call-verification is its own gate: 'verified'=pass,
+        // anything else = warn (detective, not preventative).
+        try {
+          const gv = verification.verdict === 'verified' ? 'pass' : 'warn';
+          this.gateStats?.recordGate('tool-call-verification', gv);
+        } catch (_) { /* gateStats optional */ }
         if (verification.verdict !== 'verified') {
           const note = formatVerificationNote(verification);
           if (note) {

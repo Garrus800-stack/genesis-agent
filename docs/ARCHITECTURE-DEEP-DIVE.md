@@ -1,26 +1,26 @@
 # Genesis Agent — Architecture Deep-Dive
 
 > Comprehensive technical analysis of Genesis Agent. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.3.5: 12 boot phases, 155 services, 262 source files, 4818 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules, two new impulse-control gates (input-side injection scan + tool-call verification), CI ratchet locked at the v7.3.5 baseline.
+> Last updated for v7.3.6: 12 boot phases, 156 services, 270 source files, 5036 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules, four active gates (Injection, Self-Gate, Tool-Call-Verification, Slash-Discipline), synchronous source-read with per-turn budget, CI ratchet locked at the v7.3.6 baseline.
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **266 JS source modules** across **~87,000 LOC** of production code, supported by **270 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **270 JS source modules** across **~89,000 LOC** of production code, supported by **298 test suites** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
 
 ### Key Numbers
 
 | Metric | Value |
 |--------|-------|
-| Production LOC (src/) | ~87,000 |
-| Source Modules | 262 JS files |
-| Test Suites / Tests | 280+ / 4818 |
-| DI Services | 155 (143 manifest + 12 kernel) |
+| Production LOC (src/) | ~89,000 |
+| Source Modules | 270 JS files |
+| Test Suites / Tests | 298 / 5036 |
+| DI Services | 156 (144 manifest + 12 kernel) |
 | Boot Phases | 12 |
 | npm Dependencies | 3 production + 3 optional + 6 dev |
-| Event Types (catalogued) | 387 |
-| IPC Channels | 55 invoke + 2 send + 6 receive = 63 |
+| Event Types (catalogued) | 391 |
+| IPC Channels | 67 main ↔ 67 preload |
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
 | Coverage Gates | 80% lines, 75.9% branches, 78% functions |
 | Fitness Score | 127/130 (98%) |
@@ -217,7 +217,7 @@ Biological simulation: EmotionalState, EmotionalSteering, Homeostasis, Homeostas
 
 ### Phase 8: Revolution (14 files, 5,569 LOC)
 
-Autonomous execution: AgentLoop (764 LOC + 3 delegates), FormalPlanner, HTNPlanner, NativeToolUse, SessionPersistence, ModelRouter, ModuleRegistry, MultiFileRefactor, FailureAnalyzer, VectorMemory, AgentLoopCognition, AgentLoopPlanner, AgentLoopSteps, AgentLoopDelegate.
+Autonomous execution: AgentLoop (764 LOC + 4 delegates), FormalPlanner, HTNPlanner, NativeToolUse, SessionPersistence, ModelRouter, ModuleRegistry, MultiFileRefactor, FailureAnalyzer, VectorMemory, AgentLoopCognition, AgentLoopPlanner, AgentLoopSteps, AgentLoopRecovery.
 
 **AgentLoop** — The autonomous execution framework:
 ```

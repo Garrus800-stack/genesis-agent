@@ -46,7 +46,13 @@ module.exports = {
       const goal = goals[0];
 
       if (idleMind.goalStack) {
-        await idleMind.goalStack.addGoal(goal.title, 'self-improvement', 'medium');
+        // v7.3.6 patch: pass triggerSource so Self-Gate can log goal-origin.
+        // Source is synthesized from metrics, not LLM reflex — this string
+        // simply documents the cause for telemetry.
+        const triggerSource = `self-improvement synthesized from metrics: ${goal.title}`;
+        await idleMind.goalStack.addGoal(goal.title, 'self-improvement', 'medium', {
+          triggerSource,
+        });
         _log.info(`[IDLE-MIND] Self-improvement goal pushed: ${goal.title}`);
       }
 

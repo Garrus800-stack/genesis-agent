@@ -87,10 +87,13 @@ class SelfOptimizer {
         const alreadyExists = activeGoals.some(g => g.description.includes(rec.area));
         if (!alreadyExists && activeGoals.length < 3) {
           try {
+            // v7.3.6 patch: pass triggerSource (area + description) so Self-Gate
+            // can log the origin of auto-pushed optimization goals.
             await this.goalStack.addGoal(
               `Selbstoptimierung: ${rec.description}`,
               'self-optimizer',
-              rec.priority
+              rec.priority,
+              { triggerSource: `optimizer recommendation (${rec.area}): ${rec.description}` }
             );
           } catch (err) { _log.debug('[OPTIMIZER] Goal creation failed:', err.message); }
         }
