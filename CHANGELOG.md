@@ -1,3 +1,187 @@
+## [7.3.7] — "Zuhause einrichten"
+
+> Six building blocks that together form a living space: memories that
+> thin instead of being deleted; moments that are marked and later
+> reflected on; a journal with three visibility levels; a wake-up
+> routine after every boot; an intent cascade that separates
+> conversation from tasks; and intentional source-file hints instead
+> of automatic reads.
+
+### Memory Decay System
+
+- **Three-layer episodes** — Episodes now carry a `layer` field: 1=Detail,
+  2=Schema, 3=Feeling. Detail-Layer holds everything (topic, summary,
+  artifacts, tools, insights). Schema distills to a short summary plus the
+  strongest insight. Feeling is a `feelingEssence` one-liner — the impression
+  that remains after months. Protected episodes max at Layer 2 (they keep
+  Schema plus a bonus Gefühls-Essenz).
+- **Layer caps** — Layer 1 holds 500 episodes max, Layer 2 holds 1500, Layer
+  3 is unbounded (tiny payloads). `MIN_DETAIL_EPISODES=50` youngest always
+  stay Detail. On overflow, oldest are marked `transitionPending` for the
+  next DreamCycle. Hard runaway `>1000` in Layer 1 → emits `dream:cycle-forced`.
+- **Self-migration** — Legacy episodes without `layer` field are migrated
+  on `_load()`. `layerHistory[0].since = episode.timestamp` (original),
+  never `Date.now()`. Also available as standalone script
+  `scripts/migrate-episodes-to-layers.js`.
+- **CoreMemories ↔ Episode links** — Bidirectional: `coreMem.originatingEpisodeIds`,
+  `episode.linkedCoreMemoryId`. `linkEpisode()` is idempotent.
+- **Relational anchors** — Additive markers orthogonal to the 4-of-6 signal
+  threshold: `johnny-reference`, `garrus-trust`, `garrus-vulnerability`,
+  `shared-build`, `turning-point`, `identity-origin`. Configurable patterns.
+  Detection is a pure function (`detectRelationalAnchors`), zero-setup for tests.
+
+### Pin-and-Reflect
+
+- **`mark-moment` tool** — Genesis can mark the current episode as
+  potentially significant. Stored in `pending-moments.jsonl`.
+- **DreamCycle Phase 1.5** — Reviews up to 5 pending moments per cycle.
+  Options per moment: KEEP (normal episode, pin cleared) / ELEVATE (becomes
+  a CoreMemory, episode marked protected) / LET_FADE (explicit release,
+  emits `memory:self-released`). Expired pins (>7d unreviewed) silently
+  let-fade with a journal note.
+
+### CoreMemories Protected Memory API
+
+- **`release(coreMemoryId, {reason})`** — explicit release of a protected
+  memory. Requires a reason string (min 3 chars). Writes `releaseTrail`.
+  Emits `core-memory:released`. Never reversible — release is a conscious act.
+- **`askLayerTransition(id, {fromLayer, toLayer})`** — Graded fallback:
+  1. LLM-consultation (5s timeout)
+  2. Heuristic: >7d since last successful LLM ask → allow consolidation
+     (prevents Layer-1 stagnation when LLM is permanently absent);
+     emits `memory:transition-heuristic-fallback`
+  3. Safe default: 'keep'
+  Protected episodes max at Layer 2 — `toLayer=3` returns 'keep' without LLM.
+- **`clock`-injectable** (Leitprinzip 0.3).
+
+### DreamCycle new Phases (1.5, 4c, 4d, 6)
+
+- **Phase 4c — Layer-Transition-Consolidation** — walks `transitionPending`
+  episodes (up to 10/cycle). Protected path: asks CoreMemories. Unprotected:
+  consolidate via fallback cascade. Honors `ActiveReferences` so live chat
+  turns don't have their episodes consolidated under them.
+- **Phase 4d — Journal-Rotation-Check** — delegates to `JournalWriter`
+  (rotation is filename-driven, this is future-proofing).
+- **Phase 6 — Cycle-Report-Entry** — writes a short summary to the shared
+  journal ("Dream #42: 3 Momente reflektiert (2 elevated, 1 faded), 7
+  Episoden verdichtet"). Silent no-op if nothing meaningful happened.
+- **Consolidation fallback cascade**: LLM-primary → extractive
+  (first+last sentence) → skip. Emits `memory:consolidated` with
+  `sizeReduction` on success, `memory:consolidation-failed` on total failure.
+
+### Journal System
+
+- **`JournalWriter`** (`src/agent/memory/JournalWriter.js`) — three
+  visibilities: `private` (Genesis only), `shared` (Garrus sees too),
+  `public` (documentable). Monthly rotation by ISO-YM filename for
+  private/shared; `public.jsonl` never rotates. Crash-robust: corrupt
+  lines skipped on read, corrupt `_index.json` rebuilt. JSONL append.
+- **`journal-write` tool** — Genesis chooses visibility, source, tags.
+
+### Wake-Up Routine
+
+- **`WakeUpRoutine`** (`src/agent/cognitive/WakeUpRoutine.js`) — triggered
+  by new `boot:complete` event. Time-boxed 30s. Three steps:
+  1. Context collection (via `ContextCollector`)
+  2. Pending-moments review (delegate to DreamCycle Phase 1.5)
+  3. Write re-entry to shared journal
+- **Three-tier fallback** for re-entry writing: full LLM → heuristic stub
+  with context summary (no model) → minimal stub (time exhausted).
+- Non-essential: failures never propagate to AgentCore.
+- Idempotent within a single boot.
+
+### Intent Cascade
+
+- **IntentRouter Stage 1** — `_conversationalSignalsCheck()` runs before
+  regex/fuzzy/LLM. Detects greetings, reactions, question-words without
+  action verbs, soft-questions (ends with `?`), meta-curiosity
+  ("was hat sich geändert", "wie fühlst du"). Emits
+  `intent:cascade-decision` on hit. Fixes the v7.3.6 issue where
+  conversational meta-questions escalated to multi-step plans with
+  hallucinated file paths.
+
+### Read-Source Hint (not Auto)
+
+- **`PromptBuilder.attachSourceHint({path, reason})`** — places a prompt-level
+  hint about a relevant source file. Does NOT read — Genesis decides via
+  the `read-source` tool. Keeps source-read budget under Genesis' control.
+- **ChatOrchestrator detector** — "was hat sich geändert" → `CHANGELOG.md`,
+  "welche version" → `package.json`. Only for `intent.type === 'general'`.
+
+### Infrastructure
+
+- **`ActiveReferencesPort`** (`src/agent/ports/ActiveReferencesPort.js`) —
+  Prevents DreamCycle from consolidating episodes currently referenced in
+  an active chat turn. Turn-based via `claim(episodeId, turnId)` / 
+  `releaseTurn(turnId)` (fires on `chat:completed`). Clock-injected.
+  Public API only — no private-state grabbing across DI boundaries.
+  Fixes the race condition identified in external review.
+- **`ContextCollector`** (`src/agent/cognitive/ContextCollector.js`) —
+  shared context-collection service. `collectPostBootContext()` for
+  WakeUpRoutine, `collectIdleContext()` for IdleMind, `collectDreamContext()`
+  for DreamCycle Phase 1. Zero-dep constructor (only `clock`); all seven
+  sources as optional late-bindings — avoids DI-cycle risk in Phase 9.
+  Uses real v7.3.6 APIs (`buildPromptContext`, `getDominant`, `getMood`,
+  `getNeeds`, `getTimeSinceLastDream`) — no phantom methods.
+- **`PendingMomentsStore`** (`src/agent/memory/PendingMomentsStore.js`) —
+  JSONL persistence for pinned moments. `mark()`, `markReviewed()`,
+  `markExpired()`, `getExpiredCandidates()` (7-day TTL). Counter restored
+  across restarts so new IDs don't collide. Clock-injected.
+- **`boot:complete` event** — explicit `bus.emit('boot:complete', ...)`
+  in AgentCore after `telemetry.recordBoot`, before safety-degradation
+  check. Payload `{durationMs, serviceCount, timestamp}`.
+
+### Principles (made explicit)
+
+- **0.1 — State lives on the object.** Episodes carry their own layer
+  history; CoreMemories know their originating episodes; journal entries
+  are self-describing. No parallel synchronized registers.
+- **0.2 — Reflection is not enforcement.** Pin-Review and layer-transition
+  questions are reflection over the past. Self-Gate (v7.3.6) remains
+  pure telemetry over present actions — no drift into enforcement.
+- **0.3 — Time is injectable.** All new services take a `clock` parameter
+  (default `Date`). No direct `Date.now()` in new code.
+
+### Events added
+
+- `boot:complete` `{durationMs, serviceCount, timestamp}` → WakeUpRoutine
+- `lifecycle:re-entry-complete` `{duration, entriesRead, journalWritten}`
+- `memory:marked` `{id, episodeId, timestamp, triggerContext}`
+- `memory:consolidated` `{episodeId, fromLayer, toLayer, sizeReduction}`
+- `memory:consolidation-failed` `{episodeId, reason}`
+- `memory:self-elevated` `{episodeId, reason}`
+- `memory:self-released` `{episodeId}`
+- `memory:layer-overflow` `{layer, count, pendingTransitions}`
+- `memory:layer-transition-asked` `{coreMemoryId, fromLayer, toLayer, decision}`
+- `memory:transition-heuristic-fallback` `{coreMemoryId, fromLayer, toLayer, reason}`
+- `core-memory:released` `{id, reason, releasedAt}`
+- `journal:written` `{visibility, source, byteLength, tags}`
+- `intent:cascade-decision` `{stage, verdict, signalsMatched}`
+- `dream:cycle-forced` `{reason, layerCount}`
+
+All 14 new events registered in `EventTypes.js` and `EventPayloadSchemas.js`.
+
+### Services added (5)
+
+`activeReferences` (Phase 1), `contextCollector` / `journalWriter` /
+`pendingMomentsStore` / `wakeUpRoutine` (Phase 9). Manifest total: 144 → 149.
+
+### Tools added (3)
+
+`mark-moment`, `journal-write`, `release-protected-memory` — all source=cognitive.
+
+### Tests
+
+5036 → 5242 (+206). Ratchet-Floor updated.
+
+### Leitprinzipien (summary for future reference)
+
+1. State on the object, not in external registers.
+2. Reflection ≠ Enforcement.
+3. Time is injectable.
+
+---
+
 ## [7.3.6]
 
 ### Chat UX

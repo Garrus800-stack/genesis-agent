@@ -43,7 +43,7 @@ class CoreMemories {
    *   conversationMemory - ConversationMemory (v7.3.2: for novelty check)
    *   knowledgeGraph - KnowledgeGraph (v7.3.2: for subject extraction, optional)
    */
-  constructor({ storage, bus, model, selfModel, emotionalState, conversationMemory, knowledgeGraph } = {}) {
+  constructor({ storage, bus, model, selfModel, emotionalState, conversationMemory, knowledgeGraph, clock } = {}) {
     this.storage = storage;
     this.bus = bus;
     this.model = model;
@@ -51,6 +51,7 @@ class CoreMemories {
     this.emotionalState = emotionalState || null;
     this.conversationMemory = conversationMemory || null;
     this.knowledgeGraph = knowledgeGraph || null;
+    this._clock = clock || Date;  // v7.3.7: injectable for tests
     this._idSeq = 0;
 
     // v7.3.2: User-message sliding window for userBeteiligung signal.
@@ -463,6 +464,145 @@ class CoreMemories {
     // Lazy fallback for contexts where wireTriggers wasn't called (tests etc.)
     return this._computeSourceContext();
   }
+
+  // ════════════════════════════════════════════════════════
+  // v7.3.7 — Layer-aware Protected Memory API
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Bidirectional link between a CoreMemory and an Episode.
+   * Idempotent — re-linking the same pair is a no-op.
+   *
+   * @param {string} coreMemoryId
+   * @param {string} episodeId
+   * @returns {boolean} true on state change
+   */
+  linkEpisode(coreMemoryId, episodeId) {
+    if (!coreMemoryId || !episodeId) return false;
+    const identity = this._readIdentity();
+    const cm = (identity.coreMemories || []).find(m => m.id === coreMemoryId);
+    if (!cm) return false;
+    if (!Array.isArray(cm.originatingEpisodeIds)) cm.originatingEpisodeIds = [];
+    if (cm.originatingEpisodeIds.includes(episodeId)) return false;
+    cm.originatingEpisodeIds.push(episodeId);
+    this._writeIdentity(identity);
+    return true;
+  }
+
+  /**
+   * Explicit release of a protected memory. Pin-Review never goes
+   * through this — it has its own bounded options. Release is the
+   * one path for "I am letting go of this on purpose."
+   *
+   * @param {string} coreMemoryId
+   * @param {object} [opts]
+   * @param {string} [opts.reason='user-decision']
+   * @returns {boolean} true on success
+   */
+  async release(coreMemoryId, { reason = 'user-decision' } = {}) {
+    const identity = this._readIdentity();
+    const cm = (identity.coreMemories || []).find(m => m.id === coreMemoryId);
+    if (!cm) return false;
+    if (cm.protected === false) return false;  // already released
+
+    cm.protected = false;
+    cm.releaseTrail = {
+      releasedAt: new Date(this._clock.now()).toISOString(),
+      reason,
+    };
+    this._writeIdentity(identity);
+
+    if (this.bus) {
+      this.bus.emit('core-memory:released', {
+        id: coreMemoryId,
+        reason,
+        releasedAt: cm.releaseTrail.releasedAt,
+      }, { source: 'CoreMemories' });
+    }
+
+    return true;
+  }
+
+  /**
+   * DreamCycle Phase 4c calls this when a Protected CoreMemory's
+   * episode is approaching layer transition. Graded fallback:
+   *   1. LLM-Call (5s timeout) if model available
+   *   2. Heuristic: if 7d passed since last successful ask → consolidate
+   *      (prevents Layer-1 stagnation when LLM is permanently absent)
+   *   3. Safe default: 'keep'
+   *
+   * @param {string} coreMemoryId
+   * @param {object} ctx
+   * @param {number} ctx.fromLayer
+   * @param {number} ctx.toLayer
+   * @returns {Promise<'consolidate' | 'keep'>}
+   */
+  async askLayerTransition(coreMemoryId, { fromLayer, toLayer }) {
+    if (toLayer >= 3) return 'keep';  // protected max at layer 2
+
+    const identity = this._readIdentity();
+    const cm = (identity.coreMemories || []).find(m => m.id === coreMemoryId);
+    if (!cm) return 'keep';
+
+    if (this.model) {
+      try {
+        const answer = await this._askLayerTransitionLLM(cm, fromLayer, toLayer);
+        if (answer === 'consolidate' || answer === 'keep') {
+          cm.lastTransitionAskedAt = new Date(this._clock.now()).toISOString();
+          this._writeIdentity(identity);
+          return answer;
+        }
+      } catch (_e) { /* fall through */ }
+    }
+
+    const lastAsk = cm.lastTransitionAskedAt || cm.timestamp;
+    const daysSinceLastAsk = (this._clock.now() - new Date(lastAsk).getTime())
+      / (24 * 60 * 60 * 1000);
+
+    if (daysSinceLastAsk > 7) {
+      this.bus?.emit('memory:transition-heuristic-fallback', {
+        coreMemoryId, fromLayer, toLayer, reason: 'llm-unavailable-7d',
+      }, { source: 'CoreMemories' });
+      return 'consolidate';
+    }
+
+    return 'keep';
+  }
+
+  async _askLayerTransitionLLM(cm, fromLayer, toLayer) {
+    const fromName = fromLayer === 1 ? 'Detail' : 'Schema';
+    const toName = toLayer === 2 ? 'Schema' : 'Gefühl';
+    const prompt = [
+      `Eine geschützte Kern-Erinnerung steht zum Schichtwechsel an.`,
+      ``,
+      `Erinnerung: "${cm.summary}"`,
+      `Typ: ${cm.type}, Bedeutung: ${cm.significance}`,
+      `Aktuell: Schicht ${fromLayer} (${fromName})`,
+      `Vorgeschlagen: Schicht ${toLayer} (${toName})`,
+      ``,
+      `Verdichten oder behalten? Antworte mit genau einem Wort:`,
+      `"consolidate" oder "keep".`,
+    ].join('\n');
+
+    const result = await Promise.race([
+      this.model.chat({
+        messages: [{ role: 'user', content: prompt }],
+        maxTokens: 10,
+        temperature: 0.3,
+      }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('llm-timeout')), 5000)),
+    ]);
+
+    const text = (typeof result === 'string' ? result : result?.content || '')
+      .toLowerCase().trim();
+    if (text.includes('consolidate')) return 'consolidate';
+    if (text.includes('keep')) return 'keep';
+    return null;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // ── Source-context helper (existing) ────────────────────
+  // ════════════════════════════════════════════════════════
 
   /**
    * Actual computation — calls out to git. Expensive. Only call via cache

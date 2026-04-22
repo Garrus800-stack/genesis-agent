@@ -45,6 +45,9 @@ function phase5(ctx, R) {
         // used to signal chat-turn boundaries to the source-read budget.
         { prop: 'selfModel', service: 'selfModel', optional: true,
           expects: ['startReadSourceTurn', 'resetReadSourceSession'] },
+        // v7.3.7: ActiveReferencesPort — claim/releaseTurn so DreamCycle
+        // Phase 4c skips episodes currently in use by a chat turn.
+        { prop: 'activeRefs', service: 'activeReferences', optional: true },
       ],
       factory: (c) => {
         const { lang } = R('Language');

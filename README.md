@@ -8,8 +8,8 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.3.6-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-5036%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.3.7-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-5242%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-config_ok-fbbf24?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
@@ -158,10 +158,10 @@ Priority: Your choice → Cloud API → Smart Ranking → First available.
 
 ### Boot profiles
 
-Genesis boots 12 phases (~156 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
+Genesis boots 12 phases (~161 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
 
 ```bash
-npm start                              # Cognitive — default (~156 services)
+npm start                              # Cognitive — default (~161 services)
 # Phase 13 (Consciousness) removed in v7.0.0 — replaced by AwarenessPort
 npm start -- --minimal                 # Minimal — core agent loop only (~50 services)
 npm start -- --skip-phase 7            # Custom — skip specific phases (6-13)
@@ -227,7 +227,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.3.6: zero cross-layer violations, typecheck config ok (118 known legacy TS notes), 11 PreservationInvariants rules, 5036 tests passing, 156 services, 0 schema mismatches, 0 static drift (391 catalog = 391 schemas), CI ratchet locked at v7.3.6 baseline. Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.3.7: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5242 tests passing, 161 services (149 manifest + 12 bootstrap), MemoryDecay three-layer system, Pin-and-Reflect workflow, Journal with three visibilities, post-boot WakeUpRoutine, IntentRouter cascade for conversational signals. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -531,9 +531,9 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Source modules | 270 modules (src/) |
 | Lines of code | ~89k src + ~59k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
-| DI services | 144 manifest + 12 bootstrap = 156 at runtime |
+| DI services | 149 manifest + 12 bootstrap = 161 at runtime |
 | Late-bindings | 255 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 298 files, 5036 tests (coverage gates: 80/75.9/78, ratchet floor 4700) |
+| Test suites | 298 files, 5242 tests (coverage gates: 80/75.9/78, ratchet floor 5200) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 67 main ↔ 67 preload (rate-limited, all in sync) |

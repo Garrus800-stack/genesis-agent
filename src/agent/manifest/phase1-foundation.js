@@ -38,6 +38,15 @@ function phase1(ctx, R) {
       factory: () => new (R('self-gate').SelfGate)({ bus, mode: 'warn' }),
     }],
 
+    // v7.3.7: ActiveReferencesPort — prevents DreamCycle/ChatOrchestrator
+    // races. Claimed episodes are skipped by the DreamCycle consolidator
+    // until the chat turn releases them. Zero deps, injectable clock,
+    // pure API (no private-state grabbing across DI).
+    ['activeReferences', {
+      phase: 1, deps: [], tags: ['foundation', 'port'],
+      factory: () => new (R('ActiveReferencesPort').ActiveReferencesPort)({}),
+    }],
+
     // v7.2.3: GenesisBackup — standalone backup system for .genesis/ folder.
     // Not an extension of SnapshotManager (which handles source code via Git);
     // this handles identity data via copy-to-sibling-folder.

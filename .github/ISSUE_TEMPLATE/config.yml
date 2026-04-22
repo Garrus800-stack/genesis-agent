@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/Garrus800-stack/genesis/blob/main/SECURITY.md
+    about: Please review SECURITY.md before opening a public issue about a security concern.

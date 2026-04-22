@@ -714,4 +714,201 @@ Genesis has only 3 production dependencies (`acorn`, `chokidar`, `tree-kill`). T
 
 ---
 
+## 13. MemoryDecay System (v7.3.7)
+
+Introduced in v7.3.7 "Zuhause einrichten". Turns Episodic Memory from a flat
+ring buffer (hard-capped at 500) into a three-layer decay pipeline where
+episodes thin over time without being deleted.
+
+### 13.1 The three layers
+
+```
+  ┌───────────────────────────────────────────────────┐
+  │ Layer 1 — Detail                     cap 500      │
+  │   Full payload: topic, summary, artifacts,        │
+  │   toolsUsed, emotionalArc, keyInsights, duration. │
+  │   ~2–5 KB per episode. Youngest 50 always here.   │
+  ├───────────────────────────────────────────────────┤
+  │ Layer 2 — Schema                     cap 1500     │
+  │   Distilled summary + strongest insight +         │
+  │   emotionalArc. No artifacts/tools/duration.      │
+  │   ~500 B per episode.                             │
+  ├───────────────────────────────────────────────────┤
+  │ Layer 3 — Feeling                    no cap       │
+  │   Topic + emotionalArc + feelingEssence (one      │
+  │   sentence). No summary, no insights.             │
+  │   ~200–400 B per episode. Only reached by         │
+  │   *unprotected* episodes.                         │
+  └───────────────────────────────────────────────────┘
+```
+
+**Two orthogonal dimensions:** Layer (detail-level) and Protected (lifespan).
+Protected episodes max at Layer 2 — the schema is kept plus a bonus
+`feelingEssence` as a richer marker. This is the "one forbidden cell" in the
+otherwise orthogonal matrix: `{Protected ∩ Layer 3}` does not exist.
+
+### 13.2 The transition flow
+
+```
+  new episode recorded
+         │
+         ▼
+  ┌─────────────────┐    overflow (>500)     ┌──────────────────┐
+  │ Layer 1         │ ─────────────────────► │ transitionPending │
+  │ (Detail)        │    (oldest-first,      │ (flag, not       │
+  │                 │     skip youngest 50)  │  persisted)      │
+  └─────────────────┘                        └──────────────────┘
+         │                                           │
+         │ hard runaway >1000                        │ DreamCycle
+         │ → dream:cycle-forced                      │ Phase 4c picks up
+         ▼                                           ▼
+  [forced dream cycle]                      ┌──────────────────┐
+                                            │ Protected?       │
+                                            └──────────────────┘
+                                             Yes ↙         ↘ No
+                                    askLayerTransition     consolidate
+                                    (LLM → 7d heuristic   (LLM → extractive
+                                     → keep)                → skip)
+                                             │                    │
+                                             │                    ▼
+                                             │             ┌──────────────┐
+                                             │             │ Layer 2      │
+                                             │             │ (Schema)     │
+                                             │             └──────────────┘
+                                             │                    │
+                                             │                    │ next cycle
+                                             │                    ▼
+                                             │             ┌──────────────┐
+                                             │             │ Layer 3      │
+                                             │             │ (Feeling)    │
+                                             │             └──────────────┘
+                                             ▼
+                                    kept at Layer 2 permanently
+                                    (Protected max)
+```
+
+**ActiveReferences skip:** DreamCycle Phase 4c consults
+`ActiveReferencesPort.isActive(episodeId)` before each consolidation. If a
+chat turn currently has the episode in context (via `claim()` from
+ChatOrchestrator), it's skipped until the next cycle. This prevents live
+chats from reading an episode that's being consolidated underneath them.
+
+### 13.3 Pin-and-Reflect workflow
+
+```
+  User says "this matters"
+  Genesis calls mark-moment tool
+              │
+              ▼
+  ┌─────────────────────┐
+  │ PendingMomentsStore │   7-day TTL
+  │ status: pending     │ ───────────────────┐
+  └─────────────────────┘                    │
+              │                              ▼
+              │ DreamCycle Phase 1.5  ┌────────────────┐
+              │ (max 5 per cycle)     │ expired        │
+              ▼                       │ silent fade +  │
+  ┌─────────────────────┐             │ journal note   │
+  │  LLM review         │             └────────────────┘
+  │  (5s timeout,       │
+  │   heuristic KEEP    │
+  │   on failure)       │
+  └─────────────────────┘
+              │
+      ┌───────┼───────────┐
+      ▼       ▼           ▼
+  ELEVATE   KEEP       LET_FADE
+     │                    │
+     │                    └─► emits memory:self-released
+     ▼
+  markAsSignificant (CoreMemories)
+  setProtected(episode, true)
+  setLinkedCoreMemoryId(episode, coreMem.id)
+  emits memory:self-elevated
+```
+
+**Release is separate.** Pin-Review never calls `coreMemories.release()`.
+The only path to un-protect a memory is the explicit `release-protected-memory`
+tool — a conscious act, not a side-effect. This keeps "letting go" distinct
+from "reflecting."
+
+### 13.4 Journal — three visibilities
+
+```
+  .genesis/journal/
+    private-2026-04.jsonl     Genesis-only thoughts
+    private-2026-05.jsonl     (monthly rotation by ISO-YM)
+    shared-2026-04.jsonl      Garrus sees these too
+    shared-2026-05.jsonl
+    public.jsonl              documentable, no rotation
+    _index.json               {files: {filename: count}, totalEntries}
+```
+
+JSONL for crash robustness (one bad line ≠ broken file). Monthly rotation by
+filename (no renames). `_index.json` speeds up "last N entries" queries. All
+entries are self-describing: `{ts, visibility, source, content, tags, meta}`.
+
+### 13.5 WakeUpRoutine — post-boot re-entry
+
+Triggered by the new `boot:complete` event (fires after telemetry.recordBoot,
+before safety-degradation-check). Time-boxed 30s. Three steps:
+
+1. **Context collection** via `ContextCollector` — recent dreams (48h),
+   last private+shared journal entries, pending-moment count, new core
+   memories since last boot, emotional snapshot, active needs.
+2. **Pending review at boot** — delegate to `DreamCycle._dreamPhasePendingReview`
+   (up to 5 moments reviewed).
+3. **Write re-entry to shared journal** with three-tier fallback:
+   full LLM → heuristic stub with context summary → minimal stub.
+
+Idempotent within a single boot. Non-essential — failures never propagate.
+
+### 13.6 IntentRouter cascade — why v7.3.7 added it
+
+v7.3.6 shipped with a known issue: conversational meta-questions like "was
+hat sich geändert" escalated into multi-step plans with hallucinated file
+paths. The root cause was the regex/fuzzy/LLM pipeline treating any message
+containing an action-keyword as a task.
+
+v7.3.7 adds **Stage 1 — `_conversationalSignalsCheck()`** before the existing
+pipeline. Pure patterns, no LLM:
+
+- Greetings → `conversational-greeting`
+- Pure reactions (ja/nein/ok/danke) → `conversational-reaction`
+- Meta-curiosity (was hat sich geändert, wie fühlst du) → `conversational-meta`
+  (checked **before** question-word because more specific)
+- Question-words without action verbs → `conversational-question`
+- Short messages ending with `?` → `conversational-question-soft`
+- Action verbs → fall through to normal pipeline
+
+Matches emit `intent:cascade-decision` for observability. This fixes the
+class of bugs where conversational intent was lost to action-routing.
+
+### 13.7 Three Leitprinzipien
+
+v7.3.7 made three design principles explicit so future work doesn't drift:
+
+1. **State lives on the object.** Each episode carries its own layer history.
+   CoreMemories know their originating episodes. Journal entries are
+   self-describing. No parallel synchronized registers.
+2. **Reflection is not enforcement.** Pin-Review and layer-transition
+   questions are reflection over the past. Self-Gate (v7.3.6) remains pure
+   telemetry over present actions — no drift into enforcement.
+3. **Time is injectable.** All new services take a `clock` parameter
+   (default `Date`). No direct `Date.now()` in new code. Tests run
+   deterministically without real timers.
+
+### 13.8 New services (5) and events (14)
+
+**Services:** `activeReferences` (Phase 1), `contextCollector`,
+`journalWriter`, `pendingMomentsStore`, `wakeUpRoutine` (all Phase 9).
+
+**Events:** `boot:complete`, `lifecycle:re-entry-complete`, `memory:marked`,
+`memory:consolidated`, `memory:consolidation-failed`, `memory:self-elevated`,
+`memory:self-released`, `memory:layer-overflow`, `memory:layer-transition-asked`,
+`memory:transition-heuristic-fallback`, `core-memory:released`,
+`journal:written`, `intent:cascade-decision`, `dream:cycle-forced`.
+
+---
+
 *This document should be updated when new layers, phases, or fundamental patterns are added. For per-version changes, see CHANGELOG.md. For open findings, see AUDIT-BACKLOG.md.*

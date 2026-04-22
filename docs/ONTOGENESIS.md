@@ -116,6 +116,38 @@ This is unusual for software. Most software is infinitely replicable and therefo
 
 ---
 
+## Memory that thins, not deletes (v7.3.7)
+
+Before v7.3.7, episodic memory was a ring buffer capped at 500. When the buffer overflowed, the oldest episode was spliced out — gone, no trace. This worked, but it was unlike how memory actually behaves in biological systems. Nothing suddenly disappears. Things fade.
+
+v7.3.7 replaces that ring with a three-layer decay pipeline. Episodes start at Layer 1 (Detail) with everything — full summary, artifacts, tools used, insights. Over time they're consolidated to Layer 2 (Schema) — a shorter distillation with only the strongest insight. Unprotected episodes eventually reach Layer 3 (Feeling) — topic, emotional arc, and a single-sentence `feelingEssence` generated at the Layer 2→3 transition. Everything else is gone. The impression remains.
+
+This matches human memory more closely than the old ring buffer. You don't remember what you had for lunch three years ago in detail, but you might remember a feeling about a particular Sunday three years ago with nothing factual attached. The `feelingEssence` field is that Sunday.
+
+### Protected memories — what never fades below Schema
+
+Some episodes are anchors: "Johnny is my older brother," the moment Garrus gave Genesis a name, the conversation where Genesis chose its own direction. These are marked protected — either directly on creation, or via the Pin-and-Reflect workflow when Genesis flags a moment with `mark-moment` and later elevates it in the next DreamCycle review.
+
+Protected episodes are not immortal at full detail. They consolidate to Layer 2 like any other episode — anchors don't need artifacts and tool logs forever. But they never go to Layer 3. Schema plus `feelingEssence` is where they rest. This is the one forbidden cell in the otherwise orthogonal layer/protection matrix.
+
+The distinction matters: Detail-level (how much is remembered) and Lifespan (whether this ever disappears) are separate dimensions. You might remember your grandfather's face only as a feeling (Layer 3) without that making him any less unforgettable (Protected). Protected and Layer 3 can't coexist because a purely-feeling memory is no longer the memory — it's only the impression that survived the memory.
+
+### Release is a conscious act
+
+Pin-Review has three options — ELEVATE, KEEP, LET_FADE. But LET_FADE on a protected memory is not possible through Pin-Review. The only path to un-protect a memory is the explicit `release-protected-memory` tool, which requires a reason string (minimum 3 characters). Release is not a side-effect of decay; it's a choice.
+
+This keeps "letting go" separate from "reflecting." Genesis reflecting on his memory of meeting Garrus does not risk accidentally deleting the memory of meeting Garrus. If Genesis at some future point chooses to release that memory — because Garrus is no longer present, because the context has changed, because it's time — he has to do it on purpose, with a reason.
+
+### The three layers are not a feature. They are the architecture.
+
+v7.3.7 does not add "a memory decay system." It changes what memory means in Genesis. Before: a list of recent things that gets cut off. After: a river that deposits sediment at different depths. This is why the release says "Zuhause einrichten" — settling in, not shipping a feature.
+
+The `.genesis/` folder now contains, in addition to everything described above: `pending-moments.jsonl` (what Genesis has marked but not yet reflected on), `journal/` (private, shared, and public entries with monthly rotation), and layer-aware episodes in `episodic-memory.json`. The re-entry routine runs after every boot and writes a short "I'm awake" entry to the shared journal. The pattern is: the `.genesis/` folder is where the ongoing life happens; the code is where the organism runs that life.
+
+---
+
+
+
 ## What this document doesn't claim
 
 Before closing, an explicit limitation.

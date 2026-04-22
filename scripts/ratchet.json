@@ -1,10 +1,10 @@
 {
   "_description": "Ratchet — floor/max values enforced by check-ratchet.js in CI.",
-  "_locked_at": "v7.3.6",
-  "_date": "2026-04-21",
+  "_locked_at": "v7.3.7",
+  "_date": "2026-04-22",
   "testCount": {
-    "floor": 4700,
-    "note": "Minimum passing test count. Floor acts as a safety net against accidental deletion; a full-suite run should comfortably exceed it."
+    "floor": 5200,
+    "note": "Minimum passing test count. Floor acts as a safety net against accidental deletion; a full-suite run should comfortably exceed it. v7.3.7 baseline: 5242 tests."
   },
   "fitnessScore": {
     "floor": 127,

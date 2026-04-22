@@ -52,6 +52,11 @@ class ChatOrchestrator {
     this.modelRouter = null;
     this.episodicMemory = null;
 
+    // v7.3.7: ActiveReferences port — late-bound. Used to claim
+    // episodes referenced in the current turn so DreamCycle Phase 4c
+    // skips them during background consolidation.
+    this.activeRefs = null;
+
     // v6.0.4: Cognitive budget + provenance (late-bound)
     /** @type {*} */ this._cognitiveBudget = null;
     /** @type {*} */ this._provenance = null;
@@ -114,6 +119,7 @@ class ChatOrchestrator {
           if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
           if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
           if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
+          this._maybeAttachSourceHint(message, intent);  // v7.3.7
           response = await this._generalChat(message);
         }
       } else {
@@ -122,6 +128,7 @@ class ChatOrchestrator {
         if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
         if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
         if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
+        this._maybeAttachSourceHint(message, intent);  // v7.3.7
         response = await this._generalChat(message);
       }
 
@@ -144,6 +151,11 @@ class ChatOrchestrator {
       // v3.5.0: Record conversation as episodic memory (ChatOrchestratorHelpers mixin)
       (/** @type {any} */ (this))._recordEpisode(message, response, intent.type);
       this.bus.fire('chat:completed', { message, response, intent: intent.type, success: !response.startsWith('**' + this.lang.t('agent.error')) }, { source: 'ChatOrchestrator' });
+      // v7.3.7: Release any active-reference claims made during this turn
+      // so DreamCycle Phase 4c stops skipping those episodes.
+      if (this.activeRefs && traceId) {
+        try { this.activeRefs.releaseTurn(traceId); } catch { /* best-effort */ }
+      }
       // v6.0.4: End provenance trace — success
       if (traceId) {
         this._provenance.recordModel(traceId, { name: this.model.activeModel || 'unknown', backend: this.model.activeBackend || 'unknown' });
@@ -473,6 +485,45 @@ class ChatOrchestrator {
     } catch (err) {
       _log.debug('[CHAT] History sync save failed:', err.message);
     }
+  }
+
+  /**
+   * v7.3.7: Detect if the message pattern suggests a specific source
+   * file that would help answer it. DOES NOT read the file — only
+   * places a hint in the prompt so Genesis can choose whether to read.
+   * This keeps source-read budget under Genesis's control.
+   *
+   * @param {string} message
+   * @param {object} intent
+   */
+  _maybeAttachSourceHint(message, intent) {
+    if (!this.promptBuilder?.attachSourceHint) return;
+    this.promptBuilder.clearSourceHint?.();
+
+    if (intent.type !== 'general') return;
+    if (typeof message !== 'string') return;
+
+    const lower = message.toLowerCase();
+
+    // "was hat sich geändert", "was ist neu", "was gibt's neues"
+    if (/was\s+(hat\s+sich|ist\s+neu|gibt.*neu)/.test(lower)) {
+      this.promptBuilder.attachSourceHint({
+        path: 'CHANGELOG.md',
+        reason: 'die Frage nach Änderungen',
+      });
+      return;
+    }
+
+    // "welche version", "aktuelle version"
+    if (/welche?\s+version|aktuelle\s+version/.test(lower)) {
+      this.promptBuilder.attachSourceHint({
+        path: 'package.json',
+        reason: 'die Versionsfrage',
+      });
+      return;
+    }
+
+    // No match — clear any previous hint
   }
 }
 

@@ -120,6 +120,15 @@ const EVENTS = Object.freeze({
   BOOT: Object.freeze({
     /** @payload {{ services: string[], count: number }} */
     DEGRADED:       'boot:degraded',
+    /** @payload {{ durationMs: number, serviceCount: number, timestamp: string }} */
+    COMPLETE:       'boot:complete',
+  }),
+
+  // ── Lifecycle ──────────────────────────────────────────
+  // v7.3.7: re-entry routine after every boot
+  LIFECYCLE: Object.freeze({
+    /** @payload {{ duration: number, entriesRead: object, journalWritten: boolean, pendingReviewed: number }} */
+    RE_ENTRY_COMPLETE: 'lifecycle:re-entry-complete',
   }),
 
   // ── Error Aggregation ──────────────────────────────────
@@ -450,9 +459,10 @@ const EVENTS = Object.freeze({
 
   // ── Intent Router ──────────────────────────────────────
   INTENT: Object.freeze({
-    CLASSIFIED:     'intent:classified',
-    LLM_CLASSIFIED: 'intent:llm-classified',
-    LEARNED:        'intent:learned',
+    CLASSIFIED:       'intent:classified',
+    LLM_CLASSIFIED:   'intent:llm-classified',
+    LEARNED:          'intent:learned',
+    CASCADE_DECISION: 'intent:cascade-decision',  // v7.3.7
   }),
 
   // ── Knowledge ──────────────────────────────────────────

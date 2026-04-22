@@ -182,6 +182,33 @@ class PromptBuilder {
   }
 
   /**
+   * v7.3.7: Attach a hint about an available source file that matches
+   * the user's query. Does NOT read the file — only adds a prompt-level
+   * pointer that Genesis can act on via the read-source tool if he
+   * chooses. This keeps control of the source-read budget with Genesis.
+   *
+   * @param {{path: string, reason: string}|null} hint
+   */
+  attachSourceHint(hint) {
+    this._sourceHint = (hint && hint.path) ? hint : null;
+  }
+
+  /** Clear the source hint — called at the start of each turn. */
+  clearSourceHint() {
+    this._sourceHint = null;
+  }
+
+  /**
+   * Get the source-hint block for prompt assembly, or empty string.
+   * Called by section-builders when they assemble the system prompt.
+   */
+  _getSourceHintBlock() {
+    if (!this._sourceHint) return '';
+    const { path, reason } = this._sourceHint;
+    return `\n[Kontext-Hinweis: Für ${reason} ist die Datei ${path} verfügbar. Du kannst sie bei Bedarf mit dem read-source-Tool einsehen.]\n`;
+  }
+
+  /**
    * Estimate token budget based on active model.
    * Cloud models get larger budgets than local 9B models.
    */

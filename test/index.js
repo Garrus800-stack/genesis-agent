@@ -88,6 +88,11 @@ async function main() {
                 'cognitive-health-tracker', 'disclosure-policy', 'dynamic-tool-synthesis',
                 'headless-boot', 'mcpserver', 'mcpservertoolbridge', 'organism-events',
                 'project-intelligence', 'storage-write-queue',
+                // v7.3.7: all v737-*.test.js files use node:test
+                'v737-active-refs-port', 'v737-boot-complete-event',
+                'v737-context-collector', 'v737-dream-phases', 'v737-episodic-memory',
+                'v737-intent-and-hint', 'v737-journal-writer', 'v737-pending-moments',
+                'v737-significance-and-coremem', 'v737-tools', 'v737-wakeup-routine',
               ]);
               const isNodeTest = NODE_TEST_FILES.has(moduleName);
               const nodeArgs = isNodeTest

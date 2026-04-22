@@ -60,6 +60,49 @@ function phase9(ctx, R) {
       }),
     }],
 
+    // v7.3.7: Storage layer for the memory-as-habitat features.
+    // JournalWriter — append-only stream with 3 visibilities (private/shared/public).
+    // PendingMomentsStore — pinned moments awaiting DreamCycle review.
+    // Both registered before ContextCollector so its lateBindings find them.
+    ['journalWriter', {
+      phase: 9,
+      deps: ['storage'],
+      tags: ['cognitive', 'memory', 'storage'],
+      factory: (c) => new (R('JournalWriter').JournalWriter)({
+        bus,
+        storageDir: c.resolve('storage').baseDir,
+      }),
+    }],
+
+    ['pendingMomentsStore', {
+      phase: 9,
+      deps: ['storage'],
+      tags: ['cognitive', 'memory', 'storage'],
+      factory: (c) => new (R('PendingMomentsStore').PendingMomentsStore)({
+        bus,
+        storageDir: c.resolve('storage').baseDir,
+      }),
+    }],
+
+    // v7.3.7: ContextCollector — geteilt von WakeUpRoutine, IdleMind,
+    // DreamCycle Phase 1. Zero-Dep-Constructor; alle Quellen als
+    // optional Late-Bindings → kein DI-Zyklus möglich.
+    ['contextCollector', {
+      phase: 9,
+      deps: [],
+      tags: ['cognitive', 'context'],
+      lateBindings: [
+        { prop: 'episodicMemory',      service: 'episodicMemory',      optional: true },
+        { prop: 'journalWriter',       service: 'journalWriter',       optional: true },
+        { prop: 'pendingMomentsStore', service: 'pendingMomentsStore', optional: true },
+        { prop: 'coreMemories',        service: 'coreMemories',        optional: true },
+        { prop: 'emotionalState',      service: 'emotionalState',      optional: true },
+        { prop: 'needsSystem',         service: 'needsSystem',         optional: true },
+        { prop: 'dreamCycle',          service: 'dreamCycle',          optional: true },
+      ],
+      factory: () => new (R('ContextCollector').ContextCollector)({}),
+    }],
+
     ['mentalSimulator', {
       phase: 9,
       deps: ['worldState', 'expectationEngine', 'storage'],
@@ -84,6 +127,12 @@ function phase9(ctx, R) {
         { prop: 'valueStore', service: 'valueStore', optional: true },
         // v7.3.3: Phase-6 goal review — optional, cross-phase P9→P4
         { prop: 'goalStack', service: 'goalStack', optional: true },
+        // v7.3.7: Phase 1.5 / 4c / 4d / 6
+        { prop: 'pendingMomentsStore', service: 'pendingMomentsStore', optional: true },
+        { prop: 'journalWriter',       service: 'journalWriter',       optional: true },
+        { prop: 'coreMemories',        service: 'coreMemories',        optional: true },
+        { prop: 'activeRefs',          service: 'activeReferences',    optional: true },
+        { prop: 'contextCollector',    service: 'contextCollector',    optional: true },
       ],
       factory: (c) => new (R('DreamCycle').DreamCycle)({
         bus,
@@ -479,6 +528,26 @@ function phase9(ctx, R) {
 
         return writer;
       },
+    }],
+
+    // v7.3.7: WakeUpRoutine — post-boot Re-Entry.
+    // Triggered by boot:complete event, time-boxed 30s.
+    // All dependencies optional late-bindings — runs with whatever is wired.
+    // Registered LAST in Phase 9 so all its upstream services are resolved
+    // before its lateBindings resolve.
+    ['wakeUpRoutine', {
+      phase: 9,
+      deps: [],
+      tags: ['cognitive', 'lifecycle'],
+      lateBindings: [
+        { prop: 'contextCollector',    service: 'contextCollector',    optional: true },
+        { prop: 'journalWriter',       service: 'journalWriter',       optional: true },
+        { prop: 'pendingMomentsStore', service: 'pendingMomentsStore', optional: true },
+        { prop: 'coreMemories',        service: 'coreMemories',        optional: true },
+        { prop: 'dreamCycle',          service: 'dreamCycle',          optional: true },
+        { prop: 'model',               service: 'llm',                 optional: true },
+      ],
+      factory: () => new (R('WakeUpRoutine').WakeUpRoutine)({ bus }),
     }],
   ];
 }

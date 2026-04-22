@@ -338,8 +338,73 @@ class IntentRouter {
         || /\b(?:schreib|erstell|bau|implementier|generier|programmier)\b.*\b(?:funktion|klasse|komponente|modul|script|programm|server|handler|test)\b/i.test(message);
   }
 
+  /**
+   * v7.3.7: Stage 1 of the Intent Cascade — hard conversational signals.
+   * Pure patterns, no LLM. Returns a high-confidence classification if a
+   * strong signal matches, or null to fall through to regex/fuzzy/LLM.
+   *
+   * Rationale: Genesis was escalating conversational questions ("was hat
+   * sich geändert?") into multi-step plans with hallucinated file paths.
+   * The Cascade intercepts plain conversation before it reaches the
+   * action-intent paths.
+   *
+   * @param {string} message
+   * @returns {{type: string, confidence: number, stage: string}|null}
+   */
+  _conversationalSignalsCheck(message) {
+    if (typeof message !== 'string') return null;
+    const trimmed = message.trim();
+    if (!trimmed) return null;
+
+    // Pure greetings
+    if (/^(hi|hallo|moin|hey|servus|guten\s+(morgen|tag|abend))[\s!?.]*$/i.test(trimmed)) {
+      return { type: 'general', confidence: 0.95, stage: 'conversational-greeting' };
+    }
+
+    // Pure reactions / confirmations
+    if (/^(ja|nein|ok|okay|verstehe|danke|genau|stimmt|kein\s+problem|alles\s+klar)[\s!?.]*$/i.test(trimmed)) {
+      return { type: 'general', confidence: 0.95, stage: 'conversational-reaction' };
+    }
+
+    // Meta-curiosity about Genesis itself — checked BEFORE question-word
+    // because phrases like "was hat sich geändert" start with "was" but
+    // are more specifically meta-curiosity.
+    if (/\b(was\s+(hat\s+sich|ist\s+neu)|wie\s+(fühlst|geht)|erinnerst\s+du|denkst\s+du|erzähl\s+mir)\b/i.test(trimmed)) {
+      return { type: 'general', confidence: 0.9, stage: 'conversational-meta' };
+    }
+
+    const hasQuestionWord = /^(wie|was|warum|wieso|wer|wann|wo|welche?s?)\s/i.test(trimmed);
+    // Action-verb regex: leading \b, but no trailing \b — we want
+    // "erstelle", "erstellen", "baue", "baust" to all match via stem.
+    const hasActionVerb = /\b(erstell|baue|fix|deploy|starte|führe\s+aus|run\s|execute|compile|push|commit)/i.test(trimmed);
+    const endsWithQuestion = /\?$/.test(trimmed);
+
+    if (hasQuestionWord && !hasActionVerb) {
+      return { type: 'general', confidence: 0.85, stage: 'conversational-question' };
+    }
+    if (endsWithQuestion && !hasActionVerb && trimmed.length < 200) {
+      return { type: 'general', confidence: 0.8, stage: 'conversational-question-soft' };
+    }
+
+    return null;
+  }
+
   /** Async classify — includes local classifier + LLM fallback */
   async classifyAsync(message) {
+    // v7.3.7: Stage 1 — Conversational signals (no LLM, very cheap).
+    // If matched, skip the entire regex → fuzzy → LLM pipeline.
+    const conversational = this._conversationalSignalsCheck(message);
+    if (conversational) {
+      if (this.bus && typeof this.bus.fire === 'function') {
+        this.bus.fire('intent:cascade-decision', {
+          stage: conversational.stage,
+          verdict: conversational.type,
+          signalsMatched: [conversational.stage],
+        }, { source: 'IntentRouter' });
+      }
+      return conversational;
+    }
+
     const fast = this.classify(message);
     if (fast.confidence >= 0.6) return fast;
 

@@ -30,6 +30,20 @@ const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('EpisodicMemory');
 
+// ── v7.3.7: Layer System Constants ─────────────────────────
+// Episodes start at Layer 1 (Detail), get consolidated to Layer 2
+// (Schema) over time, and unprotected ones eventually to Layer 3
+// (Feeling). Protected episodes max at Layer 2 — the schema is
+// kept plus a feelingEssence one-liner as a bonus marker.
+const LAYER_CAPS = Object.freeze({
+  1: { max: 500,   name: 'detail' },    // Detail
+  2: { max: 1500,  name: 'schema' },    // Schema
+  3: { max: null,  name: 'feeling' },   // Feeling (no cap, tiny payloads)
+});
+const MIN_DETAIL_EPISODES = 50;          // Youngest 50 always stay Layer 1
+const HARD_RUNAWAY_CAP_L1 = 1000;        // Beyond this → dream:cycle-forced
+
+
 class EpisodicMemory {
   constructor({ bus, storage, embeddingService, intervals }) {
     this.bus = bus || NullBus;
@@ -102,21 +116,33 @@ class EpisodicMemory {
       keyInsights: data.keyInsights || [],
       tags: data.tags || [],
       relatedEpisodes: [],
+
+      // ── v7.3.7: Layer system + Pin workflow + Anchors ──
+      layer: 1,                                    // start in Detail
+      layerHistory: [{ layer: 1, since: data.timestamp || new Date().toISOString() }],
+      immuneAnchors: data.immuneAnchors || [],
+      protected: data.protected === true,
+      linkedCoreMemoryId: data.linkedCoreMemoryId || null,
+      lastConsolidatedAt: null,
+      feelingEssence: null,
+      pinStatus: null,
+      pinnedAt: null,
+      pinReviewedAt: null,
     };
 
     // Add to store (newest first)
     this._episodes.unshift(episode);
 
-    // Trim
-    if (this._episodes.length > this._maxEpisodes) {
-      const removed = this._episodes.splice(this._maxEpisodes);
-      for (const ep of removed) {
-        this._vectors.delete(ep.id);
-        for (const tag of ep.tags) {
-          this._tagIndex.get(tag)?.delete(ep.id);
-        }
-      }
-    }
+    // v7.3.7: Layer-aware overflow handling.
+    // Old behavior was blind splice at 500 episodes total.
+    // New behavior:
+    //   - Count only Layer-1 episodes against the 500 cap
+    //   - When over, mark oldest non-skipped Layer-1 as transitionPending
+    //     (DreamCycle Phase 4c will consolidate them on next run)
+    //   - Hard runaway protection: > HARD_RUNAWAY_CAP_L1 → emit
+    //     dream:cycle-forced so DreamCycle starts immediately
+    //   - Always keep at least MIN_DETAIL_EPISODES youngest in Layer 1
+    this._enforceLayerCaps();
 
     // Update tag index
     for (const tag of episode.tags) {
@@ -497,6 +523,194 @@ class EpisodicMemory {
   }
 
 
+  // ════════════════════════════════════════════════════════
+  // v7.3.7 — Layer System & Pin Workflow API
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Layer-aware overflow enforcement. Called by recordEpisode() after
+   * insert. Replaces the old blind splice at 500 episodes.
+   *
+   * Strategy:
+   *  - Count Layer-1 episodes
+   *  - Skip the youngest MIN_DETAIL_EPISODES (they always stay Detail)
+   *  - Mark older Layer-1 episodes with transitionPending: true
+   *    (DreamCycle Phase 4c will consolidate them on next run)
+   *  - If Layer-1 count exceeds HARD_RUNAWAY_CAP_L1, emit
+   *    dream:cycle-forced so DreamCycle starts immediately
+   */
+  _enforceLayerCaps() {
+    const layer1 = this._episodes.filter(ep => (ep.layer || 1) === 1);
+    if (layer1.length <= LAYER_CAPS[1].max) return;
+
+    // Layer-1 sorted by age ascending (oldest first)
+    layer1.sort((a, b) => (a.timestampMs || 0) - (b.timestampMs || 0));
+
+    // Skip the youngest MIN_DETAIL_EPISODES → they stay Detail
+    const youngestProtected = new Set(
+      layer1.slice(-MIN_DETAIL_EPISODES).map(ep => ep.id)
+    );
+
+    let pendingTransitions = 0;
+    for (const ep of layer1) {
+      if (youngestProtected.has(ep.id)) continue;
+      // Mark for transition (flüchtig — nicht persistiert, DreamCycle liest's)
+      ep.transitionPending = true;
+      pendingTransitions++;
+    }
+
+    this.bus.emit('memory:layer-overflow', {
+      layer: 1,
+      count: layer1.length,
+      pendingTransitions,
+    }, { source: 'EpisodicMemory' });
+
+    if (layer1.length > HARD_RUNAWAY_CAP_L1) {
+      this.bus.emit('dream:cycle-forced', {
+        reason: 'layer-1-runaway',
+        layerCount: layer1.length,
+      }, { source: 'EpisodicMemory' });
+    }
+  }
+
+  /**
+   * v7.3.7: Get the most recently recorded episode (for mark-moment tool).
+   * Returns null if no episodes yet.
+   * @returns {object|null}
+   */
+  getLatest() {
+    // _episodes is maintained newest-first via unshift
+    return this._episodes[0] || null;
+  }
+
+  /**
+   * Count of episodes recorded within the given window from now.
+   * @param {number} windowMs
+   * @returns {number}
+   */
+  getRecentCount(windowMs) {
+    if (!Number.isFinite(windowMs) || windowMs <= 0) return 0;
+    const cutoff = Date.now() - windowMs;
+    return this._episodes.filter(ep => (ep.timestampMs || 0) >= cutoff).length;
+  }
+
+  /**
+   * Episodes that have not been processed by DreamCycle yet.
+   * Heuristic: lastConsolidatedAt is null AND not currently
+   * marked as transitionPending. Used in DreamCycle.collectDreamContext().
+   */
+  getUnprocessed() {
+    return this._episodes.filter(ep =>
+      ep.lastConsolidatedAt == null && ep.transitionPending !== true
+    );
+  }
+
+  /**
+   * Episodes that are ripe for Layer-Transition.
+   *
+   * @param {object} [opts]
+   * @param {number} [opts.maxPerCycle=10] - cap returned candidates
+   * @param {(id:string) => boolean} [opts.skipIf] - return true to skip
+   *   a given episode (used by DreamCycle to honor ActiveReferencesPort)
+   * @returns {object[]}
+   */
+  getTransitionCandidates({ maxPerCycle = 10, skipIf = null } = {}) {
+    // Two sources of candidates:
+    //   1. Episodes marked transitionPending by _enforceLayerCaps
+    //   2. Episodes naturally aging past layer thresholds
+    const out = [];
+    const skip = typeof skipIf === 'function' ? skipIf : () => false;
+
+    for (const ep of this._episodes) {
+      if (out.length >= maxPerCycle) break;
+      if (skip(ep.id)) continue;
+      if (ep.transitionPending === true) {
+        out.push(ep);
+        continue;
+      }
+      // Future: natural aging thresholds (Layer 2 → 3 after X days)
+      // will be added when DreamCycle Phase 4c logic is wired (Step 7).
+    }
+    return out;
+  }
+
+  /**
+   * Mark an episode as protected (immune from Layer-3 transition).
+   * Idempotent — re-calling with the same value is a no-op.
+   * @param {string} id
+   * @param {boolean} value
+   * @returns {boolean} true on state change
+   */
+  setProtected(id, value) {
+    const ep = this._episodes.find(e => e.id === id);
+    if (!ep) return false;
+    const next = value === true;
+    if (ep.protected === next) return false;
+    ep.protected = next;
+    this._save();
+    return true;
+  }
+
+  /**
+   * Link an episode to its CoreMemory. Used when Pin-Review
+   * elevates a moment.
+   * @param {string} id
+   * @param {string|null} coreMemoryId
+   * @returns {boolean} true on state change
+   */
+  setLinkedCoreMemoryId(id, coreMemoryId) {
+    const ep = this._episodes.find(e => e.id === id);
+    if (!ep) return false;
+    if (ep.linkedCoreMemoryId === coreMemoryId) return false;
+    ep.linkedCoreMemoryId = coreMemoryId;
+    this._save();
+    return true;
+  }
+
+  /**
+   * Replace an episode in-place (preserves position, vector, tag index).
+   * Used by DreamCycle Phase 4c when consolidating Layer 1 → 2.
+   * The new episode MUST keep the original id; otherwise this rejects.
+   *
+   * @param {string} id
+   * @param {object} newEpisode
+   * @returns {boolean} true on success
+   */
+  replaceEpisode(id, newEpisode) {
+    if (!newEpisode || newEpisode.id !== id) {
+      _log.warn('[EPISODIC] replaceEpisode: id mismatch or null payload');
+      return false;
+    }
+    const idx = this._episodes.findIndex(e => e.id === id);
+    if (idx === -1) return false;
+
+    const old = this._episodes[idx];
+    // Preserve transient flags by clearing transitionPending on replacement
+    delete newEpisode.transitionPending;
+    // Preserve layerHistory append-only contract
+    if (!Array.isArray(newEpisode.layerHistory)) {
+      newEpisode.layerHistory = old.layerHistory || [];
+    }
+
+    this._episodes[idx] = newEpisode;
+
+    // Rebuild tag index for this episode
+    for (const tag of (old.tags || [])) {
+      this._tagIndex.get(tag)?.delete(id);
+    }
+    for (const tag of (newEpisode.tags || [])) {
+      if (!this._tagIndex.has(tag)) this._tagIndex.set(tag, new Set());
+      this._tagIndex.get(tag).add(id);
+    }
+
+    this._save();
+    return true;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // PRIVATE: Persistence
+  // ════════════════════════════════════════════════════════
+
   _load() {
     if (!this.storage) return;
     try {
@@ -505,6 +719,30 @@ class EpisodicMemory {
       if (Array.isArray(data.episodes)) this._episodes = data.episodes;
       if (Array.isArray(data.causalLinks)) this._causalLinks = data.causalLinks;
       if (data.counter) this._counter = data.counter;
+
+      // v7.3.7: Self-migration. Episodes from v7.3.6 and earlier
+      // have no layer/layerHistory/anchors fields. Add Defaults
+      // using ORIGINAL timestamp as the layer-1 since-marker.
+      // This is idempotent — episodes already migrated are skipped.
+      let migrated = 0;
+      for (const ep of this._episodes) {
+        if (ep.layer === undefined) {
+          ep.layer = 1;
+          ep.layerHistory = [{ layer: 1, since: ep.timestamp }];
+          ep.immuneAnchors = ep.immuneAnchors || [];
+          ep.protected = ep.protected === true;
+          ep.linkedCoreMemoryId = ep.linkedCoreMemoryId || null;
+          ep.lastConsolidatedAt = null;
+          ep.feelingEssence = null;
+          ep.pinStatus = null;
+          ep.pinnedAt = null;
+          ep.pinReviewedAt = null;
+          migrated++;
+        }
+      }
+      if (migrated > 0) {
+        _log.info(`[EPISODIC] v7.3.7 migration: ${migrated} legacy episodes initialized at layer 1`);
+      }
 
       // Rebuild tag index
       for (const ep of this._episodes) {

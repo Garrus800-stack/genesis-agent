@@ -122,6 +122,16 @@ class AgentCore {
         catch (_e) { _log.debug('[catch] telemetry:', _e.message); }
       }
 
+      // v7.3.7: Explicit bus event for post-boot services (WakeUpRoutine etc.).
+      // Position: AFTER telemetry recorded clean boot timings, BEFORE safety
+      // degradation check which may alter world state. Listeners can run
+      // parallel to the safety check since they're independent paths.
+      this._bus.emit('boot:complete', {
+        durationMs: dt,
+        serviceCount,
+        timestamp: new Date().toISOString(),
+      }, { source: 'AgentCore' });
+
       // Safety degradation notification
       try {
         const codeSafety = this.container.tryResolve('codeSafety');

@@ -55,6 +55,7 @@ const SCAN_DIRS = [
   'planning', 'hexagonal', 'autonomy', 'organism',
   'revolution', 'ports',
   'cognitive',  // Phase 9: Cognitive Architecture
+  'memory',     // Phase 9: v7.3.7 storage layer (JournalWriter, PendingMomentsStore)
   // Phase 10-12: Extended Agency
 ];
 

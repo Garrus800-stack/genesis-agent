@@ -330,6 +330,12 @@ class AgentCoreHealth {
       'disclosurePolicy',
       // v7.1.3: CausalAnnotation — unsubscribes chat:completed listener
       'causalAnnotation',
+      // v7.3.7: MemoryDecay stack — all have stop() for lifecycle compliance.
+      // activeReferences clears per-turn claims; journalWriter flushes index;
+      // pendingMomentsStore persists pending pins; contextCollector is stateless
+      // (no-op stop); wakeUpRoutine clears _ran flag.
+      'activeReferences', 'contextCollector', 'journalWriter',
+      'pendingMomentsStore', 'wakeUpRoutine',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

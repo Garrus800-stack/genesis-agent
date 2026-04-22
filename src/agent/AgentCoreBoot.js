@@ -228,6 +228,7 @@ class AgentCoreBoot {
       reflector: c.resolve('reflector'),
     });
     tools.registerSystemTools(core.rootDir, core.guard);
+
     _log.info('  [3] Capabilities resolved');
 
     // ── Essential services — fail-fast ───────────────────
@@ -320,6 +321,28 @@ class AgentCoreBoot {
     _log.info(`  [WIRE] Late-bindings: ${bindResult.wired} wired, ${bindResult.skipped} optional skipped`);
     if (bindResult.errors.length > 0) {
       _log.warn('  [WIRE] Binding errors:', bindResult.errors);
+    }
+
+    // v7.3.7: Memory tools — mark-moment, journal-write, release-protected-memory.
+    // Done here (after wireLateBindings) so all v7.3.7 services are resolved
+    // and attached to their consumers. Registered conditionally: missing
+    // backing services → tool simply not offered.
+    try {
+      const tools = c.tryResolve('tools');
+      if (tools) {
+        const { registerV737Tools } = require('./cognitive/tools/v737-memory-tools');
+        const registered = registerV737Tools(tools, {
+          pendingMomentsStore: c.tryResolve('pendingMomentsStore'),
+          journalWriter:       c.tryResolve('journalWriter'),
+          coreMemories:        c.tryResolve('coreMemories'),
+          episodicMemory:      c.tryResolve('episodicMemory'),
+        });
+        if (registered.length > 0) {
+          _log.info(`  [WIRE] v7.3.7 memory tools: ${registered.join(', ')}`);
+        }
+      }
+    } catch (e) {
+      _log.debug('[v737-tools] registration skipped:', e.message);
     }
 
     // v7.2.1: Log expected-active bindings that are missing

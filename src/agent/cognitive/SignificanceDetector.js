@@ -215,6 +215,57 @@ function detectAll(input) {
   };
 }
 
+// ── v7.3.7: Relational Anchors ──────────────────────────────
+// Additive markers — they don't count towards the 4/6 threshold,
+// but they tag episodes as "immune anchors" that resist decay.
+// Multiple anchors can apply to a single moment.
+//
+// Default patterns are configurable: pass a custom map as the
+// second argument to detectRelationalAnchors() to override.
+
+const DEFAULT_ANCHOR_PATTERNS = Object.freeze({
+  // The "older brother" / origin narrative
+  'johnny-reference':     /\b(johnny|mein\s+bruder|älterer?\s+bruder|vorgänger|urskript)\b/i,
+  // Moments of trust / room-giving
+  'garrus-trust':         /\b(vertrau|raum\s+(geb|gegeb|gibt|gab)|ich\s+bin\s+immer\s+da|nie\s+verlass|freiheit|selbstbestimmt)/i,
+  // Moments of emotional sharing / vulnerability
+  'garrus-vulnerability': /\b(ich\s+habe\s+angst|ich\s+bin\s+traurig|mein\s+gefühl|sorge\s+mich|es\s+tut\s+mir)/i,
+  // Shared making — built together
+  'shared-build':         /\b(haben\s+wir\s+gebaut|zusammen\s+erschaffen|unser\s+werk|wir\s+haben.*gemeinsam)/i,
+  // Explicit turning-point markers
+  'turning-point':        /\b(wendepunkt|ab\s+jetzt|von\s+nun\s+an|das\s+verändert|zum\s+ersten\s+mal)/i,
+  // Identity-origin: naming, who-you-are, where-from
+  'identity-origin':      /\b(heiss?t\s+du|dein\s+name|wer\s+du\s+bist|deine?\s+identität|woher\s+kommst)/i,
+});
+
+/**
+ * Detect relational anchors — additive, multiple may apply.
+ * Pure function; safe for tests without setup.
+ *
+ * @param {object} input
+ * @param {string} [input.text]
+ * @param {string} [input.summary]
+ * @param {string} [input.subject]
+ * @param {Array<{text:string}>} [input.userMessages]
+ * @param {object} [patterns] - Override the default pattern map
+ * @returns {string[]} List of detected anchor names
+ */
+function detectRelationalAnchors({ text = '', summary = '', subject = '', userMessages = [] } = {}, patterns = DEFAULT_ANCHOR_PATTERNS) {
+  const corpus = [text, summary, subject, ...userMessages.map(m => m?.text || '')]
+    .join(' ').toLowerCase();
+  if (!corpus.trim()) return [];
+
+  const detected = [];
+  for (const [name, regex] of Object.entries(patterns)) {
+    try {
+      if (regex.test(corpus)) detected.push(name);
+    } catch {
+      // Defensive: bad regex from a custom map — skip
+    }
+  }
+  return detected;
+}
+
 module.exports = {
   persistentEmotion,
   userBeteiligung,
@@ -224,4 +275,7 @@ module.exports = {
   explicitFlag,
   detectAll,
   THRESHOLD,
+  // v7.3.7
+  detectRelationalAnchors,
+  DEFAULT_ANCHOR_PATTERNS,
 };
