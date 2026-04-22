@@ -209,6 +209,33 @@ class PromptBuilder {
   }
 
   /**
+   * v7.3.8: Attach actual source file content (read synchronously by
+   * the ChatOrchestrator). Unlike attachSourceHint, this injects the
+   * real data into the prompt, so the LLM has no reason to fabricate.
+   *
+   * @param {{content: string, label: string}|null} source
+   */
+  attachSourceContent(source) {
+    this._sourceContent = (source && source.content) ? source : null;
+  }
+
+  /** Clear the source content — called at the start of each turn. */
+  clearSourceContent() {
+    this._sourceContent = null;
+  }
+
+  /**
+   * Get the source-content block for prompt assembly, or empty string.
+   * The block marks the content as authoritative, so the LLM treats it
+   * as ground truth instead of as optional context.
+   */
+  _getSourceContentBlock() {
+    if (!this._sourceContent) return '';
+    const { content, label } = this._sourceContent;
+    return `\n[Quelle: ${label}]\n${content}\n(Der Inhalt dieser Datei ist die Grundlage deiner Antwort.)\n`;
+  }
+
+  /**
    * Estimate token budget based on active model.
    * Cloud models get larger budgets than local 9B models.
    */
@@ -299,6 +326,8 @@ class PromptBuilder {
       ['taskPerformance', this._taskPerformanceContext()],
       ['safety',         this._safetyContext()],
       ['groundedness',   this._groundednessContext()],
+      // v7.3.8: Synchronously loaded source content (actual file data)
+      ['sourceContent',  this._getSourceContentBlock()],
       ['sourceAccess',   this._sourceAccessContext()],
       ['disclosure',     this._disclosureContext()],
       ['version',        this._versionContext()],
@@ -446,6 +475,8 @@ class PromptBuilder {
     sections.push(['taskPerformance', this._taskPerformanceContext()]);
     sections.push(['safety',        this._safetyContext()]);
     sections.push(['groundedness',  this._groundednessContext()]);
+    // v7.3.8: Synchronously loaded source content (actual file data)
+    sections.push(['sourceContent', this._getSourceContentBlock()]);
     sections.push(['sourceAccess',  this._sourceAccessContext()]);
     sections.push(['disclosure',    this._disclosureContext()]);
     sections.push(['introspection', this._introspectionContext()]); // v7.1.7 F3: verified self-data

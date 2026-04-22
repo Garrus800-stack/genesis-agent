@@ -9,7 +9,7 @@
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
   <img src="https://img.shields.io/badge/version-7.3.7-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-5242%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-5300%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-config_ok-fbbf24?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
@@ -227,7 +227,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.3.7: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5242 tests passing, 161 services (149 manifest + 12 bootstrap), MemoryDecay three-layer system, Pin-and-Reflect workflow, Journal with three visibilities, post-boot WakeUpRoutine, IntentRouter cascade for conversational signals. Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.3.8: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5300 tests passing, 161 services (149 manifest + 12 bootstrap), LLM-Failure-Honesty (system-messages on hard errors, no fabulation fallback), synchronous source-read for CHANGELOG/package.json queries, plus all v7.3.7 memory/journal/wake-up features. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -533,7 +533,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 149 manifest + 12 bootstrap = 161 at runtime |
 | Late-bindings | 255 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 298 files, 5242 tests (coverage gates: 80/75.9/78, ratchet floor 5200) |
+| Test suites | 298 files, 5300 tests (coverage gates: 80/75.9/78, ratchet floor 5200) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 67 main ↔ 67 preload (rate-limited, all in sync) |

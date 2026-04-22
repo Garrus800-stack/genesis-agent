@@ -47,6 +47,7 @@ const SCHEMAS = {
   // Chat
   'chat:completed': { message: 'required', response: 'required', intent: 'required', success: 'required' },
   'chat:error':     { message: 'required' },
+  'chat:llm-failure': { stage: 'required', errorType: 'required', backend: 'required', model: 'required', userVisible: 'required', sourceReadAttempted: 'required', retriesUsed: 'required', details: 'required' },
 
   // Injection Gate (v7.3.5)
   'injection:blocked': { signals: 'required', toolCount: 'required' },

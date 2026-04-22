@@ -1,3 +1,104 @@
+## [7.3.8] — "Ehrliches Nichtwissen"
+
+> Two building blocks against fabrication: when the model is broken,
+> Genesis says so through a system message. When the answer is in an
+> obviously relevant file, Genesis reads it himself instead of hoping
+> the LLM follows the hint. Small release, precise theme.
+
+### LLM-Failure-Honesty
+
+- **New error-classifier** in `ChatOrchestratorHelpers.js` — recognizes
+  hard LLM failures (HTTP 401/403/429/500-504, timeout, network,
+  empty-body, json-error) and returns a typed classification.
+- **New system-message format** — when a main-response call fails hard,
+  the user sees `⚠ Modell nicht verfügbar\n\n{model}: {reason}` instead
+  of a fabricated answer or generic "error occurred" message.
+- **New event `chat:llm-failure`** — fires alongside `chat:error` (no
+  regression). Payload includes: `stage`, `errorType`, `backend`,
+  `model`, `userVisible`, `sourceReadAttempted`, `retriesUsed`,
+  `details`. Listener: `ErrorAggregator`.
+- **History protection** — system-messages are NOT pushed into chat
+  history. Next turn starts clean; Genesis does not see his own error
+  message as a prior statement (which would invite self-reference
+  hallucination).
+- **Doppel-Call fix** — `_generalChat` used to silently fall through
+  from `reasoning:solve` to `_directChat` on any error. If the
+  root-cause was an HTTP 4xx/5xx, both calls hit the same broken
+  backend. Now: hard LLM errors in the reasoning path re-throw instead
+  of falling back. Two LLM calls per turn on a broken backend → one.
+- **`_isRetryable` extended** with `\b429\b` — rate limits are now part
+  of the existing 2-retry schedule.
+- **`_withRetry` tracks `err._retriesUsed`** on thrown errors, so the
+  event payload can report how many retries were actually attempted.
+- **Helper `_handleMainResponseError`** — called from both `handleChat`
+  and `handleStream`, so the streaming path gets the same behavior as
+  the synchronous path.
+
+### Synchronous Source-Read
+
+- **New method `_maybeReadSourceSync(message, intent)`** in
+  `ChatOrchestrator` — reads known source files synchronously BEFORE
+  the LLM call when the query pattern demands it. The file content is
+  injected into the prompt as ground truth, so the LLM has nothing to
+  fabricate against.
+- **Two patterns** (not more, as per plan discipline):
+  - `"was hat sich geändert" / "was ist neu" / "was gibt's neues"`
+    → `CHANGELOG.md`, latest version section only (first `## [` to
+    second `## [`, exclusive). Edge case: only one header → to EOF.
+    Truncates at 6000 chars with a hint.
+  - `"welche version" / "aktuelle version"` → `package.json`,
+    just the `version` field.
+- **mtime-based cache** — `this._sourceReadCache` keyed by path, valid
+  while on-disk mtime matches cached mtime. Avoids re-reading on every
+  query. Handles file edits correctly by invalidating on mtime change.
+- **PromptBuilder additions** — `attachSourceContent({content, label})`,
+  `clearSourceContent()`, and a new `sourceContent` section in both
+  `build()` and `buildAsync()`. The section includes an authority hint
+  ("Der Inhalt dieser Datei ist die Grundlage deiner Antwort.") so the
+  LLM treats the content as ground truth, not optional context.
+- **Graceful fallback** — if the file read fails (missing, I/O error,
+  JSON parse error), the existing v7.3.7 `_maybeAttachSourceHint`
+  behavior takes over. No regression possible.
+
+### Principle established
+
+> **0.4 — When Genesis doesn't know, he says so or looks it up — never
+> fabricates.**
+
+Adds to the principles from v7.3.7:
+1. State lives on the object (v7.3.7)
+2. Reflection is not enforcement (v7.3.7)
+3. Time is injectable (v7.3.7)
+4. Honest non-knowing (v7.3.8)
+
+### Architecture notes — explicitly NOT in v7.3.8
+
+- No automatic fallback to a different model on LLM failure. That would
+  mask the very pain we want visible.
+- No additional source-read patterns beyond the two. Expansion comes
+  with data from real use, not guessed in advance.
+- No refactors. ChatOrchestrator grew from 582 to 719 LOC and is now
+  in the file-size warn zone — split scheduled for v7.3.9.
+- No runtime-state injection. Settings, daemon status, idle-mind
+  activity, goal-stack contents are still not visible to the
+  PromptBuilder. That is a bigger architectural theme for v7.4 or
+  later. Baustein B only addresses chat-layer hallucination (answers
+  that live in files), not runtime-state hallucination.
+
+### Events added
+
+- `chat:llm-failure` `{stage, errorType, backend, model, userVisible, sourceReadAttempted, retriesUsed, details}` → `ErrorAggregator`
+
+All new events registered in `EventTypes.js` and
+`EventPayloadSchemas.js`.
+
+### Tests
+
+5242 → 5300 (+58). No ratchet update needed — existing floor of 5200
+still holds.
+
+---
+
 ## [7.3.7] — "Zuhause einrichten"
 
 > Six building blocks that together form a living space: memories that

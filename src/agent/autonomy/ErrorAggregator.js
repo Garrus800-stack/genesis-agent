@@ -72,6 +72,9 @@ class ErrorAggregator {
       'error:*', 'agent:error', 'safety:degraded',
       'model:error', 'sandbox:error', 'shell:error',
       'loop:error', 'mcp:error', 'network:error',
+      // v7.3.8: Hard LLM backend failures (403, 500, timeout, etc.) —
+      // specific to LLM calls, complements generic chat:error.
+      'chat:llm-failure',
     ];
 
     for (const pattern of errorPatterns) {

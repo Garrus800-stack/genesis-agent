@@ -142,11 +142,13 @@ const EVENTS = Object.freeze({
   // ── Chat ───────────────────────────────────────────────
   CHAT: Object.freeze({
     /** @payload {{ success: boolean, duration?: number }} */
-    COMPLETED: 'chat:completed',
+    COMPLETED:   'chat:completed',
     /** @payload {{ error: string }} */
-    ERROR:     'chat:error',
+    ERROR:       'chat:error',
     /** @payload {{ attempt: number }} */
-    RETRY:     'chat:retry',
+    RETRY:       'chat:retry',
+    /** v7.3.8: Hard LLM-backend failure (403, 500, timeout, etc.) */
+    LLM_FAILURE: 'chat:llm-failure',
   }),
 
   // ── Injection Gate (v7.3.5) ─────────────────────────────
