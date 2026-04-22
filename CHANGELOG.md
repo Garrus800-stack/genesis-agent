@@ -1,3 +1,112 @@
+## [7.3.9] — "Aufräumen"
+
+> No new features. Structural cleanup after the feature-heavy releases
+> v7.3.7 and v7.3.8. Two files leave the warn-zone, the external API
+> is unchanged. For the user, identical to v7.3.8.
+
+### Baustein A — DreamCycle Split
+
+- `src/agent/cognitive/DreamCycle.js` grew from 439 LOC (v7.3.6) to
+  854 LOC (v7.3.8) because v7.3.7 added four new phases (Pin-Review,
+  Layer-Transition, Journal-Rotation-Check, Cycle-Report) plus helpers.
+- v7.3.9 extracts all phase methods and their helpers to a new file
+  `src/agent/cognitive/DreamCyclePhases.js` (~395 LOC). Prototype-
+  delegation from the bottom of DreamCycle.js — same pattern as the
+  existing DreamCycleAnalysis.js split.
+- DreamCycle.js is now at **482 LOC**, below the 700 warn threshold.
+- External API unchanged: `dream()`, `start()`, `stop()`, `getStats()`
+  all work exactly as before. All 23 existing DreamCycle tests green
+  without modification.
+
+### Baustein B — ChatOrchestrator Split
+
+- `src/agent/hexagonal/ChatOrchestrator.js` was pushed into the warn
+  zone by v7.3.8 (582 LOC → 719 LOC) when the synchronous source-read
+  methods landed there.
+- v7.3.9 extracts the five source-read methods
+  (`_maybeReadSourceSync`, `_rootDir`, `_readSourceCached`,
+  `_readChangelogLatestSection`, `_readPackageVersion`) to a new file
+  `src/agent/hexagonal/ChatOrchestratorSourceRead.js` (~165 LOC).
+  Prototype-delegation from the bottom of ChatOrchestrator.js — same
+  pattern as the existing ChatOrchestratorHelpers.js split.
+- ChatOrchestrator.js is back at **582 LOC**, exactly the v7.3.7 size.
+- External API unchanged: `handleChat()`, `handleStream()`,
+  `_generalChat()` all work exactly as before. All 60 v7.3.8 tests
+  green without modification.
+
+### Baustein C — already complete, no change needed
+
+The original plan included extracting the `_sub()` event subscription
+helper from duplicated inline code into a shared `SubscriptionHelper.js`.
+Investigation during implementation revealed this work was **already
+done** in the post-deploy patch pass of v7.3.6 — the helper exists at
+`src/agent/core/subscription-helper.js` and is applied to 36 services
+via `applySubscriptionHelper`. No code change for Baustein C. The
+backlog item is closed.
+
+### Structure tests
+
+New test file `test/modules/v739-structure.test.js` (17 tests)
+verifies file-split invariants:
+
+- DreamCyclePhases methods are accessible on DreamCycle instances
+- ChatOrchestratorSourceRead methods are accessible on ChatOrchestrator
+- All v7.3.7/v7.3.8 method names preserved (no renames)
+- Core methods stay where they were
+- DreamCycle.js and ChatOrchestrator.js both under 700 LOC
+- subscription-helper is correctly wired to ErrorAggregator and
+  ServiceRecovery (verifies pre-existing Baustein C state)
+
+### Principle established
+
+> **0.5 — Structural hygiene is its own release, not a byproduct.**
+
+The v7.3.x series showed that features naturally pile into existing
+files until they cross LOC thresholds. Rather than cleaning up inside
+each feature release (which complicates the feature release), there
+are dedicated hygiene releases that **do nothing else**.
+
+Adds to the principles from v7.3.7 and v7.3.8:
+1. State on the object (v7.3.7)
+2. Reflection ≠ Enforcement (v7.3.7)
+3. Time is injectable (v7.3.7)
+4. Honest non-knowing (v7.3.8)
+5. Structural hygiene is its own release (v7.3.9)
+
+### Architecture notes — explicitly NOT in v7.3.9
+
+- **No** SelfModel split (855 LOC). Historically grown with many
+  entry points; split risk > benefit for a hygiene release.
+  Deferred to v7.4+.
+- **No** CommandHandlers split (847 LOC). Same reasoning.
+- **No** EpisodicMemory split (759 LOC). Too recently touched in
+  v7.3.7 for another structural change.
+- **No** SelfModificationPipeline split (705 LOC). Just barely over
+  threshold, risk > benefit.
+- **No** PromptBuilderSections split (748 LOC). Already split once
+  (sections + sectionsExtra); splitting again would be cosmetic.
+- **No** O-6 coverage push. Open-ended task, not scoped for a
+  hygiene release.
+- **No** new features, no new events, no new services, no behavioral
+  changes for the user.
+
+### Tests
+
+5300 → 5317 (+17). No ratchet update — existing floor of 5200 still
+holds comfortably.
+
+### Fitness Score
+
+127/130 (98%) — unchanged from v7.3.8. File Size Guard still at 7/10
+because the remaining 5 warn-zone files are not addressed in this
+release (see Architecture notes above). The benefit of v7.3.9 is in
+code structure quality, not in the binary score: two fewer files are
+over-threshold, Test Coverage is back at 10/10 (+1 point gained),
+and the split pattern establishes a clean precedent for future
+releases.
+
+---
+
 ## [7.3.8] — "Ehrliches Nichtwissen"
 
 > Two building blocks against fabrication: when the model is broken,

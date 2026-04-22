@@ -93,6 +93,10 @@ async function main() {
                 'v737-context-collector', 'v737-dream-phases', 'v737-episodic-memory',
                 'v737-intent-and-hint', 'v737-journal-writer', 'v737-pending-moments',
                 'v737-significance-and-coremem', 'v737-tools', 'v737-wakeup-routine',
+                // v7.3.8: LLM-Failure-Honesty + Synchronous Source-Read
+                'v738-llm-failure', 'v738-source-read-sync',
+                // v7.3.9: Structure invariants
+                'v739-structure',
               ]);
               const isNodeTest = NODE_TEST_FILES.has(moduleName);
               const nodeArgs = isNodeTest
