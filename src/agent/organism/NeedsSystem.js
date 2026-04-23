@@ -396,6 +396,28 @@ class NeedsSystem {
       }
     } catch (err) { _log.debug('[NEEDS] Load state error:', err.message); }
   }
+
+  /**
+   * v7.4.0: Runtime snapshot for RuntimeStatePort.
+   * I/O-free, in-memory only. Returns needs with drive
+   * value > 0.3 (the threshold where the LLM should know
+   * about it). Lower drives are omitted because they would
+   * bloat the prompt without useful signal.
+   */
+  getRuntimeSnapshot() {
+    const active = [];
+    for (const [name, need] of Object.entries(this.needs)) {
+      if (need.value > 0.3) {
+        active.push({
+          name,
+          drive: Math.round(need.value * 100),
+        });
+      }
+    }
+    // Sort by drive desc so the strongest needs come first.
+    active.sort((a, b) => b.drive - a.drive);
+    return { active };
+  }
 }
 
 applySubscriptionHelper(NeedsSystem);

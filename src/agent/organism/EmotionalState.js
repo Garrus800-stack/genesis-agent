@@ -240,6 +240,31 @@ class EmotionalState {
   }
 
   /**
+   * v7.4.0: Runtime snapshot for RuntimeStatePort.
+   * I/O-free, in-memory only. Pulls dominant emotion, mood,
+   * and top-3 values from this.dimensions (already in RAM).
+   * No persistence reads, no LLM calls.
+   */
+  getRuntimeSnapshot() {
+    const dom = this.getDominant();
+    const state = this.getState();
+    // Top-3 by raw value (not deviation). Gives a human-
+    // readable flavor for the prompt: "curious 80%, calm
+    // 50%, lonely 30%".
+    const top3 = Object.entries(state)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, value]) => ({ name, value: Math.round(value * 100) }));
+    return {
+      dominant: dom.emotion,
+      intensity: Math.round(dom.intensity * 100),
+      mood: this.getMood(),
+      trend: this._moodTrend,
+      top3,
+    };
+  }
+
+  /**
    * v7.3.2: Adapter for SignificanceDetector.
    * Transforms 5-dimensional snapshots into per-dimension records with baselines.
    * Only emits records where value meaningfully differs from baseline

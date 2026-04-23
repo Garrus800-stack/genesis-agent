@@ -547,6 +547,23 @@ class Metabolism {
       _log.info(`[METABOLISM] Loaded — energy ${Math.round(this._energy)}/${this._maxEnergy}, ${this._callCount} historical calls`);
     } catch (err) { _log.warn('[METABOLISM] Load error:', err.message); }
   }
+
+  /**
+   * v7.4.0: Runtime snapshot for RuntimeStatePort.
+   * I/O-free, in-memory only. Returns energy-percent and
+   * llm-call count. Does NOT expose cost details or
+   * per-vendor billing info — those would be both noisy
+   * and potentially revealing about user's spending habits.
+   */
+  getRuntimeSnapshot() {
+    const energyPercent = this._maxEnergy > 0
+      ? Math.round((this._energy / this._maxEnergy) * 100)
+      : 0;
+    return {
+      energyPercent,
+      llmCalls: this._callCount,
+    };
+  }
 }
 
 // v7.3.6 patch: apply subscription-helper mixin

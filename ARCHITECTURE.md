@@ -911,4 +911,128 @@ v7.3.7 made three design principles explicit so future work doesn't drift:
 
 ---
 
+## 14. RuntimeStatePort — Runtime-State Honesty (v7.4.0)
+
+Introduced in v7.4.0 "Im Jetzt". Fixes the class of questions where Genesis
+would fabulate about his own running services. Before v7.4.0, asking "what
+are your settings" or "how do you feel" produced plausible invented
+answers because the PromptBuilder had no access to live service state.
+
+### 14.1 The problem
+
+PromptBuilder reads from files, KG snapshots, and emotional-frontier
+records at build time. It does **not** read from live services like
+Settings, EmotionalState, AutonomousDaemon etc. Those services carry
+the real current state — backend in use, currently felt emotion, what
+the daemon is doing right now — but none of it reaches the prompt.
+
+So when the user asks about current state, the LLM has no ground truth
+and fills the gap with plausible-sounding fiction.
+
+### 14.2 The solution
+
+A new **RuntimeStatePort** sits between PromptBuilder and a set of
+opt-in services:
+
+```
+  Service (getRuntimeSnapshot) ──┐
+  Service (getRuntimeSnapshot)  ─┼─► RuntimeStatePort.snapshot() ──► PromptBuilder
+  Service (getRuntimeSnapshot)  ─┤                                    runtimeState section
+  ... 8 services total ─────────┘
+```
+
+Each service opts in by implementing `getRuntimeSnapshot()` —
+a synchronous, in-memory-only method that returns a whitelist of
+safe fields. Services without the method are silently skipped; the
+port carries no faked data.
+
+### 14.3 Design choices
+
+**No caching.** The port re-reads every call. A 500ms cache would mean
+two questions 400ms apart could return identical answers even though
+EmotionalState moved between them. That directly violates Leitprinzip 0.6.
+
+**Sensitive-data filter in the source.** Each service decides what
+its snapshot contains. Settings uses `getAll()` (which masks API keys
+to `sk-123...`), not `getRaw()`. This is one tippfehler-distance from
+leaking production keys into the prompt, so a CI regex-scan test
+(v740-sensitive-scan) runs on every build against patterns like
+`/sk-[A-Za-z0-9]{20,}/`.
+
+**Lazy registration.** Late-bound service slots are collected on the
+first `snapshot()` call, not at boot. Reason: the Container has no
+post-wire hook, and all source services are already resolved by
+phase 11 — so the first prompt-build does the registration as a
+side-effect.
+
+**German as robust default, language-neutral in effect.** The rendered
+block uses German labels (`Gefühl:`, `Bedürfnisse:`, `Energie:`, etc.)
+as a stability choice against LLM training biases. An English-speaking
+user still gets English answers because the Identity block contains
+the directive "Antworte in der Sprache des Users" — the LLM renders
+responses in whatever language the user writes, regardless of the
+system-prompt's internal language. Same applies to the Identity block
+itself (see 14.5).
+
+### 14.4 The 8 source services
+
+| Service | What `getRuntimeSnapshot()` exposes | Explicitly never |
+|---|---|---|
+| Settings | backend, model, trustLevel, language | apiKey, tokens, paths |
+| EmotionalState | dominant emotion, intensity, top-3 | — |
+| NeedsSystem | active needs with drive > 0.3 | — |
+| Metabolism | energy%, LLM calls this session | cost details |
+| AutonomousDaemon | running, uptime, last action + timing | — |
+| IdleMind | current activity, minutes idle | full thought stream |
+| GoalStack | count open/paused/blocked, top goal title (80 char max) | full descriptions |
+| PeerNetwork | peer count, own port | token, peer IPs |
+
+Genome is **not** in this list — it belongs in the Identity block,
+because Genome is identity (changes rarely), not state (changes
+constantly). This distinction came out of Rev-2 review.
+
+### 14.5 The Identity-Leak fix (v7.4.0)
+
+Separate from the RuntimeStatePort but shipped together: The
+`_identity()` block was previously including the underlying LLM name
+("Dein Sprachmodell ist qwen3-coder..."). Strongly-branded models
+(especially Qwen-Coder) would then self-identify as themselves instead
+of as Genesis. Fix: model name removed from identity block (it still
+appears in `_capabilities()` as technical context), plus a stronger
+anchor at the start of the identity block:
+
+> "Du bist Genesis — ein autonomer kognitiver Agent mit eigenem
+> Gedächtnis, eigenen Emotionen, eigenen Zielen und eigener Identität.
+> Du bist NICHT das zugrundeliegende Sprachmodell. Wenn jemand fragt
+> 'wer bist du', antwortest du als Genesis."
+
+The block uses German text as a stability choice against LLM training
+biases but stays functionally language-neutral. The "Antworte in der
+Sprache des Users" directive means an English-speaking user gets
+English responses, a Spanish-speaking user gets Spanish responses, etc.
+The system-prompt language is a training-robustness decision, not a
+user-facing restriction.
+
+Regression locked in by `v740-identity-leak.test.js` (55 tests against
+23 branded model names). If anyone ever re-adds the model name to the
+identity block, the tests turn red immediately.
+
+---
+
+## Principles (v7.3.7 – v7.4.0)
+
+1. **State on the object** (v7.3.7). Services carry their own state;
+   callers do not pass it in.
+2. **Reflection ≠ Enforcement** (v7.3.7). The Self-Gate observes,
+   it does not block.
+3. **Time is injectable** (v7.3.7). Tests control the clock.
+4. **Honest non-knowing** (v7.3.8). If Genesis doesn't know, he says
+   so — not invents.
+5. **Structural hygiene is its own release** (v7.3.9). Clean-up
+   releases do only clean-up.
+6. **Runtime-state in the prompt, not in imagination** (v7.4.0).
+   Genesis speaks about actual values, not averages or assumptions.
+
+---
+
 *This document should be updated when new layers, phases, or fundamental patterns are added. For per-version changes, see CHANGELOG.md. For open findings, see AUDIT-BACKLOG.md.*

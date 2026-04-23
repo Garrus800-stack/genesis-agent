@@ -17,8 +17,13 @@ describe('O-6: _identity fallback', () => {
     const out = sections._identity.call(ctx);
     if (typeof out !== 'string') throw new Error('should return string');
     if (!out.includes('Du bist Genesis')) throw new Error('fallback must introduce Genesis');
-    if (!out.includes('unknown')) throw new Error('fallback must use "unknown" version+model');
+    if (!out.includes('unknown')) throw new Error('fallback must use "unknown" version');
     if (out.includes('Du sprichst mit')) throw new Error('no userName → no anrede');
+    // v7.4.0: Identity block must NOT prime the underlying LLM
+    // by naming it. Model name lives in capabilities block.
+    if (out.toLowerCase().includes('dein sprachmodell ist')) {
+      throw new Error('v7.4.0: identity block must not name the underlying LLM');
+    }
   });
 
   test('fallback with userName prepends anrede', () => {
@@ -43,7 +48,11 @@ describe('O-6: _identity fallback', () => {
     if (!out.includes('Iris')) throw new Error('self-identity name not used');
     if (!out.includes('Ich bin neugierig.')) throw new Error('self-identity text not included');
     if (!out.includes('9.9.9')) throw new Error('version missing');
-    if (!out.includes('test-model')) throw new Error('model name missing');
+    // v7.4.0: model name must NOT appear in identity block — that was
+    // the Qwen-Coder identity-leak. Model name belongs in capabilities.
+    if (out.includes('test-model')) {
+      throw new Error('v7.4.0: identity block leaks model name — should appear only in capabilities');
+    }
   });
 });
 

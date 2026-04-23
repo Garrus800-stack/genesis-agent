@@ -209,6 +209,26 @@ class Settings {
   }
 
   getRaw() { return this.data; }
+
+  /**
+   * v7.4.0: Runtime snapshot for RuntimeStatePort.
+   * I/O-free, in-memory only. Uses getAll() (NOT getRaw())
+   * so API keys are already masked by the time they leave
+   * this method. Whitelist: backend, model, trustLevel,
+   * language. Everything else stays internal.
+   *
+   * CRITICAL: NEVER call getRaw() here. That would bypass
+   * the masking and leak real API keys into the prompt.
+   */
+  getRuntimeSnapshot() {
+    const all = this.getAll();  // already masked
+    return {
+      backend: all?.models?.defaultBackend || null,
+      model: all?.models?.defaultModel || null,
+      trustLevel: all?.trust?.level || null,
+      language: all?.ui?.language || null,
+    };
+  }
   hasAnthropic() { const k = this.get('models.anthropicApiKey'); return !!(k && k.length > 10); }
   hasOpenAI() { return !!(this.get('models.openaiBaseUrl') && this.get('models.openaiApiKey')); }
 

@@ -95,6 +95,31 @@ function phase11(ctx, R) {
           ?.get('selfSpawner') || {},
       }),
     }],
+
+    // ── RuntimeStatePort (v7.4.0) ──
+    // Collects in-memory snapshots from running services and
+    // makes them available to PromptBuilder. Phase 11 is the
+    // right home because all 8 source services (settings,
+    // daemon, idleMind, peerNetwork, emotionalState, needsSystem,
+    // metabolism, goalStack) exist by phase 10 at the latest.
+    // lateBinding stays as safety-net for graceful degradation.
+    // See docs/ARCHITECTURE.md — Leitprinzip 0.6.
+    ['runtimeStatePort', {
+      phase: 11,
+      deps: [],
+      tags: ['port', 'runtime-state'],
+      lateBindings: [
+        { prop: 'settings',       service: 'settings',       optional: true },
+        { prop: 'daemon',         service: 'daemon',         optional: true },
+        { prop: 'idleMind',       service: 'idleMind',       optional: true },
+        { prop: 'peerNetwork',    service: 'peerNetwork',    optional: true },
+        { prop: 'emotionalState', service: 'emotionalState', optional: true },
+        { prop: 'needsSystem',    service: 'needsSystem',    optional: true },
+        { prop: 'metabolism',     service: 'metabolism',     optional: true },
+        { prop: 'goalStack',      service: 'goalStack',      optional: true },
+      ],
+      factory: () => new (R('RuntimeStatePort').RuntimeStatePort)({}),
+    }],
   ];
 }
 

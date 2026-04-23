@@ -1,3 +1,249 @@
+## [7.4.0] — "Im Jetzt" (in progress)
+
+> Runtime-state honesty for Genesis. Fixes the class of questions
+> where Genesis would fabulate about his own running services
+> (emotion, daemon, settings, goals). Also fixes the Qwen-Coder
+> identity leak discovered during testing.
+
+### Session 1 — RuntimeStatePort + Identity-Leak Fix
+
+**RuntimeStatePort** (`src/agent/ports/RuntimeStatePort.js`, ~130 LOC)
+- New port that collects in-memory snapshots from registered
+  services. Synchronous, cache-free (enforces Leitprinzip 0.6).
+- Opt-in per service: a service joins by implementing
+  `getRuntimeSnapshot()`. No method, no participation.
+- Defensive: null services, broken methods, thrown errors,
+  non-object returns — all silently skipped, never faked.
+- Every snapshot tagged with `_capturedAt` timestamp so the
+  LLM knows the state is a moment, not live.
+- Registered in phase 11 with late-binding slots for all 8
+  source services (settings, daemon, idleMind, peerNetwork,
+  emotionalState, needsSystem, metabolism, goalStack). Lazy
+  registration on first `snapshot()` call — no Container hook
+  needed.
+- 21 tests in `test/modules/v740-runtime-state-port.test.js`.
+- **Session 2** will add `getRuntimeSnapshot()` to the 8
+  services themselves. Until then, the port exists but stays
+  empty.
+
+**Identity-Leak Fix** (`src/agent/intelligence/PromptBuilderSections.js`)
+- **Bug:** The `_identity()` block explicitly named the
+  underlying LLM ("Dein Sprachmodell ist qwen3-coder..."). With
+  strongly-branded models (especially Qwen-Coder), this primed
+  the model to respond as itself ("I am Qwen Coder") instead
+  of as Genesis.
+- **Fix:** Model name removed from identity block — it still
+  appears in the `_capabilities()` block where it belongs as
+  technical context. Identity block now leads with a strong
+  anchor: "Du bist Genesis — ein autonomer kognitiver Agent
+  mit eigenem Gedächtnis, eigenen Emotionen, eigenen Zielen
+  und eigener Identität." plus an explicit "Du bist NICHT das
+  zugrundeliegende Sprachmodell" directive that works equally
+  well with any backend (cloud or local, strongly-branded or
+  not).
+- **Language:** Identity block uses German as a robust default
+  but remains functionally language-neutral. The line "Antworte
+  in der Sprache des Users" tells Genesis to respond in whatever
+  language the user writes — an English-speaking user gets
+  English answers exactly as a German-speaking user gets German
+  answers. The system-prompt text itself being German is a
+  training-stability choice, not a user-facing restriction.
+- **Regression lock:** New test file
+  `test/modules/v740-identity-leak.test.js` (55 tests) checks
+  the identity block does not leak any of 23 branded model
+  names (Qwen, Llama, Claude, GPT, Mistral, Gemma, Phi,
+  Deepseek, Yi, Command-R, and variants).
+
+### Session 2 — Service Snapshots + CI Sensitive-Scan
+
+**8 services now implement `getRuntimeSnapshot()`:**
+
+Each service got a new I/O-free, in-memory-only method that returns
+a strict whitelist of safe fields. Existing methods (`getStatus`,
+`getReport`, `getState`) remain unchanged — Dashboard and UI keep
+using them as before.
+
+| Service | Whitelist | Explicitly excluded |
+|---|---|---|
+| `Settings` | backend, model, trustLevel, language | apiKey (uses getAll(), NOT getRaw()), tokens, paths |
+| `EmotionalState` | dominant, intensity (%), mood, trend, top-3 emotions | — |
+| `NeedsSystem` | active needs (drive > 0.3, sorted desc) | needs below threshold (noise) |
+| `Metabolism` | energyPercent, llmCalls | cost details, vendor bills |
+| `AutonomousDaemon` | running, cycles, checksRun (keys only), gapCount | full config, full lastResults payload |
+| `IdleMind` | running, isIdle, minutesIdle, currentActivity, thoughtCount | journal line count (would require I/O) |
+| `GoalStack` | open, paused, blocked, topTitle (truncated to 80 chars) | full goal descriptions |
+| `PeerNetwork` | peerCount, ownPort | auth token, peer IPs |
+
+**Rev 2.1 principle enforced:** `getRuntimeSnapshot()` is NOT a
+wrapper around `getStatus()`. Key example: `IdleMind.getStatus()`
+does `fs.readFileSync('journal.jsonl')` on every call — wrapping
+that would have put disk-I/O in every prompt-build. The new
+method reads only in-memory fields (`activityLog`, `thoughtCount`,
+etc.) and skips the journal entirely. Tests assert a 5ms budget.
+
+**CI Sensitive-Scan Gate** (`test/modules/v740-sensitive-scan.test.js`)
+
+New mandatory test that builds a realistic snapshot across all
+8 services with deliberately seeded fake secrets (fake API keys
+in Settings, fake auth token and peer IPs in PeerNetwork) and
+scans the flattened output against vendor-specific regex patterns:
+
+- `/sk-[A-Za-z0-9]{20,}/` — OpenAI keys
+- `/sk-ant-[A-Za-z0-9_-]{20,}/` — Anthropic keys (current format)
+- `/claude-[A-Za-z0-9_-]{20,}/` — Claude-specific keys
+- `/Bearer\s+[A-Za-z0-9_-]{20,}/` — Generic Bearer tokens
+- `/AKIA[0-9A-Z]{16}/` — AWS Access Key IDs
+- `/(?<![0-9.])(?:\d{1,3}\.){3}\d{1,3}(?![0-9.])/` — IPv4 with
+  look-around (excludes version strings like "7.3.9.0" in
+  non-peer service contexts)
+
+Patterns are **scharf** — no Base64 catch-all, because that would
+produce false positives on UUIDs, commit hashes, long goal titles,
+and become routinely ignored. The gate must stay enforceable.
+
+If any pattern matches, the test fails with the specific leak
+class AND the leaking service name for quick diagnosis.
+
+**Tests Session 2:**
+- `v740-service-snapshots.test.js`: 26 whitelist tests
+- `v740-sensitive-scan.test.js`: 11 tests
+
+Cumulative new tests v7.4.0 so far: 113 (port + identity + services + scan).
+
+### Session 3 — PromptBuilder Integration
+
+**New section `runtimeState` in the prompt**, positioned between
+`frontier` and `capabilities` — the natural bridge between "what
+matters to me now" (frontier) and "what can I do" (capabilities).
+
+`PromptBuilderSections._runtimeStateContext()` calls
+`runtimeStatePort.snapshot()` and renders the returned data as a
+compact text block:
+
+```
+[Aktueller Zustand — Momentaufnahme]
+Modell: qwen2.5:7b (ollama) · Trust: ASSISTED · Sprache: de
+Gefühl: curiosity 80%, satisfaction 50%, loneliness 30% (Stimmung: curious)
+Bedürfnisse: knowledge 80%, social 40%
+Energie: 73% · 12 LLM-Calls in dieser Session
+Daemon: läuft, 48 Zyklen
+IdleMind: idle 5m · "memory-decay-observations" (vor 30s)
+Ziele: 2 offen · top: "v7.4.0 observations sammeln"
+Peers: 0 sichtbar
+```
+
+**Design decisions:**
+- **Position:** between `frontier` and `capabilities`. Frontier
+  describes emotional horizon, capabilities describes tool
+  availability — runtime state sits between them as "where am
+  I right now".
+- **Budget:** hard 800-char limit with `[...gekürzt]` marker.
+  Oversized snapshots truncate at the end rather than silently
+  drop fields.
+- **Language:** German text labels (`Gefühl:`, `Bedürfnisse:`,
+  `Energie:` etc.) as training-robustness choice. The response
+  language itself follows the user (via the identity block's
+  "Antworte in der Sprache des Users" directive).
+- **Defensive:** missing port → empty string, port throws →
+  empty string, empty snapshot → empty string. Degradation is
+  silent, never fake data.
+
+**Wiring:** `promptBuilder` gets `runtimeStatePort` as an
+optional late-binding in `phase2-intelligence.js` (the port
+itself registers in phase 11 but is opt-in — PromptBuilder
+renders a blank block if the port isn't wired).
+
+**Tests** (`v740-promptbuilder-runtime.test.js`): 21 tests
+covering graceful degradation, per-service rendering, complete
+8-service snapshot, language consistency, budget enforcement,
+defensive handling of partial snapshots.
+
+Cumulative v7.4.0 tests: 113 → 134.
+
+### Session 3b — Windows-Test Findings + Cleanup
+
+First Windows run of v7.4.0 (5463 tests passing, 0 schema mismatches,
+127/130 fitness) surfaced three issues that needed post-Session-3
+cleanup:
+
+- **Duplicate `getRuntimeSnapshot()` methods** in `IdleMind.js` (two
+  definitions at lines 493 and 556) and `GoalStack.js` (two at lines
+  359 and 614). JavaScript silently used the second definition, but
+  esbuild logged duplicate-member warnings at build time. The second
+  copies (dead code from an earlier attempt) were removed. GoalStack's
+  surviving definition is the correct one — it reads from `description`,
+  which is the actual field name in goal objects (the duplicate wrongly
+  used `title || summary`).
+- **`PromptBuilderSections.js` at 889 LOC** — over the 700 LOC
+  file-size warn threshold. The new `_runtimeStateContext()` method
+  was extracted into its own mixin file `PromptBuilderRuntimeState.js`
+  (same pattern as `PromptBuilderSectionsExtra.js`), wired via
+  `Object.assign(PromptBuilder.prototype, sections, sectionsExtra,
+  runtimeStateSection)`. `PromptBuilderSections.js` shrank to 764
+  LOC — still 64 over the warn threshold, but that's inherited bulk
+  from earlier versions, not caused by v7.4.0.
+- **`GoalStack.getRuntimeSnapshot()` extended with `blocked` count.**
+  GoalStack tracks 6 statuses (active | paused | completed | failed |
+  abandoned | blocked); the original snapshot only exposed open and
+  paused. Added `blocked` because blocked goals are a meaningful part
+  of Genesis' current state (they affect what he can work on next).
+  The PromptBuilder runtime-state block now renders them accordingly:
+  `Ziele: 2 offen, 1 pausiert, 1 blockiert · top: "..."`.
+
+**Tests** corrected:
+- `v740-service-snapshots.test.js`: fixed IdleMind assertions that
+  expected old field names (`lastActivity`/`lastActivityAgoMs` →
+  `currentActivity`/`lastActivityAgoSeconds`) and GoalStack assertions
+  that used `title` field (the actual goal field is `description`).
+  New truncation test verifies the 80-char limit on `topTitle`.
+- `promptbuilder-sections.test.js`: imports `runtimeStateSection`
+  from the new mixin file, assembles `allSections` from all three
+  mixin sources so the method-count invariant stays green.
+
+### Sessions 4-5 still pending
+
+- Session 4: IntentRouter meta-state patterns + 26 missing
+  schemas + ContextCollector consistency test
+- Session 5: Doc sweep + ZIP + GitHub release
+
+### Principle established
+
+> **0.6 — Genesis lives in the now of his services, not in
+> memories of normal states.**
+
+When Genesis speaks about his own state, he speaks about
+actual values — not averages, not assumptions, not what is
+"normally" the case. The identity he presents is stable; the
+state he reports is current.
+
+Adds to principles from previous releases:
+1. State on the object (v7.3.7)
+2. Reflection ≠ Enforcement (v7.3.7)
+3. Time is injectable (v7.3.7)
+4. Honest non-knowing (v7.3.8)
+5. Structural hygiene is its own release (v7.3.9)
+6. Runtime-state in the prompt, not in imagination (v7.4.0)
+
+### Tests
+
+5317 → 5393 (+76 new in Session 1).
+- v740-runtime-state-port: 21 tests
+- v740-identity-leak: 55 tests
+
+Existing tests adjusted for English identity block:
+- `o6-coverage-push.test.js`: 3 assertions
+- `v736-coverage-push.test.js`: 5 assertions + 1 new leak test
+- `promptbuilder-sections.test.js`: 1 assertion (`Sei direkt` → `Be direct`)
+
+### Not yet in Session 1 (Session 2-5)
+
+- Service `getRuntimeSnapshot()` implementations (Session 2)
+- PromptBuilder integration of runtime block (Session 3)
+- IntentRouter meta-state patterns + 26 missing schemas + consistency test (Session 4)
+- Doc sweep and release (Session 5)
+
+---
+
 ## [7.3.9] — "Aufräumen"
 
 > No new features. Structural cleanup after the feature-heavy releases

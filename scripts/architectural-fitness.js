@@ -500,6 +500,8 @@ check('EventBus Hygiene', (r) => {
     'prompt-evolution:promoted',
     // EventStore-routed: emitted via eventStore.append() → EVENT_STORE_BUS_MAP
     'shell:complete',
+    // Electron webContents lifecycle events (emitted by Electron itself, not our EventBus)
+    'did-finish-load', 'did-fail-load', 'dom-ready', 'will-navigate',
   ]);
 
   const phantoms = [...listened]

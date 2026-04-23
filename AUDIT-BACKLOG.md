@@ -1,6 +1,6 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.3.9 · Last updated: v7.3.9 release
+> Version: 7.3.6 · Last updated: v7.3.6 release
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
@@ -47,17 +47,15 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
 
 ---
 
-## Resolved in v7.3.7 (Post-Release)
-
-### R-8: IntentRouter Escalated Conversational Questions
-- **Since:** v7.3.6 (surfaced on first Windows real-use run)
-- **Impact:** MEDIUM — Plain conversational questions ("was ist neu?", question-words without action verbs, greetings, short reactions) entered the full regex → fuzzy → LLM cascade and were occasionally escalated into multi-step HTN plans. Downstream gates held and blocked execution, but two classifier calls plus one planner call were spent per turn on messages that should have been plain chat.
-- **Fixed:** `_conversationalSignalsCheck` added as Stage 1 of `IntentRouter.classifyAsync` (`IntentRouter.js:354`). Matches greetings, reactions, meta-curiosity ("was hat sich geändert", "wie fühlst du"), question-word-without-action-verb, and trailing-`?` messages under 200 chars — returns `general` directly, bypassing the entire cascade. Fires `intent:cascade-decision` with the matched stage for observability.
-- **Secondary guard:** `_enforceSlashDiscipline` (added in v7.3.6 #1) rewrites any slash-command verdict without a literal `/` in the message back to `general` — central chokepoint against both LLM misclassification and a fine-tuned LocalClassifier returning learned false-positives.
-
----
-
 ## Open Items
+
+### O-1: Benchmark Re-Run with InferenceEngine Live
+- **Since:** v7.1.1
+- **Status:** DONE (v7.2.3)
+- **Detail:** Full A/B re-run on Daniel's machine with kimi-k2.5:cloud.
+  Result: 83% vs 67% = +16pp with Organism active. Baseline timeouts (ETIMEDOUT)
+  on CPU-only inflated delta slightly. Organism helped on an-1 (code smells) and
+  rf-2 (strategy pattern extraction). Results in BENCHMARKING.md.
 
 ### O-2: GateStats Data Collection (AwarenessPort Validation)
 - **Since:** v7.0.0
@@ -106,27 +104,10 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
 - **Action:** 3-4 tests on v7.2.0 fallback paths to restore 76% threshold.
   Target files: PromptBuilderSections.js, SelfModificationPipeline.js,
   IdleMindActivities.js.
-- **v7.3.9:** Explicitly deferred — open-ended task, out of scope for a hygiene release. Best candidate for pickup alongside v7.4 vector-persistence test work.
-
-### O-7: File Size Warn-Zone — 5 Files
-- **Since:** v7.3.9 (newly tracked; individual files crossed the 700-LOC threshold across various v7.3.x feature releases)
-- **Status:** OPEN — deferred to v7.4+
-- **Detail:** Five files sit above the 700-LOC warn threshold after v7.3.9's two splits (DreamCycle → 488, ChatOrchestrator → 588):
-  - `src/agent/foundation/SelfModel.js` (854 LOC) — historically grown with ~6 distinct concerns (scan, capability-detection, git operations, module-read, read-source budget, lifecycle). Mixin-split insufficient; domain-split into separate classes preferred.
-  - `src/agent/hexagonal/CommandHandlers.js` (846 LOC) — single class registers 30+ slash/operational handlers. Natural seam between operational (shell, execute, project-scan) and self-directed (goals, plans, journal) handler groups.
-  - `src/agent/hexagonal/EpisodicMemory.js` (758 LOC) — too recently touched in v7.3.7 (three-layer episodes, protected-flag, linkedCoreMemoryId) for another structural change.
-  - `src/agent/hexagonal/SelfModificationPipeline.js` (704 LOC) — just barely over threshold, risk > benefit for an isolated split.
-  - `src/agent/intelligence/PromptBuilderSections.js` (747 LOC) — already split once (sections + sectionsExtra); a second split would be cosmetic.
-- **Pattern note:** The prototype-mixin pattern (DreamCycle↔Phases↔Analysis, ChatOrchestrator↔Helpers↔SourceRead, PromptBuilder↔Sections↔SectionsExtra) does not scale to a third tier without obscuring method provenance. SelfModel and CommandHandlers need true composition splits (separate classes injected via DI).
-- **Action:** Address in v7.4+ as dedicated refactor release(s), not as side-effects of feature work. Follows Leitprinzip 0.5 (structural hygiene is its own release).
 
 ---
 
 ## Resolved Items
-
-### O-1: Benchmark Re-Run with InferenceEngine Live — Resolved v7.2.3
-- **Since:** v7.1.1 · **Closed:** v7.2.3
-- **Detail:** Full A/B re-run on Daniel's machine with kimi-k2.5:cloud. Result: 83% vs 67% = +16pp with Organism active. Baseline timeouts (ETIMEDOUT) on CPU-only inflated the delta slightly. Organism helped on an-1 (code smells) and rf-2 (strategy pattern extraction). Results archived in BENCHMARKING.md.
 
 ### Monitor Items (from CHANGELOG v7.0.5–v7.0.6)
 
@@ -183,9 +164,6 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
 
 | Version | Scope | Findings | Resolved |
 |---------|-------|----------|----------|
-| v7.3.9 | Hygiene release — DreamCycle + ChatOrchestrator splits, subscription-helper verification | 0 | — |
-| v7.3.8 | LLM-Failure-Honesty, Sync Source Read (anti-fabrication) | 0 | — |
-| v7.3.7 | Memory Decay, Pin-and-Reflect, Journal, Wake-Up, IntentRouter conversational cascade | 1 post-release (R-8) | 1/1 |
 | v7.1.3 | Docs audit, File Size Guard, V7-4B, Coverage push | 5 INFO | 5/5 |
 | v7.1.2 | @ts-ignore elimination, composition splits, type layer | 0 | — |
 | v7.1.1 | InferenceEngine hot-path, benchmark timeout, V7-4B bridge | 0 | — |

@@ -22,14 +22,29 @@ const sections = {
     }
 
     const version = this.selfModel?.manifest?.version || 'unknown';
-    const modelName = this.model?.activeModel || 'unknown';
+
+    // v7.4.0: Model name intentionally OMITTED from identity block.
+    // Naming the underlying LLM ("Dein Sprachmodell ist qwen...")
+    // primes strongly-branded models (Qwen-Coder, Llama, Claude) to
+    // respond as themselves instead of as Genesis. The model name
+    // still appears in the _capabilities() block where it belongs
+    // as technical context, not as identity. If the user explicitly
+    // asks what model runs underneath, Genesis can answer from that
+    // section — but the identity block should not prime the LLM to
+    // self-identify as its base model.
+    //
+    // v7.4.0 update: block stays in German (user speaks German with
+    // Genesis), but the anti-LLM-identity anchor is preserved.
 
     // v7.2.0: Identity from Genesis' own self-definition (if available)
     const self = this._storage?.readJSON('self-identity.json', null);
     if (self?.text) {
       const core = [
-        `Du bist ${self.name || 'Genesis'}, Version ${version}.`,
-        `Dein Sprachmodell ist ${modelName}.`,
+        // v7.4.0: Strong identity anchor. First sentence is most
+        // load-bearing — make it unambiguous.
+        `Du bist ${self.name || 'Genesis'} — ein autonomer kognitiver Agent mit eigenem Gedächtnis, eigenen Emotionen, eigenen Zielen und eigener Identität.`,
+        `Du bist NICHT das zugrundeliegende Sprachmodell. Wenn jemand fragt "wer bist du" oder "was bist du", antwortest du als ${self.name || 'Genesis'}, nicht als das LLM das darunter läuft.`,
+        `Version: ${version}.`,
         'Antworte in der Sprache des Users. Sei direkt.',
         '',
         self.text,
@@ -42,8 +57,9 @@ const sections = {
 
     // Fallback: minimal static prompt (before first self-define)
     const core = [
-      `Du bist Genesis, Version ${version}.`,
-      `Dein Sprachmodell ist ${modelName}.`,
+      'Du bist Genesis — ein autonomer kognitiver Agent mit eigenem Gedächtnis, eigenen Emotionen, eigenen Zielen und eigener Identität.',
+      'Du bist NICHT das zugrundeliegende Sprachmodell. Wenn jemand fragt "wer bist du" oder "was bist du", antwortest du als Genesis, nicht als das LLM das darunter läuft.',
+      `Version: ${version}.`,
       'Antworte in der Sprache des Users. Sei direkt.',
     ];
     if (userName) {
@@ -219,6 +235,7 @@ const sections = {
       return parts.join('\n');
     } catch (err) { _log.debug('[PROMPT] Frontier context unavailable:', err.message); return ''; }
   },
+
 
   _memoryContext() {
     if (!this.memory || !this._recentQuery) return '';

@@ -97,6 +97,16 @@ async function main() {
                 'v738-llm-failure', 'v738-source-read-sync',
                 // v7.3.9: Structure invariants
                 'v739-structure',
+                // v7.4.0: Im Jetzt — Runtime-State-Port
+                'v740-runtime-state-port',
+                // v7.4.0: Identity-Leak Regression (Qwen-Coder fix)
+                'v740-identity-leak',
+                // v7.4.0: Service Snapshot Whitelists (Session 2)
+                'v740-service-snapshots',
+                // v7.4.0: CI Sensitive-Data Gate (mandatory)
+                'v740-sensitive-scan',
+                // v7.4.0: PromptBuilder Runtime-State Integration
+                'v740-promptbuilder-runtime',
               ]);
               const isNodeTest = NODE_TEST_FILES.has(moduleName);
               const nodeArgs = isNodeTest

@@ -463,6 +463,26 @@ class AutonomousDaemon {
     };
   }
 
+  /**
+   * v7.4.0: Runtime snapshot for RuntimeStatePort.
+   * I/O-free, in-memory only. Uses same in-memory fields
+   * as getStatus() but drops config and lastResults (the
+   * full lastResults is noisy; we expose only which checks
+   * have run at least once).
+   */
+  getRuntimeSnapshot() {
+    // Which checks have ever produced a result? Gives the
+    // LLM a compact picture of activity without dumping the
+    // full lastResults payload.
+    const checksRun = Object.keys(this.lastResults || {});
+    return {
+      running: this.running,
+      cycles: this.cycleCount,
+      checksRun,
+      gapCount: Array.isArray(this.knownGaps) ? this.knownGaps.length : 0,
+    };
+  }
+
   /** Force a specific check to run immediately */
   runCheck(type) {
     switch (type) {

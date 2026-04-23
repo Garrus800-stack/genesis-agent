@@ -102,6 +102,11 @@ function phase2(ctx, R) {
         // v7.2.7: Autonomy Awareness — daemon + dreamCycle data for autonomy report
         { prop: '_daemon', service: 'daemon', optional: true, expectedActive: true },
         { prop: '_dreamCycle', service: 'dreamCycle', optional: true, expectedActive: true },
+        // v7.4.0: Runtime-state port — synchronous snapshots from 8 services
+        // for the runtimeState section. Optional because the port itself
+        // is registered in phase 11; PromptBuilder gracefully renders
+        // empty block if binding is missing.
+        { prop: 'runtimeStatePort', service: 'runtimeStatePort', optional: true, expectedActive: true, impact: 'No runtime-state block in prompts — Genesis fabulates about own services' },
       ],
       factory: (c) => new (R('PromptBuilder').PromptBuilder)({
         selfModel: c.resolve('selfModel'), model: c.resolve('llm'),

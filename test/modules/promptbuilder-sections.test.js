@@ -8,11 +8,15 @@ const { describe, test, assert, assertEqual, run } = require('../harness');
 const { PromptBuilder } = require('../../src/agent/intelligence/PromptBuilder');
 const { sections } = require('../../src/agent/intelligence/PromptBuilderSections');
 const { sectionsExtra } = require('../../src/agent/intelligence/PromptBuilderSectionsExtra');
+// v7.4.0: Runtime-state section lives in its own mixin file for
+// file-size discipline (PromptBuilderSections.js was approaching
+// the 700-LOC warn threshold).
+const { runtimeStateSection } = require('../../src/agent/intelligence/PromptBuilderRuntimeState');
 
 // v7.3.3: sections were split across two files for the 700-LOC size guard.
 // The test treats them as a unified namespace — callers (the PromptBuilder
 // prototype) see all of them as instance methods via Object.assign anyway.
-const allSections = { ...sections, ...sectionsExtra };
+const allSections = { ...sections, ...sectionsExtra, ...runtimeStateSection };
 
 function createBuilder(overrides = {}) {
   return new PromptBuilder({
@@ -40,6 +44,8 @@ describe('PromptBuilderSections: Delegation', () => {
       '_autonomyContext',
       // v7.3.3: new sections (live in PromptBuilderSectionsExtra.js)
       '_groundednessContext', '_sourceAccessContext', '_buildSourceBlock',
+      // v7.4.0: Runtime-state block from RuntimeStatePort
+      '_runtimeStateContext',
     ];
     for (const name of expected) {
       assert(typeof allSections[name] === 'function', `sections.${name} should be a function`);

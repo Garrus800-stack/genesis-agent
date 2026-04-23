@@ -28,7 +28,7 @@ describe('#5 Branch-Coverage — _identity', () => {
   test('_identity returns fallback when no self-identity.json exists', () => {
     const out = sections._identity.call(ctx());
     assert(typeof out === 'string', 'should return a string');
-    assert(/Genesis, Version 7\.3\.6/.test(out), 'fallback includes version');
+    assert(/Version: 7\.3\.6/.test(out), 'fallback includes version');
     assert(!/Du sprichst mit/.test(out), 'no userName line without user.name');
   });
 
@@ -43,7 +43,7 @@ describe('#5 Branch-Coverage — _identity', () => {
     });
     const out = sections._identity.call(richCtx);
     assert(/autonomer Agent/.test(out), 'includes identity text from storage');
-    assert(/Version 7\.3\.6/.test(out), 'still includes version');
+    assert(/Version: 7\.3\.6/.test(out), 'still includes version');
   });
 
   test('_identity prepends user name when user.name in memory (with identity)', () => {
@@ -68,7 +68,7 @@ describe('#5 Branch-Coverage — _identity', () => {
       `expected userName line in fallback, got:\n${out}`);
   });
 
-  test('_identity uses "unknown" for missing version and model', () => {
+  test('_identity uses "unknown" for missing version', () => {
     const noVerCtx = {
       memory: null,
       selfModel: null,
@@ -76,8 +76,19 @@ describe('#5 Branch-Coverage — _identity', () => {
       _storage: { readJSON: () => null },
     };
     const out = sections._identity.call(noVerCtx);
-    assert(/Version unknown/.test(out), 'version falls back to "unknown"');
-    assert(/unknown/.test(out), 'model falls back to "unknown"');
+    assert(/Version: unknown/.test(out), 'version falls back to "unknown"');
+  });
+
+  test('_identity does NOT leak underlying model name (v7.4.0 Qwen-fix)', () => {
+    const modelCtx = {
+      memory: null,
+      selfModel: { manifest: { version: '7.4.0' } },
+      model: { activeModel: 'qwen3-coder:480b-cloud' },
+      _storage: { readJSON: () => null },
+    };
+    const out = sections._identity.call(modelCtx);
+    assert(!/qwen/i.test(out), 'identity must not prime LLM with its own brand name');
+    assert(!/dein sprachmodell ist/i.test(out), 'v7.4.0: no model-naming in identity');
   });
 });
 

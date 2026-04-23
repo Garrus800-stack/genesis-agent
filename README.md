@@ -8,16 +8,16 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.3.7-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-5317%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.4.0-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-5451%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-config_ok-fbbf24?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-270-e0e0e8?style=flat-square" alt="Modules">
-  <img src="https://img.shields.io/badge/services-144%20%E2%86%92%20156-fbbf24?style=flat-square" alt="Services">
+  <img src="https://img.shields.io/badge/modules-256-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/services-151-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-391-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/events-372-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">
@@ -227,7 +227,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.3.9: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5317 tests passing, 161 services (149 manifest + 12 bootstrap), structural cleanup (DreamCycle and ChatOrchestrator split back under 700 LOC), plus all v7.3.8 honesty features and v7.3.7 memory architecture. Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.4.0: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5451 tests passing, 163 services (151 manifest + 12 bootstrap), new RuntimeStatePort for honest self-reporting (Genesis now reads his own live service state into the prompt instead of fabulating), identity-leak fix (no more "I am Qwen Coder" — Genesis always identifies as Genesis regardless of underlying model), plus all v7.3.x honesty, memory, and hygiene work. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -528,19 +528,19 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 270 modules (src/) |
+| Source modules | 256 modules (src/) |
 | Lines of code | ~89k src + ~59k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
-| DI services | 149 manifest + 12 bootstrap = 161 at runtime |
-| Late-bindings | 255 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 300 files, 5317 tests (coverage gates: 80/75.9/78, ratchet floor 5200) |
+| DI services | 151 manifest + 12 bootstrap = 163 at runtime |
+| Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
+| Test suites | 305 files, 5451 tests (coverage gates: 80/75.9/78, ratchet floor 5200) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 67 main ↔ 67 preload (rate-limited, all in sync) |
-| Event types | 391 across ~100 namespaces (catalogued in EventTypes.js) |
-| Event schemas | 391 declared, 399/399 emit sites validated (0 mismatches, enforced by CI ratchet) |
-| Cross-layer event flows | 347 emitted events, 62 listeners (via EventBus, no direct imports) |
-| Hexagonal ports | 7 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace, Awareness) |
+| Event types | 372 across ~100 namespaces (catalogued in EventTypes.js) |
+| Event schemas | 372 declared, 0 mismatches (enforced by CI ratchet) |
+| Cross-layer event flows | 359 emitted events, 56 listeners (via EventBus, no direct imports) |
+| Hexagonal ports | 11 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace, Awareness, ActiveRefs, CostGuard, DaemonControl, RuntimeState) |
 | Cognitive modules | 17 (ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence, CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder) |
 | Organism | 5 emotional dimensions + homeostasis + allostasis + 4 needs + steering + metabolism + immune system + heritable genome + fitness evaluation + body schema + embodied perception |
 | Gates | Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry), Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier guard) |

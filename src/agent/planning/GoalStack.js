@@ -349,6 +349,32 @@ class GoalStack {
     return this.goals.find(g => g.status === 'active');
   }
 
+  /**
+   * v7.4.0: Runtime snapshot for RuntimeStatePort.
+   * I/O-free, in-memory only. Returns goal counts and the
+   * top active goal's description (truncated to 80 chars
+   * for budget). Full descriptions are NEVER exposed to keep
+   * the prompt block compact.
+   */
+  getRuntimeSnapshot() {
+    const open = this.goals.filter(g => g.status === 'active').length;
+    const paused = this.goals.filter(g => g.status === 'paused').length;
+    const blocked = this.goals.filter(g => g.status === 'blocked').length;
+    const top = this._getTopGoal();
+    let topTitle = null;
+    if (top && typeof top.description === 'string') {
+      topTitle = top.description.length > 80
+        ? top.description.slice(0, 77) + '...'
+        : top.description;
+    }
+    return {
+      open,
+      paused,
+      blocked,
+      topTitle,
+    };
+  }
+
   getProgress(goalId) {
     const goal = this.goals.find(g => g.id === goalId);
     if (!goal) return null;
@@ -576,6 +602,12 @@ class GoalStack {
     } catch (err) { _log.debug('[GOALS] Load failed:', err.message); }
     return [];
   }
+
+  /**
+   * v7.4.0: Runtime snapshot — see the one defined earlier in
+   * this class (at line ~359). This was a duplicate definition
+   * that JavaScript silently overwrote; removed in v7.4.0 cleanup.
+   */
 }
 
 module.exports = { GoalStack };

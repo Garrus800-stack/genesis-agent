@@ -305,6 +305,11 @@ class PromptBuilder {
       ['formatting',     this._formatting()],
       ['session',        this._sessionContext()],
       ['frontier',       this._frontierContext()],
+      // v7.4.0: Runtime-state snapshot from 8 services.
+      // Positioned between frontier (emotional horizon) and
+      // capabilities (tool availability) — the natural bridge
+      // between "what matters to me now" and "what can I do".
+      ['runtimeState',   this._runtimeStateContext()],
       ['capabilities',   this._capabilities()],
       ['mcp',            this._mcpContext()],
       ['knowledge',      this._knowledgeContext()],
@@ -429,6 +434,8 @@ class PromptBuilder {
       ['identity',     this._identity()],
       ['formatting',   this._formatting()],
       ['session',      this._sessionContext()],
+      // v7.4.0: Runtime-state snapshot (same pattern as build()).
+      ['runtimeState', this._runtimeStateContext()],
       ['capabilities', this._capabilities()],
       ['mcp',          this._mcpContext()],
     ];
@@ -494,6 +501,8 @@ class PromptBuilder {
 // (hosts groundedness, sourceAccess, introspection, version sections).
 const { sections } = require('./PromptBuilderSections');
 const { sectionsExtra } = require('./PromptBuilderSectionsExtra');
-Object.assign(PromptBuilder.prototype, sections, sectionsExtra);
+// v7.4.0: runtime-state section extracted to keep PromptBuilderSections under size threshold.
+const { runtimeStateSection } = require('./PromptBuilderRuntimeState');
+Object.assign(PromptBuilder.prototype, sections, sectionsExtra, runtimeStateSection);
 
 module.exports = { PromptBuilder };

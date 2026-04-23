@@ -492,6 +492,23 @@ class PeerNetwork {
       _log.debug('[GENESIS] Peer network skipped:', err.message);
     }
   }
+
+  /**
+   * v7.4.0: Runtime snapshot for RuntimeStatePort.
+   * I/O-free, in-memory only. Reports peer count and own
+   * port number — both of which are safe for the prompt.
+   *
+   * CRITICAL WHITELIST: NEVER expose `this._token` (shared
+   * secret for peer auth) or peer IP addresses. The sensitive-
+   * scan CI test specifically looks for Bearer-token and
+   * IPv4 patterns in the prompt output.
+   */
+  getRuntimeSnapshot() {
+    return {
+      peerCount: this.peers instanceof Map ? this.peers.size : 0,
+      ownPort: typeof this.port === 'number' ? this.port : 0,
+    };
+  }
 }
 
 module.exports = { PeerNetwork, PeerHealth };
