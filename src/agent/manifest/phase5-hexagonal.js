@@ -41,6 +41,9 @@ function phase5(ctx, R) {
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
         // v7.3.6 #2: Self-Gate — telemetry observation on tool calls
         { prop: 'selfGate', service: 'selfGate', optional: true },
+        // FIX v7.4.1: GateStats — central gate verdict recording.
+        // Was designed in v7.3.6 but never wired to ChatOrchestrator.
+        { prop: 'gateStats', service: 'gateStats', optional: true },
         // v7.3.6 #9: SelfModel for startReadSourceTurn / resetReadSourceSession —
         // used to signal chat-turn boundaries to the source-read budget.
         { prop: 'selfModel', service: 'selfModel', optional: true,

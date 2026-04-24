@@ -43,6 +43,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { createLogger } = require('../core/Logger');
+const { atomicWriteFileSync } = require('../core/utils');
 const { NullBus } = require('../core/EventBus');
 const _log = createLogger('LessonsStore');
 
@@ -587,7 +588,8 @@ class LessonsStore {
         stats: this._stats,
         lessons: this._lessons,
       }, null, 2);
-      fs.writeFileSync(filePath, data, 'utf-8');
+      // FIX v7.4.1: atomic write — prevents half-written lessons on crash
+      atomicWriteFileSync(filePath, data);
       this._dirty = false;
     } catch (err) {
       _log.warn('[LESSONS] Save error:', err.message);

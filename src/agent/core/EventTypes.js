@@ -264,6 +264,9 @@ const EVENTS = Object.freeze({
     /** v7.3.2: User explicitly marked a moment via /mark or markAsSignificant */
     /** @payload {{ id: string, type: string }} */
     USER_MARKED: 'core-memory:user-marked',
+    /** v7.3.7: Core memory released back to normal decay track (via /release or auto) */
+    /** @payload {{ id: string, reason: string, releasedAt: string }} */
+    RELEASED:    'core-memory:released',
   }),
 
   // ── Daemon ─────────────────────────────────────────────
@@ -567,6 +570,24 @@ const EVENTS = Object.freeze({
     /** @payload {{ topic: string, conflictCount: number, resolutionCount: number }} */
     CONFLICTS_RESOLVED: 'memory:conflicts-resolved',
     /** @payload {{ key: string, type: string, source?: string }} */
+    /** v7.3.7: DreamCycle asks LLM whether to promote memory from detail to schema layer */
+    /** @payload {{ coreMemoryId: string, fromLayer: number, toLayer: number, decision: string }} */
+    LAYER_TRANSITION_ASKED: 'memory:layer-transition-asked',
+    /** v7.3.7: LLM unavailable for 7d — fall back to heuristic transition decision */
+    /** @payload {{ coreMemoryId: string, fromLayer: number, toLayer: number, reason: string }} */
+    TRANSITION_HEURISTIC_FALLBACK: 'memory:transition-heuristic-fallback',
+    /** v7.3.7: Too many episodes at layer 1 — warning before forced dream cycle */
+    /** @payload {{ layer: number, count: number, pendingTransitions: number }} */
+    LAYER_OVERFLOW: 'memory:layer-overflow',
+    /** v7.3.7: DreamCycle elevated a pinned episode after pin-review window */
+    /** @payload {{ episodeId: string, reason: string }} */
+    SELF_ELEVATED:  'memory:self-elevated',
+    /** v7.3.7: Pinned episode let_fade after pin-review — back to normal decay */
+    /** @payload {{ episodeId: string }} */
+    SELF_RELEASED:  'memory:self-released',
+    /** v7.3.7: User or Genesis marked an episode for later review */
+    /** @payload {{ id: string, episodeId: string, timestamp: string, triggerContext?: string }} */
+    MARKED:         'memory:marked',
   }),
 
   // ── Meta Learning ──────────────────────────────────────
@@ -649,6 +670,7 @@ const EVENTS = Object.freeze({
     REFINED:         'reasoning:refined',
     SOLVE:           'reasoning:solve',
     IMPACT_ANALYSIS: 'reasoning:impact-analysis',
+    TRACE_RECORDED:  'reasoning:trace-recorded',     // FIX v7.4.1: was emitted nowhere, now from ReasoningTracer
   }),
 
   // ── Refactor ───────────────────────────────────────────
@@ -873,6 +895,19 @@ const EVENTS = Object.freeze({
   DREAM: Object.freeze({
     STARTED:      'dream:started',
     COMPLETE:     'dream:complete',
+    /** v7.3.7: EpisodicMemory forced a dream cycle because layer 1 hit hard cap */
+    /** @payload {{ reason: string, layerCount: number }} */
+    CYCLE_FORCED: 'dream:cycle-forced',
+  }),
+
+  // ── Journal (v7.3.7+) ──────────────────────────────────
+  // New namespace (v7.4.1): Genesis' narrative memory —
+  // the private journal where idle thoughts and marked
+  // moments are written.
+  JOURNAL: Object.freeze({
+    /** v7.3.7: JournalWriter persisted an entry (public, private, or reflective) */
+    /** @payload {{ visibility: string, source: string, byteLength: number, tags?: string[] }} */
+    WRITTEN: 'journal:written',
   }),
 
   INSIGHT: Object.freeze({

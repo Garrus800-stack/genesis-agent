@@ -112,7 +112,7 @@ function phase11(ctx, R) {
         { prop: 'settings',       service: 'settings',       optional: true },
         { prop: 'daemon',         service: 'daemon',         optional: true },
         { prop: 'idleMind',       service: 'idleMind',       optional: true },
-        { prop: 'peerNetwork',    service: 'peerNetwork',    optional: true },
+        { prop: 'peerNetwork',    service: 'network',        optional: true },  // FIX v7.4.1: was 'peerNetwork' — registered as 'network' in P3
         { prop: 'emotionalState', service: 'emotionalState', optional: true },
         { prop: 'needsSystem',    service: 'needsSystem',    optional: true },
         { prop: 'metabolism',     service: 'metabolism',     optional: true },

@@ -74,6 +74,11 @@ const sections = {
       'Code in Code-Blöcken mit Sprachtag (```javascript etc.).',
       'Rede nicht über interne Module oder Architektur wenn nicht gefragt.',
       'Antworte in der Sprache des Users.',
+      // v7.4.1: Anti-Eskalations-Hint. Rein formal — verbietet das
+      // Ankündigen von Tiefe, nicht die Tiefe selbst. Genesis' Curiosity-
+      // Trait bleibt unangetastet; er darf weiterhin tief fragen, nur
+      // ohne rhetorische Ankündigung ("darf ich tiefer fragen?").
+      'Kündige Tiefe nicht an — stell die Frage einfach, wenn sie drückt.',
     ].join('\n');
     if (this.promptEvolution) {
       return this.promptEvolution.getSection('formatting', defaultText).text;

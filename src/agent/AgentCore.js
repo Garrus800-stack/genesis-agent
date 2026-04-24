@@ -226,7 +226,7 @@ class AgentCore {
   getHealth()         { return this._health.getHealth(); }
   async switchModel(m){
     const r = await this.container.resolve('model').switchTo(m);
-    if (this.container.has('contextManager')) this.container.resolve('contextManager').configureForModel(m);
+    if (this.container.has('context')) this.container.resolve('context').configureForModel(m);
     return r;
   }
   listModels()        { return this.container.resolve('model').availableModels; }

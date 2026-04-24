@@ -244,7 +244,7 @@ class WakeUpRoutine {
     }
     if (ctx?.emotionalSnapshot?.dominant) {
       const d = ctx.emotionalSnapshot.dominant;
-      lines.push(`  Dominant: ${d.name || 'neutral'} (Intensität ${d.intensity || 0})`);
+      lines.push(`  Dominant: ${d.emotion || 'neutral'} (Intensität ${d.intensity || 0})`);
     }
     if (ctx?.activeNeeds?.length > 0) {
       const names = ctx.activeNeeds.slice(0, 3).map(n => n.name || n).join(', ');

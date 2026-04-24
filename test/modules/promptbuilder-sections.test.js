@@ -87,6 +87,20 @@ describe('PromptBuilderSections: Formatting', () => {
     assert(result.includes('Code'), 'should mention code blocks');
   });
 
+  // v7.4.1: Anti-Eskalations-Hint verified at prompt-level.
+  // Not a mock-LLM test — we don't need a model to verify that
+  // the directive text is in the prompt. Downstream response-
+  // behavior (no "darf ich tiefer fragen" phrases) is a model
+  // benchmark concern, not a unit test.
+  test('formatting block contains v7.4.1 anti-escalation hint', () => {
+    const builder = createBuilder();
+    const result = builder._formatting();
+    assert(result.includes('Kündige Tiefe nicht an'),
+      'formatting block must contain the anti-announcement hint');
+    assert(result.includes('stell die Frage einfach'),
+      'hint must include the positive alternative');
+  });
+
   test('uses PromptEvolution when available', () => {
     const builder = createBuilder();
     builder.promptEvolution = {

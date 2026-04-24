@@ -35,6 +35,7 @@ const fs = require('fs');
 const path = require('path');
 const { createLogger } = require('../core/Logger');
 const { applySubscriptionHelper } = require('../core/subscription-helper');
+const { atomicWriteFileSync } = require('../core/utils');
 const _log = createLogger('TaskRecorder');
 
 const MAX_RECORDINGS = 50;
@@ -92,7 +93,9 @@ class TaskRecorder {
     });
 
     // ── Step outcomes → execution trace ──────────────────
-    this._sub('goal:step-complete', (data) => {
+    // FIX v7.4.1: was 'goal:step-complete' — standardized to
+    // 'agent-loop:step-complete' in v4.12.5 (see GoalPersistence).
+    this._sub('agent-loop:step-complete', (data) => {
       this._recordStep(data.goalId, 'step', data);
     });
 
@@ -586,7 +589,8 @@ class TaskRecorder {
     try {
       this._ensureDir();
       const filePath = path.join(this._dataDir, `${recording.id}.json`);
-      fs.writeFileSync(filePath, JSON.stringify(recording, null, 2), 'utf-8');
+      // FIX v7.4.1: atomic write — prevents half-written recordings on crash
+      atomicWriteFileSync(filePath, JSON.stringify(recording, null, 2));
     } catch (err) {
       _log.warn(`[RECORDER] Failed to save recording: ${err.message}`);
     }

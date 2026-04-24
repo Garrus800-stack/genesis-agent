@@ -373,6 +373,39 @@ class IntentRouter {
       return { type: 'general', confidence: 0.9, stage: 'conversational-meta' };
     }
 
+    // v7.4.1: Meta-state questions — specific pings for runtime-state
+    // values (emotion, energy, goals, settings, daemon, peers).
+    // These are answered from the RuntimeState-Block with actual
+    // values rather than escalating into multi-step plans.
+    //
+    // Confidence 0.9 + separate stage name so telemetry can
+    // distinguish generic meta-curiosity from structured state-pings.
+    const metaStatePatterns = [
+      // German — emotion / mood
+      /\b(was\s+ist\s+dein\s+(gefühl|stimmung|zustand|mood))\b/i,
+      /\b(welche\s+(emotion|stimmung|energie))\b/i,
+      // German — goals / work
+      /\b(welche\s+ziele?\s+hast\s+du)\b/i,
+      /\b(woran\s+arbeitest\s+du)\b/i,
+      // German — settings / model
+      /\b(welche\s+settings?)\b/i,
+      /\b(welches\s+modell|welcher\s+backend)\b/i,
+      // German — daemon / energy / peers
+      /\b(was\s+macht\s+dein\s+daemon|läuft\s+dein\s+daemon)\b/i,
+      /\b(wie\s+viel\s+energie)\b/i,
+      /\b(wie\s+autonom\s+bist\s+du)\b/i,
+      /\b(wie\s+viele?\s+peers?)\b/i,
+      // English equivalents for cross-language consistency
+      /\b(how\s+(do\s+you\s+feel|are\s+you))\b/i,
+      /\b(what(?:'s|\s+is)\s+your\s+(mood|energy|feeling|state))\b/i,
+      /\b(what\s+are\s+you\s+working\s+on)\b/i,
+    ];
+    for (const p of metaStatePatterns) {
+      if (p.test(trimmed)) {
+        return { type: 'general', confidence: 0.9, stage: 'conversational-meta-state' };
+      }
+    }
+
     const hasQuestionWord = /^(wie|was|warum|wieso|wer|wann|wo|welche?s?)\s/i.test(trimmed);
     // Action-verb regex: leading \b, but no trailing \b — we want
     // "erstelle", "erstellen", "baue", "baust" to all match via stem.

@@ -204,7 +204,7 @@ describe('ReasoningTracer — Steps', () => {
     const bus = makeBus();
     const rt = new ReasoningTracer({ bus });
     rt.start();
-    bus.emit('goal:step-complete', { success: false, action: 'file-write', error: 'permission denied' });
+    bus.emit('agent-loop:step-complete', { success: false, action: 'file-write', error: 'permission denied' });
     const traces = rt.getTraces();
     assertEqual(traces[0].type, 'step-outcome');
     assert(traces[0].summary.includes('file-write'), 'Mentions action');
@@ -215,7 +215,7 @@ describe('ReasoningTracer — Steps', () => {
     const bus = makeBus();
     const rt = new ReasoningTracer({ bus });
     rt.start();
-    bus.emit('goal:step-complete', { success: true, action: 'file-read' });
+    bus.emit('agent-loop:step-complete', { success: true, action: 'file-read' });
     assertEqual(rt.getTraces().length, 0);
     rt.stop();
   });

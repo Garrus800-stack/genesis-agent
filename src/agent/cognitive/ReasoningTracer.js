@@ -58,7 +58,9 @@ const TRACE_SUBSCRIPTIONS = [
     summarize: (d) => `${d.file}: ${d.violations?.map(v => v.invariant).join(', ') || 'invariant violation'}` },
   { event: 'selfmod:frozen', type: 'circuit-frozen',
     summarize: (d) => `Self-modification frozen after ${d.failures || '?'} failures: ${d.reason || 'threshold reached'}` },
-  { event: 'goal:step-complete', type: 'step-outcome',
+  // FIX v7.4.1: was 'goal:step-complete' — standardized to
+  // 'agent-loop:step-complete' in v4.12.5 (see GoalPersistence).
+  { event: 'agent-loop:step-complete', type: 'step-outcome',
     summarize: (d) => d.success === false ? `Step failed: ${d.action || d.step || 'unknown'} — ${d.error || 'no detail'}` : null },
 ];
 
@@ -126,17 +128,24 @@ class ReasoningTracer {
 
   _record(type, summary, detail) {
     const correlationId = this._correlationCtx?.getId?.() || null;
-    this._traces.push({
+    const trace = {
       ts: Date.now(),
       type,
       summary,
       detail,
       correlationId,
-    });
+    };
+    this._traces.push(trace);
     // Ring buffer
     if (this._traces.length > MAX_TRACES) {
       this._traces = this._traces.slice(-MAX_TRACES);
     }
+    // FIX v7.4.1: Emit so TaskRecorder can incorporate reasoning
+    // traces into task recordings. Was a dead listener since v5.5.0.
+    this.bus.emit('reasoning:trace-recorded', {
+      type, summary, correlationId,
+      goalId: detail?.goalId || null,
+    }, { source: 'ReasoningTracer' });
   }
 }
 

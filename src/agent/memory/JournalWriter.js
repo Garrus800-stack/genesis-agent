@@ -26,6 +26,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createLogger } = require('../core/Logger');
+const { atomicWriteFileSync } = require('../core/utils');
 const _log = createLogger('JournalWriter');
 
 const VALID_VISIBILITIES = new Set(['private', 'shared', 'public']);
@@ -78,7 +79,8 @@ class JournalWriter {
 
   _saveIndex() {
     try {
-      fs.writeFileSync(this._indexPath(), JSON.stringify(this._index, null, 2));
+      // FIX v7.4.1: atomic write — prevents half-written index on crash
+      atomicWriteFileSync(this._indexPath(), JSON.stringify(this._index, null, 2));
     } catch (e) {
       _log.warn('[JOURNAL] failed to persist _index.json:', e.message);
     }

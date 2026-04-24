@@ -144,7 +144,7 @@ function phase8(ctx, R) {
     ['colonyOrchestrator', {
       phase: 8, deps: ['model'], tags: ['revolution', 'colony', 'multi-agent'],
       lateBindings: [
-        { prop: 'peers',        service: 'peerNetwork',     optional: true },
+        { prop: 'peers',        service: 'network',         optional: true },  // FIX v7.4.1: was 'peerNetwork' — registered as 'network' in P3
         { prop: 'delegation',   service: 'taskDelegation',  optional: true },
         { prop: 'consensus',    service: 'peerConsensus',   optional: true },
         { prop: 'selfSpawner',  service: 'selfSpawner',     optional: true },  // V7-1: IPC workers

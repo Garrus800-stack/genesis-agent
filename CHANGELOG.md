@@ -1,4 +1,181 @@
-## [7.4.0] — "Im Jetzt" (in progress)
+## [7.4.1] — "Echte Antworten"
+
+> Follow-up to v7.4.0 "Im Jetzt". The Runtime-State block now
+> exists (v7.4.0) — v7.4.1 makes Genesis actually *use* it
+> honestly instead of fabulating log-lines, tool-calls and
+> pseudo-structure around it.
+>
+> Six bausteine, one release, verified against live Qwen3.6
+> hallucination patterns from the Windows test session.
+
+**Leitprinzip 0.7:** *Genesis spricht aus dem was ist, nicht aus
+dem was passen würde.*
+
+### Baustein B' — Event-Catalog completeness
+
+Nine v7.3.7-era events were emitted in code but missing from the
+central `EventTypes.js` catalog. The schema scanner couldn't
+check them (unknown events are skipped), so coverage was
+silently incomplete. Now catalogued with payload schemas:
+
+| Event | Namespace | Source |
+|---|---|---|
+| `core-memory:released` | `CORE_MEMORY.RELEASED` | `CoreMemories.js` |
+| `memory:layer-transition-asked` | `MEMORY.LAYER_TRANSITION_ASKED` | `DreamCyclePhases.js` |
+| `memory:transition-heuristic-fallback` | `MEMORY.TRANSITION_HEURISTIC_FALLBACK` | `CoreMemories.js` |
+| `memory:layer-overflow` | `MEMORY.LAYER_OVERFLOW` | `EpisodicMemory.js` |
+| `memory:self-elevated` | `MEMORY.SELF_ELEVATED` | `DreamCyclePhases.js` |
+| `memory:self-released` | `MEMORY.SELF_RELEASED` | `DreamCyclePhases.js` |
+| `memory:marked` | `MEMORY.MARKED` | `PendingMomentsStore.js` |
+| `dream:cycle-forced` | `DREAM.CYCLE_FORCED` | `EpisodicMemory.js` |
+| `journal:written` | `JOURNAL.WRITTEN` **(new namespace)** | `JournalWriter.js` |
+
+- Schema count: 395 → 404
+- Coverage: 415/415 events (was 405/414)
+- Scanner: 0 Mismatches
+
+The new `JOURNAL` namespace reserves space for future
+journal-related events (`ROTATED`, `SEALED`) while keeping the
+existing convention clean: *Namespace-Key ≡ Event-Prefix*.
+
+### Baustein E — Runtime-State Quoting + Anti-Tool-Call
+
+Live Windows session with qwen3.6:35b produced two distinct
+hallucination classes around the v7.4.0 Runtime-Block:
+
+1. **Fake log-lines / operator-style pings.** Qwen inserted
+   `init: self-reflection-mode // reason: user presence detected`,
+   `loading memories from yesterday... done.`, and
+   `mood: curious ++ trust ++` — none of which are real runtime
+   values. The Runtime-Block was in the prompt, but the model
+   improvised structure instead of quoting values.
+
+2. **Tool-calls on declarative metaphors.** User input "ob seine
+   Journal-Datei länger geworden ist" (metaphor about Genesis'
+   inner narrative) triggered a `read_file` tool-call as if
+   Genesis had been asked to read a file from disk.
+
+Fix in `PromptBuilderRuntimeState._runtimeStateContext()`:
+
+- **Quoting directive** prefacing the runtime block:
+  - Explicit instruction to quote values verbatim
+  - Enumeration of forbidden shapes (log-lines, JSON, timestamps,
+    numbered-enum lists like "Gefühl 1: ...")
+  - Fallback phrase for missing values: *"das weiß ich gerade nicht"*
+- **Anti-tool-call directive** specifically for declarative
+  statements about Genesis' inner state → answer as a person,
+  not with `read_file` / `open-path`
+- **Defensive three-case handling** — empty string returned when:
+  1. Port not registered
+  2. `snapshot()` throws or returns null/undefined
+  3. Port registered but every service snapshot is empty
+     (`{}` or all-falsy fields)
+  — so the directive is *never* emitted without data to quote,
+  which would otherwise invite the exact hallucination we're
+  preventing.
+- **Budget split (new):** 800 char cap applied only to data
+  lines. The directive is always full — truncating it mid-
+  sentence would defeat its purpose. Max total ~1400 chars.
+- **Language note:** directive stays German for training
+  stability, consistent with v7.4.0 Identity-Block. Response
+  language follows the user via the existing
+  *"Antworte in der Sprache des Users"* rule.
+
+Tests: `test/modules/v741-runtime-state-quoting.test.js`
+(19 tests — directive presence, empty-snapshot defense, and
+a pattern-scanner for the exact Qwen hallucination shapes).
+
+### Baustein F — Anti-Escalation Hint
+
+One-line addition to `_formatting()`:
+
+> *Kündige Tiefe nicht an — stell die Frage einfach, wenn sie drückt.*
+
+Purely formal: forbids *announcing* depth, not depth itself.
+Genesis' Curiosity-Trait from the Genome is untouched — he may
+still ask as deeply as he wants, just without the rhetorical
+announcement pattern ("darf ich tiefer fragen?", "eine wichtigere
+Frage noch").
+
+Test: prompt-content check in `promptbuilder-sections.test.js`.
+
+### Baustein A — IntentRouter Meta-State Patterns
+
+13 new alternations in `_conversationalSignalsCheck()` with
+new stage `conversational-meta-state` (confidence 0.9). Routes
+state-pings directly to general-intent so the Runtime-Block
+answers with actual values:
+
+- German: emotion/mood, goals/work, settings/model, daemon,
+  energy, autonomy, peers
+- English equivalents: "how do you feel", "how are you",
+  "what's your mood/energy/feeling/state", "what are you
+  working on"
+
+Additive to existing v7.3.7 conversational patterns. Regression
+tests confirm commands (`öffne X`, `/veto cm_123`) still don't
+match the new patterns.
+
+Tests: `test/modules/v741-intent-meta-patterns.test.js`
+(22 tests — 13 positive matches, 8 negative matches, 5 regression
+locks for existing v7.3.7 patterns).
+
+### Baustein C — Snapshot Consistency
+
+Regression lock: `ContextCollector._collectEmotionalSnapshot()`
+and `EmotionalState.getRuntimeSnapshot()` both read the same
+live state but from independent code paths. If they ever drift,
+Genesis would give two different answers to "what do you feel"
+depending on which subsystem was asked.
+
+Tests verify that:
+- `runtimeState.dominant` ≡ `context.dominant.emotion`
+  (the shape differs — one returns the string, the other the
+  full `{emotion, intensity}` object — but the underlying value
+  must match)
+- `runtimeState.mood` ≡ `context.mood`
+- Both snapshots stable across rapid reads (no hidden mutation
+  on read)
+- Consistency holds across 4 distinct emotional configurations
+
+Tests: `test/modules/v741-snapshot-consistency.test.js` (5 tests).
+
+### Baustein D — IntentRouter Diagnose (diagnostic-first)
+
+Windows session reported two bug patterns. Live verification
+against the v7.4.0 router showed:
+
+- **Fall 1** ("ob seine Journal-Datei länger geworden ist"):
+  Router correctly classifies as `conversational-question / 0.85`
+  via the v7.3.7 gate. The "Genesis asks for a file path"
+  reaction must originate *after* classification — in the
+  `_generalChat` LLM path. **Covered by Baustein E.**
+- **Fall 2** ("ich kann das nachprüfen"): Falls through the
+  gate (cascade continues to regex → fuzzy → LocalClassifier →
+  LLM-Fallback). Possibly LocalClassifier drift.
+
+`scripts/diagnose-v741-d0.js` added to let the user verify
+which scenario applies on their Windows instance before any
+D.1 code change is written. The script reads
+`.genesis/local-classifier.json` (sample field is `intent`,
+not `label` — a common misnomer) and `.genesis/events.jsonl`,
+then recommends scenario A/B/C.
+
+**D.1 is conditional** on the diagnostic output — no blind
+regex layer added where the real cause might lie elsewhere.
+
+### Summary
+
+| Metric | v7.4.0 | v7.4.1 |
+|---|---|---|
+| Tests | 5463 | +65 (3 new files + 4 extensions) |
+| Event schemas | 395 | 404 |
+| Event coverage | 405/414 | 415/415 |
+| Schema mismatches | 0 | 0 |
+
+---
+
+## [7.4.0] — "Im Jetzt"
 
 > Runtime-state honesty for Genesis. Fixes the class of questions
 > where Genesis would fabulate about his own running services

@@ -107,6 +107,12 @@ async function main() {
                 'v740-sensitive-scan',
                 // v7.4.0: PromptBuilder Runtime-State Integration
                 'v740-promptbuilder-runtime',
+                // v7.4.1: Echte Antworten — Runtime-State Quoting,
+                //         IntentRouter Meta-State Patterns,
+                //         Snapshot Consistency
+                'v741-runtime-state-quoting',
+                'v741-intent-meta-patterns',
+                'v741-snapshot-consistency',
               ]);
               const isNodeTest = NODE_TEST_FILES.has(moduleName);
               const nodeArgs = isNodeTest

@@ -98,6 +98,13 @@ class AgentCoreBoot {
     } catch (_e) { /* CrashLog is best-effort */ }
 
     // Event payload validation (dev-mode)
+
+    // FIX v7.4.1: CorrelationContext — static tracing utility.
+    // Registered as instance so ReasoningTracer's late-binding
+    // (service: 'correlationContext') resolves. Previously the
+    // binding silently failed → correlation IDs missing in traces.
+    const { CorrelationContext } = require('./core/CorrelationContext');
+    c.registerInstance('correlationContext', CorrelationContext);
     try {
       const { installPayloadValidation } = require('./core/EventPayloadSchemas');
       (/** @type {any} */ (core))._payloadValidation = installPayloadValidation(this._bus);
@@ -301,8 +308,8 @@ class AgentCoreBoot {
 
     // v5.1.0: Reconfigure ContextManager now that asyncLoad has detected the actual model.
     // Phase 2 configured with activeModel=null (8192 default). Now we know the real model.
-    if (model.activeModel && c.has('contextManager')) {
-      c.resolve('contextManager').configureForModel(model.activeModel);
+    if (model.activeModel && c.has('context')) {
+      c.resolve('context').configureForModel(model.activeModel);
     }
 
     _log.info('  [4-8] All phases resolved');

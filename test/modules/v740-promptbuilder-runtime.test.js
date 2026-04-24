@@ -267,9 +267,14 @@ describe('v7.4.0 — _runtimeStateContext language consistency', () => {
 // Budget enforcement
 // ════════════════════════════════════════════════════════════
 
-describe('v7.4.0 — _runtimeStateContext budget enforcement', () => {
+describe('v7.4.0/v7.4.1 — _runtimeStateContext budget enforcement', () => {
 
-  it('does NOT truncate typical snapshot (well under 800 chars)', () => {
+  // v7.4.1 change: the directive header is unconditionally kept in
+  // full (truncating it would defeat its purpose). The 800-char
+  // budget applies only to the *data* section. Full block size is
+  // directive (~440 chars) + data (up to 800) ≈ 1240 chars max.
+
+  it('typical snapshot stays compact (directive + small data)', () => {
     const pb = makeBuilder();
     pb.runtimeStatePort = makePortWith({
       settings: { backend: 'ollama', model: 'qwen2.5:7b', trustLevel: 'ASSISTED', language: 'de' },
@@ -278,13 +283,14 @@ describe('v7.4.0 — _runtimeStateContext budget enforcement', () => {
       metabolism: { energyPercent: 73, llmCalls: 12 },
     });
     const out = pb._runtimeStateContext();
+    // Total block = directive + 3 data lines → well under 800.
     assert.ok(out.length < 800, `typical snapshot should be < 800 chars, got ${out.length}`);
     assert.ok(!out.includes("[...gekürzt]"));
   });
 
-  it('truncates when output exceeds 800 chars', () => {
+  it('truncates data when data section exceeds 800 chars', () => {
     const pb = makeBuilder();
-    // Build an artificially large goal title to push over budget.
+    // Build an artificially large goal title to push data over budget.
     const longTitle = 'x'.repeat(500);
     pb.runtimeStatePort = makePortWith({
       settings: { backend: 'ollama', model: 'qwen2.5:7b', trustLevel: 'ASSISTED', language: 'de' },
@@ -299,9 +305,15 @@ describe('v7.4.0 — _runtimeStateContext budget enforcement', () => {
       peerNetwork: { peerCount: 0, ownPort: 8080 },
     });
     const out = pb._runtimeStateContext();
-    assert.ok(out.length <= 800, `truncated output should be <= 800 chars, got ${out.length}`);
+    // v7.4.1: total = directive (~590 chars) + 800-cap data + newlines.
+    // Max realistic total: ~1400 chars.
+    assert.ok(out.length <= 1400,
+      `v7.4.1 total block should be <= ~1400 chars (directive + data-cap), got ${out.length}`);
     assert.ok(out.includes("[...gekürzt]"),
-      'oversized output must end with truncation marker');
+      'oversized data must end with truncation marker');
+    // Directive itself must still be complete — never truncated.
+    assert.ok(out.includes('nicht mit read_file/open-path'),
+      'directive must remain intact even when data overflows');
   });
 });
 

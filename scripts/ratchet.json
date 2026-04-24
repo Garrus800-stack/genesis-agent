@@ -1,10 +1,10 @@
 {
   "_description": "Ratchet — floor/max values enforced by check-ratchet.js in CI.",
-  "_locked_at": "v7.3.7",
-  "_date": "2026-04-22",
+  "_locked_at": "v7.4.1",
+  "_date": "2026-04-24",
   "testCount": {
     "floor": 5200,
-    "note": "Minimum passing test count. Floor acts as a safety net against accidental deletion; a full-suite run should comfortably exceed it. v7.3.7 baseline: 5242 tests."
+    "note": "Minimum passing test count. Floor acts as a safety net against accidental deletion; a full-suite run should comfortably exceed it. v7.4.1 baseline per CHANGELOG: 5528 tests."
   },
   "fitnessScore": {
     "floor": 127,
@@ -13,7 +13,7 @@
   },
   "schemaMismatches": {
     "max": 0,
-    "note": "scan-schemas.js must report 0. Runtime event payloads must match declared schemas."
+    "note": "scan-schemas.js must report 0. Runtime event payloads must match declared schemas. v7.4.1 scanner: 415/415 events covered, 0 mismatches."
   },
   "schemaMissing": {
     "max": 0,

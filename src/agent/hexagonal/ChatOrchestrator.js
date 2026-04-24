@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { LIMITS } = require('../core/Constants');
-const { safeJsonParse } = require('../core/utils');
+const { safeJsonParse, atomicWriteFileSync } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
 const { createToolCallStreamFilter } = require('../core/tool-call-stream-filter');
 const _log = createLogger('ChatOrchestrator');
@@ -529,7 +529,8 @@ class ChatOrchestrator {
       if (!this._historyPath) return;
       const dir = path.dirname(this._historyPath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(this._historyPath, JSON.stringify(toSave, null, 2), 'utf-8');
+      // FIX v7.4.1: atomic write — prevents half-written history on crash
+      atomicWriteFileSync(this._historyPath, JSON.stringify(toSave, null, 2));
     } catch (err) {
       _log.debug('[CHAT] History sync save failed:', err.message);
     }

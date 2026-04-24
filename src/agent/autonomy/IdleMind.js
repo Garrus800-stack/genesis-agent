@@ -116,6 +116,7 @@ class IdleMind {
     // Track what activities have been done recently
     this.activityLog = [];
     this._lastInsightTs = 0; // v5.7.0: Rate-limit proactive insights
+    this._thinking = false;  // FIX v7.4.1: Re-entrancy guard for _think()
 
     // Listen for user activity (multiple sources for reliability)
     this._sub('agent:status', () => { this.lastUserActivity = Date.now(); }, { source: 'IdleMind' });
@@ -176,6 +177,13 @@ class IdleMind {
   // ── Main Think Loop ──────────────────────────────────────
 
   async _think() {
+    // FIX v7.4.1: Re-entrancy guard. setInterval fires regardless of whether
+    // the previous _think() has finished. If an LLM call or goal step takes
+    // longer than the 5-minute interval, the next tick would start a parallel
+    // cycle — potentially double-executing goal steps or activities.
+    if (this._thinking) return;
+    this._thinking = true;
+    try {
     if (!this.model?.activeModel) return;
     this.thoughtCount++;
 
@@ -263,6 +271,7 @@ class IdleMind {
     } catch (err) {
       _log.warn(`[IDLE-MIND] ${activity} failed:`, err.message);
     }
+    } finally { this._thinking = false; }
   }
 
   /**

@@ -18,6 +18,8 @@ const runtimeStateSection = {
 
   /**
    * v7.4.0: Runtime-state block from RuntimeStatePort.
+   * v7.4.1: Extended with quoting directive + anti-tool-call
+   *         directive against Qwen-family hallucination patterns.
    *
    * Shows Genesis' current Service-state to the LLM so it can
    * answer meta-questions ("wie fühlst du dich", "welche
@@ -25,11 +27,19 @@ const runtimeStateSection = {
    * instead of fabulated ones.
    *
    * Design:
-   *   - German (user speaks German with Genesis, keeps
-   *     system prompt consistent)
+   *   - German directive text as training-stability choice,
+   *     consistent with v7.4.0 Identity-Block. Response-language
+   *     follows the user via "Antworte in der Sprache des Users"
+   *     from the Identity-Block — the directive-language itself is
+   *     language-neutral in effect (it constrains the model's
+   *     output-shape, not user-facing text).
    *   - 800-char hard budget with truncation marker
-   *   - Returns '' when port missing or snapshot empty
-   *     (defensive — degradation stays silent)
+   *   - Returns '' in three distinct cases:
+   *       (1) Port not registered at all
+   *       (2) Port registered but snapshot() throws or returns null
+   *       (3) Port registered, snapshot() returns {} or every service
+   *           snapshot is null/empty — NO directive without data,
+   *           otherwise it'd invite hallucination
    *   - No data transformation — the service's snapshot IS
    *     the data, we just format it
    */
@@ -46,7 +56,12 @@ const runtimeStateSection = {
     const names = Object.keys(snap);
     if (names.length === 0) return '';
 
-    const lines = ['[Aktueller Zustand — Momentaufnahme]'];
+    // v7.4.1: Collect data lines first. Header + directive are
+    // only added if at least one data line was produced —
+    // otherwise we'd emit a directive block with nothing to
+    // quote, which invites the exact hallucination we're
+    // trying to prevent.
+    const dataLines = [];
 
     // Settings — one compact line
     if (snap.settings) {
@@ -56,7 +71,7 @@ const runtimeStateSection = {
       if (s.backend)    parts.push(`(${s.backend})`);
       if (s.trustLevel) parts.push(`· Trust: ${s.trustLevel}`);
       if (s.language)   parts.push(`· Sprache: ${s.language}`);
-      if (parts.length > 0) lines.push(parts.join(' '));
+      if (parts.length > 0) dataLines.push(parts.join(' '));
     }
 
     // Emotion — dominant + top-3 named emotions
@@ -67,7 +82,7 @@ const runtimeStateSection = {
           .map(t => `${t.name} ${t.value}%`)
           .join(', ');
         const moodHint = e.mood ? ` (Stimmung: ${e.mood})` : '';
-        lines.push(`Gefühl: ${top}${moodHint}`);
+        dataLines.push(`Gefühl: ${top}${moodHint}`);
       }
     }
 
@@ -77,7 +92,7 @@ const runtimeStateSection = {
       const needs = snap.needsSystem.active
         .map(n => `${n.name} ${n.drive}%`)
         .join(', ');
-      lines.push(`Bedürfnisse: ${needs}`);
+      dataLines.push(`Bedürfnisse: ${needs}`);
     }
 
     // Metabolism — energy + calls
@@ -90,7 +105,7 @@ const runtimeStateSection = {
       if (typeof m.llmCalls === 'number') {
         parts.push(`${m.llmCalls} LLM-Calls in dieser Session`);
       }
-      if (parts.length > 0) lines.push(parts.join(' · '));
+      if (parts.length > 0) dataLines.push(parts.join(' · '));
     }
 
     // Daemon
@@ -100,7 +115,7 @@ const runtimeStateSection = {
       const cycles = typeof d.cycles === 'number' ? `, ${d.cycles} Zyklen` : '';
       const gaps = typeof d.gapCount === 'number' && d.gapCount > 0
         ? `, ${d.gapCount} bekannte Lücken` : '';
-      lines.push(`Daemon: ${status}${cycles}${gaps}`);
+      dataLines.push(`Daemon: ${status}${cycles}${gaps}`);
     }
 
     // IdleMind
@@ -109,11 +124,11 @@ const runtimeStateSection = {
       if (im.isIdle && im.currentActivity) {
         const ago = typeof im.lastActivityAgoSeconds === 'number'
           ? ` (vor ${im.lastActivityAgoSeconds}s)` : '';
-        lines.push(`IdleMind: idle ${im.minutesIdle}m · "${im.currentActivity}"${ago}`);
+        dataLines.push(`IdleMind: idle ${im.minutesIdle}m · "${im.currentActivity}"${ago}`);
       } else if (im.isIdle) {
-        lines.push(`IdleMind: idle ${im.minutesIdle}m`);
+        dataLines.push(`IdleMind: idle ${im.minutesIdle}m`);
       } else {
-        lines.push(`IdleMind: aktiv`);
+        dataLines.push(`IdleMind: aktiv`);
       }
     }
 
@@ -125,23 +140,54 @@ const runtimeStateSection = {
       if (g.blocked > 0) parts.push(`${g.blocked} blockiert`);
       const counts = parts.join(', ');
       const top = g.topTitle ? ` · top: "${g.topTitle}"` : '';
-      lines.push(`Ziele: ${counts}${top}`);
+      dataLines.push(`Ziele: ${counts}${top}`);
     }
 
     // PeerNetwork
     if (snap.peerNetwork) {
       const p = snap.peerNetwork;
-      lines.push(`Peers: ${p.peerCount} sichtbar`);
+      dataLines.push(`Peers: ${p.peerCount} sichtbar`);
     }
 
-    let block = lines.join('\n');
+    // v7.4.1: Empty-snapshot defensive case — port wired but all
+    // service snapshots null/empty. Return '' rather than a
+    // directive-only block that invites hallucination.
+    if (dataLines.length === 0) return '';
 
-    // Budget enforcement (Rev 2.1: 800 char limit, hard).
-    const BUDGET = 800;
-    if (block.length > BUDGET) {
-      block = block.slice(0, BUDGET - 15) + '\n[...gekürzt]';
+    // v7.4.1: Quoting directive + anti-tool-call directive.
+    // Directive text is German (training-stability), but functional
+    // effect is language-neutral — the Identity-Block tells Genesis
+    // to respond in the user's language regardless.
+    //
+    // Critical: the directive must NEVER be truncated. If it gets
+    // cut mid-sentence, the whole point of the quoting-enforcement
+    // is lost. Budget is therefore applied ONLY to the data lines,
+    // not to the header+directive. Data lines get truncated if
+    // too long, directive stays verbatim.
+    const header = [
+      '[Aktueller Zustand — Momentaufnahme]',
+      'WICHTIG: Wenn der User nach deinem Zustand fragt (Energie, Gefühl,',
+      'Ziele, Daemon, Settings), zitiere die Werte aus diesem Block wörtlich.',
+      'Erfinde KEINE Log-Zeilen, KEINE JSON-Ausgaben, KEINE Zeitstempel,',
+      'KEINE nummerierten Aufzählungen ("Gefühl 1: ...", "Feeling 1: ...").',
+      'Wenn ein Wert nicht im Block steht, sag "das weiß ich gerade nicht".',
+      '',
+      'Deklarative Aussagen über dich (z.B. "ob deine Journal-Datei länger',
+      'geworden ist", "ich frag mich wie es dir geht") sind KEINE Aufforderung',
+      'Tools zu benutzen. Antworte als Person, nicht mit read_file/open-path.',
+      '',
+    ].join('\n');
+
+    // Data budget: 800 chars just for the data section.
+    // Header itself is ~400 chars fixed — total block ~1200 chars
+    // at max. Fits well into any modern model's context window.
+    const DATA_BUDGET = 800;
+    let dataBlock = dataLines.join('\n');
+    if (dataBlock.length > DATA_BUDGET) {
+      dataBlock = dataBlock.slice(0, DATA_BUDGET - 15) + '\n[...gekürzt]';
     }
-    return block;
+
+    return header + '\n' + dataBlock;
   },
 
 };

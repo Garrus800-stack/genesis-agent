@@ -34,6 +34,7 @@ const fs = require('fs');
 const path = require('path');
 const { createLogger } = require('../core/Logger');
 const { applySubscriptionHelper } = require('../core/subscription-helper');
+const { atomicWriteFileSync } = require('../core/utils');
 const _log = createLogger('MemoryConsolidator');
 
 const DEFAULT_CONFIG = {
@@ -412,11 +413,12 @@ class MemoryConsolidator {
       }
 
       const archiveFile = path.join(archiveDir, `archived-${Date.now()}.json`);
-      fs.writeFileSync(archiveFile, JSON.stringify({
+      // FIX v7.4.1: atomic write — prevents half-written archive on crash
+      atomicWriteFileSync(archiveFile, JSON.stringify({
         archivedAt: new Date().toISOString(),
         count: lessons.length,
         lessons,
-      }, null, 2), 'utf-8');
+      }, null, 2));
 
       // Remove from active store by filtering
       const ids = new Set(lessons.map(l => l.id));

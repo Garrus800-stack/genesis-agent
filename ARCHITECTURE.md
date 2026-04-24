@@ -3,8 +3,9 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.3.6 · Last verified: all checks green (5036 tests, fitness 127/130,
-> 0 schema mismatches, 0 orphan / missing, 0 stale refs, 0 broken links).
+> Version: 7.4.1 · Last verified: all checks green (5528+ tests, fitness 127/130,
+> 0 schema mismatches, 0 orphan / missing, 0 stale refs, 0 broken links,
+> 0 service wiring errors, 0 intent wiring errors).
 
 ---
 

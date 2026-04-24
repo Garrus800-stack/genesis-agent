@@ -386,19 +386,33 @@ class GoalStack {
     };
   }
 
+  // FIX v7.4.1: Terminal-state guards. Without these, pauseGoal(completedId)
+  // would silently overwrite 'completed' → 'paused', and resumeGoal(failedId)
+  // would resurrect a failed goal. markStalled/markObsolete already had this
+  // guard since v7.3.3 — pause/resume/abandon were missing it.
+  static _isTerminal(status) {
+    return status === 'completed' || status === 'failed' || status === 'abandoned';
+  }
+
   pauseGoal(goalId) {
     const g = this.goals.find(g => g.id === goalId);
-    if (g) { g.status = 'paused'; g.updated = new Date().toISOString(); this._save(); }
+    if (!g || GoalStack._isTerminal(g.status)) return false;
+    g.status = 'paused'; g.updated = new Date().toISOString(); this._save();
+    return true;
   }
 
   resumeGoal(goalId) {
     const g = this.goals.find(g => g.id === goalId);
-    if (g) { g.status = 'active'; g.updated = new Date().toISOString(); this._save(); }
+    if (!g || GoalStack._isTerminal(g.status)) return false;
+    g.status = 'active'; g.updated = new Date().toISOString(); this._save();
+    return true;
   }
 
   abandonGoal(goalId) {
     const g = this.goals.find(g => g.id === goalId);
-    if (g) { g.status = 'abandoned'; g.updated = new Date().toISOString(); this._save(); }
+    if (!g || GoalStack._isTerminal(g.status)) return false;
+    g.status = 'abandoned'; g.updated = new Date().toISOString(); this._save();
+    return true;
   }
 
   // ── v7.3.3: Extended lifecycle states ───────────────────

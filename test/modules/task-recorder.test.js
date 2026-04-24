@@ -50,7 +50,7 @@ describe('TaskRecorder', () => {
     tr.start();
     assert(bus._handlers['agent-loop:started'], 'subscribes to loop start');
     assert(bus._handlers['agent-loop:complete'], 'subscribes to loop complete');
-    assert(bus._handlers['goal:step-complete'], 'subscribes to step complete');
+    assert(bus._handlers['agent-loop:step-complete'], 'subscribes to step complete');
     assert(bus._handlers['chat:completed'], 'subscribes to chat');
     assert(bus._handlers['shell:outcome'], 'subscribes to shell');
     assert(bus._handlers['intent:classified'], 'subscribes to intent');
@@ -76,8 +76,8 @@ describe('TaskRecorder', () => {
     assertEqual(tr._active.size, 1);
 
     // Add steps
-    bus._fire('goal:step-complete', { goalId: 'g1', action: 'read file', success: true });
-    bus._fire('goal:step-complete', { goalId: 'g1', action: 'write code', success: true });
+    bus._fire('agent-loop:step-complete', { goalId: 'g1', action: 'read file', success: true });
+    bus._fire('agent-loop:step-complete', { goalId: 'g1', action: 'write code', success: true });
 
     const recording = tr._active.get('g1');
     assertEqual(recording.steps.length, 2);
@@ -185,7 +185,7 @@ describe('TaskRecorder', () => {
     tr.start();
 
     bus._fire('agent-loop:started', { goalId: 'g1', goal: 'Load test' });
-    bus._fire('goal:step-complete', { goalId: 'g1', action: 'test step', success: true });
+    bus._fire('agent-loop:step-complete', { goalId: 'g1', action: 'test step', success: true });
     bus._fire('agent-loop:complete', { goalId: 'g1', success: true });
 
     const id = tr._completed[0].id;
@@ -212,16 +212,16 @@ describe('TaskRecorder', () => {
 
     // Recording A: 2 steps, success
     bus._fire('agent-loop:started', { goalId: 'gA', goal: 'Diff A' });
-    bus._fire('goal:step-complete', { goalId: 'gA', action: 'step1', success: true });
-    bus._fire('goal:step-complete', { goalId: 'gA', action: 'step2', success: true });
+    bus._fire('agent-loop:step-complete', { goalId: 'gA', action: 'step1', success: true });
+    bus._fire('agent-loop:step-complete', { goalId: 'gA', action: 'step2', success: true });
     bus._fire('agent-loop:complete', { goalId: 'gA', success: true });
     const idA = tr._completed[0].id;
 
     // Recording B: 3 steps, failure at step 2
     bus._fire('agent-loop:started', { goalId: 'gB', goal: 'Diff B' });
-    bus._fire('goal:step-complete', { goalId: 'gB', action: 'step1', success: true });
+    bus._fire('agent-loop:step-complete', { goalId: 'gB', action: 'step1', success: true });
     bus._fire('intent:classified', { intent: 'code-gen', message: 'write code' });
-    bus._fire('goal:step-complete', { goalId: 'gB', action: 'step3', success: false });
+    bus._fire('agent-loop:step-complete', { goalId: 'gB', action: 'step3', success: false });
     bus._fire('agent-loop:complete', { goalId: 'gB', success: false });
     const idB = tr._completed[1].id;
 
@@ -264,7 +264,7 @@ describe('TaskRecorder', () => {
     tr.start();
 
     bus._fire('agent-loop:started', { goalId: 'g1', goal: 'Stats test' });
-    bus._fire('goal:step-complete', { goalId: 'g1', action: 'step', success: true });
+    bus._fire('agent-loop:step-complete', { goalId: 'g1', action: 'step', success: true });
     bus._fire('chat:completed', { model: 'test', prompt: 'p', response: 'r' });
     bus._fire('shell:outcome', { command: 'ls' });
     bus._fire('agent-loop:complete', { goalId: 'g1', success: true });
@@ -295,7 +295,7 @@ describe('TaskRecorder', () => {
     tr.start();
 
     bus._fire('agent-loop:started', { goalId: 'g1', goal: 'Active on shutdown' });
-    bus._fire('goal:step-complete', { goalId: 'g1', action: 'step1', success: true });
+    bus._fire('agent-loop:step-complete', { goalId: 'g1', action: 'step1', success: true });
 
     assertEqual(tr._active.size, 1);
     tr.stop();
@@ -312,7 +312,7 @@ describe('TaskRecorder', () => {
     tr.start();
 
     // Fire step without starting a recording
-    bus._fire('goal:step-complete', { goalId: 'none', action: 'orphan', success: true });
+    bus._fire('agent-loop:step-complete', { goalId: 'none', action: 'orphan', success: true });
     assertEqual(tr._active.size, 0);
     // Should not throw
   });

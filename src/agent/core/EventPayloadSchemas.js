@@ -373,6 +373,13 @@ const SCHEMAS = {
   'memory:unified-recall':  { query: 'required' },
   'memory:conflicts-resolved': { count: 'optional' },
   'memory:consolidated':    { count: 'optional' },
+  // v7.4.1: Layer-transition and pin-review events from v7.3.7
+  'memory:layer-transition-asked':        { coreMemoryId: 'required', fromLayer: 'required', toLayer: 'required', decision: 'required' },
+  'memory:transition-heuristic-fallback': { coreMemoryId: 'required', fromLayer: 'required', toLayer: 'required', reason: 'required' },
+  'memory:layer-overflow':  { layer: 'required', count: 'required', pendingTransitions: 'optional' },
+  'memory:self-elevated':   { episodeId: 'required', reason: 'required' },
+  'memory:self-released':   { episodeId: 'required' },
+  'memory:marked':          { id: 'required', episodeId: 'required', timestamp: 'optional', triggerContext: 'optional' },
 
   // MCP extended
   'mcp:connected':          { server: 'optional' },
@@ -403,6 +410,8 @@ const SCHEMAS = {
   // Dream
   'dream:started':          { dreamNumber: 'required' },
   'dream:complete':         { dreamNumber: 'required', duration: 'required', newSchemas: 'required', insights: 'required' },
+  // v7.4.1: Forced dream cycle (layer-1 runaway protection)
+  'dream:cycle-forced':     { reason: 'required', layerCount: 'required' },
 
   // Insight (v7.0.3 — C4)
   'insight:actionable':     { source: 'required', type: 'required', description: 'required' },
@@ -460,6 +469,7 @@ const SCHEMAS = {
   'reasoning:refined':        { task: 'optional' },
   'reasoning:solve':          { task: 'required' },
   'reasoning:impact-analysis': { target: 'optional' },
+  'reasoning:trace-recorded':  { type: 'required', summary: 'required', correlationId: 'optional', goalId: 'optional' }, // FIX v7.4.1
 
   // Simulation
   'simulation:started':     { plan: 'optional' },
@@ -677,6 +687,11 @@ const SCHEMAS = {
   'core-memory:veto':           { id: 'required', userNote: 'optional' },
   // v7.3.2: User-initiated marking
   'core-memory:user-marked':    { id: 'required', type: 'required' },
+  // v7.4.1: Core memory released back to normal decay
+  'core-memory:released':       { id: 'required', reason: 'required', releasedAt: 'optional' },
+
+  // ── v7.4.1: JOURNAL — narrative memory ─────────────────
+  'journal:written':            { visibility: 'required', source: 'required', byteLength: 'optional', tags: 'optional' },
 };
 
 // ── Stats ─────────────────────────────────────────────────

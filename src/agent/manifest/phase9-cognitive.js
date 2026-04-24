@@ -530,6 +530,17 @@ function phase9(ctx, R) {
       },
     }],
 
+    // FIX v7.4.1: GateStats — central gate telemetry.
+    // Was never registered despite being designed in v7.3.6.
+    // SelfGate (P1) and ChatOrchestrator (P5) late-bind to it.
+    // No deps, no start/stop — pure in-memory aggregator.
+    ['gateStats', {
+      phase: 9,
+      deps: [],
+      tags: ['cognitive', 'telemetry', 'gates'],
+      factory: () => new (R('GateStats').GateStats)(),
+    }],
+
     // v7.3.7: WakeUpRoutine — post-boot Re-Entry.
     // Triggered by boot:complete event, time-boxed 30s.
     // All dependencies optional late-bindings — runs with whatever is wired.
