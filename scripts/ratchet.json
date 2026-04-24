@@ -1,10 +1,10 @@
 {
   "_description": "Ratchet — floor/max values enforced by check-ratchet.js in CI.",
-  "_locked_at": "v7.4.1",
+  "_locked_at": "v7.4.2",
   "_date": "2026-04-24",
   "testCount": {
-    "floor": 5200,
-    "note": "Minimum passing test count. Floor acts as a safety net against accidental deletion; a full-suite run should comfortably exceed it. v7.4.1 baseline per CHANGELOG: 5528 tests."
+    "floor": 5555,
+    "note": "v7.4.2 Kassensturz floor — real baseline 5551 (Bausteine B+D added 19 tests to v7.4.1's 5528) + 5 Baustein E circuit-timeout tests = 5556, floor set to 5555 with 1-test safety buffer."
   },
   "fitnessScore": {
     "floor": 127,

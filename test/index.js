@@ -113,6 +113,12 @@ async function main() {
                 'v741-runtime-state-quoting',
                 'v741-intent-meta-patterns',
                 'v741-snapshot-consistency',
+                // v7.4.2: Kassensturz — CommandHandlers split structure,
+                //         GoalStack stalled-status regression lock,
+                //         Baustein E: Circuit/LLM-timeout alignment
+                'v742-structure',
+                'v742-goalstack-stalled',
+                'v742-circuit-timeout',
               ]);
               const isNodeTest = NODE_TEST_FILES.has(moduleName);
               const nodeArgs = isNodeTest

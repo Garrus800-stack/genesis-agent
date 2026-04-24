@@ -1,3 +1,170 @@
+## [7.4.2] — "Kassensturz"
+
+> Five releases (v7.3.7–v7.4.1) shipped without AUDIT-BACKLOG updates.
+> v7.4.2 closes that drift, corrects one CHANGELOG erratum, fixes a small
+> documentation gap in GoalStack status semantics, and splits the largest
+> over-threshold source file. No new features. No architectural changes.
+>
+> Four bausteine, one release.
+
+**Leitprinzip 0.8:** *AUDIT-BACKLOG is part of every release.*
+
+### Baustein A — Bookkeeping catch-up
+
+**AUDIT-BACKLOG.md** advanced from v7.3.6 (where it had stalled) to
+v7.4.2. New section `Resolved in v7.3.7 – v7.4.2` catalogues 30+ items
+across the five-release gap, grouped by originating release. O-items
+O-6 (branch coverage) status updated. New O-items: O-7 (Baustein D
+Fall 2 diagnostic pending), O-8 (four files still over 700 LOC), O-9
+(GateStats sample-count verification pending).
+
+**CHANGELOG erratum** — v7.4.1 SelfModel-Split (4 files via
+Prototype-Delegation) was not documented in the v7.4.1 CHANGELOG. The
+file headers of `SelfModel.js`, `SelfModelParsing.js`,
+`SelfModelCapabilities.js`, and `SelfModelSourceRead.js` all state
+*"v7.4.1: Split into 4 files via prototype delegation"*, but the
+release notes omitted it. Now recorded as after-the-fact erratum in
+AUDIT-BACKLOG `Resolved in v7.4.1 — not documented in CHANGELOG`.
+**Note:** `CognitiveSelfModel.js` (518 LOC) is not part of this split
+— it has been an independent cognitive service since v5.9.8.
+
+### Baustein B — GoalStack stalled-status semantics
+
+The `status` comment on `GoalStack.js:129` listed 6 statuses
+(`active | paused | completed | failed | abandoned | blocked`), but
+`reviewGoals()` on Zeile 522 also sets `'stalled'`. Seven statuses in
+practice, six in docs.
+
+The naive fix — adding `stalled` to the comment — would have been
+incomplete. `_isTerminal()` on Zeile 394 lists only
+`completed/failed/abandoned`, which means `stalled` is intentionally
+not terminal. This is correct design (otherwise `pauseGoal(stalledId)`
+would always return `false`, leaving stalled goals with no way out),
+but the design decision was not documented anywhere.
+
+Changes:
+- Comment on `GoalStack.js:129` extended with `stalled`.
+- `_isTerminal()` given a header comment documenting: *Terminal =
+  completed/failed/abandoned. `stalled` and `paused` are active-with-
+  warning, intentionally not terminal, so `pauseGoal`/`resumeGoal`
+  continue to work on them.*
+- New regression test `test/modules/v742-goalstack-stalled.test.js`
+  locks the behavior: `_isTerminal('stalled') === false`,
+  `pauseGoal(stalledId)` returns true, `resumeGoal(stalledId)` returns
+  true and restores `'active'`.
+
+### Baustein C — CommandHandlers.js domain split
+
+At 846 LOC, `CommandHandlers.js` was the largest file over the 700-LOC
+warn threshold. v7.4.2 splits it into 6 domain mixins via
+Prototype-Delegation — same pattern as `DreamCyclePhases.js`,
+`ChatOrchestratorSourceRead.js`, and the v7.4.1 `SelfModel` 4-way split.
+
+All 23 top-level methods grouped into 7 domains:
+
+| Domain | Methods | Count |
+|--------|---------|-------|
+| Code/Skill | executeCode, executeFile, analyzeCode, runSkill | 4 |
+| Shell & File | shellTask, shellRun, projectScan, openPath | 4 |
+| Goals/Plans | plans, goals, journal | 3 |
+| CoreMemories | memoryMark, memoryList, memoryVeto | 3 |
+| System | handleSettings, daemonControl, trustControl | 3 |
+| Network | peer, mcpControl, webLookup | 3 |
+| Core | constructor, registerHandlers, undo | 3 |
+
+Files:
+- `CommandHandlers.js` — core (constructor, registerHandlers, undo, shared helpers)
+- `CommandHandlersCode.js` — Code/Skill domain
+- `CommandHandlersShell.js` — Shell & File domain (openPath grouped here because filesystem-near)
+- `CommandHandlersGoals.js` — Goals/Plans domain (journal grouped here because it renders GoalStack journals)
+- `CommandHandlersMemory.js` — CoreMemories domain
+- `CommandHandlersSystem.js` — System domain
+- `CommandHandlersNetwork.js` — Network domain
+
+`CommandHandlers.js` is now under 700 LOC. External API unchanged:
+Factory at `src/agent/manifest/phase5-hexagonal.js:120` instantiates
+`new (R('CommandHandlers').CommandHandlers)({...})` as before;
+Prototype-Delegation keeps all instance method access lexically identical.
+
+### Baustein D — Structure tests
+
+New `test/modules/v742-structure.test.js` locks the split:
+- Every method from the 6 mixin files is reachable on
+  CommandHandlers instances.
+- All 23 method names from v7.4.1 are preserved.
+- `CommandHandlers.js` is under 700 LOC.
+- Each mixin is under 250 LOC (soft guard).
+- Prototype chain is correctly composed (Object.assign order).
+
+Registered in `test/index.js` NODE_TEST_FILES whitelist.
+
+### Baustein E — Circuit-Breaker / LLM-Timeout alignment (hotfix)
+
+Found during v7.4.2 session: user report that model switching
+broke with `⚠ Modell nicht verfügbar qwen3:32b-q4_K_M: Modell
+antwortet nicht (Timeout)` → `Circuit llm is OPEN. Service unavailable.`
+
+**Root cause.** `CIRCUIT.TIMEOUT_MS` was 60000 ms. `LLM_RESPONSE_LOCAL`
+was 180000 ms. Circuit-breaker-wrapper was always shorter than the
+HTTP call. As long as small local models (7B, 13B) cold-started in
+under 60s, it worked. Large models (qwen3:32b-q4 on Intel GPU) need
+90-150s cold-start — the wrapper killed legitimate in-flight calls,
+counted 3 failures, opened the circuit, blocked chat for 30s cooldown,
+then re-opened on next attempt. Cascade.
+
+The bug existed since v4.x when `LLM_RESPONSE_LOCAL` was first raised
+to 180s. It was invisible before v7.3.8 "Honest non-knowing": Genesis
+used to fabricate responses when the underlying LLM call failed.
+v7.3.8 surfaced the real error, which is correct (Principle 0.4) —
+but the latent bug became visible as user-facing breakage.
+
+**Fix.** `src/agent/core/Constants.js:201` — `CIRCUIT.TIMEOUT_MS:
+60000 → 180000`. Matches `LLM_RESPONSE_LOCAL`. Cloud calls unaffected
+(typically finish in <10s). Single-line change, documented in-file.
+
+**Invariant test.** `test/modules/v742-circuit-timeout.test.js` (5
+tests) pins `CIRCUIT.TIMEOUT_MS >= LLM_RESPONSE_LOCAL`. A future
+change that lowers either number without the other breaks CI.
+
+**Not addressed here.** The circuit-breaker uses one global timeout
+for all backends. Cloud and Local share the value. Cleaner design
+would be: per-backend timeout, or remove the wrapper entirely
+(HTTP call already has its own timeout, double-wrapping is
+redundant). Tracked as **O-11** in AUDIT-BACKLOG.
+
+Why Baustein E and not v7.4.3: the bug was discovered before v7.4.2
+was tagged. Principle 0.5 ("one release one theme") is about *released*
+work. In-flight release work is one unit until tagged.
+
+### Ratchet
+
+`scripts/ratchet.json` `testCount.floor` raised 5200 → 5555 with note:
+*"v7.4.2 Kassensturz — baseline 5551 (real count) + 5 new Baustein E
+tests + Sicherheitspuffer."*
+
+### Summary
+
+| Metric | v7.4.1 | v7.4.2 |
+|---|---|---|
+| Tests | 5528 | 5556 (5551 + 5 new) |
+| Files over 700 LOC | 5 | 4 |
+| AUDIT-BACKLOG version | v7.3.6 | v7.4.2 |
+| Principles established | 0.7 | 0.8 |
+| Circuit/HTTP timeout mismatch | 120s gap | synced |
+
+### Principles (cumulative)
+
+1. State on the object, not in external registers (v7.3.7)
+2. Reflection ≠ Enforcement (v7.3.7)
+3. Time is injectable (v7.3.7)
+4. Honest non-knowing (v7.3.8)
+5. Structural hygiene is its own release (v7.3.9)
+6. RuntimeStatePort is cache-free (v7.4.0)
+7. Genesis spricht aus dem was ist (v7.4.1)
+8. **AUDIT-BACKLOG is part of every release (v7.4.2)**
+
+---
+
 ## [7.4.1] — "Echte Antworten"
 
 > Follow-up to v7.4.0 "Im Jetzt". The Runtime-State block now

@@ -8,7 +8,7 @@
   <br>
   <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.4.1-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.4.2-d4a017?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/tests-5510%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-config_ok-fbbf24?style=flat-square" alt="TSC">
@@ -227,7 +227,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.4.1: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5510 tests passing, 163 services (151 manifest + 12 bootstrap), RuntimeStatePort for honest self-reporting now backed by explicit quoting + anti-tool-call directives (Genesis quotes service values verbatim instead of fabulating log-lines, and won't interpret declarative metaphors as file-read tool-calls), 13 new IntentRouter meta-state patterns routing "wie viel energie"/"welche ziele"/"how do you feel" straight to the runtime block, 9 v7.3.7-era events backfilled into the catalog (414/414 events now have schemas, 100% coverage), plus all v7.3.x and v7.4.0 honesty, identity, memory, and hygiene work. Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.4.2: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5551 tests passing, 163 services (151 manifest + 12 bootstrap), CommandHandlers split from 846-LOC monolith into 6 domain mixins via Prototype-Delegation (Kassensturz cleanup, same pattern as DreamCyclePhases and the v7.4.1 SelfModel split), AUDIT-BACKLOG advanced from five-release drift to current, Principle 0.8 established (*AUDIT-BACKLOG is part of every release*), RuntimeStatePort for honest self-reporting backed by explicit quoting + anti-tool-call directives (Genesis quotes service values verbatim instead of fabulating log-lines, and won't interpret declarative metaphors as file-read tool-calls), 13 new IntentRouter meta-state patterns routing "wie viel energie"/"welche ziele"/"how do you feel" straight to the runtime block, 9 v7.3.7-era events backfilled into the catalog plus reasoning:trace-recorded (415/415 events now have schemas, 100% coverage), plus all v7.3.x and v7.4.0 honesty, identity, memory, and hygiene work. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

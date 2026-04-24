@@ -1,9 +1,120 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.3.6 · Last updated: v7.3.6 release
+> Version: 7.4.2 · Last updated: v7.4.2 release ("Kassensturz")
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.3.7 – v7.4.2 (Kassensturz-Catch-Up)
+
+Five releases (v7.3.7, v7.3.8, v7.3.9, v7.4.0, v7.4.1) had shipped without
+AUDIT-BACKLOG updates. v7.4.2 closes this drift and also adds what v7.4.2
+itself resolved.
+
+### From v7.3.7 — "Zuhause einrichten"
+
+- **IntentRouter overmatch (v7.3.6 9-step-plan bug)** — Stage 1
+  `_conversationalSignalsCheck()` in IntentRouter routes conversational
+  meta-questions (e.g. "was hat sich geändert") to general-intent before
+  regex/fuzzy/LLM cascade can escalate them to tasks with hallucinated
+  file paths. Extended in v7.4.1 with 13 additional meta-state patterns
+  (emotion/mood, goals/work, settings/model, daemon, energy, autonomy,
+  peers — both DE and EN).
+- **MemoryDecay/Consolidation Three-Layer architecture** — episodes carry
+  `layer` field (1=Detail, 2=Schema, 3=Feeling). DreamCycle Phase 4c
+  consolidates aging episodes. CoreMemories ↔ Episode bidirectional links.
+  Relational anchors (`johnny-reference`, `garrus-trust`, etc.) as immune
+  markers. Addresses Memory backlog "graceful forgetting".
+- **WakeUpRoutine** — time-boxed re-entry after boot via `boot:complete`
+  event. Context collection, pending-moments review, journal re-entry.
+- **JournalWriter with three visibilities** (private/shared/public),
+  monthly rotation, crash-robust JSONL.
+- **ActiveReferencesPort** — prevents DreamCycle from consolidating
+  episodes referenced in active chat turns (fixes race condition).
+- **Pin-and-Reflect** — `mark-moment` tool + DreamCycle Phase 1.5 (KEEP /
+  ELEVATE / LET_FADE).
+- **Goal-Lifecycle Auto-Transitions** — `GoalStack.reviewGoals()`
+  auto-completes (all steps done), auto-fails (attempts exhausted),
+  auto-stalls (72h inactive). Closes Memory backlog "goals at 6/8 never
+  auto-complete".
+
+### From v7.3.8 — "Ehrliches Nichtwissen"
+
+- **LLM-Failure-Honesty** — typed error classifier, system-message
+  format `⚠ Modell nicht verfügbar`, not pushed to history.
+  `chat:llm-failure` event. Doppel-Call fix in `_generalChat`.
+- **Synchroner Source-Read** (CHANGELOG.md + package.json) — `_maybeReadSourceSync`
+  in ChatOrchestrator, mtime-cached, PromptBuilder `attachSourceContent`
+  with authority framing.
+- **Principle 0.4** established: *Honest non-knowing.*
+
+### From v7.3.9 — "Aufräumen"
+
+- **DreamCycle-Split** 854 → 482 LOC (extracted `DreamCyclePhases.js`).
+- **ChatOrchestrator-Split** 719 → 582 LOC (extracted `ChatOrchestratorSourceRead.js`).
+- **Principle 0.5** established: *Structural hygiene is its own release.*
+
+### From v7.4.0 — "Im Jetzt"
+
+- **RuntimeStatePort** + 8 service `getRuntimeSnapshot()` implementations
+  (Settings, EmotionalState, NeedsSystem, Metabolism, AutonomousDaemon,
+  IdleMind, GoalStack, PeerNetwork).
+- **Identity-Leak-Fix** — removed LLM model name from `_identity()`
+  block, added explicit "Du bist NICHT das zugrundeliegende Sprachmodell".
+  55-test regression lock against 23 branded model names.
+- **CI Sensitive-Scan Gate** — vendor-specific regex patterns (OpenAI,
+  Anthropic, AWS, Bearer tokens) against full snapshot.
+- **PromptBuilder runtimeState section** — compact text block between
+  frontier and capabilities.
+
+### From v7.4.1 — "Echte Antworten"
+
+- **10 events nachkatalogisiert** — 9 v7.3.7-era memory/dream events
+  (core-memory:released, memory:layer-transition-asked, etc.) + separate
+  `reasoning:trace-recorded` fix. Coverage 415/415, 0 schema mismatches.
+  New `JOURNAL` namespace.
+- **Anti-Hallucination Quoting-Directive** in PromptBuilderRuntimeState —
+  explicit instruction to quote values verbatim, forbidden shapes
+  (log-lines, JSON, timestamps), anti-tool-call directive, three-case
+  defensive empty-snapshot handling.
+- **Anti-Escalation Hint** in `_formatting()` — "Kündige Tiefe nicht an".
+- **IntentRouter Meta-State Patterns** — 13 alternations with new stage
+  `conversational-meta-state` (confidence 0.9), DE and EN.
+- **Snapshot Consistency regression lock** — ContextCollector and
+  RuntimeStatePort must return equivalent values for emotional state.
+- **Principle 0.7** established: *Genesis spricht aus dem was ist.*
+
+### From v7.4.1 — **not documented in CHANGELOG** (Erratum)
+
+- **SelfModel-Split** (4 files via Prototype-Delegation):
+  - `SelfModel.js` (210 LOC) — core
+  - `SelfModelParsing.js` (200 LOC) — `_scanDir`, `_scanDirAsync`, `_parseModule`
+  - `SelfModelCapabilities.js` (140 LOC) — `_detectCapabilities`, helpers
+  - `SelfModelSourceRead.js` (260 LOC) — `readModule`, `readSourceSync`, `describeModule`
+
+  **Note:** CognitiveSelfModel.js (518 LOC) is NOT part of this split —
+  it is an independent cognitive service since v5.9.8. The split
+  happened but was omitted from the v7.4.1 CHANGELOG. The file-header of
+  each split file documents "v7.4.1: Split into 4 files via prototype
+  delegation." This entry serves as the after-the-fact erratum.
+
+### From v7.4.2 — "Kassensturz" (this release)
+
+- **AUDIT-BACKLOG drift closed** — five releases of missing entries
+  caught up.
+- **CHANGELOG erratum** — v7.4.1 SelfModel-Split now documented.
+- **Stalled-Status Docs-Drift resolved** — `GoalStack.js:129` status
+  comment extended with `stalled`. `_isTerminal()` has explicit header
+  comment documenting the design decision (stalled/paused are
+  active-with-warning, intentionally not terminal). Regression test locks
+  this behavior.
+- **CommandHandlers Domain-Split** — `CommandHandlers.js` 846 LOC →
+  under 700 LOC via 6 domain mixins (Code, Shell, Goals, Memory, System,
+  Network), Prototype-Delegation pattern (same as DreamCyclePhases,
+  ChatOrchestratorSourceRead, SelfModel split). 23 methods preserved.
+- **Principle 0.8** established: *AUDIT-BACKLOG is part of every release.*
 
 ---
 
@@ -97,13 +208,89 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
 
 ### O-6: Branch Coverage Threshold Temporarily Lowered
 - **Since:** v7.2.0
-- **Status:** OPEN
+- **Status:** OPEN as of v7.4.2
 - **Detail:** v7.2.0 introduced new fallback branches in `_identity()`,
   `_handleSelfReflect()`, and `_scoreResearchInsight()` that lowered branch
   coverage from 76.1% to 75.91%. Threshold temporarily reduced to 75.9%.
 - **Action:** 3-4 tests on v7.2.0 fallback paths to restore 76% threshold.
   Target files: PromptBuilderSections.js, SelfModificationPipeline.js,
   IdleMindActivities.js.
+- **v7.4.2 note:** Intentionally deferred. Principle 0.5 — v7.4.2 already
+  combines three themes (bookkeeping + repairs + split); adding a fourth
+  would be scope creep. O-6 has waited 5 releases; can wait more.
+
+### O-7: Baustein D Fall 2 — "ich kann das nachprüfen"
+- **Since:** v7.4.1 (Baustein D diagnostic phase only)
+- **Status:** OPEN — diagnostic not yet executed
+- **Detail:** The v7.4.1 Windows test session observed Genesis asking for
+  a memory ID in response to "ich kann das nachprüfen". Three scenarios:
+  A) LocalClassifier drift, B) LLM tool-call hallucination, C) neither.
+  v7.4.1 added `scripts/diagnose-v741-d0.js` to determine which scenario
+  applies. The fix (D.1) is conditional on the diagnostic output.
+- **Action:** Run `node scripts/diagnose-v741-d0.js` on the Windows instance,
+  then route to D.1 if A, close if B (already covered by Baustein E),
+  re-plan if C.
+
+### O-8: Four files still over 700-LOC warn threshold
+- **Since:** v7.4.2 (CommandHandlers split addressed the largest; four remain)
+- **Status:** OPEN
+- **Detail:** After v7.4.2 split of CommandHandlers.js (846 → under 700),
+  four files remain over threshold:
+  - `PromptBuilderSections.js` — 769 LOC (v7.4.0 already stripped once)
+  - `EpisodicMemory.js` — 758 LOC (v7.3.7 growth from MemoryDecay)
+  - `IntentRouter.js` — 713 LOC (v7.4.1 growth from Meta-Patterns)
+  - `SelfModificationPipeline.js` — 704 LOC (v7.1.3 already stripped once)
+- **Action:** Future hygiene releases. Principle 0.5 (one split per release).
+  No prioritization yet — whichever naturally grows next via a feature touch
+  becomes the candidate.
+
+### O-9: GateStats data collection status unverified
+- **Since:** v7.4.2 (carry-over check item)
+- **Status:** OPEN — verification pending
+- **Detail:** O-2 reports 3/50 target samples as of v7.0.0. Current
+  sample count unknown — the collection is passive and the last audit
+  was v7.0.0.
+- **Action:** `cat .genesis/gate-stats.json` on the Windows instance,
+  update O-2 status. If ≥20 samples, consider closing as "passive collection
+  complete, sample size adequate for weak confidence". If still ~3,
+  leave OPEN with no urgency.
+
+### O-10: docs/ five releases of version drift
+- **Since:** v7.3.7 (docs not updated alongside v7.3.7, v7.3.8, v7.3.9, v7.4.0, v7.4.1)
+- **Status:** OPEN as of v7.4.2
+- **Detail:** Most files in `docs/` carry a `v7.3.6` version header and
+  reference outdated counts (5036 tests, 156 services, 391 events, etc.).
+  Affected: ARCHITECTURE-DEEP-DIVE.md, CAPABILITIES.md, COMMUNICATION.md,
+  EVENT-FLOW.md, MCP-SERVER-SETUP.md. ONTOGENESIS.md is partially current
+  (v7.3.7 section correct). banner.svg and phase9-cognitive-architecture.md
+  are version-independent. README.md and ARCHITECTURE.md were updated in
+  v7.4.2 itself (those two are the user-facing entry points).
+- **Action:** Dedicated docs-hygiene release. Too broad to fold into v7.4.2
+  (Principle 0.5 — one release one theme). Candidate: review docs/ as
+  part of the next major release, or dedicated doc-sync release.
+
+### O-11: Circuit-Breaker uses one global timeout for all backends
+- **Since:** v4.x (latent) / v7.4.2 (explicitly documented)
+- **Status:** OPEN — fixed as single-value workaround in Baustein E,
+  root cause remains.
+- **Detail:** `CIRCUIT.TIMEOUT_MS` is a single number used for every
+  LLM call, regardless of whether it routes to a cloud backend
+  (typically <10s) or a local Ollama model (cold-start up to 180s).
+  v7.4.2 Baustein E set it to 180000 to stop the cascade — this lets
+  a cloud call hang for 3 minutes before the breaker fires, which is
+  ugly but at least doesn't cause false-positive OPEN states.
+- **Action options for a later release:**
+  - **Option A:** Dynamic timeout per backend. ModelBridge/ModelRouter
+    knows which backend it's calling; pass `timeoutMs` as a per-call
+    override. Small change.
+  - **Option B:** Remove the circuit-breaker timeout wrapper entirely.
+    The HTTP LLM call already has its own timeout (`LLM_RESPONSE_LOCAL` /
+    `LLM_RESPONSE_CLOUD`). The wrapper double-wraps with a shorter value —
+    that's always going to drift. Cleanest solution.
+  - **Option C:** Keep the wrapper but set `timeoutMs: null` / Infinity
+    and let the HTTP call be the single source of truth.
+  Recommended: Option B. The wrapper's job is failure counting and state
+  transitions, not timeout enforcement.
 
 ---
 

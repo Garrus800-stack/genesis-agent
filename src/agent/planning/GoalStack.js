@@ -126,7 +126,7 @@ class GoalStack {
       description,
       source,
       priority,
-      status: 'active',       // active | paused | completed | failed | abandoned | blocked
+      status: 'active',       // active | paused | completed | failed | abandoned | blocked | stalled
       steps,
       currentStep: 0,
       results: [],             // Result of each completed step
@@ -390,6 +390,18 @@ class GoalStack {
   // would silently overwrite 'completed' → 'paused', and resumeGoal(failedId)
   // would resurrect a failed goal. markStalled/markObsolete already had this
   // guard since v7.3.3 — pause/resume/abandon were missing it.
+  /**
+   * Terminal statuses = completed | failed | abandoned.
+   *
+   * `stalled` and `paused` are intentionally NOT terminal — they are
+   * active-with-warning. This matters because `pauseGoal()` and
+   * `resumeGoal()` below guard against terminal status; if `stalled`
+   * were terminal, stalled goals could never be paused or resumed,
+   * which defeats the "stalled = needs intervention" semantics.
+   *
+   * See v7.4.2 "Kassensturz" Baustein B for the regression test that
+   * locks this behavior.
+   */
   static _isTerminal(status) {
     return status === 'completed' || status === 'failed' || status === 'abandoned';
   }

@@ -197,8 +197,16 @@ const CIRCUIT = {
   FAILURE_THRESHOLD: 3,
   /** Cooldown before retry (ms) */
   COOLDOWN_MS: 30000,
-  /** Per-request timeout (ms) */
-  TIMEOUT_MS: 60000,
+  /** Per-request timeout (ms).
+   *  v7.4.2 FIX (Baustein E): Raised from 60000 to 180000 to match LLM_RESPONSE_LOCAL.
+   *  Cold-start of large local models (e.g. qwen3:32b-q4) on Intel GPU
+   *  takes 90-150s. The circuit-breaker timeout MUST be ≥ the HTTP-level
+   *  LLM timeout, otherwise the breaker kills in-flight legitimate
+   *  requests. Regression seen since large local models were adopted;
+   *  failure manifested as "Modell antwortet nicht (Timeout)" →
+   *  "Circuit llm is OPEN" cascade after the first model switch.
+   *  Cloud calls are unaffected (they finish in <10s typically). */
+  TIMEOUT_MS: 180000,
   /** Max automatic retries */
   MAX_RETRIES: 1,
 };
