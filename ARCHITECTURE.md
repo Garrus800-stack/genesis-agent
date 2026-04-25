@@ -3,9 +3,10 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.4.2 · Last verified: all checks green (5551 tests, fitness 127/130,
-> 0 schema mismatches, 0 orphan / missing, 0 stale refs, 0 broken links,
-> 0 service wiring errors, 0 intent wiring errors).
+> Version: 7.4.3 · Last verified: 0 schema mismatches (405 catalogued / 405 schemas),
+> 0 orphan / missing, 0 stale references, all event-validation checks green
+> (fitness, ratchet, and full test-suite numbers carried over from v7.4.2 baseline:
+> 5556 tests, fitness 127/130, ratchet floor 5555).
 
 ---
 
@@ -374,12 +375,12 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # 5036 tests, 0 failures
+node test/index.js                          # 5556 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
 node scripts/audit-events.js --strict       # 0 uncatalogued
-node scripts/architectural-fitness.js --ci  # 130/130, 0 missing shutdown
+node scripts/architectural-fitness.js --ci  # 127/130, 0 missing shutdown
 ```
 
 If any check fails, you missed a step. The most commonly forgotten: TO_STOP entry, event schema, preload whitelist.
@@ -413,7 +414,7 @@ Every event emitted must be:
 
 The `audit:events:strict` CI step enforces this. Unregistered events fail the build.
 
-**Current stats:** 391 catalogued events, 391 payload schemas (100% coverage).
+**Current stats:** 405 catalogued events, 405 payload schemas (100% coverage).
 
 ### 6.3 EventStore
 
@@ -568,7 +569,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | 5036 tests across 298+ suites |
+| Tests | `node test/index.js` | 5556 tests across 326 test files |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
@@ -663,7 +664,7 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (5036 tests)
+│   ├── index.js               → Module test runner (5556 tests)
 │   └── modules/               → One test file per service
 ├── scripts/
 │   ├── architectural-fitness.js → Fitness score (13 checks, 127/130 at v7.3.6)

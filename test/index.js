@@ -119,6 +119,10 @@ async function main() {
                 'v742-structure',
                 'v742-goalstack-stalled',
                 'v742-circuit-timeout',
+                // v7.4.3: Aufräumen II — Fail-fast semantics (O-11),
+                //         Container/IntentPatterns/SelfModPipeline splits
+                'v743-fail-fast-semantics',
+                'v743-structure',
               ]);
               const isNodeTest = NODE_TEST_FILES.has(moduleName);
               const nodeArgs = isNodeTest

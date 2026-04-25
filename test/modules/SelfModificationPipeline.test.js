@@ -130,30 +130,40 @@ describe('SelfModificationPipeline — _verifyCode', () => {
 describe('SelfModificationPipeline — safety gate presence', () => {
   // Verify the pipeline source code contains all required safety gates
   // This is a meta-test: it reads the source and checks for gate patterns
-  test('source contains scanCode calls', () => {
-    const src = fs.readFileSync(
+  //
+  // v7.4.3 Baustein D: the modify family was extracted to
+  // SelfModificationPipelineModify.js. The safety gates live in those
+  // methods, so the source-presence check now reads both files combined.
+  // The invariant is "the modify family must contain N safety gates" —
+  // unchanged in meaning, only the file boundary moved.
+  function readPipelineSource() {
+    const core = fs.readFileSync(
       path.join(__dirname, '../../src/agent/hexagonal/SelfModificationPipeline.js'), 'utf-8');
+    const modifyPath = path.join(__dirname, '../../src/agent/hexagonal/SelfModificationPipelineModify.js');
+    const modify = fs.existsSync(modifyPath) ? fs.readFileSync(modifyPath, 'utf-8') : '';
+    return core + '\n' + modify;
+  }
+
+  test('source contains scanCode calls', () => {
+    const src = readPipelineSource();
     const count = (src.match(/this\)\._codeSafety\.scanCode\s*\(/g) || []).length;
     assert(count >= 2, `expected >=2 scanCode gates, got ${count}`);
   });
 
   test('source contains _verifyCode calls', () => {
-    const src = fs.readFileSync(
-      path.join(__dirname, '../../src/agent/hexagonal/SelfModificationPipeline.js'), 'utf-8');
+    const src = readPipelineSource();
     const count = (src.match(/this\._verifyCode\s*\(/g) || []).length;
     assert(count >= 2, `expected >=2 _verifyCode gates, got ${count}`);
   });
 
   test('source contains guard.validateWrite calls', () => {
-    const src = fs.readFileSync(
-      path.join(__dirname, '../../src/agent/hexagonal/SelfModificationPipeline.js'), 'utf-8');
+    const src = readPipelineSource();
     const count = (src.match(/this\.guard\.validateWrite\s*\(/g) || []).length;
     assert(count >= 2, `expected >=2 validateWrite gates, got ${count}`);
   });
 
   test('source uses atomic write pattern', () => {
-    const src = fs.readFileSync(
-      path.join(__dirname, '../../src/agent/hexagonal/SelfModificationPipeline.js'), 'utf-8');
+    const src = readPipelineSource();
     assert(/_atomicWriteFileSync/.test(src), 'should use atomic write helper');
   });
 });

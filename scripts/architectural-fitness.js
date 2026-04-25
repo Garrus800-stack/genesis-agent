@@ -387,13 +387,17 @@ check('God Object Detection', (r) => {
   // v7.0.1: Known large modules — exempt from threshold but capped at current count.
   // EventBus: FEATURE-FROZEN, do not add methods.
   // ArchitectureReflection: Split into ArchGraph/ArchMetrics/ArchAdvisor at 70.
+  // v7.4.3: Container.js and SelfModificationPipeline.js removed from caps —
+  // after Bausteine B and D they have 16 and 18 methods respectively, well
+  // below MAX_METHODS=50, so no per-file exception is needed.
+  // v7.4.3: Caps tightened to "current count + 5 buffer" instead of historical
+  // values that were 2-3x too high. A cap that's twice the current count
+  // protects nothing — it only documents drift after the fact.
   const EXEMPT_CAPS = {
-    'EventBus.js': 84,
-    'Container.js': 72,
-    'PromptBuilderSections.js': 70,
-    'CognitiveEvents.js': 65,
-    'ArchitectureReflection.js': 70,
-    'SelfModificationPipeline.js': 60,
+    'EventBus.js': 46,                  // current 41, FEATURE-FROZEN
+    'PromptBuilderSections.js': 38,     // current 33, will re-org with BeliefStore (O-12)
+    'CognitiveEvents.js': 67,           // current 62, near growth ceiling
+    'ArchitectureReflection.js': 28,    // current 23, split target at 70
   };
   const srcFiles = walkJs(path.join(SRC, 'agent'));
   const gods = [];
@@ -687,7 +691,8 @@ check('File Size Guard', (r) => {
     'EventTypes.js',    // Catalog file — grows with features, pure data
     'EventPayloadSchemas.js', // Schema catalog — same
     'Language.js',      // i18n strings — data, not logic
-    'Container.js',     // Core DI — feature-frozen, complex by nature
+    // v7.4.3: Container.js removed from exempt — Baustein B brought it
+    // to 581 LOC, well below the 700 warn threshold. No exception needed.
   ];
 
   const srcFiles = walkJs(path.join(SRC, 'agent'));

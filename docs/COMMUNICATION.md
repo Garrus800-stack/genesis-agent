@@ -1,7 +1,7 @@
 # Genesis Agent — Communication Architecture
 
-> v7.3.6 — How Genesis instances communicate with each other and the outside world.
-> Updated with Colony IPC (V7-1), AwarenessPort, and NetworkSentinel.
+> v7.4.3 — How Genesis instances communicate with each other and the outside world.
+> Updated with Colony IPC (V7-1), AwarenessPort, NetworkSentinel, RuntimeStatePort (v7.4.0), and `failFastMs` CircuitBreaker semantics (v7.4.3).
 
 ---
 
@@ -177,6 +177,7 @@ Features:
 - Skill candidate extraction (recurring patterns → suggest new built-in skills)
 - Schema validation before tool calls
 - Idle exploration (IdleMind probes available tools during downtime)
+- CircuitBreaker per connection — `failFastMs: 15000` (v7.4.3 semantics): the breaker opens 15s before the 30s HTTP transport timeout, so flaky servers stop wasting full HTTP windows. The LLM circuit, by contrast, runs with `failFastMs: null` so the OllamaBackend's own `req.setTimeout(LLM_RESPONSE_LOCAL)` is the single ceiling.
 
 ### As MCP Server (Genesis exposes its own tools)
 

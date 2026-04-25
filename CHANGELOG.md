@@ -1,3 +1,132 @@
+## [7.4.3] — "Aufräumen II"
+
+> One real bug fix (O-11 from v7.4.2 backlog) and three structural splits
+> that bring three of four files >700 LOC under threshold. Same baustein
+> rhythm as v7.4.2: A is the runtime fix, B/C/D are mechanical extractions
+> with no behaviour change. PromptBuilderSections deliberately stays open
+> as a v7.6 candidate (re-org with BeliefStore in one pass, not two).
+
+### Baustein A — O-11: failFastMs semantics (the real fix)
+
+v7.4.2 Baustein E synchronized `CIRCUIT.TIMEOUT_MS` (60s → 180s) to match
+`LLM_RESPONSE_LOCAL`. That stopped the symptom but kept the root cause: the
+LLM circuit ran a duplicate `Promise.race` over a function whose own HTTP
+timeout did the same job. Two timers, same value, same error path. At
+identical values the wrapper was harmless; at any drift apart the shorter
+one orphaned in-flight requests at the other one's boundary.
+
+The fix is semantic, not numerical:
+
+- `CircuitBreaker.timeoutMs` → `failFastMs` (canonical name)
+- `timeoutMs` retained as deprecation alias (precedence: `failFastMs` > `timeoutMs` > default 15s)
+- `failFastMs: null | 0` opts the wrapper out entirely — `fn()` runs to completion or its own timeout
+- `phase2-intelligence.js` LLM circuit configured with `failFastMs: null`
+  (OllamaBackend's `req.setTimeout(LLM_RESPONSE_LOCAL)` is the only ceiling)
+- `McpTransport` migrated to `failFastMs: 15000` (behaviour unchanged — MCP's
+  CB is real fail-fast: 15s window, 30s HTTP timeout, opens the breaker
+  earlier than transport timeout would)
+- `Constants.CIRCUIT.FAIL_FAST_MS` added; `TIMEOUT_MS` retained as alias
+- `getStatus()` surfaces `failFastMs` for diagnostics
+- New `test/modules/v743-fail-fast-semantics.test.js` (11 assertions): pins
+  precedence, opt-out, default, MCP semantics, source-parse check that the
+  LLM CB stays opted out
+- v7.4.2 invariant test (`v742-circuit-timeout.test.js`) kept as-is — still
+  green via the deprecation alias, now functions as a regression pin on the
+  alias itself
+
+Side benefit: HTTP-level error messages are now propagated unchanged
+(`[TIMEOUT] Ollama not responding (180s)` instead of `Circuit llm: Timeout
+nach 180000ms`), giving more diagnostic value at the call site.
+
+### Baustein B — Container Diagnostics split
+
+`Container.js` (771 LOC) over the 700-LOC threshold since v7.0.1. The four
+diagnostic / boot-planning methods are only called at boot or from health
+inspectors — never on the hot path:
+
+- `getDependencyGraph` (visualization / health endpoint, 13 LOC)
+- `validateRegistrations` (boot-time structural checker, 51 LOC)
+- `_topologicalSort` (legacy boot order, 42 LOC)
+- `_toLevels` (level-parallel boot, 79 LOC)
+
+Extracted to `src/agent/core/ContainerDiagnostics.js` (262 LOC) via
+prototype delegation. Same pattern as `SelfModelParsing` (v7.4.1) and
+`CommandHandlersCode` (v7.4.2). External callers (`AgentCore`,
+`AgentCoreBoot`, `AgentCoreHealth`, `HealthServer`) keep working through
+the prototype chain — no signature changes.
+
+`Container.js`: 771 → 581 LOC.
+
+### Baustein C — IntentPatterns data extract
+
+`IntentRouter.js` (713 LOC) over the threshold since v5.1.0. The largest
+chunk (~265 LOC) was the declarative `INTENT_DEFINITIONS` array, the
+`SLASH_ONLY_INTENTS` set, and the `_enforceSlashDiscipline` post-classification
+guard. None of these touch instance state.
+
+Extracted to `src/agent/intelligence/IntentPatterns.js` as a pure data
+module — no mixin ceremony, just three exports:
+
+- `INTENT_DEFINITIONS: Array<[name, patterns, priority, keywords]>`
+- `SLASH_ONLY_INTENTS: Set<string>`
+- `enforceSlashDiscipline(result, message): IntentResult`
+
+`IntentRouter` imports them directly. Strategic note: this isolation makes
+the IntentRouter / BeliefStore boundary in v7.6+ cleaner — user-correction
+detection becomes a sibling concern rather than an addition to a 700-LOC file.
+
+`IntentRouter.js`: 713 → 450 LOC.
+
+### Baustein D — SelfModPipeline Modify split
+
+`SelfModificationPipeline.js` (704 LOC) over the threshold since v7.3.5.
+The "modify family" — the four methods that actually write code to disk —
+form a cohesive responsibility (Code-Schreiben) separable from the
+inspect/reflect/repair/skill/clone/greeting methods that stay in the core:
+
+- `modify` (entry, frozen-check, intent split, 64 LOC)
+- `_modifyWithDiff` (surgical patches via reflector.proposeDiff, 85 LOC)
+- `_modifyFullFile` (full-file regeneration via reasoning.solve, 106 LOC)
+- `_extractPatches` (multi-file patch parser, 7 LOC)
+
+Extracted to `src/agent/hexagonal/SelfModificationPipelineModify.js` via
+prototype delegation. External API unchanged — `pipeline.modify(message)`
+still works the same way.
+
+`SelfModificationPipeline.js`: 704 → 453 LOC.
+
+### O-8 status
+
+Files >700 LOC: was 4 (Container, PromptBuilderSections, IntentRouter,
+SelfModificationPipeline), now 1 (PromptBuilderSections only).
+PromptBuilderSections deferred deliberately — when BeliefStore lands in
+v7.6+, it will inject a new "Vermutungen / Überzeugungen / Anker" section
+into the prompt. Splitting Sections now would force a second invasive
+edit then. Better one re-organisation (Identity / Organism / Context /
+Beliefs as distinct modules) when we know the real shape.
+
+### AUDIT-BACKLOG
+
+- O-11 (doppelter Timeout) — **resolved** via Baustein A
+- O-8 (4 files >700 LOC) — **reduced** from 4 to 1 via Bausteine B/C/D
+- O-12 **new** — PromptBuilderSections re-org bundled with BeliefStore
+  introduction (v7.6+ candidate)
+
+### Architectural Fitness — exemption hygiene
+
+`scripts/architectural-fitness.js` cleaned up after the splits:
+
+- `Container.js` removed from `EXEMPT_CAPS` (now 16 methods, well below
+  MAX_METHODS=50 — no per-file exception needed)
+- `SelfModificationPipeline.js` removed from `EXEMPT_CAPS` (now 18 methods)
+- `Container.js` removed from File-Size-Guard `EXEMPT` list (now 581 LOC,
+  below the 700 warn threshold)
+- Remaining caps tightened from historical 2-3x values to `current + 5`:
+  `EventBus.js` 84→46, `PromptBuilderSections.js` 70→38, `CognitiveEvents.js`
+  65→67, `ArchitectureReflection.js` 70→28. A cap twice the current count
+  documents drift after the fact rather than preventing it.
+
+
 ## [7.4.2] — "Kassensturz"
 
 > Five releases (v7.3.7–v7.4.1) shipped without AUDIT-BACKLOG updates.

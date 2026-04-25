@@ -159,7 +159,17 @@ function phase2(ctx, R) {
         bus, name: 'llm',
         failureThreshold: CIRCUIT.FAILURE_THRESHOLD,
         cooldownMs: CIRCUIT.COOLDOWN_MS,
-        timeoutMs: CIRCUIT.TIMEOUT_MS,
+        // v7.4.3 (O-11): The LLM circuit opts out of the fail-fast wrapper.
+        // OllamaBackend already enforces TIMEOUTS.LLM_RESPONSE_LOCAL (180s)
+        // at the HTTP level via req.setTimeout() — a duplicate Promise.race
+        // here added no value and orphaned in-flight requests when both
+        // timers were synchronized to the same value (v7.4.2 Baustein E).
+        // The HTTP-level error message is also more diagnostic
+        // ("[TIMEOUT] Ollama not responding") than the breaker-level one.
+        // Failure tracking still works: any error from the HTTP layer
+        // (timeout, network, 4xx/5xx) increments the failure counter
+        // and can open the circuit normally.
+        failFastMs: null,
         maxRetries: CIRCUIT.MAX_RETRIES,
       }),
     }],

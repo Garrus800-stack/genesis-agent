@@ -1,12 +1,14 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.3.6 — Event flow documentation. 391 catalogued events, 391 payload schemas,
-> all 399 emit sites validated (0 mismatches). Active gates with bus events:
+> v7.4.3 — Event flow documentation. 405 catalogued events, 405 payload schemas (100% coverage),
+> all emit sites validated (0 mismatches). Active gates with bus events:
 > Injection-Gate (`injection:blocked`), Tool-Call-Verification (`tool-call:unverified`),
-> Self-Gate (`self-gate:warned`, telemetry only), Source-Read (`read-source:called`,
-> `read-source:soft-limit`). Dormant-emit annotations from v7.3.4, activities split
-> from v7.3.1, idle intelligence from v7.2.8, autonomy awareness from v7.2.7,
-> idle-dream event bridge from v7.2.5, signal fidelity from v7.2.4.
+> Self-Gate (`self-gate:warned`, telemetry-only by design), Source-Read (`read-source:called`,
+> `read-source:soft-limit`), CircuitBreaker (`circuit:opened`, `circuit:closed` — `failFastMs`
+> semantics in v7.4.3). Dormant-emit annotations from v7.3.4, activities split from v7.3.1,
+> idle intelligence from v7.2.8, autonomy awareness from v7.2.7, idle-dream event bridge from
+> v7.2.5, signal fidelity from v7.2.4. v7.4.0 RuntimeStatePort added 8 service `getRuntimeSnapshot()`
+> emissions; v7.4.1 backfilled 10 missing memory/dream events into the catalog.
 > This document maps which modules emit and consume which EventBus events.
 
 ## System Overview

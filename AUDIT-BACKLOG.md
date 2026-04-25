@@ -1,6 +1,6 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.4.2 · Last updated: v7.4.2 release ("Kassensturz")
+> Version: 7.4.3 · Last updated: v7.4.3 docs-hygiene pass (O-10 closed)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
@@ -231,18 +231,19 @@ itself resolved.
   then route to D.1 if A, close if B (already covered by Baustein E),
   re-plan if C.
 
-### O-8: Four files still over 700-LOC warn threshold
-- **Since:** v7.4.2 (CommandHandlers split addressed the largest; four remain)
-- **Status:** OPEN
-- **Detail:** After v7.4.2 split of CommandHandlers.js (846 → under 700),
-  four files remain over threshold:
-  - `PromptBuilderSections.js` — 769 LOC (v7.4.0 already stripped once)
-  - `EpisodicMemory.js` — 758 LOC (v7.3.7 growth from MemoryDecay)
-  - `IntentRouter.js` — 713 LOC (v7.4.1 growth from Meta-Patterns)
-  - `SelfModificationPipeline.js` — 704 LOC (v7.1.3 already stripped once)
-- **Action:** Future hygiene releases. Principle 0.5 (one split per release).
-  No prioritization yet — whichever naturally grows next via a feature touch
-  becomes the candidate.
+### O-8: Files over 700-LOC warn threshold
+- **Since:** v7.4.2 (CommandHandlers split addressed the largest; four remained)
+- **Status:** REDUCED in v7.4.3 (4 → 2 files); one item deliberately deferred
+- **Detail:** v7.4.3 Bausteine B/C/D resolved three of the four:
+  - `Container.js` — 771 → 581 LOC (Baustein B: ContainerDiagnostics extract)
+  - `IntentRouter.js` — 713 → 450 LOC (Baustein C: IntentPatterns data extract)
+  - `SelfModificationPipeline.js` — 704 → 453 LOC (Baustein D: Modify family extract)
+
+  Still over threshold:
+  - `PromptBuilderSections.js` — 769 LOC — see O-12 (deferred to v7.6+ on purpose)
+  - `EpisodicMemory.js` — 758 LOC (no driving feature need; left until natural touch)
+- **Action:** EpisodicMemory left until a natural feature touch motivates a
+  domain-aware split (Principle 0.5: one split per release, no busy-work).
 
 ### O-9: GateStats data collection status unverified
 - **Since:** v7.4.2 (carry-over check item)
@@ -257,40 +258,52 @@ itself resolved.
 
 ### O-10: docs/ five releases of version drift
 - **Since:** v7.3.7 (docs not updated alongside v7.3.7, v7.3.8, v7.3.9, v7.4.0, v7.4.1)
-- **Status:** OPEN as of v7.4.2
-- **Detail:** Most files in `docs/` carry a `v7.3.6` version header and
-  reference outdated counts (5036 tests, 156 services, 391 events, etc.).
-  Affected: ARCHITECTURE-DEEP-DIVE.md, CAPABILITIES.md, COMMUNICATION.md,
-  EVENT-FLOW.md, MCP-SERVER-SETUP.md. ONTOGENESIS.md is partially current
-  (v7.3.7 section correct). banner.svg and phase9-cognitive-architecture.md
-  are version-independent. README.md and ARCHITECTURE.md were updated in
-  v7.4.2 itself (those two are the user-facing entry points).
-- **Action:** Dedicated docs-hygiene release. Too broad to fold into v7.4.2
-  (Principle 0.5 — one release one theme). Candidate: review docs/ as
-  part of the next major release, or dedicated doc-sync release.
+- **Status:** RESOLVED in v7.4.3 (docs-hygiene pass)
+- **Detail:** Originally: most files in `docs/` carried a `v7.3.6` version
+  header and referenced outdated counts (5036 tests, 156 services, 391 events,
+  etc.). Affected: ARCHITECTURE-DEEP-DIVE.md, CAPABILITIES.md, COMMUNICATION.md,
+  EVENT-FLOW.md, MCP-SERVER-SETUP.md.
+- **Resolution:** Dedicated docs-hygiene pass within v7.4.3. All docs/ files
+  now reference v7.4.3 or are correctly version-bound historical (BUG-TAXONOMY,
+  ONTOGENESIS, TROUBLESHOOTING, BENCHMARKING, phase9-cognitive-architecture).
+  DEGRADATION-MATRIX.md regenerated from script (Services 143→151, Bindings
+  532→569). Event counts corrected throughout (415→405, the actual catalog
+  count per `audit-events.js`); test counts brought current (5036→5556 in
+  ARCHITECTURE.md, 5510→5556 in README.md). README and ARCHITECTURE.md
+  internal inconsistencies (414 badge / 415 inline / 404 schemas) collapsed
+  to single source of truth (405/405). Historical version references kept
+  as-is (Principle: a doc that says "fixed in v7.1.3" is documenting
+  history, not drifting).
 
 ### O-11: Circuit-Breaker uses one global timeout for all backends
 - **Since:** v4.x (latent) / v7.4.2 (explicitly documented)
-- **Status:** OPEN — fixed as single-value workaround in Baustein E,
-  root cause remains.
-- **Detail:** `CIRCUIT.TIMEOUT_MS` is a single number used for every
-  LLM call, regardless of whether it routes to a cloud backend
-  (typically <10s) or a local Ollama model (cold-start up to 180s).
-  v7.4.2 Baustein E set it to 180000 to stop the cascade — this lets
-  a cloud call hang for 3 minutes before the breaker fires, which is
-  ugly but at least doesn't cause false-positive OPEN states.
-- **Action options for a later release:**
-  - **Option A:** Dynamic timeout per backend. ModelBridge/ModelRouter
-    knows which backend it's calling; pass `timeoutMs` as a per-call
-    override. Small change.
-  - **Option B:** Remove the circuit-breaker timeout wrapper entirely.
-    The HTTP LLM call already has its own timeout (`LLM_RESPONSE_LOCAL` /
-    `LLM_RESPONSE_CLOUD`). The wrapper double-wraps with a shorter value —
-    that's always going to drift. Cleanest solution.
-  - **Option C:** Keep the wrapper but set `timeoutMs: null` / Infinity
-    and let the HTTP call be the single source of truth.
-  Recommended: Option B. The wrapper's job is failure counting and state
-  transitions, not timeout enforcement.
+- **Status:** RESOLVED in v7.4.3 Baustein A
+- **Detail:** v7.4.2 Baustein E synchronized `CIRCUIT.TIMEOUT_MS` to 180s
+  as a workaround. v7.4.3 fixed the root cause: the LLM circuit was
+  running a duplicate `Promise.race` over a function whose own HTTP
+  timeout did the same job.
+- **Resolution:** Renamed `CircuitBreaker.timeoutMs` → `failFastMs` with
+  `null|0` opt-out semantics. LLM circuit configured with `failFastMs: null`
+  (HTTP layer is the single ceiling). MCP keeps `failFastMs: 15000` because
+  there it is real fail-fast (15s CB window, 30s HTTP timeout).
+  `timeoutMs` retained as deprecation alias. New invariant test
+  `v743-fail-fast-semantics.test.js` pins the new semantics including a
+  source-parse check that the LLM circuit stays opted out. Effectively
+  equivalent to the recommended Option B from the original entry, with
+  the wrapper preserved for callers (MCP) that need real fail-fast.
+
+### O-12: PromptBuilderSections re-org bundled with BeliefStore
+- **Since:** v7.4.3 (deliberate deferral)
+- **Status:** OPEN by design
+- **Detail:** `PromptBuilderSections.js` is 769 LOC. v7.4.3 considered
+  splitting Organism context (~130 LOC) as a fourth Baustein but chose
+  to leave it. Reason: BeliefStore in v7.6+ will inject a new
+  "Vermutungen / Überzeugungen / Anker" section into the prompt.
+  Splitting now would force a second invasive edit on the same file
+  in v7.6.
+- **Action:** Re-organise PromptBuilderSections in the BeliefStore release
+  with a clear taxonomy: Identity / Organism / Context / Beliefs as
+  distinct modules. One coherent change instead of two adjacent ones.
 
 ---
 

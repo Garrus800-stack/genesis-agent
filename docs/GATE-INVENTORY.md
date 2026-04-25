@@ -1,18 +1,31 @@
 # Gate Inventory
 
-Vollständige Auflistung aller bewusst blockierenden Code-Pfade in Genesis.
-Erstellt durch systematisches Grep nach `blocked`, `rejected`, `denied`,
-`throw new Error`, und ähnlichen Patterns mit Block-Charakter.
+> v7.4.3 — Vollständige Auflistung aller bewusst blockierenden bzw. observierenden Code-Pfade in Genesis.
+> Erstellt durch systematisches Grep nach `blocked`, `rejected`, `denied`,
+> `throw new Error`, und ähnlichen Patterns mit Block-Charakter.
 
-## Instrumentiert
+## Instrumentiert (zentrale GateStats-Aufzeichnung seit v7.3.6)
 
-| # | Gate                      | Ort                                             | Verdict-Semantik           |
-|---|---------------------------|-------------------------------------------------|----------------------------|
-| 1 | `injection-gate`          | `ChatOrchestratorHelpers._processToolLoop`      | safe→pass, warn, block     |
-| 2 | `tool-call-verification`  | `ChatOrchestratorHelpers._processToolLoop`      | verified→pass, _→warn      |
+| # | Gate                      | Ort                                             | Verdict-Semantik           | Charakter             |
+|---|---------------------------|-------------------------------------------------|----------------------------|-----------------------|
+| 1 | `injection-gate`          | `ChatOrchestratorHelpers._processToolLoop`      | safe→pass, warn, block     | blockierend           |
+| 2 | `tool-call-verification`  | `ChatOrchestratorHelpers._processToolLoop`      | verified→pass, _→warn      | detektiv              |
+| 3 | `self-gate`               | `core/self-gate.js`                             | pass / warn (nie block)    | telemetry-only by design |
+| 4 | `slash-discipline`        | 13 Slash-Handlers (settings/journal/plans/...)  | pass / block               | präventiv             |
+| 5 | `self-mod:circuit-breaker`| `SelfModificationPipelineModify`                | pass / block               | blockierend           |
+| 6 | `self-mod:consciousness`  | `SelfModificationPipelineModify`                | pass / block (wenn coherence < 0.4) | **strukturell inert** mit `NullAwareness`-Default (`getCoherence()` → 1.0) |
+| 7 | `self-mod:energy`         | `SelfModificationPipelineModify`                | pass / block               | blockierend           |
 
 Integration-Test: `test/modules/gate-stats-integration.test.js` — end-to-end
-Coverage dass recordGate() durch echte ChatOrchestrator-Flüsse getriggert wird.
+Coverage dass `recordGate()` durch echte ChatOrchestrator-Flüsse getriggert wird.
+
+> **Wichtig zum AwarenessPort-Gate (Zeile 6):** Solange die Default-Implementierung
+> `NullAwareness` registriert ist, gibt `getCoherence()` konstant `1.0` zurück. Mit
+> `THRESHOLDS.SELFMOD_COHERENCE_MIN = 0.4` ist die Bedingung `1.0 < 0.4` immer falsch,
+> das Gate kann nicht blocken. Es wird wirksam, sobald eine echte AwarenessPort-Implementation
+> registriert wird (z.B. eine HeuristicAwareness aus selfmod-Failure-Rate, Frustration,
+> kontradizierten Lessons). Self-Modification ist bis dahin durch Energy-Gate, CircuitBreaker,
+> PreservationInvariants und sandboxed Verification geschützt.
 
 ## Weitere Gate-Kandidaten im Codebase (nicht instrumentiert)
 

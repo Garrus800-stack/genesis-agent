@@ -1,10 +1,12 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.3.6 — What Genesis can do, organized by category.
-> Scale: 5036 tests, 391 catalog = 391 schemas, fitness 127/130, 156 DI services across 12 boot phases.
-> Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry),
-> Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard).
+> v7.4.3 — What Genesis can do, organized by category.
+> Scale: 5556 tests, 405 events with payload schemas (100% coverage), fitness 127/130, 163 DI services (151 manifest + 12 bootstrap) across 12 boot phases.
+> Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry-only by design),
+> Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard),
+> Runtime-State Quoting (v7.4.1 directive + anti-tool-call).
 > Synchronous source-read in chat with per-turn + session budget (`read-source:called`, `read-source:soft-limit`).
+> AwarenessPort coherence gate is structurally inert until a real Awareness implementation lands — default `NullAwareness.getCoherence()` returns 1.0, threshold is 0.4.
 
 ---
 
@@ -180,10 +182,12 @@ The former Consciousness Layer (AttentionalGate, PhenomenalField, TemporalSelf, 
 **AwarenessPort** `v7.0.0` — Minimal interface consumed by SelfModificationPipeline, AgentLoopCognition, PromptBuilder, and Dashboard. Default implementation is **NullAwareness** (no-op, zero overhead). A real awareness implementation can be plugged in via the DI container.
 
 **Key behaviours:**
-- `getCoherence()` → 0..1 coherence score used to gate self-modification
+- `getCoherence()` → 0..1 coherence score used to gate self-modification (NullAwareness returns constant `1.0`)
 - `consult(plan)` → consulted before goal execution
 - `buildPromptContext()` → optional system-prompt injection
 - `getGateStats().awarenessActive` → `false` while NullAwareness is active (dashboard shows "inactive" badge)
+
+**Current gate behaviour:** Threshold `SELFMOD_COHERENCE_MIN = 0.4`. Because NullAwareness returns constant 1.0, the coherence gate is **by-design inert** in the default configuration — it cannot block self-modification. The gate becomes effective only when a real AwarenessPort implementation is registered. Self-modification is still protected by the energy gate (Metabolism), the circuit breaker (consecutive-failure counter), PreservationInvariants (11 semantic safety rules), and sandboxed verification.
 
 **A/B result:** 0pp performance impact (consistent with Phase 13 A/B result). Architecture is simpler, boot is faster, LOC reduced by 6k.
 ## 8. Tools & Capabilities
@@ -424,8 +428,8 @@ Not every request needs the full cognitive pipeline. Genesis now scales effort t
 | **AdaptivePromptStrategy** | Analyzes provenance traces to learn which prompt sections help per intent type. Automatically boosts effective sections and skips ineffective ones. Protected sections (identity, safety) are never skipped. |
 | **Smart Model Ranking** | 35-tier pattern scoring (Claude=100, DeepSeek=92, minimax=15). First-run auto-selects the strongest available model instead of alphabetical first. |
 | **Colony Consensus Proof** | 16/16 VectorClock + sync + conflict resolution tests. LWW conflict resolution verified. |
-| **Awareness A/B** | Empirically validated: 0pp impact. Phase 13 (Consciousness) permanently removed in v7.0.0, replaced by lightweight AwarenessPort (2 modules, 112 LOC). |
-| **Organism A/B** | Empirically validated: +33pp task success with Organism active. Stays enabled in all profiles. |
+| **Awareness A/B** | Phase 13 (Consciousness, 14 modules, 6198 LOC) showed 0pp impact in v6.0.x A/B testing and was removed in v7.0.0 in favour of the lightweight AwarenessPort interface. Default `NullAwareness` is by-design inert; the gate becomes effective only when a real implementation is registered. |
+| **Organism A/B** | Internal A/B benchmark on a single model (kimi-k2.5:cloud, 12 tasks, v6.0.4–v7.2.3): +16pp to +33pp task success with Organism active. v6.0.4 baseline had CPU-only timeouts that likely inflated the upper delta. Not yet replicated across models. Stays enabled in all profiles. |
 
 ---
 
@@ -445,3 +449,56 @@ Network resilience, intelligence pipeline validation, and codebase consolidation
 | **CC reduction** | `_buildPatternDB` refactored from CC=56 to CC=8 via declarative PATTERN_RULES table. SA-O1 closed. |
 | **Event catalog clean** | `lesson:learned` + `prompt:strategy-updated` registered. 0 warnings, 0 errors. |
 | **Coverage push** | Function coverage 69.6% → 80.0% (+10.4pp over v6.0.5). 355 new tests in v7.0.0. Ratchet 75/70/70 → 81/76/80. |
+
+---
+
+## 23. v7 Series Highlights
+
+The v7 line is dominated by structural maturation: smaller, more honest, better-instrumented, with explicit principles guiding what does and does not ship per release.
+
+### v7.0 — Awareness consolidation
+| Feature | What it does |
+|---|---|
+| **AwarenessPort + NullAwareness** | Phase 13 (Consciousness, 14 modules, 6198 LOC) replaced by a 112-LOC interface. Default `NullAwareness` returns constant coherence 1.0 — by-design inert until a real implementation lands. |
+
+### v7.1 — Frontier-driven autonomy
+| Feature | What it does |
+|---|---|
+| **EmotionalFrontier** | Captures unresolved emotional moments. Surfaces them as candidate goals. |
+| **GoalSynthesizer** | Frontier-driven: unfinished work, anomalies, and contradicted lessons generate autonomous goals. |
+| **EmotionalSteering → AdaptiveStrategy** | Emotional dimensions translated into concrete strategy modifiers (escalate model on frustration, shorten plans on low energy). |
+| **Schema CI-Gate (S-9)** | All event payloads validated against declared schemas at boot — catches contract violations without running the offending path. |
+| **Contract Validator (S-2)** | Late-binding `expects: ['method1', 'method2']` checked at wire time. Missing methods fail fast instead of throwing on first call. |
+
+### v7.2 — Ontogenesis & memory layering
+| Feature | What it does |
+|---|---|
+| **GenesisBackup** | `.genesis/` snapshotted to `.genesis-backups/` before self-mod writes, on graceful shutdown, daily stale-check, and on boot recovery. Last 5 snapshots rotated. |
+| **Idle-Dream Event Bridge** (v7.2.5) | DreamCycle responds to memory pressure and idle gates. Dream intensity scales with KG growth. |
+| **LLM as idle knowledge source** (v7.2.8) | IdleMind can use the LLM to fill knowledge gaps, with token-budgeted, value-gated queries. |
+
+### v7.3 — Honesty & memory decay
+| Feature | What it does |
+|---|---|
+| **Three-layer memory decay** (v7.3.7) | Episodes start at Layer 1 (Detail), consolidated to Layer 2 (Schema), then to Layer 3 (Feeling — topic + emotional arc + single-sentence essence). Replaces ring-buffer truncation. |
+| **JournalWriter** (v7.3.7) | Three visibilities (private/shared/public), monthly rotation, crash-robust JSONL. |
+| **Pin-and-Reflect** (v7.3.7) | `mark-moment` tool + DreamCycle Phase 1.5 (KEEP / ELEVATE / LET_FADE). |
+| **Goal-Lifecycle Auto-Transitions** (v7.3.7) | GoalStack auto-completes (all steps done), auto-fails (attempts exhausted), auto-stalls (72h inactive). |
+| **Synchronous Source-Read** (v7.3.8) | ChatOrchestrator can read CHANGELOG.md and package.json synchronously per turn. mtime-cached, per-turn + session budget. |
+| **LLM-Failure-Honesty** (v7.3.8) | Typed error classifier, system-message format `⚠ Modell nicht verfügbar`, not pushed to history. Principle 0.4: *Honest non-knowing*. |
+| **DreamCycle / ChatOrchestrator splits** (v7.3.9) | 854→482 LOC and 719→582 LOC via Prototype-Delegation. Principle 0.5: *Structural hygiene is its own release*. |
+| **Central GateStats** (v7.3.6) | All gate verdicts (`pass`/`block`/`warn`) recorded centrally. Sampling for hot-path gates. Dead gates and disproportionate blockers become visible. |
+
+### v7.4 — Honesty in self-reporting
+| Feature | What it does |
+|---|---|
+| **RuntimeStatePort** (v7.4.0) | 8 services implement `getRuntimeSnapshot()`. Settings, EmotionalState, NeedsSystem, Metabolism, AutonomousDaemon, IdleMind, GoalStack, PeerNetwork. |
+| **Identity-Leak-Fix** (v7.4.0) | LLM model name removed from `_identity()` block. Explicit "Du bist NICHT das zugrundeliegende Sprachmodell". 55-test regression lock against 23 branded names. |
+| **Anti-Hallucination Quoting** (v7.4.1) | PromptBuilder forces verbatim quoting of runtime values. Forbids fabricated log-lines, JSON, timestamps. Anti-tool-call directive prevents declarative metaphors from being interpreted as file-read calls. |
+| **IntentRouter Meta-State Patterns** (v7.4.1) | 13 alternations for "wie viel energie" / "welche ziele" / "how do you feel" route directly to runtime block instead of escalating to tasks. |
+| **Event-Schema 100%** (v7.4.1) | 405/405 catalogued events have payload schemas. 0 mismatches. |
+| **AUDIT-BACKLOG drift closed** (v7.4.2) | Five releases of missing entries caught up. Principle 0.8: *AUDIT-BACKLOG is part of every release*. |
+| **CommandHandlers Domain-Split** (v7.4.2) | 846→under 700 LOC via 6 domain mixins (Code, Shell, Goals, Memory, System, Network). |
+| **Self-Gate explicit telemetry-only** (v7.4.2) | Self-Gate documented as observation-only by design (vs. Input-Gate which blocks). Symmetry with Injection-Gate is intentional, not a deficit. |
+| **failFastMs semantics** (v7.4.3) | `CircuitBreaker.timeoutMs` renamed to `failFastMs` with `null|0` opt-out. LLM circuit opted out (HTTP layer is single ceiling). MCP keeps `failFastMs: 15000` for real fail-fast. Removes the duplicate-`Promise.race` orphan-request bug. |
+| **Container / IntentRouter / SelfModificationPipeline splits** (v7.4.3) | Three of four >700-LOC files brought under threshold. PromptBuilderSections deferred to v7.6+ (re-org bundled with BeliefStore release). |

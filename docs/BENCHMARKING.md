@@ -113,11 +113,15 @@ node scripts/benchmark-agent.js --ab-layer 13 --quick --backend ollama:qwen2.5:7
 
 | Version | Model | Mode | Result | Detail |
 |---|---|---|---|---|
-| v6.0.4 | kimi-k2.5:cloud | Full (12 tasks) | **+33pp** | First validation, CPU-only |
+| v6.0.4 | kimi-k2.5:cloud | Full (12 tasks) | **+33pp** | First validation, CPU-only baseline (timeouts inflated upper delta) |
 | v7.2.3 | kimi-k2.5:cloud | Full (12 tasks) | **+16pp** | 83% vs 67%, 2 timeouts in baseline |
 | v7.2.3 | kimi-k2.5:cloud | Quick (3 tasks) | 0pp | 100% vs 100%, neutral |
 
-The organism layer consistently helps on complex tasks (code smell detection, strategy pattern extraction) while having no impact on simple tasks. Baseline timeouts (ETIMEDOUT on CPU-only) inflate the delta slightly — the real signal is that organism-enabled Genesis solves tasks the baseline struggles with.
+**Caveats — read these before citing the numbers:**
+- Single model only (kimi-k2.5:cloud). Not yet replicated on Anthropic, OpenAI, or other Ollama models.
+- 12-task suite, single machine.
+- The v6.0.4 baseline ran on CPU-only with ETIMEDOUT failures that inflated the upper delta. Treat the v7.2.3 lower bound (+16pp) as the conservative reading.
+- Organism helps on complex tasks (code smell detection, strategy pattern extraction) and is neutral on trivial tasks — the delta is task-mix-dependent.
 
 ```bash
 npm run benchmark:agent:layer:organism

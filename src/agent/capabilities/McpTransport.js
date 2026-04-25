@@ -75,11 +75,16 @@ class McpServerConnection {
     this._heartbeatHandle = null;
 
     // v5.2.0: Per-server CircuitBreaker
+    // v7.4.3 (O-11): MCP keeps the fail-fast wrapper. Unlike LLM, the
+    // CB window (15s) is genuinely shorter than the HTTP timeout (30s
+    // via _requestTimeout) — so failFastMs is real fail-fast policy
+    // here, not duplication. Aborts laggy MCP calls earlier than the
+    // transport would, lets the breaker open and degrade sooner.
     this._circuitBreaker = new CircuitBreaker({
       name: `mcp:${this.name}`,
       failureThreshold: config.circuitBreakerThreshold || 3,
       cooldownMs: config.circuitBreakerCooldownMs || 30000,
-      timeoutMs: config.circuitBreakerTimeoutMs || 15000,
+      failFastMs: config.circuitBreakerFailFastMs ?? config.circuitBreakerTimeoutMs ?? 15000,
       maxRetries: config.circuitBreakerRetries ?? 1,
       retryDelayMs: config.circuitBreakerRetryDelayMs ?? 2000,
       fallback: /** @type {any} */ (null),  // No fallback — let caller handle

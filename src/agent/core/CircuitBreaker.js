@@ -21,7 +21,13 @@ class CircuitBreaker {
    * @param {string} [config.name] - Identifier for this breaker
    * @param {number} [config.failureThreshold] - Failures before opening (default: 3)
    * @param {number} [config.cooldownMs] - Time in OPEN before trying HALF-OPEN (default: 30s)
-   * @param {number} [config.timeoutMs] - Max time per call before counting as failure (default: 15s)
+   * @param {number|null} [config.failFastMs] - Fail-fast window: abort calls
+   *   that exceed this and count them as failures. Only meaningful when
+   *   shorter than the timeout policy of the wrapped fn — otherwise it
+   *   duplicates a downstream timer. Set to null/0 to opt out (the wrapped
+   *   fn's own timeout is then the only ceiling). v7.4.3: replaces timeoutMs.
+   * @param {number} [config.timeoutMs] - DEPRECATED alias for failFastMs.
+   *   Kept for backward compatibility; will be removed in a future release.
    * @param {number} [config.maxRetries] - Retries before counting as failure (default: 2)
    * @param {number} [config.retryDelayMs] - Delay between retries (default: 1s)
    * @param {Function} [config.fallback] - Fallback function when circuit is OPEN
@@ -33,7 +39,22 @@ class CircuitBreaker {
     this.name = config.name || 'default';
     this.failureThreshold = config.failureThreshold || 3;
     this.cooldownMs = config.cooldownMs || 30000;
-    this.timeoutMs = config.timeoutMs || 15000;
+    // v7.4.3 (O-11): failFastMs is the canonical name. timeoutMs is the
+    // deprecation alias. Precedence: failFastMs > timeoutMs > default 15s.
+    // null/0 explicitly opts out of the fail-fast wrapper — used by the
+    // LLM circuit because OllamaBackend already enforces an HTTP timeout
+    // of equal length, and a duplicate timer just orphaned in-flight
+    // requests at the boundary (see AUDIT-BACKLOG O-11).
+    if (config.failFastMs !== undefined) {
+      this.failFastMs = config.failFastMs;
+    } else if (config.timeoutMs !== undefined) {
+      this.failFastMs = config.timeoutMs;
+    } else {
+      this.failFastMs = 15000;
+    }
+    // Backward-compat read-only mirror — existing diagnostic code that
+    // reads cb.timeoutMs (HealthMonitor, getStatus consumers) keeps working.
+    this.timeoutMs = this.failFastMs;
     this.maxRetries = config.maxRetries ?? 2;
     this.retryDelayMs = config.retryDelayMs ?? 1000;
     this.fallback = config.fallback || null;
@@ -103,13 +124,27 @@ class CircuitBreaker {
   }
 
   /**
-   * Execute fn with a timeout wrapper
+   * Execute fn with a fail-fast wrapper.
+   *
+   * v7.4.3 (O-11): If failFastMs is null/0/undefined, the wrapper is skipped
+   * and fn() runs to completion (or its own timeout). Used by the LLM
+   * circuit, where OllamaBackend.req.setTimeout() already enforces a
+   * 180s HTTP-level ceiling — having the breaker race a duplicate timer
+   * here added no value and orphaned in-flight requests at the boundary.
+   *
+   * MCP and other circuits keep failFastMs set (e.g. 15s vs HTTP 30s)
+   * because there it is genuine fail-fast: abort earlier than the HTTP
+   * layer would, so the breaker can open and reroute sooner.
    */
   async _executeWithTimeout(fn, args) {
+    if (!this.failFastMs) {
+      // Opt-out: fn's own timeout policy is the only ceiling.
+      return await fn(...args);
+    }
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error(`Circuit ${this.name}: Timeout nach ${this.timeoutMs}ms`));
-      }, this.timeoutMs);
+        reject(new Error(`Circuit ${this.name}: Timeout (fail-fast) nach ${this.failFastMs}ms`));
+      }, this.failFastMs);
 
       Promise.resolve(fn(...args))
         .then(result => {
@@ -205,6 +240,7 @@ class CircuitBreaker {
       failures: this.failures,
       lastFailure: this.lastFailure,
       lastSuccess: this.lastSuccess,
+      failFastMs: this.failFastMs,  // v7.4.3: null/0 = opt-out, else fail-fast window
       stats: { ...this.stats },
     };
   }

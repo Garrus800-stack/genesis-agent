@@ -4,20 +4,20 @@
     <img src="docs/banner.svg" alt="Genesis — Self-Modifying Cognitive AI Agent" width="100%">
   </a>
   <br><br>
-  <strong>A self-aware, self-verifying, self-evolving cognitive AI agent.</strong>
+  <strong>A self-modifying, self-verifying AI agent with persistent state.</strong>
   <br>
-  <sub>It reads its own source code. It fixes its own bugs. It builds its own features.<br>It verifies its own output programmatically. It thinks while you're away.<br>It feels the consequences of its actions. It pursues goals autonomously.<br>It learns what works for its specific model.</sub>
+  <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.4.2-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-5510%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.4.3-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-5556%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-config_ok-fbbf24?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-256-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/modules-269-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-151-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-414-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/events-405-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">
@@ -58,18 +58,18 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 ### What makes it different
 
-| Capability | What Genesis does | What typical AI tools do |
+| Capability | What Genesis does | Common alternative |
 |---|---|---|
-| **Self-modification** | Reads its own AST, plans changes, tests in sandbox, snapshots with git, applies only if tests pass | Run user-provided code |
-| **Verification** | 66 programmatic checks — AST, exit codes, imports, signatures — LLM is last resort | Trust the LLM output |
-| **Memory** | 5-layer system — episodic, semantic, vector, conversation, knowledge graph — with intelligent forgetting | Chat history window |
-| **Planning** | FormalPlanner with preconditions, mental simulation, probabilistic branching, failure taxonomy | Sequential function calling |
-| **Learning** | Tracks success rates by model/prompt/temperature, auto-optimizes — A/B tests its own prompts | Static prompts |
-| **Autonomy** | Pursues multi-step goals, survives restarts, graduates its own trust level (0–3) | Single-turn responses |
-| **Cognition** | Expectations, surprise, dreams, working memory, autobiographical identity, emotional steering | None |
-| **MCP Server** | Exposes 7 tools (verify, analyze, safety scan, architecture query) — external IDEs invoke Genesis directly | MCP client only |
-| **Observability** | 13-panel live dashboard — awareness, energy, architecture graph, tool synthesis, event flow | Log files |
-| **Offline-First** | NetworkSentinel detects outages, auto-failovers to local Ollama, restores cloud model on reconnect, queues mutations | Crashes on network loss |
+| **Self-modification** | reads its own AST, plans changes, tests in sandbox, snapshots with git, applies only if tests pass | external editor or copy-paste workflow |
+| **Verification** | 66 deterministic checks — AST, exit codes, imports, signatures — LLM is last resort | LLM self-review or human review |
+| **Memory** | 5-layer system — episodic, semantic, vector, conversation, knowledge graph — with surprise-weighted retention | conversation history window |
+| **Planning** | FormalPlanner with preconditions, mental simulation, probabilistic branching, failure taxonomy | sequential function calling |
+| **Learning** | tracks success rates by model/prompt/temperature, A/B tests its own prompts | static prompts |
+| **Autonomy** | pursues multi-step goals across restarts, graduates its own trust level (0–3) | single-turn responses |
+| **Emotional steering** | 5 behavioral dimensions (curiosity, satisfaction, frustration, energy, loneliness) influence prompt tone and idle-time priorities | not modeled |
+| **MCP Server** | exposes 7 tools (verify, analyze, safety scan, architecture query) — external IDEs invoke Genesis directly | MCP client only |
+| **Observability** | 13-panel live dashboard — energy, architecture graph, tool synthesis, event flow | log files |
+| **Offline-First** | NetworkSentinel detects outages, auto-failovers to local Ollama, restores cloud model on reconnect, queues mutations | depends on tool |
 
 ### Capabilities at a glance
 
@@ -81,11 +81,11 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Memory & learning** — 5-layer memory (conversation, episodic, vector, unified, knowledge graph), adaptive forgetting (surprise amplifies retention 5×), DreamCycle consolidation during idle time, MetaLearning prompt optimization, PromptEvolution A/B testing, OnlineLearner real-time feedback (streak detection, model escalation, temperature tuning), LessonsStore cross-project persistent learning.
 
-**Cognition & awareness** — ExpectationEngine (quantitative predictions), SurpriseAccumulator (information-theoretic), AwarenessPort (lightweight coherence gating for self-modification), CognitiveWorkspace (9-slot transient working memory), ArchitectureReflection (live queryable self-model of own architecture), DynamicToolSynthesis (generates new tools on demand via LLM + sandbox).
+**Cognition & awareness** — ExpectationEngine (quantitative predictions), SurpriseAccumulator (information-theoretic), AwarenessPort (interface for coherence gating during self-modification; default implementation is NullAwareness, real coherence source reserved for a future release), CognitiveWorkspace (9-slot transient working memory), ArchitectureReflection (live queryable self-model of own architecture), DynamicToolSynthesis (generates new tools on demand via LLM + sandbox).
 
-**Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (7 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). Emotional-cognitive bridge: EmotionalSteering signals flow into AdaptiveStrategy (v7.1.7). **Empirically validated: +16pp to +33pp task success rate with Organism active vs. disabled** (A/B benchmark, v6.0.4–v7.2.3, kimi-k2.5:cloud).
+**Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (7 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). Emotional-cognitive bridge: EmotionalSteering signals flow into AdaptiveStrategy (v7.1.7). Internal A/B benchmark on a single model (kimi-k2.5:cloud, 12 tasks): +16pp to +33pp task success with Organism active vs. disabled. The v6.0.4 run had CPU-only baseline timeouts that likely inflated the upper delta — treat the lower bound as the conservative reading. Not yet replicated across models. See [BENCHMARKING.md](docs/BENCHMARKING.md).
 
-**Infrastructure** — 12-phase DI boot, EventBus (385 event types, 399 emits validated by CI ratchet with 0 schema mismatches), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 semantic safety rules), 16 hash-locked files, DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
+**Infrastructure** — 12-phase DI boot, EventBus (405 event types, 361 emits validated by CI ratchet with 0 schema mismatches), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 semantic safety rules), 16 hash-locked files, DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
 
 **Self-Perception** — Introspection accuracy: verified facts from ArchitectureReflection, SelfModel, CognitiveSelfModel injected into prompt during self-reflect queries — prevents hallucinated metrics. Lesson confirmation loop: recalled lessons correlated with task outcomes (confirmed/contradicted). Research quality gate: Jaccard+specificity scoring before KG write. Frontier-driven GoalSynthesizer: unfinished work, anomalies, and contradicted lessons generate autonomous goals (v7.1.7).
 
@@ -227,7 +227,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.4.2: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5551 tests passing, 163 services (151 manifest + 12 bootstrap), CommandHandlers split from 846-LOC monolith into 6 domain mixins via Prototype-Delegation (Kassensturz cleanup, same pattern as DreamCyclePhases and the v7.4.1 SelfModel split), AUDIT-BACKLOG advanced from five-release drift to current, Principle 0.8 established (*AUDIT-BACKLOG is part of every release*), RuntimeStatePort for honest self-reporting backed by explicit quoting + anti-tool-call directives (Genesis quotes service values verbatim instead of fabulating log-lines, and won't interpret declarative metaphors as file-read tool-calls), 13 new IntentRouter meta-state patterns routing "wie viel energie"/"welche ziele"/"how do you feel" straight to the runtime block, 9 v7.3.7-era events backfilled into the catalog plus reasoning:trace-recorded (415/415 events now have schemas, 100% coverage), plus all v7.3.x and v7.4.0 honesty, identity, memory, and hygiene work. Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.4.3: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5556 tests passing, 163 services (151 manifest + 12 bootstrap). v7.4.3 ("Aufräumen II") shipped one real fix and three structural splits — `CircuitBreaker.timeoutMs` renamed to `failFastMs` with `null|0` opt-out (LLM circuit no longer races its own HTTP timeout); Container, IntentRouter, and SelfModificationPipeline all extracted under the 700-LOC threshold via Prototype-Delegation (same pattern as the v7.4.2 CommandHandlers split). v7.4.2 cleared the AUDIT-BACKLOG drift and established Principle 0.8 (*AUDIT-BACKLOG is part of every release*); v7.4.0/v7.4.1 added RuntimeStatePort for honest self-reporting with quoting + anti-tool-call directives, 13 IntentRouter meta-state patterns, and 100% event-schema coverage (405/405). Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -533,13 +533,13 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 151 manifest + 12 bootstrap = 163 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 307 files, ~5510 tests (coverage gates: 80/75.9/78, ratchet floor 5200) |
+| Test suites | 326 files, 5556 tests (coverage gates: 80/75.9/78, ratchet floor 5555) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 67 main ↔ 67 preload (rate-limited, all in sync) |
-| Event types | 414 across ~114 namespaces (catalogued in EventTypes.js) |
-| Event schemas | 404 declared, 0 mismatches, 414/414 coverage (enforced by CI ratchet) |
-| Cross-layer event flows | 414 emitted events, 56 listeners (via EventBus, no direct imports) |
+| Event types | 405 across ~114 namespaces (catalogued in EventTypes.js) |
+| Event schemas | 405 declared, 0 mismatches, 405/405 coverage (enforced by CI ratchet) |
+| Cross-layer event flows | 361 emitted events, 62 listeners (via EventBus, no direct imports) |
 | Hexagonal ports | 11 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace, Awareness, ActiveRefs, CostGuard, DaemonControl, RuntimeState) |
 | Cognitive modules | 17 (ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence, CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder) |
 | Organism | 5 emotional dimensions + homeostasis + allostasis + 4 needs + steering + metabolism + immune system + heritable genome + fitness evaluation + body schema + embodied perception |

@@ -197,15 +197,21 @@ const CIRCUIT = {
   FAILURE_THRESHOLD: 3,
   /** Cooldown before retry (ms) */
   COOLDOWN_MS: 30000,
-  /** Per-request timeout (ms).
-   *  v7.4.2 FIX (Baustein E): Raised from 60000 to 180000 to match LLM_RESPONSE_LOCAL.
-   *  Cold-start of large local models (e.g. qwen3:32b-q4) on Intel GPU
-   *  takes 90-150s. The circuit-breaker timeout MUST be ≥ the HTTP-level
-   *  LLM timeout, otherwise the breaker kills in-flight legitimate
-   *  requests. Regression seen since large local models were adopted;
-   *  failure manifested as "Modell antwortet nicht (Timeout)" →
-   *  "Circuit llm is OPEN" cascade after the first model switch.
-   *  Cloud calls are unaffected (they finish in <10s typically). */
+  /** Default fail-fast window (ms) for breakers that opt in.
+   *  v7.4.2 raised this from 60s → 180s as a workaround for the LLM
+   *  circuit eating in-flight requests during cold-start of large
+   *  local models. That synchronized two timers to the same value
+   *  but did not solve the real issue: the LLM circuit was running
+   *  a duplicate Promise.race over a fn that already had its own
+   *  HTTP-level timeout.
+   *  v7.4.3 (O-11) addresses the semantics: the LLM circuit now
+   *  opts out of fail-fast entirely (failFastMs: null in
+   *  phase2-intelligence.js) and lets OllamaBackend's
+   *  req.setTimeout(LLM_RESPONSE_LOCAL) be the only ceiling.
+   *  This constant is kept for legacy callers but is no longer
+   *  used by the LLM circuit. MCP uses its own per-server config. */
+  FAIL_FAST_MS: 180000,
+  /** @deprecated v7.4.3 — use FAIL_FAST_MS. Kept for any out-of-tree readers. */
   TIMEOUT_MS: 180000,
   /** Max automatic retries */
   MAX_RETRIES: 1,
