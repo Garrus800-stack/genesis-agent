@@ -1,13 +1,13 @@
 # Genesis Agent — Architecture Deep-Dive
 
 > Comprehensive technical analysis of Genesis Agent. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.4.3: 12 boot phases, 163 services (151 manifest + 12 bootstrap), 269 source files, 5556 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules, four active gates (Injection blocking, Self-Gate telemetry-only, Tool-Call-Verification detective, Slash-Discipline preventive), synchronous source-read with per-turn budget, `failFastMs` semantics on CircuitBreaker (v7.4.3 — LLM circuit opted out, MCP circuit keeps 15s fail-fast), CI ratchet locked at the v7.4.2 baseline (5555 floor).
+> Last updated for v7.4.4: 12 boot phases, 163 services (151 manifest + 12 bootstrap), 269 source files, 5583 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules, four active gates (Injection blocking, Self-Gate telemetry-only, Tool-Call-Verification detective, Slash-Discipline preventive), synchronous source-read with per-turn budget, `failFastMs` semantics on CircuitBreaker (v7.4.3 — LLM circuit opted out, MCP circuit keeps 15s fail-fast), CI ratchet locked at the v7.4.4 baseline (5582 floor, branches 76).
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **269 JS source modules** across **~92,000 LOC** of production code, supported by **329 test files / 5556 tests** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **269 JS source modules** across **~92,000 LOC** of production code, supported by **329 test files / 5583 tests** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
 
 ### Key Numbers
 
@@ -15,7 +15,7 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 |--------|-------|
 | Production LOC (src/) | ~92,000 |
 | Source Modules | 269 JS files |
-| Test Files / Tests | 329 / 5556 |
+| Test Files / Tests | 329 / 5583 |
 | DI Services | 163 (151 manifest + 12 bootstrap) |
 | Boot Phases | 12 |
 | npm Dependencies | 3 production + 3 optional + 6 dev |
@@ -405,7 +405,7 @@ Plus a global error boundary (v4.0.0) in `renderer-main.js`.
 
 ## 11. LOC Distribution by Directory
 
-Approximate as of v7.4.3 (numbers shift with each release):
+Approximate as of v7.4.4 (numbers shift with each release):
 
 ```
   core/             22 files    7,200 LOC

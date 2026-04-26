@@ -1,6 +1,6 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.4.3 — Event flow documentation. 405 catalogued events, 405 payload schemas (100% coverage),
+> v7.4.4 — Event flow documentation. 405 catalogued events, 405 payload schemas (100% coverage),
 > all emit sites validated (0 mismatches). Active gates with bus events:
 > Injection-Gate (`injection:blocked`), Tool-Call-Verification (`tool-call:unverified`),
 > Self-Gate (`self-gate:warned`, telemetry-only by design), Source-Read (`read-source:called`,

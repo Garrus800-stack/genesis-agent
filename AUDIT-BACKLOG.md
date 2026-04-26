@@ -1,9 +1,92 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.4.3 · Last updated: v7.4.3 docs-hygiene pass (O-10 closed)
+> Version: 7.4.4 · Last updated: v7.4.4 Buchführung pass (O-2 reformulated, O-6 RESOLVED, O-7 DEFERRED, O-9 CLOSED)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.4.4 — "Buchführung"
+
+A bookkeeping release: four config files updated to reflect findings
+from the v7.4.3 post-release verification on Windows, plus a docs
+version-header hygiene pass (same approach v7.4.3 used to close O-10).
+No code changes, no new tests.
+
+### What was verified
+- **Full coverage run** (`npm run test:ci` on Windows, v7.4.3 codebase):
+  5583 tests pass, branch coverage **77.17%** (well over the temporary
+  75.9% floor and the original 76% target), lines 83.3%, functions 80.41%.
+- **Schema scan** (`npm run scan:schemas`): 415/415 events, 0 mismatches.
+- **Architectural fitness** (`npm run audit:fitness`): 127/130. The
+  3-point gap is the binary File-Size-Guard penalty — two files still
+  warn (`EpisodicMemory.js`, `PromptBuilderSections.js`); both are
+  already deferred (O-8 / O-12).
+- **Diagnose-Skript** (`node scripts/diagnose-v741-d0.js`): Szenario C —
+  see O-7.
+- **GateStats persistence check**: see O-9 — file does not exist *by
+  design*; GateStats has no persistence.
+
+### Bookkeeping changes
+- `package.json` — c8 `--branches` floor raised from `75.9` to `76`
+  in both `test:ci` and `test:coverage:enforce` (matches the original
+  pre-v7.2.0 baseline; 1.17pp safety margin remains).
+- `scripts/ratchet.json` — `_locked_at` v7.4.2 → v7.4.4, `_date`
+  updated, `testCount.floor` 5555 → 5582 (1-test buffer below the
+  measured 5583), `fitnessScore.note` brought current (the old note
+  listed five files as the cause of the 3-point gap; four of those
+  were already split in v7.4.1–v7.4.3).
+- `AUDIT-BACKLOG.md` — O-2 reformulated, O-6 RESOLVED, O-7 DEFERRED
+  (with explicit pending-reproduction reasoning), O-9 CLOSED
+  (correctness fix), this section added.
+- `CHANGELOG.md` — `[7.4.4] — "Buchführung"` section added.
+- **Docs version-header hygiene pass** — `README.md` (badge + current-
+  state sentence with refreshed test count 5556 → 5583 + new v7.4.4
+  history note), `ARCHITECTURE.md` (header version + verification
+  footer numbers), `docs/ARCHITECTURE-DEEP-DIVE.md` (header + LOC
+  reference + ratchet baseline mention), `docs/CAPABILITIES.md`,
+  `docs/COMMUNICATION.md`, `docs/EVENT-FLOW.md`,
+  `docs/MCP-SERVER-SETUP.md`, `docs/GATE-INVENTORY.md`,
+  `docs/SKILL-SECURITY.md` — all "current-version" headers bumped
+  v7.4.3 → v7.4.4. Historical references inside content (e.g.,
+  *"split via IntentPatterns extract in v7.4.3"*, *"failFastMs
+  semantics (v7.4.3)"*) deliberately preserved — they document what
+  v7.4.3 did and stay accurate. Source-file headers in `src/agent/`
+  and version-bound test files (`test/modules/v743-*.test.js`) are
+  also unchanged for the same reason. Same approach as the v7.4.3
+  docs-hygiene pass that closed O-10.
+
+### Items resolved
+- **O-6 → RESOLVED.** Branch coverage organically reached 77.17% over
+  v7.3.4–v7.4.2 coverage pushes; original 76% target met. Threshold
+  raised in `package.json`.
+- **O-9 → CLOSED (correctness fix).** GateStats has no persistence —
+  the originally-prescribed `cat .genesis/gate-stats.json` action was
+  based on a false premise. Verification path is IPC + Dashboard, not
+  a JSON file.
+
+### Items reformulated
+- **O-2 → reformulated.** "50+ samples" is unreachable across sessions
+  with the current in-memory-only design. Decision deferred whether to
+  add persistence or accept per-session telemetry as the intended view.
+- **O-7 → DEFERRED.** Diagnose-Skript ran, returned Szenario C (no
+  drift, no tool-call evidence). Item awaits fresh reproduction; D.1
+  cannot be planned without it.
+
+### What was deliberately not done
+- No new tests for the original O-6 fallback-branch targets — they
+  are covered by existing tests, and adding more would be coverage
+  theater. Threshold met → closure.
+- No EpisodicMemory or PromptBuilderSections split — both deferred per
+  Principle 0.5 (one split per release, no busy-work) and the explicit
+  O-12 rationale (PromptBuilderSections reorg bundled with BeliefStore
+  in v7.6+).
+- No fitness score push from 127 → 130. The score is binary on
+  File-Size-Guard; getting to 130 requires both warning files to drop
+  below threshold simultaneously. Splitting only one yields zero
+  points. The natural moment is v7.6+ together with EpisodicMemory's
+  next "natural feature touch" (O-8).
 
 ---
 
@@ -168,13 +251,29 @@ itself resolved.
   on CPU-only inflated delta slightly. Organism helped on an-1 (code smells) and
   rf-2 (strategy pattern extraction). Results in BENCHMARKING.md.
 
-### O-2: GateStats Data Collection (AwarenessPort Validation)
+### O-2: GateStats Sample-Count über Sessions
 - **Since:** v7.0.0
-- **Status:** OPEN (3/50 target)
-- **Detail:** SelfModificationPipeline.getGateStats() collects data on awareness-gated
-  self-modification attempts. Only 3 data points collected so far — need 50+ for statistical
-  significance on whether AwarenessPort actually blocks anything meaningful.
-- **Action:** Passive collection. Monitor via Dashboard.
+- **Status:** OPEN — reformulated in v7.4.4 (in-memory finding)
+- **Detail:** Original entry tracked "passive collection" toward 50+ samples
+  for AwarenessPort statistical significance. The v7.4.4 verification of
+  the related O-9 item revealed that `src/agent/cognitive/GateStats.js`
+  has **no persistence** — counters live in an in-memory `Map`, no
+  `_save()`/`_load()`, no `gate-stats.json` file. Every Genesis restart
+  resets the counters. The previously-reported "3/50 samples since v7.0.0"
+  was a single-session Dashboard observation, not a cumulative total.
+- **Consequence:** The "50+ samples" target is unreachable across sessions
+  with the current design. With current architecture, statistical
+  significance for AwarenessPort gating requires either:
+  (a) a very long uninterrupted Genesis runtime, or
+  (b) adding persistence to GateStats (`_save()`/`_load()` analogous to
+  `EmotionalState`, `GoalStack`, `KnowledgeGraph`).
+- **Action:** Decide which view is intended. Per-session telemetry
+  ("does the gate block sensibly *in this session*?") is a valid design
+  and may not need cross-session aggregation. If cross-session
+  measurement is wanted, the persistence design is a small, contained
+  follow-up release — not a passive-collection task.
+- **v7.4.4 note:** No code change in this release. This item is preserved
+  as an architectural question for a future release.
 
 ### O-3: 31 Legacy Test Files Use Inline Runner
 - **Since:** v3.5.2
@@ -208,28 +307,49 @@ itself resolved.
 
 ### O-6: Branch Coverage Threshold Temporarily Lowered
 - **Since:** v7.2.0
-- **Status:** OPEN as of v7.4.2
+- **Status:** RESOLVED in v7.4.4 (organic close)
 - **Detail:** v7.2.0 introduced new fallback branches in `_identity()`,
-  `_handleSelfReflect()`, and `_scoreResearchInsight()` that lowered branch
-  coverage from 76.1% to 75.91%. Threshold temporarily reduced to 75.9%.
-- **Action:** 3-4 tests on v7.2.0 fallback paths to restore 76% threshold.
-  Target files: PromptBuilderSections.js, SelfModificationPipeline.js,
-  IdleMindActivities.js.
-- **v7.4.2 note:** Intentionally deferred. Principle 0.5 — v7.4.2 already
-  combines three themes (bookkeeping + repairs + split); adding a fourth
-  would be scope creep. O-6 has waited 5 releases; can wait more.
+  `_handleSelfReflect()` (now `reflect()`), and `_scoreResearchInsight()`
+  that lowered branch coverage from 76.1% to 75.91%. Threshold was
+  temporarily reduced to 75.9%.
+- **Resolution:** The 76% target was reached organically through
+  unrelated coverage pushes across v7.3.4 (`o6-coverage-push`),
+  v7.3.6 (`v736-coverage-push`), v7.4.0 (Identity-Leak-Tests, Service
+  Snapshots), v7.4.1 (Intent-Meta-Patterns, Snapshot Consistency) and
+  v7.4.2 (GoalStack Stalled, Circuit Timeout). Full v7.4.3 measurement
+  on Windows: aggregate branch coverage **77.17%** (+1.26pp over the
+  v7.2.0 trough, +1.07pp over the pre-v7.2.0 baseline).
+- **Action in v7.4.4:** `package.json` `test:ci` and
+  `test:coverage:enforce` floors raised from `--branches 75.9` to
+  `--branches 76` (1.17pp safety margin remains).
+- **Honest note:** The originally-named v7.2.0 fallback branches in
+  `_identity()` are covered by `o6-coverage-push.test.js` (v7.3.4); the
+  outer `reflect()` happy/error paths by `selfmodpipeline.test.js`. File-
+  level branch-coverage gaps in `PromptBuilderSections.js` (62.74% in the
+  v7.4.3 measurement) concern *other* methods (`_taskPerformanceContext`,
+  `_disclosureContext`, `_introspectionContext`, `_versionContext`) —
+  unrelated to O-6 and bundled with O-12 (BeliefStore reorg in v7.6+).
 
 ### O-7: Baustein D Fall 2 — "ich kann das nachprüfen"
 - **Since:** v7.4.1 (Baustein D diagnostic phase only)
-- **Status:** OPEN — diagnostic not yet executed
+- **Status:** DEFERRED in v7.4.4 — pending fresh reproduction
 - **Detail:** The v7.4.1 Windows test session observed Genesis asking for
   a memory ID in response to "ich kann das nachprüfen". Three scenarios:
   A) LocalClassifier drift, B) LLM tool-call hallucination, C) neither.
-  v7.4.1 added `scripts/diagnose-v741-d0.js` to determine which scenario
-  applies. The fix (D.1) is conditional on the diagnostic output.
-- **Action:** Run `node scripts/diagnose-v741-d0.js` on the Windows instance,
-  then route to D.1 if A, close if B (already covered by Baustein E),
-  re-plan if C.
+- **Resolution attempt:** `node scripts/diagnose-v741-d0.js` executed on
+  Windows during v7.4.4 preparation. Result: **Szenario C** — no
+  LocalClassifier samples file (`.genesis/local-classifier-samples.json`
+  does not exist; the classifier has never learned anything from this
+  install), and none of the relevant events
+  (`intent:classified`, `tool:called`, `llm:fallback`,
+  `intent:cascade-decision`) found in the event log.
+- **Diagnose-Skript-Empfehlung wörtlich:** *"D.1 erst planen nachdem
+  der Bug erneut auftritt und frisch ins Log geschrieben wird."*
+  Possible reasons for the empty result: paraphrased quote in the
+  original report, or log not filled since the bug occurred.
+- **Action:** None. Item registered without active task. Re-activate
+  the moment the symptom occurs again with a fresh log entry; route
+  to D.1 if it then maps to scenario A.
 
 ### O-8: Files over 700-LOC warn threshold
 - **Since:** v7.4.2 (CommandHandlers split addressed the largest; four remained)
@@ -247,14 +367,21 @@ itself resolved.
 
 ### O-9: GateStats data collection status unverified
 - **Since:** v7.4.2 (carry-over check item)
-- **Status:** OPEN — verification pending
-- **Detail:** O-2 reports 3/50 target samples as of v7.0.0. Current
-  sample count unknown — the collection is passive and the last audit
-  was v7.0.0.
-- **Action:** `cat .genesis/gate-stats.json` on the Windows instance,
-  update O-2 status. If ≥20 samples, consider closing as "passive collection
-  complete, sample size adequate for weak confidence". If still ~3,
-  leave OPEN with no urgency.
+- **Status:** CLOSED in v7.4.4 (correctness fix)
+- **Detail:** Original action — *"`cat .genesis/gate-stats.json` on the
+  Windows instance, update O-2 status"* — was based on a wrong assumption.
+- **Resolution:** The file does not exist by design. `src/agent/cognitive/
+  GateStats.js` has **no persistence layer**: counters are held in an
+  in-memory `Map`, the class has no `_save()` / `_load()` methods, and no
+  `fs` calls at all. Verification at runtime happens via the IPC endpoint
+  `agent:get-gate-stats` (`main.js:787` → `pipeline.getGateStats()`),
+  which the Dashboard consumes (`src/ui/dashboard.js:111`).
+- **Verification:** On Windows (v7.4.4 prep): `type .genesis\gate-stats.json`
+  → "Das System kann die angegebene Datei nicht finden." Confirms the
+  file is not present. This is the correct state, not a regression.
+- **Consequence:** Forwarded to **O-2** which is reformulated in v7.4.4
+  to acknowledge that cross-session aggregation is not supported by the
+  current design.
 
 ### O-10: docs/ five releases of version drift
 - **Since:** v7.3.7 (docs not updated alongside v7.3.7, v7.3.8, v7.3.9, v7.4.0, v7.4.1)

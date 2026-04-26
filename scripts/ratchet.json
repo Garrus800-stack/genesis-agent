@@ -1,19 +1,19 @@
 {
   "_description": "Ratchet — floor/max values enforced by check-ratchet.js in CI.",
-  "_locked_at": "v7.4.2",
-  "_date": "2026-04-24",
+  "_locked_at": "v7.4.4",
+  "_date": "2026-04-25",
   "testCount": {
-    "floor": 5555,
-    "note": "v7.4.2 Kassensturz floor — real baseline 5551 (Bausteine B+D added 19 tests to v7.4.1's 5528) + 5 Baustein E circuit-timeout tests = 5556, floor set to 5555 with 1-test safety buffer."
+    "floor": 5582,
+    "note": "v7.4.4 Buchführung floor — measured baseline 5583 on Windows (full test:ci, v7.4.3 codebase). Floor set 1 below measured value, matching the 1-test safety buffer convention from v7.4.2."
   },
   "fitnessScore": {
     "floor": 127,
     "max": 130,
-    "note": "Architectural fitness score from audit:fitness. File-size warnings on CommandHandlers.js, SelfModificationPipeline.js, PromptBuilderSections.js, AgentLoop.js, and SelfModel.js account for the 3-point gap."
+    "note": "Architectural fitness score from audit:fitness. The 3-point gap is the binary File-Size-Guard penalty (any warn → 7/10). Currently warning: EpisodicMemory.js (~759 LOC, deferred per O-8 — no driving feature touch yet) and PromptBuilderSections.js (~770 LOC, deferred per O-12 — bundled with BeliefStore reorg in v7.6+). Splits in v7.4.3 (Container, IntentRouter, SelfModificationPipeline) brought four files under threshold; the score did not move because two warnings still remain."
   },
   "schemaMismatches": {
     "max": 0,
-    "note": "scan-schemas.js must report 0. Runtime event payloads must match declared schemas. v7.4.1 scanner: 415/415 events covered, 0 mismatches."
+    "note": "scan-schemas.js must report 0. Runtime event payloads must match declared schemas. v7.4.3 scanner: 415/415 events covered, 0 mismatches."
   },
   "schemaMissing": {
     "max": 0,

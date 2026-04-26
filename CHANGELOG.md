@@ -1,3 +1,110 @@
+## [7.4.4] — "Buchführung"
+
+> Bookkeeping release. No code changes, no new tests. Four config
+> files updated to reflect what the v7.4.3 post-release verification
+> on Windows actually showed, plus a docs version-header hygiene pass
+> (same approach v7.4.3 used to close O-10). Two backlog items closed,
+> one reformulated, one deferred with explicit reasoning. CI thresholds
+> advanced where the data supports it. Style follows v7.4.2 Baustein A
+> — paperwork aligned with reality, no themes.
+
+### What v7.4.3 measurement showed (Windows, full `test:ci`)
+
+- 5583 tests pass
+- Branch coverage **77.17%** (lines 83.3%, functions 80.41%)
+- Schema scan: 415/415 events, 0 mismatches
+- Architectural fitness: 127/130 (binary File-Size-Guard, two warnings
+  remain — both deferred)
+- Diagnose-Skript: Szenario C
+- GateStats file: does not exist *by design*
+
+### Changes
+
+**`package.json`**
+- `test:ci` and `test:coverage:enforce`: `--branches 75.9` → `--branches 76`.
+  Original pre-v7.2.0 baseline restored. 1.17pp safety margin remains
+  against the measured 77.17%.
+- `version`: 7.4.3 → 7.4.4.
+
+**`scripts/ratchet.json`**
+- `_locked_at`: v7.4.2 → v7.4.4, `_date` 2026-04-25.
+- `testCount.floor`: 5555 → 5582 (1-test buffer below measured 5583,
+  same convention as v7.4.2).
+- `fitnessScore.note`: rewritten to reflect the *actual* current
+  warning files (`EpisodicMemory.js`, `PromptBuilderSections.js`). The
+  previous note listed five files; four were already split in
+  v7.4.1–v7.4.3. The note now also documents the binary-penalty nature
+  of File-Size-Guard.
+- `schemaMismatches.note`: scanner reference updated v7.4.1 → v7.4.3.
+
+**`AUDIT-BACKLOG.md`**
+- New section `Resolved in v7.4.4 — "Buchführung"` at the top.
+- **O-2 reformulated.** Original "passive 3/50 collection" framing was
+  based on a wrong assumption about persistence — see O-9. Item
+  preserved as an architectural question (per-session vs. cross-session
+  view) rather than a passive task.
+- **O-6 → RESOLVED.** Branch coverage organically reached 77.17% over
+  v7.3.4–v7.4.2 coverage pushes; original 76% target met. Honest
+  closure note explains that the named v7.2.0 fallbacks are covered by
+  existing tests and the file-level branch gaps in
+  `PromptBuilderSections.js` concern *other* methods (related to O-12).
+- **O-7 → DEFERRED.** `diagnose-v741-d0.js` ran, returned Szenario C
+  (no LocalClassifier samples, no relevant events in log). Skript-
+  Empfehlung wörtlich übernommen: D.1 erst planen nachdem der Bug
+  erneut auftritt und frisch ins Log geschrieben wird.
+- **O-9 → CLOSED (correctness fix).** `GateStats` has no persistence
+  (in-memory-only `Map`, no `_save`/`_load`, no `fs` calls). The file
+  the original action proposed reading does not exist by design.
+  Verification path is IPC `agent:get-gate-stats` + Dashboard.
+
+**`CHANGELOG.md`**
+- This section.
+
+**Docs version-header hygiene pass**
+- `README.md` — version badge `7.4.3` → `7.4.4`, current-state sentence
+  bumped (test count refreshed from 5556 to 5583, branch coverage
+  77.13% noted as over the new 76% floor), brief v7.4.4 history note
+  prepended in front of the v7.4.3 description.
+- `ARCHITECTURE.md` — `Version:` header v7.4.3 → v7.4.4, verification
+  footer numbers brought current (5583 tests, 5582 ratchet floor,
+  baseline reference v7.4.2 → v7.4.4).
+- `docs/ARCHITECTURE-DEEP-DIVE.md` — "Last updated for" header bumped
+  with refreshed counts (5583 tests, ratchet 5582, branches 76); LOC
+  table reference v7.4.3 → v7.4.4.
+- `docs/CAPABILITIES.md`, `docs/COMMUNICATION.md`, `docs/EVENT-FLOW.md`,
+  `docs/MCP-SERVER-SETUP.md`, `docs/GATE-INVENTORY.md`,
+  `docs/SKILL-SECURITY.md` — current-version headers bumped
+  v7.4.3 → v7.4.4.
+- **Deliberately not bumped:** historical references inside content
+  (e.g., *"failFastMs semantics (v7.4.3)"*, *"split via IntentPatterns
+  extract in v7.4.3"*) document what v7.4.3 actually did and stay
+  accurate; bumping them would falsify history. Same applies to source-
+  file headers in `src/agent/` and version-bound test files
+  (`test/modules/v743-*.test.js`). Version-bound historical docs
+  (`BUG-TAXONOMY.md`, `ONTOGENESIS.md`, `TROUBLESHOOTING.md`,
+  `BENCHMARKING.md`, `phase9-cognitive-architecture.md`) are also
+  untouched, per the v7.4.3 docs-hygiene-pass classification.
+
+### Deliberately not done
+
+- No new tests for O-6 fallback targets. They are covered by existing
+  tests; the threshold is met. Adding more would be coverage theater.
+- No `EpisodicMemory.js` or `PromptBuilderSections.js` split. Both
+  remain deferred — Principle 0.5 (one split per release, no
+  busy-work) and the explicit O-12 rationale (`PromptBuilderSections`
+  reorg bundled with BeliefStore in v7.6+).
+- No fitness-score push from 127 → 130. File-Size-Guard scoring is
+  binary: any warn → 7/10. Both warning files would have to drop below
+  threshold in the *same* release for the score to move. Splitting
+  only one yields zero points. The natural moment is v7.6+ together
+  with `EpisodicMemory`'s next "natural feature touch" (O-8).
+- No new principle. v7.4.4 is small enough not to need one. The
+  closest articulation — *backlog items may close organically, but the
+  reasoning must be explicit, not hidden behind a status flip* — is
+  applied here in the O-6 entry rather than promoted to a numbered
+  principle.
+
+
 ## [7.4.3] — "Aufräumen II"
 
 > One real bug fix (O-11 from v7.4.2 backlog) and three structural splits

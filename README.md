@@ -8,8 +8,8 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.4.3-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-5556%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.4.4-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-5583%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-config_ok-fbbf24?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
@@ -227,7 +227,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.4.3: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5556 tests passing, 163 services (151 manifest + 12 bootstrap). v7.4.3 ("Aufräumen II") shipped one real fix and three structural splits — `CircuitBreaker.timeoutMs` renamed to `failFastMs` with `null|0` opt-out (LLM circuit no longer races its own HTTP timeout); Container, IntentRouter, and SelfModificationPipeline all extracted under the 700-LOC threshold via Prototype-Delegation (same pattern as the v7.4.2 CommandHandlers split). v7.4.2 cleared the AUDIT-BACKLOG drift and established Principle 0.8 (*AUDIT-BACKLOG is part of every release*); v7.4.0/v7.4.1 added RuntimeStatePort for honest self-reporting with quoting + anti-tool-call directives, 13 IntentRouter meta-state patterns, and 100% event-schema coverage (405/405). Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.4.4: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5583 tests passing, 163 services (151 manifest + 12 bootstrap), branch coverage 77.13% (over the new 76% floor). v7.4.4 ("Buchführung") is a bookkeeping-only release: O-6 RESOLVED (organic 75.91 → 77.13%, threshold raised 75.9 → 76), O-9 CLOSED (correctness fix — GateStats has no persistence), O-2 reformulated (in-memory finding from O-9), O-7 DEFERRED (diagnose Szenario C, awaits fresh reproduction). v7.4.3 ("Aufräumen II") shipped one real fix and three structural splits — `CircuitBreaker.timeoutMs` renamed to `failFastMs` with `null|0` opt-out (LLM circuit no longer races its own HTTP timeout); Container, IntentRouter, and SelfModificationPipeline all extracted under the 700-LOC threshold via Prototype-Delegation (same pattern as the v7.4.2 CommandHandlers split). v7.4.2 cleared the AUDIT-BACKLOG drift and established Principle 0.8 (*AUDIT-BACKLOG is part of every release*); v7.4.0/v7.4.1 added RuntimeStatePort for honest self-reporting with quoting + anti-tool-call directives, 13 IntentRouter meta-state patterns, and 100% event-schema coverage (405/405). Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -533,7 +533,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 151 manifest + 12 bootstrap = 163 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 326 files, 5556 tests (coverage gates: 80/75.9/78, ratchet floor 5555) |
+| Test suites | 326 files, 5583 tests (coverage gates: 80/76/78, ratchet floor 5582) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 67 main ↔ 67 preload (rate-limited, all in sync) |

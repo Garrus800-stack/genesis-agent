@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.4.3 — What Genesis can do, organized by category.
-> Scale: 5556 tests, 405 events with payload schemas (100% coverage), fitness 127/130, 163 DI services (151 manifest + 12 bootstrap) across 12 boot phases.
+> v7.4.4 — What Genesis can do, organized by category.
+> Scale: 5583 tests, 405 events with payload schemas (100% coverage), fitness 127/130, 163 DI services (151 manifest + 12 bootstrap) across 12 boot phases.
 > Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry-only by design),
 > Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard),
 > Runtime-State Quoting (v7.4.1 directive + anti-tool-call).
