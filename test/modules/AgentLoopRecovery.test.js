@@ -591,7 +591,12 @@ describe('AgentLoopRecovery.verifyGoal', () => {
     });
     const r = new AgentLoopRecoveryDelegate(loop);
     const outcome = await r.verifyGoal(mockPlan(), [{ error: 'x' }, { output: 'ok' }]);
-    assert(outcome.summary.length <= 300);
+    // v7.4.5.fix #28d: summary may include step outputs appended.
+    // The LLM evaluation portion itself is truncated to 300 chars;
+    // step outputs are a separate block. Verify the LLM portion
+    // (the prefix before any "**Step" block) is capped at 300.
+    const llmPart = outcome.summary.split('\n\n**Step ')[0];
+    assert(llmPart.length <= 300, `LLM portion should be ≤300 chars, got ${llmPart.length}`);
   });
 
   test('records episode in episodicMemory on LLM success', async () => {

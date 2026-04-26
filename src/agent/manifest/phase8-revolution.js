@@ -68,6 +68,9 @@ function phase8(ctx, R) {
         { prop: '_causalAnnotation', service: 'causalAnnotation', optional: true },
         // v7.1.7: LessonsStore for lesson confirmation loop (AgentLoopCognition)
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expectedActive: true, expects: ['updateLessonOutcome'], impact: 'Lesson confirmation loop broken' },
+        // v7.4.5 Baustein C: ResourceRegistry — pre-existence check
+        // before each step. Missing resources block goal instead of fail.
+        { prop: 'resourceRegistry', service: 'resourceRegistry', optional: true },
       ],
       factory: (c) => new (R('AgentLoop').AgentLoop)({
         bus, model: c.resolve('llm'), goalStack: c.resolve('goalStack'),

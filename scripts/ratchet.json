@@ -1,19 +1,19 @@
 {
   "_description": "Ratchet — floor/max values enforced by check-ratchet.js in CI.",
-  "_locked_at": "v7.4.4",
-  "_date": "2026-04-25",
+  "_locked_at": "v7.4.5",
+  "_date": "2026-04-26",
   "testCount": {
-    "floor": 5582,
-    "note": "v7.4.4 Buchführung floor — measured baseline 5583 on Windows (full test:ci, v7.4.3 codebase). Floor set 1 below measured value, matching the 1-test safety buffer convention from v7.4.2."
+    "floor": 5667,
+    "note": "v7.4.5 Durchhalten floor — measured baseline 5668 on Windows (full test:ci, v7.4.5 codebase). Floor set 1 below measured value, matching the 1-test safety buffer convention from v7.4.2/v7.4.4. Increase reflects new test/modules/v745-fix.test.js (27 regression locks for #16–#30 fixes)."
   },
   "fitnessScore": {
     "floor": 127,
     "max": 130,
-    "note": "Architectural fitness score from audit:fitness. The 3-point gap is the binary File-Size-Guard penalty (any warn → 7/10). Currently warning: EpisodicMemory.js (~759 LOC, deferred per O-8 — no driving feature touch yet) and PromptBuilderSections.js (~770 LOC, deferred per O-12 — bundled with BeliefStore reorg in v7.6+). Splits in v7.4.3 (Container, IntentRouter, SelfModificationPipeline) brought four files under threshold; the score did not move because two warnings still remain."
+    "note": "Architectural fitness score from audit:fitness. The 3-point gap is the binary File-Size-Guard penalty (any warn → 7/10). v7.4.5 file-size status: PromptBuilderSections.js (769 LOC, deferred via O-12 — bundled with BeliefStore reorg in v7.6+), EpisodicMemory.js (758 LOC, deferred — no driving feature touch yet), GoalDriver.js (829 LOC, NEW — grew through v7.4.5 #16–#22 rate-limit/race/lock fixes), AgentLoop.js (813 LOC, NEW — grew through #22–#23 completeGoal wiring), GoalStack.js (769 LOC, NEW — grew through completeGoal addition). Splits in v7.4.3 (Container, IntentRouter, SelfModificationPipeline) brought files under threshold once, but pipeline-functionality work in v7.4.5 grew three new candidates over the line. Score binary so unchanged; honest tracking via O-8 in AUDIT-BACKLOG."
   },
   "schemaMismatches": {
     "max": 0,
-    "note": "scan-schemas.js must report 0. Runtime event payloads must match declared schemas. v7.4.3 scanner: 415/415 events covered, 0 mismatches."
+    "note": "scan-schemas.js must report 0. Runtime event payloads must match declared schemas. v7.4.5 scanner: 273 source files scanned, 436 emit/fire calls, 434 checked (1 spread-skipped), 0 mismatches."
   },
   "schemaMissing": {
     "max": 0,

@@ -56,6 +56,7 @@ const SCAN_DIRS = [
   'revolution', 'ports',
   'cognitive',  // Phase 9: Cognitive Architecture
   'memory',     // Phase 9: v7.3.7 storage layer (JournalWriter, PendingMomentsStore)
+  'agency',     // v7.4.5: Phase 10 driver (GoalDriver)
   // Phase 10-12: Extended Agency
 ];
 

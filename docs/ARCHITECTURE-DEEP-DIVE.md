@@ -1,13 +1,13 @@
 # Genesis Agent — Architecture Deep-Dive
 
 > Comprehensive technical analysis of Genesis Agent. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.4.4: 12 boot phases, 163 services (151 manifest + 12 bootstrap), 269 source files, 5583 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules, four active gates (Injection blocking, Self-Gate telemetry-only, Tool-Call-Verification detective, Slash-Discipline preventive), synchronous source-read with per-turn budget, `failFastMs` semantics on CircuitBreaker (v7.4.3 — LLM circuit opted out, MCP circuit keeps 15s fail-fast), CI ratchet locked at the v7.4.4 baseline (5582 floor, branches 76).
+> Last updated for v7.4.5: 12 boot phases, 167 services (154 manifest + 13 bootstrap), 273 source files, 5668 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules, four active gates (Injection blocking, Self-Gate telemetry-only, Tool-Call-Verification detective, Slash-Discipline preventive), synchronous source-read with per-turn budget, `failFastMs` semantics on CircuitBreaker (v7.4.3 — LLM circuit opted out, MCP circuit keeps 15s fail-fast), CI ratchet locked at the v7.4.5 baseline (5667 floor, branches 76).
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **269 JS source modules** across **~92,000 LOC** of production code, supported by **329 test files / 5583 tests** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **273 JS source modules** across **~85,000 LOC** of production code, supported by **335 test files / 5668 tests** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
 
 ### Key Numbers
 
@@ -53,7 +53,7 @@ Phase 1: Bootstrap
   └── Register non-manifest instances: rootDir, guard, bus, storage, lang, logger
 
 Phase 2: Manifest
-  └── Register all 151 services from 12 phase files via ContainerManifest (+12 bootstrap = 163 runtime, cognitive default profile)
+  └── Register all 154 services from 12 phase files via ContainerManifest (+13 bootstrap = 167 runtime, cognitive default profile)
       └── Auto-discovery scans src/agent/ → builds filename→directory map
 
 Phase 3: Resolve & Init
@@ -354,8 +354,8 @@ The EmbeddingService integration is optional. Without an embedding backend (Olla
 
 The EventBus (~600 LOC) is the nervous system of Genesis:
 
-- **405 catalogued event types** in EventTypes.js (1141 LOC) with JSDoc payload docs
-- **405 payload schemas** in EventPayloadSchemas.js (759 LOC) — 100% coverage as of v7.4.1
+- **424 catalogued event types** in EventTypes.js (1213 LOC) with JSDoc payload docs
+- **424 payload schemas** in EventPayloadSchemas.js (759 LOC) — 100% coverage as of v7.4.1
 - **Dev-mode validation** — unknown events produce warnings with stack traces
 - **Wildcard prefix-map** (v3.8.0) — O(k) matching instead of O(n)
 - **Ring buffer history** (v4.0.0) — O(1) push instead of O(n) push+slice
@@ -405,7 +405,7 @@ Plus a global error boundary (v4.0.0) in `renderer-main.js`.
 
 ## 11. LOC Distribution by Directory
 
-Approximate as of v7.4.4 (numbers shift with each release):
+Approximate as of v7.4.5 (numbers shift with each release):
 
 ```
   core/             22 files    7,200 LOC
@@ -423,5 +423,5 @@ Approximate as of v7.4.4 (numbers shift with each release):
   ─────────────────────────────────────────────
   agent/ total     241 files  ~77,500 LOC
   + UI/kernel       19 files  ~10,000 LOC
-  = src/ total     269 modules ~92,000 LOC
+  = src/ total     273 modules ~85,000 LOC
 ```

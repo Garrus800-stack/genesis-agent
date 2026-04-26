@@ -263,9 +263,31 @@ class DaemonController extends DaemonControlPort {
     if (!this.agentLoop) {
       throw new Error('AgentLoop not available');
     }
-    // Push goal — returns goal ID or similar
+
+    // v7.4.5: Prefer GoalDriver (centralised pursuit decisions, auto-resume,
+    // sub-goal coordination). Fall back to direct agentLoop.pursue() if the
+    // driver is unavailable — the legacy path stays functional as a safety net.
+    const driver = this.container?.tryResolve?.('goalDriver');
+    const stack  = this.container?.tryResolve?.('goalStack');
+    if (driver && stack) {
+      try {
+        const goal = await stack.addGoal(desc.slice(0, 200), 'user', 'high');
+        if (goal) {
+          const r = await driver.requestPursuit(goal.id);
+          if (r?.accepted) {
+            return { accepted: true, description: desc, via: 'goalDriver', goalId: goal.id };
+          }
+          _log.warn(`[DAEMON] goalDriver declined (${r?.reason}) — falling back to direct pursue`);
+        }
+      } catch (err) {
+        _log.warn('[DAEMON] goalDriver path failed, fallback to direct pursue:', err.message);
+      }
+    }
+
+    // Legacy path: direct AgentLoop.pursue. AgentLoop.pursue(string) registers
+    // a goal in the stack itself (source='user' since v7.4.5).
     const result = await this.agentLoop.pursue(desc);
-    return { accepted: true, description: desc, result: result ?? null };
+    return { accepted: true, description: desc, via: 'direct', result: result ?? null };
   }
 
   _methodStop() {

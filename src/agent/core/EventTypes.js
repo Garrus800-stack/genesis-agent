@@ -41,6 +41,12 @@ const EVENTS = Object.freeze({
     TIMEOUT:          'agent-loop:timeout',
     /** @payload {{ goalId: string, planLength: number, workerCount: number }} */
     COLONY_ESCALATED: 'agentloop:colony-escalated',
+    /** v7.4.5 Baustein C: Loop aborted because pre-step resource check failed */
+    /** @payload {{ goalId: string, stepIndex: number, stepType: string, resources: string[] }} */
+    BLOCKED_ON_RESOURCES: 'agent-loop:blocked-on-resources',
+    /** v7.4.5 Baustein D: Loop aborted because parent parked on a fresh sub-goal */
+    /** @payload {{ goalId: string, stepIndex: number, stepType: string, subId: string }} */
+    BLOCKED_ON_SUBGOAL:   'agent-loop:blocked-on-subgoal',
   }),
 
   // v5.2.0 (SA-P6): Working memory lifecycle
@@ -367,6 +373,57 @@ const EVENTS = Object.freeze({
     /** v7.3.3: Goal no longer relevant — world changed, not worth pursuing */
     /** @payload {{ id: string, description: string, reason: string }} */
     OBSOLETE:    'goal:obsolete',
+    /** v7.4.5: GoalDriver picks up a goal for pursuit */
+    /** @payload {{ goalId: string, priority: string, source: string }} */
+    DRIVER_PICKUP: 'goal:driver-pickup',
+    /** v7.4.5: Goal was discarded via user resume-prompt decision */
+    /** @payload {{ ids: string[], via: string }} */
+    DISCARDED:     'goal:discarded',
+    /** v7.4.5: Goals auto-resumed by GoalDriver at boot ('always' mode) */
+    /** @payload {{ goalIds: string[], mode: string }} */
+    RESUMED_AUTO:  'goal:resumed-auto',
+    /** v7.4.5 Baustein C: Goal blocked because required resource(s) missing */
+    /** @payload {{ goalId: string, resources: string[] }} */
+    BLOCKED_ON_RESOURCES: 'goal:blocked-on-resources',
+    /** v7.4.5 Baustein C: Goal flipped from blocked → active when resource came back */
+    /** @payload {{ goalId: string, resource: string }} */
+    RESUMED_FROM_RESOURCE_BLOCK: 'goal:resumed-from-resource-block',
+    /** v7.4.5 Baustein D: Parent parked on sub-goal that resolves an obstacle */
+    /** @payload {{ parentId: string, subId: string }} */
+    BLOCKED_ON_SUBGOAL: 'goal:blocked-on-subgoal',
+    /** v7.4.5 Baustein D: Sub-goal spawned to clear an obstacle pattern */
+    /** @payload {{ parentId: string, subId: string, obstacleType: string, contextKey: string, stepIndex: number, description: string }} */
+    SUBGOAL_SPAWNED: 'goal:subgoal-spawned',
+    /** v7.4.5 Baustein D: Spawn refused (depth/loop/lessons-veto) */
+    /** @payload {{ parentId: string, obstacleType: string, contextKey: string, reason: string }} */
+    OBSTACLE_LOOP_PROTECTED: 'goal:obstacle-loop-protected',
+  }),
+
+  // ── GoalDriver ─────────────────────────────────────────
+  DRIVER: Object.freeze({
+    /** v7.4.5: GoalDriver detected unresponsive — HealthMonitor signal */
+    /** @payload {{ idleMs: number, queueDepth: number }} */
+    UNRESPONSIVE: 'driver:unresponsive',
+  }),
+
+  // ── Resource (forward-declared for Baustein C — ResourceRegistry) ──
+  RESOURCE: Object.freeze({
+    /** v7.4.5: A managed resource (network, service:*, ...) became available again */
+    /** @payload {{ resourceId: string, status?: object }} */
+    AVAILABLE:   'resource:available',
+    /** v7.4.5: A managed resource became unavailable */
+    /** @payload {{ resourceId: string, status?: object }} */
+    UNAVAILABLE: 'resource:unavailable',
+  }),
+
+  // ── Permission (forward-declared for Baustein C — Permission flow) ──
+  PERMISSION: Object.freeze({
+    /** v7.4.5: User granted a previously-requested permission via UI */
+    /** @payload {{ permissionId: string }} */
+    GRANTED: 'permission:granted',
+    /** v7.4.5: User denied a previously-requested permission */
+    /** @payload {{ permissionId: string }} */
+    DENIED:  'permission:denied',
   }),
 
   // ── Health Monitor ─────────────────────────────────────
@@ -498,6 +555,12 @@ const EVENTS = Object.freeze({
     COST_CAP_REACHED: 'llm:cost-cap-reached',
     /** @payload {{ scope: string, pct: number, used: number, limit: number }} */
     COST_WARNING: 'llm:cost-warning',
+  }),
+
+  // ── COST (v7.4.5 Baustein B) ──────────────────────────
+  COST: Object.freeze({
+    /** @payload Forwarded llm:call-complete row after CostStream persistence. */
+    RECORDED: 'cost:recorded',
   }),
 
   // ── MCP ────────────────────────────────────────────────
@@ -639,6 +702,9 @@ const EVENTS = Object.freeze({
     FILE_CHANGED:     'perception:file-changed',
     FILE_REMOVED:     'perception:file-removed',
     MEMORY_PRESSURE:  'perception:memory-pressure',
+    /** v7.4.5 Baustein C: Ollama HTTP-poll completed (status sync to ResourceRegistry) */
+    /** @payload {{ status: string }} */
+    OLLAMA_TICK:      'perception:ollama-tick',
   }),
 
   // ── Embodied Perception (SA-P4) ────────────────────────
@@ -651,6 +717,12 @@ const EVENTS = Object.freeze({
   // ── UI Heartbeat ────────────────────────────────────────
   UI: Object.freeze({
     HEARTBEAT: 'ui:heartbeat',
+    /** v7.4.5: Driver requests user decision on resuming a paused/blocked goal */
+    /** @payload {{ goalId: string, title?: string, currentStep?: number, totalSteps?: number, lastUpdated?: string, reason?: string }} */
+    RESUME_PROMPT:   'ui:resume-prompt',
+    /** v7.4.5: User answered the resume prompt */
+    /** @payload {{ goalId: string, decision: 'continue'|'discard'|'pause', rememberAs?: 'always'|'never' }} */
+    RESUME_DECISION: 'ui:resume-decision',
   }),
 
   // ── Planner ────────────────────────────────────────────

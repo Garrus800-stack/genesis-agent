@@ -30,12 +30,16 @@
 // ============================================================
 
 const { NullBus } = require('../core/EventBus');
+const { matchObstacle } = require('./ObstaclePatterns');
 
 const CATEGORY = Object.freeze({
   TRANSIENT: 'transient',
   DETERMINISTIC: 'deterministic',
   ENVIRONMENTAL: 'environmental',
   CAPABILITY: 'capability',
+  // v7.4.5 Baustein D: a known obstacle pattern that can be resolved
+  // by spawning a sub-goal (e.g., "module not found" → "install module")
+  OBSTACLE_RESOLVABLE: 'obstacle_resolvable',
   UNKNOWN: 'unknown',
 });
 
@@ -46,6 +50,9 @@ const STRATEGY = Object.freeze({
   ESCALATE_MODEL: 'escalate_model',
   ASK_USER: 'ask_user',
   ABORT: 'abort',
+  // v7.4.5 Baustein D: spawn a sub-goal that fixes the obstacle,
+  // park the parent goal until it completes
+  SPAWN_SUBGOAL: 'spawn_subgoal',
 });
 
 // ── Pattern Database ─────────────────────────────────────
@@ -96,7 +103,7 @@ class FailureTaxonomy {
     this.worldState = null;  // lateBinding
 
     const cfg = config || {};
-    this._maxRetries = cfg.maxRetries || { transient: 3, deterministic: 0, environmental: 1, capability: 1 };
+    this._maxRetries = cfg.maxRetries || { transient: 3, deterministic: 0, environmental: 1, capability: 1, obstacle_resolvable: 0 };
     this._backoffBaseMs = cfg.backoffBaseMs || 2000;
     this._backoffMaxMs = cfg.backoffMaxMs || 30000;
 
@@ -107,7 +114,7 @@ class FailureTaxonomy {
     // ── Stats ────────────────────────────────────────────
     this._stats = {
       classified: 0,
-      categories: { transient: 0, deterministic: 0, environmental: 0, capability: 0, unknown: 0 },
+      categories: { transient: 0, deterministic: 0, environmental: 0, capability: 0, obstacle_resolvable: 0, unknown: 0 },
       strategiesApplied: {},
     };
   }
@@ -141,6 +148,19 @@ class FailureTaxonomy {
     let category = CATEGORY.UNKNOWN;
     let confidence = 0;
 
+    // v7.4.5 Baustein D: try obstacle-resolvable patterns FIRST.
+    // These are highly specific (module name extracted, etc.) and
+    // give us actionable sub-goal information. If matched, we win
+    // automatically — confidence 1.0.
+    let obstacle = null;
+    try {
+      obstacle = matchObstacle(errorStr) || matchObstacle(combined);
+    } catch (_e) { obstacle = null; }
+    if (obstacle) {
+      category = CATEGORY.OBSTACLE_RESOLVABLE;
+      confidence = 1.0;
+    }
+
     const checks = [
       { cat: CATEGORY.TRANSIENT, patterns: TRANSIENT_PATTERNS },
       { cat: CATEGORY.DETERMINISTIC, patterns: DETERMINISTIC_PATTERNS },
@@ -148,13 +168,16 @@ class FailureTaxonomy {
       { cat: CATEGORY.CAPABILITY, patterns: CAPABILITY_PATTERNS },
     ];
 
-    for (const { cat, patterns } of checks) {
-      const matchCount = patterns.filter(p => p.test(combined)).length;
-      if (matchCount > 0) {
-        const score = Math.min(1.0, matchCount * 0.3 + 0.4);
-        if (score > confidence) {
-          category = cat;
-          confidence = score;
+    // Only run generic pattern matching if obstacle pattern didn't fire
+    if (!obstacle) {
+      for (const { cat, patterns } of checks) {
+        const matchCount = patterns.filter(p => p.test(combined)).length;
+        if (matchCount > 0) {
+          const score = Math.min(1.0, matchCount * 0.3 + 0.4);
+          if (score > confidence) {
+            category = cat;
+            confidence = score;
+          }
         }
       }
     }
@@ -172,7 +195,7 @@ class FailureTaxonomy {
     }
 
     // ── Build strategy ──────────────────────────────────
-    const result = this._buildStrategy(category, confidence, errorStr, context);
+    const result = this._buildStrategy(category, confidence, errorStr, context, obstacle);
 
     // ── Record ──────────────────────────────────────────
     this._stats.categories[category] = (this._stats.categories[category] || 0) + 1;
@@ -228,10 +251,35 @@ class FailureTaxonomy {
   // INTERNAL
   // ════════════════════════════════════════════════════════
 
-  _buildStrategy(category, confidence, errorStr, context) {
+  _buildStrategy(category, confidence, errorStr, context, obstacle = null) {
     const attempt = context.attempt || 0;
 
     switch (category) {
+      // v7.4.5 Baustein D: known obstacle pattern with extracted context
+      case CATEGORY.OBSTACLE_RESOLVABLE: {
+        if (!obstacle) {
+          // Defensive: classify gave us OBSTACLE_RESOLVABLE without
+          // an obstacle object. Fall back to deterministic.
+          return {
+            category: CATEGORY.DETERMINISTIC,
+            strategy: STRATEGY.REPLAN,
+            retryConfig: { maxRetries: 0, backoffMs: 0, shouldRetry: false },
+            worldStateUpdates: null,
+            escalation: null,
+            explanation: `Obstacle pattern fired but no details extracted. Falling back to replan.`,
+          };
+        }
+        return {
+          category,
+          strategy: STRATEGY.SPAWN_SUBGOAL,
+          retryConfig: { maxRetries: 0, backoffMs: 0, shouldRetry: false },
+          worldStateUpdates: null,
+          escalation: null,
+          obstacle,  // { type, subGoalDescription, contextKey, module?/command? }
+          explanation: `Obstacle "${obstacle.type}" detected: ${obstacle.subGoalDescription}. Spawning sub-goal.`,
+        };
+      }
+
       case CATEGORY.TRANSIENT: {
         const maxRetries = this._maxRetries.transient;
         const shouldRetry = attempt < maxRetries;

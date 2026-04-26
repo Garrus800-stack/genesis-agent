@@ -45,9 +45,26 @@ function apply(Dashboard) {
       '<div class="dash-log">' + logHTML + '</div>';
 
     // FIX v4.10.0: Bind approve/reject via addEventListener (CSP blocks inline onclick)
+    // FIX v7.4.5.fix: Wire directly to window.genesis.invoke instead of
+    // dangling window._dashApprove/_dashReject indirections that nobody
+    // ever defined. The old code's `if (window._dashApprove)` was always
+    // false → clicks did nothing → ApprovalGate timed out → goal kept
+    // bouncing through "User rejected plan with blockers" forever.
     if (status.pendingApproval && typeof document !== 'undefined') {
-      document.getElementById('dash-btn-approve')?.addEventListener('click', () => { if (window._dashApprove) window._dashApprove(); });
-      document.getElementById('dash-btn-reject')?.addEventListener('click', () => { if (window._dashReject) window._dashReject(); });
+      const _send = (channel) => {
+        try {
+          if (window.genesis && typeof window.genesis.invoke === 'function') {
+            return window.genesis.invoke(channel);
+          }
+          // legacy fallbacks for older renderer wiring
+          if (window._dashApprove && channel === 'agent:loop-approve') return window._dashApprove();
+          if (window._dashReject && channel === 'agent:loop-reject') return window._dashReject();
+        } catch (e) {
+          console.error('[approval] invoke failed:', e);
+        }
+      };
+      document.getElementById('dash-btn-approve')?.addEventListener('click', () => _send('agent:loop-approve'));
+      document.getElementById('dash-btn-reject')?.addEventListener('click', () => _send('agent:loop-reject'));
     }
   };
 

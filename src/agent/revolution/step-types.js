@@ -103,6 +103,10 @@ const STEP_TYPE_ALIASES = Object.freeze({
   'EXECUTE':       'SHELL',
   'COMMAND':       'SHELL',
   'BASH':          'SHELL',
+  // v7.4.5.fix: legacy/FormalPlanner step types → SHELL
+  'SHELL_EXEC':    'SHELL',
+  'RUN_COMMAND':   'SHELL',
+  'EXECUTE_SHELL': 'SHELL',
   // git & snapshot variants → SHELL (git is a shell command)
   'GIT_SNAPSHOT':  'SHELL',
   'GIT_COMMIT':    'SHELL',
@@ -159,10 +163,56 @@ function buildPlannerStepTypeList({ canExecuteCode = true, canDelegate = false }
   return lines.join('\n');
 }
 
+// ── v7.4.5 Baustein C: Resource requirements per step type ──
+//
+// What external resources does this step type need to succeed?
+// Tokens are checked by ResourceRegistry.requireAll() before the
+// step runs. If any are missing, the goal is BLOCKED (not failed)
+// and re-pursued automatically when the resource comes back.
+//
+// 'service:llm' is abstract — ResourceRegistry resolves it to
+// the active backend (service:ollama / service:anthropic / ...)
+//
+// SHELL, SANDBOX, ASK have no external requirements (local-only).
+// LLM-driven steps need 'service:llm'.
+// SEARCH and DELEGATE additionally need network/peer.
+const STEP_REQUIREMENTS = Object.freeze({
+  ANALYZE:  ['service:llm'],
+  CODE:     ['service:llm'],
+  SEARCH:   ['service:llm', 'network'],
+  DELEGATE: ['network', 'peer'],
+  SHELL:    [],
+  SANDBOX:  [],
+  ASK:      [],
+});
+
+/**
+ * Get the resource tokens this step needs.
+ * If step.target looks like a file path AND the type reads files
+ * (ANALYZE), append a file:<path> requirement so ResourceRegistry
+ * can probe existence at execution time.
+ *
+ * @param {string} stepType - canonical step type
+ * @param {object} [step] - optional step object for context
+ * @returns {string[]} resource tokens required
+ */
+function getStepRequirements(stepType, step = null) {
+  const base = STEP_REQUIREMENTS[stepType] || [];
+  const out = [...base];
+  // ANALYZE on a file target → also need the file to exist
+  if (stepType === 'ANALYZE' && step?.target && typeof step.target === 'string'
+      && (step.target.includes('/') || step.target.includes('\\') || step.target.endsWith('.js') || step.target.endsWith('.json') || step.target.endsWith('.md'))) {
+    out.push(`file:${step.target}`);
+  }
+  return out;
+}
+
 module.exports = {
   STEP_TYPES,
   VALID_STEP_TYPES,
   STEP_TYPE_ALIASES,
+  STEP_REQUIREMENTS,
   normalizeStepType,
   buildPlannerStepTypeList,
+  getStepRequirements,
 };

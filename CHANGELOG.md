@@ -1,3 +1,140 @@
+## [7.4.5] — "Durchhalten"
+
+> Goal-pipeline release. End-to-end functionality from plan → execute →
+> observe-output → honest-verdict-in-chat. Every stage of that pipeline
+> was broken at the start of this work. 30 fixes (#16–#30) plus 4
+> Bausteine A–D. Live-verified on Windows with qwen3-vl:235b-cloud.
+> The `await` fix (#26) alone explained months of "100% success" goals
+> that were silently swallowing stderr.
+
+### What was verified (Windows, v7.4.5 codebase)
+
+- 5668 tests pass, 0 failed
+- Schema scan: 0 mismatches (273 source files, 436 emit/fire calls, 424 schemas)
+- Architectural fitness: 127/130 (binary File-Size-Guard, see O-8 below)
+- Live-pipeline: goal *"liste alle .js Dateien im Genesis-Ordner und zähle sie"* → `dir /b *.js` → 4 files, count 4
+- Failure case: goal *"node test-fake.js"* → honest `MODULE_NOT_FOUND`, marked FAILED
+
+### Bausteine A–D (Durchhalten plan)
+
+- **A** — `GoalDriver` replaces Frame-Stack with auto-resume + AutoResume scan, P10 service
+- **B** — `CostStream` extracted as own P1 service (retention 30d, `.genesis/cost`)
+- **C** — `ResourceRegistry` P1 with hash-based tracking
+- **D** — Sub-Goal-Spawn via GoalStack hierarchy
+
+v7.4.5.1 followup: GoalDriver Resume-Filter captures fresh-not-started goals (created <24h, currentStep=0).
+
+### Rate-limit & lifecycle (#16–#22)
+
+- Rate-limit detection — 60s pause, no failureBurst counter increment
+- Exponential backoff for generic failures: 5s → 30s → 2min → 10min → 30min → stalled
+- `_goalPausedUntil` Map with auto-wake timer
+- `_applyFailurePause` idempotency-guard: 50ms window prevents double-counting from event-handler + resolve-side race
+- Budgets raised: `chat` 200→500, `autonomous` 80→500, `idle` 40→150 + `IDLE_RESET_WINDOW_MS` 5min auto-reset
+- Lock-cleanup symmetric: `keepLock` flag + `finally` block in success/failure/blocked paths, safety-net 2s → 60s
+- Architecture gap closed: `AgentLoop` success now calls new `GoalStack.completeGoal()`. Previously goal lifecycle never reached terminal state — infinite 5s polling re-pickup
+
+### Goal-result visibility (#23–#25)
+
+- UI-Bridge: `agent-loop:complete` → `agent:loop-progress {phase:'complete', summary}` → `renderer-main.js` listener fires `addMessage('agent', body, 'goal-complete'|'goal-failed')` with `isStreaming`-check + 500ms dedup
+- Verifier summary appends step outputs via `_formatOutputs()` — per-step block with description, executed command, output (≤600 chars), error (with ⚠️)
+- Robust extraction: `r.output` / `r.result` / `r.summary` / `r.text` / `JSON.stringify` fallback. LLM-fallback-verifier path also appends step outputs
+
+### The `await` fix (#26)
+
+`AgentLoopSteps.js` was missing `await` on `loop.shell.run(...)`. `ShellAgent.run` is async, so `result` was the Promise itself, `result.stdout` was `undefined`, output came through as empty string. Verifier saw `error: null` and counted SHELL steps as 100% success even when stderr contained real errors. **Single-word fix with massive consequences** — every prior "silent success" SHELL goal had been failing this way.
+
+### OS-awareness (#27)
+
+- FormalPlanner prompt extended with ENVIRONMENT block: OS name, `process.platform`, shell name, `rootDir`, path separator, POSIX → Windows command mapping
+- `ShellAgent._adaptCommand` applied unconditionally on Windows (was only in non-shell-mode `_parseCommand` path)
+- Expanded mappings: `rm -rf` → `rmdir /s /q`, `cp -r` → `xcopy /e /i`, `mkdir -p`, `touch` → `type nul >`, `pwd` → `cd`, `echo $VAR` → `echo %VAR%`, `/dev/null` → `NUL`, `grep` → `findstr`, plus pipe-counter idiom translation
+
+### `step.target` ↔ `step.command` (#28)
+
+`AgentLoopSteps._stepShell` read only `step.target`. When the LLM put the command in `step.command` (per FormalPlanner schema documentation), AgentLoop fired a second LLM call *"What is the exact shell command to run?"* with minimal context, frequently generating dangerous broad-scope commands (`dir /s C:\`, `where /r`) that hit *"Zugriff verweigert"* on system directories. Now reads `step.target || step.command`. Fallback LLM call gets explicit OS + rootDir + don't-use-broad-scope hints. Command preserved in result for diagnosis.
+
+### Quote-safe counting (#29)
+
+`find /C /V ""` (count lines NOT matching empty string = all lines) — the doubled empty quotes get re-escaped through Node.js → cmd.exe and `find` ends up reading file `"\"` → *"Zugriff verweigert"*. Replacement: `find /V /C ":"`. Filenames on Windows cannot contain `:` (reserved drive separator), so this counts all lines correctly with no quoting hazard. `_adaptCommand` auto-translates the broken pattern; FormalPlanner prompt recommends the safe variant directly.
+
+### `exec` instead of `execFile` (#30)
+
+Windows shell path switched from `execFileAsync(this.shell, [shellFlag, command])` to `execAsync(command, { shell: this.shell })`. The `execFile`-with-shell-trick made Node.js build internal command lines that cmd.exe re-quoted incorrectly — pipes + embedded quotes (e.g. `dir /b *.js | find /V /C ":"`) were mis-parsed and silently corrupted. `exec` is built for this case: spawns the OS shell and passes the command verbatim. `execFile` retained for simple non-shell non-Windows commands (faster, no shell-injection surface).
+
+### O-8 status update — REGRESSION
+
+v7.4.4 had 2 files >700 LOC (PromptBuilderSections, EpisodicMemory). v7.4.5 has **5 files >700 LOC**:
+
+| File | v7.4.5 LOC | Note |
+|---|---|---|
+| `PromptBuilderSections.js` | 769 | Deferred via O-12 (bundled with BeliefStore in v7.6+) |
+| `EpisodicMemory.js` | 758 | Deferred — no driving feature touch yet |
+| `GoalDriver.js` | **829** | NEW — grew through #16–#22 rate-limit/race/lock fixes |
+| `AgentLoop.js` | **813** | NEW — grew through #22–#23 completeGoal wiring |
+| `GoalStack.js` | **769** | NEW — grew through completeGoal addition |
+
+Fitness score unchanged at 127/130 because File-Size-Guard is binary, but **this is an honest-bookkeeping regression**. Three new candidates for split via Prototype-Delegation in a future "Aufräumen III" release. Action deferred per Principle 0.5: feature stability first, structural cleanup follows.
+
+### Changes
+
+**`package.json`**
+- `version`: 7.4.4 → 7.4.5
+
+**`scripts/ratchet.json`**
+- `_locked_at`: v7.4.4 → v7.4.5, `_date` 2026-04-26
+- `testCount.floor`: 5582 → 5667 (1-test buffer below measured 5668)
+- `fitnessScore.note` brought current with v7.4.5 file-size status (5 warnings)
+- `schemaMismatches.note` updated: 273 source files, 436 emit calls, 424 schemas
+
+**`AUDIT-BACKLOG.md`**
+- Header v7.4.4 → v7.4.5 Durchhalten
+- New "Resolved in v7.4.5 — Durchhalten" section
+- O-8 status updated with regression note (3 new files over threshold)
+
+**`CHANGELOG.md`**
+- This `[7.4.5] — "Durchhalten"` section
+
+**Docs version-header hygiene pass**
+- `README.md`, `ARCHITECTURE.md`, `docs/ARCHITECTURE-DEEP-DIVE.md`, `docs/CAPABILITIES.md`, `docs/COMMUNICATION.md`, `docs/EVENT-FLOW.md`, `docs/MCP-SERVER-SETUP.md`, `docs/GATE-INVENTORY.md`, `docs/SKILL-SECURITY.md` — all current-version headers v7.4.4 → v7.4.5
+- Numeric values updated where present (5583 → 5668 tests, 405 → 424 events, 163 → 167 services, 269 → 273 source modules)
+- Historical references inside content (e.g. *"split via IntentPatterns extract in v7.4.3"*, *"failFastMs semantics (v7.4.3)"*, *"Buchführung pass (v7.4.4)"*) deliberately preserved — they document what those versions did and stay accurate
+- Source-file headers in `src/agent/` and version-bound test files (`test/modules/v74{0,1,2,3}-*.test.js`) unchanged for the same reason
+
+### Code changes (summary)
+
+| File | Change |
+|---|---|
+| `src/agent/agency/GoalDriver.js` | Rate-limit pause logic (`_applyFailurePause` + idempotency-guard), `_goalPausedUntil` Map, auto-wake timers, `_listPursueable` skips paused goals, lock-cleanup symmetric, `completeGoal()` call after success, blocked-branch handling, budget-reset listener |
+| `src/agent/revolution/AgentLoop.js` | `_emitFailure()` helper, completeGoal wiring after pursue success, blocked-branch path |
+| `src/agent/revolution/AgentLoopSteps.js` | **`await loop.shell.run(...)` (#26)**, `step.target || step.command` (#28a), command preserved in result, fallback LLM call with OS-context hints |
+| `src/agent/revolution/AgentLoopRecovery.js` | `verifyGoal()` with `_formatOutputs()` (per-step description + command + output + error), robust extraction across 5 result fields, LLM-fallback path also appends |
+| `src/agent/revolution/FormalPlanner.js` | ENVIRONMENT block in `_llmDecompose` prompt (OS, rootDir, command mapping, don'ts), step.command/step.target documented as both-fields |
+| `src/agent/planning/GoalStack.js` | New `completeGoal(goalId)` method (symmetric to pauseGoal/abandonGoal), cascading effects (unblockDependents, parent-completion check, `goal:completed` event) |
+| `src/agent/capabilities/ShellAgent.js` | `_adaptCommand` applied unconditionally on Windows, expanded POSIX → Windows mappings, quote-safe counting (`find /V /C ":"`), Windows shell path uses `execAsync` instead of `execFileAsync` (#30) |
+| `src/agent/ports/LLMPort.js` | Idle-reset, `resetBudget()`, `llm:budget-auto-reset` / `llm:budget-manual-reset` events |
+| `src/agent/core/Constants.js` | `RATE_LIMIT.HOURLY_BUDGETS` raised, `IDLE_RESET_WINDOW_MS` 5min |
+| `src/agent/hexagonal/CommandHandlersGoals.js` | Bilingual EN/DE patterns |
+| `src/ui/renderer-main.js` | New `agent:loop-progress` listener with `isStreaming`-check + 500ms dedup |
+| `src/ui/modules/chat.js` | `getStreamingState()` exported |
+| `test/modules/v745-fix.test.js` | **NEW** — 27 regression-lock tests for #16–#30 |
+
+### Deliberately not done
+
+- No file-size split for GoalDriver / AgentLoop / GoalStack — three new candidates noted in O-8, deferred per Principle 0.5 (one split per release, no busy-work)
+- No fitness-score push 127 → 130 — binary on File-Size-Guard, requires all 5 warning files to drop below threshold simultaneously
+- No coverage-floor change — branches 76% remains the floor
+
+### Principles still standing
+
+- 0.4 — Honest non-knowing
+- 0.5 — Structural hygiene is its own release
+- 0.6 — Time is injectable
+- 0.7 — Genesis spricht aus dem was ist
+- 0.8 — AUDIT-BACKLOG is part of every release
+
+---
+
 ## [7.4.4] — "Buchführung"
 
 > Bookkeeping release. No code changes, no new tests. Four config

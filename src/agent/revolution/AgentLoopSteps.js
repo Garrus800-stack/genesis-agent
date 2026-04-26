@@ -15,7 +15,7 @@
 
 const { TIMEOUTS, THRESHOLDS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
-const { normalizeStepType } = require('./step-types');
+const { normalizeStepType, getStepRequirements } = require('./step-types');
 const path = require('path');
 const fs = require('fs');
 const _log = createLogger('AgentLoopSteps');
@@ -92,6 +92,35 @@ class AgentLoopStepsDelegate {
         _log.debug(`[STEPS] Normalized step type "${step.type}" → "${normalizedType}"`);
         step.type = normalizedType;
       }
+
+      // v7.4.5 Baustein C: Pre-existence check.
+      // Resolve required resources for this step type and ask the
+      // ResourceRegistry. If anything is missing, return a special
+      // "blocked" result so AgentLoop can park the goal until the
+      // resource(s) come back, instead of failing the step.
+      const resourceRegistry = loop.resourceRegistry || loop._resourceRegistry;
+      if (resourceRegistry && resourceRegistry.requireAll) {
+        try {
+          const required = getStepRequirements(step.type, step);
+          if (required.length > 0) {
+            const check = resourceRegistry.requireAll(required);
+            if (!check.ok) {
+              _log.info(`[STEPS] step blocked — missing resources: ${check.missing.join(', ')}`);
+              return {
+                output: null,
+                error: `Resource(s) unavailable: ${check.missing.join(', ')}`,
+                durationMs: Date.now() - start,
+                blocked: true,
+                blockedByResources: check.missing,
+              };
+            }
+          }
+        } catch (err) {
+          // Pre-check is best-effort — never let it fail the step
+          _log.debug('[STEPS] resource pre-check error (continuing):', err.message);
+        }
+      }
+
       switch (step.type) {
         case 'ANALYZE':
           stepResult = { ...(await this._stepAnalyze(step, enrichedContext)), durationMs: Date.now() - start };
@@ -275,7 +304,14 @@ class AgentLoopStepsDelegate {
 
     // Execute via ShellAgent if available, otherwise direct
     if (loop.shell) {
-      const result = loop.shell.run(command, { cwd: loop.rootDir, timeout: TIMEOUTS.SHELL_EXEC });
+      // v7.4.5.fix #26: ShellAgent.run() is async — without await,
+      // `result` was the Promise itself, `result.stdout` was undefined,
+      // and the SHELL step silently returned an empty output. The
+      // Verifier saw `error: null` and counted it as success, while
+      // the user got no actual command output. The shell command was
+      // either never observed to completion (fire-and-forget) or the
+      // output was lost because we returned before resolution.
+      const result = await loop.shell.run(command, { cwd: loop.rootDir, timeout: TIMEOUTS.SHELL_EXEC });
       return { output: result.stdout || '', error: result.stderr || null };
     }
 

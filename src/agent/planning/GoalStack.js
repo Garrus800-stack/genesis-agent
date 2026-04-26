@@ -420,11 +420,136 @@ class GoalStack {
     return true;
   }
 
+  /**
+   * v7.4.5.fix #22: Public API to mark a goal as completed.
+   * Symmetric with abandonGoal/pauseGoal. Used by GoalDriver after a
+   * successful AgentLoop.pursue() — AgentLoop runs its own plan
+   * (not goal.steps) and never sets goal.status itself, so without
+   * this call the goal would stay 'active' forever and the periodic
+   * scan would keep re-picking it.
+   *
+   * @param {string} goalId
+   * @returns {boolean} true if the goal was marked completed,
+   *   false if it didn't exist or was already terminal.
+   */
+  completeGoal(goalId) {
+    const g = this.goals.find(g => g.id === goalId);
+    if (!g || GoalStack._isTerminal(g.status)) return false;
+    g.status = 'completed';
+    g.completedAt = new Date().toISOString();
+    g.updated = g.completedAt;
+    this._save();
+    // Cascading effects (matching the executeNextStep completion path).
+    this._unblockDependents(goalId);
+    if (g.parentId) this._checkParentCompletion(g.parentId);
+    if (this.bus && this.bus.emit) {
+      this.bus.emit('goal:completed', {
+        id: g.id, description: g.description,
+      }, { source: 'GoalStack' });
+    }
+    return true;
+  }
+
   abandonGoal(goalId) {
     const g = this.goals.find(g => g.id === goalId);
     if (!g || GoalStack._isTerminal(g.status)) return false;
     g.status = 'abandoned'; g.updated = new Date().toISOString(); this._save();
     return true;
+  }
+
+  /**
+   * v7.4.5 Baustein D: Block a parent goal on a sub-goal that
+   * was spawned to clear an obstacle. The existing
+   * _unblockDependents() chain takes care of unblocking once
+   * the sub-goal completes.
+   *
+   * @param {string} parentId
+   * @param {string} subId
+   */
+  blockOnSubgoal(parentId, subId) {
+    const parent = this.goals.find(g => g.id === parentId);
+    if (!parent) return false;
+    if (GoalStack._isTerminal(parent.status)) return false;
+    parent.status = 'blocked';
+    parent.blockedBy = Array.isArray(parent.blockedBy) ? parent.blockedBy : [];
+    if (!parent.blockedBy.includes(subId)) parent.blockedBy.push(subId);
+    parent.updated = new Date().toISOString();
+    if (!parent.childIds) parent.childIds = [];
+    if (!parent.childIds.includes(subId)) parent.childIds.push(subId);
+    this._save();
+    if (this.bus && this.bus.fire) {
+      this.bus.fire('goal:blocked-on-subgoal', {
+        parentId, subId,
+      }, { source: 'GoalStack' });
+    }
+    return true;
+  }
+
+  // ── v7.4.5 Baustein C: Resource-blocked goals ──────────
+
+  /**
+   * Block a goal because one or more required resources are missing.
+   * The goal stays in the stack and is automatically re-pursued by
+   * GoalDriver when ResourceRegistry emits 'resource:available' for
+   * the missing tokens.
+   *
+   * @param {string} goalId
+   * @param {string[]} resources - tokens that are missing
+   *   (e.g. ['service:llm', 'network'])
+   */
+  blockOnResources(goalId, resources) {
+    const g = this.goals.find(g => g.id === goalId);
+    if (!g) return false;
+    if (GoalStack._isTerminal(g.status)) return false;
+    g.status = 'blocked';
+    g.blockedByResources = Array.isArray(resources) ? [...resources] : [];
+    g.blockedAt = new Date().toISOString();
+    g.updated = g.blockedAt;
+    this._save();
+    if (this.bus && this.bus.fire) {
+      this.bus.fire('goal:blocked-on-resources', {
+        goalId, resources: g.blockedByResources,
+      }, { source: 'GoalStack' });
+    }
+    return true;
+  }
+
+  /**
+   * A resource came back. For every goal blocked-on-resources that
+   * lists this token, remove it from the blocked-list. If the list
+   * becomes empty, transition goal back to 'active'.
+   *
+   * Returns the array of goal IDs that became active.
+   *
+   * @param {string} resourceToken
+   */
+  unblockOnResource(resourceToken) {
+    if (!resourceToken) return [];
+    const reactivated = [];
+    for (const g of this.goals) {
+      if (g.status !== 'blocked') continue;
+      if (!Array.isArray(g.blockedByResources)) continue;
+      const before = g.blockedByResources.length;
+      g.blockedByResources = g.blockedByResources.filter(t => t !== resourceToken);
+      if (g.blockedByResources.length === before) continue;  // no change for this goal
+      if (g.blockedByResources.length === 0) {
+        g.status = 'active';
+        g.updated = new Date().toISOString();
+        delete g.blockedAt;
+        reactivated.push(g.id);
+      }
+    }
+    if (reactivated.length > 0) {
+      this._save();
+      if (this.bus && this.bus.fire) {
+        for (const id of reactivated) {
+          this.bus.fire('goal:resumed-from-resource-block', {
+            goalId: id, resource: resourceToken,
+          }, { source: 'GoalStack' });
+        }
+      }
+    }
+    return reactivated;
   }
 
   // ── v7.3.3: Extended lifecycle states ───────────────────

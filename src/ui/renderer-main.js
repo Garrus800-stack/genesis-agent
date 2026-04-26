@@ -14,7 +14,7 @@
 // ============================================================
 
 const { t, loadI18n } = require('./modules/i18n');
-const { addMessage, startStreamingMessage, appendToStream, finishStream, sendMessage, stopGeneration } = require('./modules/chat');
+const { addMessage, startStreamingMessage, appendToStream, finishStream, sendMessage, stopGeneration, getStreamingState } = require('./modules/chat');
 const { initMonaco, setCurrentFile } = require('./modules/editor');
 const { updateStatus, showToast, showHealth, showSelfModel } = require('./modules/statusbar');
 const { loadFileTree } = require('./modules/filetree');
@@ -189,6 +189,42 @@ document.addEventListener('DOMContentLoaded', () => {
   // IPC event listeners
   window.genesis.on('agent:stream-chunk', appendToStream);
   window.genesis.on('agent:stream-done', finishStream);
+
+  // v7.4.5.fix #23: Goal results in chat. When a goal completes via
+  // GoalDriver auto-pickup (boot-pickup, periodic scan) — NOT via the
+  // chat-triggered ChatOrchestrator → AgentLoop path which streams
+  // its own response — the result was being silently dropped. AgentLoop
+  // emits 'agent-loop:complete' with the verification summary; AgentCoreWire
+  // bridges it to 'agent:loop-progress' {phase, success, summary, title}.
+  // We listen here and append the result as an assistant message,
+  // BUT only when no stream is currently active (otherwise the
+  // chat-trigger path would double-render).
+  let _lastShownGoalAt = 0;
+  window.genesis.on('agent:loop-progress', (data) => {
+    if (!data || data.phase !== 'complete') return;
+    const { isStreaming } = getStreamingState();
+    if (isStreaming) return; // chat-trigger path handles its own render
+    // Dedupe: a single goal completion can fire the bridge twice if
+    // both the stack-completion and the verifier-summary fire close
+    // together. Suppress duplicates within 500ms.
+    const now = Date.now();
+    if (now - _lastShownGoalAt < 500) return;
+    _lastShownGoalAt = now;
+
+    const title = data.title || 'Goal';
+    const summary = (data.summary || '').trim();
+    const success = data.success !== false;
+    const intent = success ? 'goal-complete' : 'goal-failed';
+    const icon = success ? '✅' : '❌';
+    const body = summary
+      ? `${icon} **${title}**\n\n${summary}`
+      : `${icon} **${title}** ${success ? 'abgeschlossen' : 'fehlgeschlagen'}`;
+    try {
+      addMessage('agent', body, intent);
+    } catch (err) {
+      console.warn('[UI] Failed to render goal result:', err.message);
+    }
+  });
 
   window.genesis.on('agent:open-in-editor', (data) => {
     if (!data || !data.content) return;

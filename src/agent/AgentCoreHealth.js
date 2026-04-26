@@ -258,6 +258,12 @@ class AgentCoreHealth {
       'valueStore', 'userModel', 'bodySchema',
       'homeostasisEffectors', 'metabolism', 'immuneSystem',
       'genome', 'fitnessEvaluator',
+      // v7.4.5: GoalDriver — stops scan interval and unsubscribes bus listeners
+      'goalDriver',
+      // v7.4.5 Baustein B: CostStream — final flush + bus unsub + interval clear
+      'costStream',
+      // v7.4.5 Baustein C: ResourceRegistry — clears poll interval + unsubs
+      'resourceRegistry',
       // FIX D-1: Previously missing — these services have stop() methods that
       // persist state (sync write) or clear intervals / unsubscribe events.
       'emotionalSteering', 'errorAggregator',

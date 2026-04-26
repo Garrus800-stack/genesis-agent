@@ -239,7 +239,23 @@ class HealthMonitor {
       // 5. Decay degradation levels (self-healing)
       this._decayDegradation();
 
-      // 6. Emit health tick
+      // 6. v7.4.5: Probe GoalDriver responsiveness
+      try {
+        const driver = this.container?.tryResolve?.('goalDriver');
+        if (driver && typeof driver.isResponding === 'function') {
+          if (!driver.isResponding()) {
+            const status = driver.getStatus?.() || {};
+            const idleMs = Date.now() - (status.lastActivityAt || Date.now());
+            this._escalateDegradation('goalDriver', 'degraded',
+              `Driver unresponsive (idle ${Math.round(idleMs/1000)}s, queue ${status.queueDepth || 0})`);
+            this.bus.emit('driver:unresponsive', {
+              idleMs, queueDepth: status.queueDepth || 0,
+            }, { source: 'HealthMonitor' });
+          }
+        }
+      } catch (_e) { /* probe is best-effort */ }
+
+      // 7. Emit health tick
       this.bus.emit('health:tick', {
         status: this._overallStatus(),
         memory: this._getMemoryMB(),

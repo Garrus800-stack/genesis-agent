@@ -148,10 +148,21 @@ class AgentLoop {
    * @param {Function} onProgress - (update) => void — streams progress to UI
    * @returns {Promise<*>}
    */
-  async pursue(goalDescription, onProgress = () => {}) {
+  async pursue(input, onProgress = () => {}) {
     if (this.running) {
       return { success: false, error: 'Agent loop already running. Use stop() first.' };
     }
+
+    // v7.4.5: Accept string OR Goal object.
+    // - string  : legacy DaemonController-direct path (we'll create a stack entry below)
+    // - Goal    : new GoalDriver-pickup path (already in stack, may carry preGeneratedSteps)
+    const _isGoalObject = (typeof input === 'object' && input !== null
+                           && typeof input.id === 'string'
+                           && typeof input.description === 'string');
+    const goalDescription = _isGoalObject ? input.description : input;
+    const _presetGoal = _isGoalObject ? input : null;
+
+    _log.info(`[AGENT-LOOP] starting pursuit — goal="${(goalDescription || '').slice(0, 80)}"${_presetGoal ? ` (id=${_presetGoal.id}, ${(_presetGoal.steps || []).length} preset steps)` : ' (legacy string input)'}`);
 
     // v3.7.0: Strict Cognitive Mode — refuse to run without core cognitive services
     if (this._strictCognitiveMode && this._cognitiveLevel !== 'FULL') {
@@ -169,6 +180,30 @@ class AgentLoop {
     this.stepCount = 0;
     this.consecutiveErrors = 0;
     this.executionLog = [];
+
+    // v7.4.5.fix: shared early-return helper. Every non-throw failure
+    // path in pursue() must emit agent-loop:complete so observers
+    // (especially GoalDriver._onPursuitComplete) clean up the
+    // _currentlyPursuing lock symmetrically with the happy path.
+    // Without this, an early-return failure leaves the goal locked
+    // forever — exact symptom seen with "User rejected plan with
+    // blockers" → next pickup bounces with "already running" because
+    // running=false has not yet propagated → driver hold lock for
+    // an in-flight pursue that already returned. The fix is to
+    // emit the completion event from every return path.
+    const _emitFailure = (errorMessage) => {
+      try {
+        this.bus.fire('agent-loop:complete', {
+          goalId: this.currentGoalId,
+          success: false,
+          steps: this.stepCount,
+          title: (typeof goalDescription === 'string' ? goalDescription : '').slice(0, 100),
+          summary: `Failed: ${(errorMessage || '').slice(0, 200)}`,
+          verificationMethod: 'early-return',
+          toolsUsed: [],
+        }, { source: 'AgentLoop' });
+      } catch (_e) { /* never let emit break the return path */ }
+    };
 
     // v5.2.0: Structured cancellation token for this goal.
     // Global timeout, user stop(), and step guards all use this token.
@@ -213,12 +248,27 @@ class AgentLoop {
 
     try {
       // ── Phase 1: PLAN ─────────────────────────────────
-      /** @type {*} */ const plan = await this.planner._planGoal(goalDescription);
+      // v7.4.5: If presetGoal carries preGeneratedSteps (e.g. sub-goal
+      // spawned by AgentLoopRecovery in Baustein D), skip planning and
+      // use those steps directly.
+      /** @type {*} */ let plan;
+      if (_presetGoal && Array.isArray(_presetGoal.preGeneratedSteps)
+          && _presetGoal.preGeneratedSteps.length > 0) {
+        plan = {
+          title: (_presetGoal.description || '').slice(0, 100) || 'Pre-planned goal',
+          steps: _presetGoal.preGeneratedSteps,
+          successCriteria: _presetGoal.successCriteria,
+        };
+      } else {
+        plan = await this.planner._planGoal(goalDescription);
+      }
 
       if (!plan || !plan.steps || plan.steps.length === 0) {
         this.running = false;
         _clearGlobalTimeout();
-        return { success: false, error: 'Could not decompose goal into actionable steps.' };
+        const _err = 'Could not decompose goal into actionable steps.';
+        _emitFailure(_err);
+        return { success: false, error: _err };
       }
 
       // v3.5.0: Pre-validate and cost-estimate the plan
@@ -243,13 +293,16 @@ class AgentLoop {
             if (!proceed) {
               this.running = false;
               _clearGlobalTimeout();
-              return { success: false, error: 'User rejected plan with blockers' };
+              const _err = 'User rejected plan with blockers';
+              _emitFailure(_err);
+              return { success: false, error: _err };
             }
           }
         } catch (err) {
           if (err.message && err.message.includes('rejected')) {
             this.running = false;
             _clearGlobalTimeout();
+            _emitFailure(err.message);
             return { success: false, error: err.message };
           }
           _log.debug('[AGENT-LOOP] HTN validation skipped:', err.message);
@@ -294,11 +347,20 @@ class AgentLoop {
         }
       }
 
-      const _registeredGoal = await this.goalStack.addGoal(
-        goalDescription.slice(0, 200),
-        'agent-loop',
-        'high',
-      );
+      // v7.4.5: If we received a Goal object from GoalDriver, it's already
+      // in the stack — reuse it. Otherwise (legacy string path) register a
+      // new stack entry. Source is 'user' for the legacy path (was 'agent-loop'
+      // before; old persisted goals are migrated in GoalPersistence.asyncLoad).
+      let _registeredGoal;
+      if (_presetGoal) {
+        _registeredGoal = _presetGoal;
+      } else {
+        _registeredGoal = await this.goalStack.addGoal(
+          goalDescription.slice(0, 200),
+          'user',
+          'high',
+        );
+      }
       this.currentGoalId = _registeredGoal?.id || `loop_${Date.now()}`;
       this.approval.currentGoalId = this.currentGoalId;
 
@@ -392,6 +454,24 @@ class AgentLoop {
       this._workspace.clear();
       this._workspace = new NullWorkspace();
       onProgress({ phase: 'error', detail: err.message });
+      // v7.4.5.fix: emit agent-loop:complete also on error-path so
+      // GoalDriver._onPursuitComplete cleans up _currentlyPursuing
+      // symmetrically with the happy path. Without this, a thrown
+      // pursuit kept the goal stuck "in pursuit" forever, blocking
+      // every later scan. The GoalDriver._beginPursuit also has a
+      // defensive cleanup, but emitting the event here is the
+      // architecturally clean fix — observers stay consistent.
+      try {
+        this.bus.fire('agent-loop:complete', {
+          goalId: failedGoalId,
+          success: false,
+          steps: this.stepCount,
+          title: (typeof goalDescription === 'string' ? goalDescription : '').slice(0, 100),
+          summary: `Failed: ${(err.message || '').slice(0, 200)}`,
+          verificationMethod: 'error',
+          toolsUsed: [],
+        }, { source: 'AgentLoop' });
+      } catch (_e) { /* never let event emission break the error path */ }
       return { success: false, error: err.message, steps: this.executionLog, goalId: failedGoalId };
     }
     }); // end of CorrelationContext.run
@@ -487,6 +567,30 @@ class AgentLoop {
       // ── ACT: Execute the step ─────────────────────────
       /** @type {*} */ const result = await this.steps._executeStep(step, context, onProgress);
 
+      // ── v7.4.5 Baustein C: Resource-blocked? ──────────
+      // The step's pre-existence check fired and returned blocked=true.
+      // Park the goal on the missing resources; abort the loop here.
+      // GoalDriver will pick this goal up again on resource:available.
+      if (result && result.blocked === true && Array.isArray(result.blockedByResources)) {
+        if (this.goalStack && this.currentGoalId && this.goalStack.blockOnResources) {
+          this.goalStack.blockOnResources(this.currentGoalId, result.blockedByResources);
+        }
+        if (this.bus && this.bus.fire) {
+          this.bus.fire('agent-loop:blocked-on-resources', {
+            goalId: this.currentGoalId,
+            stepIndex: i,
+            stepType: step.type,
+            resources: result.blockedByResources,
+          }, { source: 'AgentLoop' });
+        }
+        return {
+          ok: false,
+          blocked: true,
+          blockedByResources: result.blockedByResources,
+          stepResults: allResults,
+        };
+      }
+
       // ── v3.5.0: VERIFY — programmatic verification ────
       if (this.verifier && result && !result.error) {
         try {
@@ -555,6 +659,28 @@ class AgentLoop {
           i--; // Retry same step
           allResults.push({ retried: true, category: recovery.category });
           continue;
+        }
+
+        // v7.4.5 Baustein D: parent goal parked on a freshly-spawned
+        // sub-goal that will resolve the obstacle. End the loop here;
+        // _unblockDependents (existing GoalStack mechanism) will set
+        // parent back to 'active' when sub-goal completes, and
+        // GoalDriver picks it up to resume.
+        if (recovery.action === 'blocked-on-subgoal') {
+          if (this.bus && this.bus.fire) {
+            this.bus.fire('agent-loop:blocked-on-subgoal', {
+              goalId: this.currentGoalId,
+              stepIndex: i,
+              stepType: step.type,
+              subId: recovery.subId,
+            }, { source: 'AgentLoop' });
+          }
+          return {
+            ok: false,
+            blocked: true,
+            blockedOnSubgoal: recovery.subId,
+            stepResults: allResults,
+          };
         }
 
         if (this.consecutiveErrors >= this.maxConsecutiveErrors) {

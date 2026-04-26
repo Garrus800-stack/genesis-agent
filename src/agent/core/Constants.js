@@ -147,14 +147,24 @@ const RATE_LIMIT = {
   BUCKET_CAPACITY: 60,
   /** Refill rate — calls added back per minute */
   REFILL_PER_MINUTE: 30,
-  /** Per-priority budgets per rolling hour window */
+  /** Per-priority budgets per rolling hour window.
+   *  v7.4.5.fix #20: raised significantly. Original values were
+   *  designed for 24h background autonomy where a goal might run
+   *  every few minutes. For active development sessions the user
+   *  was hitting the wall after 4-5 goals (each goal: plan-
+   *  decompose ~3 calls + 8 steps × ~2 calls each = ~19 calls,
+   *  so 80/h = ~4 goals before lockout). New values still
+   *  protect against runaway loops via BUCKET_CAPACITY=60 burst
+   *  cap, but allow normal interactive work without hitting
+   *  hourly walls.
+   */
   HOURLY_BUDGETS: {
     /** User-facing chat — generous budget */
-    chat: 200,
-    /** Autonomous goal execution — moderate */
-    autonomous: 80,
-    /** Background idle thinking — conservative */
-    idle: 40,
+    chat: 500,
+    /** Autonomous goal execution — generous for active work */
+    autonomous: 500,
+    /** Background idle thinking */
+    idle: 150,
   },
   /** Priority mapping: options.priority => budget key */
   PRIORITY_MAP: {
@@ -162,6 +172,12 @@ const RATE_LIMIT = {
     5:  'autonomous', // PRIORITIES.AGENT_LOOP
     1:  'idle',       // PRIORITIES.IDLE_MIND
   },
+  /** v7.4.5.fix #20: idle-reset window. If no autonomous call has
+   *  been made in this many ms AND there are goals paused due to
+   *  rate-limit, reset all budgets. Catches the "all goals stalled
+   *  waiting for budget" case without masking real failure loops
+   *  (those keep generating calls and never reach idle). */
+  IDLE_RESET_WINDOW_MS: 5 * 60 * 1000,
 };
 
 // ── Emotional Watchdog ─────────────────────────────────

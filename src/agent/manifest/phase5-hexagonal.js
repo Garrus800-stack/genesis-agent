@@ -114,6 +114,10 @@ function phase5(ctx, R) {
         { prop: 'skillManager', service: 'skills', optional: true },
         // v7.3.2: P5→P9 for memory-mark / memory-list / memory-veto commands
         { prop: 'coreMemories', service: 'coreMemories', optional: true },
+        // v7.4.5.fix: P5→P11 for /trust slash-command. Without this,
+        // the trust handler tried bus._container?.resolve and always
+        // returned "Trust level system not available."
+        { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
       ],
       factory: (c) => {
         const { lang } = R('Language');

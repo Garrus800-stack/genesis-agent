@@ -9,7 +9,7 @@
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
   <img src="https://img.shields.io/badge/version-7.4.4-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-5583%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-5668%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-config_ok-fbbf24?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
@@ -85,7 +85,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (7 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). Emotional-cognitive bridge: EmotionalSteering signals flow into AdaptiveStrategy (v7.1.7). Internal A/B benchmark on a single model (kimi-k2.5:cloud, 12 tasks): +16pp to +33pp task success with Organism active vs. disabled. The v6.0.4 run had CPU-only baseline timeouts that likely inflated the upper delta — treat the lower bound as the conservative reading. Not yet replicated across models. See [BENCHMARKING.md](docs/BENCHMARKING.md).
 
-**Infrastructure** — 12-phase DI boot, EventBus (405 event types, 361 emits validated by CI ratchet with 0 schema mismatches), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 semantic safety rules), 16 hash-locked files, DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
+**Infrastructure** — 12-phase DI boot, EventBus (424 event types, 436 emits validated by CI ratchet with 0 schema mismatches), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 semantic safety rules), 16 hash-locked files, DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
 
 **Self-Perception** — Introspection accuracy: verified facts from ArchitectureReflection, SelfModel, CognitiveSelfModel injected into prompt during self-reflect queries — prevents hallucinated metrics. Lesson confirmation loop: recalled lessons correlated with task outcomes (confirmed/contradicted). Research quality gate: Jaccard+specificity scoring before KG write. Frontier-driven GoalSynthesizer: unfinished work, anomalies, and contradicted lessons generate autonomous goals (v7.1.7).
 
@@ -158,10 +158,10 @@ Priority: Your choice → Cloud API → Smart Ranking → First available.
 
 ### Boot profiles
 
-Genesis boots 12 phases (~161 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
+Genesis boots 12 phases (~167 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
 
 ```bash
-npm start                              # Cognitive — default (~161 services)
+npm start                              # Cognitive — default (~167 services)
 # Phase 13 (Consciousness) removed in v7.0.0 — replaced by AwarenessPort
 npm start -- --minimal                 # Minimal — core agent loop only (~50 services)
 npm start -- --skip-phase 7            # Custom — skip specific phases (6-13)
@@ -227,7 +227,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.4.4: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5583 tests passing, 163 services (151 manifest + 12 bootstrap), branch coverage 77.13% (over the new 76% floor). v7.4.4 ("Buchführung") is a bookkeeping-only release: O-6 RESOLVED (organic 75.91 → 77.13%, threshold raised 75.9 → 76), O-9 CLOSED (correctness fix — GateStats has no persistence), O-2 reformulated (in-memory finding from O-9), O-7 DEFERRED (diagnose Szenario C, awaits fresh reproduction). v7.4.3 ("Aufräumen II") shipped one real fix and three structural splits — `CircuitBreaker.timeoutMs` renamed to `failFastMs` with `null|0` opt-out (LLM circuit no longer races its own HTTP timeout); Container, IntentRouter, and SelfModificationPipeline all extracted under the 700-LOC threshold via Prototype-Delegation (same pattern as the v7.4.2 CommandHandlers split). v7.4.2 cleared the AUDIT-BACKLOG drift and established Principle 0.8 (*AUDIT-BACKLOG is part of every release*); v7.4.0/v7.4.1 added RuntimeStatePort for honest self-reporting with quoting + anti-tool-call directives, 13 IntentRouter meta-state patterns, and 100% event-schema coverage (405/405). Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. v7.4.5: zero cross-layer violations, typecheck config ok, 11 PreservationInvariants rules, 5668 tests passing, 167 services (154 manifest + 13 bootstrap), branch coverage above the 76% floor. v7.4.5 ("Durchhalten") is a goal-pipeline release — 30 fixes (#16–#30) plus Bausteine A–D, end-to-end functionality from plan → execute → observe-output → honest-verdict-in-chat. The single most consequential fix was a missing `await` on `loop.shell.run` (#26) which silently swallowed all SHELL stderr; downstream the Verifier was counting broken commands as 100% success. Architecture-gap closure (`GoalStack.completeGoal`, #22) + UI bridge (#23) made goal results visible in chat. POSIX → Windows command translation (#27), `step.target ↔ step.command` schema fix (#28), quote-safe counter (`find /V /C ":"`, #29), and `exec` instead of `execFile` for shell pipes (#30) gave Genesis full Windows shell parity. Live-verified on Windows with qwen3-vl:235b-cloud. v7.4.4 ("Buchführung") was a bookkeeping-only release before this. v7.4.3 ("Aufräumen II") shipped one real fix and three structural splits — `CircuitBreaker.timeoutMs` renamed to `failFastMs` with `null|0` opt-out (LLM circuit no longer races its own HTTP timeout); Container, IntentRouter, and SelfModificationPipeline all extracted under the 700-LOC threshold via Prototype-Delegation. v7.4.2 cleared the AUDIT-BACKLOG drift and established Principle 0.8 (*AUDIT-BACKLOG is part of every release*); v7.4.0/v7.4.1 added RuntimeStatePort for honest self-reporting with quoting + anti-tool-call directives, 13 IntentRouter meta-state patterns, and 100% event-schema coverage. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -531,14 +531,14 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Source modules | 256 modules (src/) |
 | Lines of code | ~89k src + ~59k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
-| DI services | 151 manifest + 12 bootstrap = 163 at runtime |
+| DI services | 154 manifest + 13 bootstrap = 167 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 326 files, 5583 tests (coverage gates: 80/76/78, ratchet floor 5582) |
+| Test suites | 335 files, 5668 tests (coverage gates: 80/76/78, ratchet floor 5667) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 67 main ↔ 67 preload (rate-limited, all in sync) |
 | Event types | 405 across ~114 namespaces (catalogued in EventTypes.js) |
-| Event schemas | 405 declared, 0 mismatches, 405/405 coverage (enforced by CI ratchet) |
+| Event schemas | 424 declared, 0 mismatches, 424/424 coverage (enforced by CI ratchet) |
 | Cross-layer event flows | 361 emitted events, 62 listeners (via EventBus, no direct imports) |
 | Hexagonal ports | 11 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace, Awareness, ActiveRefs, CostGuard, DaemonControl, RuntimeState) |
 | Cognitive modules | 17 (ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence, CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder) |

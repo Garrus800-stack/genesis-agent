@@ -184,11 +184,80 @@ class ModelBridgeAdapter extends LLMPort {
 
     // Late-bound (v7.0.5: declared for TSC)
     /** @type {*} */ this._costGuard = null;
+    /** @type {*} */ this._correlationContext = null;
+    /** @type {*} */ this._cache = null;       // optional: ModelBridge LLMCache for cache-hit detection
+  }
+
+  // ── v7.4.5 Baustein B: cost event emit (single point) ──
+  /**
+   * Emit llm:call-complete with all fields populated.
+   * @param {{
+   *   taskType: string, systemPrompt: string, messages: any[], result: string,
+   *   latencyMs: number, cached?: boolean, options?: any
+   * }} ctx
+   */
+  _emitCallComplete(ctx) {
+    const { taskType, systemPrompt, messages, result, latencyMs, cached = false, options = {} } = ctx;
+    const promptTokens = cached
+      ? 0
+      : estimateTokens(systemPrompt || '', taskType) +
+        (messages || []).reduce((s, m) => s + estimateTokens(m.content || '', taskType), 0);
+    const responseTokens = cached ? 0 : estimateTokens(result || '', taskType);
+    this._metrics.totalTokensEstimated += promptTokens + responseTokens;
+
+    if (this._costGuard && !cached) {
+      this._costGuard.checkBudget(taskType, promptTokens + responseTokens, options);
+    }
+
+    const goalId = options.goalId
+      || (this._correlationContext && this._correlationContext.get?.('goalId'))
+      || null;
+    const correlationId = options.correlationId
+      || (this._correlationContext && this._correlationContext.get?.('correlationId'))
+      || null;
+
+    this.bus.emit('llm:call-complete', {
+      taskType,
+      model: this._bridge.activeModel,
+      backend: this._bridge.activeBackend,
+      latencyMs,
+      promptTokens,
+      responseTokens,
+      cached,
+      goalId,
+      correlationId,
+    }, { source: 'LLMPort' });
   }
 
   // ── Rate Limit ──────────────────────────────────────
 
   _checkRateLimit(taskType, options) {
+    // v7.4.5.fix #20: idle-reset for autonomous/idle buckets.
+    // If no autonomous call has happened in IDLE_RESET_WINDOW_MS
+    // AND we're rate-limited, reset the hourly budget. This
+    // catches the "all goals stalled waiting for budget" case
+    // without masking real failure loops (those keep firing
+    // calls and never go idle). Chat budget never auto-resets —
+    // it has separate semantics (user-driven, no concept of idle).
+    const priority = options?.priority || 0;
+    const budgetKey = RATE_LIMIT.PRIORITY_MAP[priority] || 'chat';
+    if (budgetKey !== 'chat' && this._lastAutonomousCallAt) {
+      const idleMs = Date.now() - this._lastAutonomousCallAt;
+      if (idleMs >= RATE_LIMIT.IDLE_RESET_WINDOW_MS) {
+        const status = this._hourlyBudget.getStatus();
+        const exhausted = Object.values(status).some(b =>
+          b && typeof b.used === 'number' && typeof b.budget === 'number' && b.used >= b.budget);
+        if (exhausted) {
+          this._hourlyBudget.reset();
+          this.bus.emit('llm:budget-auto-reset', {
+            reason: `${Math.round(idleMs/1000)}s idle with exhausted budget`,
+            triggeredBy: taskType,
+          }, { source: 'LLMPort' });
+        }
+      }
+    }
+    if (budgetKey !== 'chat') this._lastAutonomousCallAt = Date.now();
+
     // 1. Token bucket (burst control)
     if (!this._bucket.tryConsume()) {
       this._metrics.rateLimited++;
@@ -200,8 +269,6 @@ class ModelBridgeAdapter extends LLMPort {
     }
 
     // 2. Hourly budget (per priority class)
-    const priority = options?.priority || 0;
-    const budgetKey = RATE_LIMIT.PRIORITY_MAP[priority] || 'chat';
     const result = this._hourlyBudget.tryConsume(budgetKey);
 
     if (!result.allowed) {
@@ -232,6 +299,18 @@ class ModelBridgeAdapter extends LLMPort {
     return true;
   }
 
+  /**
+   * v7.4.5.fix #20: explicit manual reset, e.g. via /budget reset
+   * slash-command. Wakes up paused goals via budget-reset event.
+   */
+  resetBudget() {
+    this._hourlyBudget.reset();
+    this._bucket = new TokenBucket(RATE_LIMIT.BUCKET_CAPACITY, RATE_LIMIT.REFILL_PER_MINUTE);
+    this.bus.emit('llm:budget-manual-reset', {
+      timestamp: new Date().toISOString(),
+    }, { source: 'LLMPort' });
+  }
+
   // ── Chat ────────────────────────────────────────────
 
   async chat(systemPrompt, messages = [], taskType = 'chat', options = {}) {
@@ -252,21 +331,13 @@ class ModelBridgeAdapter extends LLMPort {
       const latency = Date.now() - start;
       this._recordLatency(latency);
 
-      // v3.5.0: Improved token estimation
-      const promptTokens = estimateTokens(systemPrompt, taskType) +
-        messages.reduce((s, m) => s + estimateTokens(m.content, taskType), 0);
-      const responseTokens = estimateTokens(result, taskType);
-      this._metrics.totalTokensEstimated += promptTokens + responseTokens;
+      // v7.4.5 Baustein B: detect cache hit by comparing latency
+      // (cache hits return in <2ms; real LLM calls take >50ms even local)
+      const cached = latency < 5;
 
-      // v6.0.1: Record actual token usage in CostGuard
-      if (this._costGuard) {
-        this._costGuard.checkBudget(taskType, promptTokens + responseTokens, options);
-      }
-
-      this.bus.emit('llm:call-complete', {
-        taskType, backend: this._bridge.activeBackend,
-        latencyMs: latency, promptTokens, responseTokens,
-      }, { source: 'LLMPort' });
+      this._emitCallComplete({
+        taskType, systemPrompt, messages, result, latencyMs: latency, cached, options,
+      });
 
       return result;
     } catch (err) {
@@ -288,9 +359,24 @@ class ModelBridgeAdapter extends LLMPort {
     this._metrics.callsByTaskType[taskType] = (this._metrics.callsByTaskType[taskType] || 0) + 1;
     this._metrics.lastCallAt = new Date().toISOString();
 
+    // v7.4.5 Baustein B: aggregate streamed chunks for token estimation
+    let aggregated = '';
+    const wrappedOnChunk = (chunk) => {
+      aggregated += chunk;
+      if (typeof onChunk === 'function') return onChunk(chunk);
+    };
+
     try {
-      const result = await this._bridge.streamChat(systemPrompt, messages, onChunk, abortSignal, taskType, options);
-      this._recordLatency(Date.now() - start);
+      const result = await this._bridge.streamChat(systemPrompt, messages, wrappedOnChunk, abortSignal, taskType, options);
+      const latency = Date.now() - start;
+      this._recordLatency(latency);
+
+      this._emitCallComplete({
+        taskType, systemPrompt, messages,
+        result: aggregated || (typeof result === 'string' ? result : ''),
+        latencyMs: latency, cached: false, options,
+      });
+
       return result;
     } catch (err) {
       this._metrics.errors++;
@@ -310,7 +396,17 @@ class ModelBridgeAdapter extends LLMPort {
 
     try {
       const result = await this._bridge.chatStructured(systemPrompt, messages, taskType);
-      this._recordLatency(Date.now() - start);
+      const latency = Date.now() - start;
+      this._recordLatency(latency);
+
+      // v7.4.5 Baustein B: emit cost event. Result is parsed JSON,
+      // serialize for token-count estimation.
+      const resultStr = typeof result === 'string' ? result : JSON.stringify(result || {});
+      this._emitCallComplete({
+        taskType, systemPrompt, messages, result: resultStr,
+        latencyMs: latency, cached: false, options,
+      });
+
       return result;
     } catch (err) {
       this._metrics.errors++;

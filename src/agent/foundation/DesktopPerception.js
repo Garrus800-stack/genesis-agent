@@ -213,17 +213,29 @@ class DesktopPerception {
           // Ollama responded but invalid JSON — probably running but error
           this.worldState.updateOllamaStatus('error');
         }
+        // v7.4.5 Baustein C: notify ResourceRegistry of completed poll
+        this._emitOllamaTick();
       });
     });
     req.on('error', () => {
       this.worldState.updateOllamaStatus('stopped');
       this.worldState.updateOllamaModels([]);
+      this._emitOllamaTick();
     });
     req.on('timeout', () => {
       req.destroy();
       this.worldState.updateOllamaStatus('stopped');
       this.worldState.updateOllamaModels([]);
+      this._emitOllamaTick();
     });
+  }
+
+  _emitOllamaTick() {
+    try {
+      this.bus.fire('perception:ollama-tick', {
+        status: this.worldState.state?.runtime?.ollamaStatus || 'unknown',
+      }, { source: 'DesktopPerception' });
+    } catch (_e) { /* best-effort */ }
   }
 
   _pollSystemResources() {

@@ -68,9 +68,23 @@ const commandHandlersGoals = {
     }
 
     // ── Add a goal ────────────────────────────────────────
-    const addMatch = message.match(/ziel.*(?:setze|erstelle|hinzufuegen|add).*?:\s*(.+)/i) ||
-                     message.match(/(?:setze|erstelle|add).*ziel.*?:\s*(.+)/i) ||
-                     message.match(/(?:set|create|add).*goal.*?:\s*(.+)/i);
+    // v7.4.5.fix: bilingual patterns. German keeps its colon-form,
+    // English now also matches "set me a goal to ...", "add a goal
+    // to ...", "create a new goal: ..." — both with and without
+    // colon. Order matters: more specific (colon-form) wins first.
+    const addMatch =
+      // German: ziel ... setze/erstelle/hinzufuegen/add : <desc>
+      message.match(/ziel.*(?:setze|erstelle|hinzufuegen|add).*?:\s*(.+)/i) ||
+      // German: setze/erstelle/add ... ziel : <desc>
+      message.match(/(?:setze|erstelle|add).*ziel.*?:\s*(.+)/i) ||
+      // German colon-free: "setze (mir) ein ziel <desc>" / "erstelle ein ziel <desc>"
+      message.match(/(?:setze|erstelle)\s+(?:mir\s+)?(?:ein|das|den)?\s*ziel(?:\s+(?:zu|um|nach|für|fuer))?\s+(.+)/i) ||
+      // English: set/create/add ... goal : <desc>
+      message.match(/(?:set|create|add).*goal.*?:\s*(.+)/i) ||
+      // English colon-free: "set (me) a goal to ...", "add a (new) goal to ...", "create a new goal to ..."
+      message.match(/(?:set|create|add)\s+(?:me\s+)?(?:(?:a|an|the|new|another)\s+){0,3}goal\s+(?:to|that|for)?\s+(.+)/i) ||
+      // English very-short: "new goal: X" / "new goal X"
+      message.match(/^\s*new\s+goal\s*[:]?\s*(.+)/i);
     if (addMatch) {
       const goal = await this.goalStack.addGoal(addMatch[1].trim(), 'user', 'high');
       return this.lang.t('goals.created', { description: goal.description }) +

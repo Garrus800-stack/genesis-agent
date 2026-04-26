@@ -41,6 +41,7 @@ class GoalPersistence {
     this.goalStack = goalStack;
     this.eventStore = eventStore || null;
     this.agentLoop = null; // lateBinding
+    /** @type {*} */ this.costStream = null;  // v7.4.5 Baustein B: lateBinding
 
     const cfg = config || {};
     this._archiveMax = cfg.archiveMax || ARCHIVE_MAX;
@@ -129,6 +130,23 @@ class GoalPersistence {
 
     const unfinished = this._activeGoals.filter(g => GOAL_STATUSES.has(g.status));
     if (unfinished.length === 0) return [];
+
+    // v7.4.5: One-time migration — old goals tagged source='agent-loop'
+    // (legacy DaemonController-direct path) are upgraded to source='user'
+    // so they participate in GoalDriver auto-resume.
+    let _migrated = 0;
+    for (const g of unfinished) {
+      if (g.source === 'agent-loop') {
+        g.source = 'user';
+        g.updated = new Date().toISOString();
+        _migrated++;
+      }
+    }
+    if (_migrated > 0) {
+      _log.info(`[GOAL-PERSIST] Migrated ${_migrated} legacy 'agent-loop' goals to 'user'`);
+      try { await this.storage.writeJSON('goals/active.json', this._activeGoals); }
+      catch (err) { _log.warn('[GOAL-PERSIST] Migration save failed:', err.message); }
+    }
 
     const resumed = [];
 
@@ -306,6 +324,26 @@ class GoalPersistence {
 
     goal.status = status;
     goal.completedAt = new Date().toISOString();
+
+    // v7.4.5 Baustein B: capture cost summary before archive.
+    // CostStream is the single source of truth — query it now.
+    if (this.costStream) {
+      try {
+        const cost = this.costStream.queryCost({ goalId });
+        if (cost && cost.calls > 0) {
+          goal.costSummary = {
+            tokensIn: cost.tokensIn || 0,
+            tokensOut: cost.tokensOut || 0,
+            calls: cost.calls || 0,
+            latencyMs: cost.latencyMs || 0,
+            cachedCalls: cost.cachedCalls || 0,
+          };
+        }
+      } catch (err) {
+        _log.debug('[GOAL-PERSIST] cost snapshot failed (best-effort):', err.message);
+      }
+    }
+
     this._archive.push(goal);
     this._activeGoals = this._activeGoals.filter(g => g.id !== goalId);
     this._stepCheckpoints.delete(goalId);

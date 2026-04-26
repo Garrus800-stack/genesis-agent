@@ -1,6 +1,6 @@
 # Genesis Agent — Communication Architecture
 
-> v7.4.4 — How Genesis instances communicate with each other and the outside world.
+> v7.4.5 — How Genesis instances communicate with each other and the outside world.
 > Updated with Colony IPC (V7-1), AwarenessPort, NetworkSentinel, RuntimeStatePort (v7.4.0), and `failFastMs` CircuitBreaker semantics (v7.4.3).
 
 ---

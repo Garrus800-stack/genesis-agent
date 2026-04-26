@@ -367,6 +367,27 @@ const SCHEMAS = {
   'goal:create-file':       { goalId: 'required', path: 'required' },
   'goal:stalled':           { id: 'required', description: 'required', reason: 'required' },
   'goal:obsolete':          { id: 'required', description: 'required', reason: 'required' },
+  // v7.4.5: GoalDriver events
+  'goal:driver-pickup':     { goalId: 'required', priority: 'required', source: 'required' },
+  'goal:discarded':         { ids: 'required', via: 'required' },
+  'goal:resumed-auto':      { goalIds: 'required', mode: 'required' },
+  'driver:unresponsive':    { idleMs: 'required', queueDepth: 'required' },
+  'ui:resume-prompt':       { goalId: 'required', title: 'optional', currentStep: 'optional', totalSteps: 'optional', lastUpdated: 'optional', reason: 'optional' },
+  'ui:resume-decision':     { goalId: 'required', decision: 'required', rememberAs: 'optional' },
+  // v7.4.5 Baustein C: ResourceRegistry events
+  'resource:available':     { token: 'required', reason: 'optional', resourceId: 'optional', status: 'optional' },
+  'resource:unavailable':   { token: 'required', reason: 'optional', resourceId: 'optional', status: 'optional' },
+  'goal:blocked-on-resources':         { goalId: 'required', resources: 'required' },
+  'goal:resumed-from-resource-block':  { goalId: 'required', resource: 'required' },
+  'agent-loop:blocked-on-resources':   { goalId: 'optional', stepIndex: 'optional', stepType: 'optional', resources: 'required' },
+  'perception:ollama-tick':            { status: 'optional' },
+  // v7.4.5 Baustein D: Sub-goal-spawn events
+  'goal:blocked-on-subgoal':           { parentId: 'required', subId: 'required' },
+  'goal:subgoal-spawned':              { parentId: 'required', subId: 'required', obstacleType: 'optional', contextKey: 'optional', stepIndex: 'optional', description: 'optional' },
+  'goal:obstacle-loop-protected':      { parentId: 'required', obstacleType: 'optional', contextKey: 'optional', reason: 'required' },
+  'agent-loop:blocked-on-subgoal':     { goalId: 'optional', stepIndex: 'optional', stepType: 'optional', subId: 'required' },
+  'permission:granted':     { permissionId: 'required' },
+  'permission:denied':      { permissionId: 'required' },
 
   // Memory
   'memory:fact-stored':     { key: 'required', source: 'optional' },
@@ -453,10 +474,25 @@ const SCHEMAS = {
   'learning:performance-alert':   { type: 'optional' },
 
   // LLM
-  'llm:call-complete':      { model: 'optional', tokens: 'optional', durationMs: 'optional' },
+  // v7.4.5 Baustein B: extended schema with model, backend, token counts,
+  // cached flag, goalId, correlationId. All fields optional to keep
+  // back-compat with existing emit sites.
+  'llm:call-complete':      {
+    taskType: 'optional', model: 'optional', backend: 'optional',
+    latencyMs: 'optional', promptTokens: 'optional', responseTokens: 'optional',
+    cached: 'optional', goalId: 'optional', correlationId: 'optional',
+    tokens: 'optional', durationMs: 'optional',  // legacy aliases
+  },
   'llm:call-error':         { error: 'required' },
   'llm:rate-limited':       { model: 'optional' },
   'llm:budget-warning':     { usage: 'optional' },
+
+  // COST (v7.4.5 Baustein B)
+  'cost:recorded':          {
+    ts: 'required', taskType: 'optional', model: 'optional', backend: 'optional',
+    promptTokens: 'optional', responseTokens: 'optional', latencyMs: 'optional',
+    cached: 'optional', goalId: 'optional', correlationId: 'optional',
+  },
 
   // Perception
   'perception:file-added':    { path: 'required' },

@@ -26,11 +26,40 @@ const commandHandlersSystem = {
   handleSettings(message) {
     if (!this.settings) return this.lang.t('settings.unavailable');
 
-    // Set API key
+    // Set API key (legacy specific match)
     const apiMatch = message.match(/(?:anthropic|api).?key.*?[:=]\s*(\S+)/i);
     if (apiMatch) {
       this.settings.set('models.anthropicApiKey', apiMatch[1]);
       return this.lang.t('settings.api_key_saved', { key: apiMatch[1].slice(0, 8) });
+    }
+
+    // v7.4.5.fix: Generic dot-path setter — `<dotted.path> = <value>`
+    // Examples:
+    //   agency.autoResumeGoals = always
+    //   daemon.enabled = true
+    //   idleMind.idleMinutes = 5
+    // Booleans, integers, and quoted/unquoted strings are coerced.
+    const dotMatch = message.match(/^\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*[=:]\s*(.+?)\s*$/);
+    if (dotMatch && dotMatch[1].includes('.')) {
+      const path = dotMatch[1];
+      let raw = dotMatch[2].trim();
+      // strip surrounding quotes
+      if ((raw.startsWith("'") && raw.endsWith("'")) || (raw.startsWith('"') && raw.endsWith('"'))) {
+        raw = raw.slice(1, -1);
+      }
+      // coerce
+      let value;
+      if (raw === 'true') value = true;
+      else if (raw === 'false') value = false;
+      else if (/^-?\d+$/.test(raw)) value = parseInt(raw, 10);
+      else if (/^-?\d+\.\d+$/.test(raw)) value = parseFloat(raw);
+      else value = raw;
+      try {
+        this.settings.set(path, value);
+        return `✓ ${path} = ${JSON.stringify(value)}`;
+      } catch (err) {
+        return `✗ Failed to set ${path}: ${err.message}`;
+      }
     }
 
     // Show settings
@@ -49,8 +78,10 @@ const commandHandlersSystem = {
   },
 
   async trustControl(message) {
-    // Resolve TrustLevelSystem via container
-    const trustSystem = this.bus?._container?.resolve?.('trustLevelSystem');
+    // v7.4.5.fix: prefer late-bound `this.trustLevelSystem` (wired via
+    // phase5 manifest), fall back to container-lookup for legacy paths.
+    const trustSystem = this.trustLevelSystem
+                     || this.bus?._container?.resolve?.('trustLevelSystem');
     if (!trustSystem) return 'Trust level system not available.';
 
     const current = trustSystem.getLevel();

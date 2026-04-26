@@ -285,10 +285,39 @@ class FormalPlanner {
     const recentFiles = this.worldState?.getRecentlyModified()
       .slice(0, 5).map(f => f.path).join(', ') || 'none';
 
+    // v7.4.5.fix #27: tell the LLM what OS Genesis runs on and where
+    // its working directory is. Without this, the planner generated
+    // POSIX commands ("ls", "cat") on Windows, leading to "command
+    // not recognized" errors. Also: planner needs to know the absolute
+    // rootDir so it can target files inside Genesis instead of guessing.
+    const platform = process.platform;
+    const isWindows = platform === 'win32';
+    const osName = isWindows ? 'Windows' : (platform === 'darwin' ? 'macOS' : 'Linux');
+    const shellName = isWindows ? 'cmd.exe / PowerShell' : 'bash';
+    const listCmd = isWindows ? 'dir' : 'ls';
+    const catCmd = isWindows ? 'type' : 'cat';
+    const findCmd = isWindows ? 'where' : 'which';
+    const pathSep = isWindows ? '\\' : '/';
+    const rootDir = this.rootDir || process.cwd();
+    const osContext = `
+
+ENVIRONMENT:
+- Operating System: ${osName} (process.platform = "${platform}")
+- Default shell: ${shellName}
+- Working directory (rootDir): ${rootDir}
+- Path separator: "${pathSep}"
+- Use these commands on this OS:
+  * List files: ${listCmd}   (NOT "ls" on Windows)
+  * Read file: ${catCmd}     (NOT "cat" on Windows)
+  * Find binary: ${findCmd}  (NOT "which" on Windows)
+- All paths in commands MUST be relative to rootDir or absolute paths starting with "${rootDir}".
+- For SHELL steps targeting Genesis files: use rootDir as the base.
+`;
+
     const prompt = `You are Genesis, an autonomous AI agent. Decompose this goal into concrete steps.
 
 GOAL: ${goalDescription}
-
+${osContext}
 AVAILABLE ACTION TYPES: ${actionTypes}
 YOUR CAPABILITIES: ${capabilities.join(', ')}
 RECENTLY MODIFIED FILES: ${recentFiles}
@@ -315,7 +344,9 @@ Rules:
 - Include GIT_SNAPSHOT before any WRITE_FILE or SELF_MODIFY
 - Include RUN_TESTS after code changes
 - Maximum 15 steps
-- Use ANALYZE before CODE_GENERATE to understand existing code`;
+- Use ANALYZE before CODE_GENERATE to understand existing code
+- For SHELL steps, use commands appropriate for ${osName} (see ENVIRONMENT above)
+- For file operations, use paths relative to or absolute under rootDir`;
 
     try {
       const response = await this.model.chatStructured(prompt, [], 'planning');

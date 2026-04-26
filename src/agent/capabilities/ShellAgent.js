@@ -148,6 +148,14 @@ class ShellAgent {
       maxBuffer: 1024 * 1024, windowsHide: true,
     };
 
+    // v7.4.5.fix #27b: apply OS adaptation BEFORE branching into
+    // shell vs execFile. Previously, _adaptCommand was only called
+    // inside _parseCommand (the non-Windows simple-command path),
+    // so on Windows + shell mode the LLM's "ls" was passed verbatim
+    // to cmd.exe which rejected it. Now even with shell mode we
+    // first translate POSIX → Windows.
+    command = this._adaptCommand(command);
+
     try {
       let stdout;
       if (shellMeta || this.isWindows) {
@@ -542,15 +550,34 @@ Respond ONLY with a JSON list:
 
   _adaptCommand(cmd) {
     if (!this.isWindows) return cmd;
-    return cmd
+    // v7.4.5.fix #27c: expanded POSIX → Windows mapping. Previously
+    // only 8 commands were translated; the LLM commonly generates
+    // grep/find/wc/touch/echo idioms that all failed silently.
+    // We translate the common shapes so Genesis can actually carry
+    // out diverse tasks on Windows, not just file listing.
+    let out = cmd;
+    // Simple program-name swaps (start of command only)
+    out = out
       .replace(/^ls\b/, 'dir')
       .replace(/^cat\s/, 'type ')
+      .replace(/^rm\s+-rf\s/, 'rmdir /s /q ')
       .replace(/^rm\s/, 'del ')
+      .replace(/^cp\s+-r\s/, 'xcopy /e /i ')
       .replace(/^cp\s/, 'copy ')
       .replace(/^mv\s/, 'move ')
-      .replace(/^mkdir -p\s/, 'mkdir ')
+      .replace(/^mkdir\s+-p\s/, 'mkdir ')
       .replace(/^which\s/, 'where ')
-      .replace(/^clear$/, 'cls');
+      .replace(/^touch\s/, 'type nul > ')
+      .replace(/^pwd\b/, 'cd')
+      .replace(/^clear$/, 'cls')
+      .replace(/^echo\s+\$([A-Z_][A-Z0-9_]*)\b/, 'echo %$1%');
+    // Common pipe idioms: "ls | wc -l" → "dir /b | find /c /v """
+    out = out.replace(/\|\s*wc\s+-l\s*$/, '| find /c /v ""');
+    // grep — basic mapping to findstr (not 1:1 but covers common cases)
+    out = out.replace(/\bgrep\s+(-[A-Za-z]+\s+)?/g, 'findstr ');
+    // /dev/null → NUL
+    out = out.replace(/\/dev\/null/g, 'NUL');
+    return out;
   }
 
   /**

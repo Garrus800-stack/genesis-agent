@@ -695,6 +695,38 @@ const CHANNELS = {
     return { ok: true };
   },
 
+  // v7.4.5: GoalDriver — status, queue, resume-decision
+  'agent:goal-driver-status': async () => {
+    if (!agent) return null;
+    const driver = agent.container.tryResolve('goalDriver');
+    if (!driver) return null;
+    try { return JSON.parse(JSON.stringify(driver.getStatus())); }
+    catch { return null; }
+  },
+
+  'agent:goal-driver-queue': async () => {
+    if (!agent) return [];
+    const driver = agent.container.tryResolve('goalDriver');
+    if (!driver) return [];
+    try { return JSON.parse(JSON.stringify(driver.getQueue())); }
+    catch { return []; }
+  },
+
+  'agent:resume-decision': async (_event, payload) => {
+    if (!agent) return { ok: false };
+    if (!payload || typeof payload.goalId !== 'string'
+        || typeof payload.decision !== 'string') {
+      return { ok: false, error: 'invalid payload' };
+    }
+    const { bus } = require('./src/agent/core/EventBus');
+    bus.emit('ui:resume-decision', {
+      goalId: payload.goalId,
+      decision: payload.decision,
+      rememberAs: payload.rememberAs,
+    }, { source: 'IPC' });
+    return { ok: true };
+  },
+
   // v3.5.0: Session info
   'agent:get-session': async () => {
     if (!agent) return null;

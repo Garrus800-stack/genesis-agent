@@ -82,6 +82,10 @@ const ALLOWED_INVOKE = [
   'agent:get-autonomy-report',
   // v7.2.4: Filesystem-based first-boot detection
   'agent:is-first-boot',
+  // v7.4.5: GoalDriver
+  'agent:goal-driver-status',
+  'agent:goal-driver-queue',
+  'agent:resume-decision',
 ];
 
 const ALLOWED_SEND = [
@@ -97,6 +101,12 @@ const ALLOWED_RECEIVE = [
   // v3.5.0: Agent Loop events
   'agent:loop-progress',
   'agent:loop-approval-needed',
+  // v7.4.5: GoalDriver events
+  'goal:driver-pickup',
+  'goal:resumed-auto',
+  'goal:discarded',
+  'driver:unresponsive',
+  'ui:resume-prompt',
 ];
 
 contextBridge.exposeInMainWorld('genesis', {

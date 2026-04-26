@@ -1,9 +1,61 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.4.4 · Last updated: v7.4.4 Buchführung pass (O-2 reformulated, O-6 RESOLVED, O-7 DEFERRED, O-9 CLOSED)
+> Version: 7.4.5 · Last updated: v7.4.5 Durchhalten (Bausteine A–D, fixes #16–#30, O-8 regression noted, goal-pipeline fully functional end-to-end)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.4.5 — "Durchhalten"
+
+A goal-pipeline release: end-to-end functionality from plan → execute →
+observe-output → honest-verdict-in-chat. 30 fixes shipped (#16–#30) plus
+4 Bausteine A–D (GoalDriver as P10, CostStream P1, ResourceRegistry P1,
+Sub-Goal-Spawn). Live-verified on Windows (qwen3-vl:235b-cloud).
+
+### What was verified
+- **Tests:** 5668 pass, 0 failed
+- **Schema scan:** 0 mismatches (273 source files, 436 emit/fire calls, 424 schemas)
+- **Architectural fitness:** 127/130 (binary File-Size-Guard penalty — see O-8 update below)
+- **Live-pipeline:** goal *"liste alle .js Dateien im Genesis-Ordner und zähle sie"* → `dir /b *.js` then `dir /b *.js | find /V /C ":"` → 4 files, count 4
+- **Failure case:** goal *"node test-fake.js"* → honest `MODULE_NOT_FOUND`, marked FAILED
+
+### Items resolved
+- **Goal-pipeline unbroken end-to-end** — 30 separate bugs (#16–#30) listed in CHANGELOG.
+  The single most consequential was #26 (a missing `await` on `loop.shell.run`) which
+  silently swallowed all SHELL stderr and let the Verifier count broken commands as
+  100% success. Architecture gap closure (#22 — `GoalStack.completeGoal`) prevented
+  goals from infinite re-pickup. UI bridge (#23) made results visible in chat.
+- **Windows shell parity** — POSIX → Windows command translation expanded (#27),
+  `_adaptCommand` applied unconditionally on Windows, `exec` instead of `execFile`
+  for shell path (#30) so pipes/quotes/redirects all work the way the LLM wrote them.
+- **Quote-safe counting** — `find /V /C ":"` replacing `find /C /V ""` (the doubled
+  empty quotes get re-escaped through Node.js → cmd.exe and trigger access-denied).
+
+### O-8 status update — REGRESSION (deferred)
+- **v7.4.4 baseline:** 2 files >700 LOC (`PromptBuilderSections.js`, `EpisodicMemory.js`)
+- **v7.4.5:** **5 files >700 LOC**
+  - `PromptBuilderSections.js` — 769 LOC (deferred via O-12 — bundled with BeliefStore in v7.6+)
+  - `EpisodicMemory.js` — 758 LOC (deferred — no driving feature touch yet)
+  - `GoalDriver.js` — **829 LOC** (NEW — grew through v7.4.5 #16–#22 rate-limit/race/lock fixes)
+  - `AgentLoop.js` — **813 LOC** (NEW — grew through #22–#23 completeGoal wiring + blocked-branch path)
+  - `GoalStack.js` — **769 LOC** (NEW — grew through `completeGoal` addition with cascading effects)
+- Fitness score **unchanged at 127/130** because File-Size-Guard is binary (any warn → 7/10), but **this is an honest-bookkeeping regression**.
+- **Action:** deferred. Three new split candidates for a future "Aufräumen III" release.
+  Per Principle 0.5: feature stability first, structural cleanup follows. The natural
+  moment is once the v7.4.5 fixes have run live for a while and the new code paths
+  in GoalDriver/AgentLoop/GoalStack are stable.
+
+### Items added (open by design)
+- **O-13: Multi-model fallback in ModelBridge** — would structurally solve the
+  rate-limit problem that #16–#19 patched at the GoalDriver level. When current
+  model hits rate-limit, switch to fallback (cloud → local Ollama). Open for a
+  future release.
+- **O-14: Reflect→Study path** — Genesis can now see its own outputs (post-#26).
+  Next step is to learn from failures: when a goal fails honestly, the
+  failure-reason should feed a "study" episode that informs future plans.
+  Foundation for v7.5+ meta-planner.
 
 ---
 
@@ -353,17 +405,28 @@ itself resolved.
 
 ### O-8: Files over 700-LOC warn threshold
 - **Since:** v7.4.2 (CommandHandlers split addressed the largest; four remained)
-- **Status:** REDUCED in v7.4.3 (4 → 2 files); one item deliberately deferred
-- **Detail:** v7.4.3 Bausteine B/C/D resolved three of the four:
+- **Status:** REDUCED in v7.4.3 (4 → 2 files); REGRESSED in v7.4.5 (2 → 5 files); deferred
+- **Detail:** v7.4.3 Bausteine B/C/D resolved three of the four original files:
   - `Container.js` — 771 → 581 LOC (Baustein B: ContainerDiagnostics extract)
   - `IntentRouter.js` — 713 → 450 LOC (Baustein C: IntentPatterns data extract)
   - `SelfModificationPipeline.js` — 704 → 453 LOC (Baustein D: Modify family extract)
 
-  Still over threshold:
+  v7.4.5 goal-pipeline work grew three files over the threshold:
+  - `GoalDriver.js` — 829 LOC (NEW; rate-limit pause logic, idempotency-guard, lock-cleanup, completeGoal call, blocked-branch handling, budget-reset listener — fixes #16–#22)
+  - `AgentLoop.js` — 813 LOC (NEW; `_emitFailure` helper, completeGoal wiring, blocked-branch path — fixes #14, #22, #23)
+  - `GoalStack.js` — 769 LOC (NEW; new `completeGoal()` method with cascading effects — unblockDependents, parent-completion check, `goal:completed` event)
+
+  Still over threshold (carry-over):
   - `PromptBuilderSections.js` — 769 LOC — see O-12 (deferred to v7.6+ on purpose)
   - `EpisodicMemory.js` — 758 LOC (no driving feature need; left until natural touch)
-- **Action:** EpisodicMemory left until a natural feature touch motivates a
-  domain-aware split (Principle 0.5: one split per release, no busy-work).
+- **Action:** All five deferred. Three new candidates for a future "Aufräumen III" release.
+  Per Principle 0.5: feature stability first, structural cleanup follows. The natural
+  moment is once v7.4.5 has run live for a while and the new code paths are stable.
+  Splits will likely follow Prototype-Delegation pattern (same as v7.4.3 Bausteine B/C/D).
+- **Honest note:** Fitness score remained 127/130 across the regression because the
+  File-Size-Guard is binary (any warn → 7/10). The score didn't move from 2 warnings to
+  5 — but that means the metric stops capturing this regression. The honest record
+  lives here in O-8.
 
 ### O-9: GateStats data collection status unverified
 - **Since:** v7.4.2 (carry-over check item)

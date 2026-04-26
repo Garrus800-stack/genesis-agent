@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.4.4 — What Genesis can do, organized by category.
-> Scale: 5583 tests, 405 events with payload schemas (100% coverage), fitness 127/130, 163 DI services (151 manifest + 12 bootstrap) across 12 boot phases.
+> v7.4.5 — What Genesis can do, organized by category.
+> Scale: 5668 tests, 424 events with payload schemas (100% coverage), fitness 127/130, 167 DI services (154 manifest + 13 bootstrap) across 12 boot phases.
 > Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry-only by design),
 > Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard),
 > Runtime-State Quoting (v7.4.1 directive + anti-tool-call).
@@ -249,7 +249,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **261 test suites** | 4600 tests, coverage gates: 80% lines, 75.9% branches, 78% functions |
+| **335 test suites** | 5668 tests, coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |
@@ -496,7 +496,7 @@ The v7 line is dominated by structural maturation: smaller, more honest, better-
 | **Identity-Leak-Fix** (v7.4.0) | LLM model name removed from `_identity()` block. Explicit "Du bist NICHT das zugrundeliegende Sprachmodell". 55-test regression lock against 23 branded names. |
 | **Anti-Hallucination Quoting** (v7.4.1) | PromptBuilder forces verbatim quoting of runtime values. Forbids fabricated log-lines, JSON, timestamps. Anti-tool-call directive prevents declarative metaphors from being interpreted as file-read calls. |
 | **IntentRouter Meta-State Patterns** (v7.4.1) | 13 alternations for "wie viel energie" / "welche ziele" / "how do you feel" route directly to runtime block instead of escalating to tasks. |
-| **Event-Schema 100%** (v7.4.1) | 405/405 catalogued events have payload schemas. 0 mismatches. |
+| **Event-Schema 100%** (v7.4.1) | 405/424 catalogued events have payload schemas. 0 mismatches. |
 | **AUDIT-BACKLOG drift closed** (v7.4.2) | Five releases of missing entries caught up. Principle 0.8: *AUDIT-BACKLOG is part of every release*. |
 | **CommandHandlers Domain-Split** (v7.4.2) | 846→under 700 LOC via 6 domain mixins (Code, Shell, Goals, Memory, System, Network). |
 | **Self-Gate explicit telemetry-only** (v7.4.2) | Self-Gate documented as observation-only by design (vs. Input-Gate which blocks). Symmetry with Injection-Gate is intentional, not a deficit. |

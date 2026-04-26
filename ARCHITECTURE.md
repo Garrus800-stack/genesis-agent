@@ -3,10 +3,10 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.4.4 · Last verified: 0 schema mismatches (405 catalogued / 405 schemas),
+> Version: 7.4.5 · Last verified: 0 schema mismatches (424 catalogued / 424 schemas),
 > 0 orphan / missing, 0 stale references, all event-validation checks green
-> (fitness, ratchet, and full test-suite numbers from the v7.4.4 baseline:
-> 5583 tests, fitness 127/130, ratchet floor 5582).
+> (fitness, ratchet, and full test-suite numbers from the v7.4.5 baseline:
+> 5668 tests, fitness 127/130, ratchet floor 5667).
 
 ---
 
@@ -14,7 +14,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~89k LOC of JavaScript (CommonJS), 270 source modules, with zero external runtime frameworks. The manifest statically registers 142+ DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count above 150 — this is what you'll see in the final boot log line. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~85k LOC of JavaScript (CommonJS), 273 source modules, with zero external runtime frameworks. The manifest statically registers 154 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count above 165 — this is what you'll see in the final boot log line. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 
@@ -375,7 +375,7 @@ run();
 
 Run the full check suite:
 ```bash
-node test/index.js                          # 5583 tests, 0 failures
+node test/index.js                          # 5668 tests, 0 failures
 npx tsc --noEmit                            # 0 errors
 node scripts/validate-events.js             # 0 warnings
 node scripts/validate-channels.js           # all in sync
@@ -414,7 +414,7 @@ Every event emitted must be:
 
 The `audit:events:strict` CI step enforces this. Unregistered events fail the build.
 
-**Current stats:** 405 catalogued events, 405 payload schemas (100% coverage).
+**Current stats:** 424 catalogued events, 424 payload schemas (100% coverage).
 
 ### 6.3 EventStore
 
@@ -569,7 +569,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | 5583 tests across 326 test files |
+| Tests | `node test/index.js` | 5668 tests across 335 test files |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |
@@ -664,7 +664,7 @@ genesis-agent/
 │   └── ui/                    → Dashboard, DashboardRenderers, DashboardStyles
 ├── test/
 │   ├── harness.js             → Test framework (assert, describe, test, run)
-│   ├── index.js               → Module test runner (5583 tests)
+│   ├── index.js               → Module test runner (5668 tests)
 │   └── modules/               → One test file per service
 ├── scripts/
 │   ├── architectural-fitness.js → Fitness score (13 checks, 127/130 at v7.3.6)

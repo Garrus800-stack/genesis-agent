@@ -17,6 +17,8 @@ function phase10(ctx, R) {
       tags: ['planning', 'persistence'],
       lateBindings: [
         { prop: 'agentLoop', service: 'agentLoop', optional: true },
+        // v7.4.5 Baustein B: cost summary on goal archive
+        { prop: 'costStream', service: 'costStream', optional: true },
       ],
       factory: (c) => new (R('GoalPersistence').GoalPersistence)({
         bus,
@@ -142,6 +144,36 @@ function phase10(ctx, R) {
           ?.get('organism.fitness') || {},
       }),
     }],
+    // v7.4.5: GoalDriver — orchestrates which goal gets pursued next.
+    // Replaces implicit pursue triggers (DaemonController-direct, IdleMind)
+    // with one event-driven driver. Listens to boot:complete, goal:added,
+    // goal:unblocked, agent-loop:complete, resource:available,
+    // permission:granted. Calls agentLoop.pursue(goal) — new object-based
+    // signature with backward-compat for pursue(string).
+    ['goalDriver', {
+      phase: 10,
+      deps: ['bus', 'goalStack', 'goalPersistence', 'eventStore', 'settings'],
+      tags: ['agency', 'driver'],
+      lateBindings: [
+        { prop: 'agentLoop', service: 'agentLoop', optional: true,
+          expects: ['pursue', 'stop'],
+          impact: 'No goal pursuits possible — driver is idle' },
+        { prop: 'resourceRegistry', service: 'resourceRegistry',
+          optional: true,
+          impact: 'No resource pre-checks (default-allow)' },
+      ],
+      factory: (c) => new (R('GoalDriver').GoalDriver)({
+        bus,
+        goalStack: c.resolve('goalStack'),
+        goalPersistence: c.resolve('goalPersistence'),
+        eventStore: c.resolve('eventStore'),
+        settings: c.resolve('settings'),
+        intervals,
+        config: c.tryResolve('settings')
+          ?.get('agency.goalDriver') || {},
+      }),
+    }],
+
   ];
 }
 

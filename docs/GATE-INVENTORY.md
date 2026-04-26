@@ -1,6 +1,6 @@
 # Gate Inventory
 
-> v7.4.4 — Vollständige Auflistung aller bewusst blockierenden bzw. observierenden Code-Pfade in Genesis.
+> v7.4.5 — Vollständige Auflistung aller bewusst blockierenden bzw. observierenden Code-Pfade in Genesis.
 > Erstellt durch systematisches Grep nach `blocked`, `rejected`, `denied`,
 > `throw new Error`, und ähnlichen Patterns mit Block-Charakter.
 

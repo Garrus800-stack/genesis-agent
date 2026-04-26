@@ -176,6 +176,9 @@ function phase1(ctx, R) {
         // v7.2.2: Migrated from orphaned containerConfig. Without this,
         // cost budget checks were silently dead — _costGuard was always null.
         { prop: '_costGuard', service: 'costGuard', optional: true },
+        // v7.4.5 Baustein B: correlationContext for goalId/correlationId
+        // attribution on llm:call-complete events.
+        { prop: '_correlationContext', service: 'correlationContext', optional: true },
       ],
       factory: (c) => {
         const { ModelBridgeAdapter } = require('../ports/LLMPort');
@@ -233,6 +236,34 @@ function phase1(ctx, R) {
         { prop: '_settings', service: 'settings', optional: true },
       ],
       factory: () => new (R('CostGuard').CostGuard)({ bus }),
+    }],
+
+    // v7.4.5 Baustein B: CostStream — single source of truth for
+    // LLM cost tracking. Listens to llm:call-complete, persists to
+    // .genesis/cost/YYYY-MM-DD.jsonl with 30d retention.
+    ['costStream', {
+      phase: 1, deps: ['storage'], tags: ['foundation', 'cost'],
+      lateBindings: [
+        { prop: '_correlationContext', service: 'correlationContext', optional: true },
+      ],
+      factory: () => new (R('CostStream').CostStream)({
+        bus, storage: null, genesisDir, intervals,
+      }),
+    }],
+
+    // v7.4.5 Baustein C: ResourceRegistry — tracks external service
+    // and file availability. AgentLoopSteps queries this before each
+    // step; missing resources cause goals to be blocked (not failed).
+    // Goals auto-resume when 'resource:available' fires.
+    ['resourceRegistry', {
+      phase: 1, deps: [], tags: ['foundation', 'safety'],
+      lateBindings: [
+        { prop: 'modelBridge', service: 'model', optional: true },
+        { prop: 'worldState', service: 'worldState', optional: true },
+      ],
+      factory: () => new (R('ResourceRegistry').ResourceRegistry)({
+        bus, intervals,
+      }),
     }],
 
     // AwarenessPort — lightweight replacement for 14-module
