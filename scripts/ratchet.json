@@ -1,6 +1,6 @@
 {
   "_description": "Ratchet — floor/max values enforced by check-ratchet.js in CI.",
-  "_locked_at": "v7.4.5",
+  "_locked_at": "v7.4.5.1",
   "_date": "2026-04-26",
   "testCount": {
     "floor": 5667,

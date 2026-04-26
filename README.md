@@ -528,7 +528,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 256 modules (src/) |
+| Source modules | 273 modules (src/) |
 | Lines of code | ~89k src + ~59k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 154 manifest + 13 bootstrap = 167 at runtime |

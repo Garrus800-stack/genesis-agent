@@ -1,3 +1,49 @@
+## [7.4.5.1] — Doc Hygiene
+
+> Patch release. No code changes, no new tests, no behavior change.
+> Brings docs and diagrams current with the v7.4.5 codebase reality —
+> v7.4.5 shipped with stale numbers and pre-#20/#26/#30 diagrams in
+> several files. This patch closes that drift.
+
+### What changed
+- All docs version-headers v7.4.4 → v7.4.5
+- Numeric values brought current: 5583 → 5668 tests, 405 → 424 events,
+  163 → 167 services, 269/270 → 273 source modules, 326/329 → 335 test files
+- `EVENT-FLOW.md` Mermaid diagrams updated:
+  - Rate-Limit diagram with v7.4.5 budgets (chat 200→500, autonomous 80→500,
+    idle 40→150) and auto-reset events (#20)
+  - Goal-Execution Sequence with GoalDriver auto-pickup, ENVIRONMENT block
+    in plan call, `await loop.shell.run` (#26), `GoalStack.completeGoal`
+    cascading (#22), AgentCoreWire UI bridge (#23)
+  - ShellAgent diagram switched from `execSync` to `execAsync`/`execFileAsync`
+    branch with `_adaptCommand` block (#27, #30)
+- Event-Catalog: 6 new v7.4.5 events added (`llm:budget-auto-reset`,
+  `llm:budget-manual-reset`, `goal:driver-pickup`, `goal:done`,
+  `agent-loop:step-failed`, `agent:loop-progress`)
+- `banner.svg` codename `SELF-DEFINE` → `DURCHHALTEN`, scale numbers
+  to v7.4.5 (273 modules, 167 services, 5668 tests)
+- `SECURITY.md` Supported Versions table updated to 7.4.x active
+- `AUDIT-BACKLOG.md` O-8 entry updated with REGRESSION note (2 → 5 files
+  >700 LOC; honest binary-fitness-score limitation noted)
+- `ratchet.json` `_locked_at` v7.4.5 → v7.4.5.1
+
+### Why a patch release
+v7.4.5 itself shipped with verified code (5668 tests pass, 0 schema
+mismatches, fitness 127/130, live goal-pipeline functional). The drift
+was purely in the docs/diagrams. Patch release is the cleanest path:
+preserves v7.4.5's content, adds a documented hygiene marker, no
+force-push of tags, no main-branch surprise.
+
+### Code unchanged
+package.json `version` field stays at `7.4.5` (no semver bump — patch
+markers via tag name and changelog section, same convention as
+v7.4.5.1 GoalDriver Resume-Filter followup).
+
+### Principle still standing
+0.5 — Structural / hygiene work is its own release.
+
+---
+
 ## [7.4.5] — "Durchhalten"
 
 > Goal-pipeline release. End-to-end functionality from plan → execute →

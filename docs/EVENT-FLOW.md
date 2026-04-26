@@ -214,11 +214,12 @@ sequenceDiagram
     end
 ```
 
-## Event Flow: Autonomous Goal Execution (AgentLoop)
+## Event Flow: Autonomous Goal Execution (AgentLoop, v7.4.5)
 
 ```mermaid
 sequenceDiagram
     participant CO as ChatOrchestrator
+    participant GD as GoalDriver
     participant AL as AgentLoop
     participant GS as GoalStack
     participant FP as FormalPlanner
@@ -228,11 +229,16 @@ sequenceDiagram
     participant SM as SelfModPipeline
     participant EM as EpisodicMemory
     participant ML as MetaLearning
+    participant ACW as AgentCoreWire
     participant UI as UI
 
-    CO->>AL: start(goalDescription)
+    Note over CO,GD: Two entry paths: chat-trigger vs auto-pickup
+    CO->>AL: start(goalDescription) [chat path]
+    GD->>GD: scan() [periodic + boot-pickup, v7.4.5]
+    GD->>AL: pursue(goalId) [auto path]
+
     AL->>GS: push(goal)
-    AL->>FP: plan(goal, worldState)
+    AL->>FP: plan(goal, worldState)<br/>+ ENVIRONMENT block (OS, rootDir,<br/>POSIX→Win mapping, v7.4.5 #27)
     FP->>WS: getState()
     FP-->>AL: typed plan (steps[])
 
@@ -243,8 +249,8 @@ sequenceDiagram
             SM->>SM: CodeSafetyScanner.scan()
             SM-->>AL: result
         else Shell Command
-            AL->>SH: run(command) [rate-limited]
-            SH-->>AL: result
+            AL->>SH: await run(command) [rate-limited]<br/>(v7.4.5 #26: missing await fixed)
+            SH-->>AL: { stdout, stderr, command }
         end
         AL->>VE: verify(step, result)
         VE-->>AL: { pass | fail | ambiguous }
@@ -252,10 +258,14 @@ sequenceDiagram
         AL-->>UI: [bus] agent-loop:step-complete
     end
 
-    AL->>GS: markComplete(goalId)
+    Note over AL,GS: v7.4.5 #22: AgentLoop now calls<br/>GoalStack.completeGoal explicitly
+    AL->>GS: completeGoal(goalId)
+    GS->>GS: cascade: unblockDependents,<br/>parent-completion check
     AL->>EM: record(episode)
     AL->>ML: recordOutcome(goal, metrics)
-    AL-->>UI: [bus] agent-loop:complete
+    AL-->>ACW: [bus] agent-loop:complete<br/>{success, title, summary,<br/>step outputs via _formatOutputs}
+    ACW-->>UI: agent:loop-progress<br/>{phase: 'complete', summary}
+    UI->>UI: addMessage('agent', body,<br/>'goal-complete'|'goal-failed')<br/>(v7.4.5 #23 — chat sees result)
 ```
 
 ## Event Flow: Organism Layer
@@ -322,13 +332,15 @@ graph TD
 
     subgraph RateLimit["LLMPort Rate Limiter (3 steps)"]
         Bucket["Step 1: TokenBucket<br/>capacity: 60<br/>refill: 30/min"]
-        Budget["Step 2: HourlyBudget<br/>chat: 200/hr<br/>autonomous: 80/hr<br/>idle: 40/hr"]
+        Budget["Step 2: HourlyBudget (v7.4.5)<br/>chat: 500/hr<br/>autonomous: 500/hr<br/>idle: 150/hr<br/>auto-reset after 5min idle"]
         CostG["Step 3: CostGuard (v6.0.1)<br/>session: 500k tokens<br/>daily: 2M tokens"]
     end
 
     subgraph Events["Events"]
         limited["llm:rate-limited"]
         warning["llm:budget-warning"]
+        autoReset["llm:budget-auto-reset (v7.4.5)"]
+        manualReset["llm:budget-manual-reset (v7.4.5)"]
         costWarn["llm:cost-warning (80%)"]
         costCap["llm:cost-cap-reached (100%)"]
     end
@@ -494,20 +506,31 @@ graph TD
 
 ```mermaid
 graph TD
-    subgraph ShellAgent["ShellAgent"]
+    subgraph ShellAgent["ShellAgent (v7.4.5 — async)"]
         run["run(command, tier)"]
+        sanitize["Sanitize<br/>NFKC + null/newline check"]
         blocklist["Blocklist Check<br/>(pattern match)"]
         rateLimit["Rate Limit Check<br/>read: 60/5min<br/>write: 20/5min<br/>system: 5/5min"]
-        exec["execSync(command)"]
+        adapt["_adaptCommand (Windows)<br/>POSIX → cmd: ls→dir, cat→type,<br/>grep→findstr, find /C /V → /V /C ':',<br/>rm -rf → rmdir /s /q, cp -r → xcopy /e /i,<br/>mkdir -p, touch, pwd, /dev/null → NUL"]
+        branch{"Windows or<br/>shell-meta?"}
+        execShell["execAsync(command)<br/>{shell: cmd.exe}<br/>(v7.4.5 #30 — pipes/quotes/<br/>redirects work verbatim)"]
+        execFile["execFileAsync(bin, args)<br/>(POSIX simple commands;<br/>no shell, no injection surface)"]
     end
 
-    run --> blocklist
-    blocklist -->|"matched"| blocked["shell:blocked"]
+    run --> sanitize
+    sanitize -->|"invalid"| blocked["shell:blocked"]
+    sanitize -->|"clean"| blocklist
+    blocklist -->|"matched"| blocked
     blocklist -->|"clean"| rateLimit
     rateLimit -->|"exceeded"| rateLimited["shell:rate-limited"]
-    rateLimit -->|"allowed"| exec
-    exec -->|"success"| executed["shell:executed"]
-    exec -->|"failure"| failed["shell:failed"]
+    rateLimit -->|"allowed"| adapt
+    adapt --> branch
+    branch -->|"yes"| execShell
+    branch -->|"no"| execFile
+    execShell -->|"success (await)"| executed["shell:executed"]
+    execShell -->|"failure (await)"| failed["shell:failed"]
+    execFile -->|"success (await)"| executed
+    execFile -->|"failure (await)"| failed
 ```
 
 ## Complete Event Catalog
@@ -531,6 +554,8 @@ graph TD
 | `llm:call-error` | LLMPort | CognitiveMonitor, HealthMonitor |
 | `llm:rate-limited` | LLMPort | HealthMonitor, CognitiveMonitor |
 | `llm:budget-warning` | LLMPort | HealthMonitor |
+| `llm:budget-auto-reset` | LLMPort (v7.4.5 — 5min idle) | GoalDriver (unpauses) |
+| `llm:budget-manual-reset` | LLMPort (v7.4.5 — manual call) | GoalDriver (unpauses) |
 | `knowledge:learned` | KnowledgeGraph, UnifiedMemory | EmotionalState |
 | `knowledge:node-added` | KnowledgeGraph | EmotionalState |
 | `memory:fact-stored` | ConversationMemory | EmotionalState |
@@ -549,13 +574,17 @@ graph TD
 | `health:memory-leak` | HealthMonitor | Homeostasis |
 | `idle:thinking` | IdleMind | UI |
 | `idle:thought-complete` | IdleMind | EmotionalState, LearningService |
-| `goal:created` | GoalStack | AgentLoop |
-| `goal:completed` | GoalStack | EpisodicMemory, MetaLearning |
+| `goal:created` | GoalStack | AgentLoop, GoalDriver |
+| `goal:completed` | GoalStack (v7.4.5: also via `completeGoal()`) | EpisodicMemory, MetaLearning |
 | `goal:failed` | GoalStack | MetaLearning |
+| `goal:driver-pickup` | GoalDriver (v7.4.5 — auto-resume scan) | EventStore |
+| `goal:done` | GoalStack | GoalDriver (lock-cleanup), EpisodicMemory |
 | `agent-loop:started` | AgentLoop | UI |
 | `agent-loop:step-complete` | AgentLoop | UI, CognitiveMonitor |
-| `agent-loop:complete` | AgentLoop | EpisodicMemory |
+| `agent-loop:step-failed` | AgentLoop (v6.0.7) | EarnedAutonomy, FailureTaxonomy |
+| `agent-loop:complete` | AgentLoop (v7.4.5: bridged to UI via AgentCoreWire) | EpisodicMemory |
 | `agent-loop:approval-needed` | AgentLoop | UI |
+| `agent:loop-progress` | AgentCoreWire (v7.4.5 #23 — UI bridge) | renderer-main.js (chat output) |
 | `shell:executed` | ShellAgent | EventStore, WorldState |
 | `shell:blocked` | ShellAgent | EventStore, HealthMonitor |
 | `shell:rate-limited` | ShellAgent | HealthMonitor, EventStore |
