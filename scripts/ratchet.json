@@ -1,10 +1,10 @@
 {
   "_description": "Ratchet — floor/max values enforced by check-ratchet.js in CI.",
-  "_locked_at": "v7.4.5.1",
+  "_locked_at": "v7.4.6",
   "_date": "2026-04-26",
   "testCount": {
-    "floor": 5667,
-    "note": "v7.4.5 Durchhalten floor — measured baseline 5668 on Windows (full test:ci, v7.4.5 codebase). Floor set 1 below measured value, matching the 1-test safety buffer convention from v7.4.2/v7.4.4. Increase reflects new test/modules/v745-fix.test.js (27 regression locks for #16–#30 fixes)."
+    "floor": 5693,
+    "note": "v7.4.6 floor — 5668 v7.4.5 baseline + 26 v746-fix tests (#28/#28b/#29/#29b/#30/#31 + salvage). 5694 measured, floor 1 below."
   },
   "fitnessScore": {
     "floor": 127,

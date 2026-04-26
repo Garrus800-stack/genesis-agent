@@ -282,12 +282,40 @@ class AgentLoopStepsDelegate {
 
   async _stepShell(step, context, onProgress) {
     const loop = this.loop;
-    // Extract or generate shell command
-    let command = step.target || '';
+    // v7.4.6.fix #28: FormalPlanner schema documents BOTH `target` and
+    // `command` as places the shell command can live. The LLM frequently
+    // puts the actual command in step.command and leaves step.target null
+    // (especially for non-file commands like "dir /b *.js"). The old
+    // code read only step.target → empty → fallback LLM call with no
+    // context → LLM invented broad-scope commands ("dir /s C:\") that
+    // hit "Zugriff verweigert" on system directories. Now we read both.
+    let command = step.target || step.command || '';
 
     if (!command) {
-      const prompt = `${context}\n\nSHELL TASK: ${step.description}\n\nWhat is the exact shell command to run? Respond with ONLY the command, no explanation.`;
+      // v7.4.6.fix #28: enrich the fallback prompt with OS + rootDir +
+      // explicit don'ts. Previously the fallback had only step.description
+      // and the LLM had no way to know it was on Windows or where to run.
+      const platform = process.platform;
+      const isWindows = platform === 'win32';
+      const osName = isWindows ? 'Windows' : (platform === 'darwin' ? 'macOS' : 'Linux');
+      const rootDir = loop.rootDir || process.cwd();
+      const osHints = isWindows
+        ? `OS: Windows (cmd.exe). Use "dir /b" not "ls". Use "type" not "cat". Use "where" not "which".\nDO NOT use "/s" with absolute paths like C:\\ — Windows blocks system folders.\nUse RELATIVE paths inside the working directory.`
+        : `OS: ${osName} (bash). Use POSIX commands.\nUse RELATIVE paths inside the working directory.`;
+      const prompt = `${context}\n\nSHELL TASK: ${step.description}\n\nWorking directory: ${rootDir}\n${osHints}\n\nWhat is the exact shell command to run? Respond with ONLY the command, no explanation, no markdown fence.`;
       command = (await loop.model.chat(prompt, [], 'code')).trim().replace(/^```\w*\n?|\n?```$/g, '');
+    }
+
+    // v7.4.6.fix #28: hard-refuse if still empty. Empty command on
+    // Windows previously got interpreted by cmd.exe as a no-op that
+    // wrote a stray byte to the current dir → "Zugriff verweigert".
+    // Better to fail fast with a clear message.
+    if (!command || !command.trim()) {
+      return {
+        output: '',
+        error: 'SHELL step has no command (target/command both empty, fallback LLM returned blank). Plan likely malformed — check FormalPlanner output.',
+        command: '',
+      };
     }
 
     // Safety: request approval for shell commands
@@ -312,7 +340,14 @@ class AgentLoopStepsDelegate {
       // either never observed to completion (fire-and-forget) or the
       // output was lost because we returned before resolution.
       const result = await loop.shell.run(command, { cwd: loop.rootDir, timeout: TIMEOUTS.SHELL_EXEC });
-      return { output: result.stdout || '', error: result.stderr || null };
+      // v7.4.6.fix #28: include command + adapted command in result so
+      // Verifier _formatOutputs can show the user what actually ran.
+      return {
+        output: result.stdout || '',
+        error: result.stderr || null,
+        command,
+        adaptedCommand: result.adaptedCommand || command,
+      };
     }
 
     // Fallback: direct exec (async, no shell)
@@ -331,9 +366,9 @@ class AgentLoopStepsDelegate {
         encoding: 'utf-8',
         windowsHide: true,
       });
-      return { output: stdout, error: null };
+      return { output: stdout, error: null, command };
     } catch (err) {
-      return { output: err.stdout || '', error: err.stderr || err.message };
+      return { output: err.stdout || '', error: err.stderr || err.message, command };
     }
   }
 

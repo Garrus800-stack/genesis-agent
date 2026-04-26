@@ -1,9 +1,60 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.4.5 · Last updated: v7.4.5 Durchhalten (Bausteine A–D, fixes #16–#30, O-8 regression noted, goal-pipeline fully functional end-to-end)
+> Version: 7.4.6 · Last updated: v7.4.6 (goal-pipeline fixes #28/#29/#30/#31 actually committed, source-presence tests added per Principle 0.9, rootDir sandbox added)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.4.6 — Goal-Pipeline Fixes (real this time)
+
+The Windows live-test of v7.4.5.1 reproduced "Zugriff verweigert" failures
+on a goal that should have worked. Investigation found that v7.4.5 had
+declared #28/#29/#30 in its changelog and added regression locks, but
+the source-code patches were partial (the fallback LLM-prompt had no OS
+hint, the `find /C /V ""` pattern wasn't auto-fixed, the result didn't
+surface adaptedCommand). v7.4.6 finishes the patches and adds Fix #31:
+a hard rootDir sandbox in ShellAgent.
+
+### Items resolved
+- **#28 step.target||step.command resolution + enriched fallback prompt** —
+  fallback now includes OS detection, rootDir, and don't-broaden-scope
+  rules. Empty-command after fallback returns hard-refuse error.
+- **#29 quote-safe counting** — `_adaptCommand` auto-fixes the broken
+  `find /C /V ""` pattern even if the LLM emits it directly. Inverted
+  `find /V /C ""` form also handled.
+- **#30 execAsync verbatim** — result shape now surfaces `adaptedCommand`
+  and `originalCommand` so Verifier-summary can show what the LLM
+  proposed vs. what actually ran on this OS.
+- **#31 NEW: rootDir sandbox** — ShellAgent rejects commands containing
+  absolute paths outside rootDir, plus `dir /s C:\` / `where /r C:\`
+  even when on the same drive. Returns `sandboxBlock:true` with a
+  clear reason, instead of letting Windows return random "Zugriff
+  verweigert" messages from system folders.
+
+### Verification
+- 17 new tests in `test/modules/v746-fix.test.js`, all green
+- All previous goal-pipeline tests (v745-fix, goaldriver, agentloop-steps,
+  AgentLoopRecovery, ShellAgent, renderer, formalplanner) still green
+- Schema scan: 0 mismatches
+- Fitness: 127/130 (unchanged)
+
+### Principle added
+**0.9 — Tests for code-presence, not just code-behavior.**
+For any "this fix changes X in file Y" claim, write at least one test
+that reads file Y with `fs.readFileSync` and asserts the change is there.
+Without this, a future Claude session can write a changelog describing
+fixes that don't fully exist in source — exactly what happened in v7.4.5.
+
+### Why this happened (post-mortem)
+The v7.4.5 release was produced through long Claude conversations. Code
+edits were made, tests were written, but the connection between
+"described in changelog" and "verified in source" was implicit. The
+v745-fix test file ended up testing three unrelated small patches
+(resume-prompt timeout, bilingual goal-patterns, dot-path setter) while
+the changelog described 30 fixes. No source-presence test caught the
+gap. v7.4.6 makes the connection explicit via Principle 0.9.
 
 ---
 

@@ -310,7 +310,13 @@ ENVIRONMENT:
   * List files: ${listCmd}   (NOT "ls" on Windows)
   * Read file: ${catCmd}     (NOT "cat" on Windows)
   * Find binary: ${findCmd}  (NOT "which" on Windows)
-- All paths in commands MUST be relative to rootDir or absolute paths starting with "${rootDir}".
+${isWindows ? `- Counting lines on Windows: use \`find /V /C ":"\` (counts lines NOT containing colon — works because filenames cannot contain ':').
+  * DO NOT use \`find /c "*"\` (Windows find treats * as literal text, not glob — fails)
+  * DO NOT use \`find /c /v ""\` (the doubled quotes break through Node.js → cmd.exe)
+  * DO NOT use \`wc -l\` (POSIX, not available on Windows)
+  * Correct: \`dir /b *.js | find /V /C ":"\`
+- DO NOT use "/s" with absolute paths like C:\\ — Windows blocks system folders.
+` : ''}- All paths in commands MUST be relative to rootDir or absolute paths starting with "${rootDir}".
 - For SHELL steps targeting Genesis files: use rootDir as the base.
 `;
 

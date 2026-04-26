@@ -1,3 +1,117 @@
+## [7.4.6] — Goal-Pipeline Fixes (the ones that actually shipped this time)
+
+> v7.4.5 declared 30 fixes #16–#30 in its changelog and added regression
+> locks for them. Three of those fixes — #28, #29, #30 — turned out to
+> be in source but partially. The bug they targeted (goals failing with
+> "Zugriff verweigert" on Windows) reproduced live in v7.4.5.1 because
+> the LLM-fallback in `_stepShell` had no rootDir context and no sandbox
+> guard, so it generated broad-scope commands like `dir /s C:\` that
+> hit access-denied on Windows system folders. v7.4.6 finishes the fixes
+> and adds a hard sandbox check.
+
+### What was actually broken
+
+1. **#28 partially in code** — `_stepShell` did read `step.target ||
+   step.command`, but the fallback prompt (when both were empty) had no
+   OS hint, no rootDir hint, and no don't-broaden-scope rule. The LLM
+   guessed `dir /s C:\` because it had nothing else to go on.
+
+2. **#29 partially in code** — `_adaptCommand` had the `wc -l` →
+   `find /V /C ":"` translation, but didn't auto-fix the *broken*
+   `find /C /V ""` pattern if the LLM emitted it directly.
+
+3. **#30 partially in code** — `ShellAgent.run()` did use `execAsync`
+   for the shell-meta path, but the result didn't surface
+   `adaptedCommand` so the Verifier couldn't show what actually ran
+   on this OS.
+
+4. **#31 missing entirely** — no rootDir-sandbox check. ShellAgent
+   would happily run `dir /s C:\` if the LLM generated it; Windows
+   would then return "Zugriff verweigert" from random system folders,
+   producing confusing failure summaries that didn't say "this command
+   tried to escape the working directory".
+
+### What v7.4.6 changes
+
+- **AgentLoopSteps._stepShell** now reads `step.target || step.command`,
+  and the fallback LLM-prompt includes OS detection, the rootDir, and
+  explicit don'ts about `/s` with absolute paths and `find /C /V ""`.
+  Empty-command after fallback gets a hard refuse with a clear error
+  ("plan likely malformed — check FormalPlanner output"), instead of
+  running an empty command that cmd.exe interpreted as a stray write.
+- **ShellAgent._adaptCommand** translates `wc -l` to `find /V /C ":"`
+  AND auto-fixes the `find /C /V ""` pattern if the LLM emits it
+  directly. Also handles the inverted `find /V /C ""` form.
+- **ShellAgent.run()** uses `execAsync(command, { shell })` for the
+  shell-meta and Windows branches. Result shape now includes
+  `adaptedCommand` and `originalCommand` so the Verifier-summary
+  can show what the LLM proposed and what actually ran on this OS.
+- **NEW: ShellAgent._checkRootDirSandbox** — refuses commands that
+  contain absolute paths pointing OUTSIDE rootDir, with a clear
+  reason. Also catches `dir /s C:\` and `where /r C:\` even when
+  rootDir is on the same drive (recursive scan from drive root is
+  always too broad). Returns `{ok:false, sandboxBlock:true, stderr:
+  "[SHELL] Sandbox: <reason>"}` so failure summaries are honest about
+  what happened.
+
+### Tests added (real code-path coverage)
+
+`test/modules/v746-fix.test.js` — 17 tests:
+
+- **Source-shape tests** for #28, #30 that read the actual `.js` file
+  with `fs.readFileSync` and assert the patches are present (so v7.4.6
+  can't silently regress to "documented but not committed" again).
+- **Behavioral tests** for #29 that instantiate the real `ShellAgent`
+  and call `_adaptCommand` with the broken patterns, verifying
+  translations.
+- **Live tests** that actually run `ls` / `dir` through the real
+  `ShellAgent.run()` and `AgentLoopStepsDelegate._stepShell()`.
+- **Sandbox tests for #31** — six tests covering relative paths
+  (accept), absolute-paths-inside-rootDir (accept), `dir /s C:\`
+  (reject with "recursive"), `where /r C:\` (reject), absolute-paths-
+  outside-rootDir (reject with "outside rootDir"), and end-to-end
+  through `ShellAgent.run()` returning `sandboxBlock:true`.
+
+### Verification (Linux container)
+
+- `test/modules/v746-fix.test.js`: 17 passed, 0 failed
+- `test/modules/v745-fix.test.js`: 27 passed, 0 failed (no regression)
+- All AgentLoop / ShellAgent / FormalPlanner / GoalDriver / renderer
+  test suites: 0 failed
+- Schema scan: 0 mismatches
+- Architectural fitness: 127/130 (binary File-Size-Guard, see O-8)
+- Live e2e: all three input shapes (`target` set, `command` set,
+  neither) produced non-empty output and preserved the actual command
+  in result; sandbox blocks `dir /s C:\` with clear reason
+
+### What this does NOT include (deferred, on purpose)
+
+- O-8 file-size splits for GoalDriver / AgentLoop / GoalStack — still
+  REGRESSED at 5 files >700 LOC. Per Principle 0.5: feature stability
+  first, structural cleanup follows.
+- O-13 Multi-model fallback in ModelBridge — separate v7.4.7 ("Auffangnetz")
+- O-14 Reflect→Study path — v7.5.0 ("Lernen")
+
+### Honest note
+
+This is the kind of release that should have been v7.4.5 itself.
+The Claude session that produced v7.4.5 wrote a changelog describing
+fixes that were partially or differently committed. The v745-fix test
+file covered three small unrelated patches (resume-prompt timeout,
+bilingual goal-patterns, dot-path setter) — not the 30 fixes the
+changelog implied. v7.4.6 finishes the fixes properly with tests
+that exercise the actual code paths.
+
+### Principle added
+
+**0.9 — Tests for code-presence, not just code-behavior.**
+For any "this fix changes X in file Y" claim, write at least one test
+that reads file Y with fs and asserts the change is there. Behavioral
+tests can't catch "the documentation says we fixed it but the source
+didn't change."
+
+---
+
 ## [7.4.5.1] — Doc Hygiene
 
 > Patch release. No code changes, no new tests, no behavior change.

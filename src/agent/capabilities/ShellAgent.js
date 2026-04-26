@@ -12,9 +12,13 @@
 // 5. OS ADAPTATION — auto-detects Windows/Linux, translates
 // ============================================================
 
-const { execFile, spawn } = require('child_process');
+const { exec, execFile, spawn } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
+// v7.4.6.fix #30: execAsync passes the command verbatim to the OS shell
+// (no Node.js → cmd.exe quote-mangling). Used for the shellMeta/Windows
+// branch where pipes, redirects, and embedded quotes must survive intact.
+const execAsync = promisify(exec);
 const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
@@ -123,6 +127,28 @@ class ShellAgent {
     }
     command = sanitized.command;
 
+    // v7.4.6.fix #31: rootDir sandbox. Reject commands that contain
+    // an absolute path pointing OUTSIDE rootDir. Most Windows
+    // failures came from the SHELL fallback's LLM emitting `dir /s
+    // C:\` or `where /r C:\` — these hit "Zugriff verweigert" on
+    // system dirs (System Volume Information, $Recycle.Bin) and
+    // produced confusing summaries. Refusing early gives the LLM a
+    // clear sandbox-violation message on the next planning round.
+    const sandboxCheck = this._checkRootDirSandbox(command);
+    if (!sandboxCheck.ok) {
+      const sbResult = {
+        ok: false,
+        stdout: '',
+        stderr: `[SHELL] Sandbox: ${sandboxCheck.reason}`,
+        exitCode: -1,
+        duration: 0,
+        blocked: true,
+        sandboxBlock: true,
+      };
+      if (!silent) this.bus.emit('shell:blocked', { command, tier, reason: sandboxCheck.reason }, { source: 'ShellAgent' });
+      return sbResult;
+    }
+
     const blocked = this.blockedPatterns[tier];
     if (blocked && blocked.test(command)) {
       const result = { ok: false, stdout: '', stderr: this.lang.t('shell.blocked_tier', { tier, cmd: command }), exitCode: -1, duration: 0, blocked: true };
@@ -154,16 +180,24 @@ class ShellAgent {
     // so on Windows + shell mode the LLM's "ls" was passed verbatim
     // to cmd.exe which rejected it. Now even with shell mode we
     // first translate POSIX → Windows.
+    const originalCommand = command;
     command = this._adaptCommand(command);
 
     try {
       let stdout;
       if (shellMeta || this.isWindows) {
-        // Commands with shell metacharacters or Windows: use shell
-        // but via execFile (not exec) with explicit shell + flag
-        const { stdout: out } = await execFileAsync(
-          this.shell, [this.shellFlag, command], execOpts
-        );
+        // v7.4.6.fix #30: switched from execFileAsync(this.shell, [flag, cmd])
+        // to execAsync(cmd, {shell}). The execFile-with-shell trick made
+        // Node.js build internal command lines that cmd.exe re-quoted
+        // incorrectly — pipes + embedded quotes (e.g. `dir /b *.js | find
+        // /V /C ":"`) were silently corrupted. exec is built for this
+        // case: spawns the OS shell and passes the command verbatim,
+        // so pipes/redirects/quoting all work the way the user/LLM wrote them.
+        const shellExecOpts = {
+          ...execOpts,
+          shell: this.shell,
+        };
+        const { stdout: out } = await execAsync(command, shellExecOpts);
         stdout = out;
       } else {
         // Simple commands: parse into binary + args (no shell)
@@ -173,7 +207,19 @@ class ShellAgent {
       }
 
       const duration = Date.now() - startTime;
-      const result = { ok: true, stdout: (stdout || '').slice(0, 20000), stderr: '', exitCode: 0, duration, blocked: false };
+      const result = {
+        ok: true,
+        stdout: (stdout || '').slice(0, 20000),
+        stderr: '',
+        exitCode: 0,
+        duration,
+        blocked: false,
+        // v7.4.6.fix #28b: surface adapted command so AgentLoopSteps and
+        // the Verifier can show what actually ran on this OS, not the
+        // raw POSIX command the LLM produced.
+        adaptedCommand: command,
+        originalCommand,
+      };
       this._record(command, cwd, result);
       if (!silent) this.bus.emit('shell:executed', { command: command.slice(0, 100), exitCode: 0, duration }, { source: 'ShellAgent' });
       return result;
@@ -183,6 +229,8 @@ class ShellAgent {
         ok: false, stdout: (err.stdout || '').slice(0, 10000),
         stderr: (err.stderr || err.message).slice(0, 5000),
         exitCode: err.status || err.code || 1, duration, blocked: false, killed: !!err.killed,
+        adaptedCommand: command,
+        originalCommand,
       };
       this._record(command, cwd, result);
       if (!silent) this.bus.emit('shell:failed', { command: command.slice(0, 100), error: result.stderr.slice(0, 200) }, { source: 'ShellAgent' });
@@ -257,6 +305,69 @@ class ShellAgent {
 
   // ── SMART: Plan and execute multi-step tasks ──────────────
 
+  /**
+   * v7.4.6.fix: When chatStructured can't parse the LLM output as JSON,
+   * try to recover individual commands from the raw text. Looks for:
+   *   - code-fenced commands ```cmd...```
+   *   - backticked commands `dir /b *.js`
+   *   - lines starting with $ or > (shell-prompt style)
+   *   - bullet/numbered lists where the bullet text is a command
+   *
+   * @param {string} text
+   * @returns {Array<{cmd: string, description: string, critical: boolean, condition: null}>}
+   */
+  _salvageStepsFromText(text) {
+    if (typeof text !== 'string' || !text.trim()) return [];
+    const found = [];
+    const seen = new Set();
+    const push = (cmd, desc) => {
+      const c = (cmd || '').trim().replace(/^\$\s*|^>\s*/, '');
+      if (!c || seen.has(c)) return;
+      seen.add(c);
+      found.push({ cmd: c, description: (desc || c).slice(0, 120), critical: false, condition: null });
+    };
+
+    // 1. Fenced code blocks: ```...``` or ```bash ... ```
+    const fenceRe = /```(?:\w+\n)?([\s\S]*?)```/g;
+    let m;
+    while ((m = fenceRe.exec(text))) {
+      const block = m[1].trim();
+      // Each non-empty, non-comment line is a candidate
+      for (const line of block.split('\n')) {
+        const t = line.trim();
+        if (!t || t.startsWith('#') || t.startsWith('//')) continue;
+        push(t);
+      }
+    }
+
+    // 2. Backticked single commands: `dir /b *.js`
+    if (found.length === 0) {
+      const tickRe = /`([^`\n]{2,200})`/g;
+      while ((m = tickRe.exec(text))) push(m[1]);
+    }
+
+    // 3. Shell-prompt lines: $ cmd  or  > cmd
+    if (found.length === 0) {
+      for (const line of text.split('\n')) {
+        if (/^\s*[\$>]\s+\S/.test(line)) push(line.trim());
+      }
+    }
+
+    // 4. Numbered/bulleted list items
+    if (found.length === 0) {
+      const listRe = /^[\s]*(?:[-*]|\d+[.)])\s+(.+)$/gm;
+      while ((m = listRe.exec(text))) {
+        const t = m[1].trim();
+        // Only accept lines that LOOK like commands (start with a known binary)
+        if (/^(?:dir|ls|cat|type|cd|pwd|echo|find|grep|findstr|where|which|wc|head|tail|node|npm|git|python|pip|cargo|make|docker|powershell|cmd)\b/i.test(t)) {
+          push(t);
+        }
+      }
+    }
+
+    return found.slice(0, 10);
+  }
+
   async plan(task, cwd = this.rootDir) {
     this.bus.emit('shell:planning', { task: task.slice(0, 100) }, { source: 'ShellAgent' });
 
@@ -289,9 +400,46 @@ Respond ONLY with a JSON list:
     let steps;
     try {
       const raw = await this.model.chatStructured(planPrompt, [], 'code');
-      steps = Array.isArray(raw) ? raw : (raw?.steps || raw?._raw ? null : [raw]);
-      if (!steps || !Array.isArray(steps)) {
-        return { plan: [], results: [], summary: this.lang.t('agent.plan_failed') };
+      // v7.4.6.fix: LLMs return planned steps in many shapes. We salvage
+      // them all instead of bailing with "Konnte keinen Plan erstellen"
+      // on the first non-array response.
+      //   1. Direct array              [{cmd, ...}]
+      //   2. Wrapped in {steps:[...]}  {steps: [...]}
+      //   3. Wrapped in {plan:[...]}   {plan: [...]}
+      //   4. Wrapped in {commands:[..]}{commands: [...]}
+      //   5. Single step object        {cmd, description}
+      //   6. _raw text fallback        {_raw: "...", _parseError: true}
+      if (Array.isArray(raw)) {
+        steps = raw;
+      } else if (raw && Array.isArray(raw.steps)) {
+        steps = raw.steps;
+      } else if (raw && Array.isArray(raw.plan)) {
+        steps = raw.plan;
+      } else if (raw && Array.isArray(raw.commands)) {
+        steps = raw.commands;
+      } else if (raw && typeof raw.cmd === 'string') {
+        steps = [raw];
+      } else if (raw && raw._raw && typeof raw._raw === 'string') {
+        // Salvage from raw text — extract code-fenced or backtick commands
+        steps = this._salvageStepsFromText(raw._raw);
+      } else {
+        steps = null;
+      }
+      if (!steps || !Array.isArray(steps) || steps.length === 0) {
+        // v7.4.6.fix: include the raw response in the summary so the user
+        // can see WHY it failed instead of a bare "Konnte keinen Plan
+        // erstellen". Truncated to 300 chars to keep chat readable.
+        const rawHint = (() => {
+          try {
+            if (raw && raw._raw) return String(raw._raw).slice(0, 300);
+            return JSON.stringify(raw).slice(0, 300);
+          } catch (_e) { return '<unparseable>'; }
+        })();
+        return {
+          plan: [],
+          results: [],
+          summary: `${this.lang.t('agent.plan_failed')}\n\nLLM-Antwort hatte kein erkennbares Plan-Schema. Auszug:\n\`\`\`\n${rawHint}\n\`\`\``,
+        };
       }
     } catch (err) {
       return { plan: [], results: [], summary: this.lang.t('shell.plan_error', { message: err.message }) };
@@ -548,6 +696,56 @@ Respond ONLY with a JSON list:
     return { ok: true, command: normalized };
   }
 
+  /**
+   * v7.4.6.fix #31: Reject commands that contain absolute paths pointing
+   * OUTSIDE rootDir. Catches the LLM-fallback failure mode where the
+   * planner emitted `dir /s C:\`, `where /r C:\`, `type C:\Users\...`,
+   * etc. — commands that escaped Genesis's working directory and hit
+   * Windows access-denied on system folders.
+   *
+   * Lenient on purpose: only rejects commands that contain a clear
+   * absolute path token outside rootDir. Relative paths and absolute
+   * paths inside rootDir always pass.
+   *
+   * @param {string} command
+   * @returns {{ok: boolean, reason?: string}}
+   */
+  _checkRootDirSandbox(command) {
+    if (!this.rootDir) return { ok: true };
+    const root = path.resolve(this.rootDir).toLowerCase();
+    // Find absolute path tokens. Windows: drive-letter form (C:\, D:\, ...).
+    // POSIX: leading slash followed by a known root directory name. We
+    // restrict to common roots so flags like "/b", "/s", "/q" don't get
+    // mistaken for paths. Absolute paths in shell commands almost always
+    // start with one of these top-level dirs.
+    const winAbs = command.match(/\b([A-Za-z]):[\\/](?:[^\s"';|&<>]*)/g) || [];
+    const posixAbs = !this.isWindows
+      ? (command.match(/(?:^|\s)(\/(?:home|usr|var|etc|opt|tmp|root|mnt|srv|bin|sbin|lib|proc|sys|run|boot)\/[^\s"';|&<>]*)/g) || [])
+          .map(s => s.trim())
+      : [];
+    const candidates = [...winAbs, ...posixAbs];
+    for (const raw of candidates) {
+      const abs = path.resolve(raw).toLowerCase();
+      if (!abs.startsWith(root)) {
+        return {
+          ok: false,
+          reason: `path "${raw}" is outside rootDir (${this.rootDir}). Use relative paths or absolute paths inside the working directory.`,
+        };
+      }
+    }
+    // Also reject the common "dir /s C:\" / "where /r C:\" patterns even
+    // if drive root matches rootDir's drive — recursing from C:\ is too
+    // broad and inevitably hits access-denied.
+    if (/\bdir\s+\/s\s+[A-Za-z]:[\\/]?\s*$/i.test(command)
+        || /\bwhere\s+\/r\s+[A-Za-z]:[\\/]?\s/i.test(command)) {
+      return {
+        ok: false,
+        reason: 'recursive scan from a drive root (dir /s C:\\, where /r C:\\) is not allowed. Scope the path to the working directory.',
+      };
+    }
+    return { ok: true };
+  }
+
   _adaptCommand(cmd) {
     if (!this.isWindows) return cmd;
     // v7.4.5.fix #27c: expanded POSIX → Windows mapping. Previously
@@ -571,8 +769,31 @@ Respond ONLY with a JSON list:
       .replace(/^pwd\b/, 'cd')
       .replace(/^clear$/, 'cls')
       .replace(/^echo\s+\$([A-Z_][A-Z0-9_]*)\b/, 'echo %$1%');
-    // Common pipe idioms: "ls | wc -l" → "dir /b | find /c /v """
-    out = out.replace(/\|\s*wc\s+-l\s*$/, '| find /c /v ""');
+    // v7.4.6.fix #29: quote-safe counting. The pattern `find /C /V ""`
+    // (count lines NOT matching empty) gets mangled when passed through
+    // Node.js → cmd.exe — the doubled empty quotes get re-escaped and
+    // `find` ends up reading file `"\"` → "Zugriff verweigert".
+    // Replacement: `find /V /C ":"` (count lines NOT containing colon).
+    // Filenames on Windows cannot contain ':' (reserved drive separator),
+    // so this counts all lines correctly with no quoting hazard.
+    // Common pipe idioms: "ls | wc -l" → "dir /b | find /V /C \":\""
+    out = out.replace(/\|\s*wc\s+-l\s*$/, '| find /V /C ":"');
+    // Auto-translate the broken pattern if the LLM emits it directly
+    out = out.replace(/find\s+\/[Cc]\s+\/[Vv]\s+""/g, 'find /V /C ":"');
+    out = out.replace(/find\s+\/[Vv]\s+\/[Cc]\s+""/g, 'find /V /C ":"');
+    // v7.4.6.fix #29b: LLMs hallucinate other broken find-counter forms too.
+    // Real-world failures observed:
+    //   `find /c "*"`           — Windows find treats * as literal, not glob
+    //   `find /c "."`           — counts lines containing literal dot
+    //   `find /v ""`            — missing /c, just inverts (lists everything)
+    //   `find /count ...`       — /count is not a flag at all
+    //   `findstr /c:"*"`        — different tool, same hallucination
+    // All these get rewritten to `find /V /C ":"` which actually counts lines.
+    out = out.replace(/\bfind\s+\/[Cc]\s+"[*.]"/g, 'find /V /C ":"');
+    out = out.replace(/\bfind\s+\/[Cc]\s+"\s*"/g, 'find /V /C ":"');
+    out = out.replace(/\bfind\s+\/[Vv]\s+""\s*$/, 'find /V /C ":"');
+    out = out.replace(/\bfind\s+\/count\b[^|&;<>]*$/i, 'find /V /C ":"');
+    out = out.replace(/\bfindstr\s+\/c:"[*.]"/g, 'find /V /C ":"');
     // grep — basic mapping to findstr (not 1:1 but covers common cases)
     out = out.replace(/\bgrep\s+(-[A-Za-z]+\s+)?/g, 'findstr ');
     // /dev/null → NUL
