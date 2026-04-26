@@ -202,6 +202,9 @@ class AgentCoreWire {
       { event: 'agent-loop:approval-needed', fn: (d) => push('agent:loop-approval-needed', d) },
       { event: 'agent-loop:needs-input',     fn: (d) => push('agent:loop-approval-needed', { action: 'user-input', ...d }) },
       { event: 'agent-loop:complete',        fn: (d) => push('agent:loop-progress',        { phase: 'complete', ...d }) },
+
+      // v7.4.7: Settings toggle confirmation messages → chat
+      { event: 'chat:system-message',        fn: (d) => push('agent:chat-system-message', d) },
     ];
 
     // Single subscription loop with per-handler isolation
@@ -235,6 +238,8 @@ class AgentCoreWire {
 
   _startServices() {
     const c = this._c;
+    const settings = c.has('settings') ? c.resolve('settings') : null;
+    const bus = c.has('bus') ? c.resolve('bus') : null;
     const start = (name, ...args) => {
       if (c.has(name)) {
         try { c.resolve(name).start(...args); }
@@ -245,9 +250,21 @@ class AgentCoreWire {
     // Phase 5: Core orchestration
     start('learningService');
 
-    // Phase 6: Autonomy
-    start('daemon');
-    start('idleMind');
+    // Phase 6: Autonomy — v7.4.7: respect daemon.enabled / idleMind.enabled
+    // settings. Service is still resolvable in the container (DaemonController
+    // and other services may have it as a dep), only `.start()` is skipped.
+    const daemonEnabled = settings?.get?.('daemon.enabled') !== false;
+    const idleMindEnabled = settings?.get?.('idleMind.enabled') !== false;
+    if (daemonEnabled) {
+      start('daemon');
+    } else {
+      _log.info('[GENESIS] daemon.enabled=false — skipping daemon.start() (service still resolvable)');
+    }
+    if (idleMindEnabled) {
+      start('idleMind');
+    } else {
+      _log.info('[GENESIS] idleMind.enabled=false — skipping idleMind.start() (service still resolvable)');
+    }
     start('healthMonitor', 10000);
     start('cognitiveMonitor');
     start('desktopPerception');
@@ -275,6 +292,131 @@ class AgentCoreWire {
 
     // Phase 13 → AwarenessPort (no-op by default)
     start('awareness');
+
+    // v7.4.7: Wire Settings → bus, then attach runtime toggle listeners.
+    // Without setBus, set() emits nothing and these listeners never fire.
+    if (settings && bus && typeof settings.setBus === 'function') {
+      settings.setBus(bus);
+    }
+    this._wireRuntimeToggleListeners(bus, c);
+  }
+
+  /**
+   * v7.4.7: Listen for setting changes that should take effect at runtime
+   * (daemon, idleMind, selfMod, trust). When the user saves Settings, the
+   * UI calls Settings.set() which emits these events; the listeners here
+   * carry out the side effects (start/stop services, push trust level,
+   * etc.) without requiring a restart.
+   *
+   * @param {*} bus
+   * @param {*} c container
+   */
+  _wireRuntimeToggleListeners(bus, c) {
+    if (!bus || typeof bus.on !== 'function') return;
+
+    // v7.4.7: i18n for chat-notify messages. The lang service is in the
+    // container since phase 0 (AgentCoreBoot:77 c.registerInstance('lang')).
+    // We resolve it here lazily so test harnesses without a lang service
+    // still work via the fallback.
+    const lang = c.has('lang') ? c.resolve('lang') : null;
+    const t = (key, vars) => {
+      if (lang && typeof lang.t === 'function') {
+        try { return lang.t(key, vars || {}); } catch (_e) { /* fall through */ }
+      }
+      return key; // last-resort fallback — better than nothing
+    };
+
+    const tryStart = (name) => {
+      if (!c.has(name)) return;
+      try {
+        const svc = c.resolve(name);
+        if (typeof svc.start === 'function') svc.start();
+        _log.info(`[GENESIS] runtime: ${name}.start() (settings toggle)`);
+      } catch (err) { _log.warn(`[GENESIS] runtime ${name}.start() failed:`, err.message); }
+    };
+    const tryStop = (name) => {
+      if (!c.has(name)) return;
+      try {
+        const svc = c.resolve(name);
+        if (typeof svc.stop === 'function') svc.stop();
+        _log.info(`[GENESIS] runtime: ${name}.stop() (settings toggle)`);
+      } catch (err) { _log.warn(`[GENESIS] runtime ${name}.stop() failed:`, err.message); }
+    };
+    const chatNotify = (msg) => {
+      try { bus.emit('chat:system-message', { text: msg }, { source: 'AgentCoreWire' }); }
+      catch (_e) { /* never let chat-notify break a runtime toggle */ }
+    };
+
+    // Daemon
+    bus.on('settings:daemon-toggled', (ev) => {
+      if (ev.to === true)  { tryStart('daemon');  chatNotify(t('ui.toggle.daemon_on')); }
+      if (ev.to === false) { tryStop('daemon');   chatNotify(t('ui.toggle.daemon_off')); }
+    });
+
+    // IdleMind
+    bus.on('settings:idlemind-toggled', (ev) => {
+      if (ev.to === true)  { tryStart('idleMind'); chatNotify(t('ui.toggle.idlemind_on')); }
+      if (ev.to === false) { tryStop('idleMind');  chatNotify(t('ui.toggle.idlemind_off')); }
+    });
+
+    // Self-Modification gate — no service to start/stop, just a flag the
+    // SelfModificationPipeline checks. We just notify in chat.
+    bus.on('settings:selfmod-toggled', (ev) => {
+      chatNotify(ev.to ? t('ui.toggle.selfmod_on') : t('ui.toggle.selfmod_off'));
+    });
+
+    // Trust level — call setLevel on TrustLevelSystem so its own
+    // 'trust:level-changed' event fires for downstream listeners.
+    bus.on('settings:trust-level-changed', (ev) => {
+      if (typeof ev.to !== 'number') return;
+      if (!c.has('trustLevelSystem')) return;
+      try {
+        c.resolve('trustLevelSystem').setLevel(ev.to);
+        // Use the same i18n keys as the dropdown, stripped of parens text
+        const trustKeys = ['ui.trust_supervised', 'ui.trust_assisted', 'ui.trust_autonomous', 'ui.trust_full'];
+        const fullLabel = t(trustKeys[ev.to] || `level ${ev.to}`);
+        // The dropdown text includes a parenthetical hint like "Assisted (ask for risky)" —
+        // for the chat notification we want the short name only.
+        const short = fullLabel.split('(')[0].trim();
+        chatNotify(t('ui.toggle.trust_level', { level: short }));
+      } catch (err) { _log.warn('[GENESIS] runtime trustLevel.setLevel failed:', err.message); }
+    });
+
+    // v7.4.7: Auto-Resume Mode — GoalDriver reads agency.autoResumeGoals
+    // on each scan, so the new value takes effect on the next pickup pass
+    // without restart. We just notify here so the user sees the toggle
+    // landed and the boot-pickup behavior will use the new value.
+    bus.on('settings:auto-resume-changed', (ev) => {
+      const modeKeys = { ask: 'ui.auto_resume_ask', always: 'ui.auto_resume_always', never: 'ui.auto_resume_never' };
+      const fullLabel = t(modeKeys[ev.to] || ev.to);
+      const short = fullLabel.split('(')[0].trim();
+      chatNotify(t('ui.toggle.auto_resume', { mode: short }));
+    });
+
+    // v7.4.7: MCP serve toggle — start/stop the embedded MCP server so
+    // external clients can connect without a Genesis restart. Port
+    // changes are not picked up here; that requires a stop+start, which
+    // the user can effect by toggling off then on.
+    bus.on('settings:mcp-serve-toggled', async (ev) => {
+      if (!c.has('mcpClient')) return;
+      try {
+        const mcp = c.resolve('mcpClient');
+        if (ev.to === true) {
+          const settings = c.has('settings') ? c.resolve('settings') : null;
+          const port = settings?.get?.('mcp.serve.port') || 3580;
+          await mcp.startServer(port);
+          chatNotify(t('ui.toggle.mcp_started', { port }));
+        } else if (ev.to === false) {
+          if (mcp._mcpServer && typeof mcp._mcpServer.stop === 'function') {
+            await mcp._mcpServer.stop();
+          }
+          chatNotify(t('ui.toggle.mcp_stopped'));
+        }
+      } catch (err) {
+        _log.warn('[GENESIS] runtime mcp serve toggle failed:', err.message);
+        chatNotify(t('ui.toggle.mcp_failed', { error: err.message }));
+      }
+    });
   }
 }
 

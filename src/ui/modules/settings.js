@@ -17,6 +17,23 @@ async function openSettings() {
     if (s?.idleMind?.enabled !== undefined) $('#set-idle').value = String(s.idleMind.enabled);
     if (s?.security?.allowSelfModify !== undefined) $('#set-selfmod').value = String(s.security.allowSelfModify);
 
+    // v7.4.7: New settings — Trust, Auto-Resume, MCP-Serve, Approval-Timeout
+    if (s?.trust?.level !== undefined && $('#set-trust-level')) {
+      $('#set-trust-level').value = String(s.trust.level);
+    }
+    if (s?.agency?.autoResumeGoals && $('#set-auto-resume')) {
+      $('#set-auto-resume').value = s.agency.autoResumeGoals;
+    }
+    if (s?.mcp?.serve?.enabled !== undefined && $('#set-mcp-serve')) {
+      $('#set-mcp-serve').value = String(s.mcp.serve.enabled);
+    }
+    if (s?.mcp?.serve?.port !== undefined && $('#set-mcp-port')) {
+      $('#set-mcp-port').value = String(s.mcp.serve.port);
+    }
+    if (s?.timeouts?.approvalSec !== undefined && $('#set-approval-timeout')) {
+      $('#set-approval-timeout').value = String(s.timeouts.approvalSec);
+    }
+
     // v5.1.0: Show current model/backend info and populate preferred model selector
     try {
       const health = await window.genesis.invoke('agent:get-health');
@@ -95,6 +112,27 @@ async function saveSettings() {
   sets.push(['daemon.enabled', $('#set-daemon').value === 'true']);
   sets.push(['idleMind.enabled', $('#set-idle').value === 'true']);
   sets.push(['security.allowSelfModify', $('#set-selfmod').value === 'true']);
+
+  // v7.4.7: New settings
+  const trustLevelEl = $('#set-trust-level');
+  if (trustLevelEl) {
+    const trustVal = parseInt(trustLevelEl.value, 10);
+    if (!Number.isNaN(trustVal)) sets.push(['trust.level', trustVal]);
+  }
+  const autoResumeEl = $('#set-auto-resume');
+  if (autoResumeEl?.value) sets.push(['agency.autoResumeGoals', autoResumeEl.value]);
+  const mcpServeEl = $('#set-mcp-serve');
+  if (mcpServeEl) sets.push(['mcp.serve.enabled', mcpServeEl.value === 'true']);
+  const mcpPortEl = $('#set-mcp-port');
+  if (mcpPortEl?.value) {
+    const port = parseInt(mcpPortEl.value, 10);
+    if (!Number.isNaN(port) && port >= 1024 && port <= 65535) sets.push(['mcp.serve.port', port]);
+  }
+  const approvalTimeoutEl = $('#set-approval-timeout');
+  if (approvalTimeoutEl?.value) {
+    const t = parseInt(approvalTimeoutEl.value, 10);
+    if (!Number.isNaN(t) && t >= 10 && t <= 300) sets.push(['timeouts.approvalSec', t]);
+  }
 
   for (const [key, value] of sets) {
     try { await window.genesis.invoke('agent:set-setting', { key, value }); }

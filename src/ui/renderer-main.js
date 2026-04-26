@@ -226,6 +226,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // v7.4.7: System messages from runtime toggles (Daemon/IdleMind/SelfMod
+  // changed in Settings). AgentCoreWire emits 'chat:system-message' on the
+  // bus which is bridged to this IPC channel. Rendered as an inline-system
+  // message so the user gets immediate feedback that the toggle worked.
+  window.genesis.on('agent:chat-system-message', (data) => {
+    if (!data || !data.text) return;
+    try {
+      addMessage('agent', data.text, 'system');
+    } catch (err) {
+      console.warn('[UI] Failed to render system message:', err.message);
+    }
+  });
+
   window.genesis.on('agent:open-in-editor', (data) => {
     if (!data || !data.content) return;
     const editorPanel = $('#editor-panel');

@@ -53,6 +53,24 @@ const selfModificationPipelineModify = {
   async modify(message) {
     this._gateStats.totalAttempts++;
 
+    // v7.4.7: First gate — `security.allowSelfModify` setting.
+    // The user can switch this off in Settings to fully block all
+    // self-modification attempts, regardless of trust level, awareness,
+    // or circuit-breaker state. Settings is late-bound, so we tolerate
+    // its absence (e.g. in tests) — falls through to true (allow) only
+    // when the setting can't be read at all.
+    if (this._settings && typeof this._settings.get === 'function') {
+      const allow = this._settings.get('security.allowSelfModify');
+      if (allow === false) {
+        this._gateStats.consciousnessBlocked++;
+        _log.warn('[SELFMOD] Blocked: security.allowSelfModify=false in settings');
+        this.bus.emit('selfmod:settings-blocked', {
+          message: message?.slice?.(0, 100) || '',
+        }, { source: 'SelfModPipeline' });
+        return `⛔ **Selbst-Modifikation blockiert** — in den Einstellungen deaktiviert.\n\nUm Self-Mod wieder zu erlauben: Settings → Selbst-Modifikation → Erlaubt.`;
+      }
+    }
+
     // FIX v4.12.8: Circuit breaker — refuse if frozen
     if (this._frozen) {
       this._gateStats.circuitBreakerBlocked++;

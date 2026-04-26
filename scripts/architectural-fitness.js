@@ -500,6 +500,11 @@ check('EventBus Hygiene', (r) => {
     'chat:message', 'ui:heartbeat',
     // External trigger events (emitted by peers/CLI/UI, listened in src/agent/)
     'deploy:request', 'colony:run-request',
+    // v7.4.7: Settings-toggle events emitted dynamically by Settings.set()
+    // via TOGGLE_EVENT_KEYS map — static regex can't see them as emit() calls.
+    'settings:daemon-toggled', 'settings:idlemind-toggled',
+    'settings:selfmod-toggled', 'settings:trust-level-changed',
+    'settings:auto-resume-changed', 'settings:mcp-serve-toggled',
     // Cross-service events that use PromptEvolution internal emitter
     'prompt-evolution:promoted',
     // EventStore-routed: emitted via eventStore.append() → EVENT_STORE_BUS_MAP

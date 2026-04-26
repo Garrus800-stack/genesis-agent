@@ -178,6 +178,42 @@
             <option value="false" data-i18n="ui.blocked">Blocked</option>
           </select>
         </div>
+        <!-- v7.4.7: Trust Level — controls how often Genesis asks before acting -->
+        <div class="setting-group">
+          <label data-i18n="ui.trust_level">Trust Level</label>
+          <select id="set-trust-level" class="setting-input">
+            <option value="0" data-i18n="ui.trust_supervised">Supervised (always ask)</option>
+            <option value="1" data-i18n="ui.trust_assisted">Assisted (ask for risky)</option>
+            <option value="2" data-i18n="ui.trust_autonomous">Autonomous (ask only for critical)</option>
+            <option value="3" data-i18n="ui.trust_full">Full Autonomy (never ask)</option>
+          </select>
+        </div>
+        <!-- v7.4.7: Auto-Resume Mode — what to do with pending goals on boot -->
+        <div class="setting-group">
+          <label data-i18n="ui.auto_resume">Auto-Resume Open Goals</label>
+          <select id="set-auto-resume" class="setting-input">
+            <option value="ask" data-i18n="ui.auto_resume_ask">Ask (Default)</option>
+            <option value="always" data-i18n="ui.auto_resume_always">Always resume</option>
+            <option value="never" data-i18n="ui.auto_resume_never">Never resume</option>
+          </select>
+        </div>
+        <!-- v7.4.7: MCP Serve — Genesis as MCP server for external clients -->
+        <div class="setting-group">
+          <label data-i18n="ui.mcp_serve">MCP Server (provide Genesis)</label>
+          <select id="set-mcp-serve" class="setting-input">
+            <option value="false" data-i18n="ui.mcp_serve_off">Off</option>
+            <option value="true" data-i18n="ui.mcp_serve_on">On</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label data-i18n="ui.mcp_port">MCP Server Port</label>
+          <input type="number" id="set-mcp-port" min="1024" max="65535" placeholder="3580" class="setting-input">
+        </div>
+        <!-- v7.4.7: Approval Timeout — UI only takes effect after restart -->
+        <div class="setting-group">
+          <label><span data-i18n="ui.approval_timeout">Approval Timeout in Seconds</span> <span style="opacity:0.6;font-size:0.85em" data-i18n="ui.takes_effect_after_restart">(takes effect after restart)</span></label>
+          <input type="number" id="set-approval-timeout" min="10" max="300" placeholder="60" class="setting-input">
+        </div>
       </div>
       <div class="modal-footer">
         <button id="btn-settings-cancel" class="modal-btn modal-btn-secondary" data-i18n="ui.cancel">Cancel</button>

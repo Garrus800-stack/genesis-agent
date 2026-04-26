@@ -101,6 +101,8 @@ const ALLOWED_RECEIVE = [
   // v3.5.0: Agent Loop events
   'agent:loop-progress',
   'agent:loop-approval-needed',
+  // v7.4.7: Settings toggle confirmation messages
+  'agent:chat-system-message',
   // v7.4.5: GoalDriver events
   'goal:driver-pickup',
   'goal:resumed-auto',

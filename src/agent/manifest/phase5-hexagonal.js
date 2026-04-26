@@ -88,6 +88,9 @@ function phase5(ctx, R) {
         { prop: '_storage', service: 'storage', optional: true },
         // v7.2.3: GenesisBackup — snapshot .genesis/ before self-modification writes
         { prop: '_genesisBackup', service: 'genesisBackup', optional: true, expects: ['backup'] },
+        // v7.4.7: Settings — read 'security.allowSelfModify' as the first gate
+        // in modify(). Optional so tests can run without a settings instance.
+        { prop: '_settings', service: 'settings', optional: true, expects: ['get'] },
       ],
       factory: (c) => {
         const { lang } = R('Language');

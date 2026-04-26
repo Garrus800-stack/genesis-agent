@@ -15,6 +15,20 @@ const _log = createLogger('Settings');
 
 // ── Encryption helpers (machine-bound AES-256-GCM) ─────────
 const SENSITIVE_KEYS = new Set(['models.anthropicApiKey', 'models.openaiApiKey']);
+
+// v7.4.7: Settings whose changes need runtime side-effects (start/stop
+// services, gate runtime behavior). Mapped to bus events that
+// AgentCoreWire listens for. Settings whose change requires a restart
+// to take effect (e.g. timeouts.approvalSec injected into agentLoop)
+// are NOT in this map — they're advisory-only via the UI hint.
+const TOGGLE_EVENT_KEYS = {
+  'daemon.enabled':            'settings:daemon-toggled',
+  'idleMind.enabled':          'settings:idlemind-toggled',
+  'security.allowSelfModify':  'settings:selfmod-toggled',
+  'trust.level':               'settings:trust-level-changed',
+  'agency.autoResumeGoals':    'settings:auto-resume-changed',
+  'mcp.serve.enabled':         'settings:mcp-serve-toggled',
+};
 const ENC_PREFIX = 'enc:';
 // FIX v4.10.0 (S-4): v2 prefix for 600k-iteration keys.
 // Old 'enc:' prefix = 10,000 iterations (read-compatible, auto-upgraded on next write).
@@ -73,6 +87,10 @@ class Settings {
   constructor(storageDir, storage) {
     this.storage = storage || null;
     this.filePath = path.join(storageDir, 'settings.json');
+    // v7.4.7: Optional bus for emitting setting-change events.
+    // Set later via setBus(). Used so that Daemon/IdleMind/SelfMod
+    // toggles take effect at runtime, not just at next boot.
+    this._bus = null;
     // FIX v4.10.0 (M-4): Use a randomly generated salt persisted to disk.
     // Previously, salt was deterministic from storageDir path — an attacker
     // with local access could reconstruct the key without brute force.
@@ -88,6 +106,14 @@ class Settings {
       idleMind: { enabled: true, idleMinutes: 2, thinkMinutes: 3, maxActiveGoals: 3 },
       ui: { language: 'de', editorFontSize: 13, chatFontSize: 13 },
       security: { allowSelfModify: true, allowNetworkPeers: true, allowFileExecution: true },
+      // v7.4.7: Trust level (0..3 = SUPERVISED..FULL_AUTONOMY).
+      // Read by TrustLevelSystem.asyncLoad — overrides the persisted
+      // trust-level.json default. UI dropdown writes here.
+      trust: { level: 1 },
+      // v7.4.7: Agency runtime preferences. autoResumeGoals selects
+      // GoalDriver boot-pickup behavior (already wired in GoalDriver:562).
+      // Values: 'ask' | 'always' | 'never'.
+      agency: { autoResumeGoals: 'ask' },
       mcp: { enabled: true, servers: [], serve: { enabled: false, port: 3580 } },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
       timeouts: { approvalSec: 60, shellMs: 15000, httpMs: 60000, gitMs: 5000 },
@@ -174,6 +200,16 @@ class Settings {
   }
 
   /** @param {string} dotPath @param {*} value */
+  /**
+   * v7.4.7: Late-bind a bus so set() can emit toggle events for
+   * Daemon/IdleMind/SelfMod runtime toggles. Called from AgentCoreWire
+   * after Settings is resolved (Settings is in phase 0, bus also).
+   * @param {*} bus
+   */
+  setBus(bus) {
+    this._bus = bus || null;
+  }
+
   set(dotPath, value) {
     const parts = dotPath.split('.');
     let obj = this.data;
@@ -181,12 +217,27 @@ class Settings {
       if (!obj[parts[i]] || typeof obj[parts[i]] !== 'object') obj[parts[i]] = {};
       obj = obj[parts[i]];
     }
+    // v7.4.7: capture old value BEFORE write so toggle events can be
+    // emitted with from/to. Used for runtime daemon/idleMind/selfMod
+    // toggles — without this, AgentCoreWire's listener can't tell if
+    // the value actually changed.
+    const oldValue = obj[parts[parts.length - 1]];
     if (SENSITIVE_KEYS.has(dotPath) && value && typeof value === 'string' && !value.startsWith(ENC_PREFIX) && !value.startsWith(ENC_PREFIX_V2)) {
       obj[parts[parts.length - 1]] = encryptValue(value, this._encSalt);
     } else {
       obj[parts[parts.length - 1]] = value;
     }
     this._save();
+    // v7.4.7: Emit toggle events for runtime-relevant settings.
+    // Listened to in AgentCoreWire to start/stop services live.
+    if (this._bus && oldValue !== value) {
+      const eventKey = TOGGLE_EVENT_KEYS[dotPath];
+      if (eventKey) {
+        try {
+          this._bus.emit(eventKey, { from: oldValue, to: value, key: dotPath }, { source: 'Settings' });
+        } catch (_e) { /* never let event-emit break a save */ }
+      }
+    }
   }
 
   get(dotPath) {

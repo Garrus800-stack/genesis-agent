@@ -1179,6 +1179,32 @@ const EVENTS = Object.freeze({
     /** @payload {{ lessonId: string, retries: number, lastReason: string }} */
     OBSOLETE:      'abstraction:obsolete',
   }),
+
+  // ── Settings toggles (v7.4.7) ─────────────────────────
+  // Emitted by Settings.set() when a toggle-relevant key changes.
+  // Listened to in AgentCoreWire to start/stop services live.
+  SETTINGS: Object.freeze({
+    /** @payload {{ from: boolean, to: boolean, key: string }} */
+    DAEMON_TOGGLED:        'settings:daemon-toggled',
+    /** @payload {{ from: boolean, to: boolean, key: string }} */
+    IDLEMIND_TOGGLED:      'settings:idlemind-toggled',
+    /** @payload {{ from: boolean, to: boolean, key: string }} */
+    SELFMOD_TOGGLED:       'settings:selfmod-toggled',
+    /** @payload {{ from: number, to: number, key: string }} */
+    TRUST_LEVEL_CHANGED:   'settings:trust-level-changed',
+    /** @payload {{ from: string, to: string, key: string }} */
+    AUTO_RESUME_CHANGED:   'settings:auto-resume-changed',
+    /** @payload {{ from: boolean, to: boolean, key: string }} */
+    MCP_SERVE_TOGGLED:     'settings:mcp-serve-toggled',
+  }),
+
+  // ── Chat system messages (v7.4.7) ────────────────────
+  // Emitted by AgentCoreWire and other services to display a system
+  // confirmation message in the chat (e.g. "Daemon aktiviert.").
+  CHAT_SYS: Object.freeze({
+    /** @payload {{ text: string }} */
+    SYSTEM_MESSAGE: 'chat:system-message',
+  }),
 });
 
 // ── Event Naming Bridge ─────────────────────────────────────

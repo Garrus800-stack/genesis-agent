@@ -1,9 +1,52 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.4.6 · Last updated: v7.4.6 (goal-pipeline fixes #28/#29/#30/#31 actually committed, source-presence tests added per Principle 0.9, rootDir sandbox added)
+> Version: 7.4.7 · Last updated: v7.4.7 Reinraum (3 dead settings made real, 4 new UI controls for already-wired backend keys, 20 new tests)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.4.7 — Reinraum (Settings Hygiene)
+
+Three settings on the Einstellungen panel were Attrappen (toggle saved
+but no runtime read): DAEMON, IDLEMIND, SELBST-MODIFIKATION. v7.4.7
+makes them real and adds four UI controls for backend keys that were
+already wired but invisible.
+
+### Items resolved
+- **Daemon-Toggle real** — `_startServices()` checks `daemon.enabled`,
+  runtime listener on `settings:daemon-toggled` calls start/stop.
+  Service still resolvable in the container (DaemonController dep),
+  only `.start()` is skipped.
+- **IdleMind-Toggle real** — same mechanism with `idleMind.enabled`.
+- **Selbst-Modifikation-Gate real** — first gate in
+  `SelfModificationPipelineModify.modify()` reads
+  `security.allowSelfModify`. Settings injected via lateBinding so
+  tests still pass without it.
+- **Bus-aware Settings** — `Settings.setBus()` + TOGGLE_EVENT_KEYS map
+  emit toggle events on change. Wired in `_startServices()` after both
+  Settings and bus are available.
+
+### New UI surface (backend already wired)
+- **Trust Level** dropdown — calls `trustLevelSystem.setLevel()` on
+  save, the existing `trust:level-changed` cascade fires.
+- **Auto-Resume Mode** dropdown — `agency.autoResumeGoals` already
+  read in GoalDriver:562, now configurable.
+- **MCP Serve** toggle + port — McpClient.js:105/416/433 already
+  read it.
+- **Approval Timeout** number input — `timeouts.approvalSec` already
+  injected into agentLoop. UI hint: "wirkt nach Neustart".
+
+### Verification
+- 20 new tests in `test/modules/v747-fix.test.js`, all green
+- All previous pipeline + selfmod + settings tests still green
+- Schema: 0 mismatches; Fitness: 127/130
+
+### Honest scope note
+This release was originally planned as v7.4.6 ("Reinraum") but got
+displaced by the v7.4.5-pipeline-fix work. v7.4.7 returns to the
+original plan: no fake settings, every UI control means something.
 
 ---
 

@@ -1,3 +1,128 @@
+## [7.4.7] — Reinraum (Settings Hygiene)
+
+> Three settings on the Einstellungen panel — DAEMON, IDLEMIND,
+> SELBST-MODIFIKATION — were attrappes: the toggle was saved but
+> nothing read the value at runtime. Daemon and IdleMind started
+> regardless of the setting; security.allowSelfModify was never
+> consulted by the SelfModificationPipeline. v7.4.7 makes all three
+> real, and adds four genuinely-useful settings whose backend code
+> was already wired but had no UI: Trust Level, Auto-Resume Mode,
+> MCP Serve toggle + port, Approval Timeout.
+
+### What was tot
+
+- `daemon.enabled` — read in nowhere, AutonomousDaemon started
+  unconditionally via `_startServices()`.
+- `idleMind.enabled` — same; IdleMind started unconditionally.
+- `security.allowSelfModify` — only used in the `/system` status
+  display. SelfModificationPipeline.modify() never checked it. Setting
+  it to "Blockiert" had no effect.
+
+### What v7.4.7 changes
+
+- **Settings.js** gains a late-bound bus (`setBus()`) and emits a
+  toggle event when the value of any toggle-relevant key changes:
+  - `settings:daemon-toggled`
+  - `settings:idlemind-toggled`
+  - `settings:selfmod-toggled`
+  - `settings:trust-level-changed`
+  - `settings:auto-resume-changed`
+  - `settings:mcp-serve-toggled`
+  Events fire only on actual change (oldValue !== newValue) and only
+  for keys in TOGGLE_EVENT_KEYS — non-toggle keys (e.g. API keys,
+  preferred model) emit nothing.
+- **AgentCoreWire** `_startServices()` now respects
+  `daemon.enabled` and `idleMind.enabled`. Service is still
+  resolvable in the container (DaemonController has `daemon` as a
+  dep), only `start()` is skipped. Plus a new
+  `_wireRuntimeToggleListeners()` that hooks the bus events to
+  `start()`/`stop()` calls so toggling at runtime takes effect
+  immediately and emits a chat-system-message confirming the change
+  ("Daemon aktiviert.", "Daemon deaktiviert.").
+- **SelfModificationPipelineModify.modify()** — first gate is now
+  `security.allowSelfModify`. If false, returns a clear blocked
+  message and emits `selfmod:settings-blocked` for observers. Falls
+  through (allow) only when settings is unreachable, so tests and
+  legacy code aren't broken.
+- **phase5-hexagonal** — `settings` added as optional lateBinding
+  on `selfModPipeline` so the gate above can read it.
+
+### New settings (4) — UI added, backend was already wired
+
+1. **Trust Level** dropdown (Supervised/Assisted/Autonomous/Full
+   Autonomy) → `trust.level` (numeric 0–3). On save, the runtime
+   listener calls `trustLevelSystem.setLevel()` so the existing
+   `trust:level-changed` event fires for downstream services.
+2. **Auto-Resume Mode** dropdown (Ask/Always/Never) →
+   `agency.autoResumeGoals`. Already read by GoalDriver:562 in
+   v7.4.5; now exposed in UI.
+3. **MCP Serve toggle + port** → `mcp.serve.enabled`,
+   `mcp.serve.port`. Already read by McpClient at lines 105/416/433;
+   now exposed in UI.
+4. **Approval Timeout** number input (10–300 sec) →
+   `timeouts.approvalSec`. Read at boot and injected into agentLoop
+   (phase8-revolution.js:82) — UI labels this "wirkt nach Neustart"
+   because the value is captured once.
+
+### Defaults added to Settings schema
+
+- `trust: { level: 1 }`
+- `agency: { autoResumeGoals: 'ask' }`
+
+(`mcp.serve.{enabled,port}` and `timeouts.approvalSec` were
+already in the schema since earlier versions.)
+
+### Tests added
+
+`test/modules/v747-fix.test.js` — 20 tests:
+- **#1 Toggle events** (6 tests): daemon, idleMind, selfMod, trust
+  events fire on change; no-op writes don't fire; non-toggle keys
+  don't fire.
+- **#2 Source-presence** (3 tests): AgentCoreWire conditionally
+  starts daemon and idleMind; runtime toggle listeners are wired.
+- **#3 SelfMod gate** (3 tests): blocks when
+  allowSelfModify=false; doesn't block when true; doesn't block
+  when settings absent.
+- **#4 UI source-presence** (3 tests): all four new HTML fields
+  exist; settings.js loads them; settings.js saves them.
+- **#5 Defaults** (4 tests): trust.level=1, autoResumeGoals='ask',
+  mcp.serve.{enabled,port}=false/3580, timeouts.approvalSec=60.
+- **#6 Manifest wiring** (1 test): selfModPipeline lateBinds
+  settings.
+
+### What v7.4.7 does NOT change
+
+- No new functionality outside Settings hygiene. The four new UI
+  controls expose values that were already read at runtime — no
+  new code paths in services.
+- File-size-guard regression unchanged (5 files >700 LOC, see O-8).
+- `shell.plan()` direct chat-path migration to FormalPlanner — still
+  v7.4.8+.
+
+### Verification
+
+- `test/modules/v747-fix.test.js`: 20 passed, 0 failed
+- `test/modules/v746-fix.test.js`: 26 passed (no regression)
+- `test/modules/v745-fix.test.js`: 27 passed (no regression)
+- `test/modules/SelfModificationPipeline.test.js`: 11 passed
+- `test/modules/selfmodpipeline.test.js`: 15 passed
+- `test/modules/Settings.test.js`: 14 passed
+- `test/modules/trustlevelsystem.test.js`: 11 passed
+- Schema scan: 0 mismatches
+- Architectural fitness: 127/130 (excluded the 6 v7.4.7 toggle
+  events from phantom-listener check — they're emitted dynamically
+  by Settings.set() via TOGGLE_EVENT_KEYS map and the static regex
+  can't see them as `bus.emit(...)` calls)
+
+### Honest scope
+
+This was the originally-planned v7.4.6, displaced by the Pipeline-
+Reparatur (#28–#31) when v7.4.5 turned out to ship with three
+fixes only partially committed. v7.4.7 picks up the original plan:
+no fake settings, every UI control does what it says.
+
+---
+
 ## [7.4.6] — Goal-Pipeline Fixes (the ones that actually shipped this time)
 
 > v7.4.5 declared 30 fixes #16–#30 in its changelog and added regression
