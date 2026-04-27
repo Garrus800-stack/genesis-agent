@@ -23,6 +23,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { buildOsContext } = require('../core/EnvironmentContext');
 const _log = createLogger('FormalPlanner');
 
 class FormalPlanner {
@@ -290,35 +291,9 @@ class FormalPlanner {
     // POSIX commands ("ls", "cat") on Windows, leading to "command
     // not recognized" errors. Also: planner needs to know the absolute
     // rootDir so it can target files inside Genesis instead of guessing.
-    const platform = process.platform;
-    const isWindows = platform === 'win32';
-    const osName = isWindows ? 'Windows' : (platform === 'darwin' ? 'macOS' : 'Linux');
-    const shellName = isWindows ? 'cmd.exe / PowerShell' : 'bash';
-    const listCmd = isWindows ? 'dir' : 'ls';
-    const catCmd = isWindows ? 'type' : 'cat';
-    const findCmd = isWindows ? 'where' : 'which';
-    const pathSep = isWindows ? '\\' : '/';
-    const rootDir = this.rootDir || process.cwd();
-    const osContext = `
-
-ENVIRONMENT:
-- Operating System: ${osName} (process.platform = "${platform}")
-- Default shell: ${shellName}
-- Working directory (rootDir): ${rootDir}
-- Path separator: "${pathSep}"
-- Use these commands on this OS:
-  * List files: ${listCmd}   (NOT "ls" on Windows)
-  * Read file: ${catCmd}     (NOT "cat" on Windows)
-  * Find binary: ${findCmd}  (NOT "which" on Windows)
-${isWindows ? `- Counting lines on Windows: use \`find /V /C ":"\` (counts lines NOT containing colon — works because filenames cannot contain ':').
-  * DO NOT use \`find /c "*"\` (Windows find treats * as literal text, not glob — fails)
-  * DO NOT use \`find /c /v ""\` (the doubled quotes break through Node.js → cmd.exe)
-  * DO NOT use \`wc -l\` (POSIX, not available on Windows)
-  * Correct: \`dir /b *.js | find /V /C ":"\`
-- DO NOT use "/s" with absolute paths like C:\\ — Windows blocks system folders.
-` : ''}- All paths in commands MUST be relative to rootDir or absolute paths starting with "${rootDir}".
-- For SHELL steps targeting Genesis files: use rootDir as the base.
-`;
+    // v7.4.8: extracted to EnvironmentContext helper — single source
+    // of truth shared with ShellAgent.plan().
+    const { osContext, osName } = buildOsContext({ rootDir: this.rootDir });
 
     const prompt = `You are Genesis, an autonomous AI agent. Decompose this goal into concrete steps.
 

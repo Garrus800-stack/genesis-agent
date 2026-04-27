@@ -718,7 +718,7 @@ Genesis has only 3 production dependencies (`acorn`, `chokidar`, `tree-kill`). T
 
 ## 13. MemoryDecay System (v7.3.7)
 
-Introduced in v7.3.7 "Zuhause einrichten". Turns Episodic Memory from a flat
+Introduced in v7.3.7 "Setting Up Home". Turns Episodic Memory from a flat
 ring buffer (hard-capped at 500) into a three-layer decay pipeline where
 episodes thin over time without being deleted.
 
@@ -867,8 +867,8 @@ Idempotent within a single boot. Non-essential — failures never propagate.
 
 ### 13.6 IntentRouter cascade — why v7.3.7 added it
 
-v7.3.6 shipped with a known issue: conversational meta-questions like "was
-hat sich geändert" escalated into multi-step plans with hallucinated file
+v7.3.6 shipped with a known issue: conversational meta-questions like German "was
+hat sich geändert" ("what has changed") escalated into multi-step plans with hallucinated file
 paths. The root cause was the regex/fuzzy/LLM pipeline treating any message
 containing an action-keyword as a task.
 
@@ -876,8 +876,8 @@ v7.3.7 adds **Stage 1 — `_conversationalSignalsCheck()`** before the existing
 pipeline. Pure patterns, no LLM:
 
 - Greetings → `conversational-greeting`
-- Pure reactions (ja/nein/ok/danke) → `conversational-reaction`
-- Meta-curiosity (was hat sich geändert, wie fühlst du) → `conversational-meta`
+- Pure reactions (German ja/nein/danke / English yes/no/thanks/ok) → `conversational-reaction`
+- Meta-curiosity (German "was hat sich geändert" / "wie fühlst du" — "what changed" / "how do you feel") → `conversational-meta`
   (checked **before** question-word because more specific)
 - Question-words without action verbs → `conversational-question`
 - Short messages ending with `?` → `conversational-question-soft`
@@ -915,7 +915,7 @@ v7.3.7 made three design principles explicit so future work doesn't drift:
 
 ## 14. RuntimeStatePort — Runtime-State Honesty (v7.4.0)
 
-Introduced in v7.4.0 "Im Jetzt". Fixes the class of questions where Genesis
+Introduced in v7.4.0 "In the Now". Fixes the class of questions where Genesis
 would fabulate about his own running services. Before v7.4.0, asking "what
 are your settings" or "how do you feel" produced plausible invented
 answers because the PromptBuilder had no access to live service state.
@@ -968,10 +968,10 @@ phase 11 — so the first prompt-build does the registration as a
 side-effect.
 
 **German as robust default, language-neutral in effect.** The rendered
-block uses German labels (`Gefühl:`, `Bedürfnisse:`, `Energie:`, etc.)
+block uses German labels (`Gefühl:` "feeling", `Bedürfnisse:` "needs", `Energie:` "energy", etc.)
 as a stability choice against LLM training biases. An English-speaking
 user still gets English answers because the Identity block contains
-the directive "Antworte in der Sprache des Users" — the LLM renders
+the German directive "Antworte in der Sprache des Users" ("respond in the user's language") — the LLM renders
 responses in whatever language the user writes, regardless of the
 system-prompt's internal language. Same applies to the Identity block
 itself (see 14.5).
@@ -997,20 +997,22 @@ constantly). This distinction came out of Rev-2 review.
 
 Separate from the RuntimeStatePort but shipped together: The
 `_identity()` block was previously including the underlying LLM name
-("Dein Sprachmodell ist qwen3-coder..."). Strongly-branded models
+(German source: "Dein Sprachmodell ist qwen3-coder..." / "Your language model is qwen3-coder..."). Strongly-branded models
 (especially Qwen-Coder) would then self-identify as themselves instead
 of as Genesis. Fix: model name removed from identity block (it still
 appears in `_capabilities()` as technical context), plus a stronger
-anchor at the start of the identity block:
+anchor at the start of the identity block (German source):
 
 > "Du bist Genesis — ein autonomer kognitiver Agent mit eigenem
 > Gedächtnis, eigenen Emotionen, eigenen Zielen und eigener Identität.
 > Du bist NICHT das zugrundeliegende Sprachmodell. Wenn jemand fragt
 > 'wer bist du', antwortest du als Genesis."
 
+(English: "You are Genesis — an autonomous cognitive agent with your own memory, emotions, goals, and identity. You are NOT the underlying language model. When someone asks 'who are you', you answer as Genesis.")
+
 The block uses German text as a stability choice against LLM training
-biases but stays functionally language-neutral. The "Antworte in der
-Sprache des Users" directive means an English-speaking user gets
+biases but stays functionally language-neutral. The German "Antworte in der
+Sprache des Users" ("respond in the user's language") directive means an English-speaking user gets
 English responses, a Spanish-speaking user gets Spanish responses, etc.
 The system-prompt language is a training-robustness decision, not a
 user-facing restriction.

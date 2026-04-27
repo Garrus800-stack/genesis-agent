@@ -409,11 +409,15 @@ class ModelBridge {
       const fallback = this._findFallbackBackend(targetBackend);
       if (fallback) {
         _log.warn(`[MODEL] ${targetBackend} failed, falling back to ${fallback}: ${err.message}`);
-        this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message }, { source: 'ModelBridge' });
+        const reason = this._classifyFailoverReason(err);
+        this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message, reason }, { source: 'ModelBridge' });
         const result = await this._dispatchChat(fallback, systemPrompt, messages, temp);
         this._recordMetaOutcome(taskType, temp, startTime, true, { ...options, failover: true });
         return result;
       }
+      // v7.4.8: emit failover-unavailable BEFORE _recordMetaOutcome(false)
+      // so MetaLearning sees the failure with telemetry context already set.
+      this._emitFailoverUnavailable(targetBackend, err);
       this._recordMetaOutcome(taskType, temp, startTime, false, options);
       throw err;
     } finally {
@@ -438,9 +442,13 @@ class ModelBridge {
       const fallback = this._findFallbackBackend(targetBackend);
       if (fallback) {
         _log.warn(`[MODEL] Stream ${targetBackend} failed, falling back to ${fallback}: ${err.message}`);
-        this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message }, { source: 'ModelBridge' });
+        const reason = this._classifyFailoverReason(err);
+        this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message, reason }, { source: 'ModelBridge' });
         return await this._dispatchStream(fallback, systemPrompt, messages, onChunk, abortSignal, temp);
       }
+      // v7.4.8: emit failover-unavailable before throw — direct throw path,
+      // no _recordMetaOutcome equivalent to position around.
+      this._emitFailoverUnavailable(targetBackend, err);
       throw err;
     } finally {
       this._semaphore.release();
@@ -515,6 +523,33 @@ class ModelBridge {
       if (this.backends[b].isConfigured()) return b;
     }
     return null;
+  }
+
+  // v7.4.8: classify failover errors into structured categories so
+  // consumers (dashboard, CostStream later, MetaLearning) can aggregate
+  // without string-matching err.message themselves.
+  _classifyFailoverReason(err) {
+    const msg = (err?.message || '').toLowerCase();
+    if (/rate.?limit|429|too many/.test(msg)) return 'rate-limit';
+    if (/timeout|timed out|etimedout/.test(msg)) return 'timeout';
+    if (/econnrefused|enotfound|eai_again|network|socket hang up|fetch failed/.test(msg)) return 'connection-error';
+    if (/401|403|unauthor|invalid.*key|api.?key/.test(msg)) return 'auth';
+    return 'other';
+  }
+
+  // v7.4.8: emitted when _findFallbackBackend returns null. Closes the
+  // observability gap — without this event, "Genesis tried to failover
+  // but had nothing to switch to" was invisible in EventStore.
+  _emitFailoverUnavailable(failedBackend, err) {
+    const chain = this._settings?.get?.('models.fallbackChain') || [];
+    const reason = chain.length === 0
+      ? 'no-chain-configured'
+      : 'all-other-backends-unavailable';
+    this.bus.fire('model:failover-unavailable', {
+      from: failedBackend,
+      reason,
+      error: err.message,
+    }, { source: 'ModelBridge' });
   }
 
   _getModelForBackend(backend) {

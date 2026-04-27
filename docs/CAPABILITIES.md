@@ -485,7 +485,7 @@ The v7 line is dominated by structural maturation: smaller, more honest, better-
 | **Pin-and-Reflect** (v7.3.7) | `mark-moment` tool + DreamCycle Phase 1.5 (KEEP / ELEVATE / LET_FADE). |
 | **Goal-Lifecycle Auto-Transitions** (v7.3.7) | GoalStack auto-completes (all steps done), auto-fails (attempts exhausted), auto-stalls (72h inactive). |
 | **Synchronous Source-Read** (v7.3.8) | ChatOrchestrator can read CHANGELOG.md and package.json synchronously per turn. mtime-cached, per-turn + session budget. |
-| **LLM-Failure-Honesty** (v7.3.8) | Typed error classifier, system-message format `⚠ Modell nicht verfügbar`, not pushed to history. Principle 0.4: *Honest non-knowing*. |
+| **LLM-Failure-Honesty** (v7.3.8) | Typed error classifier, system-message format German `⚠ Modell nicht verfügbar` ("model not available"), not pushed to history. Principle 0.4: *Honest non-knowing*. |
 | **DreamCycle / ChatOrchestrator splits** (v7.3.9) | 854→482 LOC and 719→582 LOC via Prototype-Delegation. Principle 0.5: *Structural hygiene is its own release*. |
 | **Central GateStats** (v7.3.6) | All gate verdicts (`pass`/`block`/`warn`) recorded centrally. Sampling for hot-path gates. Dead gates and disproportionate blockers become visible. |
 

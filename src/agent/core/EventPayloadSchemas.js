@@ -310,7 +310,8 @@ const SCHEMAS = {
   'cognitive:decision-evaluated':   { decision: 'required', outcome: 'required', rollingQuality: 'required' },
 
   // Model routing
-  'model:failover':        { from: 'required', to: 'required', error: 'required' },
+  'model:failover':              { from: 'required', to: 'required', error: 'required', reason: 'required' },
+  'model:failover-unavailable':  { from: 'required', reason: 'required', error: 'required' },
 
   // Values
   'value:stored':          { id: 'required', name: 'required', weight: 'required', source: 'required' },

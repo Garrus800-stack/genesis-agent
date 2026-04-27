@@ -178,11 +178,11 @@ You can also change the trust level directly from the chat — no settings panel
 
 | What you type | Result |
 |---|---|
-| `trust level` or `vertrauensstufe` | Show current level + table of what each level allows |
+| `trust level` or German `vertrauensstufe` | Show current level + table of what each level allows |
 | `trust level 2` or `trust autonomous` | Set to AUTONOMOUS — Genesis auto-approves safe + medium actions |
-| `autonomie freigeben` | German equivalent — raises trust by one step |
+| German `autonomie freigeben` | German equivalent ("release autonomy") — raises trust by one step |
 | `trust level 3` or `trust full` | Set to FULL AUTONOMY — includes shell + self-modification |
-| `trust level 1` or `einschränken` | Back down to ASSISTED (default) |
+| `trust level 1` or German `einschränken` ("restrict") | Back down to ASSISTED (default) |
 
 **What each level allows autonomously (without asking you first):**
 
@@ -223,18 +223,18 @@ These work anywhere you talk to Genesis — the main chat window, REPL, or any f
 
 The signal score displayed next to each memory (e.g. `[1/6]` or `[4/6]`) is the count of significance criteria the Significance Detector matched on that memory — higher means more signals agreed it was meaningful. It is **not** a storage limit. Genesis can hold arbitrarily many core memories; the `/6` refers to the six heuristics the detector evaluates, not a cap on how many memories you can have.
 
-The slash is required — free-text phrases like "remember this" or "zeig mir deine Erinnerungen" intentionally do NOT trigger memory actions. This was a deliberate v7.3.3 change so normal conversation doesn't collide with memory commands.
+The slash is required — free-text phrases like "remember this" or German "zeig mir deine Erinnerungen" ("show me your memories") intentionally do NOT trigger memory actions. This was a deliberate v7.3.3 change so normal conversation doesn't collide with memory commands.
 
 **Trust & Autonomy** — how much Genesis can do without asking you first.
 
 | What you type | Effect |
 |---|---|
-| `trust level` or `vertrauensstufe` | Show current level and a table of what each level allows. |
-| `trust level 2` / `trust autonomous` / `autonomie freigeben` | Raise to AUTONOMOUS (auto-approves safe + medium actions). |
+| `trust level` or German `vertrauensstufe` ("trust level") | Show current level and a table of what each level allows. |
+| `trust level 2` / `trust autonomous` / German `autonomie freigeben` ("release autonomy") | Raise to AUTONOMOUS (auto-approves safe + medium actions). |
 | `trust level 3` / `trust full` | Raise to FULL AUTONOMY (includes shell + self-modification). |
-| `trust level 1` / `einschränken` | Back down to ASSISTED (the default). |
-| `hoch` / `grant` / `erhöh` | Raise by one step. |
-| `runter` / `lower` / `weniger` | Lower by one step. |
+| `trust level 1` / German `einschränken` ("restrict") | Back down to ASSISTED (the default). |
+| German `hoch` ("up") / `grant` / German `erhöh` ("raise") | Raise by one step. |
+| German `runter` ("down") / `lower` / German `weniger` ("less") | Lower by one step. |
 
 Level persists in `.genesis/settings.json` and survives restarts.
 
@@ -256,25 +256,25 @@ A handler triggers only on explicit `/command`. The slash can be at the start or
 
 ```
 /self-inspect                                ← triggers
-kannst du mal /self-inspect machen bitte     ← triggers
-zeig mir deine Module                        ← chat, no panel
-analysiere den Code                          ← chat, no panel
-klone dich                                   ← chat, no panel
+"can you do /self-inspect for me please"     ← triggers
+"show me your modules"                       ← chat, no panel
+"analyze the code"                           ← chat, no panel
+"clone yourself"                             ← chat, no panel
 ```
 
-The slash must be preceded by whitespace or start-of-message. Slashes directly after apostrophes or quote characters (e.g. `Er sagte '/self-inspect'`) intentionally do NOT trigger — quoted references shouldn't fire handlers.
+The slash must be preceded by whitespace or start-of-message. Slashes directly after apostrophes or quote characters (e.g. `He said '/self-inspect'`) intentionally do NOT trigger — quoted references shouldn't fire handlers.
 
 **Settings, Journal, Plans** — structured panels (slash-only, like the self-* and agent commands).
 
 | Command | Effect |
 |---|---|
-| `/settings` or `/einstellungen` | Show current settings panel (model, daemon, idlemind, autonomy). |
+| `/settings` or German `/einstellungen` | Show current settings panel (model, daemon, idlemind, autonomy). |
 | `/config` or `/konfigur*` | Same as `/settings`. |
-| `/journal` or `/tagebuch` | Show Genesis' inner journal — recent thoughts, dreams, reflections. |
-| `/plans` or `/vorhaben` | Show planned-but-not-started changes Genesis is considering. |
+| `/journal` or German `/tagebuch` | Show Genesis' inner journal — recent thoughts, dreams, reflections. |
+| `/plans` or German `/vorhaben` | Show planned-but-not-started changes Genesis is considering. |
 | `Anthropic API-Key: sk-ant-...` | Set an API key by pasting it directly (still works without slash). |
 
-The slash form is the safe form. If you write "lass uns über die Konfiguration reden" or "was hast du so gedacht?", Genesis answers with words — no panel dump.
+The slash form is the safe form. If you write German "lass uns über die Konfiguration reden" ("let's talk about the configuration") or "what have you been thinking?", Genesis answers with words — no panel dump.
 
 **Self-Repair** — circuit-breaker reset (rarely needed manually).
 
@@ -289,9 +289,9 @@ Goals you set explicitly are persisted in `.genesis/goal-stack.json`. The Autono
 
 | What you type | Effect |
 |---|---|
-| `welche Ziele hast du?` / `what are your goals?` | List active goals. |
-| `füge Ziel hinzu: <description>` / `add goal: <description>` | Push a new goal onto the stack. |
-| `cancel goal #3` / `lösche goal 3` | Abandon a specific goal by index. |
+| German `welche Ziele hast du?` / `what are your goals?` | List active goals. |
+| German `füge Ziel hinzu: <description>` / `add goal: <description>` | Push a new goal onto the stack. |
+| `cancel goal #3` / German `lösche goal 3` ("delete goal 3") | Abandon a specific goal by index. |
 
 **Injection gate**
 

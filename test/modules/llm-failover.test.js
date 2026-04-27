@@ -1,6 +1,12 @@
 // ============================================================
 // GENESIS — test/modules/llm-failover.test.js (v5.9.2)
 //
+// Tests the SEMANTICS of LLM backend failover via a mock
+// ModelBridge implementation (createMockBridge below). For tests
+// that exercise the REAL ModelBridge._findFallbackBackend() code
+// path and verify event emits against actual source, see
+// test/modules/v748-fix.test.js (Component C).
+//
 // Tests LLM backend failover and graceful degradation:
 //   - Primary backend failure → fallback to secondary
 //   - All backends down → clear error, no crash

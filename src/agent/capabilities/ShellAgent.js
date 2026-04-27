@@ -23,6 +23,7 @@ const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { SHELL: SHELL_LIMITS, TIMEOUTS, THRESHOLDS } = require('../core/Constants');
+const { buildOsContext } = require('../core/EnvironmentContext');
 const { safeJsonParse } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('ShellAgent');
@@ -377,8 +378,16 @@ class ShellAgent {
       ? `\nPREVIOUSLY SUCCESSFUL: For "${pastPatterns.trigger}", "${pastPatterns.action}" worked (${Math.round(pastPatterns.successRate * 100)}% success).`
       : '';
 
-    const planPrompt = `You are a shell expert for ${this.isWindows ? 'Windows (PowerShell/CMD)' : 'Linux (Bash)'}.
+    // v7.4.8: shared anti-hallucination block from EnvironmentContext.
+    // Previously only FormalPlanner had find /V /C correctness rules;
+    // direct chat path got none. Single source of truth now.
+    const { osContext, osName } = buildOsContext({
+      rootDir: cwd,
+      isWindows: this.isWindows,
+    });
 
+    const planPrompt = `You are a shell expert for ${osName}.
+${osContext}
 TASK: ${task}
 
 PROJECT CONTEXT:
@@ -390,7 +399,7 @@ PROJECT CONTEXT:
 ${pastContext}
 
 RULES:
-- Only commands that work on ${this.isWindows ? 'Windows' : 'Linux'}
+- Only commands that work on ${osName}
 - Each command must be independently executable
 - Permission tier: "${this.permissionLevel}"
 

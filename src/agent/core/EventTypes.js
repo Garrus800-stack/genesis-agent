@@ -668,10 +668,12 @@ const EVENTS = Object.freeze({
 
   // ── Model ──────────────────────────────────────────────
   MODEL: Object.freeze({
-    FAILOVER:          'model:failover',
-    NO_MODELS:         'model:no-models',
+    FAILOVER:             'model:failover',
+    /** v7.4.8: emitted when _findFallbackBackend returns null */
+    FAILOVER_UNAVAILABLE: 'model:failover-unavailable',
+    NO_MODELS:            'model:no-models',
     /** telemetry-only (EventStore/Dashboard) */
-    OLLAMA_UNAVAILABLE: 'model:ollama-unavailable',
+    OLLAMA_UNAVAILABLE:   'model:ollama-unavailable',
     /** @payload {{ model: string, backend: string, priority: number }} */
   }),
 

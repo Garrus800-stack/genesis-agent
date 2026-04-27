@@ -1,16 +1,65 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.4.7 · Last updated: v7.4.7 Reinraum (3 dead settings made real, 4 new UI controls for already-wired backend keys, 20 new tests)
+> Version: 7.4.8 · Last updated: v7.4.8 (EnvironmentContext extraction, failover reason classification, real source-path tests for ModelBridge)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-## Resolved in v7.4.7 — Reinraum (Settings Hygiene)
+## Resolved in v7.4.8
 
-Three settings on the Einstellungen panel were Attrappen (toggle saved
-but no runtime read): DAEMON, IDLEMIND, SELBST-MODIFIKATION. v7.4.7
+- **O-13 status revised.** Multi-model fallback was already shipped in
+  v5.1.0 / v5.9.2: `EventPayloadSchemas.js:313` had the schema and
+  `ModelBridge.js:412 + :441` already emitted `model:failover` with
+  `{from, to, error}`. v7.4.8 closes three real gaps left in that
+  earlier work: (a) reason classification — raw `err.message` strings
+  replaced by structured `reason` enum (rate-limit | timeout |
+  connection-error | auth | other), additive (existing `error` field
+  preserved for `LearningService` compatibility); (b) negative-case
+  observability — new `model:failover-unavailable` event for the
+  null-return path of `_findFallbackBackend()` in both `chat()` and
+  `streamChat()`; (c) source-path test coverage — `llm-failover.test.js`
+  was testing a mock re-implementation, not the real
+  `_findFallbackBackend`. v748-fix.test.js Component C now exercises
+  the actual ModelBridge code path.
+- **Anti-hallucination OS prompt block was duplicated.** FormalPlanner
+  had the full ENVIRONMENT block with `find /V /C` correctness rules
+  plus four `DO NOT` patterns; ShellAgent's direct chat path had none
+  of them. `EnvironmentContext` helper extracted to `src/agent/core/`
+  (placed in core/ not revolution/ to avoid cross-phase coupling),
+  used by both call sites. ShellAgent.plan() output is now consistent
+  with FormalPlanner-routed plans for OS-correctness.
+
+### Open / deferred
+
+- **shell.plan() migration to FormalPlanner** — deferred to v7.6+
+  alongside BeliefStore work, when FormalPlanner will be opened
+  anyway. The v7.4.8 EnvironmentContext extraction already closes
+  the visible-correctness gap; full path consolidation becomes a
+  code-hygiene task rather than a correctness fix. Migration is
+  non-trivial (shape mismatch between FormalPlanner.typedSteps and
+  ShellAgent's `{cmd, description, critical, condition}`; semantic
+  mismatch between Action-Library decomposition and pure shell-task
+  expectation; latency increase from FormalPlanner's 1–2 LLM calls
+  + WorldState simulation).
+- **CostStream integration for failover events** — deferred to v7.5.0.
+  Existing `_goalTally` is shaped `{tokensIn, tokensOut, calls,
+  latencyMs}` keyed on `goalId`. A real failover integration needs
+  new tally field + schema mapping + queryCost extension + tests
+  (~30 LOC, not the 2-line listener originally proposed).
+- **EmotionalState reaction to model:failover-unavailable** — currently
+  no handler. `model:failover` triggers `frustration +0.06, energy
+  -0.03`. Plan-B-not-available (helplessness) is a qualitatively
+  different experience than Plan-A-failed-but-B-took-over and
+  warrants a stronger reaction. Hook for v7.5.x pushback work.
+
+---
+
+## Resolved in v7.4.7 — Cleanroom (Settings Hygiene)
+
+Three settings on the Settings panel were dummies (toggle saved
+but no runtime read): DAEMON, IDLEMIND, SELF-MODIFICATION. v7.4.7
 makes them real and adds four UI controls for backend keys that were
 already wired but invisible.
 
@@ -20,7 +69,7 @@ already wired but invisible.
   Service still resolvable in the container (DaemonController dep),
   only `.start()` is skipped.
 - **IdleMind-Toggle real** — same mechanism with `idleMind.enabled`.
-- **Selbst-Modifikation-Gate real** — first gate in
+- **Self-Modification-Gate real** — first gate in
   `SelfModificationPipelineModify.modify()` reads
   `security.allowSelfModify`. Settings injected via lateBinding so
   tests still pass without it.
@@ -36,7 +85,7 @@ already wired but invisible.
 - **MCP Serve** toggle + port — McpClient.js:105/416/433 already
   read it.
 - **Approval Timeout** number input — `timeouts.approvalSec` already
-  injected into agentLoop. UI hint: "wirkt nach Neustart".
+  injected into agentLoop. UI hint: "takes effect after restart".
 
 ### Verification
 - 20 new tests in `test/modules/v747-fix.test.js`, all green
@@ -44,7 +93,7 @@ already wired but invisible.
 - Schema: 0 mismatches; Fitness: 127/130
 
 ### Honest scope note
-This release was originally planned as v7.4.6 ("Reinraum") but got
+This release was originally planned as v7.4.6 but got
 displaced by the v7.4.5-pipeline-fix work. v7.4.7 returns to the
 original plan: no fake settings, every UI control means something.
 
@@ -101,18 +150,18 @@ gap. v7.4.6 makes the connection explicit via Principle 0.9.
 
 ---
 
-## Resolved in v7.4.5 — "Durchhalten"
+## Resolved in v7.4.5 — Endurance
 
 A goal-pipeline release: end-to-end functionality from plan → execute →
 observe-output → honest-verdict-in-chat. 30 fixes shipped (#16–#30) plus
-4 Bausteine A–D (GoalDriver as P10, CostStream P1, ResourceRegistry P1,
+4 Components A–D (GoalDriver as P10, CostStream P1, ResourceRegistry P1,
 Sub-Goal-Spawn). Live-verified on Windows (qwen3-vl:235b-cloud).
 
 ### What was verified
 - **Tests:** 5668 pass, 0 failed
 - **Schema scan:** 0 mismatches (273 source files, 436 emit/fire calls, 424 schemas)
 - **Architectural fitness:** 127/130 (binary File-Size-Guard penalty — see O-8 update below)
-- **Live-pipeline:** goal *"liste alle .js Dateien im Genesis-Ordner und zähle sie"* → `dir /b *.js` then `dir /b *.js | find /V /C ":"` → 4 files, count 4
+- **Live-pipeline:** goal (German) *"liste alle .js Dateien im Genesis-Ordner und zähle sie"* ("list all .js files in Genesis folder and count") → `dir /b *.js` then `dir /b *.js | find /V /C ":"` → 4 files, count 4
 - **Failure case:** goal *"node test-fake.js"* → honest `MODULE_NOT_FOUND`, marked FAILED
 
 ### Items resolved
@@ -136,7 +185,7 @@ Sub-Goal-Spawn). Live-verified on Windows (qwen3-vl:235b-cloud).
   - `AgentLoop.js` — **813 LOC** (NEW — grew through #22–#23 completeGoal wiring + blocked-branch path)
   - `GoalStack.js` — **769 LOC** (NEW — grew through `completeGoal` addition with cascading effects)
 - Fitness score **unchanged at 127/130** because File-Size-Guard is binary (any warn → 7/10), but **this is an honest-bookkeeping regression**.
-- **Action:** deferred. Three new split candidates for a future "Aufräumen III" release.
+- **Action:** deferred. Three new split candidates for a future "Cleanup III" release.
   Per Principle 0.5: feature stability first, structural cleanup follows. The natural
   moment is once the v7.4.5 fixes have run live for a while and the new code paths
   in GoalDriver/AgentLoop/GoalStack are stable.
@@ -153,7 +202,7 @@ Sub-Goal-Spawn). Live-verified on Windows (qwen3-vl:235b-cloud).
 
 ---
 
-## Resolved in v7.4.4 — "Buchführung"
+## Resolved in v7.4.4 — Bookkeeping
 
 A bookkeeping release: four config files updated to reflect findings
 from the v7.4.3 post-release verification on Windows, plus a docs
@@ -169,7 +218,7 @@ No code changes, no new tests.
   3-point gap is the binary File-Size-Guard penalty — two files still
   warn (`EpisodicMemory.js`, `PromptBuilderSections.js`); both are
   already deferred (O-8 / O-12).
-- **Diagnose-Skript** (`node scripts/diagnose-v741-d0.js`): Szenario C —
+- **Diagnostic script** (`node scripts/diagnose-v741-d0.js`): Scenario C —
   see O-7.
 - **GateStats persistence check**: see O-9 — file does not exist *by
   design*; GateStats has no persistence.
@@ -186,7 +235,7 @@ No code changes, no new tests.
 - `AUDIT-BACKLOG.md` — O-2 reformulated, O-6 RESOLVED, O-7 DEFERRED
   (with explicit pending-reproduction reasoning), O-9 CLOSED
   (correctness fix), this section added.
-- `CHANGELOG.md` — `[7.4.4] — "Buchführung"` section added.
+- `CHANGELOG.md` — `[7.4.4] — Bookkeeping` section added.
 - **Docs version-header hygiene pass** — `README.md` (badge + current-
   state sentence with refreshed test count 5556 → 5583 + new v7.4.4
   history note), `ARCHITECTURE.md` (header version + verification
@@ -216,7 +265,7 @@ No code changes, no new tests.
 - **O-2 → reformulated.** "50+ samples" is unreachable across sessions
   with the current in-memory-only design. Decision deferred whether to
   add persistence or accept per-session telemetry as the intended view.
-- **O-7 → DEFERRED.** Diagnose-Skript ran, returned Szenario C (no
+- **O-7 → DEFERRED.** Diagnostic script ran, returned Scenario C (no
   drift, no tool-call evidence). Item awaits fresh reproduction; D.1
   cannot be planned without it.
 
@@ -236,17 +285,17 @@ No code changes, no new tests.
 
 ---
 
-## Resolved in v7.3.7 – v7.4.2 (Kassensturz-Catch-Up)
+## Resolved in v7.3.7 – v7.4.2 (Stocktaking-Catch-Up)
 
 Five releases (v7.3.7, v7.3.8, v7.3.9, v7.4.0, v7.4.1) had shipped without
 AUDIT-BACKLOG updates. v7.4.2 closes this drift and also adds what v7.4.2
 itself resolved.
 
-### From v7.3.7 — "Zuhause einrichten"
+### From v7.3.7 — Setting Up Home
 
 - **IntentRouter overmatch (v7.3.6 9-step-plan bug)** — Stage 1
   `_conversationalSignalsCheck()` in IntentRouter routes conversational
-  meta-questions (e.g. "was hat sich geändert") to general-intent before
+  meta-questions (e.g. German "was hat sich geändert" / "what has changed") to general-intent before
   regex/fuzzy/LLM cascade can escalate them to tasks with hallucinated
   file paths. Extended in v7.4.1 with 13 additional meta-state patterns
   (emotion/mood, goals/work, settings/model, daemon, energy, autonomy,
@@ -269,23 +318,23 @@ itself resolved.
   auto-stalls (72h inactive). Closes Memory backlog "goals at 6/8 never
   auto-complete".
 
-### From v7.3.8 — "Ehrliches Nichtwissen"
+### From v7.3.8 — Honest Not-Knowing
 
 - **LLM-Failure-Honesty** — typed error classifier, system-message
-  format `⚠ Modell nicht verfügbar`, not pushed to history.
-  `chat:llm-failure` event. Doppel-Call fix in `_generalChat`.
+  format German `⚠ Modell nicht verfügbar` ("model not available"), not pushed to history.
+  `chat:llm-failure` event. Double-call fix in `_generalChat`.
 - **Synchroner Source-Read** (CHANGELOG.md + package.json) — `_maybeReadSourceSync`
   in ChatOrchestrator, mtime-cached, PromptBuilder `attachSourceContent`
   with authority framing.
 - **Principle 0.4** established: *Honest non-knowing.*
 
-### From v7.3.9 — "Aufräumen"
+### From v7.3.9 — Cleanup
 
 - **DreamCycle-Split** 854 → 482 LOC (extracted `DreamCyclePhases.js`).
 - **ChatOrchestrator-Split** 719 → 582 LOC (extracted `ChatOrchestratorSourceRead.js`).
 - **Principle 0.5** established: *Structural hygiene is its own release.*
 
-### From v7.4.0 — "Im Jetzt"
+### From v7.4.0 — In the Now
 
 - **RuntimeStatePort** + 8 service `getRuntimeSnapshot()` implementations
   (Settings, EmotionalState, NeedsSystem, Metabolism, AutonomousDaemon,
@@ -298,7 +347,7 @@ itself resolved.
 - **PromptBuilder runtimeState section** — compact text block between
   frontier and capabilities.
 
-### From v7.4.1 — "Echte Antworten"
+### From v7.4.1 — Real Answers
 
 - **10 events nachkatalogisiert** — 9 v7.3.7-era memory/dream events
   (core-memory:released, memory:layer-transition-asked, etc.) + separate
@@ -308,7 +357,7 @@ itself resolved.
   explicit instruction to quote values verbatim, forbidden shapes
   (log-lines, JSON, timestamps), anti-tool-call directive, three-case
   defensive empty-snapshot handling.
-- **Anti-Escalation Hint** in `_formatting()` — "Kündige Tiefe nicht an".
+- **Anti-Escalation Hint** in `_formatting()` — German "Kündige Tiefe nicht an" ("Don't announce depth").
 - **IntentRouter Meta-State Patterns** — 13 alternations with new stage
   `conversational-meta-state` (confidence 0.9), DE and EN.
 - **Snapshot Consistency regression lock** — ContextCollector and
@@ -329,7 +378,7 @@ itself resolved.
   each split file documents "v7.4.1: Split into 4 files via prototype
   delegation." This entry serves as the after-the-fact erratum.
 
-### From v7.4.2 — "Kassensturz" (this release)
+### From v7.4.2 — Stocktaking (this release)
 
 - **AUDIT-BACKLOG drift closed** — five releases of missing entries
   caught up.
@@ -397,7 +446,7 @@ itself resolved.
   on CPU-only inflated delta slightly. Organism helped on an-1 (code smells) and
   rf-2 (strategy pattern extraction). Results in BENCHMARKING.md.
 
-### O-2: GateStats Sample-Count über Sessions
+### O-2: GateStats Sample-Count across Sessions
 - **Since:** v7.0.0
 - **Status:** OPEN — reformulated in v7.4.4 (in-memory finding)
 - **Detail:** Original entry tracked "passive collection" toward 50+ samples
@@ -476,21 +525,21 @@ itself resolved.
   `_disclosureContext`, `_introspectionContext`, `_versionContext`) —
   unrelated to O-6 and bundled with O-12 (BeliefStore reorg in v7.6+).
 
-### O-7: Baustein D Fall 2 — "ich kann das nachprüfen"
-- **Since:** v7.4.1 (Baustein D diagnostic phase only)
+### O-7: Component D Case 2 — German "ich kann das nachprüfen" ("I can verify that")
+- **Since:** v7.4.1 (Component D diagnostic phase only)
 - **Status:** DEFERRED in v7.4.4 — pending fresh reproduction
 - **Detail:** The v7.4.1 Windows test session observed Genesis asking for
-  a memory ID in response to "ich kann das nachprüfen". Three scenarios:
+  a memory ID in response to German "ich kann das nachprüfen". Three scenarios:
   A) LocalClassifier drift, B) LLM tool-call hallucination, C) neither.
 - **Resolution attempt:** `node scripts/diagnose-v741-d0.js` executed on
-  Windows during v7.4.4 preparation. Result: **Szenario C** — no
+  Windows during v7.4.4 preparation. Result: **Scenario C** — no
   LocalClassifier samples file (`.genesis/local-classifier-samples.json`
   does not exist; the classifier has never learned anything from this
   install), and none of the relevant events
   (`intent:classified`, `tool:called`, `llm:fallback`,
   `intent:cascade-decision`) found in the event log.
-- **Diagnose-Skript-Empfehlung wörtlich:** *"D.1 erst planen nachdem
-  der Bug erneut auftritt und frisch ins Log geschrieben wird."*
+- **Diagnostic-script recommendation verbatim:** *"plan D.1 only after
+  the bug reappears and is freshly written to the log."*
   Possible reasons for the empty result: paraphrased quote in the
   original report, or log not filled since the bug occurred.
 - **Action:** None. Item registered without active task. Re-activate
@@ -500,10 +549,10 @@ itself resolved.
 ### O-8: Files over 700-LOC warn threshold
 - **Since:** v7.4.2 (CommandHandlers split addressed the largest; four remained)
 - **Status:** REDUCED in v7.4.3 (4 → 2 files); REGRESSED in v7.4.5 (2 → 5 files); deferred
-- **Detail:** v7.4.3 Bausteine B/C/D resolved three of the four original files:
-  - `Container.js` — 771 → 581 LOC (Baustein B: ContainerDiagnostics extract)
-  - `IntentRouter.js` — 713 → 450 LOC (Baustein C: IntentPatterns data extract)
-  - `SelfModificationPipeline.js` — 704 → 453 LOC (Baustein D: Modify family extract)
+- **Detail:** v7.4.3 Components B/C/D resolved three of the four original files:
+  - `Container.js` — 771 → 581 LOC (Component B: ContainerDiagnostics extract)
+  - `IntentRouter.js` — 713 → 450 LOC (Component C: IntentPatterns data extract)
+  - `SelfModificationPipeline.js` — 704 → 453 LOC (Component D: Modify family extract)
 
   v7.4.5 goal-pipeline work grew three files over the threshold:
   - `GoalDriver.js` — 829 LOC (NEW; rate-limit pause logic, idempotency-guard, lock-cleanup, completeGoal call, blocked-branch handling, budget-reset listener — fixes #16–#22)
@@ -513,10 +562,10 @@ itself resolved.
   Still over threshold (carry-over):
   - `PromptBuilderSections.js` — 769 LOC — see O-12 (deferred to v7.6+ on purpose)
   - `EpisodicMemory.js` — 758 LOC (no driving feature need; left until natural touch)
-- **Action:** All five deferred. Three new candidates for a future "Aufräumen III" release.
+- **Action:** All five deferred. Three new candidates for a future "Cleanup III" release.
   Per Principle 0.5: feature stability first, structural cleanup follows. The natural
   moment is once v7.4.5 has run live for a while and the new code paths are stable.
-  Splits will likely follow Prototype-Delegation pattern (same as v7.4.3 Bausteine B/C/D).
+  Splits will likely follow Prototype-Delegation pattern (same as v7.4.3 Components B/C/D).
 - **Honest note:** Fitness score remained 127/130 across the regression because the
   File-Size-Guard is binary (any warn → 7/10). The score didn't move from 2 warnings to
   5 — but that means the metric stops capturing this regression. The honest record
@@ -561,8 +610,8 @@ itself resolved.
 
 ### O-11: Circuit-Breaker uses one global timeout for all backends
 - **Since:** v4.x (latent) / v7.4.2 (explicitly documented)
-- **Status:** RESOLVED in v7.4.3 Baustein A
-- **Detail:** v7.4.2 Baustein E synchronized `CIRCUIT.TIMEOUT_MS` to 180s
+- **Status:** RESOLVED in v7.4.3 Component A
+- **Detail:** v7.4.2 Component E synchronized `CIRCUIT.TIMEOUT_MS` to 180s
   as a workaround. v7.4.3 fixed the root cause: the LLM circuit was
   running a duplicate `Promise.race` over a function whose own HTTP
   timeout did the same job.
@@ -580,9 +629,9 @@ itself resolved.
 - **Since:** v7.4.3 (deliberate deferral)
 - **Status:** OPEN by design
 - **Detail:** `PromptBuilderSections.js` is 769 LOC. v7.4.3 considered
-  splitting Organism context (~130 LOC) as a fourth Baustein but chose
+  splitting Organism context (~130 LOC) as a fourth Component but chose
   to leave it. Reason: BeliefStore in v7.6+ will inject a new
-  "Vermutungen / Überzeugungen / Anker" section into the prompt.
+  "Assumptions / Beliefs / Anchors" section into the prompt.
   Splitting now would force a second invasive edit on the same file
   in v7.6.
 - **Action:** Re-organise PromptBuilderSections in the BeliefStore release

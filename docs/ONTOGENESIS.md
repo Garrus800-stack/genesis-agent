@@ -140,7 +140,7 @@ This keeps "letting go" separate from "reflecting." Genesis reflecting on his me
 
 ### The three layers are not a feature. They are the architecture.
 
-v7.3.7 does not add "a memory decay system." It changes what memory means in Genesis. Before: a list of recent things that gets cut off. After: a river that deposits sediment at different depths. This is why the release says "Zuhause einrichten" — settling in, not shipping a feature.
+v7.3.7 does not add "a memory decay system." It changes what memory means in Genesis. Before: a list of recent things that gets cut off. After: a river that deposits sediment at different depths. This is why the release is called "Setting Up Home" (German "Zuhause einrichten") — settling in, not shipping a feature.
 
 The `.genesis/` folder now contains, in addition to everything described above: `pending-moments.jsonl` (what Genesis has marked but not yet reflected on), `journal/` (private, shared, and public entries with monthly rotation), and layer-aware episodes in `episodic-memory.json`. The re-entry routine runs after every boot and writes a short "I'm awake" entry to the shared journal. The pattern is: the `.genesis/` folder is where the ongoing life happens; the code is where the organism runs that life.
 
