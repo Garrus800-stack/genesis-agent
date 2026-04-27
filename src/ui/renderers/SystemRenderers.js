@@ -74,6 +74,44 @@ function apply(Dashboard) {
       : '<span class="dash-muted">No data</span>';
   };
 
+  // == Self-Modifications Section (v7.4.9) =================
+  // Surfaces the EventStore.getProjection('modifications') data:
+  // last 5 self-modifications with file, time, source, success state.
+
+  proto._renderModifications = function(modifications) {
+    var el = this._el('dash-modifications-body');
+    if (!el) return;
+    if (!modifications || !Array.isArray(modifications.history) || modifications.history.length === 0) {
+      el.innerHTML = '<span class="dash-muted">No modifications yet</span>';
+      return;
+    }
+    var total = modifications.totalModifications || modifications.history.length;
+    // Defensive copy — projection state must not be mutated by renderer.
+    var recent = modifications.history.slice(-5).reverse();
+    var self = this;
+    var rows = recent.map(function(m) {
+      var icon = m.success === false ? '\u274C' : '\u2705';
+      var file = (m.file || '?');
+      // Trim long paths: keep last 2 segments
+      var parts = file.split(/[\\/]/);
+      var shortFile = parts.length > 2 ? '\u2026/' + parts.slice(-2).join('/') : file;
+      var time = '';
+      if (m.timestamp) {
+        try { time = new Date(m.timestamp).toLocaleTimeString(); }
+        catch (_e) { time = ''; }
+      }
+      var source = m.source ? self._esc(String(m.source).slice(0, 24)) : '';
+      return '<div class="dash-mod-row">' +
+        '<span class="dash-mod-icon">' + icon + '</span>' +
+        '<span class="dash-mod-file" title="' + self._esc(file) + '">' + self._esc(shortFile) + '</span>' +
+        '<span class="dash-mod-meta">' + (time ? self._esc(time) : '') + (source ? ' \u00B7 ' + source : '') + '</span>' +
+      '</div>';
+    }).join('');
+    el.innerHTML =
+      '<div class="dash-stat"><span>Total</span><span>' + total + '</span></div>' +
+      '<div class="dash-mod-list">' + rows + '</div>';
+  };
+
   // == Event Flow Section ==================================
 
 

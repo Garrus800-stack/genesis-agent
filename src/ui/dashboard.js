@@ -124,6 +124,7 @@ class Dashboard {
       this._renderReasoning(reasoningTraces);
       this._renderInsightsTimeline(health?.idleMind);
       this._renderMemory(health, session);
+      this._renderModifications(health?.modifications);
       this._renderArchitecture(archSnapshot);
       this._renderArchitectureGraph();
       this._renderHotspotHeatmap();
@@ -145,7 +146,7 @@ class Dashboard {
                        'dash-vitals-body', 'dash-loop-body',
                        'dash-cognitive-body', 'dash-reasoning-body',
                        'dash-architecture-body', 'dash-project-body', 'dash-toolsynth-body',
-                       'dash-memory-body', 'dash-events-body', 'dash-system-body']) {
+                       'dash-memory-body', 'dash-modifications-body', 'dash-events-body', 'dash-system-body']) {
       this._el(id).innerHTML = msg;
     }
   }
@@ -176,6 +177,7 @@ class Dashboard {
         '<div class="dash-section"><div class="dash-section-head">Task Performance</div><div id="dash-taskperf-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Cognitive Self-Model</div><div id="dash-selfmodel-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Memory</div><div id="dash-memory-body" class="dash-section-body"></div></div>' +
+        '<div class="dash-section"><div class="dash-section-head">Self-Modifications</div><div id="dash-modifications-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Event Flow</div><div id="dash-events-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">System</div><div id="dash-system-body" class="dash-section-body"></div></div>' +
       '</div>';

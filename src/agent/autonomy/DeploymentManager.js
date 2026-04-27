@@ -74,7 +74,8 @@ class DeploymentManager {
   // ── Lifecycle ─────────────────────────────────────────────
 
   async boot() {
-    this._sub('deploy:request', (data) => this._handleDeployRequest(data));
+    // v7.4.9: deploy:request listener removed — no senders existed.
+    // Deploy is invoked directly via deploy() (e.g. AutoUpdater.js:142).
     _log.info('[DEPLOY] DeploymentManager ready (foundation mode)');
   }
 
@@ -447,13 +448,6 @@ class DeploymentManager {
 
   _uid() {
     return 'dpl-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  }
-
-  _handleDeployRequest(data) {
-    if (!data?.target) return;
-    this.deploy(data.target, data.options || {}).catch(err => {
-      _log.error('[DEPLOY] Requested deploy failed:', err.message);
-    });
   }
 }
 

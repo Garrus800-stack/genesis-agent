@@ -122,7 +122,6 @@ class GoalDriver {
       // Resource-restore (only meaningful once Baustein C lands a registry,
       // but the listener is harmless without it)
       this.bus.on('resource:available', (data) => this._onResourceAvailable(data)),
-      this.bus.on('permission:granted', (data) => this._onPermissionGranted(data)),
       // Migration trigger: respond to user resume prompt
       this.bus.on('ui:resume-decision', (data) => this._onResumeDecision(data)),
       // v7.4.5.fix #20: when LLM budget is reset (auto or manual),
@@ -448,11 +447,6 @@ class GoalDriver {
       try { this.goalStack.unblockOnResource(token); }
       catch (err) { _log.debug('[DRIVER] unblockOnResource failed:', err.message); }
     }
-    this._scanAndMaybePursue();
-  }
-
-  _onPermissionGranted(_data) {
-    if (!this._running) return;
     this._scanAndMaybePursue();
   }
 

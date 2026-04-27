@@ -1,9 +1,82 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.4.8 · Last updated: v7.4.8 (EnvironmentContext extraction, failover reason classification, real source-path tests for ModelBridge)
+> Version: 7.4.9 · Last updated: v7.4.9 (dead-wiring cleanup — removed two phantom listeners with no senders)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.4.9
+
+- **Two dead listeners removed** that had no senders in source. A
+  static analysis (97 listeners vs 375 emit/fire calls across the
+  codebase) surfaced 16 phantom listeners; after filtering 13 false
+  positives (dynamic emits via `Settings.set()` TOGGLE_EVENT_KEYS map,
+  EventStore's `store:${type}` pattern, `bus.request()` callees,
+  IPC-from-renderer events, JSDoc-only references), 3 real cases
+  remained: (1) `permission:granted` in GoalDriver — "Baustein C —
+  Permission flow" forward-declared in v7.4.5 and never built, (2)
+  `deploy:request` in DeploymentManager — superseded by direct
+  `deploy()` calls (e.g. AutoUpdater.js:142), (3) `colony:run-request`
+  in ColonyOrchestrator — intentional opt-in retained.
+
+  v7.4.9 removed (1) and (2) entirely: listeners, handler methods,
+  EventTypes catalog entries, schemas, and one helper method
+  (`AutonomyEvents.onDeployRequest`). Two stale comments referencing
+  removed listeners were also updated. Approval still works through
+  the synchronous Promise-based path
+  (`ApprovalGate.requestApproval()` → `agent-loop:approval-needed`
+  emit → UI button → IPC `agent:loop-approve` → `AgentLoop.approve()`
+  → Promise resolves). That mechanism is unrelated to the removed
+  `permission:*` events and remains intact.
+
+- **EventStore default projections cleanup**. Audit found 4 default
+  projections registered by `EventStore.installDefaults()` running 4
+  reducers on every `append()` call, with no reader anywhere in the
+  codebase calling `getProjection()` for them. 3 were removed:
+  - `errors` projection: data duplicated by ErrorAggregator (which has
+    a real reader in `PromptBuilderSections.js`)
+  - `interactions` projection: data duplicated by
+    `LearningService.getMetrics()` (already in `getHealth().learning`)
+  - `skill-usage` projection: SKILL_EXECUTED was never emitted by any
+    code path — pure dead code
+
+  The `modifications` projection was retained (data not aggregated
+  elsewhere), capped at 100 history entries to bound memory growth,
+  and surfaced through `getHealth().modifications` plus a new dashboard
+  widget (`dash-modifications-body` section, `_renderModifications` in
+  SystemRenderers.js, CSS in DashboardStyles.js). Self-modifications
+  now visible in the dashboard within 2s of occurring. Performance:
+  4× reduction in projection-reducer overhead per append() call.
+
+### Open / new items in v7.4.9
+
+- **O-14: ColonyOrchestrator `colony:run-request` listener intentional pending wire.**
+  ColonyOrchestrator subscribes to `colony:run-request` in its boot
+  (`src/agent/revolution/ColonyOrchestrator.js:83`). No emit site
+  exists in source. This is **not** a dead listener — Colony is a
+  multi-agent feature that ships as opt-in. Activation requires
+  external worker-spawn or peer-network configuration (boot log:
+  "ColonyOrchestrator v7.1.0 ready (no local workers, no peers)").
+  When activation lands, the `colony:run-request` emit site will be
+  added by the activation code. Until then, the listener is harmless
+  (no work to do, registered for the day senders appear). v749-fix
+  test D3 documents this intentional state — if anyone removes the
+  listener thinking it's dead, the test turns red.
+
+### Open / deferred (carry-over)
+
+- **shell.plan() migration to FormalPlanner** — deferred to v7.6+
+  alongside BeliefStore work, when FormalPlanner will be opened
+  anyway. The v7.4.8 EnvironmentContext extraction already closes
+  the visible-correctness gap; full path consolidation becomes a
+  code-hygiene task rather than a correctness fix.
+- **CostStream integration for failover events** — deferred to v7.5.0.
+  Existing `_goalTally` shape doesn't fit; ~30 LOC needed not
+  the originally proposed 2-line listener.
+- **EmotionalState reaction to model:failover-unavailable** — currently
+  no handler. Hook for v7.5.x pushback work.
 
 ---
 

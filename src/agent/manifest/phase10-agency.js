@@ -148,8 +148,8 @@ function phase10(ctx, R) {
     // Replaces implicit pursue triggers (DaemonController-direct, IdleMind)
     // with one event-driven driver. Listens to boot:complete, goal:added,
     // goal:unblocked, agent-loop:complete, resource:available,
-    // permission:granted. Calls agentLoop.pursue(goal) — new object-based
-    // signature with backward-compat for pursue(string).
+    // ui:resume-decision, llm:budget-auto-reset. Calls agentLoop.pursue(goal)
+    // — new object-based signature with backward-compat for pursue(string).
     ['goalDriver', {
       phase: 10,
       deps: ['bus', 'goalStack', 'goalPersistence', 'eventStore', 'settings'],

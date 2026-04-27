@@ -59,6 +59,8 @@ class AgentCoreHealth {
       userName:  c.resolve('memory')?.getUserName?.() || null,
       knowledgeGraph: c.resolve('knowledgeGraph').getStats(),
       eventStore:     c.resolve('eventStore').getStats(),
+      // v7.4.9: surface modifications projection so dashboard can display it
+      modifications:  c.resolve('eventStore').getProjection('modifications') || { history: [], totalModifications: 0 },
       tools:          c.resolve('tools').listTools().length,
       daemon:         c.resolve('daemon').getStatus(),
       idleMind:       c.resolve('idleMind').getStatus(),
@@ -310,7 +312,7 @@ class AgentCoreHealth {
       'goalPersistence',
       // v5.9.9: SessionPersistence — unsubscribes session tracking listeners
       'sessionPersistence',
-      // v5.9.9: DeploymentManager — unsubscribes deploy:request listener
+      // v7.4.9: DeploymentManager — _unsubAll() during stop()
       'deploymentManager',
       // v5.9.9: ColonyOrchestrator — cancels in-flight runs + unsubscribes
       'colonyOrchestrator',

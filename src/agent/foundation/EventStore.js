@@ -251,7 +251,10 @@ class EventStore {
 
   /** Install default projections useful for Genesis */
   installDefaults() {
-    // Modification history: track all code changes
+    // Modification history: track all code changes (Cap: 100 entries)
+    // v7.4.9: errors/interactions/skill-usage projections removed —
+    // duplicated by ErrorAggregator/LearningService.getMetrics(),
+    // and SKILL_EXECUTED was never emitted by any code path.
     this.registerProjection('modifications', (state, event) => {
       if (event.type === 'CODE_MODIFIED') {
         if (!state.history) state.history = [];
@@ -261,48 +264,9 @@ class EventStore {
           source: event.source,
           success: event.payload.success,
         });
+        // v7.4.9: Cap at 100 entries to prevent unbounded growth.
+        if (state.history.length > 100) state.history = state.history.slice(-100);
         state.totalModifications = (state.totalModifications || 0) + 1;
-      }
-      return state;
-    });
-
-    // Error tracking
-    this.registerProjection('errors', (state, event) => {
-      if (event.type === 'ERROR_OCCURRED') {
-        if (!state.recent) state.recent = [];
-        state.recent.push({
-          message: event.payload.message,
-          module: event.source,
-          timestamp: event.isoTime,
-        });
-        if (state.recent.length > 50) state.recent = state.recent.slice(-50);
-        state.totalErrors = (state.totalErrors || 0) + 1;
-      }
-      return state;
-    });
-
-    // Interaction stats
-    this.registerProjection('interactions', (state, event) => {
-      if (event.type === 'CHAT_MESSAGE') {
-        state.totalMessages = (state.totalMessages || 0) + 1;
-        state.lastMessage = event.isoTime;
-      }
-      if (event.type === 'INTENT_CLASSIFIED') {
-        if (!state.intents) state.intents = {};
-        const intent = event.payload.intent;
-        state.intents[intent] = (state.intents[intent] || 0) + 1;
-      }
-      return state;
-    });
-
-    // Skill usage
-    this.registerProjection('skill-usage', (state, event) => {
-      if (event.type === 'SKILL_EXECUTED') {
-        if (!state.skills) state.skills = {};
-        const name = event.payload.skill;
-        if (!state.skills[name]) state.skills[name] = { calls: 0, errors: 0 };
-        state.skills[name].calls++;
-        if (event.payload.error) state.skills[name].errors++;
       }
       return state;
     });

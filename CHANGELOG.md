@@ -1,4 +1,96 @@
-## [7.4.8]
+## [7.4.9]
+
+### Removed
+- `permission:granted` event listener in `GoalDriver`. Previously declared in
+  v7.4.5 as forward-declaration for "Baustein C — Permission flow" that was
+  never built. No emit site existed; goals don't pause on granular
+  permission-wait state. The `_onPermissionGranted` handler method removed
+  along with the listener.
+- `deploy:request` event listener in `DeploymentManager`. Superseded by
+  direct `deploymentManager.deploy()` calls (e.g. `AutoUpdater.js:142`).
+  No emit site existed in source. The `_handleDeployRequest` handler
+  method removed along with the listener.
+- `PERMISSION` namespace from `EventTypes.js` (`GRANTED`, `DENIED`).
+- `DEPLOY.REQUEST` entry from `EventTypes.js` DEPLOY namespace. Other
+  `deploy:*` events (started, completed, failed, rollback,
+  rollback-unavailable, swap) remain — they are actively emitted by
+  DeploymentManager itself for telemetry.
+- `permission:granted` and `permission:denied` schemas from
+  `EventPayloadSchemas.js`.
+- `deploy:request` schema from `EventPayloadSchemas.js`.
+- `AutonomyEvents.onDeployRequest()` helper method (no callers).
+- **EventStore default projections cleanup**: 3 of 4 default projections
+  registered by `installDefaults()` removed because no reader called
+  `getProjection()` for them and the data was duplicated elsewhere:
+  - `errors` projection — `ErrorAggregator` already aggregates errors
+    (with a real reader in `PromptBuilderSections.js`).
+  - `interactions` projection — `LearningService.getMetrics()` already
+    surfaces chat/intent counts via `getHealth().learning`.
+  - `skill-usage` projection — no code path ever emitted
+    `SKILL_EXECUTED`, so the reducer never fired.
+
+### Added
+- **Self-Modifications dashboard widget**. Surfaces the surviving
+  `modifications` EventStore projection. Shows total count plus the
+  last 5 self-modifications (file, time, source, success state) with
+  `dash-modifications-body` section between Memory and Event Flow.
+  When Genesis modifies its own code, the modification now appears in
+  the dashboard within 2 seconds (next refresh cycle).
+- `getHealth().modifications` field exposes the projection state to
+  the renderer with safe defaults (`{ history: [], totalModifications: 0 }`)
+  when the EventStore is unavailable.
+
+### Changed
+- Stale comment in `AgentCoreHealth.js` updated: "DeploymentManager —
+  unsubscribes deploy:request listener" → "DeploymentManager —
+  _unsubAll() during stop()".
+- Stale comment in `phase10-agency.js` GoalDriver manifest updated:
+  removed `permission:granted` from the listener list, added
+  `ui:resume-decision` and `llm:budget-auto-reset` to match actual
+  subscriptions.
+- `modifications` projection reducer now caps `state.history` at 100
+  entries (`slice(-100)` after each push). `totalModifications` counter
+  remains uncapped to track lifetime self-mod count. Memory bound:
+  ~10 KB max per projection state regardless of session length.
+- Legacy `run-tests.js` projection test rewritten to use an ad-hoc
+  `registerProjection('test-counter')` instead of the removed
+  `interactions` default projection. Tests the same reducer mechanism
+  with a deterministic synthetic event type.
+
+### Retained intentionally
+- `colony:run-request` listener in `ColonyOrchestrator` kept. Genuine
+  opt-in feature awaiting multi-agent activation. Documented in
+  AUDIT-BACKLOG as intentional pending wire (O-14).
+- `modifications` projection — only default projection retained, with
+  a real reader in `getHealth()` and a real renderer in the dashboard.
+
+### Tests
+- `test/modules/v749-fix.test.js`: 15 tests
+  - 3 listener-removal source-presence tests (A1–A3)
+  - 2 EventTypes catalog cleanup tests (B1–B2)
+  - 2 schema cleanup tests (C1–C2)
+  - 3 functional sanity tests including ColonyOrchestrator-retained
+    documentation (D1–D3)
+  - 5 EventStore projection cleanup + Self-Modifications widget tests
+    (E1–E5): source-presence of installDefaults cleanup, 200→100 cap
+    verification, getHealth() shape, dashboard layout integration,
+    `_renderModifications` empty/null/non-mutating behaviour
+- Test events-coverage.test.js: helper expectation rebound after
+  `onDeployRequest` removal (uses `onLlmCallComplete` instead).
+- Test run-tests.js:755 rewritten to use ad-hoc projection.
+
+### Stats
+- Tests: 5743 total (5728 v7.4.8 + 15 new v749-fix), 0 failed
+- Schema: 0 mismatches
+- Fitness: 127/130 maintained
+- Real phantom listeners after cleanup: 1 (`colony:run-request`,
+  intentional opt-in). Down from 2.
+- EventStore projection overhead reduced 4× per `append()`: was 4
+  reducers running per event, now 1 (only modifications).
+
+---
+
+
 
 ### Added
 - EnvironmentContext helper (`src/agent/core/EnvironmentContext.js`).
@@ -68,7 +160,7 @@
   documenting the mock-vs-source-path split.
 
 ### Stats
-- Tests: 5717 total (5705 + 12), 0 failed
+- Tests: 5728 total (5705 + 23 net), 0 failed
 - Schema: 0 mismatches
 - Fitness: 127/130 maintained
 

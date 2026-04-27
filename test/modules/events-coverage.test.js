@@ -117,7 +117,7 @@ describe('AutonomyEvents — all methods', () => {
     ae.onDegradation(() => {});
     ae.onAgentLoopStepComplete(() => {});
     ae.onGoalCompleted(() => {});
-    ae.onDeployRequest(() => {});
+    ae.onLlmCallComplete(() => {});  // v7.4.9: onDeployRequest removed (dead listener cleanup)
     const ons = bus.calls.filter(c => c.type === 'on');
     assert(ons.length === 4);
   });

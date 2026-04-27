@@ -38,6 +38,12 @@ function applyStyles(Dashboard) {
     '.dash-stat{display:flex;justify-content:space-between;padding:2px 0;font-size:12px}' +
     '.dash-stat span:first-child{color:rgba(255,255,255,0.5)}' +
     '.dash-stat span:last-child{font-weight:500}' +
+    // v7.4.9: Self-Modifications widget
+    '.dash-mod-list{display:flex;flex-direction:column;gap:2px;margin-top:4px}' +
+    '.dash-mod-row{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px}' +
+    '.dash-mod-icon{font-size:10px;flex-shrink:0}' +
+    '.dash-mod-file{flex:1;color:rgba(255,255,255,0.7);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.dash-mod-meta{font-size:10px;color:rgba(255,255,255,0.35);flex-shrink:0}' +
     '.dash-vital-row{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:12px}' +
     '.dash-vital-name{flex:1;color:rgba(255,255,255,0.6)}' +
     '.dash-vital-val{font-family:monospace;font-size:11px}' +

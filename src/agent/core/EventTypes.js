@@ -416,16 +416,6 @@ const EVENTS = Object.freeze({
     UNAVAILABLE: 'resource:unavailable',
   }),
 
-  // ── Permission (forward-declared for Baustein C — Permission flow) ──
-  PERMISSION: Object.freeze({
-    /** v7.4.5: User granted a previously-requested permission via UI */
-    /** @payload {{ permissionId: string }} */
-    GRANTED: 'permission:granted',
-    /** v7.4.5: User denied a previously-requested permission */
-    /** @payload {{ permissionId: string }} */
-    DENIED:  'permission:denied',
-  }),
-
   // ── Health Monitor ─────────────────────────────────────
   HEALTH: Object.freeze({
     STARTED:             'health:started',
@@ -606,8 +596,6 @@ const EVENTS = Object.freeze({
     COMPLETED:  'deploy:completed',
     /** @payload {{ id: string, target: string, error: string }} */
     FAILED:     'deploy:failed',
-    /** @payload {{ target: string, options?: object }} */
-    REQUEST:    'deploy:request',
     /** @payload {{ id: string, target: string, snapshot: number }} */
     ROLLBACK:   'deploy:rollback',
     /** @payload {{ id: string, target: string, reason: string }} v7.0.2 fail-honest */

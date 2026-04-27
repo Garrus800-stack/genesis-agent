@@ -753,9 +753,17 @@ describe('EventStore', () => {
   });
 
   test('should update projections', async () => {
-    await es.append('CHAT_MESSAGE', { content: 'hi' }, 'test');
-    const interactions = es.getProjection('interactions');
-    assert(interactions.totalMessages > 0, 'Should track messages');
+    // v7.4.9: 'interactions' projection removed (was never read by any reader).
+    // Test the projection mechanism with an ad-hoc registration instead.
+    es.registerProjection('test-counter', (state, event) => {
+      if (event.type === 'TEST_PROJ_EVENT') {
+        state.count = (state.count || 0) + 1;
+      }
+      return state;
+    });
+    await es.append('TEST_PROJ_EVENT', { msg: 'hi' }, 'test');
+    const counter = es.getProjection('test-counter');
+    assert(counter.count > 0, 'Should track events through ad-hoc projection');
   });
 
   test('should verify integrity', async () => {

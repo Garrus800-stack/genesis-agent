@@ -185,7 +185,6 @@ const SCHEMAS = {
   'deploy:started':          { id: 'required', target: 'required', strategy: 'required' },
   'deploy:completed':        { id: 'required', target: 'required', strategy: 'required', duration: 'required' },
   'deploy:failed':           { id: 'required', target: 'required', error: 'required' },
-  'deploy:request':          { target: 'required' },
   'deploy:rollback':         { id: 'required', target: 'required', snapshot: 'required' },
   'deploy:rollback-unavailable': { id: 'required', target: 'required', reason: 'required' },
   'deploy:swap':             { target: 'required', from: 'required', to: 'required' },
@@ -387,8 +386,6 @@ const SCHEMAS = {
   'goal:subgoal-spawned':              { parentId: 'required', subId: 'required', obstacleType: 'optional', contextKey: 'optional', stepIndex: 'optional', description: 'optional' },
   'goal:obstacle-loop-protected':      { parentId: 'required', obstacleType: 'optional', contextKey: 'optional', reason: 'required' },
   'agent-loop:blocked-on-subgoal':     { goalId: 'optional', stepIndex: 'optional', stepType: 'optional', subId: 'required' },
-  'permission:granted':     { permissionId: 'required' },
-  'permission:denied':      { permissionId: 'required' },
 
   // Memory
   'memory:fact-stored':     { key: 'required', source: 'optional' },

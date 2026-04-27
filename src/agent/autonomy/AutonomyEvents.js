@@ -41,7 +41,6 @@ class AutonomyEvents {
   // ── Cross-layer subscriptions ───────────────────────────
   onAgentLoopStepComplete(handler, opts) { return this._bus.on(EVENTS.AGENT_LOOP.STEP_COMPLETE, handler, opts); }
   onGoalCompleted(handler, opts)         { return this._bus.on('goal:completed', handler, opts); }
-  onDeployRequest(handler, opts)         { return this._bus.on('deploy:request', handler, opts); }
   onLlmCallComplete(handler, opts)       { return this._bus.on('llm:call-complete', handler, opts); }
   onReasoningStep(handler, opts)         { return this._bus.on('reasoning:step', handler, opts); }
   onToolsResult(handler, opts)           { return this._bus.on('tools:result', handler, opts); }
