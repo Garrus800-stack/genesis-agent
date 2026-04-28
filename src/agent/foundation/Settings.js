@@ -113,7 +113,11 @@ class Settings {
       // v7.4.7: Agency runtime preferences. autoResumeGoals selects
       // GoalDriver boot-pickup behavior (already wired in GoalDriver:562).
       // Values: 'ask' | 'always' | 'never'.
-      agency: { autoResumeGoals: 'ask' },
+      // v7.5.0: negotiateBeforeAdd — when true, /goal add proposes
+      // the goal as pending; Genesis then clarifies before it's
+      // committed to the active stack. Default false for backwards
+      // compatibility (existing users keep direct-add behaviour).
+      agency: { autoResumeGoals: 'ask', negotiateBeforeAdd: false },
       mcp: { enabled: true, servers: [], serve: { enabled: false, port: 3580 } },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
       timeouts: { approvalSec: 60, shellMs: 15000, httpMs: 60000, gitMs: 5000 },

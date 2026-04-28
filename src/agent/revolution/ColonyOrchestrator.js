@@ -218,12 +218,23 @@ class ColonyOrchestrator {
     ].filter(Boolean).join('\n');
 
     try {
-      const response = await this.llm.generate(prompt, {
-        maxTokens: 2000,
-        temperature: 0.3,
-      });
+      // v7.5.0: ModelBridge.chat uses positional signature
+      // (systemPrompt, messages, taskType, options). The old
+      // .generate(prompt, opts) call never existed on ModelBridge —
+      // this was a leftover from a different LLM port. Decomposition
+      // failed silently with "this.llm.generate is not a function"
+      // and Colony fell back to single-task mode every time.
+      const response = await this.llm.chat(
+        'You are a task decomposer. Output only the requested JSON array, nothing else.',
+        [{ role: 'user', content: prompt }],
+        'planning',
+        { maxTokens: 2000, temperature: 0.3 },
+      );
 
-      const text = typeof response === 'string' ? response : response?.text || '';
+      // ModelBridge returns either a string or { content/text }.
+      const text = typeof response === 'string'
+        ? response
+        : response?.text || response?.content || '';
       const cleaned = text.replace(/```json|```/g, '').trim();
       const tasks = JSON.parse(cleaned);
 

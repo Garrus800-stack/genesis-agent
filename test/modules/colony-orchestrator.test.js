@@ -24,8 +24,13 @@ function mockBus() {
 }
 
 function mockLLM(response) {
+  // v7.5.0: ColonyOrchestrator now uses ModelBridge.chat positional API
+  // (systemPrompt, messages, taskType, options). Tests mock 'chat' here
+  // to match the production call site. Pre-v7.5.0 the mock was named
+  // 'generate' but ModelBridge never had that method — the call failed
+  // silently and Colony fell back to single-task mode every time.
   return {
-    generate: async () => response || JSON.stringify([
+    chat: async (_systemPrompt, _messages, _taskType, _options) => response || JSON.stringify([
       { description: 'Fix imports', files: ['a.js'] },
       { description: 'Add tests', files: ['b.test.js'] },
     ]),
@@ -131,7 +136,7 @@ describe('ColonyOrchestrator — Decomposition', () => {
 
   test('falls back to single task on LLM failure', async () => {
     const co = createOrchestrator({
-      llm: { generate: async () => 'not json' },
+      llm: { chat: async () => 'not json' },
     });
     await co.boot();
     const run = await co.execute('Fix bug');
@@ -283,7 +288,7 @@ describe('ColonyOrchestrator — V7-1 IPC Workers', () => {
     };
     const co = new ColonyOrchestrator({
       bus: mockBus(),
-      llm: { generate: async () => JSON.stringify([
+      llm: { chat: async () => JSON.stringify([
         { description: 'Task A' }, { description: 'Task B' },
         { description: 'Task C' }, { description: 'Task D' },
       ])},
@@ -340,7 +345,7 @@ describe('ColonyOrchestrator — V7-1 IPC Workers', () => {
     };
     const co = new ColonyOrchestrator({
       bus: mockBus(),
-      llm: { generate: async () => JSON.stringify([{ description: 'Subtask Alpha' }]) },
+      llm: { chat: async () => JSON.stringify([{ description: 'Subtask Alpha' }]) },
       peerNetwork: mockPeers(), taskDelegation: mockDelegation(),
       peerConsensus: mockConsensus(), selfSpawner: spawner,
     });

@@ -1,3 +1,195 @@
+## [7.5.0]
+
+Goals slash-discipline + Aushandeln vor Anlegen. Two-pass release covering
+the live-bug from v7.4.9 (a conversational question silently triggered
+cancel-all and was auto-persisted as a stack goal that re-pursued every
+minute for 16+ minutes) plus the first piece of "Genesis as partner, not
+tool" — the negotiate-before-add flow.
+
+### Removed
+- Free-text goal patterns in `CommandHandlersGoals.js`. Three regex
+  blocks deleted, all involved in the v7.4.9 live-bug:
+  - `cancelAllMatch` — the Z. 45 pattern `/(?:goal|ziel).*(?:lösch|entfern|clear|cancel|reset|abandon)/i`
+    was the destructive one. It matched any message containing `goal/ziel`
+    near `cancel/clear/lösch/etc.`, regardless of intent. Erklärungstext
+    over slash-commands triggered cancel-all on existing goals.
+  - `cancelOneMatch` — `/(?:cancel|abandon|lösch|entfern|stopp).*(?:goal|ziel)\s*#?(\d+)/i`
+    matched conversational "lösche goal 1" without verifying it was a
+    command rather than discussion.
+  - `addMatch` chain (6 alternatives) — matched "set me a goal to X"
+    in free text, conflicting with conversational mentions.
+- `goals` route fuzzy-keywords array `['ziel', 'goal', 'goals', 'ziele',
+  'setze', 'lösche', 'abbrechen', 'cancel', 'abandon', 'clear']` from
+  `IntentPatterns.js`. With these keywords, fuzzy-match would return
+  `'goals'` for any message scoring high on these tokens — bypassing
+  the slash-discipline guard. Now empty `[]`.
+- Multiple imperative regex patterns from `IntentPatterns.js` goals route
+  (`cancel.*goal`, `lösch.*ziel`, `setze.*ziel`, etc.) — replaced with
+  single canonical slash regex.
+- `'this.llm.generate(prompt, opts)'` call in `ColonyOrchestrator.js:221`.
+  ModelBridge never had a `.generate()` method; the call failed silently
+  with `"this.llm.generate is not a function"` every time, sending
+  Colony into single-task fallback mode for what looks like multiple
+  release cycles. Replaced with positional `chat()` API.
+- Auto-persistence in `AgentLoop.js` legacy-string path (Z. 358 → 363).
+  Old code: `_registeredGoal = await this.goalStack.addGoal(goalDescription, 'user', 'high')`
+  for every string-input pursuit. Removed because LLM-misclassification
+  of conversational messages as `'agent-goal'` would silently push them
+  to the persistent stack with high priority — exactly the v7.4.9 live-bug
+  pattern. Now builds a transient `{ id, description, _transient: true }`
+  object instead.
+
+### Added
+- `goals` entry to `SLASH_COMMANDS` in `slash-commands.js` with aliases
+  `['goal', 'ziele', 'ziel']`. This is the only thing that makes
+  `enforceSlashDiscipline` apply to goals routing — without this entry,
+  the LLM-classify path can return `'goals'` for any message.
+- Slash-subcommand parser in `CommandHandlersGoals.goals()`. Parses
+  `/<prefix> <subcommand> [args...]` shape with bilingual aliases
+  (DE: setze/erstelle/lösche/abbreche/etc., EN: add/cancel/clear/etc.).
+  Bare `/goal` renders the list. Unknown subcommands return a help
+  string via `goals.unknown_subcommand`.
+- 30-second confirmation guard for cancel-all. First `/goal clear` with
+  N≥1 active goals stores `_cancelAllConfirmedAt`, second call within
+  TTL executes. After 30s the token is reset.
+- **Negotiate-before-Add (Pass 2):** `GoalStack` API for pending goals:
+  - `proposePending(description, source, priority)` → returns pendingId
+  - `confirmPending(pendingId)` → moves to active stack via `addGoal()`
+  - `revisePending(pendingId, newDescription)` → updates and resets TTL
+  - `dismissPending(pendingId)` → drops the proposal
+  - `getPending()` → list of pending entries (post-sweep)
+  - `_sweepExpiredPending()` → internal, drops entries beyond 1h TTL
+  - Six new bus events: `goal:proposed`, `goal:negotiation-start`,
+    `goal:negotiation-confirmed`, `goal:negotiation-revised`,
+    `goal:negotiation-dismissed`, `goal:negotiation-expired`.
+- Setting `agency.negotiateBeforeAdd: false` (opt-in default). When
+  `true`, `/goal add <text>` doesn't directly commit — it proposes
+  the goal as pending, fires `goal:negotiation-start`, and shows
+  the user `/goal confirm/revise/dismiss <id>` next steps.
+- New slash-subcommands `/goal confirm <id>`, `/goal revise <id>: <text>`,
+  `/goal dismiss <id>`, `/goal help`. Bilingual aliases throughout.
+- 23 new i18n keys EN+DE under `goals.*` namespace: `add_empty`,
+  `add_failed`, `cancel_needs_number`, `cancel_one_done`,
+  `cancel_one_not_found`, `cancel_all_confirm`, `cancel_all_done`,
+  `none_active`, `unknown_subcommand`, `help`, `proposed`, `confirmed`,
+  `revised`, `dismissed`, `pending_id_missing`, `pending_not_found`,
+  `pending_title`, `confirm_failed`, `revise_format`,
+  `negotiation_unavailable`. Plus `goals.empty` updated to suggest
+  the new slash-form.
+- Pending goals section in `_renderGoalsList()` — shows proposals
+  awaiting confirmation alongside active goals.
+
+### Changed
+- `IntentPatterns.js` goals route: now a single canonical regex
+  `/(?:^|\s)\/(?:goal|ziel|ziele|goals)\b/i` with empty keywords array.
+  Free-text mentions fall through to `'general'` and Genesis answers
+  them conversationally with goal data injected as context.
+- `ColonyOrchestrator._decompose()`: now uses ModelBridge positional
+  signature `chat(systemPrompt, messages, taskType, options)` with
+  `'planning'` taskType (so `ModelRouter` selects the planner role).
+  Response handling extended to accept both `{text}` and `{content}`
+  shapes alongside string responses.
+- `AgentLoop.pursue(string)`: legacy-string input still works (so
+  `DaemonController` direct calls keep functioning) but no longer
+  persists. The transient goal object includes `_transient: true`
+  so observers can distinguish.
+- `goals.empty` i18n string updated EN+DE to suggest `/goal add` syntax
+  instead of the old free-text `"Set goal: ..."` syntax.
+
+### Tests
+- New: `test/modules/v750-fix.test.js` — 36 tests covering:
+  - Slash-commands.js registration (A1-A2)
+  - IntentPatterns slash-only shape + empty keywords (B1-B2)
+  - Live-bug regression: literal v7.4.9 message must classify as
+    non-goals (B3)
+  - Free-text imperatives no longer route to goals (B5)
+  - CommandHandlersGoals helpers exist + free-text gone (C1-C3)
+  - ColonyOrchestrator llm.chat migration (D1)
+  - AgentLoop transient guard (E1)
+  - GoalStack pending-goals API: propose/confirm/revise/dismiss/sweep
+    lifecycle (F1-F10)
+  - Settings default (G1)
+  - EventTypes + Schemas registration (H1-H2)
+  - i18n keys EN+DE present (I1-I3)
+  - Handler end-to-end with mocked deps: list/add/clear/cancel/unknown
+    flow (J1-J9)
+- Migrated: `test/modules/v745-fix.test.js` Z. 163-187 — 7 free-text
+  pattern tests rewritten as 10 slash-form parser tests. Includes a
+  test that conversational text returns null. Total 27 → 29 tests.
+- Migrated: `test/modules/intent-routing-honesty.test.js` Z. 50-75 —
+  9 free-text imperative tests split into 7 slash-imperatives (expect
+  `goals`) + 9 free-text-imperatives (expect NOT `goals`). Total
+  42 → 49 tests.
+- Migrated: `test/modules/commandhandlers-coverage.test.js` Z. 295-330 —
+  `'cancel all goals'` / `'cancel goal 1'` style test inputs rewritten
+  to slash form. Added explicit confirmation-flow test (first call
+  asks, second within 30s executes). Total 67 → 69 tests.
+- Migrated: `test/modules/colony-orchestrator.test.js` 4 mock sites:
+  `mockLLM.generate` → `mockLLM.chat`, signature now matches positional
+  `(systemPrompt, messages, taskType, options)`. Same 23 tests still
+  pass — they just no longer test against a non-existent API.
+
+### Stats
+- Tests: 5789 (+47 net: +36 v750-fix, +7 intent-routing-honesty,
+  +2 v745-fix, +2 commandhandlers-coverage)
+- Schema mismatches: 0
+- Schema missing: 0 (was 7 in v7.4.9 — see "Side-fix" below)
+- New events: 6 (all in GOAL namespace)
+- New i18n keys: 23 × 2 languages = 46 string entries
+- Files modified: 11 source + 4 tests + 4 release artifacts
+- Lines net change: ~+550 (+700 added handler/api/tests, −150 removed
+  patterns)
+
+### Side-fix
+- Added schemas for 7 catalog events that had JSDoc `@payload`
+  annotations in `EventTypes.js` since v7.4.7 but were never registered
+  in `EventPayloadSchemas.js`: `chat:system-message`, plus all six
+  settings-toggle events (`settings:daemon-toggled`,
+  `settings:idlemind-toggled`, `settings:selfmod-toggled`,
+  `settings:trust-level-changed`, `settings:auto-resume-changed`,
+  `settings:mcp-serve-toggled`). The shapes are copied from the
+  existing JSDoc comments. Pre-existing latent drift; surfaced
+  by the v7.5.0 ratchet run.
+
+### Live-bug fixed
+The exact v7.4.9 boot-log scenario:
+```
+[22:00:29] starting pursuit — goal="Bitte beantworte die Frage von vorhin..."
+[22:01:49] Decomposition failed: this.llm.generate is not a function
+[22:02:32] picking up goal goal_1777327352274_1
+[22:03:32] safety scan: pursue not running but goal_1777327352274_1 still locked
+... [16+ minutes of repeated pickup/fail cycles] ...
+[22:16:32] picking up goal goal_1777327352274_1
+```
+After v7.5.0:
+1. The conversational question routes to `'general'` (verified via
+   live test — see v750-fix.test.js B3). No silent agent-goal escalation.
+2. Even if a question somehow reaches `pursue(string)`, no stack
+   persistence happens (transient guard).
+3. `ColonyOrchestrator` decomposition now actually calls the LLM
+   correctly instead of failing silently.
+4. The leftover goal from v7.4.9 (`goal_1777327352274_1`) can be
+   removed via `/goal cancel 1` after upgrade — confirmation flow
+   asks before any destructive action.
+
+### Future
+- v7.5.x: PromptBuilder section for active negotiation context
+  (so Genesis sees pending proposals in his prompt and can comment
+  on them naturally during clarification dialog).
+- v7.5.x: ImpactForecast Activity, fragilityDelta from 4-6 deltas.
+- v7.5.x: EmotionalState reaction to model:failover-unavailable.
+- v7.6+: Object-form `model.chat({messages, ...})` callers in
+  WakeUpRoutine.js, DreamCyclePhases.js, CoreMemories.js — these
+  pass an object where ModelBridge expects positional args. Same
+  class of bug as the ColonyOrchestrator one fixed in v7.5.0,
+  scoped separately because the callers are in idle/dream paths
+  and don't surface as user-visible failures.
+- v7.6+: agent-goal route slash-discipline (deferred — needs
+  parallel `/agent` slash-command + UX considerations for
+  natural language autonomy requests like "kümmer dich darum").
+
+---
+
 ## [7.4.9]
 
 ### Removed

@@ -206,10 +206,17 @@ describe('v7.4.2 Baustein D — CommandHandlers split structure', () => {
 
     assert.strictEqual(Object.keys(commandHandlersCode).length, 4, 'Code mixin: 4 methods expected');
     assert.strictEqual(Object.keys(commandHandlersShell).length, 4, 'Shell mixin: 4 methods expected');
-    assert.strictEqual(Object.keys(commandHandlersGoals).length, 3, 'Goals mixin: 3 methods expected');
+    // v7.5.0: Goals mixin grew from 3 → 10 methods. The 3 public handlers
+    // (journal, plans, goals) are unchanged. Added 7 private helpers
+    // for the slash-subcommand parser + negotiate-before-add flow:
+    //   _addGoalCommand, _cancelGoalCommand, _cancelAllCommand,
+    //   _confirmPendingCommand, _revisePendingCommand,
+    //   _dismissPendingCommand, _renderGoalsList.
+    // Domain-integrity is preserved — all helpers are goal-domain only.
+    assert.strictEqual(Object.keys(commandHandlersGoals).length, 10, 'Goals mixin: 10 methods expected (3 public + 7 v7.5.0 helpers)');
     assert.strictEqual(Object.keys(commandHandlersMemory).length, 3, 'Memory mixin: 3 methods expected');
     assert.strictEqual(Object.keys(commandHandlersSystem).length, 3, 'System mixin: 3 methods expected');
     assert.strictEqual(Object.keys(commandHandlersNetwork).length, 3, 'Network mixin: 3 methods expected');
-    // Total: 4+4+3+3+3+3 = 20 in mixins + registerHandlers + undo = 22
+    // Total: 4+4+10+3+3+3 = 27 in mixins + registerHandlers + undo = 29
   });
 });

@@ -385,6 +385,27 @@ const SCHEMAS = {
   'goal:blocked-on-subgoal':           { parentId: 'required', subId: 'required' },
   'goal:subgoal-spawned':              { parentId: 'required', subId: 'required', obstacleType: 'optional', contextKey: 'optional', stepIndex: 'optional', description: 'optional' },
   'goal:obstacle-loop-protected':      { parentId: 'required', obstacleType: 'optional', contextKey: 'optional', reason: 'required' },
+  // v7.5.0 — Negotiate-before-add
+  'goal:proposed':                     { id: 'required', description: 'required', source: 'optional' },
+  'goal:negotiation-start':            { pendingId: 'required', description: 'required', source: 'optional', revised: 'optional' },
+  'goal:negotiation-confirmed':        { pendingId: 'required', description: 'required' },
+  'goal:negotiation-revised':          { pendingId: 'required', description: 'required' },
+  'goal:negotiation-dismissed':        { pendingId: 'required', description: 'required' },
+  'goal:negotiation-expired':          { pendingId: 'required', description: 'required' },
+  // v7.5.0 release-time addition: schemas for 7 catalog events that
+  // had JSDoc @payload annotations in EventTypes.js but no runtime
+  // schemas registered. These existed since v7.4.7 but never tripped
+  // the schemaMissing ratchet check until v7.5.0 cleanup. The shapes
+  // below are copied from the JSDoc on each EventTypes constant.
+  // Settings toggles
+  'settings:daemon-toggled':           { from: 'required', to: 'required', key: 'required' },
+  'settings:idlemind-toggled':         { from: 'required', to: 'required', key: 'required' },
+  'settings:selfmod-toggled':          { from: 'required', to: 'required', key: 'required' },
+  'settings:trust-level-changed':      { from: 'required', to: 'required', key: 'required' },
+  'settings:auto-resume-changed':      { from: 'required', to: 'required', key: 'required' },
+  'settings:mcp-serve-toggled':        { from: 'required', to: 'required', key: 'required' },
+  // Chat system message (UI-bridge for runtime confirmations)
+  'chat:system-message':               { text: 'required' },
   'agent-loop:blocked-on-subgoal':     { goalId: 'optional', stepIndex: 'optional', stepType: 'optional', subId: 'required' },
 
   // Memory

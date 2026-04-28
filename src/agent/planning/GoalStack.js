@@ -42,6 +42,16 @@ class GoalStack {
     // v7.3.6 #2: Self-Gate — optional telemetry. Records observations
     // on non-user goal pushes; never blocks.
     this.selfGate = selfGate || null;
+
+    // v7.5.0 — Pending goals (negotiate-before-add).
+    // When agency.negotiateBeforeAdd is true, /goal add proposes to
+    // pendingGoals first instead of immediately committing to the
+    // active stack. The user clarifies via /goal confirm/revise/dismiss.
+    // Transient: not persisted across reboots. TTL 1h, then auto-dismissed.
+    /** @type {Map<string, {id: string, description: string, source: string, priority: string, createdAt: number}>} */
+    this.pendingGoals = new Map();
+    this._pendingTTL = 60 * 60 * 1000;  // 1 hour
+    this._pendingIdSeq = 0;
   }
 
 
@@ -347,6 +357,125 @@ class GoalStack {
   getAll() { return this.goals; }
   _getTopGoal() {
     return this.goals.find(g => g.status === 'active');
+  }
+
+  // ── v7.5.0 Pending Goals (negotiate-before-add) ─────────
+  // Pending goals are proposals from the user that haven't been
+  // committed to the active stack yet. They live transiently in
+  // a Map with a 1-hour TTL. The user resolves them via
+  // /goal confirm/revise/dismiss. After confirmation, the pending
+  // entry becomes a real Goal via addGoal() and is removed from
+  // pendingGoals.
+
+  /**
+   * Propose a goal for negotiation. Returns the pendingId.
+   * @param {string} description
+   * @param {string} source — typically 'user'
+   * @param {string} priority
+   * @returns {string} pendingId
+   */
+  proposePending(description, source = 'user', priority = 'high') {
+    if (!description || typeof description !== 'string' || description.length < 2) return null;
+    this._sweepExpiredPending();
+    const id = `pending_${Date.now().toString(36)}_${(++this._pendingIdSeq).toString(36)}`;
+    const entry = {
+      id,
+      description: description.trim(),
+      source,
+      priority,
+      createdAt: Date.now(),
+    };
+    this.pendingGoals.set(id, entry);
+    try {
+      this.bus.emit('goal:proposed', {
+        id, description: entry.description, source,
+      }, { source: 'GoalStack' });
+    } catch (_e) { /* never break */ }
+    return id;
+  }
+
+  /**
+   * Confirm a pending goal — moves it to the active stack via addGoal.
+   * Returns the created Goal, or null if the pendingId is unknown / expired.
+   * @param {string} pendingId
+   * @returns {Promise<object|null>}
+   */
+  async confirmPending(pendingId) {
+    this._sweepExpiredPending();
+    const entry = this.pendingGoals.get(pendingId);
+    if (!entry) return null;
+    this.pendingGoals.delete(pendingId);
+    try {
+      this.bus.emit('goal:negotiation-confirmed', {
+        pendingId, description: entry.description,
+      }, { source: 'GoalStack' });
+    } catch (_e) { /* never break */ }
+    return await this.addGoal(entry.description, entry.source, entry.priority);
+  }
+
+  /**
+   * Revise a pending goal's description, keeping it pending.
+   * Returns true if found and revised, false if not found.
+   * @param {string} pendingId
+   * @param {string} newDescription
+   * @returns {boolean}
+   */
+  revisePending(pendingId, newDescription) {
+    this._sweepExpiredPending();
+    const entry = this.pendingGoals.get(pendingId);
+    if (!entry) return false;
+    if (!newDescription || typeof newDescription !== 'string' || newDescription.length < 2) return false;
+    entry.description = newDescription.trim();
+    entry.createdAt = Date.now();  // reset TTL on revision
+    try {
+      this.bus.emit('goal:negotiation-revised', {
+        pendingId, description: entry.description,
+      }, { source: 'GoalStack' });
+    } catch (_e) { /* never break */ }
+    return true;
+  }
+
+  /**
+   * Dismiss a pending goal. Returns the dismissed description, or null
+   * if not found (so caller can show "not found" vs "dismissed: X").
+   * @param {string} pendingId
+   * @returns {string|null}
+   */
+  dismissPending(pendingId) {
+    this._sweepExpiredPending();
+    const entry = this.pendingGoals.get(pendingId);
+    if (!entry) return null;
+    this.pendingGoals.delete(pendingId);
+    try {
+      this.bus.emit('goal:negotiation-dismissed', {
+        pendingId, description: entry.description,
+      }, { source: 'GoalStack' });
+    } catch (_e) { /* never break */ }
+    return entry.description;
+  }
+
+  /**
+   * List current pending goals (post-sweep).
+   * @returns {Array<{id: string, description: string, source: string, priority: string, createdAt: number}>}
+   */
+  getPending() {
+    this._sweepExpiredPending();
+    return Array.from(this.pendingGoals.values());
+  }
+
+  /** Drop pending entries older than _pendingTTL. Internal. */
+  _sweepExpiredPending() {
+    const cutoff = Date.now() - this._pendingTTL;
+    for (const [id, entry] of this.pendingGoals) {
+      if (entry.createdAt < cutoff) {
+        this.pendingGoals.delete(id);
+        try {
+          this.bus.emit('goal:negotiation-expired', {
+            pendingId: id, description: entry.description,
+          }, { source: 'GoalStack' });
+        } catch (_e) { /* never break */ }
+      }
+    }
   }
 
   /**

@@ -1,9 +1,64 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.4.9 · Last updated: v7.4.9 (dead-wiring cleanup — removed two phantom listeners with no senders)
+> Version: 7.5.0 · Last updated: v7.5.0 (goals slash-discipline + Aushandeln-vor-Anlegen)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.5.0
+
+- **Goals slash-discipline migration** — closes the destructive-action
+  surface that caused the v7.4.9 live-bug. Three concrete fixes:
+
+  (1) `goals` was the only domain still allowing free-text triggers.
+      Settings, journal, plans, self-inspect/reflect/modify/repair,
+      daemon, peer, clone, create-skill, analyze-code were all moved
+      to slash-only in v7.3.5–v7.3.6, but goals was missed. v7.5.0
+      adds `goals` to `SLASH_COMMANDS` with aliases `[goal, ziele, ziel]`
+      and rewrites `IntentPatterns` goals route to a single canonical
+      slash regex with empty fuzzy-keywords. The existing
+      `enforceSlashDiscipline()` post-classification guard now applies.
+
+  (2) `CommandHandlersGoals.cancelAllMatch` Z. 45 was destructively
+      loose: `/(?:goal|ziel).*(?:lösch|entfern|clear|cancel|reset|abandon)/i`
+      matched any sentence containing both terms regardless of context.
+      An explanatory message about slash-commands triggered cancel-all
+      on the user's active goals. Replaced by slash-subcommand parser
+      with explicit subcommand keywords + 30-second confirmation guard
+      for cancel-all (asks first, executes on second call within TTL).
+
+  (3) `AgentLoop.pursue(string)` Z. 358 silently called
+      `goalStack.addGoal(description, 'user', 'high')` on every
+      legacy-string input. When LLM-classify routed a conversational
+      message to `'agent-goal'` (which doesn't go through slash-discipline),
+      the message was auto-persisted as a high-priority user goal and
+      the GoalDriver re-pursued it forever. v7.5.0 replaces this with
+      a transient `{_transient: true}` object that runs through pursuit
+      but never enters the persistent stack.
+
+- **ColonyOrchestrator broken decomposition fixed.** `this.llm.generate(prompt, opts)`
+  was called at line 221, but ModelBridge has no `.generate` method —
+  only `chat(systemPrompt, messages, taskType, options)`. The call
+  failed silently with `"this.llm.generate is not a function"` every
+  time, sending Colony into single-task fallback mode. Visible in
+  v7.4.9 boot-log multiple times. Migrated to positional `chat()` API
+  with `'planning'` taskType. The 4 mock sites in
+  `test/modules/colony-orchestrator.test.js` updated to match.
+
+- **First piece of "partner not tool" — Aushandeln-vor-Anlegen.**
+  Genesis chose this direction at v7.4.9 release time
+  (Core-Memory `cm_2026-04-27T22-11-35_u9`). v7.5.0 ships the foundation:
+  pending-goals API in GoalStack with 1h TTL transient lifetime,
+  `agency.negotiateBeforeAdd: false` opt-in setting, six new bus
+  events (`goal:proposed`, `goal:negotiation-start/confirmed/revised/dismissed/expired`),
+  and the `/goal confirm/revise/dismiss` subcommands. The
+  PromptBuilder section that lets Genesis **see** pending proposals
+  in his prompt context is deferred to v7.5.x — for now the events
+  are emitted and visible to any subscriber, but Genesis doesn't yet
+  have a structured place in his prompt to reason about them. That
+  doesn't block the slash-discipline fix from being shipped.
 
 ---
 

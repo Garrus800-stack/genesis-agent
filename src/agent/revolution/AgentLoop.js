@@ -348,18 +348,40 @@ class AgentLoop {
       }
 
       // v7.4.5: If we received a Goal object from GoalDriver, it's already
-      // in the stack — reuse it. Otherwise (legacy string path) register a
-      // new stack entry. Source is 'user' for the legacy path (was 'agent-loop'
-      // before; old persisted goals are migrated in GoalPersistence.asyncLoad).
+      // in the stack — reuse it. Otherwise (legacy string path) we now
+      // run TRANSIENT — no automatic stack entry.
+      //
+      // v7.5.0 background: Before, the legacy string path silently called
+      // goalStack.addGoal() with source='user' and priority='high'. That
+      // turned every conversational message that ended up in pursue()
+      // (e.g. via LLM-misclassification as 'agent-goal') into a persistent
+      // stack goal. The goal would then be picked up forever by GoalDriver,
+      // even though the user never asked for it to be tracked. Live-bug
+      // in v7.4.9: a question containing "Welcher der drei Punkte..." was
+      // routed via classifyAsync → LLM → 'agent-goal' → pursue(string),
+      // which silently registered it as a high-priority user goal that
+      // re-pursued every minute for 16+ minutes.
+      //
+      // Fix: legacy string path stays ephemeral. Pursuit still runs (so
+      // explicit /agent <task> via that path still works), but no stack
+      // persistence. If a caller wants persistence, they should go through
+      // GoalDriver / goalStack.addGoal explicitly first, then pass the
+      // Goal object to pursue.
       let _registeredGoal;
       if (_presetGoal) {
         _registeredGoal = _presetGoal;
       } else {
-        _registeredGoal = await this.goalStack.addGoal(
-          goalDescription.slice(0, 200),
-          'user',
-          'high',
-        );
+        // Transient ephemeral goal — NOT persisted to GoalStack.
+        _registeredGoal = {
+          id: `loop_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          description: goalDescription.slice(0, 200),
+          source: 'transient',
+          priority: 'high',
+          status: 'active',
+          steps: [],
+          currentStep: 0,
+          _transient: true,
+        };
       }
       this.currentGoalId = _registeredGoal?.id || `loop_${Date.now()}`;
       this.approval.currentGoalId = this.currentGoalId;

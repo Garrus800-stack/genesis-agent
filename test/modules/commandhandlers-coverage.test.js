@@ -277,56 +277,77 @@ describe('CommandHandlers — plans', () => {
   });
 });
 
-// ── goals ─────────────────────────────────────────────────────
+// ── goals (v7.5.0: SLASH-ONLY) ─────────────────────────────────
 
 describe('CommandHandlers — goals', () => {
   test('returns unavailable when no goalStack', async () => {
     const { ch } = makeHandler({ goalStack: null });
-    const result = await ch.goals('show goals');
+    const result = await ch.goals('/goal list');
     assertEqual(result, 'goals.unavailable');
   });
 
   test('shows empty when no goals', async () => {
     const { ch } = makeHandler();
-    const result = await ch.goals('show goals');
+    const result = await ch.goals('/goal list');
     assertEqual(result, 'goals.empty');
   });
 
   test('shows active goals', async () => {
     const gs = { ...makeDeps().goalStack, getAll: () => [{ id: 'g1', description: 'Fix bug', status: 'active', priority: 'high', steps: [{ type: 'think', action: 'analyze' }], currentStep: 0 }], getActiveGoals: () => [] };
     const { ch } = makeHandler({ goalStack: gs });
-    const result = await ch.goals('show goals');
+    const result = await ch.goals('/goal list');
     assert(result.includes('Fix bug'), 'should show goal description');
   });
 
-  test('cancel all goals', async () => {
+  test('bare /goal renders list', async () => {
+    const gs = { ...makeDeps().goalStack, getAll: () => [{ id: 'g1', description: 'Fix bug', status: 'active', priority: 'high', steps: [], currentStep: 0 }], getActiveGoals: () => [] };
+    const { ch } = makeHandler({ goalStack: gs });
+    const result = await ch.goals('/goal');
+    assert(result.includes('Fix bug'), 'bare /goal should render the list');
+  });
+
+  test('/goal clear asks confirmation first', async () => {
+    let abandoned = [];
+    const gs = { ...makeDeps().goalStack, getActiveGoals: () => [{ id: 'g1', description: 'Fix' }, { id: 'g2', description: 'Test' }], abandonGoal: (id) => abandoned.push(id) };
+    const { ch } = makeHandler({ goalStack: gs });
+    const r1 = await ch.goals('/goal clear');
+    assert(abandoned.length === 0, 'first /goal clear must NOT abandon (asks confirmation)');
+    assert(r1.includes('cancel_all_confirm') || r1.includes('Bestätigen') || r1.includes('Confirm') || r1.includes('30'),
+      `first call should ask for confirmation, got: ${r1.slice(0, 80)}`);
+  });
+
+  test('/goal clear executes on second call within 30s', async () => {
     let abandoned = [];
     const gs = { ...makeDeps().goalStack, getActiveGoals: () => [{ id: 'g1', description: 'Fix' }], abandonGoal: (id) => abandoned.push(id) };
     const { ch } = makeHandler({ goalStack: gs });
-    const result = await ch.goals('cancel all goals');
-    assert(abandoned.includes('g1'), 'should abandon goal');
-    assert(result.includes('1'), 'should report count');
+    await ch.goals('/goal clear');           // first → asks
+    const r2 = await ch.goals('/goal clear'); // second within 30s → executes
+    assert(abandoned.includes('g1'), 'second /goal clear within 30s should abandon');
+    assert(r2.includes('1') || r2.includes('cancelled') || r2.includes('abgebrochen'),
+      `should report count, got: ${r2.slice(0, 80)}`);
   });
 
-  test('cancel all goals when none active', async () => {
+  test('/goal clear when none active', async () => {
     const { ch } = makeHandler();
-    const result = await ch.goals('cancel all goals');
-    assert(result.includes('Keine'), 'should report none');
+    const result = await ch.goals('/goal clear');
+    assert(result.includes('none_active') || result.includes('Keine') || result.includes('No active'),
+      `should report none, got: ${result.slice(0, 80)}`);
   });
 
-  test('cancel one goal by index', async () => {
+  test('/goal cancel <n> by index', async () => {
     let abandoned = null;
     const gs = { ...makeDeps().goalStack, getActiveGoals: () => [{ id: 'g1', description: 'Task 1' }], abandonGoal: (id) => { abandoned = id; } };
     const { ch } = makeHandler({ goalStack: gs });
-    const result = await ch.goals('cancel goal 1');
+    const result = await ch.goals('/goal cancel 1');
     assertEqual(abandoned, 'g1');
     assert(result.includes('Task 1'), 'should show cancelled goal');
   });
 
-  test('cancel goal out of range', async () => {
+  test('/goal cancel <n> out of range', async () => {
     const { ch } = makeHandler({ goalStack: { ...makeDeps().goalStack, getActiveGoals: () => [{ id: 'g1', description: 'x' }] } });
-    const result = await ch.goals('cancel goal 9');
-    assert(result.includes('nicht gefunden'), 'should report not found');
+    const result = await ch.goals('/goal cancel 9');
+    assert(result.includes('not_found') || result.includes('nicht gefunden'),
+      `should report not found, got: ${result.slice(0, 80)}`);
   });
 });
 

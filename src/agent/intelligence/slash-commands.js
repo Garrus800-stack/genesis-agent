@@ -126,6 +126,20 @@ const SLASH_COMMANDS = [
     description: 'Show current plans',
     sinceVersion: 'v7.3.5',
   },
+
+  // v7.5.0 — Goals slash-discipline. Before v7.5.0, the goals handler
+  // matched on free-text patterns like "set me a goal to ..." or
+  // "lösche alle ziele", which collided with conversational mentions
+  // of "goal/ziel" and could trigger destructive actions (e.g. cancel-all)
+  // from a question that merely contained the word "cancel" near "goal".
+  // v7.5.0 makes goals slash-only matching the policy already in place
+  // for settings/journal/plans/self-* etc.
+  {
+    name: 'goals',
+    aliases: ['goal', 'ziele', 'ziel'],
+    description: 'Goal management: /goal add <text>, /goal list, /goal cancel <n>, /goal clear (asks confirmation)',
+    sinceVersion: 'v7.5.0',
+  },
 ];
 
 /**

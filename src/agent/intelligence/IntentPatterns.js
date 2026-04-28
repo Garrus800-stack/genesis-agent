@@ -184,27 +184,26 @@ const INTENT_DEFINITIONS = [
   ], 10, []],
 
   ['goals', [
-    // v7.3.3: IMPERATIVE-ONLY patterns. Conversational questions like
-    // "was sind deine Ziele?" fall through to 'general' and are answered
-    // by Genesis via the LLM with goal data injected as context.
+    // v7.5.0: SLASH-ONLY. Free-text mentions of "goal" / "ziel"
+    // collide with conversational discussions about goals (the
+    // bug live-reproduced in v7.4.9: a question CONTAINING the
+    // words "goal" and "cancel" triggered cancel-all). The
+    // slash-discipline guard (slash-commands.js entry) ensures
+    // conversational mentions fall through to 'general' even if
+    // these patterns somehow match.
     //
-    // Previously /ziel/i matched any message containing "Ziel" anywhere,
-    // including meta-questions. That turned a natural question into a
-    // template-dump from the goals handler.
+    // Subcommands recognised:
+    //   /goal add <text>      — add a new goal
+    //   /goal list            — list active goals  (also: bare /goal)
+    //   /goal cancel <n>      — cancel goal #n
+    //   /goal clear           — cancel all (with 30s confirmation)
+    //   /goal confirm <id>    — v7.5.0 negotiation: confirm pending
+    //   /goal revise <id>: t  — v7.5.0 negotiation: revise pending
+    //   /goal dismiss <id>    — v7.5.0 negotiation: drop pending
     //
-    // Priority raised to 16 so explicit "setze ein ziel:" doesn't get
-    // swallowed by shell-task (pri 14) via leading verbs like "setze".
-    //
-    // Cancel / abandon — explicit imperatives with goal reference
-    /(?:cancel|abandon|clear|reset)\s+(?:all\s+)?(?:the\s+)?(?:goal|ziel|ziele|goals)\b/i,
-    /(?:lösch|entfern|abbrech|stopp).*?(?:ziel|goal|ziele|goals)\b/i,
-    /(?:ziel|goal|ziele|goals).*?(?:lösch|entfern|abbrech|stopp|cancel|abandon|clear|reset)/i,
-    // Cancel / abandon a specific numbered goal
-    /(?:cancel|abandon|lösch|entfern|stopp|abbrech).*?(?:goal|ziel)\s*#?\s*\d+/i,
-    // Set / add — imperatives (with or without colon)
-    /(?:setze?|set|erstelle?|create|add|hinzufueg|hinzufüg|füg)\s+.{0,30}?(?:ziel|goal)\b/i,
-    /(?:ziel|goal)\s+(?:setzen|erstellen|hinzufügen|hinzufuegen|add|create|addieren)/i,
-  ], 16, ['ziel', 'goal', 'goals', 'ziele', 'setze', 'lösche', 'abbrechen', 'cancel', 'abandon', 'clear']],
+    // Aliases: /ziel, /ziele, /goals all map to the same handler.
+    /(?:^|\s)\/(?:goal|ziel|ziele|goals)\b/i,
+  ], 16, []],
 
   // Slash-only. Free-text mentions of "konfiguration" / "settings" /
   // "einstellung" in conversation fall through to general; the LLM

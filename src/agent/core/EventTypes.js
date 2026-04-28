@@ -397,6 +397,26 @@ const EVENTS = Object.freeze({
     /** v7.4.5 Baustein D: Spawn refused (depth/loop/lessons-veto) */
     /** @payload {{ parentId: string, obstacleType: string, contextKey: string, reason: string }} */
     OBSTACLE_LOOP_PROTECTED: 'goal:obstacle-loop-protected',
+
+    // ── v7.5.0: Negotiate-before-add ───────────────────────
+    /** v7.5.0: User proposed a goal — pending clarification */
+    /** @payload {{ id: string, description: string, source: string }} */
+    PROPOSED: 'goal:proposed',
+    /** v7.5.0: Negotiation flow started — clarify before commit */
+    /** @payload {{ pendingId: string, description: string, source: string, revised?: boolean }} */
+    NEGOTIATION_START: 'goal:negotiation-start',
+    /** v7.5.0: Pending proposal confirmed — moves to active stack */
+    /** @payload {{ pendingId: string, description: string }} */
+    NEGOTIATION_CONFIRMED: 'goal:negotiation-confirmed',
+    /** v7.5.0: Pending proposal revised, still pending */
+    /** @payload {{ pendingId: string, description: string }} */
+    NEGOTIATION_REVISED: 'goal:negotiation-revised',
+    /** v7.5.0: Pending proposal dismissed by user */
+    /** @payload {{ pendingId: string, description: string }} */
+    NEGOTIATION_DISMISSED: 'goal:negotiation-dismissed',
+    /** v7.5.0: Pending proposal expired (TTL 1h) */
+    /** @payload {{ pendingId: string, description: string }} */
+    NEGOTIATION_EXPIRED: 'goal:negotiation-expired',
   }),
 
   // ── GoalDriver ─────────────────────────────────────────

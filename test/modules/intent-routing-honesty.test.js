@@ -48,11 +48,37 @@ describe('v7.3.3 — goals: conversational questions go to general', () => {
   }
 });
 
-// ── Imperative goal commands SHOULD still trigger the goals handler ──
-describe('v7.3.3 — goals: imperatives still route correctly', () => {
+// ── v7.5.0: Goals are SLASH-ONLY ──
+// Free-text imperatives like "setze ein ziel" or "lösche alle ziele"
+// no longer route to the goals handler. They fall through to 'general'
+// so Genesis can answer them conversationally with goal data injected
+// as context. This prevents the live-bug from v7.4.9 where a question
+// containing "goal" + "cancel" silently triggered cancel-all.
+describe('v7.5.0 — goals: SLASH-ONLY, free-text falls through to general', () => {
   const router = new IntentRouter();
 
-  const imperatives = [
+  // These MUST route to 'goals' (slash form):
+  const slashImperatives = [
+    '/goal add refactor X',
+    '/goal list',
+    '/goal cancel 2',
+    '/goal clear',
+    '/ziel add neue Aufgabe',
+    '/ziele',
+    '/goals',
+  ];
+  for (const msg of slashImperatives) {
+    test(`slash: "${msg}" → goals`, () => {
+      const result = router.classify(msg);
+      assert(
+        result.type === 'goals',
+        `Expected goals, got '${result.type}' (conf=${result.confidence}) — slash form must reach goals handler`
+      );
+    });
+  }
+
+  // These MUST NOT route to 'goals' (free text):
+  const freetextImperatives = [
     'setze ein ziel: refactor X',
     'erstelle ein ziel: optimize performance',
     'lösche alle ziele',
@@ -63,13 +89,12 @@ describe('v7.3.3 — goals: imperatives still route correctly', () => {
     'ziel hinzufügen: new task',
     'add goal: implement feature',
   ];
-
-  for (const msg of imperatives) {
-    test(`"${msg}" → goals`, () => {
+  for (const msg of freetextImperatives) {
+    test(`free-text: "${msg}" → NOT goals`, () => {
       const result = router.classify(msg);
       assert(
-        result.type === 'goals',
-        `Expected goals, got '${result.type}' (conf=${result.confidence}) — imperatives must still reach the goals handler`
+        result.type !== 'goals',
+        `Expected non-goals (slash-discipline), got '${result.type}' (conf=${result.confidence}) — free-text must not reach goals handler`
       );
     });
   }

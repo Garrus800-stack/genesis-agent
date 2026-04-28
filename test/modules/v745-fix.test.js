@@ -141,49 +141,65 @@ function fakeIntervals() {
     assert(driver._resumePromptTimer === null, 'stop should null timer');
   });
 
-  // ── 2. CommandHandlersGoals bilingual patterns ──────────
-  // Test the regex shapes directly (no full handler instantiation needed).
-  // Mirror the patterns used in handleGoals().
-  const patterns = [
-    { rx: /ziel.*(?:setze|erstelle|hinzufuegen|add).*?:\s*(.+)/i, name: 'DE-colon-1' },
-    { rx: /(?:setze|erstelle|add).*ziel.*?:\s*(.+)/i, name: 'DE-colon-2' },
-    { rx: /(?:setze|erstelle)\s+(?:mir\s+)?(?:ein|das|den)?\s*ziel(?:\s+(?:zu|um|nach|für|fuer))?\s+(.+)/i, name: 'DE-colon-free' },
-    { rx: /(?:set|create|add).*goal.*?:\s*(.+)/i, name: 'EN-colon' },
-    { rx: /(?:set|create|add)\s+(?:me\s+)?(?:(?:a|an|the|new|another)\s+){0,3}goal\s+(?:to|that|for)?\s+(.+)/i, name: 'EN-colon-free' },
-    { rx: /^\s*new\s+goal\s*[:]?\s*(.+)/i, name: 'EN-new-goal' },
-  ];
-  function matchAny(message) {
-    for (const { rx } of patterns) {
-      const m = message.match(rx);
-      if (m) return m[1].trim();
-    }
-    return null;
-  }
+  // ── 2. CommandHandlersGoals slash-only subcommand parsing ──
+  // v7.5.0: free-text goal patterns removed (slash-discipline). The
+  // tests below were originally regex-shape tests for the old
+  // free-text patterns; rewritten here as slash-form tests against
+  // the new subcommand parser shape used in the handler.
+  //
+  // Old patterns ('set me a goal to X', 'setze mir ein ziel:', etc.)
+  // intentionally no longer match — they collide with conversational
+  // mentions and triggered destructive actions. See AUDIT-BACKLOG
+  // entry "v7.5.0 — goals slash-discipline".
 
-  await test('Goal-Pattern DE: "setze mir ein ziel: führe X aus"', () => {
-    assert(matchAny('setze mir ein ziel: führe node test.js aus') === 'führe node test.js aus');
+  // Slash-form parser shape, mirrors CommandHandlersGoals.goals():
+  //   /<prefix> <subcommand> [args...]
+  const slashParse = (message) => {
+    const m = message.match(/(?:^|\s)\/(?:goal|ziel|ziele|goals)\b\s*(\w+)?\s*(.*)$/i);
+    if (!m) return null;
+    return { sub: (m[1] || '').toLowerCase(), arg: (m[2] || '').trim() };
+  };
+
+  await test('v7.5.0 slash add DE: "/ziel add Bessere Fehlerbehandlung"', () => {
+    const r = slashParse('/ziel add Bessere Fehlerbehandlung');
+    assert(r && r.sub === 'add' && r.arg === 'Bessere Fehlerbehandlung', `got: ${JSON.stringify(r)}`);
   });
-  await test('Goal-Pattern DE colon-free: "setze mir ein ziel führe X aus"', () => {
-    const r = matchAny('setze mir ein ziel zu führe node test.js aus');
-    assert(r && r.includes('test.js'), `got: ${r}`);
+  await test('v7.5.0 slash add EN: "/goal add run test.js"', () => {
+    const r = slashParse('/goal add run test.js');
+    assert(r && r.sub === 'add' && r.arg === 'run test.js', `got: ${JSON.stringify(r)}`);
   });
-  await test('Goal-Pattern EN: "add goal: run test.js"', () => {
-    assert(matchAny('add goal: run test.js') === 'run test.js');
+  await test('v7.5.0 slash setze DE: "/ziel setze Refactor X"', () => {
+    const r = slashParse('/ziel setze Refactor X');
+    assert(r && r.sub === 'setze' && r.arg === 'Refactor X', `got: ${JSON.stringify(r)}`);
   });
-  await test('Goal-Pattern EN colon-free: "set me a goal to run test.js"', () => {
-    assert(matchAny('set me a goal to run test.js') === 'run test.js');
+  await test('v7.5.0 slash list bare: "/goal"', () => {
+    const r = slashParse('/goal');
+    assert(r && r.sub === '', `expected empty subcommand, got: ${JSON.stringify(r)}`);
   });
-  await test('Goal-Pattern EN colon-free: "add a goal to deploy the app"', () => {
-    assert(matchAny('add a goal to deploy the app') === 'deploy the app');
+  await test('v7.5.0 slash cancel: "/goal cancel 2"', () => {
+    const r = slashParse('/goal cancel 2');
+    assert(r && r.sub === 'cancel' && r.arg === '2', `got: ${JSON.stringify(r)}`);
   });
-  await test('Goal-Pattern EN colon-free: "create a new goal to investigate the bug"', () => {
-    assert(matchAny('create a new goal to investigate the bug') === 'investigate the bug');
+  await test('v7.5.0 slash clear: "/goal clear"', () => {
+    const r = slashParse('/goal clear');
+    assert(r && r.sub === 'clear' && r.arg === '', `got: ${JSON.stringify(r)}`);
   });
-  await test('Goal-Pattern EN: "new goal: ship v8"', () => {
-    assert(matchAny('new goal: ship v8') === 'ship v8');
+  await test('v7.5.0 free-text "set me a goal to X" no longer parses as slash', () => {
+    // Critical: this is the bug-causing pattern from the live-bug.
+    // It MUST return null after the v7.5.0 slash-only migration.
+    assert(slashParse('set me a goal to run test.js') === null);
   });
-  await test('Goal-Pattern: unmatched text returns null', () => {
-    assert(matchAny('hello world') === null);
+  await test('v7.5.0 free-text "lösche alle ziele" no longer parses', () => {
+    assert(slashParse('lösche alle ziele') === null);
+  });
+  await test('v7.5.0 confirm subcommand: "/goal confirm pending_abc"', () => {
+    const r = slashParse('/goal confirm pending_abc');
+    assert(r && r.sub === 'confirm' && r.arg === 'pending_abc', `got: ${JSON.stringify(r)}`);
+  });
+  await test('v7.5.0 conversational mention does NOT parse', () => {
+    // The exact bug case from v7.4.9 live-test.
+    const r = slashParse('Welcher der drei Punkte ist dir wichtig?');
+    assert(r === null);
   });
 
   // ── 3. CommandHandlersSystem dot-path setter ─────────────
