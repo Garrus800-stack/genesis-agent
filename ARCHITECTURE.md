@@ -3,10 +3,12 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.4.5 · Last verified: 0 schema mismatches (424 catalogued / 424 schemas),
+> Version: 7.5.1 · Last verified: 0 schema mismatches (443 catalogued / 443 schemas),
 > 0 orphan / missing, 0 stale references, all event-validation checks green
-> (fitness, ratchet, and full test-suite numbers from the v7.4.5 baseline:
-> 5668 tests, fitness 127/130, ratchet floor 5667).
+> (fitness, ratchet, and full test-suite numbers from the v7.5.1 baseline:
+> 5816 tests, fitness 127/130, audit-events:strict exit 0, audit-intents:strict exit 0).
+> v7.5.1 added an `intent-tool-coherence` cross-validator as a third gate-layer
+> alongside `injection-gate` and `self-gate` — see [docs/GATE-INVENTORY.md](docs/GATE-INVENTORY.md).
 
 ---
 

@@ -329,11 +329,12 @@ class GoalDriver {
    * the same `errMsg` produces the same _failureBurst entry update
    * — but the count would double if we don't guard. Solution:
    * track "just paused this goal at timestamp X" via _lastPausedAt
-   * and skip duplicate calls within 50ms of each other.
+   * and skip duplicate calls within 500ms of each other (raised
+   * from 50ms in v7.5.1 — see body comment for rationale).
    *
    * @param {string} goalId
-   * @param {string} errMsg  — may be empty (generic-backoff applies)
-   * @param {object} [goal]  — goalStack entry, optional
+   * @param {string} errMsg  - may be empty (generic-backoff applies)
+   * @param {object} [goal]  - goalStack entry, optional
    */
   async _applyFailurePause(goalId, errMsg, goal) {
     if (!goalId) return;
@@ -342,11 +343,20 @@ class GoalDriver {
     this._goalPausedUntil = this._goalPausedUntil || new Map();
     this._lastPausedAt = this._lastPausedAt || new Map();
 
-    // Idempotency guard: if we paused this goal in the last 50ms,
+    // Idempotency guard: if we paused this goal in the last 500ms,
     // a second call (event-side + resolve-side for the same
     // failure) would double-count. Skip the second one.
+    //
+    // v7.5.1 (was 50ms, raised to 500ms): on loaded systems the gap
+    // between event-handler emit and resolve-side await can exceed
+    // 50ms (observed 91ms in CI containers; production under GC/IO
+    // pressure can spike higher). With 50ms the second call slipped
+    // through and goals were prematurely stalled (count→stalled
+    // after 3 real failures instead of 6). The real race is always
+    // within the same pursue() execution — anything beyond 500ms is
+    // a different failure event.
     const lastPaused = this._lastPausedAt.get(goalId) || 0;
-    if (_now - lastPaused < 50) return;
+    if (_now - lastPaused < 500) return;
     this._lastPausedAt.set(goalId, _now);
 
     const _isRateLimit = /rate limit|rate.limited|budget exhausted/i.test(errMsg || '');

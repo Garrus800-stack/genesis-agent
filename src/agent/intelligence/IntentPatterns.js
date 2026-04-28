@@ -45,8 +45,32 @@ const { allCommandNames } = require('./slash-commands');
 // model changes, or learned false-positives.
 const SLASH_ONLY_INTENTS = new Set(allCommandNames());
 
+// v7.5.1 (H-fix): Security-relevant intents that — though not registered as
+// canonical slash-commands — must REQUIRE an explicit slash trigger to fire.
+// Before v7.5.1 their classifier patterns could match conversational free
+// text ("lass uns das Database-Skill nutzen" → run-skill, "was ist mit
+// trust level?" → trust-control), giving the LLM a path to invoke them
+// from a benign exchange. This set forces enforceSlashDiscipline to
+// rewrite the result to 'general' unless the message contains a `/`.
+//
+// To keep them reachable, every entry in this set must also have at least
+// one slash-anchored pattern below (e.g. /(?:^|\s)\/run-skill\b/i).
+const SECURITY_REQUIRED_SLASH = new Set([
+  'run-skill',
+  'execute-code',
+  'execute-file',
+  'trust-control',
+  'shell-task',
+  'shell-run',
+  'memory-list',
+  'memory-veto',
+  'memory-mark',
+]);
+
 function enforceSlashDiscipline(result, message) {
-  if (!result || !SLASH_ONLY_INTENTS.has(result.type)) return result;
+  if (!result) return result;
+  const isSlashOnly = SLASH_ONLY_INTENTS.has(result.type) || SECURITY_REQUIRED_SLASH.has(result.type);
+  if (!isSlashOnly) return result;
   // A literal / anywhere in the message is sufficient. The per-intent
   // patterns then decide WHICH slash-command was meant; this guard only
   // decides whether ANY slash-command is allowed at all.
@@ -112,6 +136,10 @@ const INTENT_DEFINITIONS = [
 
   // v5.9.1: Run/execute/use an installed skill — must be ABOVE execute-code
   ['run-skill', [
+    // v7.5.1: slash-trigger (REQUIRED — see SECURITY_REQUIRED_SLASH)
+    /(?:^|\s)\/run-skill\b/i,
+    // Free-text patterns kept for natural-language matching, but
+    // enforceSlashDiscipline rewrites to 'general' unless / is present.
     /(?:run|execute|use|start|starte?|fuehr).*skill/i,
     /skill.*(?:run|execute|use|starten?|ausfuehr)/i,
     /(?:nutze?|verwende?).*skill/i,
@@ -121,10 +149,14 @@ const INTENT_DEFINITIONS = [
   ], 16, ['skill', 'ausfuehren', 'nutzen', 'verwenden', 'starten']],
 
   ['execute-code', [
+    // v7.5.1: slash-trigger (REQUIRED — see SECURITY_REQUIRED_SLASH)
+    /(?:^|\s)\/execute-code\b/i,
     /^```/, /fuehre? aus/i, /execute.*code/i,
   ], 12, ['ausfuehren', 'execute', 'run']],
 
   ['execute-file', [
+    // v7.5.1: slash-trigger (REQUIRED — see SECURITY_REQUIRED_SLASH)
+    /(?:^|\s)\/execute-file\b/i,
     /fuehr.*datei/i, /execute.*file/i, /starte? .*\.\w{2,4}\b/i,
   ], 12, ['datei', 'starten', 'script']],
 
@@ -141,6 +173,9 @@ const INTENT_DEFINITIONS = [
   ], 10, []],
 
   ['trust-control', [
+    // v7.5.1: slash-trigger (REQUIRED — see SECURITY_REQUIRED_SLASH)
+    /(?:^|\s)\/trust-control\b/i,
+    /(?:^|\s)\/trust\b/i,
     /trust.?level/i, /vertrauens?.?stufe/i,
     /(?:set|change|ändere?|setze?).*trust/i,
     /(?:autonomie|autonomy).*(?:freigeb|enabl|erlaub|gewähr|grant)/i,
@@ -236,6 +271,8 @@ const INTENT_DEFINITIONS = [
 
   // Shell task (multi-step planned execution)
   ['shell-task', [
+    // v7.5.1: slash-trigger (REQUIRED — see SECURITY_REQUIRED_SLASH)
+    /(?:^|\s)\/shell-task\b/i,
     /^(?:npm|node|git|yarn|pnpm|pip|cargo|make)\s+/i,
     /install(?:iere?)?\s+(?:die\s+)?(?:deps|dependencies|abhaengigkeiten|pakete?)/i,
     /(?:fuehr|start|lauf).*(?:test|build|lint|script)/i,
@@ -253,6 +290,9 @@ const INTENT_DEFINITIONS = [
 
   // Shell run (single command execution)
   ['shell-run', [
+    // v7.5.1: slash-trigger (REQUIRED — see SECURITY_REQUIRED_SLASH)
+    /(?:^|\s)\/shell-run\b/i,
+    /(?:^|\s)\/shell\b/i,
     /^[$>]\s*.+/,
     /(?:fuehr|execute|run)\s+(?:den\s+)?(?:befehl|kommando|command)/i,
     /^(?:git|node|python|pip|npx|yarn|pnpm|cargo|go|dotnet|java|javac)\s+\w+/i,

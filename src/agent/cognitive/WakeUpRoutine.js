@@ -172,11 +172,9 @@ class WakeUpRoutine {
     try {
       const prompt = this._buildReEntryPrompt(ctx, pendingReview);
       const response = await Promise.race([
-        this.model.chat({
-          messages: [{ role: 'user', content: prompt }],
-          maxTokens: 300,
-          temperature: 0.6,
-        }),
+        // v7.5.1: positional canonical call (was object-form, never reached the LLM
+        // because backends rejected `system: {messages,...}` with HTTP 400)
+        this.model.chat('', [{ role: 'user', content: prompt }], 'wakeup', { maxTokens: 300, temperature: 0.6 }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), Math.min(timeBudgetMs - 500, 10_000))),
       ]);
       const text = (typeof response === 'string' ? response : response?.content || '').trim();

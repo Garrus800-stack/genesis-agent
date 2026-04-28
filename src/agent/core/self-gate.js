@@ -56,14 +56,14 @@ const _log = createLogger('SelfGate');
 /**
  * @typedef {object} SelfGateSignal
  * @property {'reflexivity'|'user-mismatch'} kind
- * @property {string} matched           — phrase or keyword that triggered
- * @property {string} note              — one-line human explanation
+ * @property {string} matched           - phrase or keyword that triggered
+ * @property {string} note              - one-line human explanation
  */
 
 /**
  * @typedef {object} SelfGateScan
  * @property {SelfGateSignal[]} signals
- * @property {number} score              — signal count
+ * @property {number} score              - signal count
  * @property {'pass'|'warn'|'block'} verdict
  */
 

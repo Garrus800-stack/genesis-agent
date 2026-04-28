@@ -7,14 +7,19 @@
 const { createLogger } = require('../core/Logger');
 const { scanForInjection, formatGateResponse, formatWarnAnnotation } = require('../core/injection-gate');
 const { verifyToolClaims, formatVerificationNote } = require('../core/tool-call-verification');
+const { recordCoherenceCheck } = require('../core/intent-tool-coherence');
 const _log = createLogger('ChatOrchestrator');
 
 
 
 const helpers = {
 
-  /** Multi-round tool execution — keeps calling tools until no more calls */
-  async _processToolLoop(response, onChunk, userMessage) {
+  /** Multi-round tool execution — keeps calling tools until no more calls.
+   *  v7.5.1: intentType param added so the intent-tool-coherence layer
+   *  can cross-check the IntentRouter classification against the tool
+   *  the LLM actually picks. Default 'general' keeps backwards-compat
+   *  for any caller that doesn't pass the param. */
+  async _processToolLoop(response, onChunk, userMessage, intentType = 'general') {
     let fullText = response;
     let lastCallSignature = null;
     // v7.3.5: Accumulate every tool call fired across rounds, for the
@@ -122,6 +127,25 @@ const helpers = {
             });
           } catch (err) {
             _log.debug('[SELF-GATE] check skipped:', err.message);
+          }
+        }
+      }
+
+      // v7.5.1: Intent-Tool-Coherence — third gate-layer alongside
+      // injection-gate (input → blocks) and self-gate (action → observes).
+      // Cross-checks IntentRouter classification against the tool category
+      // the LLM picked. Emits intent:tool-mismatch telemetry when categories
+      // don't match (severity scales by category impact + intent permissiveness).
+      // Telemetry-only by design — never blocks, only records for inspection.
+      if (this.bus) {
+        for (const tc of toolCalls) {
+          try {
+            const verdict = recordCoherenceCheck(this.bus, intentType, tc.name);
+            if (this.gateStats && !verdict.coherent) {
+              this.gateStats.recordGate('intent-tool-coherence', { verdict: 'mismatch' });
+            }
+          } catch (err) {
+            _log.debug('[COHERENCE] check skipped:', err.message);
           }
         }
       }

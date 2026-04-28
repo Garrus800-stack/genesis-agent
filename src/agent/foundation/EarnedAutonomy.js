@@ -48,7 +48,7 @@ const DEFAULTS = Object.freeze({
  * Compute Wilson score lower bound.
  * @param {number} successes
  * @param {number} total
- * @param {number} z — z-score (1.96 = 95% CI)
+ * @param {number} z - z-score (1.96 = 95% CI)
  * @returns {number} lower bound of confidence interval
  */
 function wilsonLower(successes, total, z = 1.96) {
@@ -132,7 +132,7 @@ class EarnedAutonomy {
 
   /**
    * Record an action outcome.
-   * @param {string} actionType — e.g. 'CODE_GENERATE', 'SHELL_EXEC'
+   * @param {string} actionType - e.g. 'CODE_GENERATE', 'SHELL_EXEC'
    * @param {boolean} success
    */
   record(actionType, success) {

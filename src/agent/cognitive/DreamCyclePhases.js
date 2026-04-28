@@ -235,11 +235,8 @@ const dreamCyclePhases = {
 
     try {
       const result = await Promise.race([
-        this.model.chat({
-          messages: [{ role: 'user', content: prompt }],
-          maxTokens: 10,
-          temperature: 0.4,
-        }),
+        // v7.5.1: positional canonical call
+        this.model.chat('', [{ role: 'user', content: prompt }], 'dream-judgment', { maxTokens: 10, temperature: 0.4 }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000)),
       ]);
       const text = (typeof result === 'string' ? result : result?.content || '')
@@ -288,11 +285,8 @@ const dreamCyclePhases = {
     ].join('\n');
 
     const result = await Promise.race([
-      this.model.chat({
-        messages: [{ role: 'user', content: prompt }],
-        maxTokens: toLayer === 2 ? 100 : 40,
-        temperature: 0.5,
-      }),
+      // v7.5.1: positional canonical call
+      this.model.chat('', [{ role: 'user', content: prompt }], 'dream-summarize', { maxTokens: toLayer === 2 ? 100 : 40, temperature: 0.5 }),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000)),
     ]);
     const text = (typeof result === 'string' ? result : result?.content || '').trim();

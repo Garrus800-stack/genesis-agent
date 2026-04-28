@@ -64,7 +64,7 @@ class MockBackend {
     return this.getModels();
   }
 
-  async chat(systemPrompt, messages, temperature, modelName) {
+  async chat(systemPrompt, messages, temperature, modelName, maxTokens) {
     if (this._latencyMs > 0) {
       await new Promise(r => setTimeout(r, this._latencyMs));
     }
@@ -100,13 +100,14 @@ class MockBackend {
     }
   }
 
-  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName) {
+  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens) {
     this.calls.push({
       method: 'stream',
       systemPrompt,
       messages: [...messages],
       temperature,
       modelName,
+      maxTokens,
       timestamp: Date.now(),
     });
 

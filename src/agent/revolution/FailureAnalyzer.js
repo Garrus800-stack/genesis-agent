@@ -170,8 +170,8 @@ class FailureAnalyzer {
 
   /**
    * Analyze a CI failure log and return a structured diagnosis.
-   * @param {string} log — Raw CI output (test runner, npm, etc.)
-   * @param {object} context — { os, nodeVersion, branch, commitSha }
+   * @param {string} log - Raw CI output (test runner, npm, etc.)
+   * @param {object} context - { os, nodeVersion, branch, commitSha }
    * @returns {*}
    */
   analyze(log, context = {}) {

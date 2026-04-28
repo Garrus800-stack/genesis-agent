@@ -57,9 +57,9 @@ class GraphReasoner {
    * Find all transitive dependencies of a node.
    * "What does X depend on, recursively?"
    *
-   * @param {string} label — Node label (e.g., "AgentLoop")
-   * @param {string} relation — Edge type to follow (e.g., "depends_on", "imports")
-   * @param {object} options — { maxDepth, direction: 'outgoing'|'incoming' }
+   * @param {string} label - Node label (e.g., "AgentLoop")
+   * @param {string} relation - Edge type to follow (e.g., "depends_on", "imports")
+   * @param {object} options - { maxDepth, direction: 'outgoing'|'incoming' }
    * @returns {{ root: string, nodes: Array<{label: string, type: string, depth: number}>, edges: Array<*>, totalDepth: number, error?: string }}
    */
   transitiveDeps(label, relation = 'depends_on', options = {}) {
@@ -116,8 +116,8 @@ class GraphReasoner {
    * Impact analysis: "If I change X, what else is affected?"
    * Follows incoming dependency edges (who depends on X?).
    *
-   * @param {string} label — Changed module/concept
-   * @param {object} options — { maxDepth, includeTests }
+   * @param {string} label - Changed module/concept
+   * @param {object} options - { maxDepth, includeTests }
    * @returns {{ changed: string, impacted: Array<{label: string, type: string, depth: number, risk: string, hasTests?: boolean}>, riskScore: number, totalImpacted: number }}
    */
   impactAnalysis(label, options = {}) {
@@ -174,7 +174,7 @@ class GraphReasoner {
    * Detect cycles in the dependency graph.
    * Useful for finding circular imports after self-modification.
    *
-   * @param {string} relation — Edge type to check
+   * @param {string} relation - Edge type to check
    * @returns {{ hasCycles: boolean, cycles: Array<Array<string>> }}
    */
   detectCycles(relation = 'depends_on') {
@@ -332,7 +332,7 @@ class GraphReasoner {
    * Answer a structural question deterministically.
    * Returns null if the question can't be answered by graph alone.
    *
-   * @param {string} question — Natural language question
+   * @param {string} question - Natural language question
    * @returns {{ answered: boolean, result: string, method: string, data?: * } | null}
    */
   tryAnswer(question) {

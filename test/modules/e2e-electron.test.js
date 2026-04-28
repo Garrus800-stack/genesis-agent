@@ -40,10 +40,15 @@ try {
 // ── Test Electron main process features without launching ──
 
 describe('E2E Electron — Preload Security', () => {
-  test('preload.js exports only whitelisted channels', () => {
-    // Verify preload structure by reading the file
+  test('preload.mjs exports only whitelisted channels', () => {
+    // v7.5.1.x: project ships BOTH preload.mjs (ESM, Tier 1) and
+    // preload.js (CJS, Tier 3 fallback). Tier 2 is dist/preload.js
+    // produced by build-bundle. main.js picks the best tier per
+    // platform — Windows + Electron 33 falls back to CJS because
+    // ESM preload reliably fails inside the sandboxed renderer.
+    // Both .mjs and .js MUST stay in sync.
     const fs = require('fs');
-    const preload = fs.readFileSync(path.join(ROOT, 'preload.js'), 'utf8');
+    const preload = fs.readFileSync(path.join(ROOT, 'preload.mjs'), 'utf8');
 
     // Must have ALLOWED_INVOKE, ALLOWED_SEND, ALLOWED_RECEIVE
     assert(preload.includes('ALLOWED_INVOKE'), 'Should have ALLOWED_INVOKE');
@@ -65,6 +70,9 @@ describe('E2E Electron — Preload Security', () => {
   });
 
   test('preload.js and preload.mjs have same channel count', () => {
+    // v7.5.1.x: restored after CJS preload was added back. Tier 3
+    // (Windows fallback) needs the same channels Tier 1 (ESM) exposes,
+    // otherwise UI breaks invisibly when Electron 33+sandbox forces CJS.
     const fs = require('fs');
     const cjs = fs.readFileSync(path.join(ROOT, 'preload.js'), 'utf8');
     const esm = fs.readFileSync(path.join(ROOT, 'preload.mjs'), 'utf8');
@@ -90,7 +98,8 @@ describe('E2E Electron — Main Process Config', () => {
   test('IPC handlers cover all preload channels', () => {
     const fs = require('fs');
     const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
-    const preload = fs.readFileSync(path.join(ROOT, 'preload.js'), 'utf8');
+    // v7.5.1.x: read from preload.mjs (ESM), not the long-removed preload.js
+    const preload = fs.readFileSync(path.join(ROOT, 'preload.mjs'), 'utf8');
 
     // Extract invoke channels from preload
     const invokeChannels = [];
@@ -151,10 +160,15 @@ describe('E2E Electron — Package Config', () => {
     assertEqual(pkg.main, 'main.js');
   });
 
-  test('electron dependency is ^39', () => {
+  test('electron dependency is >= 33', () => {
+    // v7.5.1.x: was hardcoded "^39" but the project pinned ^33.0.0
+    // since the v7.4.x stack stabilized. The test now validates the
+    // floor (33) and stays forward-compatible — bumps to 39 or higher
+    // continue to pass without churn.
     const pkg = require(path.join(ROOT, 'package.json'));
     const electronVer = pkg.devDependencies?.electron || pkg.dependencies?.electron || '';
-    assert(electronVer.includes('39'), `Expected ^39, got ${electronVer}`);
+    const major = parseInt((electronVer.match(/\d+/) || [])[0], 10);
+    assert(!isNaN(major) && major >= 33, `Expected electron >= 33, got ${electronVer}`);
   });
 
   test('start script launches electron (directly or via wrapper)', () => {

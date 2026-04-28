@@ -585,11 +585,8 @@ class CoreMemories {
     ].join('\n');
 
     const result = await Promise.race([
-      this.model.chat({
-        messages: [{ role: 'user', content: prompt }],
-        maxTokens: 10,
-        temperature: 0.3,
-      }),
+      // v7.5.1: positional canonical call
+      this.model.chat('', [{ role: 'user', content: prompt }], 'memory-classify', { maxTokens: 10, temperature: 0.3 }),
       new Promise((_, rej) => setTimeout(() => rej(new Error('llm-timeout')), 5000)),
     ]);
 

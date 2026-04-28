@@ -103,11 +103,10 @@ const ALLOWED_RECEIVE = [
   'agent:loop-approval-needed',
   // v7.4.7: Settings toggle confirmation messages
   'agent:chat-system-message',
-  // v7.4.5: GoalDriver events
-  'goal:driver-pickup',
-  'goal:resumed-auto',
-  'goal:discarded',
-  'driver:unresponsive',
+  // v7.4.5: GoalDriver resume-prompt (only event with UI-anchored schema; the
+  // 4 sibling telemetry events — goal:driver-pickup / goal:resumed-auto /
+  // goal:discarded / driver:unresponsive — were removed in v7.5.1 because
+  // they had no UI consumer; they remain backend-only telemetry on the bus)
   'ui:resume-prompt',
 ];
 

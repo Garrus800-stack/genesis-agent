@@ -214,9 +214,9 @@ class KnowledgeGraph {
    * v7.1.6: Update a frontier node's properties and edge weight atomically.
    * Ensures _save() is called — prevents silent mutation without persistence.
    *
-   * @param {object} node     — KG node reference (from getNode)
-   * @param {object} merged   — New properties to apply
-   * @param {object} edge     — Edge to refresh weight on
+   * @param {object} node     - KG node reference (from getNode)
+   * @param {object} merged   - New properties to apply
+   * @param {object} edge     - Edge to refresh weight on
    */
   updateFrontierNode(node, merged, edge) {
     Object.assign(node.properties, merged);

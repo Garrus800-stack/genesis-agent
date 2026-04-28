@@ -145,7 +145,7 @@ class AgentLoop {
    * Called by ChatOrchestrator when it detects a goal-oriented message.
    *
    * @param {string} goalDescription - Natural language goal from user
-   * @param {Function} onProgress - (update) => void — streams progress to UI
+   * @param {Function} onProgress - (update) => void - streams progress to UI
    * @returns {Promise<*>}
    */
   async pursue(input, onProgress = () => {}) {

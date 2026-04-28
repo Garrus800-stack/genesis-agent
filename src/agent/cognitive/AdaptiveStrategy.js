@@ -461,21 +461,21 @@ module.exports = { AdaptiveStrategy, BIAS_HYPOTHESES: require('./AdaptiveStrateg
 
 /**
  * @typedef {object} AdaptationRecord
- * @property {string} id              — Unique ID (adapt_<timestamp>)
- * @property {string} type            — 'prompt-mutation' | 'backend-routing' | 'temp-signal'
- * @property {string|null} bias       — Bias ID if prompt-mutation
- * @property {string|null} section    — Prompt section if prompt-mutation
- * @property {string|null} taskType   — Task type if temp-signal
- * @property {string|null} hypothesis — Prompt hypothesis if prompt-mutation
- * @property {string|null} evidence   — Human-readable evidence string
- * @property {string} status          — proposed | applied | validating | confirmed | rolled-back | applied-unvalidated
+ * @property {string} id              - Unique ID (adapt_<timestamp>)
+ * @property {string} type            - 'prompt-mutation' | 'backend-routing' | 'temp-signal'
+ * @property {string|null} bias       - Bias ID if prompt-mutation
+ * @property {string|null} section    - Prompt section if prompt-mutation
+ * @property {string|null} taskType   - Task type if temp-signal
+ * @property {string|null} hypothesis - Prompt hypothesis if prompt-mutation
+ * @property {string|null} evidence   - Human-readable evidence string
+ * @property {string} status          - proposed | applied | validating | confirmed | rolled-back | applied-unvalidated
  * @property {number} proposedAt
  * @property {number|null} appliedAt
  * @property {number|null} validatedAt
  * @property {number|null} baselineScore
  * @property {number|null} postScore
  * @property {number|null} delta
- * @property {Function|null} revert   — Runtime-only revert function (not persisted)
+ * @property {Function|null} revert   - Runtime-only revert function (not persisted)
  */
 
 /**

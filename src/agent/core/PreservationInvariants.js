@@ -238,9 +238,9 @@ class PreservationInvariants {
    * Check all applicable invariants for a file modification.
    * Called by SelfModificationPipeline before writing.
    *
-   * @param {string} filePath — relative or absolute path of the modified file
-   * @param {string} oldCode — current file contents
-   * @param {string} newCode — proposed new contents
+   * @param {string} filePath - relative or absolute path of the modified file
+   * @param {string} oldCode - current file contents
+   * @param {string} newCode - proposed new contents
    * @returns {{ safe: boolean, violations: Array<{invariant: string, description: string, detail?: string}> }}
    */
   check(filePath, oldCode, newCode) {

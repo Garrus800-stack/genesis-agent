@@ -211,6 +211,9 @@ const EVENTS = Object.freeze({
     CIRCUIT_RESET: 'selfmod:circuit-reset',
     /** @payload {{ coherence: number }} */
     CONSCIOUSNESS_BLOCKED: 'selfmod:consciousness-blocked',
+    /** v7.5.1: emitted when SelfModificationPipeline rejects a request because security.allowSelfModify=false in settings */
+    /** @payload {{ message: string }} */
+    SETTINGS_BLOCKED: 'selfmod:settings-blocked',
   }),
 
   // ── Cognitive Monitor ──────────────────────────────────
@@ -535,6 +538,11 @@ const EVENTS = Object.freeze({
     LLM_CLASSIFIED:   'intent:llm-classified',
     LEARNED:          'intent:learned',
     CASCADE_DECISION: 'intent:cascade-decision',  // v7.3.7
+    /** v7.5.1 (N-fix): Intent↔Tool-Coherence layer fires this when the LLM
+     * picks a tool whose category doesn't match the classified intent.
+     * Telemetry-only, never blocks (design parallel to self-gate). */
+    /** @payload {{ kind: string, intent: string, tool: string, category: string, severity: string, note: string, correlationId?: string }} */
+    TOOL_MISMATCH:    'intent:tool-mismatch',
   }),
 
   // ── Knowledge ──────────────────────────────────────────
@@ -565,6 +573,12 @@ const EVENTS = Object.freeze({
     COST_CAP_REACHED: 'llm:cost-cap-reached',
     /** @payload {{ scope: string, pct: number, used: number, limit: number }} */
     COST_WARNING: 'llm:cost-warning',
+    /** v7.5.1: emitted when LLMPort auto-resets the hourly budget after IDLE_RESET_WINDOW_MS of inactivity with exhausted budget */
+    /** @payload {{ reason: string, triggeredBy: string }} */
+    BUDGET_AUTO_RESET: 'llm:budget-auto-reset',
+    /** v7.5.1: emitted when LLMPort.resetBudget() is called explicitly (e.g. via /budget reset) */
+    /** @payload {{ timestamp: string }} */
+    BUDGET_MANUAL_RESET: 'llm:budget-manual-reset',
   }),
 
   // ── COST (v7.4.5 Baustein B) ──────────────────────────

@@ -139,8 +139,8 @@ class TrustLevelSystem {
   /**
    * Check if an action needs user approval.
    *
-   * @param {string} actionType — FormalPlanner action type
-   * @param {object} context — { description, risk, goalId }
+   * @param {string} actionType - FormalPlanner action type
+   * @param {object} context - { description, risk, goalId }
    * @returns {{ approved: boolean, reason: string, needsUserApproval: boolean }}
    */
   checkApproval(actionType, context = {}) {
@@ -191,7 +191,7 @@ class TrustLevelSystem {
 
   /**
    * Set trust level (user action).
-   * @param {number} level — 0-3
+   * @param {number} level - 0-3
    */
   async setLevel(level) {
     if (level < 0 || level > 3) throw new Error(`Invalid trust level: ${level}`);

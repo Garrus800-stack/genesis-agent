@@ -102,7 +102,7 @@ class ColonyOrchestrator {
 
   /**
    * Execute a colony run: decompose goal → distribute → collect → merge.
-   * @param {string} goal — High-level goal description
+   * @param {string} goal - High-level goal description
    * @param {{ files?: string[], context?: string }} [options]
    * @returns {Promise<ColonyRun>}
    */

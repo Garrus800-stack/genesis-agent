@@ -78,8 +78,8 @@ class LocalClassifier {
 
   /**
    * Add a training sample (from LLM fallback observation).
-   * @param {string} text — The user message
-   * @param {string} intent — The LLM-classified intent
+   * @param {string} text - The user message
+   * @param {string} intent - The LLM-classified intent
    */
   addSample(text, intent) {
     if (!text || !intent) return;
@@ -107,7 +107,7 @@ class LocalClassifier {
    * Classify a message using the local TF-IDF model.
    * Returns null if not trained or confidence too low.
    *
-   * @param {string} text — Message to classify
+   * @param {string} text - Message to classify
    * @returns {{ type: string, confidence: number, source: 'local' } | null}
    */
   classify(text) {

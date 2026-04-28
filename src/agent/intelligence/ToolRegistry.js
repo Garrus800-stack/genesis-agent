@@ -328,23 +328,38 @@ ${descriptions.join('\n\n')}`;
       }
     }, 'system');
 
-    // File read (restricted to project root + user-specified paths, blocks sensitive dirs)
+    // ── v7.5.1 (K+L fix): Project-scope boundary helper, shared by file-read
+    // and file-list. Replaces v5.1.0's incomplete block-list approach: previously
+    // anything not on a hand-curated "sensitive paths" list (e.g. /etc/passwd,
+    // /var/log/auth.log) was readable. Now: default-deny outside rootDir, plus
+    // a small in-project blacklist for secret-file conventions (.env, *.pem, *.key).
+    //
+    // Returns { ok: true, abs } on accept, { ok: false, error } on reject.
+    const _resolveProjectPath = (relOrAbs) => {
+      const projectRoot = path.resolve(rootDir);
+      const abs = path.resolve(rootDir, relOrAbs || '');
+      const inProject = abs === projectRoot || abs.startsWith(projectRoot + path.sep);
+      if (!inProject) {
+        return { ok: false, error: '[SAFEGUARD] Path outside project root blocked' };
+      }
+      // In-project secret-file blacklist. Match basename only — files like
+      // src/config/env-helper.js or main.key-handler.js stay readable.
+      const base = path.basename(abs);
+      if (/^\.env(\..+)?$/i.test(base) || /\.(pem|key)$/i.test(base)) {
+        return { ok: false, error: '[SAFEGUARD] Secret file blocked: ' + base };
+      }
+      return { ok: true, abs };
+    };
+
+    // File read (project scope only, with secret-file blacklist)
     this.register('file-read', {
-      description: 'Read a file from the filesystem (text, project scope or non-sensitive paths only)',
+      description: 'Read a file from the filesystem (project scope only). Files outside the project root and secret files (.env, .pem, .key) are blocked.',
       input: { path: 'string', maxBytes: 'number?' },
       output: { content: 'string', size: 'number', exists: 'boolean' },
     }, (input) => {
-      const filePath = path.resolve(rootDir, input.path);
-      // Block sensitive directories — but always allow reads within rootDir (project scope)
-      // FIX v5.1.0: On Windows, os.tmpdir() is under AppData\Local\Temp which
-      // the old regex blocked. rootDir paths are always safe — they ARE the project.
-      const inProject = filePath.startsWith(path.resolve(rootDir) + path.sep) || filePath === path.resolve(rootDir);
-      if (!inProject) {
-        const blocked = /[/\\](?:\.ssh|\.gnupg|\.aws|\.config|\.env|\.git[/\\]|node_modules[/\\]\.cache|AppData[/\\]|\.mozilla|\.chrome)/i;
-        if (blocked.test(filePath)) {
-          return { content: '', size: 0, exists: false, error: '[SAFEGUARD] Read access to sensitive path blocked' };
-        }
-      }
+      const r = _resolveProjectPath(input.path);
+      if (!r.ok) return { content: '', size: 0, exists: false, error: r.error };
+      const filePath = r.abs;
       if (!fs.existsSync(filePath)) return { content: '', size: 0, exists: false };
       const stat = fs.statSync(filePath);
       if (stat.isDirectory()) return { content: '', size: 0, exists: true, error: 'Path is a directory' };
@@ -354,12 +369,19 @@ ${descriptions.join('\n\n')}`;
     }, 'system');
 
     // FIX v6.1.1: Open file in the Genesis editor panel
+    // v7.5.1.x: migrated to _resolveProjectPath helper to close the
+    // path-traversal gap that was already fixed in file-read / file-list.
+    // Without this guard, open-in-editor({path:'/etc/passwd'}) would
+    // resolve absolute, read 200KB and emit them onto the editor:open
+    // channel — same bug class as the v7.5.1 file-read fix.
     this.register('open-in-editor', {
-      description: 'Open a file in the Genesis code editor for viewing and editing',
+      description: 'Open a file in the Genesis code editor for viewing and editing (project scope only).',
       input: { path: 'string' },
       output: { opened: 'boolean' },
     }, (input) => {
-      const filePath = path.resolve(rootDir, input.path);
+      const r = _resolveProjectPath(input.path);
+      if (!r.ok) return { opened: false, error: r.error };
+      const filePath = r.abs;
       if (!fs.existsSync(filePath)) return { opened: false, error: 'File not found' };
       if (fs.statSync(filePath).isDirectory()) return { opened: false, error: 'Path is a directory' };
       const content = fs.readFileSync(filePath, 'utf-8').slice(0, 200000);
@@ -389,13 +411,15 @@ ${descriptions.join('\n\n')}`;
       }
     }, 'system');
 
-    // File list
+    // File list (v7.5.1 fix: project scope only via shared helper)
     this.register('file-list', {
-      description: 'List files in a directory',
+      description: 'List files in a directory (project scope only). Directories outside the project root are blocked.',
       input: { dir: 'string?', pattern: 'string?' },
       output: { files: 'array' },
     }, (input) => {
-      const dir = path.resolve(rootDir, input.dir || '.');
+      const r = _resolveProjectPath(input.dir || '.');
+      if (!r.ok) return { files: [], error: r.error };
+      const dir = r.abs;
       if (!fs.existsSync(dir)) return { files: [] };
       const entries = fs.readdirSync(dir, { withFileTypes: true });
       const files = entries.map(e => ({

@@ -60,7 +60,7 @@ class SelfSpawner {
   /**
    * Spawn a worker for a sub-task.
    *
-   * @param {object} task — { description, type, context, timeoutMs }
+   * @param {object} task - { description, type, context, timeoutMs }
    * @returns {Promise<object>}
    */
   async spawn(task) {
@@ -178,7 +178,7 @@ class SelfSpawner {
 
   /**
    * Spawn multiple workers in parallel and collect results.
-   * @param {Array} tasks — [{ description, type, context }]
+   * @param {Array} tasks - [{ description, type, context }]
    * @returns {Promise<Array>} results
    */
   async spawnParallel(tasks) {

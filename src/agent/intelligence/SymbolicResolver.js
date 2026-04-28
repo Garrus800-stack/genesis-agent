@@ -98,7 +98,7 @@ class SymbolicResolver {
   /**
    * Attempt to resolve a step without (or with reduced) LLM usage.
    *
-   * @param {string} stepType    — ANALYZE, CODE, SHELL, etc.
+   * @param {string} stepType    - ANALYZE, CODE, SHELL, etc.
    * @param {string} description - Step description from FormalPlanner
    * @param {string} [target]    - Target file or command
    * @param {object} [context]   - Additional context { model, error, goalId }
@@ -198,9 +198,9 @@ class SymbolicResolver {
    * Record the outcome of a symbolic resolution.
    * Feeds back into LessonsStore confidence.
    *
-   * @param {string} level    — 'direct' or 'guided'
-   * @param {string} lessonId — The lesson that was used
-   * @param {boolean} success — Did it work?
+   * @param {string} level    - 'direct' or 'guided'
+   * @param {string} lessonId - The lesson that was used
+   * @param {boolean} success - Did it work?
    */
   recordOutcome(level, lessonId, success) {
     if (level === LEVEL.DIRECT) {

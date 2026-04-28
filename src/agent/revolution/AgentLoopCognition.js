@@ -156,7 +156,7 @@ class AgentLoopCognitionDelegate {
   /**
    * v7.1.7: Correlate lessons recalled during prompt-build with step outcome.
    * Called at the start of postStep() — lessons were collected during preExecute→step.
-   * @param {object} result — Step execution result
+   * @param {object} result - Step execution result
    */
   _correlateLessons(result) {
     const lessons = this._stepRecalledLessons;

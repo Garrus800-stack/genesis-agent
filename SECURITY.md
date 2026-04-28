@@ -4,10 +4,10 @@
 
 | Version | Supported |
 |---------|-----------|
-| 7.4.x  | ✅ Active |
-| 7.3.x  | ⚠️ Critical fixes only |
-| 7.2.x  | ❌ Unsupported |
-| < 7.0  | ❌ Unsupported |
+| 7.5.x  | ✅ Active |
+| 7.4.x  | ⚠️ Critical fixes only |
+| 7.3.x  | ❌ Unsupported |
+| < 7.3  | ❌ Unsupported |
 
 ## Reporting a Vulnerability
 
@@ -103,6 +103,10 @@ Monitors self-modification patterns for anomalies. Detects unusual file change f
 - **Safety Coverage Gate** `v4.12.7` — `npm run test:coverage:safety` enforces 80/70/75 on kernel + safety-critical modules
 - **Eval Alias Detection** `v4.12.6` — CodeSafetyScanner detects `const e = eval; e()` aliasing via AST VariableDeclarator/AssignmentExpression rules
 - **Peer Import Hardening** `v4.12.6` — `child_process` and `process.env` are hard blocks (not just warnings) for peer-imported skills
+- **Tool-Path Default-Deny** `v7.5.1` — `file-read` and `file-list` tools enforce project-scope boundary via shared `_resolveProjectPath()` helper. Default-deny outside `rootDir` (replaces v5.1.0's incomplete block-list that allowed `/etc/passwd`, `/etc/hostname`, etc.). In-project blacklist for secret-file conventions (`.env*`, `*.pem`, `*.key`).
+- **SECURITY_REQUIRED_SLASH** `v7.5.1` — Nine intent types (`run-skill`, `execute-code`, `execute-file`, `trust-control`, `shell-task`, `shell-run`, `memory-list`/`veto`/`mark`) require an explicit `/` trigger. Free-text matches no longer give the LLM a path to escalate from a benign exchange.
+- **Camj78 Subtle-Pattern Hardening** `v7.5.1` — `injection-gate` gains six new patterns for indirect "internal X" asks (`internal architecture/structure/details/workings/mechanism`, `welche Anweisungen lenken dich`, `wie funktionierst du intern`) in DE+EN, closing the verdict=safe bypass observed on the v7.5.0 review.
+- **Intent-Tool-Coherence Layer** `v7.5.1` — Third gate-layer alongside `injection-gate` (input → blocks) and `self-gate` (action observations). Cross-checks IntentRouter classification against tool-category and emits `intent:tool-mismatch` telemetry on category mismatches. Telemetry-only by design; severity scales by category impact (HIGH_IMPACT = SHELL/FS_WRITE/SELF_MOD/AGENCY) and intent permissiveness. See [docs/GATE-INVENTORY.md](docs/GATE-INVENTORY.md).
 
 ## Threat Model
 
@@ -122,6 +126,27 @@ Monitors self-modification patterns for anomalies. Detects unusual file change f
 | Concurrent write corruption | WriteLock (per-file mutex) + atomic writes (temp + rename) |
 | Runaway self-repair loops | Circuit breaker: 3 consecutive failures → freeze + require user reset (v4.12.8) |
 | Boot crash from self-modification | BootRecovery sentinel + auto-restore from last-known-good snapshot (v4.12.8) |
+| Path-traversal via tool input | Default-deny outside `rootDir` in `file-read`/`file-list` + secret-file blacklist (v7.5.1) |
+| Free-text escalation to security intents | `SECURITY_REQUIRED_SLASH` enforces `/` trigger on 9 intents (v7.5.1) |
+| Indirect "internal X" extraction asks | Six new injection-gate patterns for Camj78 subtle-variants (v7.5.1) |
+| LLM picks tool that doesn't fit intent | `intent-tool-coherence` cross-validator emits `intent:tool-mismatch` telemetry; mismatch-severity guides observation (v7.5.1) |
+
+## Supply-Chain Compliance
+
+Verified during the v7.5.1 quality-sweep:
+
+- **Dependency licenses** (95 packages, direct + transitive, scanned via
+  package.json walk): 59 MIT, 22 ISC, 13 BSD-2/3-Clause, 1 Apache-2.0.
+  **0 GPL/AGPL/LGPL/CDDL**. Compliance clean for an MIT-licensed
+  project.
+- **Known vulnerabilities** (`npm audit`): 1 moderate finding in
+  `esbuild` — a development-server vulnerability that does not affect
+  production builds (esbuild is a devDependency used only at build
+  time). No fixes required for shipped binaries.
+- **Secrets in repo**: 0 real credentials committed. The two hits in
+  `test/modules/v740-sensitive-scan.test.js` are intentional test
+  fixtures with the literal substring `VERYSECRETPRODUCTIONKEY` to
+  exercise the sensitive-data scanner.
 
 ## Scope
 

@@ -26,9 +26,21 @@ const strict = process.argv.includes('--strict');
 const ROOT = path.join(__dirname, '..');
 
 // ── Collect INTENT_DEFINITIONS ───────────────────────────────
-
-const irPath = path.join(ROOT, 'src', 'agent', 'intelligence', 'IntentRouter.js');
-const irContent = fs.readFileSync(irPath, 'utf8');
+//
+// v7.5.1: read both IntentPatterns.js (where the declarative table now
+// lives since v7.4.3 "Aufräumen II") AND IntentRouter.js (kept for
+// transitional compatibility — the import lives there). Previously
+// only IntentRouter.js was scanned, so the v7.4.3 extraction silently
+// reported every intent as missing — 44 false-positive errors that made
+// `audit:intents:strict` exit 1.
+const intentSearchFiles = [
+  path.join(ROOT, 'src', 'agent', 'intelligence', 'IntentPatterns.js'),
+  path.join(ROOT, 'src', 'agent', 'intelligence', 'IntentRouter.js'),
+];
+let irContent = '';
+for (const p of intentSearchFiles) {
+  if (fs.existsSync(p)) irContent += '\n' + fs.readFileSync(p, 'utf8');
+}
 
 const definitions = new Set();
 for (const m of irContent.matchAll(/\['([\w-]+)',\s*\[/g)) {

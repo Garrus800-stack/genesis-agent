@@ -148,8 +148,8 @@ function normalizeStepType(rawType) {
  * types the current body-schema says are unavailable.
  *
  * @param {object} [options]
- * @param {boolean} [options.canExecuteCode=true] — if false, SANDBOX and SHELL are hidden
- * @param {boolean} [options.canDelegate=false]   — if true, DELEGATE is listed
+ * @param {boolean} [options.canExecuteCode=true] - if false, SANDBOX and SHELL are hidden
+ * @param {boolean} [options.canDelegate=false]   - if true, DELEGATE is listed
  * @returns {string}
  */
 function buildPlannerStepTypeList({ canExecuteCode = true, canDelegate = false } = {}) {

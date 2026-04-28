@@ -258,6 +258,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (status.state === 'ready' && !agentReady) onAgentReady(status);
   });
 
+  // v7.5.1 (C-fix): GoalDriver fires 'ui:resume-prompt' via the bus, AgentCoreWire
+  // bridges it to this IPC channel. Render as an inline system message so the
+  // user sees that a paused goal needs a decision (resume / discard).
+  // Schema: { goalId, title?, currentStep?, totalSteps?, lastUpdated?, reason? }
+  window.genesis.on('ui:resume-prompt', (data) => {
+    if (!data || !data.goalId) return;
+    try {
+      const title = data.title || data.goalId;
+      const progress = (data.currentStep != null && data.totalSteps != null)
+        ? ` (Step ${data.currentStep}/${data.totalSteps})`
+        : '';
+      const reason = data.reason ? ` — ${data.reason}` : '';
+      addMessage('agent', `🟡 Goal "${title}"${progress} is paused and awaiting decision${reason}. Use /goal resume ${data.goalId} or /goal discard ${data.goalId}.`, 'system');
+    } catch (err) {
+      console.warn('[UI] Failed to render resume-prompt:', err.message);
+    }
+  });
+
   // Proactive readiness check
   window.genesis.invoke('agent:get-health').then((health) => {
     if (health && !agentReady) {

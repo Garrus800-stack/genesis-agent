@@ -437,7 +437,7 @@ function fakeIntervals() {
   // ── 7. v7.4.5.fix #19: idempotency guard against double-counting
   // when both event-handler and resolve-side call _applyFailurePause
   // for the same failure (race fix).
-  await test('GoalDriver: _applyFailurePause idempotent within 50ms (no double-count)', async () => {
+  await test('GoalDriver: _applyFailurePause idempotent within 500ms (no double-count)', async () => {
     const bus = new EventBus({ verbose: false });
     const goals = [{
       id: 'gIDP', description: 'race goal', source: 'user', status: 'active',
@@ -452,7 +452,8 @@ function fakeIntervals() {
       goalPersistence: { resume: async () => {} },
     });
     // Simulate event-handler and resolve-side both calling for same
-    // failure, in quick succession (< 50ms apart).
+    // failure, in quick succession (< 500ms apart). v7.5.1 raised
+    // window from 50ms to 500ms to survive loaded-system jitter.
     await driver._applyFailurePause('gIDP', '[LLM] Rate limited', goals[0]);
     await driver._applyFailurePause('gIDP', '[LLM] Rate limited', goals[0]);
     // Pause map should have entry; but failureBurst should NOT count
@@ -468,7 +469,7 @@ function fakeIntervals() {
     await driver2._applyFailurePause('gIDP2', 'Some generic error', { description: 'x' });
     await driver2._applyFailurePause('gIDP2', 'Some generic error', { description: 'x' });
     const burst = driver2._failureBurst.get('gIDP2');
-    assert(burst && burst.count === 1, `double-call within 50ms should yield count=1, got count=${burst?.count}`);
+    assert(burst && burst.count === 1, `double-call within 500ms should yield count=1, got count=${burst?.count}`);
     driver.stop();
     driver2.stop();
   });

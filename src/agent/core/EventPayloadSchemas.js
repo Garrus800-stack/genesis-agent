@@ -149,12 +149,16 @@ const SCHEMAS = {
   // v5.7.0: Previously unschema'd events
   // Intent
   'intent:classified':       { type: 'required', confidence: 'optional' },
+  // v7.5.1 (N-fix): Intent-Tool-Coherence telemetry
+  'intent:tool-mismatch':    { kind: 'required', intent: 'required', tool: 'required', category: 'required', severity: 'required', note: 'required', correlationId: 'optional' },
 
   // Surprise
   'surprise:novel-event':    { summary: 'required' },
 
   // Self-Modification
   'selfmod:success':         { file: 'required' },
+  // v7.5.1: emitted from SelfModificationPipelineModify when settings.security.allowSelfModify=false
+  'selfmod:settings-blocked': { message: 'optional' },
 
   // Daemon
   'daemon:skill-created':    { skill: 'required', reason: 'required' },
@@ -505,6 +509,9 @@ const SCHEMAS = {
   'llm:call-error':         { error: 'required' },
   'llm:rate-limited':       { model: 'optional' },
   'llm:budget-warning':     { usage: 'optional' },
+  // v7.5.1: emitted from LLMPort, subscribed by GoalDriver
+  'llm:budget-auto-reset':   { reason: 'required', triggeredBy: 'required' },
+  'llm:budget-manual-reset': { timestamp: 'required' },
 
   // COST (v7.4.5 Baustein B)
   'cost:recorded':          {

@@ -58,15 +58,22 @@ export interface Container {
   register(name: string, factory: (container: Container) => any, options?: RegisterOptions): void;
   registerInstance(name: string, instance: any, options?: Partial<RegisterOptions>): void;
   resolve<T = any>(name: string): T;
+  tryResolve<T = any>(name: string): T | null;
   has(name: string): boolean;
+  alias(alias: string, primary: string): void;
   replace(name: string, newFactory: (container: Container) => any): any;
   getTagged(tag: string): Array<{ name: string; instance: any }>;
   getDependencyGraph(): Record<string, { deps: string[]; tags: string[]; singleton: boolean; phase: number; resolved: boolean; lateBindings: string[] }>;
-  wireLateBindings(): { wired: number; skipped: number; errors: string[] };
+  wireLateBindings(): { wired: number; skipped: number; errors: string[]; contractViolations?: any[]; expectedMissing?: any[]; report?: any };
   verifyLateBindings(): { verified: number; missing: string[]; total: number };
   bootAll(): Promise<Array<{ name: string; status: string; error?: string }>>;
   postBoot(): Promise<string[]>;
   shutdownAll(): Promise<void>;
+  // v7.4.3 Baustein B: prototype-delegated to ContainerDiagnostics.js
+  validateRegistrations(): { valid: boolean; issues: any[] };
+  // Internal collections (read-only access via boot/health/diagnostics)
+  readonly registrations: Map<string, any>;
+  readonly resolved: Map<string, any>;
 }
 
 // ── WriteLock ────────────────────────────────────────────────

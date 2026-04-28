@@ -293,7 +293,9 @@ class ChatOrchestrator {
       if (tail) onChunk(tail);
 
       // Multi-round tool execution loop
-      fullResponse = await _h._processToolLoop(fullResponse, onChunk, message);
+      // v7.5.1: pass intent.type so intent-tool-coherence can cross-check
+      // tool-category against the IntentRouter classification.
+      fullResponse = await _h._processToolLoop(fullResponse, onChunk, message, intent.type);
 
       this.history.push({ role: 'assistant', content: fullResponse });
       this._saveHistory();

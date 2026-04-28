@@ -474,13 +474,13 @@ module.exports = { CognitiveSelfModel, wilsonLower, BIAS_DETECTORS };
 
 /**
  * @typedef {object} CapabilityEntry
- * @property {number} successRate       — Raw success rate (0-1)
- * @property {number} confidenceLower   — Wilson lower bound (conservative)
+ * @property {number} successRate       - Raw success rate (0-1)
+ * @property {number} confidenceLower   - Wilson lower bound (conservative)
  * @property {number} sampleSize
  * @property {number} avgTokenCost
  * @property {number} avgDurationMs
- * @property {boolean} isWeak           — confidence < 60% with ≥3 samples
- * @property {boolean} isStrong         — confidence > 80% with ≥5 samples
+ * @property {boolean} isWeak           - confidence < 60% with ≥3 samples
+ * @property {boolean} isStrong         - confidence > 80% with ≥5 samples
  * @property {Array<{category: string, count: number}>} topErrors
  */
 
@@ -495,15 +495,15 @@ module.exports = { CognitiveSelfModel, wilsonLower, BIAS_DETECTORS };
  * @typedef {object} BiasReport
  * @property {string} name
  * @property {string} description
- * @property {string} severity   — 'low' | 'medium' | 'high'
+ * @property {string} severity   - 'low' | 'medium' | 'high'
  * @property {string} evidence
  */
 
 /**
  * @typedef {object} ConfidenceReport
  * @property {string} taskType
- * @property {string} confidence — 'low' | 'medium' | 'high' | 'unknown'
- * @property {number} level      — Wilson lower bound (0-1)
+ * @property {string} confidence - 'low' | 'medium' | 'high' | 'unknown'
+ * @property {number} level      - Wilson lower bound (0-1)
  * @property {string[]} risks
  * @property {string} recommendation
  */

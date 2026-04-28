@@ -38,14 +38,14 @@ const { createLogger } = require('../core/Logger');
 class FrontierWriter {
   /**
    * @param {object} config
-   * @param {string} config.name            — Service name (e.g. 'unfinishedWork')
-   * @param {string} config.edgeType        — KG edge relation (e.g. 'UNFINISHED_WORK')
-   * @param {number} [config.decayFactor]   — Per-boot decay (default 0.6)
-   * @param {number} [config.maxImprints]   — Max frontier nodes (default 5)
-   * @param {number} [config.pruneThreshold]— Remove edges below this weight (default 0.05)
-   * @param {number} [config.cacheTtlMs]    — getRecent() cache TTL (default 5 min)
-   * @param {Function} config.extractFn     — (context) => props | null
-   * @param {Function} [config.mergeFn]     — (existingProps, incomingProps) => mergedProps | null
+   * @param {string} config.name            - Service name (e.g. 'unfinishedWork')
+   * @param {string} config.edgeType        - KG edge relation (e.g. 'UNFINISHED_WORK')
+   * @param {number} [config.decayFactor]   - Per-boot decay (default 0.6)
+   * @param {number} [config.maxImprints]   - Max frontier nodes (default 5)
+   * @param {number} [config.pruneThreshold]- Remove edges below this weight (default 0.05)
+   * @param {number} [config.cacheTtlMs]    - getRecent() cache TTL (default 5 min)
+   * @param {Function} config.extractFn     - (context) => props | null
+   * @param {Function} [config.mergeFn]     - (existingProps, incomingProps) => mergedProps | null
    * @param {object} deps
    * @param {*} deps.bus
    * @param {*} deps.knowledgeGraph
@@ -90,9 +90,9 @@ class FrontierWriter {
   /**
    * Extract data from context and write a frontier node.
    *
-   * @param {string} sessionId — Current session identifier
-   * @param {object} context   — Passed to extractFn
-   * @returns {object|null}    — Written properties or null if skipped
+   * @param {string} sessionId - Current session identifier
+   * @param {object} context   - Passed to extractFn
+   * @returns {object|null}    - Written properties or null if skipped
    */
   write(sessionId, context) {
     if (!this._kg) return null;
@@ -158,8 +158,8 @@ class FrontierWriter {
    * Attempt to merge incoming props with an existing frontier node.
    * Only called when mergeFn is defined.
    *
-   * @param {object} incoming — New properties to potentially merge
-   * @returns {object|null}   — Merged properties, or null if no merge candidate
+   * @param {object} incoming - New properties to potentially merge
+   * @returns {object|null}   - Merged properties, or null if no merge candidate
    */
   _tryMerge(incoming) {
     const edges = this._getActiveEdges();
@@ -231,8 +231,8 @@ class FrontierWriter {
    * Cache always fetches CACHE_PREFETCH nodes to avoid misses
    * when callers vary count between calls.
    *
-   * @param {number} count — Max nodes to return (default 3)
-   * @returns {Array<object>} — Node properties + weight + label
+   * @param {number} count - Max nodes to return (default 3)
+   * @returns {Array<object>} - Node properties + weight + label
    */
   getRecent(count = 3) {
     if (this._cache && (Date.now() - this._cacheTs) < this._cacheTtlMs) {
@@ -276,8 +276,8 @@ class FrontierWriter {
   /**
    * Build a prompt context string for PromptBuilder.
    *
-   * @param {number} maxChars — Budget for this section (default 400)
-   * @returns {string} — Formatted section or empty string
+   * @param {number} maxChars - Budget for this section (default 400)
+   * @returns {string} - Formatted section or empty string
    */
   buildPromptContext(maxChars = 400) {
     const items = this.getRecent(3);
@@ -312,7 +312,7 @@ class FrontierWriter {
 
   /**
    * Format a single item for the prompt.
-   * @param {object} item — Node properties + weight
+   * @param {object} item - Node properties + weight
    * @returns {string}
    */
   _promptLine(item) {
@@ -357,10 +357,10 @@ class FrontierWriter {
    * and writes at a trigger event. Replaces closure-based buffers in
    * manifests — buffer lifecycle is now owned by the writer instance.
    *
-   * @param {string} collectEvent  — Event to buffer (e.g. 'surprise:novel-event')
-   * @param {string} triggerEvent  — Event that triggers write (e.g. 'session:ending')
-   * @param {string} contextKey    — Key to wrap buffer under (e.g. 'novelEvents')
-   * @param {number} [maxSize=200] — Max buffer size (oldest evicted on overflow)
+   * @param {string} collectEvent  - Event to buffer (e.g. 'surprise:novel-event')
+   * @param {string} triggerEvent  - Event that triggers write (e.g. 'session:ending')
+   * @param {string} contextKey    - Key to wrap buffer under (e.g. 'novelEvents')
+   * @param {number} [maxSize=200] - Max buffer size (oldest evicted on overflow)
    */
   enableEventBuffer(collectEvent, triggerEvent, contextKey, maxSize = 200) {
     this._eventBuffer = [];

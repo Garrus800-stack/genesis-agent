@@ -48,12 +48,12 @@ class AnthropicBackend {
   }
 
   /** Non-streaming chat */
-  async chat(systemPrompt, messages, temperature, modelName) {
+  async chat(systemPrompt, messages, temperature, modelName, maxTokens) {
     if (!this.apiKey) throw new Error('Anthropic API key not configured');
 
     const body = {
       model: modelName || this.defaultModel,
-      max_tokens: 4096,
+      max_tokens: maxTokens || 4096,
       system: systemPrompt || undefined,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
       temperature,
@@ -68,12 +68,12 @@ class AnthropicBackend {
   }
 
   /** Streaming chat — calls onChunk(text) for each token */
-  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName) {
+  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens) {
     if (!this.apiKey) throw new Error('Anthropic API key not configured');
 
     const body = {
       model: modelName || this.defaultModel,
-      max_tokens: 4096,
+      max_tokens: maxTokens || 4096,
       stream: true,
       system: systemPrompt || undefined,
       messages: messages.map(m => ({ role: m.role, content: m.content })),

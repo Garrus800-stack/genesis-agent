@@ -71,7 +71,7 @@ function _unsubAll() {
  *
  * @param {Function} TargetClass
  * @param {object}   [options]
- * @param {string}   [options.defaultSource] — if set, every _sub() call
+ * @param {string}   [options.defaultSource] - if set, every _sub() call
  *   that omits an opts.source will automatically tag with this name.
  *   Preserves the common pattern where a service annotates all its
  *   subscriptions with its own class name for EventBus stats.

@@ -87,7 +87,7 @@ class EffectorRegistry {
 
   /**
    * Register an effector.
-   * @param {object} effector — { name, description, risk, schema, execute, verify?, rollback? }
+   * @param {object} effector - { name, description, risk, schema, execute, verify?, rollback? }
    */
   register(effector) {
     if (!effector.name || !effector.execute) {
@@ -112,9 +112,9 @@ class EffectorRegistry {
 
   /**
    * Execute an effector.
-   * @param {string} name — Effector name
-   * @param {object} params — Input parameters
-   * @param {object} context — { goalId, stepIndex, approval }
+   * @param {string} name - Effector name
+   * @param {object} params - Input parameters
+   * @param {object} context - { goalId, stepIndex, approval }
    * @returns {Promise<*>}
    */
   async execute(name, params = {}, context = {}) {

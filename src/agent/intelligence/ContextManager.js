@@ -120,7 +120,7 @@ class ContextManager {
    * summarization when available. Falls back to sync build() otherwise.
    * v5.9.7: Called by ChatOrchestrator when compressor is wired.
    *
-   * @param {object} params — same as build()
+   * @param {object} params - same as build()
    * @returns {Promise<{ system: string, messages: Array, stats: object }>}
    */
   async buildAsync(params) {

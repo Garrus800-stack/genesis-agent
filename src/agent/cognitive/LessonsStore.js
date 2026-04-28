@@ -285,8 +285,8 @@ class LessonsStore {
    * Called by SessionPersistence at boot from LESSON_APPLIED frontier data.
    * Boosted lessons score higher in the next recall() until natural decay.
    *
-   * @param {string[]} lessonIds — IDs of lessons to boost
-   * @returns {number} — Number of lessons found and boosted
+   * @param {string[]} lessonIds - IDs of lessons to boost
+   * @returns {number} - Number of lessons found and boosted
    */
   boostRecent(lessonIds) {
     if (!lessonIds || lessonIds.length === 0) return 0;
@@ -307,8 +307,8 @@ class LessonsStore {
    * Update a lesson's confidence based on outcome feedback.
    * Public API for SymbolicResolver and other consumers.
    *
-   * @param {string} lessonId  — Lesson to update
-   * @param {boolean} success  — Whether the lesson application succeeded
+   * @param {string} lessonId  - Lesson to update
+   * @param {boolean} success  - Whether the lesson application succeeded
    * @param {{ confBoost?: number, confPenalty?: number }} [opts]
    * @returns {boolean} Whether the lesson was found and updated
    */

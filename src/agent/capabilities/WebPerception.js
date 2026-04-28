@@ -75,8 +75,8 @@ class WebPerception {
 
   /**
    * Fetch and parse a web page.
-   * @param {string} url — Full URL to fetch
-   * @param {object} options — { headless, selector, maxLength }
+   * @param {string} url - Full URL to fetch
+   * @param {object} options - { headless, selector, maxLength }
    * @returns {Promise<*>}
    */
   async fetch(url, options = {}) {
@@ -153,7 +153,7 @@ class WebPerception {
    * Extract specific data from a page using CSS selectors.
    * Requires cheerio.
    * @param {string} url
-   * @param {object} selectors — { title: 'h1', items: '.item', ... }
+   * @param {object} selectors - { title: 'h1', items: '.item', ... }
    * @returns {Promise<*>}
    */
   async extract(url, selectors) {

@@ -268,7 +268,7 @@ module.exports = { QuickBenchmark, THRESHOLDS };
 
 /**
  * @typedef {object} BenchmarkResult
- * @property {number} successRate    — 0-1
+ * @property {number} successRate    - 0-1
  * @property {number} passed
  * @property {number} total
  * @property {Array<{name: string, success: boolean, latencyMs: number, tokenEstimate: number}>} tasks
@@ -278,7 +278,7 @@ module.exports = { QuickBenchmark, THRESHOLDS };
 /**
  * @typedef {object} ValidationVerdict
  * @property {'confirm'|'rollback'|'inconclusive'} decision
- * @property {number} delta           — Percentage point change
+ * @property {number} delta           - Percentage point change
  * @property {'high'|'low'} confidence
  * @property {string} reason
  */

@@ -36,8 +36,8 @@ const VALID_VERDICTS = new Set(['pass', 'block', 'warn']);
 class GateStats {
   /**
    * @param {object} [opts]
-   * @param {Object<string, number>} [opts.sampleRates] — gate name → 1/N sampling
-   * @param {Function} [opts.nowFn] — injectable clock for tests
+   * @param {Object<string, number>} [opts.sampleRates] - gate name → 1/N sampling
+   * @param {Function} [opts.nowFn] - injectable clock for tests
    */
   constructor(opts = {}) {
     this._counters = new Map();
@@ -49,9 +49,9 @@ class GateStats {
 
   /**
    * Record one gate decision.
-   * @param {string} name — stable identifier, e.g. 'injection-gate', 'self-mod:safety'
+   * @param {string} name - stable identifier, e.g. 'injection-gate', 'self-mod:safety'
    * @param {'pass'|'block'|'warn'} verdict
-   * @param {object} [meta] — optional details (not stored, used for future hooks)
+   * @param {object} [meta] - optional details (not stored, used for future hooks)
    */
   recordGate(name, verdict, _meta) {
     if (typeof name !== 'string' || name.length === 0) return;

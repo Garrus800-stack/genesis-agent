@@ -1,14 +1,15 @@
 // ============================================================
-// GENESIS AGENT — preload.js (KERNEL — IMMUTABLE)
+// GENESIS AGENT — preload.js (KERNEL — CJS FALLBACK)
 // Secure bridge. Only exposes whitelisted channels.
 //
-// v4.10.0: CJS fallback for Electron builds where ESM preload
-// (.mjs) fails with "Cannot use import statement outside a module".
-// This happens on some Electron 33.x Windows builds.
-//
-// Security: contextIsolation:true is the primary security boundary.
-// sandbox:false is required for CJS preload (require() needed),
-// but contextIsolation prevents renderer from accessing Node APIs.
+// v7.5.1.x: CJS counterpart to preload.mjs. Both files MUST be
+// kept in sync — same channels, same validation logic. The CJS
+// version is used as Tier 3 fallback on Windows + Electron 33,
+// where ESM preload reliably fails with "Cannot use import
+// statement outside a module" in the sandboxed renderer.
+// Tier 1 (ESM) is preferred when supported; Tier 2 (bundled)
+// is preferred when esbuild has produced dist/preload.js;
+// Tier 3 (this file) keeps the agent functional everywhere.
 // ============================================================
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -62,13 +63,12 @@ const ALLOWED_INVOKE = [
   'agent:get-selfmodel-report',
   // v6.1.0: Self-modification gate statistics
   'agent:get-gate-stats',
-  // v6.0.0 (V6-7): MemoryConsolidator
+  // v6.0.0: Memory consolidation + Replay
   'agent:get-consolidation-report',
   'agent:trigger-consolidation',
-  // v6.0.0 (V6-8): TaskRecorder
   'agent:get-replay-report',
   'agent:get-replay-diff',
-  // v6.0.1: CostGuard, Backup, CrashLog, AutoUpdater
+  // v6.0.1: Safety infrastructure
   'agent:get-cost-budget',
   'agent:export-data',
   'agent:import-data',
@@ -106,11 +106,10 @@ const ALLOWED_RECEIVE = [
   'agent:loop-approval-needed',
   // v7.4.7: Settings toggle confirmation messages
   'agent:chat-system-message',
-  // v7.4.5: GoalDriver events
-  'goal:driver-pickup',
-  'goal:resumed-auto',
-  'goal:discarded',
-  'driver:unresponsive',
+  // v7.4.5: GoalDriver resume-prompt (only event with UI-anchored schema; the
+  // 4 sibling telemetry events — goal:driver-pickup / goal:resumed-auto /
+  // goal:discarded / driver:unresponsive — were removed in v7.5.1 because
+  // they had no UI consumer; they remain backend-only telemetry on the bus)
   'ui:resume-prompt',
 ];
 

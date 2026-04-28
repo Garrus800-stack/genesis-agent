@@ -85,7 +85,7 @@ class SkillRegistry {
    *   - Direct tarball/zip URL
    *   - npm package: npm:<package-name>
    *
-   * @param {string} source — URL or npm:<name>
+   * @param {string} source - URL or npm:<name>
    * @returns {Promise<InstallResult>}
    */
   async install(source) {

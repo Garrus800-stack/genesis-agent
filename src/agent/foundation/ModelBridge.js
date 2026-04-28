@@ -376,12 +376,48 @@ class ModelBridge {
 
   // ════════════════════════════════════════════════════════
   // CHAT (non-streaming)
+  //
+  // v7.5.1: two call shapes accepted.
+  //   POSITIONAL (canonical):
+  //     chat(systemPrompt: string, messages: Array, taskType?: string, options?: object)
+  //   OBJECT-FORM (compatibility adapter):
+  //     chat({ messages, systemPrompt?, taskType?, maxTokens?, temperature?, ... })
+  //
+  // Background: WakeUpRoutine, DreamCyclePhases, CoreMemories were
+  // written against object-form before it was supported. Their calls
+  // reached _dispatchChat with `systemPrompt = {messages, maxTokens,
+  // temperature}` - backends rejected that with HTTP 400 or returned
+  // garbage. Errors were swallowed by the callers' try/catch so the
+  // LLM-path silently fell back to stubs (re-entry stub on boot,
+  // dream-judgment 'keep' default, memory-classify 'other'). Visible
+  // symptom: those features never actually ran the LLM.
+  //
+  // The adapter normalises object-form to positional. Per-call
+  // maxTokens / temperature overrides are now honoured via options.
   // ════════════════════════════════════════════════════════
 
   async chat(systemPrompt, messages = [], taskType = 'chat', options = {}) {
+    // v7.5.1: object-form adapter
+    if (systemPrompt && typeof systemPrompt === 'object' && !Array.isArray(systemPrompt)) {
+      const arg = systemPrompt;
+      systemPrompt = typeof arg.systemPrompt === 'string' ? arg.systemPrompt : '';
+      messages     = Array.isArray(arg.messages) ? arg.messages : [];
+      taskType     = arg.taskType || 'chat';
+      options      = {
+        ...(arg.options || {}),
+        ...(arg.maxTokens   !== undefined ? { maxTokens:   arg.maxTokens   } : {}),
+        ...(arg.temperature !== undefined ? { temperature: arg.temperature } : {}),
+        ...(arg.priority    !== undefined ? { priority:    arg.priority    } : {}),
+        ...(arg.noCache     !== undefined ? { noCache:     arg.noCache     } : {}),
+      };
+    }
+
     let temp = this.temperatures[taskType] || this.temperatures.chat;
 
-    if (this.metaLearning && taskType !== 'chat') {
+    // v7.5.1: per-call temperature override (used by dream/wakeup paths)
+    if (typeof options.temperature === 'number') temp = options.temperature;
+
+    if (this.metaLearning && taskType !== 'chat' && options.temperature === undefined) {
       try {
         const rec = this.metaLearning.recommend(taskType, this.activeModel);
         if (rec && rec.temperature !== undefined) temp = rec.temperature;
@@ -396,12 +432,12 @@ class ModelBridge {
 
     const priority = options.priority ?? (taskType === 'chat' ? 10 : 0);
     const startTime = Date.now();
-    // v5.1.0: Role-based model dispatch — check if task has assigned model
+    // v5.1.0: Role-based model dispatch - check if task has assigned model
     const roleOverride = this._resolveForTask(taskType);
     const targetBackend = roleOverride?.backend || this.activeBackend;
     await this._semaphore.acquire(priority);
     try {
-      const result = await this._dispatchChat(targetBackend, systemPrompt, messages, temp, roleOverride?.model);
+      const result = await this._dispatchChat(targetBackend, systemPrompt, messages, temp, roleOverride?.model, options.maxTokens);
       this._recordMetaOutcome(taskType, temp, startTime, true, options);
       if (cacheKey) this._cache.set(cacheKey, result);
       return result;
@@ -411,7 +447,7 @@ class ModelBridge {
         _log.warn(`[MODEL] ${targetBackend} failed, falling back to ${fallback}: ${err.message}`);
         const reason = this._classifyFailoverReason(err);
         this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message, reason }, { source: 'ModelBridge' });
-        const result = await this._dispatchChat(fallback, systemPrompt, messages, temp);
+        const result = await this._dispatchChat(fallback, systemPrompt, messages, temp, undefined, options.maxTokens);
         this._recordMetaOutcome(taskType, temp, startTime, true, { ...options, failover: true });
         return result;
       }
@@ -430,21 +466,47 @@ class ModelBridge {
   // ════════════════════════════════════════════════════════
 
   async streamChat(systemPrompt, messages = [], onChunk, abortSignal, taskType = 'chat', options = {}) {
-    const temp = this.temperatures[taskType] || this.temperatures.chat;
+    // v7.5.1.x: object-form adapter — mirrors chat() so streamChat can also
+    // be called as streamChat({ systemPrompt, messages, onChunk, abortSignal,
+    // taskType, maxTokens, temperature, priority }). No active caller used
+    // this form yet, but keeping the two paths symmetric closes the
+    // documented v7.6+ deferred parity-gap inside v7.5.1.
+    if (systemPrompt && typeof systemPrompt === 'object' && !Array.isArray(systemPrompt)) {
+      const arg = systemPrompt;
+      systemPrompt = typeof arg.systemPrompt === 'string' ? arg.systemPrompt : '';
+      messages     = Array.isArray(arg.messages) ? arg.messages : [];
+      onChunk      = typeof arg.onChunk === 'function' ? arg.onChunk : onChunk;
+      abortSignal  = arg.abortSignal !== undefined ? arg.abortSignal : abortSignal;
+      taskType     = arg.taskType || 'chat';
+      options      = {
+        ...(arg.options || {}),
+        ...(arg.maxTokens   !== undefined ? { maxTokens:   arg.maxTokens   } : {}),
+        ...(arg.temperature !== undefined ? { temperature: arg.temperature } : {}),
+        ...(arg.priority    !== undefined ? { priority:    arg.priority    } : {}),
+      };
+    }
+
+    let temp = this.temperatures[taskType] || this.temperatures.chat;
+    // v7.5.1.x: per-call temperature override (parity with chat()).
+    if (typeof options.temperature === 'number') temp = options.temperature;
+    const maxTokens = (typeof options.maxTokens === 'number' && options.maxTokens > 0)
+      ? options.maxTokens
+      : undefined;
+
     const priority = options.priority ?? (taskType === 'chat' ? 10 : 0);
     // v5.1.0: Role-based model dispatch
     const roleOverride = this._resolveForTask(taskType);
     const targetBackend = roleOverride?.backend || this.activeBackend;
     await this._semaphore.acquire(priority);
     try {
-      return await this._dispatchStream(targetBackend, systemPrompt, messages, onChunk, abortSignal, temp, roleOverride?.model);
+      return await this._dispatchStream(targetBackend, systemPrompt, messages, onChunk, abortSignal, temp, roleOverride?.model, maxTokens);
     } catch (err) {
       const fallback = this._findFallbackBackend(targetBackend);
       if (fallback) {
         _log.warn(`[MODEL] Stream ${targetBackend} failed, falling back to ${fallback}: ${err.message}`);
         const reason = this._classifyFailoverReason(err);
         this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message, reason }, { source: 'ModelBridge' });
-        return await this._dispatchStream(fallback, systemPrompt, messages, onChunk, abortSignal, temp);
+        return await this._dispatchStream(fallback, systemPrompt, messages, onChunk, abortSignal, temp, undefined, maxTokens);
       }
       // v7.4.8: emit failover-unavailable before throw — direct throw path,
       // no _recordMetaOutcome equivalent to position around.
@@ -481,25 +543,29 @@ class ModelBridge {
   // DISPATCH & FAILOVER
   // ════════════════════════════════════════════════════════
 
-  _dispatchChat(backendName, systemPrompt, messages, temp, modelOverride) {
+  _dispatchChat(backendName, systemPrompt, messages, temp, modelOverride, maxTokens) {
     const model = modelOverride || this._getModelForBackend(backendName);
     const backend = this.backends[backendName];
     if (!backend) throw new Error('No model backend configured');
-    return backend.chat(systemPrompt, messages, temp, model);
+    // v7.5.1: backends accept an optional 5th maxTokens arg. Older backends
+    // ignoring it still work because JS just drops extra positional args.
+    return backend.chat(systemPrompt, messages, temp, model, maxTokens);
   }
 
-  _dispatchStream(backendName, systemPrompt, messages, onChunk, abortSignal, temp, modelOverride) {
+  _dispatchStream(backendName, systemPrompt, messages, onChunk, abortSignal, temp, modelOverride, maxTokens) {
     const model = modelOverride || this._getModelForBackend(backendName);
     const backend = this.backends[backendName];
     if (!backend) {
-      return this._dispatchChat(backendName, systemPrompt, messages, temp, modelOverride)
+      // v7.5.1.x: forward maxTokens to the non-streaming fallback so streaming
+      // callers' per-call cap is respected even when a backend lacks .stream().
+      return this._dispatchChat(backendName, systemPrompt, messages, temp, modelOverride, maxTokens)
         .then(result => { onChunk(result); return result; })
         .catch(err => {
           _log.error('[MODEL] Non-streaming fallback failed:', err.message);
           throw err;
         });
     }
-    return backend.stream(systemPrompt, messages, onChunk, abortSignal, temp, model);
+    return backend.stream(systemPrompt, messages, onChunk, abortSignal, temp, model, maxTokens);
   }
 
   _findFallbackBackend(failedBackend) {

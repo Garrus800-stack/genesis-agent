@@ -86,8 +86,8 @@ class DynamicContextBudget {
   /**
    * Get token budget allocation for a given intent.
    *
-   * @param {string} intent — From IntentRouter: 'code-gen', 'chat', etc.
-   * @param {object} options — { totalBudget, activeGoals, hasCode }
+   * @param {string} intent - From IntentRouter: 'code-gen', 'chat', etc.
+   * @param {object} options - { totalBudget, activeGoals, hasCode }
    * @returns {Record<string, number>}
    */
   allocate(intent, options = {}) {
@@ -141,9 +141,9 @@ class DynamicContextBudget {
    * Called by MetaLearning integration.
    *
    * @param {string} intent
-   * @param {object} budgetsUsed — actual token counts per slot
-   * @param {boolean} success — did the task succeed?
-   * @param {object} details — { truncated: ['code'], unused: ['tools'] }
+   * @param {object} budgetsUsed - actual token counts per slot
+   * @param {boolean} success - did the task succeed?
+   * @param {object} details - { truncated: ['code'], unused: ['tools'] }
    */
   recordOutcome(intent, budgetsUsed, success, details = {}) {
     const profileName = this._profiles[intent] ? intent : 'general';

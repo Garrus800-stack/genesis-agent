@@ -41,7 +41,7 @@ class OllamaBackend {
   }
 
   /** Non-streaming chat */
-  async chat(systemPrompt, messages, temperature, modelName) {
+  async chat(systemPrompt, messages, temperature, modelName, maxTokens) {
     const ollamaMessages = [];
 
     // FIX v4.0.0: Ollama requires at least one user message.
@@ -61,7 +61,13 @@ class OllamaBackend {
       model: modelName,
       messages: ollamaMessages,
       stream: false,
-      options: { temperature, num_ctx: 8192 },
+      options: {
+        temperature,
+        num_ctx: 8192,
+        // v7.5.1: optional per-call max-token cap (used by dream/wakeup paths
+        // for short one-word answers; saves cost on cloud-Ollama setups).
+        ...(maxTokens ? { num_predict: maxTokens } : {}),
+      },
     };
 
     const data = await this._httpPost(
@@ -73,7 +79,7 @@ class OllamaBackend {
   }
 
   /** Streaming chat — calls onChunk(text) for each token */
-  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName) {
+  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens) {
     const ollamaMessages = [];
     if (systemPrompt) {
       ollamaMessages.push({ role: 'system', content: systemPrompt });
@@ -88,6 +94,7 @@ class OllamaBackend {
       stream: true,
       options: { temperature, num_ctx: 8192 },
     };
+    if (typeof maxTokens === 'number' && maxTokens > 0) body.options.num_predict = maxTokens;
 
     return new Promise((resolve, reject) => {
       const url = new URL(`${this.baseUrl}/api/chat`);

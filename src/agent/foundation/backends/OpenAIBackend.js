@@ -55,7 +55,7 @@ class OpenAIBackend {
   }
 
   /** Non-streaming chat */
-  async chat(systemPrompt, messages, temperature, modelName) {
+  async chat(systemPrompt, messages, temperature, modelName, maxTokens) {
     if (!this.baseUrl) throw new Error('OpenAI backend not configured');
 
     const body = {
@@ -65,6 +65,8 @@ class OpenAIBackend {
         ...messages,
       ],
       temperature,
+      // v7.5.1: optional per-call max-token cap
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
     };
 
     const data = await this._httpPost(
@@ -76,7 +78,7 @@ class OpenAIBackend {
   }
 
   /** Streaming chat — calls onChunk(text) for each token */
-  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName) {
+  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens) {
     if (!this.baseUrl) throw new Error('OpenAI backend not configured');
 
     const body = {
@@ -88,6 +90,7 @@ class OpenAIBackend {
       ],
       temperature,
     };
+    if (typeof maxTokens === 'number' && maxTokens > 0) body.max_tokens = maxTokens;
 
     return new Promise((resolve, reject) => {
       const url = new URL(`${this.baseUrl}/v1/chat/completions`);

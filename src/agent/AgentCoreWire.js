@@ -172,6 +172,14 @@ class AgentCoreWire {
       { event: 'failure:classified',        state: 'warning',  detail: (d) => `${d.category}: ${d.strategy}` },
       { event: 'steering:rest-mode',        state: 'resting',  detail: () => 'Low energy — rest mode active' },
       { event: 'steering:model-escalation', state: 'thinking', detail: () => 'High frustration — trying different approach' },
+      // v7.5.1 (C-fix): GoalDriver resume-prompt is the only goal:* event with
+      // a UI-anchored schema (title, currentStep, totalSteps, lastUpdated).
+      // Bridge it as a dedicated push so the renderer can show a prompt.
+      // The 4 sibling events (goal:driver-pickup / goal:resumed-auto /
+      // goal:discarded / driver:unresponsive) are backend-only telemetry
+      // - their preload ALLOWED_RECEIVE entries were removed in the same
+      // commit because no UI consumer was ever wired.
+      { event: 'ui:resume-prompt',          fn: (d) => push('ui:resume-prompt', d) },
 
       // ── Trust + Effectors ───────────────────────────
       { event: 'trust:level-changed',       state: 'ready',    detail: (d) => `Trust level: ${d.to}` },

@@ -37,8 +37,8 @@
  * Returns null if nothing noteworthy (< 3 messages or no work).
  *
  * @param {object} context
- * @param {object} context.session — Current session data
- * @param {object} [context.goalStack] — GoalStack instance
+ * @param {object} context.session - Current session data
+ * @param {object} [context.goalStack] - GoalStack instance
  * @returns {object|null}
  */
 function unfinishedWorkExtractor(context) {
@@ -95,7 +95,7 @@ function unfinishedWorkExtractor(context) {
  * the session and passed here at session:ending.
  *
  * @param {object} context
- * @param {Array} [context.novelEvents] — Buffered novel events
+ * @param {Array} [context.novelEvents] - Buffered novel events
  * @returns {object|null}
  */
 function suspicionExtractor(context) {
@@ -126,9 +126,9 @@ function suspicionExtractor(context) {
  * Merge suspicion nodes when same dominant category.
  * Prevents frontier bloat from repeated surprises in the same area.
  *
- * @param {object} existing — Properties of existing frontier node
- * @param {object} incoming — Properties of new frontier data
- * @returns {object|null} — Merged properties, or null if not mergeable
+ * @param {object} existing - Properties of existing frontier node
+ * @param {object} incoming - Properties of new frontier data
+ * @returns {object|null} - Merged properties, or null if not mergeable
  */
 function suspicionMerger(existing, incoming) {
   if (!existing.dominant_category || !incoming.dominant_category) return null;
@@ -161,9 +161,9 @@ function suspicionMerger(existing, incoming) {
  * lesson:confirmed and lesson:contradicted events (also buffered).
  *
  * @param {object} context
- * @param {Array} [context.appliedLessons] — Buffered applied lessons
- * @param {Array} [context.confirmedLessons] — Buffered confirmed lessons (v7.1.7)
- * @param {Array} [context.contradictedLessons] — Buffered contradicted lessons (v7.1.7)
+ * @param {Array} [context.appliedLessons] - Buffered applied lessons
+ * @param {Array} [context.confirmedLessons] - Buffered confirmed lessons (v7.1.7)
+ * @param {Array} [context.contradictedLessons] - Buffered contradicted lessons (v7.1.7)
  * @returns {object|null}
  */
 function lessonExtractor(context) {

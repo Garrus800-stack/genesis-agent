@@ -457,7 +457,7 @@ class McpServer {
 
   /**
    * Register a resource provider.
-   * @param {string} uri — e.g. "genesis://knowledge-graph/stats"
+   * @param {string} uri - e.g. "genesis://knowledge-graph/stats"
    * @param {{ name: string, description: string, mimeType?: string, handler: () => Promise<*> }} def
    */
   registerResource(uri, def) {

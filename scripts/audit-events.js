@@ -94,6 +94,11 @@ function walkDir(dir) {
 
 walkDir(SRC_DIR);
 
+// v7.5.1: also scan main.js — it owns IPC bridging and emits ui:heartbeat,
+// boot:complete, etc. via agent.bus?.emit() from ipcMain handlers.
+const MAIN_JS = path.join(ROOT, 'main.js');
+if (fs.existsSync(MAIN_JS)) scanFile(MAIN_JS);
+
 // ── 2b. Include EVENT_STORE_BUS_MAP bus values in catalog ────
 try {
   const { EVENT_STORE_BUS_MAP } = require(path.join(SRC_DIR, 'agent', 'core', 'EventTypes'));
@@ -112,14 +117,85 @@ const EXCLUDED_EVENTS = new Set([
   // Node.js stream / process events
   'error', 'data', 'end', 'close', 'message', 'timeout', 'exit',
   'drain', 'readable', 'connect', 'open', 'add', 'change', 'unlink',
-  'uncaughtException', 'SIGTERM',
+  'uncaughtException', 'unhandledRejection', 'SIGTERM',
   // ConsciousnessExtension internal EventEmitter (not Genesis EventBus)
   'started', 'stopped', 'state-change', 'frame-processed', 'keyframe',
   'hypervigilant-entered', 'dream-complete', 'awakened', 'daydream-reflection',
   // IPC bridge events (emitted by Electron renderer, not Genesis EventBus)
   'chat:message', 'agent:stream-chunk', 'agent:stream-done',
+  'agent:request-stream',
+  // Electron app/window/webContents internal events
+  'did-finish-load', 'did-fail-load', 'dom-ready',
+  'will-navigate', 'window-all-closed', 'before-quit', 'activate',
   // v7.1.7 H-3: Removed 'prompt-evolution:promoted' — it IS a Bus event since v7.1.6
 ]);
+
+// ── v7.5.1: Structural false-positive classes for "listener without emitter" ──
+//
+// Goal: replace the manual EXCLUDED_EVENTS list (which always lags reality)
+// with structural rules that auto-detect the four legitimate cases that look
+// like uncatalogued listeners but aren't real bugs:
+//   FP1. UI-renderer files subscribe to push-channels sent via webContents.send
+//        — the emitter lives in main.js / AgentCoreWire push(), not bus.emit.
+//   FP2. AgentCoreWire registers bus.on() for IPC channels coming FROM the
+//        renderer — the emitter is the Electron IPC bridge, not src/.
+//   FP3. Settings toggles emit dynamic event names from a TOGGLE_EVENT_KEYS map
+//        the regex parser can't see.
+//   FP4. AgentCoreWire push-bridges: events appear as string literals inside
+//        `push('...', data)` calls — those ARE the emit, just not via bus.emit.
+const PUSH_CHANNELS = new Set();
+try {
+  const wireSrc = fs.readFileSync(path.join(SRC_DIR, 'agent', 'AgentCoreWire.js'), 'utf-8');
+  for (const m of wireSrc.matchAll(/push\s*\(\s*['"`]([^'"`]+)['"`]/g)) {
+    PUSH_CHANNELS.add(m[1]);
+  }
+} catch (_e) { /* AgentCoreWire absent in older trees → empty set */ }
+
+const PRELOAD_RECEIVE_CHANNELS = new Set();
+try {
+  for (const fname of ['preload.mjs', 'preload.js']) {
+    const p = path.join(ROOT, fname);
+    if (!fs.existsSync(p)) continue;
+    const src = fs.readFileSync(p, 'utf-8');
+    const m = src.match(/const\s+ALLOWED_RECEIVE\s*=\s*\[([^\]]+)\]/s);
+    if (m) {
+      for (const c of m[1].matchAll(/'([^']+)'/g)) PRELOAD_RECEIVE_CHANNELS.add(c[1]);
+    }
+  }
+} catch (_e) { /* tolerate missing preload */ }
+
+function isFalsePositiveListener(event, locations) {
+  // FP1: All listener locations are in src/ui/  → renderer-side, emitter is push()
+  if (locations.every(loc => loc.file.startsWith('src/ui/') || loc.file.startsWith('src\\ui\\'))) {
+    return 'ui-renderer';
+  }
+  // FP3: Dynamic settings-toggle emit pattern
+  if (/^settings:.+-(?:toggled|changed)$/.test(event)) {
+    return 'settings-toggle-dynamic';
+  }
+  // FP4: AgentCoreWire push() is the actual emit
+  if (PUSH_CHANNELS.has(event)) {
+    return 'push-bridge';
+  }
+  // FP2: AgentCoreWire/AgentCore listener on a channel the renderer sends
+  // (declared in preload ALLOWED_INVOKE/SEND area)
+  const isWireListener = locations.every(loc =>
+    loc.file === 'src/agent/AgentCoreWire.js' ||
+    loc.file === 'src/agent/AgentCore.js' ||
+    loc.file === 'src\\agent\\AgentCoreWire.js' ||
+    loc.file === 'src\\agent\\AgentCore.js'
+  );
+  if (isWireListener && PRELOAD_RECEIVE_CHANNELS.has(event)) {
+    return 'ipc-from-renderer';
+  }
+  // Some IPC channels exist in main.js CHANNELS but not in ALLOWED_RECEIVE
+  // (e.g. agent:chat invokers). Be conservative: only auto-exclude wire-listeners
+  // whose name follows the known IPC namespacing.
+  if (isWireListener && /^(?:reasoning|web|settings|ui):/.test(event)) {
+    return 'ipc-from-renderer-namespace';
+  }
+  return null;
+}
 
 // ── 3. Analyze ──────────────────────────────────────────────
 
@@ -137,6 +213,7 @@ const frequentEmittersWithoutListeners = [];
 const DYNAMIC_PATTERNS = [
   /^store:/, // EventStore emits store:${type} dynamically
   /^frontier:/, // FrontierWriter emits frontier:${name}:written/merged
+  /^resource:(?:available|unavailable)$/, // ResourceRegistry: const eventName = next.available ? 'resource:available' : 'resource:unavailable'
 ];
 const isDynamic = (event) => DYNAMIC_PATTERNS.some(p => p.test(event));
 
@@ -151,12 +228,19 @@ for (const event of emitters.keys()) {
 for (const event of subscribers.keys()) {
   if (event.includes('*') || event.includes('$')) continue;
   if (EXCLUDED_EVENTS.has(event)) continue;
+  // v7.5.1: skip subscribed-not-in-catalog if it's a known false-positive class
+  const fpClass = isFalsePositiveListener(event, subscribers.get(event));
+  if (fpClass) continue;
   if (!catalogEvents.has(event)) {
     subscribedNotInCatalog.push({ event, locations: subscribers.get(event) });
   }
   // H-3: Listener without emitter?
   if (!emitters.has(event) && !isDynamic(event) && !EXCLUDED_EVENTS.has(event)) {
-    listenersWithoutEmitters.push({ event, locations: subscribers.get(event) });
+    // v7.5.1: structural false-positive detection
+    const fpClass = isFalsePositiveListener(event, subscribers.get(event));
+    if (!fpClass) {
+      listenersWithoutEmitters.push({ event, locations: subscribers.get(event) });
+    }
   }
 }
 
