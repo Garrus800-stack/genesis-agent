@@ -258,6 +258,12 @@ function apply(Dashboard) {
         '<div class="dash-stat"><span>Services</span><span>' + (health.services || '?') + '</span></div>' +
         '<div class="dash-stat"><span>Tools</span><span>' + (health.tools || '?') + '</span></div>' +
         '<div class="dash-stat"><span>Model</span><span>' + this._esc(health.model?.active || 'none') + '</span></div>' +
+        // v7.5.2: Auto-routing counter
+        '<div class="dash-stat"><span>Auto-routed</span><span>' +
+          (health.model?.routing
+            ? (health.model.routing.enabled ? health.model.routing.autoRouted : 'off')
+            : '—') +
+        '</span></div>' +
         '<div class="dash-stat"><span>Circuit</span><span style="color:' + circuitColor + '">' + this._esc(circuit) + '</span></div>' +
         '<div class="dash-stat"><span>IdleMind</span><span>' + (health.idleMind?.thoughtCount || 0) + ' thoughts</span></div>' +
         '<div class="dash-stat"><span>Goals</span><span>' + (health.goals?.active || 0) + '/' + (health.goals?.total || 0) + '</span></div>' +

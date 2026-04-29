@@ -1,3 +1,104 @@
+## [7.5.2]
+
+Auto-routing wählt das passende Modell pro Hintergrund-Aufgabe, ohne
+dein Chat-Modell zu beeinflussen. Klassifikationen, Code-Analyse,
+Dream-Cycles, Wakeup, Memory-Classify gehen an passende Modelle.
+Direct user-chat behält dein UI-gewähltes Modell. Setting
+`agency.autoRouteByTask: false` deaktiviert das Feature jederzeit.
+
+Schließt das v7.5-Hauptversprechen das seit v4.10.0 wartete (siehe
+ChatOrchestrator.js Z.405 Disable-Kommentar): "ich muss Genesis nicht
+mehr selbst umstellen wenn ich weggehe."
+
+### Added
+
+- **`agency.autoRouteByTask` setting (default true).** ModelBridge.chat()
+  und streamChat() fragen den ModelRouter pro Aufruf und switchen das
+  Modell für genau diesen Call (per-call modelOverride pattern, keine
+  activeModel-Mutation). Direct user-chat ist explizit geschützt via
+  `_userChat: true` Marker im ChatOrchestrator. Setting kann jederzeit
+  ausgeschaltet werden — `getRoutingStats().enabled` liest live.
+
+- **`model:auto-switched` event.** Telemetrie für jeden Routing-Switch.
+  Payload: `{originalModel, routedModel, routedBackend, taskType, reason}`.
+  Sichtbar im EventStream-Tab des Dashboards.
+
+- **`settings:auto-route-toggled` event.** Telemetry-only — kein
+  Konsument nötig weil getRoutingStats() live aus Settings liest.
+  Mirror-Pattern wie intent-tool-coherence in v7.5.1.
+
+- **`getRoutingStats()` Public API auf ModelBridge.** Returnt
+  `{autoRouted, lastRouted, routerAvailable, enabled}`. `lastRouted`
+  ist defensive copy. AgentCoreHealth wired das durch zu `health.model.routing`.
+
+- **Dashboard counter "Auto-routed: N"** in der System-Sidebar
+  (SystemRenderers.js). Zeigt `off` wenn Setting deaktiviert, `—`
+  wenn keine Routing-Daten verfügbar.
+
+- **Boot-Log indicator.** Neue Zeile `[+] Auto-routing: enabled
+  (taskType → ModelRouter)` oder `disabled` direkt nach `[+] Model:`.
+
+- **TaskType-Aliase in ModelBridge** (`TASK_TYPE_ROUTING_MAP`).
+  Caller verwenden `code`, `dream-judgment`, `dream-summarize`,
+  `memory-classify`, `wakeup` — Router kennt diese nicht.
+  Aliase mappen auf bekannte Router-Routes (`code-gen`,
+  `classification`, `summarization`, `reasoning`). Ohne diese Aliase
+  würden genau die autonomen Cognitive-Pfade auf chat-route fallback
+  und nie wirklich geroutet — die wären aber Hauptzielgruppe.
+
+- **Backend-Resolution in ModelBridge.** ModelRouter.route() returnt
+  nur `{model, reason}`, nicht das Backend (Z.264 wirft es weg via
+  `m.name || m`). In Multi-Backend-Setups (Ollama lokal + Anthropic
+  cloud) hätte das Modell zu falschem Backend geschickt → 404. Bridge
+  resolved Backend per `availableModels.find(m => m.name === routed.model)`.
+  Wenn nicht gefunden → routing wird abgebrochen, fällt auf activeBackend
+  zurück. Cleaner: Router gibt `{model, backend}` direkt zurück —
+  v7.6+ Backlog.
+
+### Changed
+
+- **ChatOrchestrator setzt `_userChat: true`** an allen 4 User-Chat-Sites
+  (Z.285 streamChat, Z.425 chat, Z.469 chat, ChatOrchestratorHelpers
+  Z.166 chat). Das ist der autoritative Schutz vor Auto-Routing —
+  taskType-Filter wäre nicht ausreichend weil ReasoningEngine intern
+  auch `'chat'` als taskType nutzt.
+
+- **Cache-Bypass bei Auto-Routing.** LLMCache-Key enthält das Modell
+  nicht — ohne Bypass würde Auto-Routing Cache-Hits aus altem Modell
+  liefern. v7.5.2 setzt `cacheKey = null` wenn `routedSwitch` gesetzt
+  ist. Echte Modell-Awareness im Cache-Key ist v7.6+ Material.
+
+- **Priority-Reihenfolge bei Backend-Auswahl:** routedSwitch >
+  roleOverride > activeBackend. Begründung: `agency.autoRouteByTask`
+  ist eine *explizite* User-Setting. Wenn an, gewinnt sie über
+  Roles. Wer Auto-Routing nicht will: Setting auf false.
+
+### Boy-Scout (separate from main feature)
+
+- **EmotionalState reagiert auf `model:failover-unavailable`.**
+  Der Listener war seit v7.4.8 vorgesehen aber nicht implementiert.
+  Failover-unavailable ist ein stärkeres Signal als Failover (kein
+  Plan B Modell verfügbar) — leichte extra Frustration-Erhöhung
+  über die normale Failover-Reaktion hinaus.
+
+### Stats
+
+- 31 neue Tests in `test/modules/v752-fix.test.js`
+  (A·5 Setting+Defaults, B·8 Routing+Backend-Resolution, C·5
+  User-Chat-Schutz, D·4 TaskType-Aliase, E·4 Parallelität, F·1
+  EmotionalSteering, G·4 Public API)
+
+### Future
+
+- **v7.5.x:** Self-Statement Log + /recall slash-command
+- **v7.5.x:** ImpactForecast Activity, fragilityDelta
+- **v7.6+:** LLM Cache-Key Modell-aware (Cache-Bypass-Workaround entfernen)
+- **v7.6+:** ModelRouter.route() returnt `{model, backend}` direkt
+  (Backend-Resolution-in-Bridge entfernen)
+- **v7.6+:** TS-checkJs Migration (Mixin → ES6 inheritance)
+
+---
+
 ## [7.5.1]
 
 Sweep release covering the audit findings from a deep code review of v7.5.0.

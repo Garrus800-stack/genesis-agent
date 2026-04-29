@@ -286,7 +286,7 @@ class ChatOrchestrator {
           if (this.abortController?.signal.aborted) return;
           fullResponse += chunk;
           filteredOnChunk(chunk);
-        }, this.abortController.signal)
+        }, this.abortController.signal, 'chat', { _userChat: true })  // v7.5.2: protect direct user chat from auto-routing
       ));
       // Flush any safe tail buffered at end of stream
       const tail = toolCallFilter.flush();
@@ -422,7 +422,7 @@ class ChatOrchestrator {
 
         // FIX v6.1.1: Fallback text-based tool loop — parse <tool_call> tags,
         // execute tools, feed results back to LLM. Closes the tool loop.
-        let response = await this.model.chat(ctx.system, ctx.messages, 'chat');
+        let response = await this.model.chat(ctx.system, ctx.messages, 'chat', { _userChat: true });  // v7.5.2
         let history = [...ctx.messages];
         const MAX_TOOL_ROUNDS = 5;
 
@@ -466,7 +466,7 @@ class ChatOrchestrator {
           // Feed results back to LLM for next response
           history.push({ role: 'assistant', content: response });
           history.push({ role: 'user', content: `Tool results:\n${toolResults.join('\n')}\n\nContinue based on these results. Do NOT repeat the tool calls.` });
-          response = await this.model.chat(ctx.system, history, 'chat');
+          response = await this.model.chat(ctx.system, history, 'chat', { _userChat: true });  // v7.5.2
         }
 
         return response;

@@ -30,6 +30,18 @@ const { OllamaBackend } = require('./backends/OllamaBackend');
 const { AnthropicBackend } = require('./backends/AnthropicBackend');
 const { OpenAIBackend } = require('./backends/OpenAIBackend');
 
+// v7.5.2: Alias-Map normalisiert Caller-taskTypes auf Router-Routes.
+// Ohne diese Aliase würden Dream/Wakeup/Memory-Pfade auf chat-Route fallback
+// und nie wirklich geroutet — genau die wären aber Hauptzielgruppe für Auto-Routing.
+const TASK_TYPE_ROUTING_MAP = {
+  'code':            'code-gen',
+  'dream-judgment':  'classification',
+  'dream-summarize': 'summarization',
+  'memory-classify': 'classification',
+  'wakeup':          'reasoning',
+  // 'user' bleibt unrouted (siehe _userChat-Marker in ChatOrchestrator)
+};
+
 // ── Lightweight Semaphore ─────────────────────────────────
 // FIX v3.5.0: Limits concurrent LLM requests. Without this,
 // IdleMind + AgentLoop + Chat could flood Ollama simultaneously.
@@ -130,6 +142,10 @@ class ModelBridge {
     /** @type {*} */ this._settings = null;
     /** @type {*} */ this.metaLearning = null;
     /** @type {*} */ this._fallbackModel = null;
+    /** @type {*} */ this._modelRouter = null;  // v7.5.2: late-bound for auto-routing
+
+    // v7.5.2: routing telemetry
+    this._routingStats = { autoRouted: 0, lastRouted: null };
   }
 
   /**
@@ -409,6 +425,7 @@ class ModelBridge {
         ...(arg.temperature !== undefined ? { temperature: arg.temperature } : {}),
         ...(arg.priority    !== undefined ? { priority:    arg.priority    } : {}),
         ...(arg.noCache     !== undefined ? { noCache:     arg.noCache     } : {}),
+        ...(arg._userChat   !== undefined ? { _userChat:   arg._userChat   } : {}),  // v7.5.2
       };
     }
 
@@ -424,7 +441,47 @@ class ModelBridge {
       } catch (_e) { _log.debug('[catch] MetaLearning not ready:', _e.message); }
     }
 
-    const cacheKey = options.noCache ? null : this._cache.buildKey(systemPrompt, messages, taskType);
+    // v7.5.2: optional auto-routing for background tasks (per-call modelOverride pattern)
+    let routedSwitch = null;
+    if (
+      this._settings?.get?.('agency.autoRouteByTask') !== false &&
+      this._modelRouter &&
+      taskType &&
+      options._userChat !== true   // direct user chat NEVER auto-routed
+    ) {
+      try {
+        const routerCategory = TASK_TYPE_ROUTING_MAP[taskType] || taskType;
+        const routed = this._modelRouter.route(routerCategory);
+        if (routed?.model && routed.model !== this.activeModel) {
+          // Resolve backend for routed model. Without this, routing in
+          // multi-backend setups (Ollama local + Anthropic cloud) would send
+          // routed-model to wrong backend → 404. Backend lives in availableModels[].
+          const found = this.availableModels.find(m => m.name === routed.model);
+          if (found?.backend) {
+            routedSwitch = {
+              originalModel: this.activeModel,
+              routedModel: routed.model,
+              routedBackend: found.backend,
+              taskType,
+              reason: routed.reason,
+            };
+            this._routingStats.autoRouted++;
+            this._routingStats.lastRouted = { ...routedSwitch, at: Date.now() };
+            this.bus.emit('model:auto-switched', routedSwitch, { source: 'ModelBridge' });
+          }
+          // If model exists in router but not in availableModels, silently abandon
+          // routing — fall through to activeModel/activeBackend.
+        }
+      } catch (_e) {
+        // Router error → silent fallback to activeModel, no crash
+      }
+    }
+
+    // v7.5.2: when auto-routed, bypass cache because cache-key has no model.
+    // Otherwise a code-gen request might return a cached chat-model result.
+    const cacheKey = (options.noCache || routedSwitch)
+      ? null
+      : this._cache.buildKey(systemPrompt, messages, taskType);
     if (cacheKey) {
       const cached = this._cache.get(cacheKey);
       if (cached) return cached;
@@ -433,11 +490,18 @@ class ModelBridge {
     const priority = options.priority ?? (taskType === 'chat' ? 10 : 0);
     const startTime = Date.now();
     // v5.1.0: Role-based model dispatch - check if task has assigned model
+    // v7.5.2: Priority routedSwitch > roleOverride > activeBackend.
+    // Begründung: agency.autoRouteByTask ist eine *explizite* User-Setting.
+    // Wenn an, gewinnt sie über Roles. Wer Auto-Routing nicht will: Setting=false.
     const roleOverride = this._resolveForTask(taskType);
-    const targetBackend = roleOverride?.backend || this.activeBackend;
+    const targetBackend = routedSwitch?.routedBackend
+                       || roleOverride?.backend
+                       || this.activeBackend;
+    const effectiveModel = routedSwitch?.routedModel
+                        || roleOverride?.model;  // undefined → backend uses activeModel
     await this._semaphore.acquire(priority);
     try {
-      const result = await this._dispatchChat(targetBackend, systemPrompt, messages, temp, roleOverride?.model, options.maxTokens);
+      const result = await this._dispatchChat(targetBackend, systemPrompt, messages, temp, effectiveModel, options.maxTokens);
       this._recordMetaOutcome(taskType, temp, startTime, true, options);
       if (cacheKey) this._cache.set(cacheKey, result);
       return result;
@@ -483,6 +547,7 @@ class ModelBridge {
         ...(arg.maxTokens   !== undefined ? { maxTokens:   arg.maxTokens   } : {}),
         ...(arg.temperature !== undefined ? { temperature: arg.temperature } : {}),
         ...(arg.priority    !== undefined ? { priority:    arg.priority    } : {}),
+        ...(arg._userChat   !== undefined ? { _userChat:   arg._userChat   } : {}),  // v7.5.2
       };
     }
 
@@ -493,13 +558,47 @@ class ModelBridge {
       ? options.maxTokens
       : undefined;
 
+    // v7.5.2: optional auto-routing for background tasks (parity with chat())
+    let routedSwitch = null;
+    if (
+      this._settings?.get?.('agency.autoRouteByTask') !== false &&
+      this._modelRouter &&
+      taskType &&
+      options._userChat !== true
+    ) {
+      try {
+        const routerCategory = TASK_TYPE_ROUTING_MAP[taskType] || taskType;
+        const routed = this._modelRouter.route(routerCategory);
+        if (routed?.model && routed.model !== this.activeModel) {
+          const found = this.availableModels.find(m => m.name === routed.model);
+          if (found?.backend) {
+            routedSwitch = {
+              originalModel: this.activeModel,
+              routedModel: routed.model,
+              routedBackend: found.backend,
+              taskType,
+              reason: routed.reason,
+            };
+            this._routingStats.autoRouted++;
+            this._routingStats.lastRouted = { ...routedSwitch, at: Date.now() };
+            this.bus.emit('model:auto-switched', routedSwitch, { source: 'ModelBridge' });
+          }
+        }
+      } catch (_e) { /* silent fallback */ }
+    }
+
     const priority = options.priority ?? (taskType === 'chat' ? 10 : 0);
     // v5.1.0: Role-based model dispatch
+    // v7.5.2: routedSwitch > roleOverride > activeBackend (parity with chat())
     const roleOverride = this._resolveForTask(taskType);
-    const targetBackend = roleOverride?.backend || this.activeBackend;
+    const targetBackend = routedSwitch?.routedBackend
+                       || roleOverride?.backend
+                       || this.activeBackend;
+    const effectiveModel = routedSwitch?.routedModel
+                        || roleOverride?.model;
     await this._semaphore.acquire(priority);
     try {
-      return await this._dispatchStream(targetBackend, systemPrompt, messages, onChunk, abortSignal, temp, roleOverride?.model, maxTokens);
+      return await this._dispatchStream(targetBackend, systemPrompt, messages, onChunk, abortSignal, temp, effectiveModel, maxTokens);
     } catch (err) {
       const fallback = this._findFallbackBackend(targetBackend);
       if (fallback) {
@@ -660,6 +759,22 @@ class ModelBridge {
 
   getConcurrencyStats() {
     return this._semaphore.getStats();
+  }
+
+  /**
+   * v7.5.2: Public introspection for routing stats.
+   * Returns counter, last routing event (defensive copy), router availability,
+   * and live setting state.
+   */
+  getRoutingStats() {
+    return {
+      autoRouted: this._routingStats.autoRouted,
+      lastRouted: this._routingStats.lastRouted
+        ? { ...this._routingStats.lastRouted }
+        : null,
+      routerAvailable: !!this._modelRouter,
+      enabled: this._settings?.get?.('agency.autoRouteByTask') !== false,
+    };
   }
 
   /** @internal Called by Container.bootAll() */

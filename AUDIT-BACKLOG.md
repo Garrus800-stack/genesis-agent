@@ -1,9 +1,43 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.5.1 · Last updated: v7.5.1 (sweep release covering twelve audit findings from v7.5.0 review)
+> Version: 7.5.2 · Last updated: v7.5.2 (auto-routing release closes v7.5 plan from v4.10.0)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.5.2
+
+- **v7.5 Plan: Autonomous Model Routing.** Closes the disable-comment in
+  ChatOrchestrator.js Z.405 that has been sitting there since v4.10.0.
+  ModelBridge.chat() and streamChat() now query ModelRouter per-call for
+  background tasks (taskType ≠ user-chat). Direct chat is explicitly
+  protected via `_userChat: true` marker at all 4 ChatOrchestrator sites.
+  Per-call modelOverride pattern (no activeModel mutation) → no race
+  conditions in parallel calls. Backend-Resolution via availableModels.find
+  fixes Multi-Backend setups (Ollama+Anthropic). Cache-Bypass at routing
+  prevents stale cross-model results.
+
+## Backlog (added in v7.5.2)
+
+- **Self-Statement Log** (high priority, ~150 LOC). Auto-capture Genesis
+  responses, classify into selbst-strukturell / selbst-emotional /
+  selbst-versprechen. JSONL with timestamp. Enables self-citation,
+  contradiction-detection, promise-tracking, character-continuity.
+  Replaces "monthly self-comparison checkpoints" idea. /recall slash
+  command as front. No fixed version commitment.
+
+- **LLM Cache-Key contains no model.** v7.5.2 uses cache-bypass as
+  workaround when auto-routing is active. Real cache-key model-awareness
+  deferred to v7.6+. Pre-existing latent issue (cache-key built from
+  systemPrompt+messages+taskType only) — Auto-Routing made it visible
+  but didn't introduce it.
+
+- **ModelRouter.route() returns no backend.** Bridge resolves backend via
+  `availableModels.find(m => m.name === routed.model)`. Cleaner: Router
+  returns `{model, backend}` directly, eliminating the resolution step
+  in Bridge. v7.6+ refactor.
 
 ---
 

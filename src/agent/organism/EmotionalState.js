@@ -128,6 +128,12 @@ class EmotionalState {
         this._adjust('frustration', +0.06);
         this._adjust('energy', -0.03);
       },
+      // v7.5.2: failover-unavailable is a *stronger* signal than failover —
+      // there is no Plan B model available. Slight extra frustration bump.
+      'model:failover-unavailable': () => {
+        this._adjust('frustration', +0.04);
+        this._adjust('energy', -0.02);
+      },
       'memory:fact-stored': () => {
         this._adjust('curiosity', +0.03);
         this._adjust('satisfaction', +0.02);

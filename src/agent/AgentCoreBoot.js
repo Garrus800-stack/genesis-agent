@@ -306,6 +306,12 @@ class AgentCoreBoot {
     }
     _log.info(`  [+] Model: ${model.activeModel || 'none'}`);
 
+    // v7.5.2: visibility for auto-routing state
+    const autoRoute = c.has('settings')
+      ? c.resolve('settings').get('agency.autoRouteByTask') !== false
+      : true;
+    _log.info(`  [+] Auto-routing: ${autoRoute ? 'enabled (taskType → ModelRouter)' : 'disabled'}`);
+
     // v5.1.0: Reconfigure ContextManager now that asyncLoad has detected the actual model.
     // Phase 2 configured with activeModel=null (8192 default). Now we know the real model.
     if (model.activeModel && c.has('context')) {

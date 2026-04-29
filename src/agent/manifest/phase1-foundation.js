@@ -63,6 +63,7 @@ function phase1(ctx, R) {
       phase: 1, deps: ['settings'], tags: ['foundation'],
       lateBindings: [
         { prop: 'metaLearning', service: 'metaLearning', optional: true },
+        { prop: '_modelRouter', service: 'modelRouter', optional: true },
       ],
       factory: (c) => {
         const mb = new (R('ModelBridge').ModelBridge)({ bus });

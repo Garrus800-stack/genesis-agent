@@ -696,6 +696,9 @@ const EVENTS = Object.freeze({
     NO_MODELS:            'model:no-models',
     /** telemetry-only (EventStore/Dashboard) */
     OLLAMA_UNAVAILABLE:   'model:ollama-unavailable',
+    /** v7.5.2: emitted when ModelBridge auto-switches model based on taskType.
+     *  @payload {{ originalModel: string, routedModel: string, routedBackend: string, taskType: string, reason?: string }} */
+    AUTO_SWITCHED:        'model:auto-switched',
     /** @payload {{ model: string, backend: string, priority: number }} */
   }),
 
@@ -1218,6 +1221,9 @@ const EVENTS = Object.freeze({
     TRUST_LEVEL_CHANGED:   'settings:trust-level-changed',
     /** @payload {{ from: string, to: string, key: string }} */
     AUTO_RESUME_CHANGED:   'settings:auto-resume-changed',
+    /** v7.5.2: telemetry-only — getRoutingStats().enabled liest live aus Settings.
+     *  @payload {{ from: boolean, to: boolean, key: string }} */
+    AUTO_ROUTE_TOGGLED:    'settings:auto-route-toggled',
     /** @payload {{ from: boolean, to: boolean, key: string }} */
     MCP_SERVE_TOGGLED:     'settings:mcp-serve-toggled',
   }),

@@ -315,6 +315,8 @@ const SCHEMAS = {
   // Model routing
   'model:failover':              { from: 'required', to: 'required', error: 'required', reason: 'required' },
   'model:failover-unavailable':  { from: 'required', reason: 'required', error: 'required' },
+  // v7.5.2: emitted when ModelBridge auto-switches model based on taskType
+  'model:auto-switched':         { originalModel: 'required', routedModel: 'required', routedBackend: 'required', taskType: 'required', reason: 'optional' },
 
   // Values
   'value:stored':          { id: 'required', name: 'required', weight: 'required', source: 'required' },
@@ -407,6 +409,7 @@ const SCHEMAS = {
   'settings:selfmod-toggled':          { from: 'required', to: 'required', key: 'required' },
   'settings:trust-level-changed':      { from: 'required', to: 'required', key: 'required' },
   'settings:auto-resume-changed':      { from: 'required', to: 'required', key: 'required' },
+  'settings:auto-route-toggled':       { from: 'required', to: 'required', key: 'required' },
   'settings:mcp-serve-toggled':        { from: 'required', to: 'required', key: 'required' },
   // Chat system message (UI-bridge for runtime confirmations)
   'chat:system-message':               { text: 'required' },

@@ -52,7 +52,11 @@ class AgentCoreHealth {
 
     this._healthCache = {
       kernel:    core.guard.verifyIntegrity(),
-      model:     { active: c.resolve('model').activeModel, available: c.resolve('model').availableModels },
+      model:     {
+        active: c.resolve('model').activeModel,
+        available: c.resolve('model').availableModels,
+        routing: c.resolve('model').getRoutingStats?.() || null,  // v7.5.2
+      },
       modules:   c.resolve('selfModel').moduleCount(),
       skills:    c.resolve('skills').listSkills(),
       memory:    c.resolve('memory').getStats(),

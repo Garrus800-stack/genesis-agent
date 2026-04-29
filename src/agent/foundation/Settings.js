@@ -27,6 +27,7 @@ const TOGGLE_EVENT_KEYS = {
   'security.allowSelfModify':  'settings:selfmod-toggled',
   'trust.level':               'settings:trust-level-changed',
   'agency.autoResumeGoals':    'settings:auto-resume-changed',
+  'agency.autoRouteByTask':    'settings:auto-route-toggled',  // v7.5.2
   'mcp.serve.enabled':         'settings:mcp-serve-toggled',
 };
 const ENC_PREFIX = 'enc:';
@@ -117,7 +118,11 @@ class Settings {
       // the goal as pending; Genesis then clarifies before it's
       // committed to the active stack. Default false for backwards
       // compatibility (existing users keep direct-add behaviour).
-      agency: { autoResumeGoals: 'ask', negotiateBeforeAdd: false },
+      // v7.5.2: autoRouteByTask — when true (default), ModelBridge.chat()
+      // queries ModelRouter for non-user-chat taskTypes and switches model
+      // per-call (without mutating activeModel). Direct user chat is
+      // explicitly protected via _userChat marker in ChatOrchestrator.
+      agency: { autoResumeGoals: 'ask', negotiateBeforeAdd: false, autoRouteByTask: true },
       mcp: { enabled: true, servers: [], serve: { enabled: false, port: 3580 } },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
       timeouts: { approvalSec: 60, shellMs: 15000, httpMs: 60000, gitMs: 5000 },

@@ -166,7 +166,8 @@ const helpers = {
       const synthesis = await this.model.chat(
         systemPrompt || 'You are Genesis. Respond in the user\'s language.',
         synthesisMessages,
-        'chat'
+        'chat',
+        { _userChat: true }  // v7.5.2: protect tool synthesis (user-facing) from auto-routing
       );
 
       onChunk('\n' + synthesis);
