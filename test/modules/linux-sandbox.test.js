@@ -76,23 +76,34 @@ describe('LinuxSandboxHelper — Platform Behavior', () => {
     });
 
     test('linux: wrapCommand applies available namespaces', () => {
-      if (!isAvailable()) {
-        // No namespaces available — wrapCommand should pass through
+      // v7.5.4: precise condition. isAvailable() returns true when ANY
+      // namespace is detected — including just user-NS. But wrapCommand()
+      // only emits an unshare flag for pid/net/mount/ipc, so a system with
+      // only user-NS triggers passthrough, not wrapping. Branch on the
+      // actual wrapping condition instead of mere availability.
+      const caps = getCapabilities().capabilities;
+      const wrappable = caps.some(c => ['pid', 'net', 'mount', 'ipc'].includes(c));
+
+      if (!wrappable) {
+        // Either no isolation at all, or only user-NS. wrapCommand falls
+        // through to passthrough — verify that.
         const result = wrapCommand('node', ['script.js']);
         assertEqual(result.binary, 'node');
         assertEqual(result.isolated, false);
-      } else {
-        const result = wrapCommand('node', ['--max-old-space-size=128', 'script.js']);
-        assertEqual(result.binary, 'unshare');
-        assertEqual(result.isolated, true);
-        assert(result.namespaces.length > 0, 'Expected at least one namespace');
-        // Should end with: -- node --max-old-space-size=128 script.js
-        const dashDashIdx = result.args.indexOf('--');
-        assert(dashDashIdx >= 0, 'Expected -- separator');
-        assertEqual(result.args[dashDashIdx + 1], 'node');
-        assertEqual(result.args[dashDashIdx + 2], '--max-old-space-size=128');
-        assertEqual(result.args[dashDashIdx + 3], 'script.js');
+        return;
       }
+
+      // Wrappable namespaces present — verify wrapping
+      const result = wrapCommand('node', ['--max-old-space-size=128', 'script.js']);
+      assertEqual(result.binary, 'unshare');
+      assertEqual(result.isolated, true);
+      assert(result.namespaces.length > 0, 'Expected at least one namespace');
+      // Should end with: -- node --max-old-space-size=128 script.js
+      const dashDashIdx = result.args.indexOf('--');
+      assert(dashDashIdx >= 0, 'Expected -- separator');
+      assertEqual(result.args[dashDashIdx + 1], 'node');
+      assertEqual(result.args[dashDashIdx + 2], '--max-old-space-size=128');
+      assertEqual(result.args[dashDashIdx + 3], 'script.js');
     });
   }
 });

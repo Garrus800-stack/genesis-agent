@@ -1,4 +1,87 @@
-## [7.5.3]
+## [7.5.4]
+
+ShellAgent split into a thin orchestrator plus three focused helper modules.
+Five behavioral differences between `run()` and `runStreaming()` aligned via a
+shared validation pipeline. linux-sandbox test now exercises the pass-through
+branch on systems with only user-namespace.
+
+### Changed
+
+- `src/agent/capabilities/ShellAgent.js` reduced from 861 to 582 LOC. The
+  following responsibilities moved to `src/agent/capabilities/shell/`:
+  - `ShellSafety.js` — pure functions: `sanitizeCommand`, `checkRootDirSandbox`,
+    `checkBlockedPattern`, `buildRateLimitState`, `checkRateLimit`. Plus
+    `BLOCKED_PATTERNS` as a frozen shared object.
+  - `ShellOSAdapter.js` — pure functions: `resolveShell`, `adaptCommand`,
+    `parseCommand`, `parseTokens`. Takes `platform` parameter (e.g. `'win32'`,
+    `'linux'`, `'darwin'`) instead of an `isWindows` boolean.
+  - `ShellPlanner.js` — class handling LLM-based plan generation. Returns
+    parsed steps; ShellAgent's wrapper executes them and emits `shell:step`
+    + `shell:plan-complete`.
+
+- `run()` and `runStreaming()` now share `_validateAndPrepare()`, which runs
+  `sanitize → sandbox → blocked-tier → rate-limit` in order.
+
+- Public API unchanged. All consumers (CommandHandlers, AgentLoop,
+  FormalPlanner, DeploymentManager, etc.) continue to work without changes.
+  `instance.blockedPatterns` field still readable, now sourced from
+  `Safety.BLOCKED_PATTERNS`.
+
+### Fixed
+
+- `runStreaming()` now performs the rootDir sandbox check. Previously it
+  skipped sandbox entirely — commands like `dir /s C:\` could bypass the
+  rootDir restriction in streaming mode while `run()` blocked them.
+
+- `runStreaming()` now emits `shell:blocked` and `shell:rate-limited` events
+  on the bus, matching `run()`'s telemetry. Previously rejections in
+  `runStreaming()` only reached the `onDone` callback with no bus signal.
+
+- `runStreaming()` now uses `lang.t('shell.blocked_tier', ...)` for blocked
+  command stderr, matching `run()`. Previously hardcoded to `'Blocked'`.
+
+- `runStreaming()` rate-limit stderr now uses the long format
+  `[SHELL] Rate limited — {tier} tier: max {N} commands per {M}min window
+  exceeded.` matching `run()`. Previously the short form
+  `[SHELL] Rate limited — {tier} tier exceeded.`.
+
+- `test/modules/linux-sandbox.test.js` now distinguishes between
+  "no namespaces available" and "no wrappable namespaces available". On
+  systems where only user-NS is present (typical unprivileged Debian),
+  `wrapCommand()` falls through to passthrough — the test now asserts
+  that path actively instead of reaching the wrapping branch and
+  failing.
+
+### Added
+
+- `Object.freeze(BLOCKED_PATTERNS)` in ShellSafety prevents test mutation
+  from leaking across instances.
+
+- `checkBlockedPattern(cmd, tier, patterns?)` accepts an optional
+  third parameter defaulting to `BLOCKED_PATTERNS`.
+
+- `parseTokens(cmd)` exported from ShellOSAdapter for callers that
+  need raw tokenization without OS adaptation.
+
+- `selfStatementLog` constructor parameter on ShellPlanner. Currently
+  defaults to `null`; hook position fixed for future self-statement-log
+  integration.
+
+- `test/modules/shell-agent-snapshot.test.js` — characterization test
+  with `expect_v753`/`expect_v754` dual-expect schema. Locks down
+  pipeline behavior across the split, including the five intentional
+  runStreaming behavior changes.
+
+- `test/modules/shell-safety.test.js`, `shell-os-adapter.test.js`,
+  `shell-planner.test.js` — unit tests for the three new helper modules.
+
+### Tests
+
+5946 passed, 0 failed (Debian 13). Tests added: snapshot (22), shell-safety
+(26), shell-os-adapter (24), shell-planner (4). linux-sandbox test now
+asserts pass-through instead of skipping. Architectural fitness 127/130
+unchanged. ShellAgent.js no longer in the file-size warn list.
+
 
 Linux bug fix: Genesis no longer hangs at "BOOTING..." on Linux with
 `Cannot read properties of undefined (reading 'on')`.

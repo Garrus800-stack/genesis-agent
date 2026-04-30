@@ -23,9 +23,12 @@ const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { SHELL: SHELL_LIMITS, TIMEOUTS, THRESHOLDS } = require('../core/Constants');
-const { buildOsContext } = require('../core/EnvironmentContext');
 const { safeJsonParse } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
+// v7.5.4: extracted helpers
+const Safety = require('./shell/ShellSafety');
+const OSAdapter = require('./shell/ShellOSAdapter');
+const { ShellPlanner } = require('./shell/ShellPlanner');
 const _log = createLogger('ShellAgent');
 class ShellAgent {
   constructor({ lang, bus,  model, memory, knowledgeGraph, eventStore, sandbox, guard, rootDir}) {
@@ -39,9 +42,12 @@ class ShellAgent {
     this.guard = guard;
     this.rootDir = rootDir;
 
-    this.isWindows = process.platform === 'win32';
-    this.shell = this.isWindows ? 'cmd.exe' : '/bin/sh';
-    this.shellFlag = this.isWindows ? '/c' : '-c';
+    // v7.5.4: shell binary, flag, platform info from OSAdapter
+    const shellInfo = OSAdapter.resolveShell();
+    this.shell = shellInfo.shell;
+    this.shellFlag = shellInfo.shellFlag;
+    this.isWindows = shellInfo.isWindows;        // backward-compat field
+    this.platform = shellInfo.platform;          // v7.5.4 new
 
     // FIX v4.0.0: Default to 'read' — autonomous operations must explicitly
     // escalate to 'write' via setPermissionLevel(). Prevents accidental
@@ -51,47 +57,9 @@ class ShellAgent {
     this.history = [];
     this.maxHistory = 200;
 
-    // FIX v3.5.0: Hardened blocklist — covers alias/symlink/obfuscation bypasses
-    // Each tier is tested against the FULL command after _adaptCommand().
-    // 'observe' = NO shell access (matches everything → all commands blocked).
-    // 'read' blocks destructive ops. 'write' allows them but blocks system-level.
-    this.blockedPatterns = {
-      observe: /./, // Intentional: observe tier has no shell access — blocks ALL commands
-      read: /\b(rm|del|mv|move|cp|copy|mkdir|rmdir|chmod|chown|kill|shutdown|reboot|mkfs|dd\s+if|format|>\s)/i,
-      write: new RegExp([
-        // Direct system destruction
-        /rm\s+-rf\s+\//.source,
-        /mkfs/.source,
-        /dd\s+if=\/dev/.source,
-        /format\s+[a-z]:/.source,
-        /shutdown/.source,
-        /reboot/.source,
-        /kill\s+-9\s+1\b/.source,
-        />\s*\/dev/.source,
-        // FIX v3.5.0: Bypass vectors via encoding/aliasing
-        /\\x[0-9a-f]{2}/i.source,           // hex-encoded chars in commands
-        /\$\(.*\b(rm|dd|mkfs|kill)\b/.source, // command substitution wrapping destructive ops
-        /`.*\b(rm|dd|mkfs|kill)\b/.source,    // backtick command substitution
-        /\|\s*(ba)?sh\b/.source,              // piping to shell (curl|sh, wget|bash)
-        /\bsource\s/.source,                 // sourcing unknown scripts
-        /\b\.\s+\//.source,                  // dot-sourcing (. /path/script)
-        /\bpython\d?\s+-c\s/.source,         // python -c "arbitrary code"
-        /\bnode\s+-e\s/.source,              // node -e "arbitrary code"
-        /\bperl\s+-e\s/.source,              // perl -e "arbitrary code"
-        /\bruby\s+-e\s/.source,              // ruby -e "arbitrary code"
-        /\bcurl\s.*\|\s/.source,             // curl piped to anything
-        /\bwget\s.*\|\s/.source,             // wget piped to anything
-        /\bchmod\s+[0-7]*[67][0-7]{2}/.source, // chmod with setuid/setgid bits
-        /\bcrontab\b/.source,                // crontab manipulation
-        /\bsymlink|ln\s+-s/.source,          // symlink creation (can bypass SafeGuard paths)
-        /\bmkfifo\b/.source,                 // named pipes (can be used for injection)
-        /\biptables\b/.source,               // firewall manipulation
-        /\bsystemctl\s+(stop|disable|mask)/.source, // service disruption
-        /\bpkill\s/.source,                  // process kill by name
-        /\bkillall\s/.source,                // mass process kill
-      ].join('|'), 'i'),
-      system: /\b(mkfs|dd\s+if=\/dev\/zero|format\s+[a-z]:.*\/[qy])\b/i,
-    };
+    // v7.5.4: blockedPatterns sourced from ShellSafety. Frozen object;
+    // backward-compat field (8 test assertions read instance.blockedPatterns).
+    this.blockedPatterns = Safety.BLOCKED_PATTERNS;
 
     this.projectSignatures = {
       node:    { files: ['package.json'], cmds: { install: 'npm install', test: 'npm test', start: 'npm start', build: 'npm run build' } },
@@ -106,36 +74,41 @@ class ShellAgent {
 
     this._projectCache = new Map();
 
-    // v3.5.0: Per-tier rolling-window rate limiter
-    // Prevents runaway autonomous loops from flooding the shell.
-    this._shellCalls = {};  // { tier: [timestamp, ...] }
-    for (const tier of Object.keys(SHELL_LIMITS.RATE_LIMITS)) {
-      this._shellCalls[tier] = [];
-    }
+    // v7.5.4: rate-limit state via ShellSafety.buildRateLimitState
+    this._shellCalls = Safety.buildRateLimitState(Object.keys(SHELL_LIMITS.RATE_LIMITS));
+
+    // v7.5.4: dedicated planner for LLM-based shell-step generation.
+    // Plan-erzeugung lives there; this orchestrator handles execution.
+    this._planner = new ShellPlanner({ model, memory, lang, bus });
   }
 
   // ── CORE: Run a single command ────────────────────────────
   // FIX v4.0.0: Async-first with execFile array args (no shell parsing).
   // Eliminates shell injection vectors and unblocks main thread.
 
-  async run(command, opts = {}) {
-    const { cwd = this.rootDir, timeout = 30000, silent = false, tier = this.permissionLevel } = opts;
+  /**
+   * v7.5.4: shared pre-execution pipeline used by run() and runStreaming().
+   * Order: sanitize → sandbox → blocked-pattern → rate-limit.
+   *
+   * Returns { ok: true, command: sanitizedCmd, tier } on success,
+   * or { ok: false, result } where result is the ready-to-return error object.
+   *
+   * @param {string} command
+   * @param {object} opts
+   * @returns {{ok: true, command: string, tier: string} | {ok: false, result: object}}
+   */
+  _validateAndPrepare(command, opts) {
+    const { silent = false, tier = this.permissionLevel } = opts;
 
-    // FIX v5.6.0 (L-4x): Sanitize before blocklist — null bytes/newlines could bypass regex
-    const sanitized = this._sanitizeCommand(command);
+    // Sanitize before everything — null bytes/newlines could bypass regex
+    const sanitized = Safety.sanitizeCommand(command, { maxChars: THRESHOLDS.SHELL_COMMAND_MAX_CHARS });
     if (!sanitized.ok) {
-      return { ok: false, stdout: '', stderr: `[SHELL] ${sanitized.error}`, exitCode: -1, duration: 0, blocked: true };
+      return { ok: false, result: { ok: false, stdout: '', stderr: `[SHELL] ${sanitized.error}`, exitCode: -1, duration: 0, blocked: true } };
     }
     command = sanitized.command;
 
-    // v7.4.6.fix #31: rootDir sandbox. Reject commands that contain
-    // an absolute path pointing OUTSIDE rootDir. Most Windows
-    // failures came from the SHELL fallback's LLM emitting `dir /s
-    // C:\` or `where /r C:\` — these hit "Zugriff verweigert" on
-    // system dirs (System Volume Information, $Recycle.Bin) and
-    // produced confusing summaries. Refusing early gives the LLM a
-    // clear sandbox-violation message on the next planning round.
-    const sandboxCheck = this._checkRootDirSandbox(command);
+    // rootDir sandbox: reject absolute paths outside rootDir, recursive scans
+    const sandboxCheck = Safety.checkRootDirSandbox(command, this.rootDir, { platform: this.platform });
     if (!sandboxCheck.ok) {
       const sbResult = {
         ok: false,
@@ -147,22 +120,34 @@ class ShellAgent {
         sandboxBlock: true,
       };
       if (!silent) this.bus.emit('shell:blocked', { command, tier, reason: sandboxCheck.reason }, { source: 'ShellAgent' });
-      return sbResult;
+      return { ok: false, result: sbResult };
     }
 
-    const blocked = this.blockedPatterns[tier];
-    if (blocked && blocked.test(command)) {
+    // Blocked-pattern check per tier
+    const blockedCheck = Safety.checkBlockedPattern(command, tier, this.blockedPatterns);
+    if (!blockedCheck.ok) {
       const result = { ok: false, stdout: '', stderr: this.lang.t('shell.blocked_tier', { tier, cmd: command }), exitCode: -1, duration: 0, blocked: true };
       if (!silent) this.bus.emit('shell:blocked', { command, tier }, { source: 'ShellAgent' });
-      return result;
+      return { ok: false, result };
     }
 
-    // v3.5.0: Per-tier rate limiting
-    if (!this._checkShellRateLimit(tier)) {
-      const limit = SHELL_LIMITS.RATE_LIMITS[tier] || 60;
+    // Rate-limit per tier (rolling window)
+    const rateCheck = Safety.checkRateLimit(this._shellCalls, tier, SHELL_LIMITS.RATE_LIMITS, SHELL_LIMITS.RATE_WINDOW_MS);
+    if (!rateCheck.ok) {
+      const limit = rateCheck.limit;
       if (!silent) this.bus.emit('shell:rate-limited', { tier, count: limit, limit, windowMs: SHELL_LIMITS.RATE_WINDOW_MS }, { source: 'ShellAgent' });
-      return { ok: false, stdout: '', stderr: `[SHELL] Rate limited — ${tier} tier: max ${limit} commands per ${Math.round(SHELL_LIMITS.RATE_WINDOW_MS / 60000)}min window exceeded.`, exitCode: -2, duration: 0, blocked: false, rateLimited: true };
+      return { ok: false, result: { ok: false, stdout: '', stderr: `[SHELL] Rate limited — ${tier} tier: max ${limit} commands per ${Math.round(SHELL_LIMITS.RATE_WINDOW_MS / 60000)}min window exceeded.`, exitCode: -2, duration: 0, blocked: false, rateLimited: true } };
     }
+
+    return { ok: true, command, tier };
+  }
+
+  async run(command, opts = {}) {
+    const { cwd = this.rootDir, timeout = 30000, silent = false } = opts;
+
+    const prep = this._validateAndPrepare(command, opts);
+    if (!prep.ok) return prep.result;
+    command = prep.command;
 
     const startTime = Date.now();
     // FIX v4.0.0: Use shell flag + array args via execFile instead of execSync.
@@ -182,7 +167,7 @@ class ShellAgent {
     // to cmd.exe which rejected it. Now even with shell mode we
     // first translate POSIX → Windows.
     const originalCommand = command;
-    command = this._adaptCommand(command);
+    command = OSAdapter.adaptCommand(command, this.platform);
 
     try {
       let stdout;
@@ -202,7 +187,7 @@ class ShellAgent {
         stdout = out;
       } else {
         // Simple commands: parse into binary + args (no shell)
-        const parts = this._parseCommand(command);
+        const parts = OSAdapter.parseCommand(command, this.platform);
         const { stdout: out } = await execFileAsync(parts[0], parts.slice(1), execOpts);
         stdout = out;
       }
@@ -242,33 +227,23 @@ class ShellAgent {
   // ── Streaming execution for long-running ops ──────────────
 
   runStreaming(command, opts = {}) {
-    const { cwd = this.rootDir, timeout = 120000, onLine, onDone, tier = this.permissionLevel } = opts;
+    const { cwd = this.rootDir, timeout = 120000, onLine, onDone } = opts;
 
-    // FIX v5.6.0 (L-4x): Sanitize before blocklist
-    const sanitized = this._sanitizeCommand(command);
-    if (!sanitized.ok) {
-      onDone?.({ ok: false, stderr: `[SHELL] ${sanitized.error}`, exitCode: -1, blocked: true });
+    // v7.5.4: shared pipeline. Aligns runStreaming with run() —
+    // adds sandbox-check (was missing pre-v7.5.4), bus.emit telemetry
+    // for blocked + rate-limited (was silent pre-v7.5.4), and stderr
+    // formats matching run().
+    const prep = this._validateAndPrepare(command, opts);
+    if (!prep.ok) {
+      onDone?.(prep.result);
       return null;
     }
-    command = sanitized.command;
-
-    const blocked = this.blockedPatterns[tier];
-    if (blocked && blocked.test(command)) {
-      onDone?.({ ok: false, stderr: 'Blocked', exitCode: -1, blocked: true });
-      return null;
-    }
-
-    // FIX v4.10.0 (S-6): Rate limit streaming commands (same as run())
-    if (!this._checkShellRateLimit(tier)) {
-      const limit = SHELL_LIMITS.RATE_LIMITS[tier] || 60;
-      onDone?.({ ok: false, stderr: `[SHELL] Rate limited — ${tier} tier exceeded.`, exitCode: -2, rateLimited: true });
-      return null;
-    }
+    command = prep.command;
 
     // FIX v4.10.0 (S-6): For simple commands without shell metacharacters,
     // use spawn with explicit binary+args (no shell parsing) — same pattern
     // as run(). Only fall back to shell mode for pipes/redirects.
-    const adaptedCmd = this._adaptCommand(command);
+    const adaptedCmd = OSAdapter.adaptCommand(command, this.platform);
     const shellMeta = /[|;&`$(){}><]/.test(adaptedCmd);
     let proc;
 
@@ -278,7 +253,7 @@ class ShellAgent {
         windowsHide: true, timeout,
       });
     } else {
-      const parts = this._parseCommand(adaptedCmd);
+      const parts = OSAdapter.parseCommand(adaptedCmd, this.platform);
       proc = spawn(parts[0], parts.slice(1), {
         cwd: path.resolve(cwd), stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true, timeout,
@@ -305,154 +280,26 @@ class ShellAgent {
   }
 
   // ── SMART: Plan and execute multi-step tasks ──────────────
-
-  /**
-   * v7.4.6.fix: When chatStructured can't parse the LLM output as JSON,
-   * try to recover individual commands from the raw text. Looks for:
-   *   - code-fenced commands ```cmd...```
-   *   - backticked commands `dir /b *.js`
-   *   - lines starting with $ or > (shell-prompt style)
-   *   - bullet/numbered lists where the bullet text is a command
-   *
-   * @param {string} text
-   * @returns {Array<{cmd: string, description: string, critical: boolean, condition: null}>}
-   */
-  _salvageStepsFromText(text) {
-    if (typeof text !== 'string' || !text.trim()) return [];
-    const found = [];
-    const seen = new Set();
-    const push = (cmd, desc) => {
-      const c = (cmd || '').trim().replace(/^\$\s*|^>\s*/, '');
-      if (!c || seen.has(c)) return;
-      seen.add(c);
-      found.push({ cmd: c, description: (desc || c).slice(0, 120), critical: false, condition: null });
-    };
-
-    // 1. Fenced code blocks: ```...``` or ```bash ... ```
-    const fenceRe = /```(?:\w+\n)?([\s\S]*?)```/g;
-    let m;
-    while ((m = fenceRe.exec(text))) {
-      const block = m[1].trim();
-      // Each non-empty, non-comment line is a candidate
-      for (const line of block.split('\n')) {
-        const t = line.trim();
-        if (!t || t.startsWith('#') || t.startsWith('//')) continue;
-        push(t);
-      }
-    }
-
-    // 2. Backticked single commands: `dir /b *.js`
-    if (found.length === 0) {
-      const tickRe = /`([^`\n]{2,200})`/g;
-      while ((m = tickRe.exec(text))) push(m[1]);
-    }
-
-    // 3. Shell-prompt lines: $ cmd  or  > cmd
-    if (found.length === 0) {
-      for (const line of text.split('\n')) {
-        if (/^\s*[\$>]\s+\S/.test(line)) push(line.trim());
-      }
-    }
-
-    // 4. Numbered/bulleted list items
-    if (found.length === 0) {
-      const listRe = /^[\s]*(?:[-*]|\d+[.)])\s+(.+)$/gm;
-      while ((m = listRe.exec(text))) {
-        const t = m[1].trim();
-        // Only accept lines that LOOK like commands (start with a known binary)
-        if (/^(?:dir|ls|cat|type|cd|pwd|echo|find|grep|findstr|where|which|wc|head|tail|node|npm|git|python|pip|cargo|make|docker|powershell|cmd)\b/i.test(t)) {
-          push(t);
-        }
-      }
-    }
-
-    return found.slice(0, 10);
-  }
+  // v7.5.4: _salvageStepsFromText moved to ShellPlanner; plan() below
+  // delegates plan generation to it and runs the resulting steps.
 
   async plan(task, cwd = this.rootDir) {
-    this.bus.emit('shell:planning', { task: task.slice(0, 100) }, { source: 'ShellAgent' });
-
+    // v7.5.4: Plan generation delegated to ShellPlanner.
+    // shell:planning event is now emitted by the planner (source: 'ShellPlanner').
+    // ShellAgent retains step execution + bookkeeping (KG, eventStore) below.
     const project = await this.scanProject(cwd);
-    const pastPatterns = this.memory?.recallPattern(task);
-    const pastContext = pastPatterns
-      ? `\nPREVIOUSLY SUCCESSFUL: For "${pastPatterns.trigger}", "${pastPatterns.action}" worked (${Math.round(pastPatterns.successRate * 100)}% success).`
-      : '';
-
-    // v7.4.8: shared anti-hallucination block from EnvironmentContext.
-    // Previously only FormalPlanner had find /V /C correctness rules;
-    // direct chat path got none. Single source of truth now.
-    const { osContext, osName } = buildOsContext({
-      rootDir: cwd,
+    const planResult = await this._planner.generate(task, {
+      project,
+      cwd,
       isWindows: this.isWindows,
+      permissionLevel: this.permissionLevel,
     });
 
-    const planPrompt = `You are a shell expert for ${osName}.
-${osContext}
-TASK: ${task}
-
-PROJECT CONTEXT:
-- Directory: ${cwd}
-- Project type: ${project.type || 'unknown'}
-- Available scripts: ${JSON.stringify(project.scripts || {})}
-- Git status: ${project.gitStatus || 'unknown'}
-- Existing files: ${(project.keyFiles || []).join(', ')}
-${pastContext}
-
-RULES:
-- Only commands that work on ${osName}
-- Each command must be independently executable
-- Permission tier: "${this.permissionLevel}"
-
-Respond ONLY with a JSON list:
-[{"cmd": "command", "description": "what", "critical": false, "condition": null}]`;
-
-    let steps;
-    try {
-      const raw = await this.model.chatStructured(planPrompt, [], 'code');
-      // v7.4.6.fix: LLMs return planned steps in many shapes. We salvage
-      // them all instead of bailing with "Konnte keinen Plan erstellen"
-      // on the first non-array response.
-      //   1. Direct array              [{cmd, ...}]
-      //   2. Wrapped in {steps:[...]}  {steps: [...]}
-      //   3. Wrapped in {plan:[...]}   {plan: [...]}
-      //   4. Wrapped in {commands:[..]}{commands: [...]}
-      //   5. Single step object        {cmd, description}
-      //   6. _raw text fallback        {_raw: "...", _parseError: true}
-      if (Array.isArray(raw)) {
-        steps = raw;
-      } else if (raw && Array.isArray(raw.steps)) {
-        steps = raw.steps;
-      } else if (raw && Array.isArray(raw.plan)) {
-        steps = raw.plan;
-      } else if (raw && Array.isArray(raw.commands)) {
-        steps = raw.commands;
-      } else if (raw && typeof raw.cmd === 'string') {
-        steps = [raw];
-      } else if (raw && raw._raw && typeof raw._raw === 'string') {
-        // Salvage from raw text — extract code-fenced or backtick commands
-        steps = this._salvageStepsFromText(raw._raw);
-      } else {
-        steps = null;
-      }
-      if (!steps || !Array.isArray(steps) || steps.length === 0) {
-        // v7.4.6.fix: include the raw response in the summary so the user
-        // can see WHY it failed instead of a bare "Konnte keinen Plan
-        // erstellen". Truncated to 300 chars to keep chat readable.
-        const rawHint = (() => {
-          try {
-            if (raw && raw._raw) return String(raw._raw).slice(0, 300);
-            return JSON.stringify(raw).slice(0, 300);
-          } catch (_e) { return '<unparseable>'; }
-        })();
-        return {
-          plan: [],
-          results: [],
-          summary: `${this.lang.t('agent.plan_failed')}\n\nLLM-Antwort hatte kein erkennbares Plan-Schema. Auszug:\n\`\`\`\n${rawHint}\n\`\`\``,
-        };
-      }
-    } catch (err) {
-      return { plan: [], results: [], summary: this.lang.t('shell.plan_error', { message: err.message }) };
+    if (!planResult.steps) {
+      return { plan: [], results: [], summary: planResult.error };
     }
+
+    const steps = planResult.steps;
 
     /** @type {Array<*>} */
     const results = [];
@@ -666,171 +513,45 @@ Respond ONLY with a JSON list:
   }
 
   // ── PRIVATE ───────────────────────────────────────────────
+  // v7.5.4: _sanitizeCommand, _checkRootDirSandbox, _checkShellRateLimit
+  // moved to ShellSafety. _adaptCommand and _parseCommand moved to
+  // ShellOSAdapter. ShellAgent calls them via Safety.* and OSAdapter.*.
+  //
+  // Backwards-compat thin wrappers below preserve the v7.5.3 method
+  // signatures for existing tests (v746-fix, run-tests harness, etc.)
+  // and any other internal callers that grew out of fix-history.
+  // They forward to the new helpers.
 
-  /**
-   * v3.5.0: Per-tier rolling-window rate limiter.
-   * Returns true if command is allowed, false if rate-limited.
-   */
-  _checkShellRateLimit(tier) {
-    const limit = SHELL_LIMITS.RATE_LIMITS[tier];
-    if (!limit) return true; // Unknown tier — allow
-    if (!this._shellCalls[tier]) this._shellCalls[tier] = [];
-    const now = Date.now();
-    const windowStart = now - SHELL_LIMITS.RATE_WINDOW_MS;
-    this._shellCalls[tier] = this._shellCalls[tier].filter(ts => ts > windowStart);
-    if (this._shellCalls[tier].length >= limit) return false;
-    this._shellCalls[tier].push(now);
-    return true;
-  }
-
-  /**
-   * FIX v5.6.0 (L-4x): Sanitize command input before any processing.
-   * Blocks null bytes, newlines, and excessive length that could bypass
-   * blocklist regex or exploit shell parsing.
-   * @param {string} command
-   * @returns {{ ok: boolean, command?: string, error?: string }}
-   */
   _sanitizeCommand(command) {
-    if (typeof command !== 'string') return { ok: false, error: 'Command must be a string' };
-    if (command.length > THRESHOLDS.SHELL_COMMAND_MAX_CHARS) return { ok: false, error: `Command exceeds ${THRESHOLDS.SHELL_COMMAND_MAX_CHARS / 1024}KB limit` };
-    // Null bytes can truncate strings in C-based shell parsers
-    if (command.includes('\0')) return { ok: false, error: 'Null byte in command' };
-    // Newlines can inject additional commands in shell mode
-    const cleaned = command.replace(/[\r\n]+/g, ' ').trim();
-    if (!cleaned) return { ok: false, error: 'Empty command' };
-    // FIX v6.0.3 (L-4): NFKC normalization — converts Unicode confusables
-    // (fullwidth ｒｍ → rm, homoglyphs, etc.) so blocklist regex can match.
-    // Without this, `ｒｍ -rf /` bypasses the \brm\b pattern.
-    const normalized = cleaned.normalize('NFKC');
-    return { ok: true, command: normalized };
+    return Safety.sanitizeCommand(command, { maxChars: THRESHOLDS.SHELL_COMMAND_MAX_CHARS });
   }
 
-  /**
-   * v7.4.6.fix #31: Reject commands that contain absolute paths pointing
-   * OUTSIDE rootDir. Catches the LLM-fallback failure mode where the
-   * planner emitted `dir /s C:\`, `where /r C:\`, `type C:\Users\...`,
-   * etc. — commands that escaped Genesis's working directory and hit
-   * Windows access-denied on system folders.
-   *
-   * Lenient on purpose: only rejects commands that contain a clear
-   * absolute path token outside rootDir. Relative paths and absolute
-   * paths inside rootDir always pass.
-   *
-   * @param {string} command
-   * @returns {{ok: boolean, reason?: string}}
-   */
   _checkRootDirSandbox(command) {
-    if (!this.rootDir) return { ok: true };
-    const root = path.resolve(this.rootDir).toLowerCase();
-    // Find absolute path tokens. Windows: drive-letter form (C:\, D:\, ...).
-    // POSIX: leading slash followed by a known root directory name. We
-    // restrict to common roots so flags like "/b", "/s", "/q" don't get
-    // mistaken for paths. Absolute paths in shell commands almost always
-    // start with one of these top-level dirs.
-    const winAbs = command.match(/\b([A-Za-z]):[\\/](?:[^\s"';|&<>]*)/g) || [];
-    const posixAbs = !this.isWindows
-      ? (command.match(/(?:^|\s)(\/(?:home|usr|var|etc|opt|tmp|root|mnt|srv|bin|sbin|lib|proc|sys|run|boot)\/[^\s"';|&<>]*)/g) || [])
-          .map(s => s.trim())
-      : [];
-    const candidates = [...winAbs, ...posixAbs];
-    for (const raw of candidates) {
-      const abs = path.resolve(raw).toLowerCase();
-      if (!abs.startsWith(root)) {
-        return {
-          ok: false,
-          reason: `path "${raw}" is outside rootDir (${this.rootDir}). Use relative paths or absolute paths inside the working directory.`,
-        };
-      }
-    }
-    // Also reject the common "dir /s C:\" / "where /r C:\" patterns even
-    // if drive root matches rootDir's drive — recursing from C:\ is too
-    // broad and inevitably hits access-denied.
-    if (/\bdir\s+\/s\s+[A-Za-z]:[\\/]?\s*$/i.test(command)
-        || /\bwhere\s+\/r\s+[A-Za-z]:[\\/]?\s/i.test(command)) {
-      return {
-        ok: false,
-        reason: 'recursive scan from a drive root (dir /s C:\\, where /r C:\\) is not allowed. Scope the path to the working directory.',
-      };
-    }
-    return { ok: true };
+    return Safety.checkRootDirSandbox(command, this.rootDir, { platform: this.platform });
+  }
+
+  _checkShellRateLimit(tier) {
+    const r = Safety.checkRateLimit(this._shellCalls, tier, SHELL_LIMITS.RATE_LIMITS, SHELL_LIMITS.RATE_WINDOW_MS);
+    return r.ok;  // v7.5.3 returned plain boolean
   }
 
   _adaptCommand(cmd) {
-    if (!this.isWindows) return cmd;
-    // v7.4.5.fix #27c: expanded POSIX → Windows mapping. Previously
-    // only 8 commands were translated; the LLM commonly generates
-    // grep/find/wc/touch/echo idioms that all failed silently.
-    // We translate the common shapes so Genesis can actually carry
-    // out diverse tasks on Windows, not just file listing.
-    let out = cmd;
-    // Simple program-name swaps (start of command only)
-    out = out
-      .replace(/^ls\b/, 'dir')
-      .replace(/^cat\s/, 'type ')
-      .replace(/^rm\s+-rf\s/, 'rmdir /s /q ')
-      .replace(/^rm\s/, 'del ')
-      .replace(/^cp\s+-r\s/, 'xcopy /e /i ')
-      .replace(/^cp\s/, 'copy ')
-      .replace(/^mv\s/, 'move ')
-      .replace(/^mkdir\s+-p\s/, 'mkdir ')
-      .replace(/^which\s/, 'where ')
-      .replace(/^touch\s/, 'type nul > ')
-      .replace(/^pwd\b/, 'cd')
-      .replace(/^clear$/, 'cls')
-      .replace(/^echo\s+\$([A-Z_][A-Z0-9_]*)\b/, 'echo %$1%');
-    // v7.4.6.fix #29: quote-safe counting. The pattern `find /C /V ""`
-    // (count lines NOT matching empty) gets mangled when passed through
-    // Node.js → cmd.exe — the doubled empty quotes get re-escaped and
-    // `find` ends up reading file `"\"` → "Zugriff verweigert".
-    // Replacement: `find /V /C ":"` (count lines NOT containing colon).
-    // Filenames on Windows cannot contain ':' (reserved drive separator),
-    // so this counts all lines correctly with no quoting hazard.
-    // Common pipe idioms: "ls | wc -l" → "dir /b | find /V /C \":\""
-    out = out.replace(/\|\s*wc\s+-l\s*$/, '| find /V /C ":"');
-    // Auto-translate the broken pattern if the LLM emits it directly
-    out = out.replace(/find\s+\/[Cc]\s+\/[Vv]\s+""/g, 'find /V /C ":"');
-    out = out.replace(/find\s+\/[Vv]\s+\/[Cc]\s+""/g, 'find /V /C ":"');
-    // v7.4.6.fix #29b: LLMs hallucinate other broken find-counter forms too.
-    // Real-world failures observed:
-    //   `find /c "*"`           — Windows find treats * as literal, not glob
-    //   `find /c "."`           — counts lines containing literal dot
-    //   `find /v ""`            — missing /c, just inverts (lists everything)
-    //   `find /count ...`       — /count is not a flag at all
-    //   `findstr /c:"*"`        — different tool, same hallucination
-    // All these get rewritten to `find /V /C ":"` which actually counts lines.
-    out = out.replace(/\bfind\s+\/[Cc]\s+"[*.]"/g, 'find /V /C ":"');
-    out = out.replace(/\bfind\s+\/[Cc]\s+"\s*"/g, 'find /V /C ":"');
-    out = out.replace(/\bfind\s+\/[Vv]\s+""\s*$/, 'find /V /C ":"');
-    out = out.replace(/\bfind\s+\/count\b[^|&;<>]*$/i, 'find /V /C ":"');
-    out = out.replace(/\bfindstr\s+\/c:"[*.]"/g, 'find /V /C ":"');
-    // grep — basic mapping to findstr (not 1:1 but covers common cases)
-    out = out.replace(/\bgrep\s+(-[A-Za-z]+\s+)?/g, 'findstr ');
-    // /dev/null → NUL
-    out = out.replace(/\/dev\/null/g, 'NUL');
-    return out;
+    // Honor a runtime override of isWindows (legacy tests in v746-fix
+    // toggle this directly to test both branches without spawning).
+    const platform = this.isWindows ? 'win32' : (this.platform === 'win32' ? 'linux' : this.platform);
+    return OSAdapter.adaptCommand(cmd, platform);
   }
 
-  /**
-   * FIX v4.0.0: Parse a simple command into [binary, ...args] for execFile.
-   * Handles quoted arguments. For complex commands (pipes, redirects),
-   * the caller falls back to shell mode.
-   */
   _parseCommand(command) {
-    const adapted = this._adaptCommand(command);
-    const parts = [];
-    let current = '';
-    let inSingle = false, inDouble = false;
-    for (const ch of adapted) {
-      if (ch === "'" && !inDouble) { inSingle = !inSingle; continue; }
-      if (ch === '"' && !inSingle) { inDouble = !inDouble; continue; }
-      if (ch === ' ' && !inSingle && !inDouble) {
-        if (current) { parts.push(current); current = ''; }
-        continue;
-      }
-      current += ch;
-    }
-    if (current) parts.push(current);
-    return parts.length > 0 ? parts : [adapted];
+    const platform = this.isWindows ? 'win32' : (this.platform === 'win32' ? 'linux' : this.platform);
+    return OSAdapter.parseCommand(command, platform);
+  }
+
+  _salvageStepsFromText(text) {
+    // Use a transient Planner instance so this works even on prototype-only
+    // bound objects (Object.create(ShellAgent.prototype)) that some tests use.
+    const planner = this._planner || new ShellPlanner({ model: null });
+    return planner._salvageStepsFromText(text);
   }
 
   _record(command, cwd, result) {

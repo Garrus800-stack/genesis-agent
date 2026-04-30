@@ -1,9 +1,37 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.5.3 · Last updated: v7.5.3 (Linux preload-bridge race condition fixed in renderer)
+> Version: 7.5.4 · Last updated: v7.5.4 (ShellAgent split + runStreaming behavior alignment)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Open items from v7.5.4
+
+- **`isAvailable()` semantically misnamed in `LinuxSandboxHelper.js`.**
+  Currently returns `true` when at least one namespace is detected (including
+  user-NS alone). But `wrapCommand()` returns `isolated:false` when no
+  wrappable flag is available — and user-NS alone produces no flag. So
+  `isAvailable() === true` does not imply `wrapCommand` will wrap. The
+  v7.5.4 test fix worked around this by checking `getCapabilities()` for
+  pid/net/mount/ipc directly. Cleaner future fix: rename to
+  `hasAnyNamespace()` and add a separate `willWrap()` predicate, or fold
+  the wrap-readiness check into `isAvailable()` itself.
+
+- **`runStreaming()` may be dead code.** No external caller in `src/` or
+  `test/` — only `test/modules/v746-fix.test.js` Z. 116-117 has a static
+  existence-marker assertion. The method is exposed as public API but
+  nothing uses it. Either remove it (removes one of the larger code paths
+  in ShellAgent) or document an intended use case (long-running worker
+  spawns?) and add a real consumer.
+
+- **`bus.emit()` ohne await pattern across ShellAgent (and elsewhere).**
+  `EventBus.fire()` has internal `.catch()` guarding against unhandled
+  rejections; `EventBus.emit()` does not. Listeners that throw could
+  produce unhandled rejection events in the runtime. Bestand pre-v7.5.4,
+  consistent across the codebase. Question: convert all ShellAgent
+  emits to `fire()`, or harden listeners, or accept current state.
 
 ---
 
