@@ -212,5 +212,18 @@ window._dashReject = function() { window.genesis?.invoke('agent:loop-reject').ca
 // Auto-init
 window._genesis_dashboard = new Dashboard();
 document.addEventListener('DOMContentLoaded', function() {
-  window._genesis_dashboard.inject();
+  // v7.5.3: inject() registers IPC listeners via window.genesis.on().
+  // Wait until the bridge is established (Linux ESM-preload race).
+  // Falls back to polling if bridge appears late; if it never appears,
+  // Dashboard simply remains uninjected — the rest of the UI's bridge-error
+  // handler (in renderer-main.js / renderer.js) shows the user message.
+  function tryInject(remaining) {
+    if (window.genesis && typeof window.genesis.on === 'function') {
+      window._genesis_dashboard.inject();
+      return;
+    }
+    if (remaining <= 0) return;  // give up silently — main renderer handles user-facing error
+    setTimeout(function() { tryInject(remaining - 1); }, 16);
+  }
+  tryInject(312);  // 312 * 16ms ≈ 5s, matches waitForBridge timeout
 });

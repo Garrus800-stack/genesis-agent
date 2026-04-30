@@ -101,7 +101,14 @@ app.whenReady().then(async () => {
       // Tested: Electron 33, 35, 39 all fail with
       // "Cannot use import statement outside a module" in sandboxed preload.
       // Bundled CJS (Tier 2) has identical security (sandbox:true) — prefer it on Windows.
-      !(process.platform === 'win32')) {
+      // Same failure mode confirmed on Linux (Debian, Electron 33).
+      // Renderer DevTools showed: "SyntaxError: Cannot use import statement
+      // outside a module at runPreloadScript". Sandbox preload runner does not
+      // load ESM across Electron 33–39 on Linux either. Tier 1 is reserved for
+      // environments where ESM preload genuinely works (currently: macOS).
+      // Linux falls through to Tier 2 (Bundled CJS) — identical sandbox:true.
+      !(process.platform === 'win32') &&
+      !(process.platform === 'linux')) {
     // Tier 1: ESM — best option
     preloadPath = esmPreload;
     useSandbox = true;

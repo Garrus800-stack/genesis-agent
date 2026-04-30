@@ -454,20 +454,49 @@ Genesis.UI.boot = (() => {
   return { onReady, get ready() { return ready; } };
 })();
 
+// ── Bridge Readiness ───────────────────────────────────
+// v7.5.3: see renderer-main.js for full rationale. window.genesis arrives
+// asynchronously on Linux with ESM preload — wait actively rather than
+// crashing or pointing the user at a workaround.
+function waitForBridge(timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    if (window.genesis && typeof window.genesis.on === 'function') {
+      resolve();
+      return;
+    }
+    const start = Date.now();
+    const tick = () => {
+      if (window.genesis && typeof window.genesis.on === 'function') {
+        resolve();
+        return;
+      }
+      if (Date.now() - start > timeoutMs) {
+        reject(new Error('Preload bridge did not initialize within ' + timeoutMs + 'ms.'));
+        return;
+      }
+      setTimeout(tick, 16);
+    };
+    setTimeout(tick, 16);
+  });
+}
+
 // ── DOMContentLoaded ───────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  // FIX v4.12.8: Guard against missing preload bridge.
-  // On Windows + Electron 33, ESM preload.mjs can fail silently,
-  // leaving window.genesis undefined and crashing the entire UI.
-  if (!window.genesis) {
+document.addEventListener('DOMContentLoaded', async () => {
+  // v7.5.3: Wait for preload bridge instead of crashing immediately.
+  // Previous v4.12.8 guard pointed users at a manual workaround
+  // ("delete preload.mjs"). That was a bug, not documentation —
+  // the renderer must wait for the bridge.
+  try {
+    await waitForBridge(5000);
+  } catch (err) {
     document.body.innerHTML = '<div style="color:#ff6b6b;padding:2em;font-family:monospace;">' +
       '<h2>⚠ Preload bridge failed</h2>' +
-      '<p>window.genesis is undefined — the preload script did not load.</p>' +
-      '<p>This is a known issue on Windows + Electron 33 with ESM preloads.</p>' +
-      '<p><b>Fix:</b> Delete <code>preload.mjs</code> to force CJS fallback, then restart.</p>' +
+      '<p>' + (err.message || String(err)) + '</p>' +
+      '<p>Check the main process console for preload script errors.</p>' +
       '</div>';
     return;
   }
+
   Genesis.UI.monaco.init(); Genesis.UI.dragdrop.setup();
   const ci = $('#chat-input');
   ci.addEventListener('keydown', (e) => { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); Genesis.UI.chat.send(); } });

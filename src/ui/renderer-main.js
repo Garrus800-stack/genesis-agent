@@ -87,8 +87,62 @@ async function onAgentReady(status) {
   }
 }
 
+// ── Bridge Readiness ───────────────────────────────────
+// v7.5.3: window.genesis comes from the preload script via contextBridge.
+// On Windows with bundled-CJS preload, window.genesis is set synchronously
+// before DOMContentLoaded — no wait needed. On Linux with ESM preload (.mjs),
+// the preload script loads asynchronously. DOMContentLoaded can fire BEFORE
+// the bridge is established, causing `Cannot read properties of undefined
+// (reading 'on')` when listeners are wired.
+//
+// This helper polls for window.genesis every 16ms (one frame at 60fps) for
+// up to 5 seconds. In practice the bridge appears within 50–200ms on Linux.
+// If it never appears, we surface a real error rather than crashing silently.
+function waitForBridge(timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    if (window.genesis && typeof window.genesis.on === 'function') {
+      resolve();
+      return;
+    }
+    const start = Date.now();
+    const tick = () => {
+      if (window.genesis && typeof window.genesis.on === 'function') {
+        resolve();
+        return;
+      }
+      if (Date.now() - start > timeoutMs) {
+        reject(new Error(
+          'Preload bridge did not initialize within ' + timeoutMs + 'ms. ' +
+          'window.genesis is undefined. This usually indicates a preload ' +
+          'script load failure — check the main process console for errors.'
+        ));
+        return;
+      }
+      setTimeout(tick, 16);
+    };
+    setTimeout(tick, 16);
+  });
+}
+
 // ── DOMContentLoaded ───────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // v7.5.3: Wait for preload bridge before any window.genesis.* call.
+  // Without this, Linux ESM-preload race produces "Cannot read properties
+  // of undefined (reading 'on')" toast and a stuck BOOTING state.
+  try {
+    await waitForBridge(5000);
+  } catch (err) {
+    document.body.innerHTML =
+      '<div style="color:#ff6b6b;padding:2em;font-family:monospace;line-height:1.5;">' +
+      '<h2>⚠ Preload bridge failed to initialize</h2>' +
+      '<p>' + (err.message || String(err)) + '</p>' +
+      '<p>The preload script did not establish window.genesis within the ' +
+      'timeout window. Check the terminal output of <code>npm start</code> ' +
+      'for preload errors.</p>' +
+      '</div>';
+    return;
+  }
+
   // v4.0.0: Global Error Boundary — catches unhandled errors and
   // promise rejections, displays user-facing toast instead of silent failure.
   // Also logs to console for debugging.

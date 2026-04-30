@@ -1,3 +1,102 @@
+## [7.5.3]
+
+Linux bug fix: Genesis no longer hangs at "BOOTING..." on Linux with
+`Cannot read properties of undefined (reading 'on')`.
+
+### Background
+
+v4.13.0 introduced the three-tier preload system — ESM (.mjs) is Tier 1,
+Bundled CJS (dist/preload.js) is Tier 2, Raw CJS is Tier 3. All three
+share `sandbox:true`. Tier 1 is preferred where it works, because it's
+closer to the platform standard.
+
+v4.13.1 excluded Windows from Tier 1 because Electron 33–39 cannot load
+the ESM preload in the sandboxed renderer environment on Windows. Genesis
+fell through to Tier 2 (Bundled CJS) and that has worked cleanly on
+Windows since v4.13.1.
+
+On Linux, v4.13.1 left Tier 1 in place. The assumption was: ESM preload
+works everywhere except Windows. v7.5.2 was live-verified on Windows
+and released without Linux live-verify. That path was untested.
+
+In v7.5.3 the Linux test (Debian 13 with Electron 33) revealed exactly
+the same failure mode as Windows. The DevTools console showed:
+
+```
+Unable to load preload script: preload.mjs
+SyntaxError: Cannot use import statement outside a module
+at runPreloadScript
+```
+
+The renderer never received `window.genesis` and every `.on(...)` call
+failed with `Cannot read properties of undefined (reading 'on')`. The
+UI showed a red toast and stayed stuck at BOOTING.
+
+The README claims "CI runs on Ubuntu". The bug contradicted that promise
+and had to be fixed in code, not via user workarounds.
+
+### Fixed
+
+- **Linux is now excluded from Tier 1** (`main.js`). On Linux, Genesis
+  automatically falls through to Tier 2 (Bundled CJS) — identical to
+  Windows since v4.13.1. Identical security layer (`sandbox:true` +
+  `contextIsolation:true`). The only difference: the file loaded as
+  preload is `dist/preload.js` instead of `preload.mjs`. Both expose
+  the same IPC API via `contextBridge.exposeInMainWorld('genesis', …)`.
+
+  Tier 1 (ESM) is now reserved for platforms where it actually works
+  — currently macOS and future Electron versions that fix the issue.
+
+- **`waitForBridge()` helper in `renderer-main.js`, `renderer.js`, and
+  `dashboard.js`.** Defense-in-depth: even if Tier 1 is selected (on
+  macOS or future platforms), the renderer actively waits until
+  `window.genesis` is available and `window.genesis.on` is a function
+  (polling every 16ms, 5s timeout). DOMContentLoaded handlers are now
+  async. If the bridge never appears, a clear error is shown with a
+  reference to the main-process console — not a generic "undefined"
+  toast.
+
+- **Anti-pattern guard removed from `renderer.js`.** An older version
+  told users on bridge failure to "Delete preload.mjs to force CJS
+  fallback". That was a workaround for a code bug. Now: actually wait,
+  show a clean error on real timeout.
+
+### Stats
+
+- **Windows: 5870 passed · 0 failed · 113.7s.** Boot 1270ms.
+- **Debian: 5868 passed · 1 failed · 141.3s** (`linux-sandbox unshare` —
+  known permissions limitation on standard user accounts without
+  CAP_SYS_ADMIN, not a Genesis bug).
+- 12 new tests in `v753-fix.test.js` (3 test groups: A·5 static
+  renderer-main code checks, B·3 static renderer-legacy code checks,
+  C·4 logic tests with mocked window.genesis bridge)
+- `renderer.test.js`: 51/51 passed
+- `dashboard.test.js`: 40/40 passed
+- New QUICK-START.md sections: platform-specific install instructions
+  for Windows and Debian/Ubuntu, explanation of the preload tier system
+- New TROUBLESHOOTING.md entries: "Preload bridge failed", "ollama serve
+  address already in use", "node: bad option: --test-force-exit",
+  "linux-sandbox unshare test fails"
+
+### Process Lessons
+
+Platform-specific paths require platform-specific live-verify. v7.5.2
+was Windows-verified and shipped on the assumption "should work the same
+on Linux". That was wrong. The lesson for future releases: any path that
+branches on `process.platform` is live-verified on every affected
+platform before release.
+
+### Future
+
+- Genesis on Linux is now functionally equivalent to Windows
+- macOS remains Tier 1 (ESM) — untested through Anthropic CI, but the
+  code path is not excluded. Anyone booting on macOS and seeing a
+  bridge failure: open an issue with platform/Electron version.
+- Boy-Scout open: `linux-sandbox` test should write `skipped` instead
+  of failing when `unshare` lacks all capabilities (v7.5.x material)
+
+---
+
 ## [7.5.2]
 
 Auto-routing wählt das passende Modell pro Hintergrund-Aufgabe, ohne

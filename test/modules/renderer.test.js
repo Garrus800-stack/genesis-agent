@@ -869,27 +869,40 @@ describe('renderer.js — onAgentReady', () => {
 
 describe('renderer.js — IPC event wiring', () => {
 
-  test('agent:status-update listener registered', () => {
+  // v7.5.3: After waitForBridge fix, DOMContentLoaded handler is async.
+  // fireDOMReady triggers the handler but listener wiring happens
+  // after the first await tick. Helper waits for microtasks to drain
+  // so listeners are wired before assertions.
+  async function flushAsyncWiring() {
+    // 50ms covers the first waitForBridge tick (16ms) plus a few extra frames.
+    await new Promise(resolve => setTimeout(resolve, 60));
+  }
+
+  test('agent:status-update listener registered', async () => {
     const { genesis, fireDOMReady } = loadRenderer();
     fireDOMReady();
+    await flushAsyncWiring();
     assert(genesis.listeners['agent:status-update']?.length >= 1, 'Status listener wired');
   });
 
-  test('agent:stream-chunk listener registered', () => {
+  test('agent:stream-chunk listener registered', async () => {
     const { genesis, fireDOMReady } = loadRenderer();
     fireDOMReady();
+    await flushAsyncWiring();
     assert(genesis.listeners['agent:stream-chunk']?.length >= 1, 'Stream chunk listener wired');
   });
 
-  test('agent:stream-done listener registered', () => {
+  test('agent:stream-done listener registered', async () => {
     const { genesis, fireDOMReady } = loadRenderer();
     fireDOMReady();
+    await flushAsyncWiring();
     assert(genesis.listeners['agent:stream-done']?.length >= 1, 'Stream done listener wired');
   });
 
-  test('agent:open-in-editor listener registered', () => {
+  test('agent:open-in-editor listener registered', async () => {
     const { genesis, fireDOMReady } = loadRenderer();
     fireDOMReady();
+    await flushAsyncWiring();
     assert(genesis.listeners['agent:open-in-editor']?.length >= 1, 'Open-in-editor listener wired');
   });
 });
@@ -897,14 +910,19 @@ describe('renderer.js — IPC event wiring', () => {
 
 describe('renderer.js — DOMContentLoaded wiring', () => {
 
+  async function flushAsyncWiring() {
+    await new Promise(resolve => setTimeout(resolve, 60));
+  }
+
   test('DOMContentLoaded event triggers init', () => {
     const { eventListeners } = loadRenderer();
     assert(eventListeners['DOMContentLoaded']?.length >= 1, 'DOMContentLoaded registered');
   });
 
-  test('keydown handler registered on document', () => {
+  test('keydown handler registered on document', async () => {
     const { eventListeners, fireDOMReady } = loadRenderer();
     fireDOMReady();
+    await flushAsyncWiring();
     assert(eventListeners['keydown']?.length >= 1, 'Keydown registered');
   });
 });

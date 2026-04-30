@@ -1,9 +1,48 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.5.2 · Last updated: v7.5.2 (auto-routing release closes v7.5 plan from v4.10.0)
+> Version: 7.5.3 · Last updated: v7.5.3 (Linux preload-bridge race condition fixed in renderer)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.5.3
+
+- **Linux preload load failure (root cause).** README claims "CI runs on
+  Ubuntu", but Genesis hung at BOOTING with toast "Cannot read properties
+  of undefined (reading 'on')" on Debian (Electron 33). DevTools-Console
+  showed the actual cause: `SyntaxError: Cannot use import statement outside
+  a module at runPreloadScript`. The sandboxed renderer in Electron 33–39
+  cannot load ESM preload (`preload.mjs`) on Linux — same failure mode that
+  v4.13.1 documented for Windows. Initial v7.5.3 attempt assumed an async
+  race condition and added `waitForBridge()` helpers — that didn't fix the
+  underlying issue (bridge never arrived at all, not just late). Real fix:
+  Linux excluded from Tier 1 in `main.js`, falls through to Tier 2 (Bundled
+  CJS) — same path Windows uses since v4.13.1. The `waitForBridge()` helpers
+  remain as defense-in-depth for environments where Tier 1 is selected but
+  loads asynchronously (currently macOS).
+
+## Backlog (added in v7.5.3)
+
+- **macOS preload tier untested.** Tier 1 (ESM) is now reserved for "platforms
+  where it works" — currently only macOS. Anthropic CI runs Ubuntu + Windows,
+  not macOS. If a user reports Bridge-Failure on macOS, file an issue with
+  Electron version and add macOS to the Tier 1 exclusion list. The
+  `waitForBridge()` helper covers the async-race case but not the
+  load-failure case.
+
+- **linux-sandbox unshare test fails on standard user accounts.** Test
+  expects `unshare` to be available with full namespace caps. Without
+  CAP_SYS_ADMIN this fails — but it's a permission/environment issue,
+  not a Genesis code bug. Test should detect missing capabilities and
+  emit a `skipped` verdict rather than `failed`. Boy-Scout for v7.5.x.
+
+- **Process: platform-specific code paths need platform-specific live-verify
+  before release.** v7.5.2 was Windows-verified and shipped on the assumption
+  Linux would work the same way. v7.5.3 found that wasn't true. Going forward,
+  any code path that branches on `process.platform` must be live-verified on
+  every affected platform before release — not deduced from Windows behavior.
 
 ---
 

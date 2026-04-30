@@ -1,8 +1,176 @@
 # Genesis — Quick Start Guide
 
-Get Genesis running in under 2 minutes and see what it can do.
+This guide gets Genesis running on your machine, whether you use Windows or Debian/Ubuntu. It's written for people who don't build software every day — you just copy and run the commands.
 
-## 1. Install & Start
+Genesis runs on **Windows** and **Linux** (Debian, Ubuntu, Mint, Pop!_OS — anything Debian-based). macOS works in principle but is not regularly tested.
+
+---
+
+## What you need
+
+Genesis is a program that talks to an AI model. So you need three things, in this order:
+
+1. **Node.js 22** — the runtime Genesis itself runs on
+2. **Ollama with at least one model** — the AI provider, locally on your machine
+3. **Genesis itself** — clone, install, start
+
+**Important:** Ollama must be running **before** Genesis starts, otherwise Genesis has no model to talk to. The symptom is `[+] Model: none` in the boot log and the chat doesn't respond.
+
+---
+
+## Windows
+
+### Step 1 — Install Node.js
+
+Go to [nodejs.org](https://nodejs.org), download the **LTS installer** (.msi file). Double-click, accept all defaults. That gives you `node` and `npm` on your system.
+
+Verify in a **new** Command Prompt (`cmd`):
+
+```cmd
+node --version
+```
+
+Should show `v22.x.x` or higher.
+
+### Step 2 — Install Ollama
+
+Go to [ollama.com](https://ollama.com), click "Download for Windows", run the installer. After installation, you should see a small llama icon in the system tray (bottom right, next to the clock). That's Ollama — it's now running in the background.
+
+### Step 3 — Pull a model
+
+In a Command Prompt:
+
+```cmd
+ollama pull qwen2.5:7b
+```
+
+This downloads a model (~4 GB, takes a few minutes depending on your internet). qwen2.5:7b is a solid all-round starting point.
+
+### Step 4 — Make sure Ollama is running
+
+In most cases Ollama runs automatically after installation (llama icon in the tray). **If the icon is not there** — for example because you closed it, or because Windows blocked auto-start — start it manually:
+
+**Option A:** Launch the Ollama app from the Start menu. The icon reappears in the tray.
+
+**Option B:** In a Command Prompt:
+
+```cmd
+ollama serve
+```
+
+Leave this window open while you use Genesis. If the window closes, Ollama is gone again.
+
+> **If `ollama serve` says "address already in use" or "already running":**
+> Then Ollama is already running (you might just not see it). Don't do anything else — Genesis will find the running instance. You don't need this command.
+
+### Step 5 — Clone and start Genesis
+
+```cmd
+git clone https://github.com/Garrus800-stack/genesis-agent.git
+cd genesis-agent
+npm install
+npm start
+```
+
+`npm install` takes about 30 seconds — it downloads dependencies and builds the renderer.
+`npm start` opens the Genesis window.
+
+### Verify that it works
+
+In the terminal window you should see this line:
+
+```
+[+] Model: qwen2.5:7b
+```
+
+If it says `[+] Model: none`, Genesis didn't find a model. Go back to Step 4 — Ollama probably isn't running.
+
+---
+
+## Debian / Ubuntu / Mint
+
+### Step 1 — Install Node.js 22
+
+Debian and Ubuntu often ship older Node versions (Debian 12 stable has Node 18). Genesis needs Node 22 or newer.
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install nodejs
+node --version
+```
+
+The last line should show `v22.x.x`.
+
+> **If you tried nvm and it didn't work:** nvm is an alternative for people who need multiple Node versions in parallel. If the way above (NodeSource and apt) works for you, leave nvm alone. It's not necessary.
+
+### Step 2 — Install Ollama
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+The installer registers Ollama as a **systemd service**. The service usually runs immediately after installation and also auto-starts after every reboot.
+
+> **Key difference from Windows:** On Linux there is no llama icon in the tray. You don't see Ollama at all. It runs in the background as a system service.
+
+### Step 3 — Pull a model
+
+```bash
+ollama pull qwen2.5:7b
+```
+
+If you get an error that Ollama is not reachable, the service isn't running yet — see Step 4.
+
+### Step 4 — Check whether Ollama is running
+
+On Linux this is not obvious. Three ways to find out:
+
+```bash
+# Way 1: ask systemd
+systemctl status ollama
+
+# Way 2: check whether something is listening on port 11434
+ss -tulpn | grep 11434
+
+# Way 3: query directly (if this returns a response, it's running)
+curl http://127.0.0.1:11434/api/tags
+```
+
+If the service isn't running, start it:
+
+```bash
+sudo systemctl start ollama
+sudo systemctl enable ollama   # auto-start on every reboot
+```
+
+### If you prefer to start Ollama manually
+
+Some people prefer to run `ollama serve` in their own terminal — that way you see the logs directly. That works, but **only if the service isn't running in parallel**.
+
+If you just call `ollama serve` while the service is already running, you'll see:
+
+```
+Error: listen tcp 127.0.0.1:11434: bind: address already in use
+```
+
+This is **not a real error** — it just means the port is already taken. The service is holding it. In that case you have two options:
+
+**Option A — do nothing.** The service is running, Genesis finds it, all good. You don't need `ollama serve`.
+
+**Option B — stop the service, start manually.** If you really want `ollama serve` in your terminal:
+
+```bash
+sudo systemctl stop ollama   # stop the service
+ollama serve                  # port is now free, manual start
+```
+
+Leave the terminal open. When you want Ollama back as a service:
+
+```bash
+sudo systemctl start ollama
+```
+
+### Step 5 — Clone and start Genesis
 
 ```bash
 git clone https://github.com/Garrus800-stack/genesis-agent.git
@@ -11,36 +179,81 @@ npm install
 npm start
 ```
 
-Genesis boots in ~2 seconds. You'll see a chat window — that's your interface.
+### Verify that it works
 
-**Model selection — Genesis picks the best model automatically:**
+In the terminal you should see this line:
 
-Genesis uses Smart Ranking (35 tiers, score 0–100) to auto-select the best available model from your Ollama installation. No manual configuration needed.
-
-```bash
-# If you have Ollama running with models:
-ollama pull qwen2.5:7b           # Score: 80 — good for most tasks
-ollama pull deepseek-coder:6.7b  # Score: 92 — excellent for code
-ollama serve                     # Genesis auto-detects and picks the best
+```
+[+] Model: qwen2.5:7b
 ```
 
-**Change the model anytime:**
+If it says `[+] Model: none` — Ollama isn't running. Go back to Step 4.
 
-```bash
-# In the Genesis CLI (node cli.js):
-/models                          # Show all models ranked by capability
-/model qwen2.5:7b                # Switch + permanently save
+You should also see:
 
-# Via CLI flag:
-node cli.js --backend ollama:kimi-k2.5:cloud
-
-# Via settings file (~/.genesis/settings.json):
-{ "models": { "preferred": "kimi-k2.5:cloud" } }
+```
+[KERNEL] Preload: Bundled CJS (dist/preload.js) — sandbox:true
 ```
 
-**Cloud APIs (optional, for best results):**
+If it says `Preload: ESM (.mjs)` instead and Genesis hangs at "BOOTING…", your Genesis version is older than 7.5.3. Update to 7.5.3 or newer.
 
-Open Settings → paste your **Anthropic API key** or **OpenAI API key**. Cloud models (Claude, GPT-4o) score 95–100 and are auto-preferred over local models.
+---
+
+## What else you should see in the boot log
+
+After `npm start` a wall of text appears. The important lines:
+
+```
+[KERNEL] Preload: Bundled CJS (dist/preload.js) — sandbox:true
+[KERNEL] UI: Bundled renderer (dist/renderer.bundle.js)
+...
+[+] Skills: 4, Tools: 29
+[+] MCP: 0/0 servers, 0 tools
+[+] Model: qwen2.5:7b
+[+] Auto-routing: enabled (taskType → ModelRouter)
+...
+[+] Trust level: AUTONOMOUS
+[GENESIS] Boot complete in 1270ms — 167 services
+[KERNEL] Agent booted successfully.
+```
+
+If all of that is there, Genesis is running. The window is open and you can type in the chat field at the bottom.
+
+Genesis boots in about 1.3 seconds on Windows, about 2 seconds on Linux.
+
+---
+
+## Model selection
+
+Genesis automatically picks the best available model from your Ollama installation (Smart Ranking system with 35 tiers, score 0–100). You don't need to configure anything manually. More models installed = more choice:
+
+```bash
+ollama pull qwen2.5:7b           # Score 80 — good all-round
+ollama pull deepseek-coder:6.7b  # Score 92 — excellent for code
+```
+
+On next start, Genesis automatically picks the best one.
+
+**Switch model manually:**
+
+Inside Genesis via slash command:
+
+```
+/models                          # show all models ranked by score
+/model qwen2.5:7b                # switch and persist
+```
+
+Or in Settings (via the UI), or via the settings file `~/.genesis/settings.json`:
+
+```json
+{ "models": { "preferred": "qwen2.5:7b" } }
+```
+
+**Cloud APIs (optional):**
+
+If you want the best results, you can paste an **Anthropic API key** or **OpenAI API key** in the Settings dialog. Cloud models (Claude, GPT-4o) score 95–100 and are auto-preferred.
+
+---
 
 ## 2. Your First Conversation
 

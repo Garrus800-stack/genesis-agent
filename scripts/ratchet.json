@@ -1,10 +1,10 @@
 {
   "_description": "Ratchet — floor/max values enforced by check-ratchet.js in CI.",
-  "_locked_at": "v7.5.2",
-  "_date": "2026-04-29",
+  "_locked_at": "v7.5.3",
+  "_date": "2026-04-30",
   "testCount": {
-    "floor": 5844,
-    "note": "v7.5.2 floor — 5816 v7.5.1 measured + 31 v752-fix + 0 boy-scout-tests = 5847 measured. Floor 3 below per pattern."
+    "floor": 5860,
+    "note": "v7.5.3 floor — 5847 v7.5.2 measured + 12 v753-fix + ~5 renderer-tests die vorher fail waren = ~5864 expected. Floor 4 below for safety; user-measured Wert wird in nächstem Release nachgezogen."
   },
   "fitnessScore": {
     "floor": 127,

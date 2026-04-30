@@ -27,6 +27,109 @@ npx electron . --disable-gpu
 ```
 Or edit `Genesis-Start.bat` / create a shell alias.
 
+### Linux: "Preload bridge failed to initialize" / stuck at BOOTING
+
+**Symptom:** On Linux, the Genesis window opens, sidebar renders, but the status pill stays yellow at `BOOTING…` and a red toast appears: `Cannot read properties of undefined (reading 'on')`. After ~5 seconds the UI replaces itself with `⚠ Preload bridge failed to initialize`.
+
+**Cause:** Electron's sandboxed renderer cannot load ESM preload scripts (`preload.mjs`) on Linux with Electron 33–39. The exact error visible in DevTools (Ctrl+Shift+I → Console) is:
+```
+Unable to load preload script: preload.mjs
+SyntaxError: Cannot use import statement outside a module
+at runPreloadScript
+```
+This is the same failure mode previously documented for Windows in v4.13.1. The renderer never receives `window.genesis`, so every `.on(...)` call fails.
+
+**Fix (v7.5.3 and later):** Genesis now skips Tier 1 (ESM) on Linux automatically and uses Tier 2 (Bundled CJS, `dist/preload.js`). After upgrading, the boot log should read:
+```
+[KERNEL] Preload: Bundled CJS (dist/preload.js) — sandbox:true
+```
+If it still says `ESM (.mjs) — sandbox:true`, your `dist/preload.js` was not built. Run:
+```bash
+npm run build:bundle
+```
+or reinstall dependencies (`npm install` triggers the bundle as a postinstall step).
+
+If you want to force CJS manually for any reason — for example, to test a custom Electron build — rename or delete `preload.mjs`:
+```bash
+mv preload.mjs preload.mjs.disabled
+npm start
+```
+Tier 2 is selected because Tier 1 no longer finds an `.mjs` file. Same security guarantees (`sandbox:true`).
+
+### Linux: `ollama serve` says "address already in use"
+
+**Symptom:**
+```
+Error: listen tcp 127.0.0.1:11434: bind: address already in use
+```
+
+**Cause:** This is **not an error**. The Ollama installer registers a systemd service that auto-starts on boot and binds `127.0.0.1:11434`. Running `ollama serve` manually tries to bind the same port — which is already held by the service.
+
+On Windows, Ollama runs as a tray application and you can see/stop it. On Linux, you typically don't see anything because the service is silent.
+
+**Check whether the service is running:**
+```bash
+systemctl status ollama
+# or
+ss -tulpn | grep 11434
+```
+
+**If you just want to use Ollama from Genesis:** Do nothing. The service is already serving on 11434 and Genesis will find it. Verify with:
+```bash
+curl http://127.0.0.1:11434/api/tags
+ollama list
+```
+
+**If you want to run Ollama manually** (for custom flags, a different port, or debugging logs in your terminal):
+```bash
+sudo systemctl stop ollama
+ollama serve              # port is now free
+```
+After your session, optionally restart the service:
+```bash
+sudo systemctl start ollama
+```
+
+**If you never want the service** and prefer to start Ollama manually each session:
+```bash
+sudo systemctl disable ollama
+sudo systemctl stop ollama
+```
+You can re-enable it any time with `sudo systemctl enable --now ollama`.
+
+### Linux: 40 tests show "node: bad option: --test-force-exit"
+
+**Symptom:** `npm test` reports many failures like:
+```
+v737-active-refs-port... ❌ Error: node: bad option: --test-force-exit
+```
+
+**Cause:** `--test-force-exit` is a Node 22 option. Your system has Node 20 or older.
+
+**Fix:** Install Node 22 — see [QUICK-START.md](QUICK-START.md#debian--ubuntu--mint) for both NodeSource and nvm options.
+
+After Node 22, expect 5868–5870 passed and 0–1 failed (the one allowed failure is `linux-sandbox unshare`, see next entry).
+
+### Linux: "linux-sandbox unshare" test fails
+
+**Symptom:**
+```
+linux-sandbox... ❌ 9 passed, 1 failed
+  ❌ linux: wrapCommand applies available namespaces: Expected "unshare", got "node"
+```
+
+**Cause:** The test expects the system's `unshare` utility to be available with full namespace capabilities. On a standard user account without `CAP_SYS_ADMIN`, certain namespace types (PID, network) cannot be created — the helper detects this and falls back, but the test asserts the unrestricted form.
+
+This is a **test environment limitation**, not a Genesis code bug. Genesis uses whatever isolation level is available; sandboxed code execution still works.
+
+**Fix:** None needed. If you want to verify `unshare` is generally available:
+```bash
+which unshare       # should be /usr/bin/unshare
+unshare -U echo ok  # user namespace test, should print "ok"
+```
+
+This single failure is allowed by the v7.5.3 ratchet on Linux.
+
 ---
 
 ## Boot & Startup
