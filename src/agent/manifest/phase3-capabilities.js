@@ -84,6 +84,16 @@ function phase3(ctx, R) {
       phase: 3,
       deps: ['model', 'selfModel', 'memory', 'eventStore', 'knowledgeGraph', 'sandbox'],
       tags: ['capability'],
+      // v7.5.5: late-bind selfStatementLog from phase 9.
+      // ShellAgent has a setter that propagates the binding to its
+      // ShellPlanner instance (ShellPlanner.recordPromise then captures
+      // shell-task plans as `versprechen`-class self-statements).
+      lateBindings: [
+        { prop: 'selfStatementLog', service: 'selfStatementLog',
+          optional: true, expectedActive: true,
+          expects: ['recordPromise'],
+          impact: 'shell-task plans not captured into Self-Statement-Log' },
+      ],
       factory: (c) => new (R('ShellAgent').ShellAgent)({
         bus, lang: R('Language').lang, model: c.resolve('llm'), selfModel: c.resolve('selfModel'),
         memory: c.resolve('memory'), guard,

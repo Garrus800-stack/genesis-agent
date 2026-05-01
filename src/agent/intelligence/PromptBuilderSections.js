@@ -423,10 +423,32 @@ const sections = {
   },
 
   _selfAwarenessContext() {
-    if (!this.selfNarrative) return '';
+    if (!this.selfNarrative && !this.selfStatementLog) return '';
     try {
-      const summary = this.selfNarrative.getIdentitySummary();
-      return summary ? `[Self-awareness] ${summary}` : '';
+      const parts = [];
+
+      if (this.selfNarrative) {
+        const summary = this.selfNarrative.getIdentitySummary();
+        if (summary) parts.push(`[Self-awareness] ${summary}`);
+      }
+
+      // v7.5.5: Audit-Stat — Genesis sees own confabulation rate.
+      // Wording is descriptive, not imperative — Genesis decides how
+      // to react. No /self-inspect prompt-push to avoid training the
+      // model toward defensive disclaimers. `meetsThreshold` is computed
+      // inside SelfStatementLog using AUDIT_MIN_TOTAL — the magic number
+      // lives in exactly one place, calibration after live data only
+      // touches that constant.
+      const audit = this.selfStatementLog?.getAuditStat?.();
+      if (audit?.meetsThreshold && audit.without > 0) {
+        parts.push(
+          `[Self-claim audit, last 24h] ${audit.total} structural ` +
+          `statements about yourself, ${audit.without} of them without ` +
+          `verified data backing in the prompt.`
+        );
+      }
+
+      return parts.length ? parts.join('\n\n') : '';
     } catch (_e) {
       _log.debug('[catch] return summary Selfawareness:', _e.message);
       return '';
@@ -648,77 +670,13 @@ const sections = {
     }
   },
 
-  // ── v7.1.7 F3: Introspection Accuracy ─────────────────
-  // When Genesis is asked about itself, inject VERIFIED facts
-  // from its own systems instead of letting the LLM hallucinate.
-  // Triggered by self-inspect / self-reflect intents.
-  _introspectionContext() {
-    try {
-      // Only inject for self-reflective queries
-      if (!this._currentIntent) return '';
-      const intent = this._currentIntent;
-      if (intent !== 'self-inspect' && intent !== 'self-reflect' &&
-          intent !== 'architecture') return '';
-
-      const parts = ['VERIFIED FACTS ABOUT YOURSELF (use these, do NOT invent numbers):'];
-
-      // SelfModel: module counts, version, capabilities
-      const manifest = this.selfModel?.manifest;
-      if (manifest && Object.keys(manifest.modules || {}).length > 0) {
-        const moduleCount = Object.keys(manifest.modules).filter(p => p.startsWith('src/')).length;
-        const version = manifest.version || 'unknown';
-        const caps = manifest.capabilities || [];
-        parts.push(`  Version: ${version}, Source modules: ${moduleCount}, Capabilities: ${caps.slice(0, 8).join(', ')}`);
-      }
-
-      // ArchitectureReflection: services, events, layers
-      if (this.architectureReflection) {
-        try {
-          const snap = this.architectureReflection.getSnapshot?.();
-          if (snap) {
-            parts.push(`  DI services: ${snap.services || '?'}, Events: ${snap.events || '?'}, Layers: ${snap.layers || '?'}, Late bindings: ${snap.lateBindings || '?'}`);
-          }
-        } catch (_e) { /* optional */ }
-      }
-
-      // CognitiveSelfModel: Wilson-calibrated capability profile
-      if (this.cognitiveSelfModel) {
-        try {
-          const report = this.cognitiveSelfModel.getReport?.();
-          if (report?.profile) {
-            const entries = Object.entries(report.profile);
-            const weak = entries.filter(([, v]) => v.isWeak).map(([k]) => k);
-            const strong = entries.filter(([, v]) => !v.isWeak && v.sampleSize >= 5).map(([k, v]) => `${k}:${Math.round(v.successRate * 100)}%`);
-            if (strong.length > 0) parts.push(`  Strong capabilities: ${strong.slice(0, 5).join(', ')}`);
-            if (weak.length > 0) parts.push(`  Weak capabilities: ${weak.join(', ')}`);
-          }
-        } catch (_e) { /* optional */ }
-      }
-
-      // EmotionalState: current mood
-      if (this.emotionalState) {
-        try {
-          const mood = this.emotionalState.getMood?.();
-          const trend = this.emotionalState.getTrend?.();
-          if (mood) parts.push(`  Current mood: ${mood} (trend: ${trend || 'stable'})`);
-        } catch (_e) { /* optional */ }
-      }
-
-      // IdleMind: activity status
-      if (this._idleMind) {
-        try {
-          const status = this._idleMind.getStatus?.();
-          if (status) parts.push(`  IdleMind: ${status.thoughtCount || 0} thoughts, ${status.journalEntries || 0} journal entries`);
-        } catch (_e) { /* optional */ }
-      }
-
-      if (parts.length <= 1) return ''; // Only header, no data
-      return parts.join('\n');
-    } catch (err) {
-      _log.debug('[PROMPT] Introspection context error:', err.message);
-      return '';
-    }
-  },
+  // ── v7.1.7 F3: Introspection Accuracy — moved to Extra ─
+  // v7.5.5: _introspectionContext lives ONLY in PromptBuilderSectionsExtra.js
+  // now. Boy-Scout removed the duplicate that was here since v7.3.3 (size-budget
+  // extraction left both copies). Object.assign(prototype, sections, sectionsExtra)
+  // in PromptBuilder.js Z. 506 made the Extra version always win — Sections
+  // version was dead code. Removing the duplicate prevents a latent bug if
+  // Object.assign order ever changes.
 
   // ── Version Self-Awareness (v7.0.4) ───────────────────
   // Genesis knows what changed in its latest version.

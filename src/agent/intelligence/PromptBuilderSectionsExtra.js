@@ -159,15 +159,16 @@ const sectionsExtra = {
   // ── v7.1.7 F3: Introspection Accuracy (moved from main) ─
   // When Genesis is asked about itself, inject VERIFIED facts
   // from its own systems instead of letting the LLM hallucinate.
-  // Triggered by self-inspect / self-reflect intents.
+  //
+  // v7.5.5: Trigger lock removed. _introspectionContext now runs for
+  // every turn, not just self-inspect/self-reflect/architecture intents.
+  // When self-data sources aren't available, the existing length check
+  // at the bottom yields empty string (no prompt overhead). Token cost
+  // ~150 per turn when populated; confabulation-risk reduction vastly
+  // outweighs that. Fallback if Genesis becomes sterilized: re-add a
+  // narrower heuristic gate (e.g. `_currentIntent !== 'general'`).
   _introspectionContext() {
     try {
-      // Only inject for self-reflective queries
-      if (!this._currentIntent) return '';
-      const intent = this._currentIntent;
-      if (intent !== 'self-inspect' && intent !== 'self-reflect' &&
-          intent !== 'architecture') return '';
-
       const parts = ['VERIFIED FACTS ABOUT YOURSELF (use these, do NOT invent numbers):'];
 
       // SelfModel: module counts, version, capabilities
@@ -220,7 +221,17 @@ const sectionsExtra = {
         } catch (_e) { /* optional */ }
       }
 
-      if (parts.length <= 1) return ''; // Only header, no data
+      // v7.5.5: signal SelfStatementLog whether the section was populated.
+      // chat:completed handler uses this to detect structural claims that
+      // were made WITHOUT verified-data backing. Pass the current message
+      // so the flag is race-safely correlated (guards against parallel
+      // DaemonController-IPC + User-Chat turns clobbering a single global flag).
+      const populated = parts.length > 1;
+      if (this.selfStatementLog && typeof this.selfStatementLog.setLastIntrospectionPopulated === 'function') {
+        this.selfStatementLog.setLastIntrospectionPopulated(populated, this._currentMessage);
+      }
+
+      if (!populated) return ''; // Only header, no data
       return parts.join('\n');
     } catch (err) {
       _log.debug('[PROMPT] Introspection context error:', err.message);

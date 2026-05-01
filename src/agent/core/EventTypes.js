@@ -185,6 +185,15 @@ const EVENTS = Object.freeze({
     WARNED:  'self-gate:warned',
   }),
 
+  // ── Self-Statement Log (v7.5.5) — confabulation detection on Genesis's own statements ──
+  // Forms a self-audit cluster with SELF_GATE. SELFMOD lives further
+  // down (Z. ~210); a future Boy-Scout could re-sort to a contiguous
+  // SELF_*-block, out-of-scope here.
+  SELF_STATEMENT: Object.freeze({
+    /** @payload {{ text: string, type: 'strukturell'|'versprechen'|'emotional'|'uncertain', intent: string, ts: string }} */
+    CONTRADICTION: 'self-statement:contradiction',
+  }),
+
   // ── Circuit Breaker ────────────────────────────────────
   CIRCUIT: Object.freeze({
     /** @payload {{ from: string, to: 'closed'|'open'|'half-open' }} */

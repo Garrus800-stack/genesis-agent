@@ -80,6 +80,20 @@ class ShellAgent {
     // v7.5.4: dedicated planner for LLM-based shell-step generation.
     // Plan-erzeugung lives there; this orchestrator handles execution.
     this._planner = new ShellPlanner({ model, memory, lang, bus });
+
+    // v7.5.5: late-binding setter for selfStatementLog. Phase-3 ShellAgent
+    // is built before phase-9 SelfStatementLog exists, so the planner
+    // can't take it via constructor. Container.wireLateBindings sets
+    // `this.selfStatementLog`; the setter propagates the value onto the
+    // already-constructed _planner so ShellPlanner.recordPromise(...)
+    // captures shell-task plans as `versprechen`-class self-statements.
+    let _ssl = null;
+    Object.defineProperty(this, 'selfStatementLog', {
+      get() { return _ssl; },
+      set(v) { _ssl = v; if (this._planner) this._planner.selfStatementLog = v; },
+      configurable: true,
+      enumerable: true,
+    });
   }
 
   // ── CORE: Run a single command ────────────────────────────

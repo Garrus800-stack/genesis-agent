@@ -348,6 +348,8 @@ class AgentCoreHealth {
       // (no-op stop); wakeUpRoutine clears _ran flag.
       'activeReferences', 'contextCollector', 'journalWriter',
       'pendingMomentsStore', 'wakeUpRoutine',
+      // v7.5.5: SelfStatementLog — stop() flushes pending JSONL writes.
+      'selfStatementLog',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

@@ -17,6 +17,7 @@
 //   CommandHandlersMemory.js     — memoryMark, memoryList, memoryVeto
 //   CommandHandlersSystem.js     — handleSettings, daemonControl, trustControl
 //   CommandHandlersNetwork.js    — peer, mcpControl, webLookup
+//   CommandHandlersSelf.js       — selfRecall (v7.5.5+)
 //
 // External API unchanged. Prototype-Delegation keeps all instance
 // method access lexically identical.
@@ -32,6 +33,7 @@ const { commandHandlersGoals }   = require('./CommandHandlersGoals');
 const { commandHandlersMemory }  = require('./CommandHandlersMemory');
 const { commandHandlersSystem }  = require('./CommandHandlersSystem');
 const { commandHandlersNetwork } = require('./CommandHandlersNetwork');
+const { commandHandlersSelf }    = require('./CommandHandlersSelf');
 
 class CommandHandlers {
   constructor({ bus, lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient, coreMemories}) {
@@ -50,6 +52,7 @@ class CommandHandlers {
     this.mcp = mcpClient;
     this.coreMemories = coreMemories || null; // v7.3.2
     /** @type {*} */ this.skillManager = null; // late-bound v5.9.1
+    /** @type {*} */ this.selfStatementLog = null; // late-bound v7.5.5
   }
 
   /** Register all handlers with the orchestrator */
@@ -79,6 +82,8 @@ class CommandHandlers {
     orchestrator.registerHandler('memory-mark', (msg) => this.memoryMark(msg));
     orchestrator.registerHandler('memory-list', (msg) => this.memoryList(msg));
     orchestrator.registerHandler('memory-veto', (msg) => this.memoryVeto(msg));
+    // v7.5.5: Self-Domain
+    orchestrator.registerHandler('self-recall', (msg) => this.selfRecall(msg));
   }
 
   // ── Undo (Git Revert) ──────────────────────────────────
@@ -117,10 +122,10 @@ class CommandHandlers {
   }
 }
 
-// ── Prototype-Delegation: wire up all 6 domain mixins ──────────
+// ── Prototype-Delegation: wire up all 7 domain mixins ──────────
 //
 // Order matters only if mixins share method names (they don't).
-// All 20 extracted methods become reachable on CommandHandlers
+// All extracted methods become reachable on CommandHandlers
 // instances via this.method() exactly as before the v7.4.2 split.
 
 Object.assign(
@@ -130,7 +135,8 @@ Object.assign(
   commandHandlersGoals,
   commandHandlersMemory,
   commandHandlersSystem,
-  commandHandlersNetwork
+  commandHandlersNetwork,
+  commandHandlersSelf  // v7.5.5
 );
 
 module.exports = { CommandHandlers };

@@ -1,9 +1,78 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.5.4 · Last updated: v7.5.4 (ShellAgent split + runStreaming behavior alignment)
+> Version: 7.5.5 · Last updated: v7.5.5 (Self-Statement-Log + closed-loop confabulation detection)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Open items from v7.5.5
+
+> **Status update (post-hardening, same release):** Items #1, #2, and #3
+> below were resolved during the v7.5.5 hardening pass — the entries are
+> kept here for traceability but marked **RESOLVED**. Items #4 and #5
+> remain genuinely open (calibration / naming).
+
+- **RESOLVED — ShellPlanner `selfStatementLog`-Hook now active.** The
+  hook (`this.selfStatementLog?.recordPromise?.(...)` in ShellPlanner)
+  was previously a no-op because ShellAgent never passed the dep.
+  v7.5.5 hardening: phase-3 `shellAgent` manifest now declares a
+  late-binding `{ prop: 'selfStatementLog', service: 'selfStatementLog',
+  optional: true, expectedActive: true, expects: ['recordPromise'] }`.
+  ShellAgent constructor installs a JS getter/setter on
+  `this.selfStatementLog` that mirrors the late-bound value onto the
+  already-built `_planner` instance — solving the phase-3-vs-phase-9
+  ordering. SelfStatementLog gained a `recordPromise(entry)` method
+  that captures plans as `versprechen`-class records with synthesized
+  text `Plan (<kind>): <task> (<n> steps)`. **Full activation, not
+  half-activation.** Tests: `self-statement-hardening.test.js` — 4
+  recordPromise tests green.
+
+- **RESOLVED — Race-window for parallel `chat:completed` events.**
+  Single global `_lastIntrospectionPopulated` flag could be clobbered
+  by parallel DaemonController-IPC + User-Chat turns. v7.5.5 hardening:
+  `setLastIntrospectionPopulated(populated, message)` now also stores
+  `{populated, expiresAt}` keyed by `_hashShort(message)` in a Map.
+  `_captureResponse` reads correlated flag first, falls back to global.
+  TTL 60s, lazy GC on each set. PromptBuilder.setQuery passes message
+  through `_currentMessage`; `_introspectionContext` forwards it.
+  Tests: `self-statement-hardening.test.js` — 3 race tests green
+  (parallel turn interleaving, fallback, GC).
+
+- **RESOLVED — Self-Statement-Log pruning (>90 days).**
+  `SelfStatementLog.prune()` removes shards whose YYYY-MM-DD filename
+  is older than 90d. Auto-called by constructor. Tests: 3 prune tests
+  green (auto-prune via constructor, idempotency, non-existent-dir
+  defensive).
+
+- **Audit-Threshold `AUDIT_MIN_TOTAL = 3` is an initial value.** After 1
+  week of live data, calibrate (5? 10?). The constant lives in exactly
+  one place (`SelfStatementLog.js`), exposed via
+  `getAuditStat().meetsThreshold` — calibration is a one-line change.
+
+- **Naming-Verwirrung `/recall` vs `UnifiedMemory.recall`.**
+  `UnifiedMemory.recall(query, options)` (Z. 65 in
+  `src/agent/hexagonal/UnifiedMemory.js`) does Vector-Search across all
+  memory stores. `/recall` as the slash-trigger for Self-Statement-Log
+  is semantically near, technically separate (different intent name
+  `self-recall`, different handler). If a `/memory-recall` slash for
+  UnifiedMemory is added later, this naming should be revisited
+  (e.g. `/self-recall` as the slash, or `/recall self|memory` as a
+  subcommand pattern).
+
+- **Self-Statement-Log: status-report sentences without explicit
+  self-marker not captured.** The regex filter requires either a
+  first-person pronoun, a verb-first form, or a known module name as
+  the sentence subject. Sentences like *"Currently in idle state,
+  monitoring 2 of 11 background processes"* or *"Aktuell im
+  Idle-Zustand, 2 von 11 Prozesse aktiv"* don't match any of the three
+  paths and slip through (returning 0 statements). These are
+  descriptive third-person status reports rather than self-assertive
+  claims, so missing them is acceptable for the v7.5.5 contradiction
+  detector. **Future v7.5.6+ may add LLM-based classification** as a
+  second pass for broader coverage at the cost of one extra LLM call
+  per chat turn.
 
 ---
 

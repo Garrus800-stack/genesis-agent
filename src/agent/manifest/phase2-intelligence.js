@@ -58,6 +58,11 @@ function phase2(ctx, R) {
         { prop: 'cognitiveMonitor', service: 'cognitiveMonitor', optional: true },
         // Phase 9: Self-narrative identity injection
         { prop: 'selfNarrative', service: 'selfNarrative', optional: true },
+        // v7.5.5: Self-Statement-Log for confabulation detection + audit-stat
+        { prop: 'selfStatementLog', service: 'selfStatementLog',
+          optional: true, expectedActive: true,
+          expects: ['getAuditStat', 'setLastIntrospectionPopulated'],
+          impact: 'No confabulation tracking + no audit-stat in prompts' },
         // AwarenessPort — single lightweight replacement
         { prop: 'awareness', service: 'awareness', optional: true },
         // v4.12.4: New cognitive modules

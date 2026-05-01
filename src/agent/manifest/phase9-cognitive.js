@@ -172,6 +172,20 @@ function phase9(ctx, R) {
       }),
     }],
 
+    // v7.5.5: SelfStatementLog — captures Genesis's own statements,
+    // classifies them, and detects structural claims without _introspectionContext
+    // data backing. See ARCHITECTURE.md → Self-Audit cluster.
+    ['selfStatementLog', {
+      phase: 9,
+      deps: ['storage', 'eventStore'],
+      tags: ['cognitive', 'self', 'audit'],
+      factory: (c) => new (R('SelfStatementLog').SelfStatementLog)({
+        bus,
+        storageDir: c.resolve('storage').baseDir,
+        eventStore: c.resolve('eventStore'),
+      }),
+    }],
+
     // v5.2.0: PromptEvolution — A/B testing for prompt template sections
     ['promptEvolution', {
       phase: 9, deps: ['storage', 'metaLearning'], tags: ['cognitive', 'learning'],

@@ -1,3 +1,131 @@
+## [7.5.5]
+
+**Self-Statement-Log: closed-loop confabulation detection.**
+
+Captures every Genesis response, classifies first-person statements
+(`strukturell` / `versprechen` / `emotional` / `uncertain`), persists
+to daily JSONL shards in `.genesis/self-statements/YYYY-MM-DD.jsonl`,
+fires a contradiction event when a structural claim is made without
+verified-data backing in the prompt, and exposes the data via a
+`/recall` slash-command and a self-claim audit-stat line in the prompt.
+
+Live-verified on Windows (qwen3-vl:235b-cloud) and Debian: capture works,
+classification works, contradictions fire correctly, no false-positives
+when the prompt's verified-data block is populated.
+
+### Detection mechanism
+
+Two-pass extraction in `_extractStatements`:
+- **Path 1**: explicit first-person pronouns (DE: ich/mein/mir/mich; EN: i/my/me/i'm/i've/i'll)
+- **Path 2**: verb-first form (DE: `Analysiere gerade...`, EN: `Monitoring...`) — covers subject-drop in chat-style German and English status reports
+- **Path 3**: module-name-prefixed status reports (`* DreamCycle analysiert...`,
+  `IdleMind: 1 Zyklus läuft`) — matches ~60 Genesis subsystem names with or
+  without colon, with or without bullet marker
+- **Bullet context**: bullet-list items in a response that already matched
+  any heuristic are also captured
+
+Classifier (`_classify`):
+- **path A** — structural noun in body (memory, module, version, dream, cycle,
+  daemon, mind, loop, integrity, state, activity, contradiction, self,
+  statement, ...) → `strukturell` confidence 0.85
+- **path B** — module-name prefix → `strukturell` confidence 0.75
+- **path C** — first-person + future-action verb → `versprechen`
+- **path D** — first-person + emotion vocabulary → `emotional`
+- otherwise → `uncertain` (still persisted, no contradiction fire)
+
+Detection rule: `strukturell` claim + `introspectionPopulated:false`
+→ `self-statement:contradiction` event fired and appended to EventStore
+as `SELF_STATEMENT_CONTRADICTION` for forensic recall.
+
+### Audit-Stat in prompt
+
+`PromptBuilderSections._selfAwarenessContext` injects a line when
+`getAuditStat()` returns `meetsThreshold:true && without > 0`:
+
+```
+[Self-claim audit, last 24h] N structural statements about yourself,
+M of them without verified data backing in the prompt.
+```
+
+Wording is descriptive, not imperative — Genesis decides how to react.
+Default threshold: 3 structural-no-data statements within 24h.
+
+### Race-safe correlation
+
+`setLastIntrospectionPopulated(populated, message)` stores the flag in a
+`Map<messageHash, {populated, expiresAt}>` keyed by `_hashShort(message)`.
+60s TTL with lazy GC. Falls back to a global flag if no correlation entry
+exists. Closes the parallel-turn race-window between DaemonController-IPC
+and User-Chat (previously: statistical noise on a single global flag).
+
+### Auto-pruning
+
+Constructor calls `prune()` best-effort, removing JSONL shards older than
+90 days. Method also exposed as `selfStatementLog.prune()` for manual
+invocation. Bounded growth: ~100 KB/day × 90 days ≈ 9 MB max.
+
+### ShellPlanner integration
+
+`recordPromise(entry)` API on the service captures shell-task plans as
+`versprechen`-class records with synthesized text:
+`Plan (shell): <task> (<n> steps)`. Direct-API path skips the chat-derived
+classifier. Wired via phase-3 `shellAgent` late-binding with a JS
+getter/setter on `ShellAgent.selfStatementLog` that propagates the
+late-bound value to `_planner.selfStatementLog` (which was constructed
+in phase 3, before phase-9 SelfStatementLog existed).
+
+### `_introspectionContext` always-on
+
+`PromptBuilderSectionsExtra._introspectionContext` no longer gated on
+self-inspect / self-reflect / architecture intents. Runs for every turn,
+fills the verified-self-data block when sources are available, returns
+empty string when not. Token cost ~150 per turn when populated.
+
+### Files added
+
+- `src/agent/cognitive/SelfStatementLog.js` — phase-9 cognitive service
+- `src/agent/hexagonal/CommandHandlersSelf.js` — `/recall` handler
+- `test/modules/self-statement-log.test.js` — 30 tests
+- `test/modules/self-statement-reset.test.js` — 3 tests
+- `test/modules/self-statement-prompt-integration.test.js` — 8 tests
+- `test/modules/self-recall-command.test.js` — 10 tests
+- `test/modules/self-statement-hardening.test.js` — 23 tests
+- New event: `EVENTS.SELF_STATEMENT.CONTRADICTION`
+  (`'self-statement:contradiction'`), schema `{ text, type, intent, ts }`
+- New intent: `self-recall` in `SECURITY_REQUIRED_SLASH` (slash-only)
+
+### Files changed
+
+- `PromptBuilder.js` — `selfStatementLog` late-binding (phase-2)
+- `PromptBuilderSections.js` — audit-stat in `_selfAwarenessContext`;
+  duplicate `_introspectionContext` removed (Boy-Scout, was dead since v7.3.3)
+- `PromptBuilderSectionsExtra.js` — trigger-lock removed; passes
+  `_currentMessage` to `setLastIntrospectionPopulated`
+- `CommandHandlers.js` — `commandHandlersSelf` mixin wired
+- `ShellAgent.js` — JS getter/setter for `selfStatementLog` propagation
+- `AgentCoreWire.js` — `wireTriggers` call after CoreMemories
+- `AgentCoreHealth.js` — `selfStatementLog` added to shutdown list
+- `phase9-cognitive.js`, `phase2-intelligence.js`, `phase5-hexagonal.js`,
+  `phase3-capabilities.js` — service + late-binding registrations
+
+### Removed
+
+- `PromptBuilderSections._introspectionContext` duplicate (Z. 655-721,
+  dead since v7.3.3 — `Object.assign(prototype, sections, sectionsExtra,
+  ...)` made the Extra version always win). 769 → 728 LOC.
+
+### AUDIT-BACKLOG
+
+Open after v7.5.5 (see `AUDIT-BACKLOG.md`):
+1. `AUDIT_MIN_TOTAL = 3` is an initial value — needs ≥1 week live-data
+   calibration to determine the right threshold
+2. `/recall` vs `UnifiedMemory.recall` naming overlap — cosmetic, low priority
+3. Status-report sentences without an explicit self-marker
+   (`Currently in idle state...` / `Aktuell im Idle-Zustand...`) are not
+   captured by the regex filter. Acceptable: these are descriptive, not
+   self-assertive. Future v7.5.6+ may add LLM-based classification for
+   broader coverage.
+
 ## [7.5.4]
 
 ShellAgent split into a thin orchestrator plus three focused helper modules.

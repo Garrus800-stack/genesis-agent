@@ -1,10 +1,10 @@
 {
   "_description": "Ratchet — floor/max values enforced by check-ratchet.js in CI.",
-  "_locked_at": "v7.5.3",
-  "_date": "2026-04-30",
+  "_locked_at": "v7.5.5",
+  "_date": "2026-05-01",
   "testCount": {
-    "floor": 5917,
-    "note": "v7.5.4 floor — 53 new tests added by ShellAgent split (snapshot/safety/os-adapter/planner). Expected: ~5923 Windows, ~5922 Debian. Floor = min - 5 safety margin."
+    "floor": 6014,
+    "note": "v7.5.5 floor — 66 new tests vs v7.5.4 (43 base + 15 hardening + 4 verb-first + 4 status-report). Expected: 6021 actual on Linux. Floor = min - 7 safety margin."
   },
   "fitnessScore": {
     "floor": 127,

@@ -65,6 +65,7 @@ const SECURITY_REQUIRED_SLASH = new Set([
   'memory-list',
   'memory-veto',
   'memory-mark',
+  'self-recall',  // v7.5.5
 ]);
 
 function enforceSlashDiscipline(result, message) {
@@ -326,6 +327,11 @@ const INTENT_DEFINITIONS = [
 
   ['memory-mark', [
     /^\/mark\b/i,
+  ], 22, []],
+
+  // v7.5.5: Self-Statement-Log recall
+  ['self-recall', [
+    /^\/recall\b/i,
   ], 22, []],
 
   ['greeting', [

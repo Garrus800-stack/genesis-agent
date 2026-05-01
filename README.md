@@ -8,7 +8,7 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.5.4-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.5.5-d4a017?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/tests-5816%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-config_ok-fbbf24?style=flat-square" alt="TSC">
@@ -131,7 +131,33 @@ npm install
 npm start
 ```
 
-Genesis automatically selects the best available model using Smart Ranking (35 tiers, score 0-100). No manual configuration needed.
+Genesis automatically selects the best available model using Smart Ranking (35 tiers, score 0-100). No manual configuration needed — but see model requirements below.
+
+#### Model requirements
+
+Genesis is an autonomous-agent system, not a simple chat wrapper. It maintains persona, parses tool calls, follows multi-step plans, and produces structured self-reports. **The model has to be capable enough.**
+
+| Tier | Recommended | Notes |
+|------|-------------|-------|
+| **Minimum** | qwen2.5:7b · llama3.1:8b · mistral-nemo:12b | ~5 GB+, works for German/English chat |
+| **Better** | qwen2.5:14b · llama3.1:70b · gemma2:9b | larger context, more coherent multi-turn |
+| **Cloud** | claude-sonnet-4 · gpt-4 · qwen3:235b-cloud | best-in-class for complex reasoning |
+
+**Models that do NOT work for Genesis** (will produce gibberish, persona loss, or repetition loops):
+- Anything under ~5 GB (1B/1.5B/3B parameters): `tinyllama`, `phi-mini`, `gemma2:2b`, `qwen2.5:3b`, `deepseek-r1:1.5b`
+- DeepSeek-R1-distill family (`deepseek-r1:1.5b`, `deepseek-r1:7b`): the `<think>...</think>` reasoning format is not parsed by the current pipeline — output looks broken
+- Models without German training if you primarily chat in German (use `mistral-nemo` or `qwen2.5` for solid German)
+
+If Genesis answers with hallucinated words ("fehlentzündungen"), persona confusion ("du bist..." instead of "ich bin..."), or sentence repetition loops — the model is too small. Switch to the **Minimum** tier above.
+
+**Pin a specific model** so auto-routing doesn't downgrade:
+```bash
+# In CLI REPL:
+/model qwen2.5:7b                   # Switch + save permanently
+
+# Or via settings (~/.genesis/settings.json):
+{ "models": { "preferred": "qwen2.5:7b" } }
+```
 
 **Option C — Hybrid (best of both):**
 
@@ -158,10 +184,10 @@ Priority: Your choice → Cloud API → Smart Ranking → First available.
 
 ### Boot profiles
 
-Genesis boots 12 phases (~167 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
+Genesis boots 12 phases (~168 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
 
 ```bash
-npm start                              # Cognitive — default (~167 services)
+npm start                              # Cognitive — default (~168 services)
 # Phase 13 (Consciousness) removed in v7.0.0 — replaced by AwarenessPort
 npm start -- --minimal                 # Minimal — core agent loop only (~50 services)
 npm start -- --skip-phase 7            # Custom — skip specific phases (6-13)

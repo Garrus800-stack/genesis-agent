@@ -63,6 +63,9 @@ const SCHEMAS = {
   'self-gate:blocked': { actionType: 'required', signals: 'required', triggerSource: 'required' },
   'self-gate:warned':  { actionType: 'required', signals: 'required', triggerSource: 'required' },
 
+  // Self-Statement Log (v7.5.5)
+  'self-statement:contradiction': { text: 'required', type: 'required', intent: 'required', ts: 'required' },
+
   // Circuit Breaker
   'circuit:state-change': { from: 'required', to: 'required' },
 

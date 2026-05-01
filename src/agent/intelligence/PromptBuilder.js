@@ -78,6 +78,8 @@ class PromptBuilder {
 
     // v4.0: SelfNarrative (late-bound)
     this.selfNarrative = null;
+    // v7.5.5: SelfStatementLog (late-bound) — confabulation tracking + audit-stat
+    this.selfStatementLog = null;
 
     // v4.0: WorldState + EpisodicMemory (late-bound)
     this.worldState = null;
@@ -161,6 +163,8 @@ class PromptBuilder {
   /** Set the most recent user query (for context relevance) */
   setQuery(query) {
     this._recentQuery = query;
+    // v7.5.5: piggyback for SelfStatementLog message-correlated flag.
+    this._currentMessage = typeof query === 'string' ? query : '';
   }
 
   /**

@@ -124,6 +124,18 @@ class AgentCoreWire {
     } catch (err) {
       _log.debug('[WIRE] CoreMemories trigger wiring skipped:', err.message);
     }
+
+    // v7.5.5: SelfStatementLog subscribes to chat:completed for
+    // confabulation tracking. Late-binding happens at container-wire;
+    // here we trigger the subscription wiring (idempotent).
+    try {
+      const selfStatementLog = this._core?.container?.tryResolve?.('selfStatementLog');
+      if (selfStatementLog && typeof selfStatementLog.wireTriggers === 'function') {
+        selfStatementLog.wireTriggers(bus);
+      }
+    } catch (err) {
+      _log.debug('[WIRE] SelfStatementLog trigger wiring skipped:', err.message);
+    }
   }
 
   // ════════════════════════════════════════════════════════

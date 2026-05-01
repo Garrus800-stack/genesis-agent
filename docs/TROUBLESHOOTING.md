@@ -213,9 +213,40 @@ Your `preferred` model always wins over Smart Ranking.
 ### Responses are slow with Ollama
 
 Local models are inherently slower than cloud APIs. Tips:
-1. Use a smaller model for chat (`gemma2:2b`) and reserve the large model for code-gen
-2. Enable ModelRouter in settings — it automatically uses small models for fast tasks
-3. Check available VRAM: `ollama ps` — if the model doesn't fit in VRAM, it runs on CPU
+1. Use a **medium** model (qwen2.5:7b, llama3.1:8b) for general chat — DO NOT drop below 7B parameters or Genesis loses persona/coherence (see "Genesis answers gibberish" below)
+2. Enable ModelRouter in settings — it can route specific tasks (translation, classification) to smaller models while keeping chat on the main model
+3. Check available VRAM: `ollama ps` — if the model doesn't fit in VRAM, it runs on CPU (much slower)
+4. For best speed: cloud API (Anthropic, OpenAI) instead of local Ollama
+
+### Genesis answers gibberish, hallucinated words, or wrong language
+
+**Symptoms:**
+- Hallucinated words like "fehlentzündungen", "toiciations", invented compound nouns
+- Persona confusion: Genesis says "du bist Genesis..." instead of "ich bin Genesis..." (mixes up first and second person)
+- Sentence repetition loops at the end of responses
+- Generic "I am an AI assistant" answers ignoring the system prompt
+- `<think>...</think>` tags visible in the chat output
+
+**Cause:** The model is too small or uses an unsupported reasoning format.
+
+**Fix:** Switch to a model with at least 7B parameters / ~5 GB:
+```bash
+ollama pull qwen2.5:7b      # solid default for German + English
+ollama pull llama3.1:8b     # good alternative
+ollama pull mistral-nemo:12b  # excellent for German
+```
+
+Then pin it so auto-routing doesn't switch back:
+```bash
+# In CLI REPL:
+/model qwen2.5:7b
+```
+
+**Models that do NOT work** for Genesis chat (will produce the symptoms above):
+- Anything under ~5 GB: `tinyllama`, `phi-mini`, `gemma2:2b`, `qwen2.5:3b`
+- DeepSeek-R1-distill family: `deepseek-r1:1.5b`, `deepseek-r1:7b` — the `<think>` reasoning format is not parsed; output appears broken even though the model itself is capable
+
+If you previously set a small model in settings, clear it: open `~/.genesis/settings.json` and remove the `models.preferred` line, then restart Genesis.
 
 ---
 
