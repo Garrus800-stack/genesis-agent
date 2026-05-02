@@ -1,11 +1,14 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.4.5 — What Genesis can do, organized by category.
-> Scale: 5668 tests, 424 events with payload schemas (100% coverage), fitness 127/130, 167 DI services (154 manifest + 13 bootstrap) across 12 boot phases.
+> v7.5.6 — What Genesis can do, organized by category.
+> Scale: 6141 tests, 449 events with 445 payload schemas (100% coverage of non-fire-and-forget events), fitness 127/130, 168 DI services (155 manifest + 13 bootstrap) across 12 boot phases.
 > Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry-only by design),
 > Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard),
+> Reasoning-Block Filter (v7.5.6 — strips `<think>...</think>` from response and tool-call audit, re-emits as `model:thinking-trace`),
 > Runtime-State Quoting (v7.4.1 directive + anti-tool-call).
 > Synchronous source-read in chat with per-turn + session budget (`read-source:called`, `read-source:soft-limit`).
+> Model-Availability TTL marker (v7.5.6) — sticky failures (auth/rate-limit/timeout) lock the model for 1h/5min/10min, persisted across restarts in `.genesis/model-unavailable.json`. Manual override via `/model-reset [name]`.
+> Same-backend failover (v7.5.6) — `_findFallbackBackend()` skips only the failed model name, not the whole backend, so an Ollama-only fallback chain works.
 > AwarenessPort coherence gate is structurally inert until a real Awareness implementation lands — default `NullAwareness.getCoherence()` returns 1.0, threshold is 0.4.
 
 ---
@@ -75,14 +78,16 @@ Genesis is not tied to any single LLM. It supports three backend types simultane
 
 | Backend | Models | Setup |
 |---|---|---|
-| **Anthropic** | Claude Opus 4, Sonnet 4, Haiku 4.5 | API key in Settings |
-| **OpenAI-compatible** | GPT-4o, GPT-4, o1, or any compatible endpoint (Azure, LM Studio, vLLM, text-gen-webui) | API key + base URL in Settings |
-| **Ollama** (local) | Any model Ollama supports: gemma2, qwen2.5, deepseek-r1, llama3, mistral, phi, etc. | Auto-detected on localhost:11434 |
+| **Anthropic** | Claude Opus 4.5/4.7, Sonnet 4.5, Haiku 4.5 | API key in Settings |
+| **OpenAI-compatible** | GPT-4o, GPT-4, o1, o3, or any compatible endpoint (Azure, LM Studio, vLLM, text-gen-webui) | API key + base URL in Settings |
+| **Ollama** (local) | Any model Ollama supports: gemma3, qwen3-vl, deepseek-r1, nemotron, llama3, mistral, phi, etc. | Auto-detected on localhost:11434 |
 
 Features:
-- **Auto-failover** — if the active backend fails, Genesis tries the next one
+- **Auto-failover** — if the active backend fails, Genesis tries the next one. v7.5.6: same-backend failover works (e.g. ollama→ollama through `models.fallbackChain`), not only cross-backend escape
+- **Sticky-error TTL marker** (v7.5.6) — auth (1h), rate-limit (5min), timeout (10min) lock the failed model, persisted in `.genesis/model-unavailable.json`. Boot selection skips marked models. Manual recovery via `/model-reset [name]`. Closes the loop where Genesis would retry a 403-failing cloud model every IdleMind tick for hours
+- **Reasoning-block filter** (v7.5.6) — `<think>...</think>` blocks from reasoning models (DeepSeek-R1, QwQ, nemotron-3-nano) are stripped from chat output AND from the tool-call audit stream. Phantom tool calls inside reasoning cannot reach the executor. Reasoning content is preserved as `model:thinking-trace` events for the ReasoningTracer
 - **Concurrency control** — semaphore limits to 3 simultaneous LLM calls
-- **MetaLearning** — tracks success rate per model/temperature/prompt style, optimizes over time
+- **MetaLearning** — tracks success rate per model/temperature/prompt style, optimizes over time. v7.5.6: now correctly attributes failover events to the model that actually failed (not `this.activeModel`); streaming calls also feed MetaLearning (pre-v7.5.6 streaming-failure rates were invisible)
 - **LLM cache** — deduplicates identical requests within 5 min window
 - **Structured output** — JSON mode with auto-repair if the LLM returns invalid JSON
 - **Streaming** — token-by-token streaming for all three backends
@@ -141,6 +146,8 @@ Bio-inspired cognitive modules that run during idle time and influence behavior:
 | **PatternMatcher** `v7.0.9` | Structural learning | Weighted Jaccard similarity on lesson patterns. Cross-context matching: "off-by-one in FizzBuzz" finds "off-by-one in Pagination". |
 | **StructuralAbstraction** `v7.0.9` | Pattern extraction | LLM-deferred pattern extraction for lessons. Typed failures, retry queue, lifecycle: pending→extracted→stale→obsolete. |
 | **GoalSynthesizer** `v7.0.9` | Autonomous goals | Generates improvement goals from CognitiveSelfModel weaknesses. Bootstrap guard, PROTECTED_MODULES, regression circuit-breaker. |
+| **SelfStatementLog** `v7.5.5` (DE/EN parity in v7.5.6) | Confabulation detection | Auto-captures Genesis's first-person responses, classifies into `strukturell`/`versprechen`/`emotional`/`uncertain`, persists to daily JSONL shards in `.genesis/self-statements/YYYY-MM-DD.jsonl`. Fires `selfstatement:contradiction` when a structural claim ("ich überwache 11 Aktivitäten") is made without a verified-data backing in the prompt. `/recall [type]` slash-command surfaces past statements. v7.5.6: bilingual patterns refactored to module-level `LANG_PATTERNS` with parity assertion. |
+| **ReasoningTracer** subscription `v7.5.6` | Reasoning capture | Subscribes to `model:thinking-trace` events emitted by the new reasoning-block filter. Internal monologue from `<think>...</think>` blocks of reasoning models is preserved as `model-reasoning` traces in the dashboard, even though it is stripped from chat output. |
 
 All cognitive modules degrade gracefully — if any are unavailable, Genesis falls back to direct LLM planning.
 
@@ -502,3 +509,18 @@ The v7 line is dominated by structural maturation: smaller, more honest, better-
 | **Self-Gate explicit telemetry-only** (v7.4.2) | Self-Gate documented as observation-only by design (vs. Input-Gate which blocks). Symmetry with Injection-Gate is intentional, not a deficit. |
 | **failFastMs semantics** (v7.4.3) | `CircuitBreaker.timeoutMs` renamed to `failFastMs` with `null|0` opt-out. LLM circuit opted out (HTTP layer is single ceiling). MCP keeps `failFastMs: 15000` for real fail-fast. Removes the duplicate-`Promise.race` orphan-request bug. |
 | **Container / IntentRouter / SelfModificationPipeline splits** (v7.4.3) | Three of four >700-LOC files brought under threshold. PromptBuilderSections deferred to v7.6+ (re-org bundled with BeliefStore release). |
+
+### v7.5 — Stability, observability, and the carry-over sweep
+| Feature | What it does |
+|---|---|
+| **Path-traversal hardening** (v7.5.1) | `file-read` and `file-list` tools default-deny outside `rootDir` via shared `_resolveProjectPath()`. In-project blacklist for `.env*`, `*.pem`, `*.key`. Closes the v5.1.0-era "default-allow + curated block-list" gap that left `/etc/passwd`, `/proc/*` readable. |
+| **Auto Model-Routing** (v7.5.2) | `ModelBridge.chat()` queries `ModelRouter` by `taskType` and switches internally. User no longer needs to manually swap models before stepping away. Settings-bound chat path remains. |
+| **Linux preload tier fix** (v7.5.3) | Linux excluded from Tier 1 (ESM preload) — Electron 33–39 sandboxed renderer cannot load ESM preload on Linux. Falls through to Tier 2 (Bundled CJS), same path Windows uses since v4.13.1. |
+| **Shell extraction** (v7.5.4) | `ShellAgent` plan-generation moved to `ShellPlanner`, safety to `ShellSafety`, OS-translation to `ShellOSAdapter`. Brings ShellAgent under 700 LOC. |
+| **Self-Statement Log** (v7.5.5) | Captures Genesis's own first-person responses, classifies into structural / emotional / promise / uncertain claims. Persists daily to JSONL. Fires `selfstatement:contradiction` when a structural self-claim is made without verified-data backing. Closes the loop on confabulation observed in v7.5.1 live tests. |
+| **Race-window resolved** (v7.5.5) | `_lastIntrospectionPopulated` correlated by message-hash via `_pendingFlags` Map (60s TTL). DaemonController-IPC and User-Chat parallel turns can no longer clobber each other's introspection-flag. |
+| **Same-backend failover** (v7.5.6) | `_findFallbackBackend(failedBackend, failedModelName)` skips only the failed model name. `models.fallbackChain` now works on Ollama-only setups. Cross-backend escape preserved as last resort. |
+| **Model-availability TTL marker** (v7.5.6) | Auth/rate-limit/timeout failures lock the model for 1h/5min/10min. Persisted across restarts in `.genesis/model-unavailable.json` (atomic write, corrupt-JSON resilient). Boot-time selection skips marked models. `/model-reset [name]` for manual recovery. Closes the "9h endless retry on 403" live-bug from v7.5.5. |
+| **Reasoning-block filter** (v7.5.6) | `<think>...</think>` blocks stripped from chat output, tool-call audit, and tool-loop synthesis. Phantom tool calls inside reasoning cannot reach the executor. Reasoning preserved as `model:thinking-trace` events. |
+| **DE/EN pattern parity** (v7.5.6) | SelfStatementLog's bilingual extraction patterns refactored to module-level `LANG_PATTERNS` with load-time parity assertion. Performance bonus: regex literals compiled once, not on every call. |
+| **Carry-over bug sweep** (v7.5.6) | `_recordMetaOutcome` now uses the actually-called model (not `this.activeModel`); `streamChat()` records to MetaLearning at all (was missing); `LinuxSandboxHelper.isAvailable()` contract tightened. Pre-v7.1.9 stabilization caught the dominant "concurrent edit drift" bugs; v7.5.6 turns the same lens on long-lived latent defects that no test exercised. |

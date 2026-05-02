@@ -209,17 +209,17 @@ After `npm start` a wall of text appears. The important lines:
 ...
 [+] Skills: 4, Tools: 29
 [+] MCP: 0/0 servers, 0 tools
-[+] Model: qwen2.5:7b
+[+] Model: qwen3-vl:235b-cloud      (or whatever you have installed)
 [+] Auto-routing: enabled (taskType → ModelRouter)
 ...
-[+] Trust level: AUTONOMOUS
-[GENESIS] Boot complete in 1270ms — 167 services
+[+] Trust level: FULL_AUTONOMY
+[GENESIS] Boot complete in 1288ms — 168 services
 [KERNEL] Agent booted successfully.
 ```
 
 If all of that is there, Genesis is running. The window is open and you can type in the chat field at the bottom.
 
-Genesis boots in about 1.3 seconds on Windows, about 2 seconds on Linux.
+Genesis boots in about 1.3 seconds on Windows, about 2 seconds on Linux. Cold boot includes 38 file integrity checks and 307 late-binding wires across 12 phases.
 
 ---
 
@@ -464,6 +464,8 @@ Level persists in `.genesis/settings.json` and survives restarts.
 | `/clone` | Trigger clone-factory dialog. |
 | `/peer` | Show peer-network status. |
 | `/daemon` | Show daemon status and cycle count. |
+| `/recall [type]` | Show recent self-statements (v7.5.5). Optional `type` filter: `strukturell`, `versprechen`, `emotional`, `uncertain`. |
+| `/model-reset [name]` | Clear model-availability marker (v7.5.6). With `name`: clears one specific model. Without: clears all. Useful when an Ollama model is back online before its TTL expires (e.g. cloud subscription renewed). |
 
 A handler triggers only on explicit `/command`. The slash can be at the start or embedded in a sentence:
 

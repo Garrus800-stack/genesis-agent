@@ -111,11 +111,27 @@ function detect() {
 }
 
 /**
- * Check if namespace isolation is available.
+ * Check if namespace isolation is available AND will actually wrap.
+ *
+ * v7.5.6: Returns true only when at least one wrappable namespace
+ * (pid, net, mount, or ipc) is available. Pre-v7.5.6 this returned
+ * `true` whenever `unshare` worked at all — including the
+ * user-namespace-only case, where `wrapCommand()` would still return
+ * `isolated: false` because user-NS alone doesn't appear in any of
+ * the four flags it checks. Callers who relied on the old contract
+ * (`isAvailable() === true` ⇒ "isolation will happen") were misled.
+ *
+ * The user namespace is still detected and reported via
+ * `getCapabilities()` — only the contract-of-isAvailable changed.
+ *
  * @returns {boolean}
  */
 function isAvailable() {
-  return detect().available;
+  const caps = detect().capabilities;
+  if (caps.length === 0) return false;
+  // Match the namespace flags wrapCommand() actually consumes.
+  return caps.includes('pid') || caps.includes('net')
+      || caps.includes('mount') || caps.includes('ipc');
 }
 
 /**

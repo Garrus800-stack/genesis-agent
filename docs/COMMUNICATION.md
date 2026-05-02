@@ -1,7 +1,7 @@
 # Genesis Agent — Communication Architecture
 
-> v7.4.5 — How Genesis instances communicate with each other and the outside world.
-> Updated with Colony IPC (V7-1), AwarenessPort, NetworkSentinel, RuntimeStatePort (v7.4.0), and `failFastMs` CircuitBreaker semantics (v7.4.3).
+> v7.5.6 — How Genesis instances communicate with each other and the outside world.
+> Updated through v7.5.6: same-backend failover (no Genesis-to-Genesis change, but the LLM transport layer now recovers from sticky errors without relying on cross-backend escape), reasoning-block filter on the model-out path, and the carry-over `streamChat` MetaLearning fix.
 
 ---
 
@@ -40,11 +40,14 @@ EmotionalState ──emit('emotion:shift')──→ EventBus ──→ PromptBui
 
 Key properties:
 
-- **161+ event types** catalogued in `EventTypes.js`
-- **Payload validation** via `EventPayloadSchemas.js` (dev mode)
+- **449 event types** catalogued in `EventTypes.js` (v7.5.6 baseline)
+- **445 payload schemas** in `EventPayloadSchemas.js` — 100% coverage for non-fire-and-forget events; dev-mode validation throws on mismatch
 - **Ring buffer history** — last 500 events for debugging
 - **Source tracking** — every event carries `{ source: 'ModuleName' }` for audit
 - **Listener leak detection** — warns when >5 listeners on one event
+- **Promise.allSettled dispatch** — handler exceptions logged via `console.error`, never produce unhandled rejection events
+
+New v7.5.6 events: `model:marked-unavailable`, `model:unavailable-cleared`, `model:thinking-trace`. The first two come from the availability-TTL marker (Section 4.7 in ARCHITECTURE-DEEP-DIVE); the third carries reasoning content from `<think>...</think>` blocks for the ReasoningTracer.
 
 ---
 
@@ -79,9 +82,9 @@ The Electron renderer (UI) communicates with the Agent (main process) through a 
 
 | Direction | Channels | Examples |
 |-----------|----------|---------|
-| UI → Agent (invoke) | 55 | `agent:chat`, `agent:save-file`, `agent:switch-model`, `agent:get-network-status`, `agent:get-provenance-report` |
-| UI → Agent (fire-and-forget) | 1 | `agent:request-stream` |
-| Agent → UI (push) | 6 | `agent:stream-chunk`, `agent:status-update`, `agent:loop-progress` |
+| UI → Agent (invoke) | 62 | `agent:chat`, `agent:save-file`, `agent:switch-model`, `agent:get-network-status`, `agent:get-provenance-report`, `agent:model-reset` (v7.5.6) |
+| UI → Agent (fire-and-forget) | 2 | `agent:request-stream`, `ui:heartbeat` |
+| Agent → UI (push) | 8 | `agent:stream-chunk`, `agent:status-update`, `agent:loop-progress` |
 
 ---
 

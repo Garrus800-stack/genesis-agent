@@ -53,6 +53,7 @@ class CommandHandlers {
     this.coreMemories = coreMemories || null; // v7.3.2
     /** @type {*} */ this.skillManager = null; // late-bound v5.9.1
     /** @type {*} */ this.selfStatementLog = null; // late-bound v7.5.5
+    /** @type {*} */ this.modelBridge = null; // late-bound v7.5.6 — for /model-reset
   }
 
   /** Register all handlers with the orchestrator */
@@ -84,6 +85,8 @@ class CommandHandlers {
     orchestrator.registerHandler('memory-veto', (msg) => this.memoryVeto(msg));
     // v7.5.5: Self-Domain
     orchestrator.registerHandler('self-recall', (msg) => this.selfRecall(msg));
+    // v7.5.6: Model availability marker reset
+    orchestrator.registerHandler('model-reset', (msg) => this.modelReset(msg));
   }
 
   // ── Undo (Git Revert) ──────────────────────────────────
@@ -119,6 +122,27 @@ class CommandHandlers {
       }
       return `**${this.lang.t('agent.undo_failed', { error: msg })}**`;
     }
+  }
+
+  // ── /model-reset (v7.5.6) ─────────────────────────────────
+  //
+  // Clear unavailable-markers set by ModelBridge.markUnavailable when a
+  // model failed with auth/rate-limit/timeout. Without this command,
+  // markers expire only via TTL (1h auth / 5min rate-limit / 10min
+  // timeout). When the user knows the underlying issue is resolved
+  // (subscription renewed, rate-limit window passed) they can clear
+  // markers immediately.
+
+  async modelReset(msg) {
+    const m = String(msg || '').match(/\/model-reset(?:\s+(\S+))?/i);
+    const modelName = m?.[1];
+    if (!this.modelBridge?.clearUnavailable) {
+      return 'ModelBridge does not support unavailable-markers in this build.';
+    }
+    this.modelBridge.clearUnavailable(modelName);
+    return modelName
+      ? `Unavailable-marker cleared for ${modelName}.`
+      : 'All unavailable-markers cleared.';
   }
 }
 

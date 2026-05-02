@@ -386,11 +386,16 @@ console.log('\n  📦 v7.5.1 Regression Tests\n');
       '_processToolLoop must accept intentType parameter (default general)');
 
     // And the caller passes intent.type
+    // v7.5.6: variable renamed from fullResponse → cleanResponse
+    // when the thinking-block filter was added (it strips <think>...</think>
+    // before the response is fed to the tool-loop).
     const orchSrc = require('fs').readFileSync(
       require('path').resolve(__dirname, '../../src/agent/hexagonal/ChatOrchestrator.js'),
       'utf8'
     );
-    assert.ok(orchSrc.includes('_processToolLoop(fullResponse, onChunk, message, intent.type)'),
+    assert.ok(
+      orchSrc.includes('_processToolLoop(cleanResponse, onChunk, message, intent.type)') ||
+      orchSrc.includes('_processToolLoop(fullResponse, onChunk, message, intent.type)'),
       'ChatOrchestrator must pass intent.type to _processToolLoop');
   });
 })();

@@ -1,9 +1,76 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.5.5 · Last updated: v7.5.5 (Self-Statement-Log + closed-loop confabulation detection)
+> Version: 7.5.6 · Last updated: v7.5.6 (Bug-fix release + carry-over cleanup)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.5.6
+
+Six items closed in this release: four scope items (Same-Backend-Failover,
+Model-Availability-TTL, Reasoning-Block-Filter, DE/EN-Pattern-Parity — see
+CHANGELOG.md for details) plus two carry-over bugs picked up during the
+review pass:
+
+- **RESOLVED — `_recordMetaOutcome` attributed outcomes to the wrong model
+  during failover.** `model: this.activeModel` was hardcoded; during a
+  failover `chat()` would dispatch to the fallback backend but
+  `this.activeModel` still held the originally-failed model name, so
+  MetaLearning logged the dead model with `success: true` after the
+  fallback succeeded — and the actual fallback model got no record at
+  all. Both per-model success-rate readings biased. Fix: `_recordMetaOutcome`
+  now accepts a `calledModel` parameter (defaults to `this.activeModel`
+  for backwards-compat). Failure path passes `calledModel`, post-failover
+  success path captures `_fallbackModel.name` BEFORE `_dispatchChat`
+  consumes the one-shot side-effect and passes that. Same shape applied
+  to `streamChat()`, which previously had no MetaLearning recording at
+  all — streaming-failure rates were invisible to the learner. The two
+  catch-blocks are now unified through a shared `_handleFailoverError`
+  helper. Tests: `v756-fix.test.js` E1–E6.
+
+- **RESOLVED — `LinuxSandboxHelper.isAvailable()` contract mismatch.**
+  Returned `true` whenever `unshare` worked at all — including the
+  user-namespace-only case, where `wrapCommand()` would still passthrough
+  (user-NS is not in the four flags it consumes: pid, net, mount, ipc).
+  Callers reading `isAvailable() === true` as "isolation will happen"
+  were misled. Fix: `isAvailable()` now returns `true` only when at least
+  one wrappable namespace is present. The user namespace is still
+  reported via `getCapabilities()`. The pre-v7.5.6 workaround in
+  `linux-sandbox.test.js` (Z. 78–94 inspecting `getCapabilities()` in
+  parallel) was removed — the two predicates now agree. Tests:
+  `v756-fix.test.js` F1–F2.
+
+### Boy-Scout cleanups
+
+- Stale `// TODO: Pruning of old shards (>90d)` comment removed from
+  `SelfStatementLog.js` Z. 416 — pruning has been auto-called by the
+  constructor since v7.5.5.
+- Stale "Race-window deferred" header comment in `SelfStatementLog.js`
+  rewritten to reflect the v7.5.5-resolved correlation-by-message-hash
+  fix.
+- `v748-fix.test.js` test A5 was failing since v7.5.4 because it pointed
+  at `ShellAgent.js` instead of `ShellPlanner.js` (where the
+  `EnvironmentContext` import moved during the v7.5.4 shell-planner
+  extraction). Test corrected to point at the new owner.
+- `v751-fix.test.js` source-presence assertion accepts both
+  `cleanResponse` (v7.5.6) and `fullResponse` (v7.5.5) for forward and
+  backward source-pattern matching.
+
+### Items reviewed and closed without code change
+
+- **`bus.emit()` unhandled-rejection concern** (raised in v7.5.4 backlog) —
+  reviewed against current `EventBus.js` and confirmed unfounded.
+  `emit()` (Z. 225) uses `Promise.allSettled` and logs rejected handlers
+  via `console.error` (Z. 238). Listener throws cannot produce unhandled
+  rejection events. The v7.5.4 entry was based on an outdated read of
+  the emit path.
+- **`runStreaming()` "may be dead code"** (raised in v7.5.4 backlog) —
+  has 24+ behavior tests in `shell-agent-snapshot.test.js` since v7.5.4.
+  No in-tree `src/` consumer is by design: it is a public API for
+  external long-running worker spawns, parallel to `run()`. Library API
+  without in-tree consumer is not a defect.
 
 ---
 
@@ -51,7 +118,8 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
   one place (`SelfStatementLog.js`), exposed via
   `getAuditStat().meetsThreshold` — calibration is a one-line change.
 
-- **Naming-Verwirrung `/recall` vs `UnifiedMemory.recall`.**
+- **Audit-Threshold `AUDIT_MIN_TOTAL = 3` is an initial value.** After 1
+  week of live data, calibrate (5? 10?). The const
   `UnifiedMemory.recall(query, options)` (Z. 65 in
   `src/agent/hexagonal/UnifiedMemory.js`) does Vector-Search across all
   memory stores. `/recall` as the slash-trigger for Self-Statement-Log
@@ -70,37 +138,9 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
   paths and slip through (returning 0 statements). These are
   descriptive third-person status reports rather than self-assertive
   claims, so missing them is acceptable for the v7.5.5 contradiction
-  detector. **Future v7.5.6+ may add LLM-based classification** as a
-  second pass for broader coverage at the cost of one extra LLM call
-  per chat turn.
-
----
-
-## Open items from v7.5.4
-
-- **`isAvailable()` semantically misnamed in `LinuxSandboxHelper.js`.**
-  Currently returns `true` when at least one namespace is detected (including
-  user-NS alone). But `wrapCommand()` returns `isolated:false` when no
-  wrappable flag is available — and user-NS alone produces no flag. So
-  `isAvailable() === true` does not imply `wrapCommand` will wrap. The
-  v7.5.4 test fix worked around this by checking `getCapabilities()` for
-  pid/net/mount/ipc directly. Cleaner future fix: rename to
-  `hasAnyNamespace()` and add a separate `willWrap()` predicate, or fold
-  the wrap-readiness check into `isAvailable()` itself.
-
-- **`runStreaming()` may be dead code.** No external caller in `src/` or
-  `test/` — only `test/modules/v746-fix.test.js` Z. 116-117 has a static
-  existence-marker assertion. The method is exposed as public API but
-  nothing uses it. Either remove it (removes one of the larger code paths
-  in ShellAgent) or document an intended use case (long-running worker
-  spawns?) and add a real consumer.
-
-- **`bus.emit()` ohne await pattern across ShellAgent (and elsewhere).**
-  `EventBus.fire()` has internal `.catch()` guarding against unhandled
-  rejections; `EventBus.emit()` does not. Listeners that throw could
-  produce unhandled rejection events in the runtime. Bestand pre-v7.5.4,
-  consistent across the codebase. Question: convert all ShellAgent
-  emits to `fire()`, or harden listeners, or accept current state.
+  detector. Adding LLM-based classification as a second pass would
+  broaden coverage but costs one extra LLM call per chat turn — open
+  trade-off, not a defect.
 
 ---
 

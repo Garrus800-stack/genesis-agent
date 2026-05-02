@@ -1,3 +1,326 @@
+## [7.5.6]
+
+**Bug-fix release: model-availability tracking, same-backend failover,
+reasoning-block filtering, and DE/EN pattern parity.**
+
+Triggered by a 9-hour overnight Windows session in v7.5.5 where Genesis
+retried a 403-Subscription-failing cloud model every 5 minutes for 9
+hours straight, never marking it unavailable, never falling back to one
+of the 24 configured Ollama models, and producing zero IdleMind
+insights as a result. Four interrelated fixes close that loop.
+
+### Item 1 — Same-Backend Failover
+
+`_findFallbackBackend()` previously rejected any chain entry whose
+backend matched the failed backend (`model.backend !== failedBackend`),
+which made `models.fallbackChain` useless when all 24 configured
+fallbacks lived on the same backend (Ollama). New signature:
+
+```js
+_findFallbackBackend(failedBackend, failedModelName = null)
+```
+
+Skips only the specific failed model name and any model marked
+unavailable. Cross-backend escape (ollama→anthropic→openai) preserved
+as last resort. Backwards-compatible — single-arg calls still work.
+
+Fix lives in `src/agent/foundation/ModelBridge.js`.
+
+### Item 2 — Model-Availability TTL Marker
+
+When a model fails with `auth` (401/403) / `rate-limit` (429) /
+`timeout`, `chat()` and `streamChat()` catch-blocks now mark it
+unavailable for a TTL (1h / 5min / 10min respectively). `connection-error`
+and `other` reasons do NOT mark — those are usually transient.
+
+New API on `ModelBridge`:
+- `markUnavailable(modelName, ttlMs, reason)` — sets entry, fires
+  `model:marked-unavailable`
+- `isMarkedUnavailable(modelName)` — lazy-clears expired entries with
+  `model:unavailable-cleared { automatic: true }`
+- `clearUnavailable(modelName?)` — manual clear (`automatic: false`),
+  no-arg clears all
+
+Persistence in `.genesis/model-unavailable.json` via `atomicWriteFileSync`
+(crash-safe rename) and `safeJsonParse` (corrupt-JSON-resilient).
+`_loadUnavailable()` prunes expired entries on boot.
+
+`detectAvailable()` boot-time selection skips marked models at all four
+priority stages (preferred → cloud → best-available → first-available),
+with the last priority falling back to a marked model only as last
+resort if nothing else exists.
+
+New slash-command `/model-reset [modelName]` for manual recovery.
+
+Implementation split across `ModelBridge.js` and a new
+`ModelBridgeAvailability.js` mixin (extracted to keep the parent file
+under the 900-LOC architectural-fitness limit).
+
+### Item 3 — Reasoning-Block Filter
+
+Reasoning models (DeepSeek-R1, R1-distill, QwQ, nemotron-3-nano) emit
+`<think>...</think>` blocks before their answer. Without filtering
+these surfaced as duplicate output — and worse, `parseToolCalls()`
+would scan them and execute phantom tool calls the model only "thought
+about". A `rm -rf /` inside `<think>` would have run.
+
+New module `src/agent/core/thinking-block-stream-filter.js` with two
+exports:
+- `createThinkingBlockStreamFilter()` — stateful streaming filter
+  (`push(chunk)` / `flush()` / `getReasoning()`); handles tag-splitting
+  across chunk boundaries (e.g. `<thi` then `nk>` arriving in separate
+  chunks)
+- `stripThinkingBlocks(text)` — pure function for non-streaming
+  responses, wraps the stream-filter for one-shot use
+
+Integrated in three ChatOrchestrator paths:
+- `handleStream()` — thinking-filter runs BEFORE tool-call-filter in
+  the chunk pipeline; variable renamed `fullResponse → cleanResponse`
+- `_directChat()` — `stripThinkingBlocks()` after each `model.chat()`
+  call (initial + per tool-round); reasoning collected and fired as
+  one aggregated event
+- `_processToolLoop()` synthesis — `stripThinkingBlocks()` on synthesis
+  output; per-round reasoning discarded (initial pass already fired
+  the trace event, per-round would spam)
+
+Hardcoded tags: `<think>` and `<thinking>`, case-insensitive. New event
+`model:thinking-trace { text, modelName }` consumed by
+`ReasoningTracer.TRACE_SUBSCRIPTIONS` as a `model-reasoning` trace.
+
+### Item 4 — Self-Statement-Log DE/EN Parity
+
+`SelfStatementLog`'s detection patterns were bilingual but asymmetric:
+80+ DE verbs vs. 5 EN verbs in `VERB_FIRST_DE`, 6 DE vs. 4 EN
+promise-markers, etc. EN responses from reasoning-models were getting
+under-classified.
+
+Refactored to module-level `LANG_PATTERNS = { de: {...}, en: {...} }`
+and `NEUTRAL_PATTERNS = { modulePrefix, structuralNouns, bullet }`.
+Both languages now have the same four keys (`firstPersonExplicit`,
+`verbFirst`, `promiseMarkers`, `emotionMarkers`) — a load-time parity
+assertion throws if they drift.
+
+Performance bonus: regex literals compiled once at module-load instead
+of being recompiled on every `_extractStatements` / `_classify` call.
+Also de-duplicates the `MODULE_PREFIX` constant that was identical in
+two methods.
+
+DE-promiseMarkers extended for symmetry: `möchte`, `plane zu`,
+`habe vor`, `nächster schritt`, `beabsichtige`. EN-verbFirst expanded
+to ~70 gerund forms parallel to the DE 1st-person-singular list.
+
+Mixed-language sentences ("Ich plane to refactor my module") work
+correctly — both language matchers run in parallel via
+`Object.values(LANG_PATTERNS).some(...)`.
+
+### Architecture
+
+ModelBridge.js exceeded the 900-LOC architectural-fitness limit after
+Items 1+2. The model-availability methods were extracted to
+`src/agent/foundation/ModelBridgeAvailability.js` as a mixin,
+`Object.assign(ModelBridge.prototype, availability)` at module bottom
+(same pattern as CommandHandlers' helper-mixin composition). ModelBridge
+now 880 LOC.
+
+### Tests
+
++100 new tests across 4 new files plus 16 EN/Mixed/parity assertions
+extending `self-statement-log.test.js`:
+- `test/modules/v756-fix.test.js` — 26 source-presence + behavior tests
+  spanning all four items
+- `test/modules/model-availability.test.js` — 21 in-process behavioral
+  tests (mark/isMarked/clear, TTL expiry, persistence-roundtrip,
+  corrupt-JSON resilience, boot-priority filtering, reason
+  classification)
+- `test/modules/thinking-block-stream-filter.test.js` — 25 unit tests
+  on the pure filter (boundary-splitting, multiple blocks,
+  case-insensitive, phantom-tool protection, stream/strip consistency)
+- `test/modules/thinking-block-integration.test.js` — 11 E2E tests
+  through ChatOrchestrator (stream path, _directChat path, tool-loop
+  synthesis path; phantom-tool-call protection in all three)
+
+All 6021 v7.5.5 tests remain green. Total v7.5.6 (scope items only): **6130 passed, 0 failed**. After the live-test sweep: **6167 passed, 0 failed**.
+
+### Carry-over bugs picked up during review
+
+Two pre-existing defects spotted during code-inspection were fixed in the
+same release rather than left in the backlog:
+
+**`_recordMetaOutcome` attributed outcomes to the wrong model.**
+`recordOutcome({ model: this.activeModel, ... })` was hardcoded. During
+failover, `chat()` would dispatch to a fallback backend but
+`this.activeModel` still held the originally-failed model name — so
+MetaLearning logged the dead model with `success: true` (post-fallback),
+the dead model with `success: false` (no-fallback), and the actual
+fallback model never got a record at all. Per-model success-rate readings
+biased downstream of MetaLearning. Fix: `_recordMetaOutcome(taskCategory,
+temperature, startTime, success, options, calledModel)` accepts the
+called model explicitly. Failure path passes `calledModel`; post-failover
+success path captures `_fallbackModel.name` BEFORE `_dispatchChat`
+consumes the one-shot side-effect, then passes that name. Defaults to
+`this.activeModel` for backwards-compat. The same shape was applied to
+`streamChat()`, which previously had no MetaLearning recording at all —
+streaming-failure rates were invisible to the learner.
+
+**`LinuxSandboxHelper.isAvailable()` contract mismatch.**
+Returned `true` whenever `unshare` worked at all — including the
+user-namespace-only case, where `wrapCommand()` would still passthrough
+(user-NS isn't in the four flags it consumes: pid, net, mount, ipc).
+Callers reading `isAvailable() === true` as "isolation will happen" were
+misled. Fix: `isAvailable()` now returns `true` only when at least one
+wrappable namespace is present. The user namespace is still reported via
+`getCapabilities()`. The pre-v7.5.6 workaround in `linux-sandbox.test.js`
+(checking `getCapabilities()` in parallel) was removed — the two
+predicates now agree by contract.
+
+The two `chat()` and `streamChat()` catch-blocks were unified through a
+new shared `_handleFailoverError(err, ctx)` helper that owns the
+classify → mark-if-sticky → record-failure → lookup-fallback → dispatch
+→ record-success-or-emit-unavailable pipeline. The `ttlMap` literal that
+was duplicated in both catch-blocks moved to a module-level
+`UNAVAILABLE_TTL_MAP` constant. Test count after both fixes: **6130
+passed, 0 failed**.
+
+Two test files were also updated to match v7.5.6 source changes:
+- `test/modules/v751-fix.test.js`: accepts both `cleanResponse` (v7.5.6)
+  and `fullResponse` (v7.5.5) in the `_processToolLoop`-call
+  source-presence assertion
+- `test/modules/v748-fix.test.js` test A5: now points at
+  `src/agent/capabilities/shell/ShellPlanner.js` instead of
+  `src/agent/capabilities/ShellAgent.js`. The OS-context logic moved
+  with the v7.5.4 shell-planner extraction; the test had been silently
+  failing since then and is fixed at its new owner.
+
+### Live-test sweep — additional fixes from Windows + Linux verification
+
+The live-verification on Windows and Linux (2026-05-02) surfaced five
+genuine defects beyond the four scope items, all fixed in the same
+release:
+
+**`store:SELF_STATEMENT_CONTRADICTION` missing from EventTypes catalog.**
+`SelfStatementLog._fireContradiction()` calls `eventStore.append(
+'SELF_STATEMENT_CONTRADICTION', ...)`, which causes
+`EventStore.append()` to emit `store:SELF_STATEMENT_CONTRADICTION` on
+the bus. The catalog entry was missing — every contradiction-fire on
+Windows produced a `[EVENT:DEV] Unknown event` warning. Functional
+behaviour was correct (the contradiction reached EventStore), but the
+telemetry layer was noisy. Same bug-class as the v7.3.2 carry-over
+batch (`CODE_VERIFICATION_BLOCK`, `COGNITIVE_SERVICE_DEGRADED`): a new
+EventStore-append type was added without the corresponding `store:`
+catalog entry. Fixed: catalog entry + payload schema + 3 regression
+tests in `test/modules/store-event-catalog.test.js`. The tests lock
+all three together (catalog entry, schema, caller still references
+the type) so the next time someone adds an `EventStore.append` it
+will fail loudly if the catalog is not updated.
+
+**`SelfStatementLog._classify()` strukturell-noun list under-covered
+German everyday vocabulary.** The DE+EN bilingual pattern matching
+from Item 4 caught first-person utterances correctly, but the
+follow-up `_classify()` step used a `structuralNouns` regex whose
+word list was biased toward internal Genesis subsystem terminology
+(modul/version/memory/dream/cycle/daemon/loop/etc.). German everyday
+nouns that confabulating-Genesis typically uses ("Speicher", "Fix",
+"Bug", "Fehler", "Gespräch", "Optimierung", "Analyse", "Prüfung")
+were not in the list, so the classic confabulation pattern *"Ich
+prüfe den Fix, optimiere den Speicher und bereite mich auf das
+nächste Gespräch vor"* was captured into the JSONL but classified as
+`uncertain` (confidence 0). Result: the contradiction-detector never
+fired for exactly the kind of statement it was designed to catch.
+Live-evidence in `2026-05-02.jsonl`: 4 of 4 confabulating responses
+landed as `uncertain` instead of `strukturell`. Fixed: `structuralNouns`
+extended conservatively with both DE everyday-activity nouns
+(speicher/fix/bug/fehler/gespräch/optimierung/analyse/prüfung) and
+the EN parallels (cache/conversation/chat/optimization/analysis/check/
+response/error). Words that occur frequently in normal user replies
+(intelligenz, schritt, entwickler) were deliberately omitted to avoid
+false-positives.
+
+**Promise-marker lists missed reflexive constructions in both
+languages.** German promises are often built reflexively (`melde mich`,
+`bereite mich vor`, `kümmere mich um`), not with the simple verb
+helpers (werde/möchte/plane). A pure reflexive sentence like *"Ich
+melde mich später"* fell through to `uncertain` despite being a clear
+commitment. English has the same pattern — `"I'll get back to you"`,
+`"take care of"`, `"handle this"`, `"preparing for"` are all classic
+promise constructions that the marker list missed. Fixed: both DE and
+EN `promiseMarkers` regexes extended in parallel. The DE/EN
+load-time parity assertion from Item 4 still holds — both lists keep
+the same key shape.
+
+**`/recall` output captured itself in a 10-duplicate loop.** When the
+user invokes `/recall strukturell`, Genesis's response is a recall-
+listing of past self-statements, each beginning with "Ich..." or
+similar first-person construction. `_captureResponse()` ran
+unchanged on it and re-captured the listed entries as new statements
+with `intent: 'self-recall'`. Live-evidence in `2026-05-02.jsonl`: a
+single `/recall` call produced 10 duplicate entries, all sharing the
+same `userMessageHash`. Functionally harmless (entries were correctly
+marked `✓verified` from their original capture), but inflated the
+shard and produced a self-referential loop that distorted statistics.
+Fixed: `wireTriggers()` now skips capture when `data.intent ===
+'self-recall'`. Test in `test/modules/self-statement-log.test.js`
+verifies the skip via a real bus-emit-and-readback.
+
+**`openPath` parsed relative paths as unix-absolute.** Pre-fix the
+unix-path regex `/(~\/[^\s"']+|\/[^\s"']+)/` was greedy — any
+occurrence of `/foo/bar` anywhere in the message got matched. So
+*"zeig mir den inhalt von .genesis/self-statements/2026-05-02.jsonl"*
+was sliced to just `/self-statements/2026-05-02.jsonl`, a bogus
+absolute path. Windows-Explorer falls back to its Documents default
+when given an invalid abs-path, which is exactly what the user saw
+("Genesis öffnet immer denselben Ordner"). Fixed in
+`src/agent/hexagonal/CommandHandlersShell.js`: (1) unix-path regex
+anchored at start-of-string or whitespace, so `/etc/passwd` still
+matches but `x/y/z` no longer slices `/y/z`; (2) added relative-path
+support (`./foo`, `../foo`, `.name/foo`) which resolves against
+`this.fp.rootDir` — same anchor `openWorkspace()` uses.
+
+**Folder-alias check matched as substring inside paths.** Discovered
+during the test pass for the path-extraction fix above: the alias
+loop used `lower.includes(alias)` — pure substring match, no word
+boundary. So *"öffne C:\Users\Garrus\Desktop"* matched `desktop` as a
+substring inside the Windows path and resolved to `~/Desktop` instead
+of opening the explicit Windows path. Same defect for `C:\Music\foo`
+(matches `music`), `C:\Documents and Settings\...` (matches
+`documents`). Fixed: alias check now requires whitespace or sentence
+boundary on both sides — escaped regex with explicit boundary
+patterns rather than `\b` (which fires between backslash and word
+character and would still false-match in paths).
+
+**`openPath` did not check whether the resolved path actually exists.**
+Discovered after Bug #7 was deployed and live-tested: the path-extraction
+fix correctly resolves `.genesis/foo` against rootDir, but when the
+resolved path does not exist on disk, Windows-Explorer falls back to its
+Documents default *without raising an error*. From the user's
+perspective it looked like the relative-path fix had failed —
+Genesis-output said `Ordner geöffnet: C:\...\.genesis\foo` and a Documents
+window opened. Fixed in the same `CommandHandlersShell.openPath`: before
+issuing the OS-open-call, `fs.existsSync(targetPath)` is checked; on
+miss, return `Pfad existiert nicht: \`<resolved-path>\`` and skip the
+shell call entirely. Three regression tests cover the new behaviour
+(non-existent relative path, non-existent absolute path, existing path
+proceeds normally).
+
+13 regression tests in `test/modules/openpath-path-extraction.test.js`
+cover both the new behaviour and pre-existing cases (Windows full
+path, home-relative `~/.config`, quoted paths, folder aliases) to
+catch any future regression. 18 additional tests in
+`test/modules/self-statement-log.test.js` pin the classification
+fixes against the actual live texts from `2026-05-02.jsonl` so any
+future tweak that re-breaks these gets caught immediately.
+
+**Total v7.5.6 after the live-test sweep: 6167 passed, 0 failed.**
+
+`scripts/audit-events.js --strict`, `scripts/scan-schemas.js`,
+`scripts/audit-schemas.js` all green. Three new events
+(`model:marked-unavailable`, `model:unavailable-cleared`,
+`model:thinking-trace`) registered in `EventTypes.js` and
+`EventPayloadSchemas.js`.
+
+`scripts/architectural-fitness.js`: **127/130 (98%)**.
+
+---
+
 ## [7.5.5]
 
 **Self-Statement-Log: closed-loop confabulation detection.**

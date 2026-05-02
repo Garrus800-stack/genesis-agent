@@ -76,17 +76,13 @@ describe('LinuxSandboxHelper — Platform Behavior', () => {
     });
 
     test('linux: wrapCommand applies available namespaces', () => {
-      // v7.5.4: precise condition. isAvailable() returns true when ANY
-      // namespace is detected — including just user-NS. But wrapCommand()
-      // only emits an unshare flag for pid/net/mount/ipc, so a system with
-      // only user-NS triggers passthrough, not wrapping. Branch on the
-      // actual wrapping condition instead of mere availability.
-      const caps = getCapabilities().capabilities;
-      const wrappable = caps.some(c => ['pid', 'net', 'mount', 'ipc'].includes(c));
-
-      if (!wrappable) {
-        // Either no isolation at all, or only user-NS. wrapCommand falls
-        // through to passthrough — verify that.
+      // v7.5.6: isAvailable() now returns true only when at least one
+      // wrappable namespace (pid/net/mount/ipc) is detected. Pre-v7.5.6
+      // it returned true on user-NS-only systems too, even though
+      // wrapCommand() would still passthrough — that contract mismatch
+      // is now closed. The two predicates agree.
+      if (!isAvailable()) {
+        // No wrappable isolation — wrapCommand passes through unchanged.
         const result = wrapCommand('node', ['script.js']);
         assertEqual(result.binary, 'node');
         assertEqual(result.isolated, false);

@@ -708,6 +708,16 @@ const EVENTS = Object.freeze({
     /** v7.5.2: emitted when ModelBridge auto-switches model based on taskType.
      *  @payload {{ originalModel: string, routedModel: string, routedBackend: string, taskType: string, reason?: string }} */
     AUTO_SWITCHED:        'model:auto-switched',
+    /** v7.5.6: telemetry-only — model marked as unavailable (auth/rate-limit/timeout).
+     *  @payload {{ modelName: string, reason: string, ttlMs: number }} */
+    MARKED_UNAVAILABLE:   'model:marked-unavailable',
+    /** v7.5.6: telemetry-only — marker cleared (TTL expired or manual /model-reset).
+     *  @payload {{ modelName: string, automatic: boolean }} */
+    UNAVAILABLE_CLEARED:  'model:unavailable-cleared',
+    /** v7.5.6: emitted by ChatOrchestrator after streamChat/_directChat when the
+     *  model produced a <think>...</think> block. ReasoningTracer subscribes.
+     *  @payload {{ text: string, modelName: string }} */
+    THINKING_TRACE:       'model:thinking-trace',
     /** @payload {{ model: string, backend: string, priority: number }} */
   }),
 
@@ -877,6 +887,8 @@ const EVENTS = Object.freeze({
     MULTI_FILE_REFACTOR: 'store:MULTI_FILE_REFACTOR',
     /** v7.3.2: Emitted by SelfModificationPipeline preservation blocker path */
     PRESERVATION_BLOCK:  'store:PRESERVATION_BLOCK',
+    /** v7.5.6: Emitted by SelfStatementLog._fireContradiction but missing from catalog (live-found 2026-05-02) */
+    SELF_STATEMENT_CONTRADICTION: 'store:SELF_STATEMENT_CONTRADICTION',
     SHELL_PLAN_EXECUTED: 'store:SHELL_PLAN_EXECUTED',
     SKILL_CREATED:       'store:SKILL_CREATED',
     SURPRISE_NOVEL:      'store:SURPRISE_NOVEL',

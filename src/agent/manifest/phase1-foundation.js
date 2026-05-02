@@ -66,7 +66,7 @@ function phase1(ctx, R) {
         { prop: '_modelRouter', service: 'modelRouter', optional: true },
       ],
       factory: (c) => {
-        const mb = new (R('ModelBridge').ModelBridge)({ bus });
+        const mb = new (R('ModelBridge').ModelBridge)({ bus, genesisDir });
         mb._settings = c.resolve('settings');
         return mb;
       },

@@ -73,11 +73,14 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
     assert(/\$\{osContext\}/.test(fpSrc), 'FormalPlanner must use ${osContext} in prompt');
   });
 
-  await test('A5 source-presence: ShellAgent imports and uses EnvironmentContext', () => {
-    const saSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'src/agent/capabilities/ShellAgent.js'), 'utf8');
-    assert(saSrc.includes("require('../core/EnvironmentContext')"), 'ShellAgent must require EnvironmentContext from core/');
-    assert(/buildOsContext\(\s*\{/.test(saSrc), 'ShellAgent must call buildOsContext()');
-    assert(/\$\{osContext\}/.test(saSrc), 'ShellAgent must use ${osContext} in prompt');
+  await test('A5 source-presence: ShellPlanner imports and uses EnvironmentContext', () => {
+    // v7.5.4: shell-planning was extracted from ShellAgent → ShellPlanner.
+    // The OS-context buildup moved with it, so this test now checks
+    // ShellPlanner.js (the new owner) instead of ShellAgent.js.
+    const spSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'src/agent/capabilities/shell/ShellPlanner.js'), 'utf8');
+    assert(spSrc.includes("require('../../core/EnvironmentContext')"), 'ShellPlanner must require EnvironmentContext from core/');
+    assert(/buildOsContext\(\s*\{/.test(spSrc), 'ShellPlanner must call buildOsContext()');
+    assert(/\$\{osContext\}/.test(spSrc), 'ShellPlanner must use ${osContext} in prompt');
   });
 
   // ──────────────────────────────────────────────────────────────
@@ -109,34 +112,33 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
 
   await test('B2 source-presence: model:failover emits include both error AND reason fields', () => {
     const mbSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'src/agent/foundation/ModelBridge.js'), 'utf8');
-    // Find all model:failover emit lines (not failover-unavailable)
+    // v7.5.6: chat() and streamChat() share `_handleFailoverError` — one
+    // emit site, called from both transports. Pre-v7.5.6 the catch-blocks
+    // were duplicated and there were two emit sites.
     const emitLines = mbSrc.split('\n').filter(l => /bus\.fire\('model:failover'/.test(l));
-    assert(emitLines.length >= 2, `expected at least 2 model:failover emit sites, got ${emitLines.length}`);
+    assert(emitLines.length >= 1, `expected at least 1 model:failover emit site, got ${emitLines.length}`);
     for (const line of emitLines) {
       assert(/error:\s*err\.message/.test(line), `emit line missing error field: ${line.trim()}`);
       assert(/reason/.test(line), `emit line missing reason field: ${line.trim()}`);
     }
   });
 
-  await test('B3 source-presence: chat() and streamChat() both emit model:failover-unavailable on null path', () => {
+  await test('B3 source-presence: chat() and streamChat() route null-fallback to _emitFailoverUnavailable', () => {
     const mbSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'src/agent/foundation/ModelBridge.js'), 'utf8');
-    // Pattern-based check (not line-range-based, per reviewer feedback):
-    // Find chat() body — between `async chat(` and next `async ` declaration
-    const chatStart = mbSrc.indexOf('async chat(');
-    assert(chatStart > 0, 'chat() function not found');
-    const afterChat = mbSrc.indexOf('async ', chatStart + 10);
-    assert(afterChat > 0, 'next async function after chat() not found');
-    const chatBody = mbSrc.slice(chatStart, afterChat);
-    assert(chatBody.includes('_emitFailoverUnavailable'), 'chat() must call _emitFailoverUnavailable on null-return path');
+    // v7.5.6: both transports delegate to _handleFailoverError, which calls
+    // _emitFailoverUnavailable on the null-fallback path. Verify the helper
+    // owns the emit, and that both transports invoke the helper.
+    const handlerStart = mbSrc.indexOf('async _handleFailoverError(');
+    assert(handlerStart > 0, '_handleFailoverError must exist');
+    const handlerEnd = mbSrc.indexOf('async ', handlerStart + 10);
+    const handlerBody = mbSrc.slice(handlerStart, handlerEnd > 0 ? handlerEnd : mbSrc.length);
+    assert(handlerBody.includes('_emitFailoverUnavailable'),
+      '_handleFailoverError must emit failover-unavailable on null-fallback');
 
-    // streamChat()
-    const streamStart = mbSrc.indexOf('async streamChat(');
-    assert(streamStart > 0, 'streamChat() function not found');
-    const afterStream = mbSrc.indexOf('async ', streamStart + 10);
-    // afterStream may be -1 if streamChat is the last async; in that case use end of file
-    const streamEnd = afterStream > 0 ? afterStream : mbSrc.length;
-    const streamBody = mbSrc.slice(streamStart, streamEnd);
-    assert(streamBody.includes('_emitFailoverUnavailable'), 'streamChat() must call _emitFailoverUnavailable on null-return path');
+    // Both chat() and streamChat() invoke the helper
+    const helperCalls = (mbSrc.match(/this\._handleFailoverError\(/g) || []).length;
+    assert(helperCalls >= 2,
+      `chat() and streamChat() must both call _handleFailoverError (got ${helperCalls})`);
   });
 
   await test('B4 _emitFailoverUnavailable selects no-chain-configured when chain is empty', () => {

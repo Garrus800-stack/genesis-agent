@@ -119,6 +119,8 @@ function phase5(ctx, R) {
         { prop: 'coreMemories', service: 'coreMemories', optional: true },
         // v7.5.5: P5→P9 for /recall (self-recall) command
         { prop: 'selfStatementLog', service: 'selfStatementLog', optional: true },
+        // v7.5.6: P5→P1 for /model-reset command
+        { prop: 'modelBridge', service: 'model', optional: true },
         // v7.4.5.fix: P5→P11 for /trust slash-command. Without this,
         // the trust handler tried bus._container?.resolve and always
         // returned "Trust level system not available."

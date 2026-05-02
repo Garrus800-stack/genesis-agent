@@ -8,6 +8,7 @@ const { createLogger } = require('../core/Logger');
 const { scanForInjection, formatGateResponse, formatWarnAnnotation } = require('../core/injection-gate');
 const { verifyToolClaims, formatVerificationNote } = require('../core/tool-call-verification');
 const { recordCoherenceCheck } = require('../core/intent-tool-coherence');
+const { stripThinkingBlocks } = require('../core/thinking-block-stream-filter');
 const _log = createLogger('ChatOrchestrator');
 
 
@@ -163,12 +164,19 @@ const helpers = {
         { role: 'user', content: `Previous response:\n${text.slice(0, 1500)}\n\nTool results (round ${round + 1}):\n${resultSummary}\n\nSummarize the tool results and respond to the user. Use additional tools if needed.` },
       ];
 
-      const synthesis = await this.model.chat(
+      const rawSynthesis = await this.model.chat(
         systemPrompt || 'You are Genesis. Respond in the user\'s language.',
         synthesisMessages,
         'chat',
         { _userChat: true }  // v7.5.2: protect tool synthesis (user-facing) from auto-routing
       );
+      // v7.5.6: strip <think>...</think> from synthesis output. Without this,
+      // reasoning models would (a) leak the block into the streamed UI and
+      // (b) inject fake <tool_call> tags that the next round's parseToolCalls
+      // would happily execute. Reasoning is discarded here — the initial
+      // streaming pass already fired model:thinking-trace once per turn,
+      // emitting per-round would just spam the dashboard.
+      const { clean: synthesis } = stripThinkingBlocks(rawSynthesis);
 
       onChunk('\n' + synthesis);
       fullText = text + '\n\n' + synthesis;

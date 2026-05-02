@@ -140,6 +140,17 @@ const SLASH_COMMANDS = [
     description: 'Goal management: /goal add <text>, /goal list, /goal cancel <n>, /goal clear (asks confirmation)',
     sinceVersion: 'v7.5.0',
   },
+
+  // v7.5.6 — Model availability marker reset. Genesis tracks models that
+  // failed with auth/rate-limit/timeout (markUnavailable) and skips them
+  // for a TTL window. /model-reset clears those markers manually so a
+  // recovered model can be used again before TTL expires.
+  {
+    name: 'model-reset',
+    aliases: [],
+    description: 'Clear unavailable-markers for one or all models: /model-reset [modelName]',
+    sinceVersion: 'v7.5.6',
+  },
 ];
 
 /**

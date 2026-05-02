@@ -18,6 +18,7 @@
 // Now:      ~350 LOC (orchestration only)
 // ============================================================
 
+const path = require('path');
 const { robustJsonParse } = require('../core/utils');
 const { NullBus } = require('../core/EventBus');
 const { TIMEOUTS, LIMITS } = require('../core/Constants');
@@ -40,6 +41,15 @@ const TASK_TYPE_ROUTING_MAP = {
   'memory-classify': 'classification',
   'wakeup':          'reasoning',
   // 'user' bleibt unrouted (siehe _userChat-Marker in ChatOrchestrator)
+};
+
+// v7.5.6: TTL by failover-reason for the unavailable-marker. 'connection-error'
+// and 'other' are intentionally absent — those are usually transient (ollama
+// not yet warmed up, network blip) and a lockout would only delay recovery.
+const UNAVAILABLE_TTL_MAP = {
+  'auth':       60 * 60 * 1000,  // 1h
+  'rate-limit':  5 * 60 * 1000,  // 5min
+  'timeout':    10 * 60 * 1000,  // 10min
 };
 
 // ── Lightweight Semaphore ─────────────────────────────────
@@ -103,8 +113,8 @@ class _LLMSemaphore {
 }
 
 class ModelBridge {
-  /** @param {{ bus?: *, maxConcurrentLLM?: number }} [deps] */
-  constructor({ bus, maxConcurrentLLM } = {}) {
+  /** @param {{ bus?: *, maxConcurrentLLM?: number, genesisDir?: string }} [deps] */
+  constructor({ bus, maxConcurrentLLM, genesisDir } = {}) {
     this.bus = bus || NullBus;
     this.activeModel = null;
     this.activeBackend = null;
@@ -143,6 +153,14 @@ class ModelBridge {
     /** @type {*} */ this.metaLearning = null;
     /** @type {*} */ this._fallbackModel = null;
     /** @type {*} */ this._modelRouter = null;  // v7.5.2: late-bound for auto-routing
+
+    // v7.5.6: model-availability tracking
+    /** @type {Map<string, {until:number, reason:string, ttlMs:number}>} */
+    this._unavailableUntil = new Map();
+    this._unavailableFile = genesisDir
+      ? path.join(genesisDir, 'model-unavailable.json')
+      : null;
+    this._loadUnavailable();
 
     // v7.5.2: routing telemetry
     this._routingStats = { autoRouted: 0, lastRouted: null };
@@ -213,26 +231,33 @@ class ModelBridge {
     // 1. User-configured preferred model (Settings → models.preferred)
     // 2. Cloud backends (higher capability) before local
     // 3. First available as last resort
+    // v7.5.6: All priorities skip models that are currently marked
+    // unavailable (auth/rate-limit/timeout). Prevents Genesis from
+    // re-selecting a known-broken model on every boot/refresh.
     if (this.availableModels.length > 0) {
       let chosen = null;
 
       // Priority 1: User-configured preferred model
       const preferredName = this._settings?.get?.('models.preferred') || null;
       if (preferredName) {
-        // Exact match first, then partial match (handles tag variations like :latest vs :cloud)
-        chosen = this.availableModels.find(m => m.name === preferredName)
-              || this.availableModels.find(m => m.name.startsWith(preferredName.split(':')[0]) && m.name.includes(preferredName.split(':')[1] || ''));
-        if (chosen) {
-          _log.info(`[MODEL] Using preferred model from settings: ${chosen.name}`);
+        if (this.isMarkedUnavailable(preferredName)) {
+          _log.warn(`[MODEL] Preferred "${preferredName}" is marked unavailable — auto-selecting`);
         } else {
-          _log.warn(`[MODEL] Preferred model "${preferredName}" not found in ${this.availableModels.length} available models`);
+          // Exact match first, then partial match (handles tag variations like :latest vs :cloud)
+          chosen = this.availableModels.find(m => m.name === preferredName)
+                || this.availableModels.find(m => m.name.startsWith(preferredName.split(':')[0]) && m.name.includes(preferredName.split(':')[1] || ''));
+          if (chosen) {
+            _log.info(`[MODEL] Using preferred model from settings: ${chosen.name}`);
+          } else {
+            _log.warn(`[MODEL] Preferred model "${preferredName}" not found in ${this.availableModels.length} available models`);
+          }
         }
       }
 
       // Priority 2: Cloud backends (configured = user actively chose them)
       if (!chosen) {
-        chosen = this.availableModels.find(m => m.backend === 'anthropic')
-              || this.availableModels.find(m => m.backend === 'openai');
+        chosen = this.availableModels.find(m => m.backend === 'anthropic' && !this.isMarkedUnavailable(m.name))
+              || this.availableModels.find(m => m.backend === 'openai' && !this.isMarkedUnavailable(m.name));
         if (chosen) _log.info(`[MODEL] Auto-selected cloud model: ${chosen.name} (${chosen.backend})`);
       }
 
@@ -240,13 +265,15 @@ class ModelBridge {
       // Instead of picking the first model Ollama returns (which is alphabetical
       // and often a weak model like minimax-m2.7), rank by known quality tiers.
       if (!chosen) {
-        chosen = this._selectBestModel(this.availableModels);
+        const eligible = this.availableModels.filter(m => !this.isMarkedUnavailable(m.name));
+        chosen = this._selectBestModel(eligible);
         if (chosen) _log.info(`[MODEL] Auto-selected best available: ${chosen.name} (score: ${this._scoreModel(chosen.name)})`);
       }
 
-      // Priority 4: Absolute fallback — first available
+      // Priority 4: Absolute fallback — first available (gefiltert; wenn alle markiert → letzter Resort)
       if (!chosen) {
-        chosen = this.availableModels[0];
+        const eligible = this.availableModels.filter(m => !this.isMarkedUnavailable(m.name));
+        chosen = eligible[0] || this.availableModels[0];
         _log.info(`[MODEL] Using first available model: ${chosen.name} (${chosen.backend})`);
       }
 
@@ -412,6 +439,34 @@ class ModelBridge {
   // maxTokens / temperature overrides are now honoured via options.
   // ════════════════════════════════════════════════════════
 
+  /**
+   * v7.5.6: Shared failover handler used by chat() and streamChat().
+   * Classifies → marks-if-sticky → records failure → looks up fallback →
+   * dispatches retry → records success (or emits failover-unavailable +
+   * rethrows). `dispatch` is the transport-specific retry callback.
+   * @private
+   */
+  async _handleFailoverError(err, ctx) {
+    const { taskType, temp, startTime, options, calledModel, targetBackend, dispatch, label } = ctx;
+    const reason = this._classifyFailoverReason(err);
+    if (UNAVAILABLE_TTL_MAP[reason] && calledModel) {
+      this.markUnavailable(calledModel, UNAVAILABLE_TTL_MAP[reason], reason);
+    }
+    // Record failure on the actual called model (pre-v7.5.6: lost).
+    this._recordMetaOutcome(taskType, temp, startTime, false, options, calledModel);
+    const fallback = this._findFallbackBackend(targetBackend, calledModel);
+    if (fallback) {
+      const fallbackModelName = this._fallbackModel?.name || null;
+      _log.warn(`[MODEL] ${label} ${targetBackend} failed, falling back to ${fallback}: ${err.message}`);
+      this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message, reason }, { source: 'ModelBridge' });
+      const result = await dispatch(fallback);
+      this._recordMetaOutcome(taskType, temp, startTime, true, { ...options, failover: true }, fallbackModelName);
+      return result;
+    }
+    this._emitFailoverUnavailable(targetBackend, err);
+    throw err;
+  }
+
   async chat(systemPrompt, messages = [], taskType = 'chat', options = {}) {
     // v7.5.1: object-form adapter
     if (systemPrompt && typeof systemPrompt === 'object' && !Array.isArray(systemPrompt)) {
@@ -499,27 +554,20 @@ class ModelBridge {
                        || this.activeBackend;
     const effectiveModel = routedSwitch?.routedModel
                         || roleOverride?.model;  // undefined → backend uses activeModel
+    // v7.5.6: track which model was actually called, so we can mark
+    // it unavailable in the catch-block and skip it in failover.
+    const calledModel = effectiveModel || this.activeModel;
     await this._semaphore.acquire(priority);
     try {
       const result = await this._dispatchChat(targetBackend, systemPrompt, messages, temp, effectiveModel, options.maxTokens);
-      this._recordMetaOutcome(taskType, temp, startTime, true, options);
+      this._recordMetaOutcome(taskType, temp, startTime, true, options, calledModel);
       if (cacheKey) this._cache.set(cacheKey, result);
       return result;
     } catch (err) {
-      const fallback = this._findFallbackBackend(targetBackend);
-      if (fallback) {
-        _log.warn(`[MODEL] ${targetBackend} failed, falling back to ${fallback}: ${err.message}`);
-        const reason = this._classifyFailoverReason(err);
-        this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message, reason }, { source: 'ModelBridge' });
-        const result = await this._dispatchChat(fallback, systemPrompt, messages, temp, undefined, options.maxTokens);
-        this._recordMetaOutcome(taskType, temp, startTime, true, { ...options, failover: true });
-        return result;
-      }
-      // v7.4.8: emit failover-unavailable BEFORE _recordMetaOutcome(false)
-      // so MetaLearning sees the failure with telemetry context already set.
-      this._emitFailoverUnavailable(targetBackend, err);
-      this._recordMetaOutcome(taskType, temp, startTime, false, options);
-      throw err;
+      return this._handleFailoverError(err, {
+        taskType, temp, startTime, options, calledModel, targetBackend, label: '',
+        dispatch: (backend) => this._dispatchChat(backend, systemPrompt, messages, temp, undefined, options.maxTokens),
+      });
     } finally {
       this._semaphore.release();
     }
@@ -596,21 +644,22 @@ class ModelBridge {
                        || this.activeBackend;
     const effectiveModel = routedSwitch?.routedModel
                         || roleOverride?.model;
+    // v7.5.6: track which model was actually called
+    const calledModel = effectiveModel || this.activeModel;
+    // v7.5.6: streamChat now feeds MetaLearning too — pre-v7.5.6 only chat()
+    // recorded outcomes, so streaming-failure rates were invisible to the
+    // learner. Same calledModel/fallbackModelName attribution as chat().
+    const startTime = Date.now();
     await this._semaphore.acquire(priority);
     try {
-      return await this._dispatchStream(targetBackend, systemPrompt, messages, onChunk, abortSignal, temp, effectiveModel, maxTokens);
+      const result = await this._dispatchStream(targetBackend, systemPrompt, messages, onChunk, abortSignal, temp, effectiveModel, maxTokens);
+      this._recordMetaOutcome(taskType, temp, startTime, true, options, calledModel);
+      return result;
     } catch (err) {
-      const fallback = this._findFallbackBackend(targetBackend);
-      if (fallback) {
-        _log.warn(`[MODEL] Stream ${targetBackend} failed, falling back to ${fallback}: ${err.message}`);
-        const reason = this._classifyFailoverReason(err);
-        this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message, reason }, { source: 'ModelBridge' });
-        return await this._dispatchStream(fallback, systemPrompt, messages, onChunk, abortSignal, temp, undefined, maxTokens);
-      }
-      // v7.4.8: emit failover-unavailable before throw — direct throw path,
-      // no _recordMetaOutcome equivalent to position around.
-      this._emitFailoverUnavailable(targetBackend, err);
-      throw err;
+      return this._handleFailoverError(err, {
+        taskType, temp, startTime, options, calledModel, targetBackend, label: 'Stream',
+        dispatch: (backend) => this._dispatchStream(backend, systemPrompt, messages, onChunk, abortSignal, temp, undefined, maxTokens),
+      });
     } finally {
       this._semaphore.release();
     }
@@ -667,24 +716,37 @@ class ModelBridge {
     return backend.stream(systemPrompt, messages, onChunk, abortSignal, temp, model, maxTokens);
   }
 
-  _findFallbackBackend(failedBackend) {
-    // v5.1.0: Configurable fallback chain from settings
+  /**
+   * v5.1.0: Configurable fallback chain from settings.
+   * v7.5.6: Same-backend fallback enabled. Skip the specific failed model
+   * (not the entire backend) and any model marked unavailable. The cross-backend
+   * escape hatch (ollama→anthropic→openai) remains as a last resort when the
+   * chain is exhausted or empty.
+   *
+   * @param {string} failedBackend
+   * @param {string|null} [failedModelName] — exact name of the model that just
+   *   failed. When provided, that single model is skipped in the chain (instead
+   *   of the entire backend, which made the chain useless when all configured
+   *   fallbacks shared one backend with the primary).
+   */
+  _findFallbackBackend(failedBackend, failedModelName = null) {
     const chain = this._settings?.get?.('models.fallbackChain') || [];
-    if (chain.length > 0) {
-      for (const modelName of chain) {
-        const model = this.availableModels.find(m => m.name === modelName);
-        if (model && model.backend !== failedBackend) {
-          // Switch to this model for the fallback
-          this._fallbackModel = model;
-          return model.backend;
-        }
+    for (const modelName of chain) {
+      if (modelName === failedModelName) continue;
+      if (this.isMarkedUnavailable(modelName)) continue;
+      const model = this.availableModels.find(m => m.name === modelName);
+      if (model) {
+        this._fallbackModel = model;
+        return model.backend;
       }
     }
-    // Default: try backends in priority order
+    // Cross-backend escape: try other backends in priority order
     const order = ['ollama', 'anthropic', 'openai'];
     for (const b of order) {
       if (b === failedBackend) continue;
-      if (b === 'ollama' && this.availableModels.some(m => m.backend === 'ollama')) return b;
+      if (b === 'ollama' && this.availableModels.some(m =>
+        m.backend === 'ollama' && !this.isMarkedUnavailable(m.name)
+      )) return b;
       if (this.backends[b].isConfigured()) return b;
     }
     return null;
@@ -701,6 +763,17 @@ class ModelBridge {
     if (/401|403|unauthor|invalid.*key|api.?key/.test(msg)) return 'auth';
     return 'other';
   }
+
+  // ── v7.5.6: Model-availability tracking with TTL ─────────────────────
+  // When a model fails with auth/rate-limit/timeout, we mark it as
+  // unavailable for a configured TTL. Failover and boot-time selection
+  // skip marked models. Closes the loop where Genesis would retry the
+  // same dead model every IdleMind tick (live-observed: 9h with 403).
+  //
+  // Implementation extracted to ModelBridgeAvailability.js (mixin) to
+  // keep this file under the architectural-fitness LOC limit. Methods
+  // mixed in below: markUnavailable, isMarkedUnavailable,
+  // clearUnavailable, _loadUnavailable, _persistUnavailable.
 
   // v7.4.8: emitted when _findFallbackBackend returns null. Closes the
   // observability gap — without this event, "Genesis tried to failover
@@ -734,12 +807,22 @@ class ModelBridge {
   // META-LEARNING INTEGRATION
   // ════════════════════════════════════════════════════════
 
-  _recordMetaOutcome(taskCategory, temperature, startTime, success, options = {}) {
+  // v7.5.6: `calledModel` parameter added so MetaLearning sees the model
+  // that was actually invoked, not `this.activeModel`. The two diverge
+  // during failover: chat() catches an error, calls _recordMetaOutcome
+  // with `success: true` after the fallback dispatch — but `this.activeModel`
+  // is still the originally-failed model name. Pre-v7.5.6 that meant the
+  // dead model was logged with `success: true`, while the fallback model
+  // got no record — biasing every per-model success-rate downstream of
+  // MetaLearning. Callers in chat()/streamChat() pass `calledModel` for
+  // the success path, `fallback` for the post-failover success path,
+  // and `calledModel` again for the throw-path.
+  _recordMetaOutcome(taskCategory, temperature, startTime, success, options = {}, calledModel = null) {
     if (!this.metaLearning) return;
     try {
       this.metaLearning.recordOutcome({
         taskCategory,
-        model: this.activeModel,
+        model: calledModel || this.activeModel,
         promptStyle: options.promptStyle || 'free-text',
         temperature,
         outputFormat: options.outputFormat || 'text',
@@ -804,5 +887,12 @@ class ModelBridge {
     }
   }
 }
+
+// v7.5.6: Mix in availability methods (markUnavailable, isMarkedUnavailable,
+// clearUnavailable, _loadUnavailable, _persistUnavailable). Same pattern as
+// CommandHandlers' helper-mixin composition. Keeps ModelBridge.js under the
+// architectural-fitness LOC limit.
+const { availability } = require('./ModelBridgeAvailability');
+Object.assign(ModelBridge.prototype, availability);
 
 module.exports = { ModelBridge };

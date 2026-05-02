@@ -1,28 +1,31 @@
 # Genesis Agent — Architecture Deep-Dive
 
 > Comprehensive technical analysis of Genesis Agent. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.4.5: 12 boot phases, 167 services (154 manifest + 13 bootstrap), 273 source files, 5668 tests, 240+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules, four active gates (Injection blocking, Self-Gate telemetry-only, Tool-Call-Verification detective, Slash-Discipline preventive), synchronous source-read with per-turn budget, `failFastMs` semantics on CircuitBreaker (v7.4.3 — LLM circuit opted out, MCP circuit keeps 15s fail-fast), CI ratchet locked at the v7.4.5 baseline (5667 floor, branches 76).
+> Last updated for v7.5.6: 12 boot phases, 168 services (155 manifest + 13 bootstrap), 306 source files, 6141 tests, 250+ capabilities, 16 hash-locked files, 11 PreservationInvariants rules, five active gates (Injection blocking, Self-Gate telemetry-only, Tool-Call-Verification detective, Slash-Discipline preventive, Reasoning-Block Filter strip-and-emit), synchronous source-read with per-turn budget, `failFastMs` semantics on CircuitBreaker (v7.4.3 — LLM circuit opted out, MCP circuit keeps 15s fail-fast), Model-Availability TTL marker with persistence (v7.5.6 — auth/rate-limit/timeout-aware lockout). CI ratchet locked at the v7.5.6 baseline (6141 floor, branches 76).
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **273 JS source modules** across **~85,000 LOC** of production code, supported by **335 test files / 5668 tests** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), and **automatic offline failover** (NetworkSentinel, v6.0.5).
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **306 JS source modules** across **~99,000 LOC** of production code, supported by **357 test files / 6141 tests** with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), **automatic offline failover** (NetworkSentinel, v6.0.5), and **same-backend failover with TTL-marked unavailability** (v7.5.6 — recovers from sticky model errors like 403/429/timeout without per-tick retry storms).
 
 ### Key Numbers
 
 | Metric | Value |
 |--------|-------|
-| Production LOC (src/) | ~92,000 |
-| Source Modules | 269 JS files |
-| Test Files / Tests | 329 / 5583 |
-| DI Services | 167 (154 manifest + 13 bootstrap) |
+| Production LOC (src/) | ~99,046 |
+| Source Modules | 306 JS files |
+| Test Files / Tests | 357 / 6141 |
+| DI Services | 168 (155 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
+| Boot Time (Windows, cold) | ~1.3 s |
 | npm Dependencies | 3 production + 3 optional + 6 dev |
-| Event Types (catalogued) | 405 |
-| IPC Channels | 67 main ↔ 67 preload |
+| Event Types (catalogued) | 449 |
+| Event Schemas | 445 |
+| IPC Channels | 68 main ↔ 68 preload |
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
-| Coverage Gates | 80% lines, 75.9% branches, 78% functions |
+| Coverage Gates | 80% lines, 76% branches, 78% functions |
+| Live Coverage | 83.78% lines · 77.37% branches · 80.49% functions |
 | Fitness Score | 127/130 (98%) |
 | Circular Dependencies | 0 |
 | Cross-Layer Violations | 0 |
@@ -53,7 +56,7 @@ Phase 1: Bootstrap
   └── Register non-manifest instances: rootDir, guard, bus, storage, lang, logger
 
 Phase 2: Manifest
-  └── Register all 154 services from 12 phase files via ContainerManifest (+13 bootstrap = 167 runtime, cognitive default profile)
+  └── Register all 155 services from 12 phase files via ContainerManifest (+13 bootstrap = 168 runtime, cognitive default profile)
       └── Auto-discovery scans src/agent/ → builds filename→directory map
 
 Phase 3: Resolve & Init
@@ -153,13 +156,64 @@ Dual-mode isolation (v4.0.0):
 
 **Note:** VM mode is explicitly NOT a true sandbox for untrusted code. It's documented as such in the codebase.
 
+### 4.6 Reasoning-Block Filter (v7.5.6)
+
+Reasoning models (DeepSeek-R1, R1-distill, QwQ, nemotron-3-nano) emit `<think>...</think>` blocks before their answer. Without filtering these would surface as duplicate output to the user — and worse, `parseToolCalls()` would scan them and execute phantom tool calls the model only "thought about". A `<tool_call>` containing `rm -rf /` inside `<think>` would have actually run.
+
+Implementation in `src/agent/core/thinking-block-stream-filter.js`:
+
+- `createThinkingBlockStreamFilter()` — stateful streaming filter (`push(chunk)` / `flush()` / `getReasoning()`); handles tag-splitting across chunk boundaries (e.g. `<thi` then `nk>` arriving in separate chunks)
+- `stripThinkingBlocks(text)` — pure function for non-streaming responses
+
+Integrated in three ChatOrchestrator paths:
+
+- `handleStream()` — thinking-filter runs BEFORE tool-call-filter in the chunk pipeline; the variable name change `fullResponse → cleanResponse` in v7.5.6 reflects this
+- `_directChat()` — `stripThinkingBlocks()` after each `model.chat()` call (initial + per tool-round); reasoning collected and fired as one aggregated event
+- `_processToolLoop()` synthesis — `stripThinkingBlocks()` on synthesis output
+
+Hardcoded tags: `<think>` and `<thinking>`, case-insensitive. Filtered reasoning is preserved and re-emitted as `model:thinking-trace { text, modelName }`, consumed by `ReasoningTracer` as a `model-reasoning` trace type — no observability is lost.
+
+This is structurally a fifth security gate (after Injection blocking, Self-Gate telemetry, Tool-Call-Verification, Slash-Discipline): it strips a category of LLM output that would otherwise bypass tool-call audit on its way to execution.
+
+### 4.7 Model-Availability TTL Marker (v7.5.6)
+
+When a model fails with sticky errors — `auth` (401/403), `rate-limit` (429), or `timeout` — `ModelBridge.chat()` and `streamChat()` mark it unavailable for a TTL (1h / 5min / 10min respectively). `connection-error` and `other` reasons do NOT mark, since those are usually transient (ollama not yet warmed up, brief network blip).
+
+API on `ModelBridge`:
+
+| Method | Behavior |
+|--------|----------|
+| `markUnavailable(name, ttlMs, reason)` | Sets entry, fires `model:marked-unavailable` |
+| `isMarkedUnavailable(name)` | Lazy-clears expired entries with `model:unavailable-cleared { automatic: true }` |
+| `clearUnavailable(name?)` | Manual clear (`automatic: false`); no-arg clears all |
+
+Persistence in `.genesis/model-unavailable.json` via `atomicWriteFileSync` (crash-safe rename) and `safeJsonParse` (corrupt-JSON-resilient). `_loadUnavailable()` prunes expired entries on boot.
+
+`detectAvailable()` boot-time selection skips marked models at all four priority stages (preferred → cloud → best-available → first-available), with the last priority falling back to a marked model only as last resort if nothing else exists.
+
+User control: `/model-reset [modelName]` slash-command for manual recovery.
+
+The implementation is split across `ModelBridge.js` and a `ModelBridgeAvailability.js` mixin (extracted to keep the parent file under the 900-LOC architectural-fitness limit; same pattern as `CommandHandlers` mixin composition).
+
+### 4.8 Same-Backend Failover (v7.5.6)
+
+Pre-v7.5.6 `_findFallbackBackend()` rejected any chain entry whose backend matched the failed backend (`model.backend !== failedBackend`), which made `models.fallbackChain` useless when all configured fallbacks lived on the same backend (typical Ollama-only setup). The signature is now:
+
+```js
+_findFallbackBackend(failedBackend, failedModelName = null)
+```
+
+It skips only the specific failed model name plus any model marked unavailable. Cross-backend escape (ollama → anthropic → openai) is preserved as last resort.
+
+`_handleFailoverError(err, ctx)` (private helper, v7.5.6) unifies the failover-error handling between `chat()` and `streamChat()`: classify → mark-if-sticky → record failure to MetaLearning → look up fallback → dispatch retry → record success (or emit `failover-unavailable` and rethrow on null fallback). This also closed a pre-existing gap: `_recordMetaOutcome` previously hardcoded `this.activeModel`, so during failover the dead model was logged with `success: true` and the actual fallback model got no record. The helper passes `calledModel` for the failure path and the captured `_fallbackModel.name` for the post-failover success path. `streamChat()` now records to MetaLearning at all — pre-v7.5.6 streaming-failure rates were invisible to the learner.
+
 ---
 
 ## 5. The 12-Phase Service Architecture
 
-### Phase 1: Foundation (34 files, ~9,400 LOC)
+### Phase 1: Foundation (41 files, ~11,300 LOC)
 
-Core infrastructure: Settings, ModelBridge, Sandbox, ConversationMemory, KnowledgeGraph, GraphStore, EventStore, WorldState, EmbeddingService, ModuleSigner, SelfModel (split into 4 files via Prototype-Delegation in v7.4.1), PromptEngine, StorageService, LLMCache, WebFetcher, ASTDiff, CapabilityGuard, UncertaintyGuard, DesktopPerception, TrustLevelSystem, LinuxSandboxHelper, BootTelemetry, BootRecovery, AwarenessPort + NullAwareness, GenesisBackup (v7.2.3), and 4 LLM backends (Ollama, Anthropic, OpenAI, Mock).
+Core infrastructure: Settings, ModelBridge (split via `ModelBridgeAvailability` mixin in v7.5.6 to manage TTL-marked unavailability), Sandbox, ConversationMemory, KnowledgeGraph, GraphStore, EventStore, WorldState, EmbeddingService, ModuleSigner, SelfModel (split into 4 files via Prototype-Delegation in v7.4.1), PromptEngine, StorageService, LLMCache, WebFetcher, ASTDiff, CapabilityGuard, UncertaintyGuard, DesktopPerception, TrustLevelSystem, LinuxSandboxHelper (`isAvailable()` contract tightened in v7.5.6 — only returns `true` when at least one wrappable namespace is available), BootTelemetry, BootRecovery, AwarenessPort + NullAwareness, GenesisBackup (v7.2.3), and 4 LLM backends (Ollama, Anthropic, OpenAI, Mock).
 
 **ModelBridge** (~590 LOC) — Multi-backend LLM abstraction (Ollama, OpenAI-compatible, Anthropic) with:
 - Priority-based semaphore (chat=10, agentLoop=5, idleMind=1)
@@ -167,7 +221,7 @@ Core infrastructure: Settings, ModelBridge, Sandbox, ConversationMemory, Knowled
 - Response cache (skip non-deterministic tasks)
 - Per-task temperature profiles
 
-### Phase 2: Intelligence (27 files, ~9,900 LOC)
+### Phase 2: Intelligence (28 files, ~10,100 LOC)
 
 Decision-making: IntentRouter (split via IntentPatterns data extract in v7.4.3), ToolRegistry, WorkerPool, PromptBuilder + PromptBuilderSections + PromptBuilderRuntimeState, ContextManager, DynamicContextBudget, CircuitBreaker (`failFastMs` semantics in v7.4.3), CodeAnalyzer, CodeSafetyScanner, ReasoningEngine, VerificationEngine, GenericWorker, FailureTaxonomy, LocalClassifier, GraphReasoner, UserModel.
 
@@ -177,31 +231,31 @@ Decision-making: IntentRouter (split via IntentPatterns data extract in v7.4.3),
 
 **IntentRouter** (~450 LOC after v7.4.3 IntentPatterns extract) — 4-stage cascade (regex → fuzzy → local classifier → LLM). 13 conversational meta-state patterns route directly to runtime block (v7.4.1).
 
-### Phase 3: Capabilities (22 files, ~7,300 LOC)
+### Phase 3: Capabilities (25 files, ~7,800 LOC)
 
-External interaction: SkillManager, Reflector, CloneFactory, FileProcessor, HotReloader, PeerNetwork, ShellAgent, McpClient, McpServer, McpTransport (uses `failFastMs: 15000` for real fail-fast), SnapshotManager, ToolBootstrap, SelfSpawner, WebPerception, PluginRegistry, EffectorRegistry.
+External interaction: SkillManager, Reflector, CloneFactory, FileProcessor, HotReloader, PeerNetwork, ShellAgent (with `ShellPlanner`, `ShellSafety`, `ShellOSAdapter` extracted in v7.5.4), McpClient, McpServer, McpTransport (uses `failFastMs: 15000` for real fail-fast), SnapshotManager, ToolBootstrap, SelfSpawner, WebPerception, PluginRegistry, EffectorRegistry.
 
-**ShellAgent** (~600 LOC) — 4 permission tiers (read/write/admin/root), blocklist, rate limiter. v4.0.0: Migrated from `execSync` to async `execFile` with array args (no shell injection).
+**ShellAgent** (~600 LOC) — 4 permission tiers (read/write/admin/root), blocklist, rate limiter. v4.0.0: Migrated from `execSync` to async `execFile` with array args (no shell injection). v7.5.4: Plan-generation extracted to `ShellPlanner`.
 
-### Phase 4: Planning (12 files, ~3,600 LOC)
+### Phase 4: Planning (13 files, ~3,940 LOC)
 
 Goal decomposition: GoalStack (auto-transitions: complete/fail/stall in v7.3.7), GoalPersistence, Anticipator, SolutionAccumulator, SelfOptimizer, MetaLearning, SchemaStore, Reflector, ValueStore.
 
-**MetaLearning** — Tracks every LLM call's success rate by model, prompt style, and temperature. Feeds ExpectationEngine statistics.
+**MetaLearning** — Tracks every LLM call's success rate by model, prompt style, and temperature. Feeds ExpectationEngine statistics. v7.5.6: now receives the actual `calledModel` (not `this.activeModel`), so failover events correctly attribute the failure to the dead model and the post-failover success to the fallback model. Streaming calls (`streamChat`) also feed MetaLearning starting v7.5.6.
 
 **SchemaStore** (~500 LOC) — Stores abstract patterns extracted by DreamCycle. Keyword-indexed with confidence decay. Modifies expectations and guides planning.
 
-### Phase 5: Hexagonal (22 files, ~6,900 LOC)
+### Phase 5: Hexagonal (23 files, ~7,300 LOC)
 
 Orchestration layer: UnifiedMemory, EpisodicMemory (3-layer decay: Detail/Schema/Feeling, v7.3.7), AdaptiveMemory, ChatOrchestrator + ChatOrchestratorSourceRead + ChatOrchestratorHelpers, SelfModificationPipeline + SelfModificationPipelineModify (v7.4.3 split), LearningService, PeerCrypto, PeerHealth, PeerTransport, PeerNetwork, PeerConsensus, TaskDelegation, CommandHandlers + 6 domain mixins (v7.4.2 split: Code/Shell/Goals/Memory/System/Network).
 
-**ChatOrchestrator** (~590 LOC after v7.3.9 source-read extract) — Routes messages through IntentRouter → handler dispatch → tool calls → LLM synthesis. Manages conversation history with configurable limits. Synchronous source-read for CHANGELOG/package.json with per-turn + session budget (v7.3.8).
+**ChatOrchestrator** (~640 LOC) — Routes messages through IntentRouter → handler dispatch → tool calls → LLM synthesis. Manages conversation history with configurable limits. Synchronous source-read for CHANGELOG/package.json with per-turn + session budget (v7.3.8). Streams `<think>...</think>` blocks through `thinking-block-stream-filter` before tool-call parsing (v7.5.6) — phantom tool calls inside reasoning blocks cannot reach the executor.
 
 **SelfModificationPipeline** (~450 LOC after v7.4.3 Modify-family extract) — Gate chain: circuit breaker → AwarenessPort coherence (currently inert with NullAwareness default, threshold 0.4) → Metabolism energy → write → verify → snapshot.
 
-### Phase 6: Autonomy (12 files, ~4,300 LOC)
+### Phase 6: Autonomy (28 files, ~6,070 LOC)
 
-Background processes: AutonomousDaemon, IdleMind, HealthMonitor, CognitiveMonitor, ErrorAggregator, HealthServer, ServiceRecovery, DeploymentManager, NetworkSentinel, JournalWriter (v7.3.7), ActiveReferencesPort (v7.3.7), WakeUpRoutine (v7.3.7).
+Background processes: AutonomousDaemon, IdleMind, HealthMonitor, CognitiveMonitor, ErrorAggregator, HealthServer, ServiceRecovery, DeploymentManager, NetworkSentinel, JournalWriter (v7.3.7), ActiveReferencesPort (v7.3.7), WakeUpRoutine (v7.3.7), and 16 Activities modules (Calibrate, Consolidate, Dream, Explore, Ideate, Improve, Journal, MCPExplore, PickContext, Plan, ReadSource, Reflect, Research, SelfDefine, Study, Tidy).
 
 **IdleMind** (~570 LOC) — Activity selection: reflection, KG exploration, goal generation, tidying, journaling, dreaming (Phase 9), and LLM-as-knowledge-source (v7.2.8). Activity scoring uses NeedsSystem drive levels and emotional state.
 
@@ -219,9 +273,9 @@ Biological simulation: EmotionalState, EmotionalSteering, Homeostasis, Homeostas
 
 **HomeostasisEffectors** `v4.12.5` — Wires all homeostasis correction events to real actions: cache pruning, knowledge graph pruning, context budget pressure, and simplified-mode recommendations. Allostatic set-point adaptation shifts thresholds when vitals stay in WARNING for 10+ minutes.
 
-### Phase 8: Revolution (17 files, ~6,700 LOC)
+### Phase 8: Revolution (17 files, ~7,240 LOC)
 
-Autonomous execution: AgentLoop (~690 LOC + 4 delegates: Planner, Steps, Cognition, Recovery — split in v7.3.4), FormalPlanner, HTNPlanner, NativeToolUse, SessionPersistence, ModelRouter, ModuleRegistry, MultiFileRefactor, FailureAnalyzer, VectorMemory, ColonyOrchestrator, EmotionalFrontier, UnfinishedWorkFrontier, GoalSynthesizer (v7.1.7).
+Autonomous execution: AgentLoop (~830 LOC + 4 delegates: Planner, Steps, Cognition, Recovery — split in v7.3.4), FormalPlanner, HTNPlanner, NativeToolUse, SessionPersistence, ModelRouter, ModuleRegistry, MultiFileRefactor, FailureAnalyzer, VectorMemory, ColonyOrchestrator, EmotionalFrontier, UnfinishedWorkFrontier, GoalSynthesizer (v7.1.7).
 
 **AgentLoop** — The autonomous execution framework:
 ```
@@ -229,11 +283,11 @@ Perceive (WorldState) → Plan (FormalPlanner) → Act → Verify → Learn → 
 ```
 Max 20 steps per goal (+10 after user approval), 3 consecutive error limit, 10-minute global timeout.
 
-### Phase 9: Cognitive (33 files, ~12,500 LOC)
+### Phase 9: Cognitive (35 files, ~13,200 LOC)
 
-Expectation, surprise, learning, self-model, adaptation. The cognitive substrate that makes Genesis self-correcting and self-improving. Includes CognitiveSelfModel (empirical capability tracking with Wilson-score calibration), AdaptiveStrategy (closed-loop self-correction), OnlineLearner (real-time behavioral adaptation), PromptEvolution (A/B prompt optimization), MemoryConsolidator (KG/Lessons hygiene), TaskRecorder (execution replay), CoreMemories (v7.3.7), LessonsStore, GateStats (v7.3.6 — central gate-verdict telemetry), SuspicionFrontier, LessonFrontier, ArchitectureReflection.
+Expectation, surprise, learning, self-model, adaptation. The cognitive substrate that makes Genesis self-correcting and self-improving. Includes CognitiveSelfModel (empirical capability tracking with Wilson-score calibration), AdaptiveStrategy (closed-loop self-correction), OnlineLearner (real-time behavioral adaptation), PromptEvolution (A/B prompt optimization), MemoryConsolidator (KG/Lessons hygiene), TaskRecorder (execution replay), CoreMemories (v7.3.7), LessonsStore, GateStats (v7.3.6 — central gate-verdict telemetry), SuspicionFrontier, LessonFrontier, ArchitectureReflection, **SelfStatementLog (v7.5.5 + DE/EN parity in v7.5.6)** — auto-classifies first-person statements (`strukturell` / `versprechen` / `emotional` / `uncertain`), persists to daily JSONL shards, fires `selfstatement:contradiction` when a structural claim lacks verified-data backing.
 
-Anticipation and identity: ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle + DreamCyclePhases (v7.3.9 split), SelfNarrative, CognitiveHealthTracker.
+Anticipation and identity: ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle + DreamCyclePhases (v7.3.9 split), SelfNarrative, CognitiveHealthTracker, **ReasoningTracer** — subscribes to `model:thinking-trace` (v7.5.6) to capture reasoning-model internal monologue as `model-reasoning` traces.
 
 **Fully optional.** All late-bindings use `optional: true`. All hooks check for null. Genesis v3.8 behavior is 100% preserved without Phase 9.
 
@@ -355,7 +409,7 @@ The EmbeddingService integration is optional. Without an embedding backend (Olla
 The EventBus (~600 LOC) is the nervous system of Genesis:
 
 - **424 catalogued event types** in EventTypes.js (1213 LOC) with JSDoc payload docs
-- **424 payload schemas** in EventPayloadSchemas.js (759 LOC) — 100% coverage as of v7.4.1
+- **445 payload schemas** in EventPayloadSchemas.js (~800 LOC) — 100% coverage as of v7.5.6 (449 catalog events, 4 fire-and-forget heartbeats without schemas)
 - **Dev-mode validation** — unknown events produce warnings with stack traces
 - **Wildcard prefix-map** (v3.8.0) — O(k) matching instead of O(n)
 - **Ring buffer history** (v4.0.0) — O(1) push instead of O(n) push+slice
@@ -405,23 +459,23 @@ Plus a global error boundary (v4.0.0) in `renderer-main.js`.
 
 ## 11. LOC Distribution by Directory
 
-Approximate as of v7.4.5 (numbers shift with each release):
+Approximate as of v7.5.6 (numbers shift with each release):
 
 ```
-  core/             22 files    7,200 LOC
-  foundation/       34 files    9,400 LOC
-  intelligence/     27 files    9,900 LOC
-  capabilities/     22 files    7,300 LOC
-  planning/         12 files    3,600 LOC
-  hexagonal/        22 files    6,900 LOC
-  autonomy/         12 files    4,300 LOC
-  organism/         16 files    5,950 LOC
-  revolution/       17 files    6,700 LOC
-  cognitive/        33 files   12,500 LOC
-  ports/            12 files    1,500 LOC
-  manifest/         12 files    2,300 LOC
+  core/             25 files    8,064 LOC
+  foundation/       41 files   11,283 LOC
+  intelligence/     28 files   10,127 LOC
+  capabilities/     25 files    7,790 LOC
+  planning/         13 files    3,938 LOC
+  hexagonal/        23 files    7,315 LOC
+  autonomy/         28 files    6,074 LOC
+  organism/         16 files    5,954 LOC
+  revolution/       17 files    7,236 LOC
+  cognitive/        35 files   13,234 LOC
+  ports/            12 files    1,614 LOC
+  manifest/         12 files    2,438 LOC
   ─────────────────────────────────────────────
-  agent/ total     241 files  ~77,500 LOC
-  + UI/kernel       19 files  ~10,000 LOC
-  = src/ total     273 modules ~85,000 LOC
+  agent/ total     259 files  ~84,900 LOC
+  + UI/kernel       47 files  ~13,800 LOC
+  = src/ total     306 modules ~98,700 LOC
 ```

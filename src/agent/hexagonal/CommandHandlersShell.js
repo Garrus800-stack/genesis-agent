@@ -97,13 +97,29 @@ const commandHandlersShell = {
       'home': home,
     };
 
-    // Check for semantic folder reference first
+    // Check for semantic folder reference first.
+    //
+    // v7.5.6 Live-Befund (entdeckt durch openpath-path-extraction tests):
+    // pre-fix war `lower.includes(alias)` ein reiner Substring-Match. Das
+    // hat false-positives produziert wie "öffne C:\Users\Garrus\Desktop"
+    // → matcht "desktop" als Substring im Windows-Pfad und löst die
+    // Alias-Auflösung zu ~/Desktop aus statt den expliziten Windows-Pfad
+    // weiter zu extrahieren. Lösung: Alias muss von Whitespace ODER
+    // Satz-Grenze umgeben sein — NICHT von Pfad-Separatoren (\, /, .).
+    // Reines `\b` reicht nicht, weil `\b` zwischen Backslash und 'd'
+    // (Non-Word + Word) auch eine Wortgrenze sieht und damit
+    // ".garrus\desktop" matchen würde.
     const lower = message.toLowerCase();
     let targetPath = null;
     for (const [alias, resolved] of Object.entries(folderAliases)) {
-      if (lower.includes(alias)) {
+      const escAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Match the alias only when surrounded by whitespace, sentence boundary,
+      // or string boundaries — explicitly NOT preceded/followed by a path
+      // separator (\ / .) or word character. Treat both sides symmetrically.
+      const aliasRe = new RegExp(`(?:^|\\s)${escAlias}(?:$|\\s|[.,;:!?])`, 'i');
+      if (aliasRe.test(lower)) {
         // Check if there's a subfolder/file mentioned after the alias
-        const afterAlias = message.slice(lower.indexOf(alias) + alias.length).trim();
+        const afterAlias = message.slice(lower.search(aliasRe) + alias.length + 1).trim();
         const subMatch = afterAlias.match(/(?:ordner|folder|datei|file)?\s*[\"']?([^\s\"']+)[\"']?/i);
         targetPath = subMatch && subMatch[1] ? path.join(resolved, subMatch[1]) : resolved;
         break;
@@ -111,18 +127,41 @@ const commandHandlersShell = {
     }
 
     if (!targetPath) {
-      // Extract path from message — try quoted first, then Windows full path, then Unix
+      // Extract path from message — try quoted first, then Windows full path,
+      // then Unix absolute, then relative.
+      //
+      // v7.5.6 Live-Befund (2026-05-02): Pre-fix matched any "/foo/bar" anywhere
+      // in the message — so "zeig mir den inhalt von .genesis/self-statements/
+      // 2026-05-02.jsonl" was greedy-matched as "/self-statements/2026-05-02.
+      // jsonl", a bogus absolute path that Windows-Explorer falls back to its
+      // Documents default for. Two fixes:
+      //   (1) anchor unix-absolute regex at start-of-string OR whitespace, so
+      //       "/foo" matches as path but "x/y/z" does not slice out "/y/z".
+      //   (2) add relative-path support (./foo, ../foo, .name/foo) — resolved
+      //       against the project rootDir (via this.fp.rootDir, same pattern
+      //       openWorkspace uses on Z. 76).
       const quoted = message.match(/["']([^"']+)["']/);
       // Windows path: grab everything from drive letter to end (may include spaces)
       const winPath = message.match(/([A-Za-z]:\\[^\n"']+)/i);
-      const unixPath = message.match(/(~\/[^\s"']+|\/[^\s"']+)/);
+      // Unix absolute: must be at start-of-string or after whitespace, so
+      // "/etc/passwd" matches but "x/y/z" does not slice out "/y/z".
+      const unixPath = message.match(/(?:^|\s)(~\/[^\s"']+|\/[^\s"']+)/);
+      // Relative: ./foo, ../foo, .name/foo (e.g. .genesis/self-statements/...)
+      // Anchored same as unixPath. Captures dot-prefixed relative names too.
+      const relPath = message.match(/(?:^|\s)(\.{1,2}\/[^\s"']+|\.[A-Za-z][\w\-]*\/[^\s"']+)/);
 
       if (quoted) {
         targetPath = quoted[1].trim();
       } else if (winPath) {
         targetPath = winPath[1].trim().replace(/[.,;!?]+$/, ''); // strip trailing punctuation
       } else if (unixPath) {
-        targetPath = unixPath[1];
+        targetPath = unixPath[1].replace(/[.,;!?]+$/, '');
+      } else if (relPath) {
+        // Resolve relative path against the project rootDir, same anchor
+        // openWorkspace uses on Z. 76.
+        const rel = relPath[1].replace(/[.,;!?]+$/, '');
+        const rootDir = this.fp?.rootDir || process.cwd();
+        targetPath = path.resolve(rootDir, rel);
       }
     }
 
@@ -139,6 +178,20 @@ const commandHandlersShell = {
         } catch (err) { return `Konnte "${appName}" nicht starten: ${err.message}`; }
       }
       return 'Welchen Ordner oder welche Datei soll ich öffnen? Gib mir den Pfad an.';
+    }
+
+    // v7.5.6 Live-Befund (entdeckt nach Bug #7-Fix): Bug #7 hat den Pfad
+    // korrekt resolved, aber wenn der Pfad gar nicht existiert, ruft
+    // `explorer "<bogus-path>"` auf Windows den Default-Documents-Ordner
+    // auf statt einer Fehlermeldung. Pre-Fix sah der User: "Ordner geöffnet:
+    // C:\...\.genesis\foo" + Documents-Fenster geöffnet — irreführend.
+    // Fix: vor dem OS-Open-Call existsSync prüfen, bei Nicht-Existenz
+    // eine klare deutsche Fehlermeldung. Fragt explizit nicht den shell-
+    // tool ab, sondern direkt `fs` weil das billiger und plattform-
+    // konsistent ist.
+    const fs = require('fs');
+    if (!fs.existsSync(targetPath)) {
+      return `Pfad existiert nicht: \`${targetPath}\``;
     }
 
     // Determine OS-specific open command

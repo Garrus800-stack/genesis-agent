@@ -13,6 +13,7 @@ const { LIMITS } = require('../core/Constants');
 const { safeJsonParse, atomicWriteFileSync } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
 const { createToolCallStreamFilter } = require('../core/tool-call-stream-filter');
+const { createThinkingBlockStreamFilter, stripThinkingBlocks } = require('../core/thinking-block-stream-filter');
 const _log = createLogger('ChatOrchestrator');
 
 class ChatOrchestrator {
@@ -270,48 +271,69 @@ class ChatOrchestrator {
           toolPrompt: this.tools.generateToolPrompt(),
         });
 
-      let fullResponse = '';
+      let cleanResponse = '';
       const _h = /** @type {any} */ (this); // ChatOrchestratorHelpers mixin cast
-      // v7.3.4: Tool-call markup filter extracted to core/tool-call-stream-filter.js
-      // as a pure, unit-testable function. Keeps <tool_call>...</tool_call> blocks
-      // out of the streamed output while still letting fullResponse capture them
-      // for the tool-execution loop.
+      // v7.3.4: tool-call markup filter — keeps <tool_call>...</tool_call> blocks
+      // out of the streamed UI output while still letting the response variable
+      // capture them for the tool-execution loop.
+      // v7.5.6: thinking-block filter (must run BEFORE tool-call filter).
+      // Reasoning models (DeepSeek-R1, QwQ, nemotron-3-nano) emit
+      // <think>...</think> blocks before the answer. These must be stripped
+      // from BOTH the UI stream AND the response text — otherwise the
+      // tool-loop would see `<tool_call>` tags inside the reasoning and
+      // execute phantom tools the model only thought about.
+      const thinkingFilter = createThinkingBlockStreamFilter();
       const toolCallFilter = createToolCallStreamFilter();
-      const filteredOnChunk = (chunk) => {
-        const out = toolCallFilter.push(chunk);
-        if (out) onChunk(out);
-      };
       await _h._withRetry(() => this.cb.execute(
         () => this.model.streamChat(ctx.system, ctx.messages, (chunk) => {
           if (this.abortController?.signal.aborted) return;
-          fullResponse += chunk;
-          filteredOnChunk(chunk);
+          const noThink = thinkingFilter.push(chunk);
+          if (!noThink) return;
+          cleanResponse += noThink;
+          const noTool = toolCallFilter.push(noThink);
+          if (noTool) onChunk(noTool);
         }, this.abortController.signal, 'chat', { _userChat: true })  // v7.5.2: protect direct user chat from auto-routing
       ));
-      // Flush any safe tail buffered at end of stream
-      const tail = toolCallFilter.flush();
-      if (tail) onChunk(tail);
+      // Flush in correct order: thinking first, then tool-call
+      const thinkTail = thinkingFilter.flush();
+      if (thinkTail) {
+        cleanResponse += thinkTail;
+        const tcOut = toolCallFilter.push(thinkTail);
+        if (tcOut) onChunk(tcOut);
+      }
+      const tcTail = toolCallFilter.flush();
+      if (tcTail) onChunk(tcTail);
+
+      const reasoningTrace = thinkingFilter.getReasoning();
 
       // Multi-round tool execution loop
       // v7.5.1: pass intent.type so intent-tool-coherence can cross-check
       // tool-category against the IntentRouter classification.
-      fullResponse = await _h._processToolLoop(fullResponse, onChunk, message, intent.type);
+      cleanResponse = await _h._processToolLoop(cleanResponse, onChunk, message, intent.type);
 
-      this.history.push({ role: 'assistant', content: fullResponse });
+      this.history.push({ role: 'assistant', content: cleanResponse });
       this._saveHistory();
-      this.bus.fire('chat:completed', { message, response: fullResponse, intent: intent.type, success: true }, { source: 'ChatOrchestrator' });
+      this.bus.fire('chat:completed', { message, response: cleanResponse, intent: intent.type, success: true }, { source: 'ChatOrchestrator' });
 
       // v6.0.5: End provenance trace — success
       if (traceId) {
         this._provenance.recordModel(traceId, { name: this.model.activeModel || 'unknown', backend: this.model.activeBackend || 'unknown' });
-        this._provenance.endTrace(traceId, { tokens: Math.ceil(fullResponse.length / 3.5), latencyMs: Date.now() - t0, outcome: 'success' });
+        this._provenance.endTrace(traceId, { tokens: Math.ceil(cleanResponse.length / 3.5), latencyMs: Date.now() - t0, outcome: 'success' });
       }
 
       // Route code blocks to editor (ChatOrchestratorHelpers mixin)
-      const codeBlocks = _h._extractCodeBlocks(fullResponse);
+      const codeBlocks = _h._extractCodeBlocks(cleanResponse);
       if (codeBlocks.length > 0) {
         const primary = codeBlocks.sort((a, b) => b.content.length - a.content.length)[0];
         this.bus.emit('editor:open', primary, { source: 'ChatOrchestrator' });
+      }
+
+      // v7.5.6: emit reasoning trace (telemetry, ReasoningTracer subscribes)
+      if (reasoningTrace) {
+        this.bus.emit('model:thinking-trace', {
+          text: reasoningTrace,
+          modelName: this.model.activeModel || 'unknown',
+        }, { source: 'ChatOrchestrator' });
       }
 
       onDone();
@@ -422,13 +444,31 @@ class ChatOrchestrator {
 
         // FIX v6.1.1: Fallback text-based tool loop — parse <tool_call> tags,
         // execute tools, feed results back to LLM. Closes the tool loop.
-        let response = await this.model.chat(ctx.system, ctx.messages, 'chat', { _userChat: true });  // v7.5.2
+        // v7.5.6: strip <think>...</think> from each model.chat() response so
+        // reasoning-models (DeepSeek-R1, QwQ, nemotron-3-nano) can't sneak
+        // phantom <tool_call>s past parseToolCalls. Reasoning is collected and
+        // fired as a single aggregated event after the tool-loop ends.
+        const reasoningParts = [];
+        let raw = await this.model.chat(ctx.system, ctx.messages, 'chat', { _userChat: true });  // v7.5.2
+        let stripped = stripThinkingBlocks(raw);
+        if (stripped.reasoning) reasoningParts.push(stripped.reasoning);
+        let response = stripped.clean;
+
         let history = [...ctx.messages];
         const MAX_TOOL_ROUNDS = 5;
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           const parsed = this.tools.parseToolCalls(response);
-          if (parsed.toolCalls.length === 0) return response; // No tools → done
+          if (parsed.toolCalls.length === 0) {
+            // No tools → done. Emit reasoning trace if any was collected.
+            if (reasoningParts.length > 0) {
+              this.bus.emit('model:thinking-trace', {
+                text: reasoningParts.join('\n---\n'),
+                modelName: this.model.activeModel || 'unknown',
+              }, { source: 'ChatOrchestrator' });
+            }
+            return response;
+          }
 
           // Execute each tool call and LEARN from outcomes
           const toolResults = [];
@@ -466,7 +506,18 @@ class ChatOrchestrator {
           // Feed results back to LLM for next response
           history.push({ role: 'assistant', content: response });
           history.push({ role: 'user', content: `Tool results:\n${toolResults.join('\n')}\n\nContinue based on these results. Do NOT repeat the tool calls.` });
-          response = await this.model.chat(ctx.system, history, 'chat', { _userChat: true });  // v7.5.2
+          raw = await this.model.chat(ctx.system, history, 'chat', { _userChat: true });  // v7.5.2
+          stripped = stripThinkingBlocks(raw);
+          if (stripped.reasoning) reasoningParts.push(stripped.reasoning);
+          response = stripped.clean;
+        }
+
+        // Loop exhausted MAX_TOOL_ROUNDS — still emit any collected reasoning.
+        if (reasoningParts.length > 0) {
+          this.bus.emit('model:thinking-trace', {
+            text: reasoningParts.join('\n---\n'),
+            modelName: this.model.activeModel || 'unknown',
+          }, { source: 'ChatOrchestrator' });
         }
 
         return response;

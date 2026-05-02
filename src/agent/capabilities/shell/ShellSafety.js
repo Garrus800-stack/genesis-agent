@@ -97,17 +97,48 @@ function checkRootDirSandbox(command, rootDir, opts = {}) {
   const platform = opts.platform || process.platform;
   const isWindows = platform === 'win32';
   const root = path.resolve(rootDir).toLowerCase();
-  // Find absolute path tokens. Windows: drive-letter form (C:\, D:\, ...).
-  // POSIX: leading slash followed by a known root directory name. We
-  // restrict to common roots so flags like "/b", "/s", "/q" don't get
-  // mistaken for paths. Absolute paths in shell commands almost always
-  // start with one of these top-level dirs.
-  const winAbs = command.match(/\b([A-Za-z]):[\\/](?:[^\s"';|&<>]*)/g) || [];
-  const posixAbs = !isWindows
+  // Find absolute path tokens. Two patterns per platform — one for quoted
+  // paths (which may contain spaces, e.g. "C:\Program Files\..." or
+  // "/home/My Files/Genesis"), and one for unquoted paths (which terminate
+  // at the first whitespace).
+  //
+  // The unquoted pattern uses [^\s"';|&<>] which deliberately excludes
+  // whitespace — paths with spaces in shell commands MUST be quoted to be
+  // parsed correctly by the shell itself. The quoted pattern captures the
+  // full content between matching quotes, so spaces are preserved.
+  //
+  // Pre-fix this function had only the unquoted pattern, which caused
+  // false-positive "outside rootDir" rejections when rootDir itself
+  // contained spaces — the regex would extract only the prefix up to the
+  // first space and that prefix would not startsWith the full rootDir.
+  // Live-evidence: rootDir "C:\Users\Danie\OneDrive\Desktop\Github v5.9.3
+  // \Genesis-v5_9_3" extracted just "C:\Users\Danie\OneDrive\Desktop\Github"
+  // from `dir /b "<rootDir>\src"` and rejected legitimate paths inside the
+  // working directory. Symmetric fix on Linux: rootDir like
+  // "/home/user/My Files/Genesis" had the same shape of failure for any
+  // command that quoted an absolute path inside it.
+  //
+  // Quoted-path matching uses [^"'] to terminate, which accepts ANY char
+  // (including spaces) until the closing quote. Whitelisted-roots check
+  // is intentionally NOT applied to quoted paths — explicit quoting by
+  // the user means it IS a path, no flag-token confusion possible.
+  // Windows-style paths: matched regardless of platform — Windows paths
+  // can appear in commands run on any host (WSL, cross-mounts, scripts
+  // that build paths conditionally). Pre-fix this was ungated, so we
+  // preserve that to keep `process.platform`-driven tests stable across
+  // CI environments (the existing v7.4.6 test #31 on a Linux container
+  // exercises a Windows path string).
+  const winQuoted = [...command.matchAll(/["']([A-Za-z]:[\\/][^"']*)["']/g)].map(m => m[1]);
+  const winUnquoted = (command.match(/(?:^|\s)([A-Za-z]:[\\/](?:[^\s"';|&<>]*))/g) || [])
+    .map(s => s.trim());
+  const posixQuoted = !isWindows
+    ? [...command.matchAll(/["'](\/[^"']*)["']/g)].map(m => m[1])
+    : [];
+  const posixUnquoted = !isWindows
     ? (command.match(/(?:^|\s)(\/(?:home|usr|var|etc|opt|tmp|root|mnt|srv|bin|sbin|lib|proc|sys|run|boot)\/[^\s"';|&<>]*)/g) || [])
         .map(s => s.trim())
     : [];
-  const candidates = [...winAbs, ...posixAbs];
+  const candidates = [...winQuoted, ...winUnquoted, ...posixQuoted, ...posixUnquoted];
   for (const raw of candidates) {
     const abs = path.resolve(raw).toLowerCase();
     if (!abs.startsWith(root)) {

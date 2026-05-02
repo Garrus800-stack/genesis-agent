@@ -182,7 +182,7 @@ ollama pull gemma2:9b # Pull a model if empty
 
 ### Cloud API returns 401/403
 
-**Cause:** Invalid or expired API key.
+**Cause:** Invalid or expired API key, or — for Ollama-cloud models — an expired subscription.
 
 **Fix:** Open Settings → check `models.anthropicApiKey` or `models.openaiApiKey`. Ensure no extra whitespace. Test the key with curl:
 ```bash
@@ -192,6 +192,28 @@ curl https://api.anthropic.com/v1/messages \
   -H "content-type: application/json" \
   -d '{"model":"claude-sonnet-4-20250514","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
 ```
+
+**v7.5.6 behavior:** When a model fails with 403 (or 401, or rate-limit/timeout), Genesis now:
+1. Marks the model unavailable in `.genesis/model-unavailable.json` with a TTL (1h for auth, 5min for rate-limit, 10min for timeout).
+2. Immediately falls back to the next model in `models.fallbackChain` (or to a different backend if no chain entry on the failed backend works).
+3. Skips the marked model on every subsequent call — including across restarts — until the TTL expires or `/model-reset` clears it.
+
+This closes the pre-v7.5.6 behavior where Genesis would retry a 403-failing cloud model every 5 minutes for 9 hours straight without ever falling back.
+
+If your subscription comes back online before the TTL expires (e.g. you renewed), use:
+```
+/model-reset qwen3-vl:235b-cloud      # clear specific model
+/model-reset                          # clear all marked models
+```
+
+### Genesis stops trying my preferred model after one failure
+
+**This is the v7.5.6 availability-marker working as designed.** If `/self-inspect` shows the marker:
+- For sticky errors (auth, rate-limit, timeout) the model stays marked until the TTL expires
+- The TTL is appropriate for the error: a 403 isn't going to fix itself in 30 seconds
+- `/model-reset <name>` clears it manually
+
+Connection errors and other transient failures (e.g. ollama not yet warmed up) do **not** mark — those typically resolve on the next call without intervention.
 
 ### Model keeps resetting to a different model
 
@@ -225,7 +247,6 @@ Local models are inherently slower than cloud APIs. Tips:
 - Persona confusion: Genesis says "du bist Genesis..." instead of "ich bin Genesis..." (mixes up first and second person)
 - Sentence repetition loops at the end of responses
 - Generic "I am an AI assistant" answers ignoring the system prompt
-- `<think>...</think>` tags visible in the chat output
 
 **Cause:** The model is too small or uses an unsupported reasoning format.
 
@@ -244,7 +265,13 @@ Then pin it so auto-routing doesn't switch back:
 
 **Models that do NOT work** for Genesis chat (will produce the symptoms above):
 - Anything under ~5 GB: `tinyllama`, `phi-mini`, `gemma2:2b`, `qwen2.5:3b`
-- DeepSeek-R1-distill family: `deepseek-r1:1.5b`, `deepseek-r1:7b` — the `<think>` reasoning format is not parsed; output appears broken even though the model itself is capable
+
+**Reasoning models** (DeepSeek-R1, QwQ, nemotron-3-nano) — used to fail because the `<think>...</think>` blocks ended up in chat. **As of v7.5.6** the thinking-block filter strips these blocks from chat output, from the tool-call audit, and from tool-loop synthesis. Reasoning models now work — and the reasoning is preserved as `model:thinking-trace` events visible in the dashboard's Reasoning panel.
+
+If you still see `<think>...</think>` in the chat after upgrading to v7.5.6:
+1. Restart Genesis after the upgrade — the filter runs at the ChatOrchestrator level and is wired at boot
+2. Check `/self-inspect` — confirms which model and which orchestrator path is active
+3. Look at the dashboard Reasoning panel — if traces appear there, the filter is running and you're seeing a different `<think>...</think>` source (e.g. embedded in a tool result)
 
 If you previously set a small model in settings, clear it: open `~/.genesis/settings.json` and remove the `models.preferred` line, then restart Genesis.
 
@@ -429,6 +456,26 @@ The verification is detective, not preventative — the response still reaches y
 ### "/reset" no longer triggers anything
 
 That's intentional. The bare keyword `reset` is not bound. Users typing `/reset` (intending to clear the chat) used to inadvertently trigger circuit-breaker status. Use `/self-repair-reset` or `/unfreeze` for explicit circuit-breaker management.
+
+### Genesis says he did something but I see "ich kann das nicht direkt verifizieren"
+
+This is the v7.5.5 SelfStatementLog confabulation detector firing. Genesis made a structural self-claim ("I see 11 active goals", "Ich überwache 3 Module") but the runtime-state block in his prompt was empty for that fact — there's no verified data backing the claim.
+
+**Why it happens:** The LLM sometimes generates plausible-sounding self-descriptions even when the actual data isn't in the prompt. Pre-v7.5.5 this would silently pass through. Now Genesis flags it.
+
+**What to do:**
+- If the claim is false: ask "wirklich? zeig es mir" — Genesis will retry with a tool call instead of relying on memory.
+- If the claim is true but the runtime-state block didn't have it (e.g. the data is in a different memory layer): no action needed, this is a known false-positive shape.
+- Check `/recall strukturell` to see all recent structural self-claims and which ones were flagged.
+
+### `<think>...</think>` blocks visible in chat
+
+If you see this on **v7.5.6 or later**, that's a bug — the reasoning-block filter should strip them. File an issue with:
+- The model name (DeepSeek-R1, QwQ, nemotron-3-nano, etc.)
+- The exact chat output including the visible tags
+- Whether `model:thinking-trace` events appear in the dashboard's Reasoning panel (if yes, the filter is running for some paths but not the one you triggered)
+
+**Pre-v7.5.6:** This was a known limitation of reasoning models. The fix shipped in v7.5.6.
 
 ### `npm run ratchet` exits non-zero
 

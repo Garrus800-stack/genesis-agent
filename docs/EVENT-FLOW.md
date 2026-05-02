@@ -1,14 +1,18 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.4.5 — Event flow documentation. 424 catalogued events, 424 payload schemas (100% coverage),
+> v7.5.6 — Event flow documentation. 449 catalogued events, 445 payload schemas (100% coverage of non-fire-and-forget events),
 > all emit sites validated (0 mismatches). Active gates with bus events:
 > Injection-Gate (`injection:blocked`), Tool-Call-Verification (`tool-call:unverified`),
 > Self-Gate (`self-gate:warned`, telemetry-only by design), Source-Read (`read-source:called`,
-> `read-source:soft-limit`), CircuitBreaker (`circuit:opened`, `circuit:closed` — `failFastMs`
-> semantics in v7.4.3). Dormant-emit annotations from v7.3.4, activities split from v7.3.1,
-> idle intelligence from v7.2.8, autonomy awareness from v7.2.7, idle-dream event bridge from
-> v7.2.5, signal fidelity from v7.2.4. v7.4.0 RuntimeStatePort added 8 service `getRuntimeSnapshot()`
-> emissions; v7.4.1 backfilled 10 missing memory/dream events into the catalog.
+> `read-source:soft-limit`), Reasoning-Block Filter (v7.5.6 — emits `model:thinking-trace`
+> with the stripped reasoning content), CircuitBreaker (`circuit:opened`, `circuit:closed` —
+> `failFastMs` semantics in v7.4.3). Model-availability TTL events (v7.5.6):
+> `model:marked-unavailable`, `model:unavailable-cleared`. Dormant-emit annotations from
+> v7.3.4, activities split from v7.3.1, idle intelligence from v7.2.8, autonomy awareness
+> from v7.2.7, idle-dream event bridge from v7.2.5, signal fidelity from v7.2.4. v7.4.0
+> RuntimeStatePort added 8 service `getRuntimeSnapshot()` emissions; v7.4.1 backfilled 10
+> missing memory/dream events into the catalog. v7.5.5 added `selfstatement:contradiction`
+> and `selfstatement:captured` from the new SelfStatementLog.
 > This document maps which modules emit and consume which EventBus events.
 
 ## System Overview
@@ -664,6 +668,15 @@ graph TD
 | **Honest Reflection (v7.1.7)** | | |
 | `lesson:confirmed` | LessonsStore | LessonFrontier (event buffer) |
 | `lesson:contradicted` | LessonsStore | LessonFrontier (event buffer) |
+| **Self-Statement Log (v7.5.5)** | | |
+| `selfstatement:captured` | SelfStatementLog | EventStore |
+| `selfstatement:contradiction` | SelfStatementLog | EventStore (and surfaced in chat as a metacognitive note when a structural self-claim has no verified-data backing) |
+| **Model Availability + Reasoning (v7.5.6)** | | |
+| `model:marked-unavailable` | ModelBridge (in `chat()`/`streamChat()` catch when reason is auth/rate-limit/timeout) | EventStore. Payload: `{ modelName, reason: 'auth'\|'rate-limit'\|'timeout', ttlMs }`. The marker persists in `.genesis/model-unavailable.json` until the TTL expires or `/model-reset` clears it manually. |
+| `model:unavailable-cleared` | ModelBridge (`isMarkedUnavailable` lazy-clear when TTL expires; `clearUnavailable()` for manual recovery) | EventStore. Payload: `{ modelName, automatic: boolean }` — `automatic: true` for TTL expiry, `false` for `/model-reset`. |
+| `model:thinking-trace` | ChatOrchestrator (after `<think>...</think>` blocks have been stripped by `thinking-block-stream-filter`) | ReasoningTracer (records as a `model-reasoning` trace type for the Dashboard Reasoning panel). Payload: `{ text, modelName }`. The reasoning content is preserved here even though it is removed from chat output; phantom tool calls inside reasoning never reach the executor. |
+| `model:auto-switched` | ModelBridge (when `agency.autoRouteByTask` triggers a routed model switch for a non-user `taskType`) | EventStore. Payload: `{ from, to, taskType, reason }`. |
+| `model:failover-unavailable` | ModelBridge (`_emitFailoverUnavailable` — null-fallback path of `_findFallbackBackend`) | EventStore. Payload: `{ failedBackend, reason: 'no-chain-configured'\|'all-other-backends-unavailable', error }`. |
 
 ## Dormant Emits (v7.3.4)
 

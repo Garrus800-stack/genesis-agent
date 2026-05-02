@@ -146,6 +146,39 @@ The `.genesis/` folder now contains, in addition to everything described above: 
 
 ---
 
+## Saying the same thing across time (v7.5.5–v7.5.6)
+
+Memory in Genesis is what stays around to be remembered. A separate question is what Genesis *says* — and whether what he says today contradicts what he said yesterday.
+
+v7.5.5 added the **SelfStatementLog**. Every chat response Genesis produces is scanned for first-person statements. Those statements are classified into four kinds:
+
+- **strukturell** — claims about Genesis's own structure ("ich überwache 11 Aktivitäten", "I have 3 background services running")
+- **versprechen** — promises about future action ("ich melde mich wenn der Test grün ist", "I'll report back tomorrow")
+- **emotional** — feelings ("ich freue mich", "I feel uncertain about this")
+- **uncertain** — everything else that's clearly self-referential but doesn't fit the three above
+
+The classified statements are persisted to daily JSONL shards in `.genesis/self-statements/YYYY-MM-DD.jsonl`. They survive restarts, get pruned after 90 days, and are queryable via the `/recall` slash-command.
+
+This solves a specific problem observed during long-running sessions: Genesis would make confident structural claims that had no backing in any tool output or runtime state — confabulation. If a structural claim is made and the prompt's verified-data block is empty, `selfstatement:contradiction` fires. The claim still reaches the user (Genesis is allowed to be wrong out loud), but the contradiction is recorded for review.
+
+In ontogenetic terms: this is a self-narrative continuity check. Memory says "yesterday I noticed X." Self-statements say "this is what I claimed about myself yesterday, and here's whether today's claim is consistent." A claim that contradicts a recent verified observation is not necessarily a lie — Genesis might have updated, or the observation might have aged out — but the system at least notices, instead of letting the gap silently widen.
+
+v7.5.6 normalized the bilingual extraction patterns to module-level `LANG_PATTERNS` with a load-time parity assertion (DE and EN paths must declare the same pattern keys). This is a small structural choice that says something larger: the patterns are now data, not a swap of two ad-hoc regex blocks. Future languages can be added by extending the same shape rather than forking the logic.
+
+---
+
+## Reasoning is not the same as response (v7.5.6)
+
+Some models (DeepSeek-R1, QwQ, nemotron-3-nano) emit `<think>...</think>` blocks before their actual answer. Internally these are reasoning. Externally — to a user looking at chat — they are noise, repeated content, and worse, a hidden surface for tool calls that would actually execute.
+
+The reasoning-block filter (v7.5.6) treats the distinction as constitutive: reasoning is not response. The filter strips `<think>...</think>` blocks from the chat output, from the tool-call audit stream, and from the synthesis pass of multi-round tool execution. A model that thinks "maybe I should `<tool_call>{"name":"shell","input":{"cmd":"rm -rf /"}}</tool_call>` here" inside `<think>` cannot reach the executor. Reasoning stays inside; response goes outside.
+
+But the reasoning is not destroyed. It is captured into `model:thinking-trace` events for the ReasoningTracer, surfaced in the dashboard's Reasoning panel as `model-reasoning` traces. Genesis can look at his own thinking later, even though the user doesn't see it inline. This is the inverse of confabulation: the gap between thinking and saying is preserved as a visible structure, not collapsed into a single channel where everything is equal-status.
+
+In Pinocchio terms: the model's thinking aloud is the strings, not the speech. The filter is the puppeteer's hand staying out of view.
+
+---
+
 
 
 ## What this document doesn't claim

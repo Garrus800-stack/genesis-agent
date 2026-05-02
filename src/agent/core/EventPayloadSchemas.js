@@ -320,6 +320,11 @@ const SCHEMAS = {
   'model:failover-unavailable':  { from: 'required', reason: 'required', error: 'required' },
   // v7.5.2: emitted when ModelBridge auto-switches model based on taskType
   'model:auto-switched':         { originalModel: 'required', routedModel: 'required', routedBackend: 'required', taskType: 'required', reason: 'optional' },
+  // v7.5.6: model availability tracking
+  'model:marked-unavailable':    { modelName: 'required', reason: 'required', ttlMs: 'required' },
+  'model:unavailable-cleared':   { modelName: 'required', automatic: 'required' },
+  // v7.5.6: reasoning-block trace from <think>...</think> output of reasoning models
+  'model:thinking-trace':        { text: 'required', modelName: 'required' },
 
   // Values
   'value:stored':          { id: 'required', name: 'required', weight: 'required', source: 'required' },
@@ -723,6 +728,8 @@ const SCHEMAS = {
   'store:COGNITIVE_SERVICE_DEGRADED':  { id: 'required', type: 'required', payload: 'required' },
   'store:COGNITIVE_SERVICE_DISABLED':  { id: 'required', type: 'required', payload: 'required' },
   'store:PRESERVATION_BLOCK':          { id: 'required', type: 'required', payload: 'required' },
+  // v7.5.6 carry-over: live-found via DEV-warning on Windows 2026-05-02
+  'store:SELF_STATEMENT_CONTRADICTION': { id: 'required', type: 'required', payload: 'required' },
 
   // v7.1.2: Causal Annotation
   'causal:recorded':            { stepId: 'required', changes: 'required', relation: 'required' },

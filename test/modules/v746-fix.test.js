@@ -221,6 +221,50 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     assert(/outside rootDir/i.test(r.reason || ''), `reason: ${r.reason}`);
   });
 
+  // ── #31 Quoted-paths-with-spaces (live-found on rootDir with spaces in
+  //   path, e.g. "C:\Users\Foo\OneDrive\Github v5.9.3\..."). Pre-fix the
+  //   regex extracted only the prefix up to the first space and rejected
+  //   legitimate paths inside the working directory. Symmetric tests for
+  //   Linux/POSIX where the same bug-shape applies. ──
+
+  await test('#31 _checkRootDirSandbox accepts quoted Windows path with spaces inside rootDir', () => {
+    // Direct call to ShellSafety.checkRootDirSandbox so we can specify the
+    // platform without relying on process.platform — covers the live bug
+    // regardless of where the test runs.
+    const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
+    const rootDir = 'C:\\Users\\Foo\\OneDrive\\Desktop\\Github v5.9.3\\Genesis-v5_9_3';
+    const cmd = `dir /b "${rootDir}\\src"`;
+    const r = checkRootDirSandbox(cmd, rootDir, { platform: 'win32' });
+    assert(r.ok, `expected ok for quoted-space-path inside rootDir, got: ${JSON.stringify(r)}`);
+  });
+
+  await test('#31 _checkRootDirSandbox rejects quoted Windows path with spaces outside rootDir', () => {
+    const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
+    const rootDir = 'C:\\Users\\Foo\\OneDrive\\Desktop\\Github v5.9.3\\Genesis-v5_9_3';
+    // Path is quoted, has spaces, but lives in System32 — must be rejected.
+    const cmd = `type "C:\\Program Files\\Common Files\\foo.txt"`;
+    const r = checkRootDirSandbox(cmd, rootDir, { platform: 'win32' });
+    assert(!r.ok, `expected reject for quoted-space-path outside rootDir, got: ${JSON.stringify(r)}`);
+    assert(/outside rootDir/i.test(r.reason || ''), `reason: ${r.reason}`);
+  });
+
+  await test('#31 _checkRootDirSandbox accepts quoted Linux path with spaces inside rootDir', () => {
+    const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
+    const rootDir = '/home/garrus/My Files/Genesis';
+    const cmd = `ls -la "${rootDir}/src"`;
+    const r = checkRootDirSandbox(cmd, rootDir, { platform: 'linux' });
+    assert(r.ok, `expected ok for quoted-space-path inside rootDir, got: ${JSON.stringify(r)}`);
+  });
+
+  await test('#31 _checkRootDirSandbox rejects quoted Linux path with spaces outside rootDir', () => {
+    const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
+    const rootDir = '/home/garrus/My Files/Genesis';
+    const cmd = `cat "/etc/My Config/passwd"`;
+    const r = checkRootDirSandbox(cmd, rootDir, { platform: 'linux' });
+    assert(!r.ok, `expected reject for quoted-space-path outside rootDir, got: ${JSON.stringify(r)}`);
+    assert(/outside rootDir/i.test(r.reason || ''), `reason: ${r.reason}`);
+  });
+
   await test('#31 ShellAgent.run() returns sandboxBlock:true when sandbox rejects', async () => {
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const { NullBus } = require('../../src/agent/core/EventBus');

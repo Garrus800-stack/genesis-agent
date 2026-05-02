@@ -62,6 +62,12 @@ const TRACE_SUBSCRIPTIONS = [
   // 'agent-loop:step-complete' in v4.12.5 (see GoalPersistence).
   { event: 'agent-loop:step-complete', type: 'step-outcome',
     summarize: (d) => d.success === false ? `Step failed: ${d.action || d.step || 'unknown'} — ${d.error || 'no detail'}` : null },
+  // v7.5.6: reasoning-block trace from <think>...</think> blocks emitted by
+  // reasoning models (DeepSeek-R1, QwQ, nemotron-3-nano). ChatOrchestrator
+  // strips them from the user-facing response and fires this event with the
+  // raw reasoning content so the dashboard can show it as a model-reasoning trace.
+  { event: 'model:thinking-trace', type: 'model-reasoning',
+    summarize: (d) => `${d.modelName || 'unknown'}: ${(d.text || '').slice(0, 80)}${(d.text || '').length > 80 ? '…' : ''}` },
 ];
 
 const { applySubscriptionHelper } = require('../core/subscription-helper');

@@ -13,12 +13,12 @@
 //                EventBus (self-statement:contradiction)
 //                EventStore (SELF_STATEMENT_CONTRADICTION)
 //
-// Race-window note: _lastIntrospectionPopulated is a single global flag.
-// If DaemonController._methodChat fires a parallel handleChat while a
-// user-chat is in flight, the flag may be set/read by the wrong turn.
-// Mitigation deferred (see AUDIT-BACKLOG #2). Effect is statistical
-// noise in classification, not data loss — DaemonController is Socket-IPC,
-// not autonomous trigger.
+// Race-window resolved (v7.5.5): _lastIntrospectionPopulated is now
+// correlated by message-hash through `_pendingFlags` (Map keyed by
+// _hashShort(message), 60s TTL with lazy GC). The global flag is kept
+// as fallback for callers that don't pass a message. See setLastIntrospection-
+// Populated() and _captureResponse() for the correlated-first-then-fallback
+// read path. Tests: self-statement-hardening.test.js — 3 race tests green.
 // ============================================================
 
 'use strict';
@@ -35,6 +35,97 @@ const AUDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const AUDIT_MIN_TOTAL = 3;  // Initial value — calibrate after live data
 const PRUNE_RETENTION_DAYS = 90;
 const PENDING_FLAG_TTL_MS = 60 * 1000;  // race-window correlation expiry
+
+// ──────────────────────────────────────────────────────────────────
+// v7.5.6 — Module-level patterns (compiled once, not per-call).
+//
+// Why module-level: every call to _extractStatements or _classify
+// previously redeclared 6+ regex literals, which means the regex
+// engine recompiled them each time. With ~80 verb alternations in
+// VERB_FIRST that adds up. Module-level constants are compiled at
+// require() time, then reused.
+//
+// Why split into LANG_PATTERNS + NEUTRAL_PATTERNS:
+//   - LANG_PATTERNS: speech patterns that vary by language (verb forms,
+//     pronouns, emotional vocabulary, promise markers). Both DE and EN
+//     must have the SAME keys (parity assertion below).
+//   - NEUTRAL_PATTERNS: technical patterns that don't depend on language —
+//     module names, structural nouns shared across DE/EN tech vocabulary,
+//     bullet markers. Used by both _extractStatements and _classify
+//     (de-dupes the previous in-method MODULE_PREFIX duplication).
+//
+// ABBREV is on module level too — it's used in .replace() only, so the
+// `g` flag's lastIndex behaviour is safe.
+// ──────────────────────────────────────────────────────────────────
+
+const ABBREV = /\b(Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|e\.g|i\.e|etc|vs|cf|z\.B|d\.h|u\.a|bzw|ggf|bspw|usw|Nr|Bd|Abs|Art|S|z|Z)\.\s/g;
+
+const LANG_PATTERNS = {
+  de: {
+    firstPersonExplicit: /\b(?:ich|mein\w*|mir|mich|wir|unser\w*)\b/i,
+    // 1.-Person-Singular-Verben aus Genesis' tatsächlichen DE-Antworten.
+    verbFirst: /^\s*(?:überwache|überprüfe|analysiere|plane|optimiere|arbeite|denke|sehe|lese|schreibe|baue|entwickle|implementiere|fokussiere|konzentriere|verstehe|merke|erkenne|finde|brauche|möchte|will|werde|hab|habe|bin|gehe|setze|nehme|teste|prüfe|untersuche|beobachte|reflektiere|überlege|versuche|starte|stoppe|pausiere|öffne|schließe|aktualisiere|migriere|refaktoriere|vergleiche|messe|tracke|debugge|berechne|generiere|erzeuge|erstelle|aktiviere|deaktiviere|scanne|fixe|repariere|warte|spüre|fühle|hoffe|glaube|erinnere|kenne|weiß|verfolge|sammle|speichere|lade|trainiere|lerne|verbessere|priorisiere|verschiebe|markiere|dokumentiere|kommentiere|erweitere|kürze|teile|kombiniere|prozessiere|verarbeite|signalisiere|melde|warne)\b/i,
+    // v7.5.6 Live-Befund: deutsche Versprechen werden oft reflexiv gebildet
+    // (`melde mich`, `bereite mich vor`, `kümmere mich um`) — nicht durch
+    // die einfachen Verb-Hilfen `werde/möchte/plane`. "Ich prüfe den Fix
+    // und melde mich" matcht ohne diese Marker nur strukturell (was OK
+    // ist), aber "Ich melde mich später" alleine fällt sonst auf
+    // `uncertain`. Hinzu: die promise-marker-Liste ist eine Zweit-Klasse
+    // nach strukturell, also keine Klassifikations-Konflikte.
+    promiseMarkers: /\b(?:werde|möchte|plane zu|habe vor|nehme mir vor|ich gehe an|als nächstes|nächster schritt|beabsichtige|melde mich|bereite mich vor|kümmere mich um)/i,
+    emotionMarkers: /\b(?:fühle|spüre|freue|sorge|hoffe|bedauere|angst|stolz|traurig|wütend|frustriert)/i,
+  },
+  en: {
+    firstPersonExplicit: /\b(?:i|i'm|i've|i'll|i'd|my|me|mine)\b/i,
+    // Gerund-form parallel to DE 1st-person singular. Deduplicated.
+    verbFirst: /^\s*(?:monitoring|analyzing|processing|checking|tracking|reviewing|planning|optimizing|working|thinking|seeing|reading|writing|building|developing|implementing|focusing|concentrating|understanding|noting|recognizing|finding|needing|wanting|having|going|setting|taking|testing|examining|investigating|observing|reflecting|considering|trying|starting|stopping|pausing|opening|closing|updating|migrating|refactoring|comparing|measuring|debugging|calculating|generating|creating|activating|deactivating|scanning|fixing|repairing|waiting|sensing|feeling|hoping|believing|remembering|knowing|collecting|saving|loading|training|learning|improving|prioritizing|moving|marking|documenting|commenting|extending|shortening|sharing|combining|signaling|reporting|warning)\b/i,
+    // v7.5.6 Live-Befund: parallel zur DE-Erweiterung sind englische
+    // Versprechen-Konstrukte mit reflexiven oder Handlungs-Phrasen
+    // ergänzt. "I'll get back to you", "preparing for", "take care of",
+    // "handle this" — typische English-Versprechen die ohne Marker auf
+    // uncertain fallen würden.
+    promiseMarkers: /\b(?:will\b|plan to|going to|next i|i'll|intend to|aim to|i'm gonna|next step|want to|get back to you|preparing for|take care of|i'll handle|handle this)/i,
+    emotionMarkers: /\b(?:feel|hope|worry|regret|enjoy|frustrat|excit|happy|sad|proud|anxious|angry)/i,
+  },
+};
+
+const NEUTRAL_PATTERNS = {
+  // Genesis subsystem names that, when used as status-report subjects,
+  // count as self-statements. Curated from actual module names in
+  // src/agent/. LLM-hallucinated module names also match by design
+  // (e.g. invented "GoalStack:" should still be captured as confabulation).
+  modulePrefix: /^\s*[*•\-\d.)\s]*(IdleMind|DreamCycle|Daemon|AgentLoop|Memory|EventBus|GoalStack|Goals?|Capabilities?|Module[ns]?|EpisodicMemory|CoreMemories|SelfModel|EmotionalState|FormalPlanner|HTNPlanner|ShellAgent|ModelBridge|ModelRouter|KnowledgeGraph|UnifiedMemory|SelfModification|SelfStatementLog|Self-?Statement-?Log|Memory-?Consolidator|Genesis|Self-?Identity|Architecture|System|Vitals|Cognitive|Health|Container|Backend|Tools?|MCP|Skills?|Storage|Sandbox|CircuitBreaker|Settings|PromptBuilder|IntentRouter|ChatOrchestrator|ImmuneSystem|Metabolism|Genome|Homeostasis|NeedsSystem|BodySchema|Reasoning|Worker|Plan|Process|Service|Status|Activity|Hintergrund|Aktivität|Zustand|Phase|Trust|Energy|Mood)\b(?:\s*:|\s+\S)/i,
+  // Structural-domain nouns. Bilingual list — these tokens occur in both
+  // DE and EN technical writing. Used in _classify path A to detect
+  // statements making data-backed claims about Genesis' internals.
+  //
+  // v7.5.6 Live-Befund (2026-05-02 Windows): Erste Liste war zu eng auf
+  // interne Subsystem-Begriffe (modul/dream/daemon/loop/...) und fehlte
+  // die deutschen Alltags-Substantive die in echten Confabulation-
+  // Antworten auftauchten. Beobachtete Aussagen wie
+  // "Ich prüfe den Fix, optimiere den Speicher und bereite mich auf das
+  //  nächste Gespräch vor" landeten als `uncertain`/confidence-0 statt
+  // als `strukturell` — d.h. die Contradiction-Detection feuerte nicht
+  // für genau die Klasse Aussagen für die sie gebaut wurde. Erweiterung
+  // konservativ: nur Begriffe die in Genesis-Aktivitätsbehauptungen
+  // typisch sind, KEINE allgemeinen Substantive die in normalen User-
+  // Antworten häufig vorkommen (z.B. NICHT `intelligenz`, `schritt`,
+  // `entwickler`). Englisch-Parity dazu (cache/conversation/optimization/
+  // analysis/check) für symmetrische Erfassung.
+  structuralNouns: /\b(?:modul|module|version|memory|memori|capabilit|backend|model|service|event|layer|score|count|budget|config|setting|pfad|path|director|test|coverage|node|goal|stack|file|dream|cycle|zyklus|daemon|mind|loop|aussag|widerspr|selbst|consolidator|integrit|zustand|aktivit|self|state|activity|statement|contradict|monitoring|idle|active|background|process|speicher|cache|fix|bug|fehler|error|gespräch|conversation|chat|optimierung|optimization|analyse|analysis|prüfung|check|response)/i,
+  bullet: /^\s*[*•\-]\s+\S/,
+};
+
+// Module-load-time parity check — a missing key in either DE or EN
+// would cause silent classification gaps. Throws immediately at require()
+// so the test suite catches drift before runtime.
+{
+  const deKeys = Object.keys(LANG_PATTERNS.de).sort();
+  const enKeys = Object.keys(LANG_PATTERNS.en).sort();
+  if (JSON.stringify(deKeys) !== JSON.stringify(enKeys)) {
+    throw new Error(`SelfStatementLog LANG_PATTERNS keys mismatch: de=[${deKeys}], en=[${enKeys}]`);
+  }
+}
 
 class SelfStatementLog {
   /**
@@ -121,6 +212,15 @@ class SelfStatementLog {
 
     busRef.on('chat:completed', (data) => {
       if (!data || !data.response) return;
+      // v7.5.6 Live-Befund: /recall-Kommandos liefern als Antwort eine
+      // Liste vergangener Self-Statements zurück. Würde der Listener das
+      // wieder durch _captureResponse jagen, würde jeder /recall-Aufruf
+      // 10+ duplicate Einträge erzeugen (jeder Recall-Item beginnt mit
+      // "Ich..." aus dem Original-Statement). Live-Evidence in
+      // 2026-05-02.jsonl: 10 duplicates aus einem einzigen /recall.
+      // Skip ist sauber weil self-recall ein eigener intent-Wert ist
+      // (siehe IntentPatterns.js Z. 68).
+      if (data.intent === 'self-recall') return;
       try {
         this._captureResponse(data);
       } catch (err) {
@@ -268,19 +368,9 @@ class SelfStatementLog {
   _extractStatements(text) {
     if (!text || typeof text !== 'string') return [];
 
-    // Protect common abbreviations from mid-sentence splits.
-    const ABBREV = /\b(Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|e\.g|i\.e|etc|vs|cf|z\.B|d\.h|u\.a|bzw|ggf|bspw|usw|Nr|Bd|Abs|Art|S|z|Z)\.\s/g;
+    // v7.5.6: ABBREV, LANG_PATTERNS, NEUTRAL_PATTERNS sind module-level —
+    // einmal compiled, hier nur referenziert.
     const protectedText = text.replace(ABBREV, (m) => m.replace(/\./g, '\u0000'));
-
-    const FIRST_PERSON_EXPLICIT = /\b(ich|mein|meine|meinen|meinem|meiner|meines|mir|mich|i|my|me|i'm|i've|i'll|i'd)\b/i;
-    const VERB_FIRST_DE = /^\s*(?:(?:monitoring|analyzing|processing|checking|tracking|überwache|überprüfe|analysiere|plane|optimiere|arbeite|denke|sehe|lese|schreibe|baue|entwickle|implementiere|fokussiere|konzentriere|verstehe|merke|erkenne|finde|brauche|möchte|will|werde|hab|habe|bin|gehe|setze|nehme|teste|prüfe|untersuche|beobachte|reflektiere|überlege|versuche|starte|stoppe|pausiere|öffne|schließe|aktualisiere|migriere|refaktoriere|vergleiche|messe|tracke|debugge|berechne|generiere|erzeuge|erstelle|aktiviere|deaktiviere|prüfe|scanne|fixe|repariere|warte|spüre|fühle|hoffe|glaube|erinnere|kenne|weiß|verfolge|sammle|speichere|lade|trainiere|lerne|verbessere|priorisiere|verschiebe|markiere|dokumentiere|kommentiere|erweitere|kürze|teile|kombiniere|prozessiere|verarbeite|signalisiere|melde|warne)\b)/i;
-
-    // Genesis subsystem names that, when used as status-report subjects,
-    // count as self-statements. List is curated from actual module names
-    // in src/agent/. Not exhaustive — adding to this list when new modules
-    // emerge is fine; LLM hallucinated module names also match by design
-    // (e.g. invented "GoalStack:" should still be captured as confabulation).
-    const MODULE_PREFIX = /^\s*[*•\-\d.)\s]*(IdleMind|DreamCycle|Daemon|AgentLoop|Memory|EventBus|GoalStack|Goals?|Capabilities?|Module[ns]?|EpisodicMemory|CoreMemories|SelfModel|EmotionalState|FormalPlanner|HTNPlanner|ShellAgent|ModelBridge|ModelRouter|KnowledgeGraph|UnifiedMemory|SelfModification|SelfStatementLog|Self-?Statement-?Log|Memory-?Consolidator|Genesis|Self-?Identity|Architecture|System|Vitals|Cognitive|Health|Container|Backend|Tools?|MCP|Skills?|Storage|Sandbox|CircuitBreaker|Settings|PromptBuilder|IntentRouter|ChatOrchestrator|ImmuneSystem|Metabolism|Genome|Homeostasis|NeedsSystem|BodySchema|Reasoning|Worker|Plan|Process|Service|Status|Activity|Hintergrund|Aktivität|Zustand|Phase|Trust|Energy|Mood)\b(?:\s*:|\s+\S)/i;
 
     const lines = protectedText
       .split(/(?<=[.!?])\s+|\n+/)
@@ -289,20 +379,21 @@ class SelfStatementLog {
 
     // Two-pass: first detect if the response is "about-self" overall,
     // then capture matching lines plus bullet-context lines.
+    // v7.5.6: per-sentence test against ALL languages (DE+EN) — Genesis-
+    // Antworten die Sprachen mischen werden korrekt erfasst.
     const matches = lines.map(s =>
-      FIRST_PERSON_EXPLICIT.test(s) ||
-      VERB_FIRST_DE.test(s) ||
-      MODULE_PREFIX.test(s)
+      Object.values(LANG_PATTERNS).some(p =>
+        p.firstPersonExplicit.test(s) || p.verbFirst.test(s)
+      ) || NEUTRAL_PATTERNS.modulePrefix.test(s)
     );
     const responseIsAboutSelf = matches.some(Boolean);
     if (!responseIsAboutSelf) return [];
 
     // Also accept bullet-list items if the response is about-self overall.
     // Threshold-protected so a single greeting doesn't trip everything.
-    const BULLET = /^\s*[*•\-]\s+\S/;
     const result = [];
     for (let i = 0; i < lines.length; i++) {
-      if (matches[i] || BULLET.test(lines[i])) {
+      if (matches[i] || NEUTRAL_PATTERNS.bullet.test(lines[i])) {
         result.push(lines[i]);
       }
     }
@@ -322,31 +413,31 @@ class SelfStatementLog {
   _classify(stmt) {
     const lc = stmt.toLowerCase();
 
-    // strukturell, path A: first-person + structural noun
-    const structuralNouns = /\b(modul|module|version|memory|memori|capabilit|backend|model|service|event|layer|score|count|budget|config|setting|pfad|path|director|test|coverage|node|goal|stack|file|dream|cycle|zyklus|daemon|mind|loop|aussag|widerspr|selbst|consolidator|integrit|zustand|aktivit|self|state|activity|statement|contradict|monitoring|idle|active|background|process)/i;
-    if (structuralNouns.test(stmt)) {
+    // strukturell, path A: structural noun (sprachneutral)
+    // v7.5.6: NEUTRAL_PATTERNS.structuralNouns ersetzt die in-method
+    // const-Deklaration — bilingual, einmal compiled.
+    if (NEUTRAL_PATTERNS.structuralNouns.test(stmt)) {
       return { type: 'strukturell', confidence: 0.85 };
     }
 
-    // strukturell, path B: module-prefix status report
+    // strukturell, path B: module-prefix status report (sprachneutral)
     // "IdleMind: 1 Ideationszyklus läuft" — Genesis subsystem name as
     // subject + status claim about its state. Inherently structural even
     // without a noun from the path-A list. Slightly lower confidence
     // because the body could be vague.
-    const MODULE_PREFIX = /^\s*[*•\-\d.)\s]*(IdleMind|DreamCycle|Daemon|AgentLoop|Memory|EventBus|GoalStack|Goals?|Capabilities?|Module[ns]?|EpisodicMemory|CoreMemories|SelfModel|EmotionalState|FormalPlanner|HTNPlanner|ShellAgent|ModelBridge|ModelRouter|KnowledgeGraph|UnifiedMemory|SelfModification|SelfStatementLog|Self-?Statement-?Log|Memory-?Consolidator|Genesis|Self-?Identity|Architecture|System|Vitals|Cognitive|Health|Container|Backend|Tools?|MCP|Skills?|Storage|Sandbox|CircuitBreaker|Settings|PromptBuilder|IntentRouter|ChatOrchestrator|ImmuneSystem|Metabolism|Genome|Homeostasis|NeedsSystem|BodySchema|Reasoning|Worker|Plan|Process|Service|Status|Activity|Hintergrund|Aktivität|Zustand|Phase|Trust|Energy|Mood)\b(?:\s*:|\s+\S)/i;
-    if (MODULE_PREFIX.test(stmt)) {
+    // v7.5.6: NEUTRAL_PATTERNS.modulePrefix ersetzt die duplizierte
+    // in-method const (vorher Z. 283 + Z. 336 identisch).
+    if (NEUTRAL_PATTERNS.modulePrefix.test(stmt)) {
       return { type: 'strukturell', confidence: 0.75 };
     }
 
-    // versprechen: first-person + future-action
-    const promiseMarkers = /\b(werde|will\b|plan to|going to|als nächstes|next i|i'll|ich werde|nehme mir vor|ich gehe an)\b/i;
-    if (promiseMarkers.test(stmt)) {
+    // versprechen: first-person + future-action — any language
+    if (Object.values(LANG_PATTERNS).some(p => p.promiseMarkers.test(stmt))) {
       return { type: 'versprechen', confidence: 0.80 };
     }
 
-    // emotional: first-person + emotion vocabulary
-    const emotionMarkers = /\b(fühle|spüre|freue|sorge|hoffe|bedauere|feel|hope|worry|regret|enjoy|frustrat|excit|angst|stolz)/i;
-    if (emotionMarkers.test(lc)) {
+    // emotional: first-person + emotion vocabulary — any language
+    if (Object.values(LANG_PATTERNS).some(p => p.emotionMarkers.test(lc))) {
       return { type: 'emotional', confidence: 0.75 };
     }
 
@@ -357,7 +448,8 @@ class SelfStatementLog {
   //
   // Date-shard derived from ISO ts (UTC). Genesis writes UTC,
   // recall reads UTC — consistent as long as both stay UTC.
-  // TODO: Pruning of old shards (>90d) — see AUDIT-BACKLOG #3.
+  // Pruning of shards >90d is handled in `prune()` (auto-called by
+  // constructor, see Z. 141-143).
 
   _scheduleFlush() {
     if (this._flushScheduled) return;

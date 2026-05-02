@@ -8,8 +8,8 @@
 
 | Command | What it does | Duration |
 |---------|-------------|----------|
-| `npm test` | Run all 4200 tests | ~30s |
-| `npm run test:ci` | Tests + coverage enforcement (78/75/71) | ~45s |
+| `npm test` | Run all 6141 tests | ~120s |
+| `npm run test:ci` | Tests + coverage enforcement (80/76/78) | ~150s |
 | `npm run benchmark:agent --quick` | 3-task capability benchmark | ~2 min |
 | `npm run benchmark:agent:layer:organism` | A/B: full vs without organism | ~5 min |
 | `npm run benchmark:agent:ab` | A/B: full vs baseline (no organism) | ~10 min |
@@ -22,7 +22,7 @@
 ### Run all tests
 
 ```bash
-npm test                    # Full suite (4200 tests)
+npm test                    # Full suite (6141 tests)
 npm run test:new            # Only per-module test files
 npm run test:legacy         # Only monolithic legacy suite
 ```
@@ -31,14 +31,14 @@ npm run test:legacy         # Only monolithic legacy suite
 
 ```bash
 node test/modules/sandbox.test.js
-node test/modules/v604-colony-proof.test.js
+node test/modules/v756-fix.test.js
 ```
 
 ### Test coverage
 
 ```bash
 npm run test:coverage              # HTML + text report
-npm run test:coverage:enforce      # Enforce ratchet (81/76/80)
+npm run test:coverage:enforce      # Enforce ratchet (80/76/78)
 npm run test:coverage:safety       # Safety-critical modules only (80/70/75)
 ```
 
@@ -46,7 +46,7 @@ The coverage ratchet is enforced in CI. Current thresholds:
 
 | Scope | Lines | Branches | Functions |
 |-------|-------|----------|-----------|
-| Global | 78% | 75% | 71% |
+| Global | 80% | 76% | 78% |
 | Safety-critical | 80% | 70% | 75% |
 
 Safety-critical modules: `src/kernel/**`, `CodeSafetyScanner`, `VerificationEngine`, `Sandbox`, `WebFetcher`, `SelfModificationPipeline`, `MemoryFacade`.

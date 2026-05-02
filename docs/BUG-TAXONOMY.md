@@ -99,3 +99,16 @@ stabilization payoff.
 3. **v7.1.9: Schema CI-Gate deployed** — catches payload drift before release
 4. **v7.1.7: Event-Audit Cross-Ref deployed** — catches event-name mismatches
 5. **Per-release checklist:** New event → schema entry. New late binding → expects array.
+
+## Post-v7.1.9 — Carry-over Bugs Found in Code Review
+
+After the v7.1.9 stabilization arc, the dominant bug class shifted from "drift between concurrent edits" (caught by Contract Validator + Schema CI-Gate) to **"latent bugs surviving across releases because no test exercised the failure path."** v7.5.6 closed two of these picked up during code-inspection of v7.5.5 carry-overs:
+
+| Bug | Symptom | Lifetime | Detection method | Fixed in |
+|---|---|---|---|---|
+| `_recordMetaOutcome` used `this.activeModel` instead of called model | MetaLearning logged failover-success on the dead model, fallback model got no record at all | Pre-v7.4.8 | Code review during v7.5.6 same-backend failover work | v7.5.6 |
+| `LinuxSandboxHelper.isAvailable()` returned `true` when only `user` namespace was usable | Caller saw "isolation available" but `wrapCommand()` would still passthrough | v7.5.4 (when test workaround was added rather than fixing the source) | Code review during v7.5.6 carry-over sweep | v7.5.6 |
+| `streamChat()` had no MetaLearning recording at all | Streaming-failure rates were invisible to the learner | All versions | Same review pass | v7.5.6 |
+| `v748-fix.test.js` test A5 pointed at wrong file after v7.5.4 ShellPlanner extraction | Test red since v7.5.4, normalized as "expected" | v7.5.4 | Pre-release sanity sweep | v7.5.6 |
+
+**New process recommendation:** During every release, allocate explicit time for a carry-over review pass — not just shipping the planned scope. Every Boy-Scout fix in v7.5.6 was a defect that survived multiple releases because no test was exercising the failure path. The Item 5 fix in particular (`_recordMetaOutcome`) was *invisible* during normal operation; it only manifested as bias in MetaLearning aggregate statistics over long horizons.

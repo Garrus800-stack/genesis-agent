@@ -1,6 +1,6 @@
 # Skill Security Model
 
-**v7.4.5 — What community skills can and cannot do.**
+**v7.5.6 — What community skills can and cannot do.**
 
 Genesis runs all community skills inside a security sandbox. This document defines the exact boundary — what your skill has access to, what it doesn't, and why.
 
@@ -11,7 +11,7 @@ Genesis runs all community skills inside a security sandbox. This document defin
 Community skills run in a **restricted child process** via `Sandbox.execute()`. They do NOT run in the main Genesis process. This means:
 
 - Your skill gets its own V8 isolate (either `vm.Script` or `child_process.execFile`)
-- On Linux, skills run inside an additional `unshare` namespace (no network, no PID visibility)
+- On Linux, skills run inside an additional `unshare` namespace when at least one wrappable namespace (pid, net, mount, or ipc) is available. v7.5.6 tightened the `LinuxSandboxHelper.isAvailable()` contract: it now returns `true` only when wrapping will actually happen, not when only the user namespace is detectable. On systems where unshare exists but cannot create wrappable namespaces (some restricted Docker setups, kernel.unprivileged_userns_clone=0), the skill still runs — without the additional namespace layer — but the rest of the sandbox (V8 isolate, AST scan, module blocklist, no `fs`, no `net`, 30s timeout) remains.
 - Timeout: **30 seconds** default. Skills that exceed this are killed with `SIGKILL`
 - Memory: inherited from Node.js defaults (~1.5GB heap). No custom limit currently enforced
 

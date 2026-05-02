@@ -334,6 +334,11 @@ const INTENT_DEFINITIONS = [
     /^\/recall\b/i,
   ], 22, []],
 
+  // v7.5.6: Model availability marker reset
+  ['model-reset', [
+    /(?:^|\s)\/model-reset\b/i,
+  ], 25, []],
+
   ['greeting', [
     /^(hi|hallo|hey|moin|servus|guten (morgen|tag|abend)|hello|good (morning|evening)|bonjour|buenas?)\s*[!.]?$/i,
   ], 5, ['hallo', 'hello', 'hi', 'moin', 'servus']],

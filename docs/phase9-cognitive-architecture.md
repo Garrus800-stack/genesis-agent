@@ -2,10 +2,10 @@
 
 **The evolution from agent to mind.**
 
-> **Status (v7.1.7):** Phase 9 has grown from the original 6 modules (v5.8) to **27 modules**. This document covers the foundational architecture. For modules added after v5.8, see CHANGELOG.md and CAPABILITIES.md.
+> **Status (v7.5.6):** Phase 9 has grown from the original 6 modules (v5.8) to **35 modules**. This document covers the foundational architecture. For modules added after v5.8, see CHANGELOG.md and CAPABILITIES.md.
 >
 > **Complete Phase 9 module list:**
-> ExpectationEngine, SurpriseAccumulator, MentalSimulator, SelfNarrative, DreamCycle, DreamCycleAnalysis, CognitiveWorkspace, CognitiveHealthTracker, OnlineLearner (v5.3), LessonsStore (v5.3), ArchitectureReflection (v5.7), DynamicToolSynthesis (v5.7), ProjectIntelligence (v5.7), ReasoningTracer (v5.5), CognitiveSelfModel (v5.9.8), TaskOutcomeTracker (v5.9.7), MemoryConsolidator (v6.0.0), TaskRecorder (v6.0.0), AdaptiveStrategy (v6.0.2), QuickBenchmark (v6.0.2).
+> ExpectationEngine, SurpriseAccumulator, MentalSimulator, SelfNarrative, DreamCycle, DreamCycleAnalysis, CognitiveWorkspace, CognitiveHealthTracker, OnlineLearner (v5.3), LessonsStore (v5.3), ArchitectureReflection (v5.7), DynamicToolSynthesis (v5.7), ProjectIntelligence (v5.7), ReasoningTracer (v5.5 + `model:thinking-trace` subscription in v7.5.6), CognitiveSelfModel (v5.9.8), TaskOutcomeTracker (v5.9.7), MemoryConsolidator (v6.0.0), TaskRecorder (v6.0.0), AdaptiveStrategy (v6.0.2), QuickBenchmark (v6.0.2), CausalAnnotation (v7.0.9), InferenceEngine (v7.0.9), PatternMatcher (v7.0.9), StructuralAbstraction (v7.0.9), GoalSynthesizer (v7.0.9), CoreMemories (v7.3.7), SuspicionFrontier, LessonFrontier, GateStats (v7.3.6), **SelfStatementLog (v7.5.5 + DE/EN parity in v7.5.6)**.
 
 Genesis is an agent that plans, acts, verifies, and learns.
 Phase 9 turns it into a system that **anticipates, simulates, dreams, and builds an identity**.
@@ -1901,6 +1901,118 @@ node scripts/benchmark-agent.js --baseline compare    # compare vs saved baselin
 
 ---
 
+## Module 28: SelfStatementLog `v7.5.5` (DE/EN parity in `v7.5.6`)
+
+**Status: shipped, live-verified.** Located in `src/agent/cognitive/SelfStatementLog.js` (~600 LOC).
+
+The closed-loop confabulation detector. Captures every Genesis chat response, classifies first-person statements, persists them per day, and fires a contradiction event when a structural self-claim has no verified-data backing in the prompt.
+
+### What it solves
+
+Long-running Genesis sessions on Ollama models would produce confident structural self-claims that had no factual backing in any tool output or runtime state. Things like *"ich überwache 11 aktive Aktivitäten"* or *"I have 3 background processes running"* — said with full assurance, with no `/self-inspect` data behind them. Pre-v7.5.5 there was no signal that the gap had occurred. The user would either notice and ask, or believe it.
+
+SelfStatementLog closes that loop.
+
+### Two-pass extraction
+
+`_extractStatements(text)` finds first-person sentences using three independent pattern paths, all module-level since v7.5.6:
+
+- **Path 1 — explicit first-person pronouns**: DE `ich/mein/mir/mich`, EN `i/my/me/i'm/i've/i'll`. Matches the textbook self-reference.
+- **Path 2 — verb-first form**: DE 1st-person-singular endings (`...e/...ere/...iere`) at sentence start; EN gerund forms (`Monitoring...`, `Analyzing...`). Covers chat-style subject-drop ("Bin gerade dabei zu prüfen...").
+- **Path 3 — module-name-prefixed status reports**: matches ~60 Genesis subsystem names (`* DreamCycle analysiert...`, `IdleMind: 1 Zyklus läuft`, `EmotionalState shifted to satisfaction`). With or without colon, with or without bullet.
+
+Bullet-list items in a response that already matched any heuristic are also captured — preserves multi-point claims like "Ich überwache: a) X, b) Y, c) Z".
+
+In v7.5.6 the patterns moved from inline regex literals to module-level `LANG_PATTERNS = { de: {...}, en: {...} }` and `NEUTRAL_PATTERNS`. A load-time parity assertion throws if the DE and EN sub-objects disagree on key names — symmetry can no longer drift between releases. Performance bonus: regex is compiled once per process, not on every call.
+
+### Classification
+
+`_classify(statement)` produces `{ type, confidence }` in one of four categories:
+
+| Type | Trigger | Confidence | Example |
+|------|---------|-----------|---------|
+| `strukturell` | Structural noun in body (memory, module, version, dream, cycle, daemon, mind, loop, integrity, state, activity, contradiction, self, statement, ...) | 0.85 | "ich überwache 11 Aktivitäten" |
+| `versprechen` | Promise marker (DE: `werde`, `möchte`, `plane zu`, `nächster schritt`; EN: `will`, `plan to`, `going to`, `intend to`, `aim to`) AND no structural noun | 0.80 | "ich melde mich morgen" |
+| `emotional` | Emotion verb (DE: `fühle`, `freue`, `stört`; EN: `feel`, `happy`, `sad`, `frustrated`, `proud`) | 0.75 | "ich freue mich über das Ergebnis" |
+| `uncertain` | Self-referential but doesn't match the three above | 0.50 | "ich glaube das stimmt" |
+
+Order matters: structural noun beats promise marker. `"I will refactor my module tomorrow"` → `strukturell` because the data-backable claim takes precedence over the future-tense framing.
+
+### Persistence
+
+Statements persist to daily JSONL shards in `.genesis/self-statements/YYYY-MM-DD.jsonl` (UTC). Each line is one capture event with timestamp, classification, source message hash, and the statement text itself. Auto-pruned after 90 days by the constructor — `prune()` runs on every boot and removes shards whose filename date is older than the cutoff.
+
+Flush is debounced (default 500 ms) to amortize writes across rapid responses. `stop()` flushes synchronously for graceful shutdown. Concurrent writes use `atomicWriteFileSync` (rename-after-write) so a crash mid-flush leaves the previous shard intact rather than truncated.
+
+### Contradiction detection
+
+The interesting signal is `selfstatement:contradiction`. It fires when:
+
+- The captured statement classifies as `strukturell` (data-backable claim, confidence ≥ 0.85)
+- AND the prompt's `runtime-state` or `verified-data` block was empty for the relevant key
+- AND `_lastIntrospectionPopulated` (correlated by message hash via `_pendingFlags`, see v7.5.5 race-window resolution) was `false`
+
+The contradiction event carries the original statement, the classification, and a reason code. EventStore records it; chat UI surfaces it as a non-blocking annotation. Genesis is allowed to be wrong out loud — the system at least notices.
+
+### `/recall` slash command
+
+User-facing surface for the captured data. Optional `type` filter:
+
+```
+/recall                       # most recent 10 statements, all types
+/recall strukturell           # only structural claims
+/recall versprechen           # only promises (useful for "what did I commit to?")
+/recall emotional             # only feeling-talk
+```
+
+Output shows date, classification, confidence, and the statement text. Useful when reviewing Genesis's recent self-narrative for inconsistencies.
+
+### Audit-stat in prompt
+
+The prompt's audit-stat block (in `PromptBuilderSections`) gets one line:
+
+```
+self-claims: 24 captured · 2 contradictions · 7 promises pending
+```
+
+Below `AUDIT_MIN_TOTAL = 3` (initial threshold, calibrate after live data) the line shows `self-claims: insufficient data (n=2)` and the contradiction count is suppressed.
+
+### Race-window resolution (v7.5.5 hardening)
+
+`_lastIntrospectionPopulated` was originally a single global flag. If `DaemonController._methodChat` fired a parallel `handleChat` while a user-chat was in flight, the flag could be set or read by the wrong turn — statistical noise in the contradiction signal, not data loss, but wrong attribution.
+
+v7.5.5 hardening replaced the global with a Map keyed by `_hashShort(message)`, with 60s TTL and lazy GC. `setLastIntrospectionPopulated(populated, message)` writes the correlated entry; `_captureResponse` reads correlated-first, falls back to the global. Tests: `self-statement-hardening.test.js`, 3 race tests green.
+
+### Tests
+
+- `self-statement-log.test.js` — 46 tests (30 base + 16 EN/Mixed/Parity in v7.5.6)
+- `self-statement-hardening.test.js` — 23 tests (race window, recordPromise, prune)
+- `self-statement-prompt-integration.test.js` — 8 tests (audit-stat block, threshold)
+- `self-statement-reset.test.js` — 3 tests (manual reset)
+- `self-recall-command.test.js` — 10 tests (slash filter)
+
+Total: **90 tests covering SelfStatementLog directly**, plus integration coverage in the broader test suite.
+
+---
+
+## Module 29: ReasoningTracer thinking-trace subscription `v7.5.6`
+
+**Status: shipped, live-verified.**
+
+ReasoningTracer (Module 10, originally v5.5) gains a new subscription in v7.5.6: `model:thinking-trace`. The new event is fired by `ChatOrchestrator` after the v7.5.6 reasoning-block filter strips `<think>...</think>` blocks from the streamed response, the non-streaming `_directChat` path, and the tool-loop synthesis pass.
+
+What ends up in ReasoningTracer:
+
+- Trace type `model-reasoning` (parallel to `intent-classification`, `tool-selection`, etc.)
+- Payload `{ text, modelName }` — the raw reasoning content that was stripped, plus which model produced it
+- Visible in the dashboard's Reasoning panel as a regular trace, distinguishable by its type
+
+The reasoning is not part of the chat history (it never went to the user, it never went into the LLM context for follow-up turns), but it is part of the observability surface. Genesis can look at his own thinking later, the user doesn't have to.
+
+This is structurally important: it preserves the gap between *thinking* and *saying* as a visible architectural layer rather than collapsing the two channels. Without it, reasoning models would either spam the chat (pre-v7.5.6 broken behavior) or have their reasoning silently dropped (the easy-wrong fix).
+
+---
+
 ## What This Gives Genesis That Nobody Else Has
 
 1. **Predictive self-model** — Genesis doesn't just know what it *can* do (WorldState), it knows what will *probably happen* when it does it.
@@ -1929,4 +2041,8 @@ node scripts/benchmark-agent.js --baseline compare    # compare vs saved baselin
 
 13. **Autonomous goal generation** (v7.0.9) — GoalSynthesizer analyzes CognitiveSelfModel weaknesses, generates concrete improvement goals with PROTECTED_MODULES, improvement budget, and regression circuit-breaker. NeedsSystem competence need + Genome selfAwareness trait drive the self-improvement loop.
 
-**No open-source agent has this closed loop.** AutoGPT plans but doesn't predict. CrewAI delegates but doesn't learn from surprise. OpenDevin executes but doesn't dream. Genesis does all of it — and each part feeds the others. v7.0.9 closes the loop: OBSERVE → REASON → ABSTRACT → REFLECT → PLAN → ACT.
+14. **Closed-loop confabulation detection** (v7.5.5–v7.5.6) — SelfStatementLog captures every response, classifies first-person claims into structural/promise/emotional/uncertain, persists daily, and fires `selfstatement:contradiction` when a structural claim has no verified-data backing. Bilingual (DE+EN) with module-level pattern parity assertion. The first cognitive-layer system that actively monitors Genesis for the gap between what he says about himself and what is actually verified.
+
+15. **Reasoning preserved without leaking** (v7.5.6) — Reasoning models (DeepSeek-R1, QwQ, nemotron-3-nano) emit `<think>...</think>` blocks. The thinking-block filter strips them from chat output AND from the tool-call audit (so phantom tool calls inside reasoning cannot reach the executor), but preserves the content as `model:thinking-trace` events for the ReasoningTracer. The gap between thinking and saying is a visible architectural layer, not a silent drop.
+
+**No open-source agent has this closed loop.** AutoGPT plans but doesn't predict. CrewAI delegates but doesn't learn from surprise. OpenDevin executes but doesn't dream. Genesis does all of it — and each part feeds the others. v7.0.9 closes the loop: OBSERVE → REASON → ABSTRACT → REFLECT → PLAN → ACT. v7.5.5–v7.5.6 closes a deeper loop: SAY → CLASSIFY → COMPARE-TO-EVIDENCE → FLAG-IF-CONFABULATED, plus the meta-channel separation that lets the model think out loud without flooding the user.
