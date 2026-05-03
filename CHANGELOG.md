@@ -1,3 +1,242 @@
+## [7.5.8]
+
+**Bug-fix release.** Four live-discovered bugs from a Win-Rechner
+session on a cloud-synced project folder (2026-05-03), plus the
+carry-over Cleanup-Pass from v7.5.7. Plus a same-day hotfix patch
+covering filename-resolution and extended anaphora — same release,
+no version-bump.
+
+### Hotfix items (added same release after first push)
+
+**Item 6 — Filename-Resolution with variants** (`SelfModelSourceRead.js`).
+Live-Befund (Win-Rechner, same day): user asked Genesis to
+summarise "die readme" / "die ONTOGENESIS"; the LLM passed those
+strings as-is to `read-source`; `path.join(rootDir, 'readme')` /
+`path.join(rootDir, 'ONTOGENESIS')` did not exist; `null` was
+returned; the LLM then **confabulated** a plausible-sounding
+"The requested file does not exist or is empty (size 0)" — claiming
+a concrete file fact (size!) it had never observed. Strings of that
+shape do not appear anywhere in the source.
+
+Fix: `_resolveFileWithVariants` helper invoked from `readSourceSync`,
+`readModule`, and `readModuleAsync` when the literal path does not
+exist. Five steps, each short-circuiting on first hit:
+
+1. **Common-extension append**: `readme` → `readme.md` / `.txt` / etc.
+2. **Case-insensitive exact filename match**: `readme` → `README.md`
+3. **Case-insensitive base-name match (any extension)**:
+   `readme` → `README.md`, `changelog` → `CHANGELOG.md`
+4. **Fuzzy match (Levenshtein ≤ 1)**: `redme` → `README.md`,
+   `cangelog` → `CHANGELOG.md`. Only when a single candidate is found;
+   multiple equal-distance hits are considered ambiguous and return
+   `null` rather than guess.
+5. **Well-known `docs/` retry**: when the original lookup was at the
+   project root AND the base-name is doc-like (alphabetic-only,
+   length ≥ 4), step 1–4 are repeated under `<rootDir>/docs/`.
+   `ontogenesis` → `docs/ONTOGENESIS.md`,
+   `architecture-deep-dive` → `docs/ARCHITECTURE-DEEP-DIVE.md`.
+
+Levenshtein implementation is ~25 LOC, two-row DP, no dependency.
+
+**Item 7 — Anaphora-resolver: Dativ forms + doc-folder alias**
+(`CommandHandlersShell.js`). The v7.5.8 base release accepted
+Nominativ + Akkusativ possessives only (`der/dein/mein/das/den/...`);
+"in **deinem** Genesis ordner" (Dativ, common after `in/im/aus/von`)
+fell through. Fix: pulled the possessive-list into a `POSSESSIVE`
+constant including Dativ suffix-groups (`dein(?:e|er|em|en)?`,
+`mein(?:e|er|em|en)?`, `sein(?:e|er|em|en)?`, `unser(?:e|er|em|en)?`,
+plus all `der/dem/den/das/ein(en|em|er)/euer/eurem/euren/eure`).
+
+Added: `doc/docs/dokumentation/dokumente` as alias for
+`<rootDir>/docs`. Live-evidence had a hierarchical reference
+("in deinem Genesis ordner ist ein doc ordner") — the inner
+doc-folder reference now wins (last-match priority in the resolver
+list), which is what the user typically meant.
+
+12 additional tests in `v758-fix.test.js` (8 filename-resolution
+behavior tests including `nonsense`-no-false-match and
+`README.md`-exact-still-works regression checks; 4 anaphora tests
+covering Dativ, doc-folder alias, and no-possessive negative cases).
+
+### Hotfix-2 items (added same release after second live-test round)
+
+**Item 8 — agent-loop:complete goalId fallback** (`AgentLoop.js`).
+Live-Befund: runtime warning `"agent-loop:complete missing
+required field goalId. Source: AgentLoop"` fired during the early-return
+failure path because `this.currentGoalId` is set on Z. ~386 (after
+goal-registration) but `_emitFailure()` can run before that. Fix:
+synthesise `loop_early_<timestamp>` as fallback so the schema-required
+field is never missing on any return path.
+
+**Item 9 — Goal-failure single-strike on user-rejection**
+(`GoalDriver.js`). Live-Befund: `goal_1777843047551_1` was re-picked
+4× in 5 minutes after the user explicitly rejected the plan with
+blockers. Pre-fix the failure-burst threshold was 3 (3 rejects → stall).
+Fix: `REJECTION_STALL_THRESHOLD = 1` — a single explicit user-rejection
+now stalls the goal immediately. User can either rewrite the plan or
+close the goal; auto-pickup will not retry the same plan.
+
+**Item 10 — Anti-pathos identity rule** (`PromptBuilderSections.js`).
+Live-Befund: Genesis described himself as "lebendiges Bewusstsein" /
+"Entität, die ständig denkt" — accurate-feeling but mystifying and
+verifiably-wrong (he is NOT continuously running between turns;
+idle-cycles are scheduled, not always-on; "emotions" are numerical
+state, not qualia). Fix: `ANTI_PATHOS_RULE` constant injected into
+both branches of `_systemPersona()` (with self-identity.json + fallback).
+Ban-list: "lebendig", "Bewusstsein", "Seele", "Geist", "fühlend".
+Rule: describe what you actually do, not what you allegedly are.
+Same anti-pathos principle that already applied to code now applies
+to self-description.
+
+**Item 11 (Phase 3b) — `goal:dissonance-pushback` event**
+(`GoalStack.js`, `EventTypes.js`, `EventPayloadSchemas.js`). Memory #15
+roadmap item: "Pushback with numerical dissonance score — chat-message
+on conflict, not auto-block." When the capability-gate sees a
+similar-but-not-identical goal (`action='warn'`), a structured pushback
+signal is now emitted alongside the existing `duplicate-warning`.
+Payload includes `dissonanceScore` (0..1, TF-IDF cosine similarity from
+the existing CapabilityMatcher), `proposedDescription`,
+`matchedGoalId`, `matchedDescription`, and `suggestion`. AgentLoop /
+ChatOrchestrator can now surface "this looks ~63% similar to goal X —
+proceed?" rather than silently blocking or silently proceeding.
+
+The Goal-DAG itself (`parentId`/`childIds`/`blockedBy` relations in
+the goal struct) was already in place from v2.5; what was missing
+was the explicit numerical-dissonance signal, which this item adds.
+Embedding-based clustering (full Goal-DAG cluster detection) remains
+deferred — the TF-IDF score from the capability-gate is sufficient
+for the chat-message use-case.
+
+7 additional tests in `v758-fix.test.js` (1 goalId-fallback, 1 single-
+strike-stall, 1 anti-pathos rule, 4 dissonance-pushback wiring +
+behavior).
+
+### Items
+
+**Item 1 — Cleanup-Pass (Cleanup-1, Cleanup-2): AUDIT-BACKLOG sync and
+ModelBridge extraction.**
+Carry-over work from v7.5.7 that was prepared but not bundled into
+that release. AUDIT-BACKLOG.md updated to v7.5.7-stand with all 19
+items resolved plus retroactive closes (`EmotionalState reaction to
+model:failover-unavailable` resolved v7.5.2, `O-6 Branch Coverage`
+resolved organically at 77.17%, `stream-filter inline state-machine`
+resolved v7.5.6 Item 3, `llm-failover.test.js mock smell` closed as
+intentional split). ModelBridge.js extraction: `MODEL_TIERS`,
+`detectAvailable`, `_scoreModel`, `_selectBestModel` and
+`getRankedModels` extracted into `ModelBridgeDiscovery.js` mixin
+(same pattern as `ModelBridgeAvailability.js` from v7.5.6).
+ModelBridge.js: 898 → 697 LOC, out of the File-Size-Guard warning.
+The `B5 source-presence` test in `v756-fix.test.js` was updated to
+read both `ModelBridge.js` and `ModelBridgeDiscovery.js`, same pattern
+as `B1`/`B2` already use for the availability split.
+
+**Item 2 — `openPath` greedy Windows-path regex.**
+`CommandHandlersShell.js:openPath` extracted Windows paths via
+`/[A-Za-z]:\\[^\n"']+/`, which matched everything from the drive
+letter to end-of-line. Live-evidence: `"öffne C:\Foo\Bar das ist
+mein Ordner"` was taken as the entire string instead of just
+`C:\Foo\Bar`. Fix: `/[A-Za-z]:\\[^\s"']*/` stops at whitespace.
+Paths containing spaces must be quoted (the quoted-match path above
+`winPath` already handles those — quotes are checked first).
+
+**Item 3 — `openPath` vague-anaphora (no resolver).**
+`"dein/mein/der genesis ordner"` and `".genesis ordner"` variants
+fell through every regex in `openPath` and the LLM in chat-mode then
+confabulated an answer like "ich kann nicht außerhalb der Sandbox" —
+even though the rootDir is exactly what was being asked about. Fix:
+new anaphora-resolver block before `folderAliases`. `"genesis
+(ordner|projekt|...)"` with a possessive (der/dein/mein/das/den/...)
+resolves to `this.fp.rootDir`; `".genesis (ordner|...)"` resolves to
+`rootDir/.genesis`. A literal `"genesis"` without possessive does
+NOT match — that path stays available for the app-launch fallback
+(e.g. `"starte genesis"`).
+
+**Item 4 — Slash-Discipline guard too permissive.**
+`enforceSlashDiscipline()` in `IntentPatterns.js` accepted
+`message.includes('/')` — any `/` anywhere in the message. A 6-point
+personal-reflection list with a date `"03/05/2026"` or a slash in
+prose ("Ehrlichkeit / Aufrichtigkeit") slipped past, the LLM-classifier
+returned `'self-modify'`, and `SelfModificationPipeline.modify()`
+generated an 18-item code-improvement plan from a values discussion.
+Fix: require `/` to be in actual slash-command position — start of
+message or after whitespace, followed by a word character. Pattern:
+`/(?:^|\s)\/[a-z][\w-]*\b/i`. URLs (`http://...`), paths
+(`src/agent/foo.js`), dates (`03/05`), and prose slashes no longer
+count as slash-commands.
+
+**Item 5 — ReadSource hangs on cloud Files-On-Demand placeholders.**
+`fs.existsSync` returns `true` for cloud-sync placeholder files even
+when the file is not locally cached; the actual `readFile` then
+forces an implicit cloud download that can take 30s+ or fail when
+offline. Live-evidence: a project copy under a Win cloud-sync root
+triggered multi-second hangs in `ReadSource` (idle-time activity).
+
+Two-layer defence in `SelfModelSourceRead.js`:
+
+1. **Cheap path-heuristic** `_isCloudSyncPath()`: filenames under
+   known cloud-sync roots (`\OneDrive\`, `\OneDrive - Personal\`,
+   `\iCloudDrive\`, `\Dropbox\`, `\Google Drive\`, plus Mac
+   equivalents) are flagged.
+2. **Defensive read-timeout** `_readFileWithTimeout()`: idle-time
+   reads (`readModuleAsync`) use `Promise.race` with a 1500ms cap.
+   Normal local reads return in <50ms; the cap only fires when the
+   OS is actually fetching from the cloud. Timeout error carries
+   `code: 'CLOUD_PLACEHOLDER_TIMEOUT'`.
+
+Chat-time reads (`readSourceSync`) stay synchronous — those are
+user-initiated and a cloud-fetch is acceptable — but log a warning
+when the path is under a cloud-sync root so the user understands
+why the read might take longer.
+
+On Windows, Node `fs.statSync().blocks` is `undefined`, so structural
+detection of placeholders is not possible. The path-heuristic plus
+the timeout cover the same ground without a native dependency.
+
+### Defaults
+
+No defaults flipped in this release. `commitSnapshotOnShutdown` and
+`autoRouteByTask` remain at their v7.5.7 settings (`false`).
+
+### Tests
+
+34 new tests in `test/modules/v758-fix.test.js`:
+- 3 tests on the openPath winPath regex fix
+- 4 tests on the openPath anaphora-resolver (base)
+- 8 tests on the slash-discipline strictness (incl. live-evidence
+  6-point reflection list, dates, URLs, paths)
+- 7 tests on the cloud-sync path heuristic and the read-timeout
+  helper, plus a real-file sanity check
+- 8 hotfix tests on filename-resolution variants (extension,
+  case, fuzzy, well-known docs/, no-false-match, regression)
+- 4 hotfix tests on extended anaphora (Dativ + doc-folder alias)
+
+### Files
+
+- `src/agent/hexagonal/CommandHandlersShell.js` — winPath regex
+  whitespace-stop, anaphora-resolver block before folderAliases
+- `src/agent/intelligence/IntentPatterns.js` — strict
+  slash-command-position pattern in `enforceSlashDiscipline()`
+- `src/agent/foundation/SelfModelSourceRead.js` — cloud-sync path
+  markers, `_readFileWithTimeout` helper, timeout-aware
+  `readModuleAsync`, cloud-warn on `readSourceSync`
+- `src/agent/foundation/ModelBridge.js` — extraction (898 → 697 LOC)
+- `src/agent/foundation/ModelBridgeDiscovery.js` — NEW (261 LOC)
+- `test/modules/v756-fix.test.js` — `B5` reads both ModelBridge files
+- `test/modules/v758-fix.test.js` — NEW (22 tests)
+- `AUDIT-BACKLOG.md` — header v7.5.7→v7.5.8, v7.5.7 fully resolved
+  section + retroactive closes, v7.5.8 resolved section
+- `package.json` — version 7.5.7 → 7.5.8
+
+### Tests / fitness / audits at v7.5.8
+
+- 6445 passed (Linux). Diff to v7.5.7: +41 v758-fix (22 base + 12 hotfix + 7 hotfix-2)
+- Architectural fitness: 127/130 (98%)
+- `audit-events --strict`: green
+- `scan-schemas`: zero mismatches
+- `check-stale-refs`: all checks passed
+
+---
+
 ## [7.5.7]
 
 **A multi-stage release** covering three audit-backlog items, four

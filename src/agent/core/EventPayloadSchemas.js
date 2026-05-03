@@ -756,6 +756,7 @@ const SCHEMAS = {
   // v7.3.1: Self-Recognition — GoalStack Capability-Gate
   'goal:blocked-as-duplicate':  { goalId: 'required', matchScore: 'required', matchedCapability: 'required', source: 'required' },
   'goal:duplicate-warning':     { goalId: 'required', matchScore: 'required', matchedCapability: 'required' },
+  'goal:dissonance-pushback':   { goalId: 'required', proposedDescription: 'required', matchedGoalId: 'required', dissonanceScore: 'required', source: 'required' },
 
   // v7.3.1: Self-Recognition — _read-source activity
   'idle:read-source':           { module: 'required', reason: 'optional' },

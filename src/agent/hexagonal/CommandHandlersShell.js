@@ -111,7 +111,59 @@ const commandHandlersShell = {
     // ".garrus\desktop" matchen würde.
     const lower = message.toLowerCase();
     let targetPath = null;
+
+    // v7.5.8: Anaphora-resolver — "der/dein/mein/das/den genesis(-)ordner"
+    // and ".genesis(-)ordner" variants. Pre-fix these phrases fell through
+    // every regex below, returned the generic "welchen Ordner?" prompt,
+    // and (worse) the LLM in chat-mode then confabulated an answer like
+    // "ich kann nicht außerhalb der Sandbox" — even though the rootDir is
+    // exactly what was being asked about. Live-Befund 2026-05-03.
+    //
+    // v7.5.8 hotfix (live-Befund 2 same day): added Dativ forms (deinem,
+    // meinem, deiner, ...) which are common after "in/im/aus/von" — e.g.
+    // "in deinem Genesis ordner". Also added "doc/docs/dokumentation"
+    // alias for rootDir/docs since multiple users referred to that folder
+    // by its short name.
+    //
+    // Resolution targets:
+    //   "genesis ordner"          → rootDir            (the project itself)
+    //   ".genesis ordner"         → rootDir/.genesis   (Genesis' identity folder)
+    //   "doc/docs/dokumentation"  → rootDir/docs       (project docs)
+    //
+    // Possessives accepted (Nominativ + Akkusativ + Dativ):
+    //   der/dem/dein(em|er|en)/mein(em|er|en)/sein(em|er|en)/unser(em|er|en)
+    //   das/den/einen/einem
+    // Required to be present so we don't accidentally resolve a literal
+    // "genesis" as the project (e.g. "starte genesis" → app launch path).
+    const rootDir = this.fp?.rootDir || process.cwd();
+    const POSSESSIVE = '(?:der|dem|den|das|ein(?:en|em|er)?|dein(?:e|er|em|en)?|mein(?:e|er|em|en)?|sein(?:e|er|em|en)?|unser(?:e|er|em|en)?|euer|eurem|euren|eure)';
+    const FOLDER_NOUN = '(?:[-\\s](?:ordner|folder|verzeichnis|dir|projekt|project))?';
+    const anaphoraResolvers = [
+      {
+        // ".genesis"-Variante zuerst (spezifischer als "genesis").
+        pattern: new RegExp(`\\b${POSSESSIVE}\\s+\\.genesis${FOLDER_NOUN}\\b`, 'i'),
+        target: () => path.join(rootDir, '.genesis'),
+      },
+      {
+        // "doc/docs/dokumentation/dokumente"-Alias.
+        pattern: new RegExp(`\\b${POSSESSIVE}\\s+(?:doc|docs|dokumentation|dokumente)${FOLDER_NOUN}\\b`, 'i'),
+        target: () => path.join(rootDir, 'docs'),
+      },
+      {
+        // "genesis-ordner"-Variante (catch-all für "im/in deinem genesis ordner").
+        pattern: new RegExp(`\\b${POSSESSIVE}\\s+genesis${FOLDER_NOUN}\\b`, 'i'),
+        target: () => rootDir,
+      },
+    ];
+    for (const { pattern, target } of anaphoraResolvers) {
+      if (pattern.test(message)) {
+        targetPath = target();
+        break;
+      }
+    }
+
     for (const [alias, resolved] of Object.entries(folderAliases)) {
+      if (targetPath) break;  // anaphora-resolver already matched
       const escAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // Match the alias only when surrounded by whitespace, sentence boundary,
       // or string boundaries — explicitly NOT preceded/followed by a path
@@ -141,8 +193,12 @@ const commandHandlersShell = {
       //       against the project rootDir (via this.fp.rootDir, same pattern
       //       openWorkspace uses on Z. 76).
       const quoted = message.match(/["']([^"']+)["']/);
-      // Windows path: grab everything from drive letter to end (may include spaces)
-      const winPath = message.match(/([A-Za-z]:\\[^\n"']+)/i);
+      // Windows path: drive letter + backslash + non-whitespace chars.
+      // v7.5.8 fix: pre-fix `[^\n"']+` greedy-matched to end-of-line, so
+      // "C:\Foo\Bar das ist mein Ordner" was taken as the entire string
+      // instead of just "C:\Foo\Bar". Stop at whitespace; paths containing
+      // spaces must be quoted (the quoted-match path above handles those).
+      const winPath = message.match(/([A-Za-z]:\\[^\s"']*)/);
       // Unix absolute: must be at start-of-string or after whitespace, so
       // "/etc/passwd" matches but "x/y/z" does not slice out "/y/z".
       const unixPath = message.match(/(?:^|\s)(~\/[^\s"']+|\/[^\s"']+)/);

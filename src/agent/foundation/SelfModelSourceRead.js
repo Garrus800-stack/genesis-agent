@@ -25,6 +25,188 @@ const fsp = require('fs').promises;
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('SelfModel');
 
+// v7.5.8: Cloud-sync placeholder awareness.
+//
+// Live-Befund (2026-05-03 Daniel-Win-Rechner): Genesis copy in
+// `C:\Users\Danie\OneDrive\Desktop\...\Genesis\` triggered a 30s+ hang
+// when ReadSource (idle-time) picked a file that was a OneDrive
+// Files-On-Demand placeholder (`fs.existsSync` returns true, but reading
+// the file forces an implicit cloud download). The hang blocked the
+// idle-cycle and degraded the whole chat experience.
+//
+// On Windows, Node `fs.statSync().blocks` is undefined, so we cannot
+// detect placeholders structurally. Two-layer defence instead:
+//   (a) cheap path-heuristic: filenames under known cloud-sync roots
+//       (\OneDrive\, \iCloudDrive\, \Dropbox\, \Google Drive\) are
+//       treated as potentially cloud-backed.
+//   (b) defensive read-timeout: idle-time reads use Promise.race with
+//       a 1500ms cap. Chat-time reads stay synchronous (user-initiated,
+//       cloud-fetch is acceptable) but log a warning if we're under a
+//       cloud-sync root.
+const CLOUD_SYNC_PATH_MARKERS = [
+  /\\OneDrive(\s-\s[^\\/]+)?\\/i,    // \OneDrive\ or \OneDrive - Personal\
+  /\/OneDrive(\s-\s[^/]+)?\//i,      // /OneDrive/ (Mac path)
+  /\\iCloudDrive\\/i,
+  /\\Dropbox\\/i,
+  /\\Google\s+Drive\\/i,
+  /\/Google\s+Drive\//i,
+];
+
+function _isCloudSyncPath(fullPath) {
+  return CLOUD_SYNC_PATH_MARKERS.some(re => re.test(fullPath));
+}
+
+const READ_TIMEOUT_IDLE_MS = 1500;
+
+function _readFileWithTimeout(fullPath, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      const err = new Error(`Read timeout (${timeoutMs}ms) — likely cloud-sync placeholder: ${fullPath}`);
+      err.code = 'CLOUD_PLACEHOLDER_TIMEOUT';
+      reject(err);
+    }, timeoutMs);
+    fsp.readFile(fullPath, 'utf-8').then(
+      (content) => { if (!settled) { settled = true; clearTimeout(timer); resolve(content); } },
+      (err)     => { if (!settled) { settled = true; clearTimeout(timer); reject(err); } }
+    );
+  });
+}
+
+// v7.5.8 Hotfix: Filename-Resolution with variants.
+//
+// Live-Befund (2026-05-03 Garrus-Win-Rechner): User asked Genesis to
+// summarise "die readme" / "die ONTOGENESIS". The LLM passed those
+// strings through to read-source as-is; resolveFile saw `<rootDir>/readme`
+// (no extension) and `<rootDir>/ONTOGENESIS` (no extension, wrong dir),
+// returned null, and the LLM then confabulated "size 0" — claiming a
+// concrete fact (file size!) it had never observed.
+//
+// Fix: when the requested path doesn't exist as-is, try variants in this
+// order before giving up:
+//   1. Append common extensions (.md .txt .js .json .yml .yaml)
+//   2. Case-insensitive exact match in the parent directory
+//   3. Case-insensitive base-name match with any extension
+//   4. Fuzzy match (Levenshtein <= 1) — only if exactly one candidate
+//   5. If still no hit and filename looks doc-like, retry under <rootDir>/docs
+// Each step short-circuits on first hit. Multiple-fuzzy-candidates is
+// considered ambiguous and returns null rather than guessing.
+
+const COMMON_FILE_EXTS = ['.md', '.txt', '.js', '.json', '.yml', '.yaml'];
+
+function _levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  // Use single-row DP for memory efficiency on small strings.
+  let prev = new Array(a.length + 1);
+  let curr = new Array(a.length + 1);
+  for (let j = 0; j <= a.length; j++) prev[j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= a.length; j++) {
+      curr[j] = b[i - 1] === a[j - 1]
+        ? prev[j - 1]
+        : Math.min(prev[j - 1] + 1, curr[j - 1] + 1, prev[j] + 1);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[a.length];
+}
+
+function _looksLikeDocFilename(baseName) {
+  // Heuristic: alphabetic-only, length >= 4, no path separators.
+  // README, CHANGELOG, ONTOGENESIS, ARCHITECTURE — all true. "x", "main.js" — false.
+  return /^[A-Za-z][A-Za-z_-]{2,}$/.test(baseName);
+}
+
+function _resolveInDir(dir, targetBase) {
+  if (!fs.existsSync(dir)) return null;
+  let entries;
+  try { entries = fs.readdirSync(dir); } catch { return null; }
+  const targetLower = targetBase.toLowerCase();
+
+  // Step 1: append common extension to original case.
+  for (const ext of COMMON_FILE_EXTS) {
+    const candidate = path.join(dir, targetBase + ext);
+    try {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
+    } catch { /* fall through */ }
+  }
+
+  // Step 2: case-insensitive exact filename match.
+  for (const entry of entries) {
+    if (entry.toLowerCase() === targetLower) {
+      const candidate = path.join(dir, entry);
+      try {
+        if (fs.statSync(candidate).isFile()) return candidate;
+      } catch { /* fall through */ }
+    }
+  }
+
+  // Step 3: case-insensitive base-name match (any extension).
+  for (const entry of entries) {
+    const entryLower = entry.toLowerCase();
+    const entryBase = entryLower.replace(/\.[^.]*$/, '');
+    if (entryBase === targetLower) {
+      const candidate = path.join(dir, entry);
+      try {
+        if (fs.statSync(candidate).isFile()) return candidate;
+      } catch { /* fall through */ }
+    }
+  }
+
+  // Step 4: fuzzy match (Levenshtein <= 1, base-name only).
+  // Skip if target is too short (false-positive rate too high under 4 chars).
+  if (targetLower.length >= 4) {
+    const candidates = [];
+    for (const entry of entries) {
+      const entryLower = entry.toLowerCase();
+      const entryBase = entryLower.replace(/\.[^.]*$/, '');
+      if (entryBase.length < 4) continue;
+      const dist = _levenshtein(targetLower, entryBase);
+      if (dist <= 1) candidates.push({ entry, dist });
+    }
+    if (candidates.length === 1) {
+      const candidate = path.join(dir, candidates[0].entry);
+      try {
+        if (fs.statSync(candidate).isFile()) return candidate;
+      } catch { /* fall through */ }
+    }
+    // Multiple equal-distance hits = ambiguous, do NOT guess.
+  }
+
+  return null;
+}
+
+function _resolveFileWithVariants(absPath, rootDir) {
+  // First try as-is (this is the fast path; all existing call sites already
+  // checked existsSync but we re-check here to keep the helper standalone).
+  try {
+    if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) return absPath;
+  } catch { /* fall through to variants */ }
+
+  const dir = path.dirname(absPath);
+  const baseName = path.basename(absPath);
+
+  // Steps 1-4 in original directory.
+  const inOriginal = _resolveInDir(dir, baseName);
+  if (inOriginal) return inOriginal;
+
+  // Step 5: well-known docs/ retry. Only when the original lookup was at
+  // the project root AND the base-name is doc-like (README, ONTOGENESIS,
+  // ARCHITECTURE etc., not "main.js" or "x").
+  if (rootDir && path.resolve(dir) === path.resolve(rootDir) && _looksLikeDocFilename(baseName)) {
+    const docsDir = path.join(rootDir, 'docs');
+    const inDocs = _resolveInDir(docsDir, baseName);
+    if (inDocs) return inDocs;
+  }
+
+  return null;
+}
+
 const selfModelSourceRead = {
 
   readModule(fileOrName) {
@@ -39,9 +221,18 @@ const selfModelSourceRead = {
     }
 
     const fullPath = path.join(this.rootDir, filePath);
-    // FIX v6.1.1: Guard against EISDIR — skip directories
-    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
-      return fs.readFileSync(fullPath, 'utf-8');
+    // FIX v6.1.1: Guard against EISDIR — skip directories.
+    // v7.5.8 hotfix: fall back to filename-variant resolution when the literal
+    // path doesn't exist (handles "readme" → README.md, "ontogenesis" →
+    // docs/ONTOGENESIS.md, fuzzy "redme" → README.md).
+    try {
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        return fs.readFileSync(fullPath, 'utf-8');
+      }
+    } catch { /* fall through */ }
+    const resolved = _resolveFileWithVariants(fullPath, this.rootDir);
+    if (resolved) {
+      try { return fs.readFileSync(resolved, 'utf-8'); } catch { return null; }
     }
     return null;
   },
@@ -73,9 +264,19 @@ const selfModelSourceRead = {
     }
 
     // Resolve path
-    const absPath = path.isAbsolute(filePath)
+    let absPath = path.isAbsolute(filePath)
       ? filePath
       : path.join(this.rootDir, filePath);
+
+    // v7.5.8 hotfix: filename-variant resolution. If the literal path doesn't
+    // exist, try common-extension append, case-insensitive match, fuzzy match,
+    // and well-known docs/ retry. Closes the live-discovered hole where
+    // read-source('readme') / read-source('ONTOGENESIS') returned null and
+    // the LLM then confabulated "size 0".
+    if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
+      const resolved = _resolveFileWithVariants(absPath, this.rootDir);
+      if (resolved) absPath = resolved;
+    }
 
     // Cache hit
     const cached = state.sessionCache.get(absPath);
@@ -97,6 +298,13 @@ const selfModelSourceRead = {
     try {
       if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
         return null;
+      }
+      // v7.5.8: Chat-time reads are user-initiated — cloud-fetch is OK,
+      // but warn so the user understands why a read might take longer.
+      // Cannot timeout sync I/O, so this is informational only.
+      const isCloud = _isCloudSyncPath(absPath);
+      if (isCloud) {
+        _log.warn(`[READ-SOURCE] Reading from cloud-sync path may trigger download: ${absPath}`);
       }
       content = fs.readFileSync(absPath, 'utf-8');
     } catch (_err) {
@@ -188,11 +396,22 @@ const selfModelSourceRead = {
     }
 
     // Cache miss or stale — read from disk
-    const fullPath = path.join(this.rootDir, filePath);
+    let fullPath = path.join(this.rootDir, filePath);
+    // v7.5.8 hotfix: filename-variant resolution before stat.
+    if (!fs.existsSync(fullPath)) {
+      const resolved = _resolveFileWithVariants(fullPath, this.rootDir);
+      if (resolved) fullPath = resolved;
+    }
     try {
       const stat = await fsp.stat(fullPath);
       if (!stat.isFile()) return null;
-      const content = await fsp.readFile(fullPath, 'utf-8');
+
+      // v7.5.8: Idle-time reads use a timeout to avoid hanging on cloud-sync
+      // placeholders (OneDrive Files-On-Demand etc.). On a normal local file
+      // the read returns in <50ms; the 1500ms cap only triggers when the
+      // OS is actually fetching from the cloud, which is exactly what we
+      // want to skip during idle reads.
+      const content = await _readFileWithTimeout(fullPath, READ_TIMEOUT_IDLE_MS);
 
       this._readCache.set(cacheKey, { content, loadedAt: Date.now() });
       while (this._readCache.size > this._readCacheMax) {
@@ -201,7 +420,13 @@ const selfModelSourceRead = {
       }
 
       return content;
-    } catch (_e) {
+    } catch (err) {
+      // v7.5.8: Distinguish cloud-placeholder timeout from generic read errors.
+      if (err && err.code === 'CLOUD_PLACEHOLDER_TIMEOUT') {
+        _log.info(`[READ-SOURCE] Skipped cloud-sync placeholder: ${filePath}`);
+      } else if (_isCloudSyncPath(fullPath)) {
+        _log.debug(`[READ-SOURCE] Read failed under cloud-sync root: ${filePath}: ${err && err.message}`);
+      }
       return null;
     }
   },

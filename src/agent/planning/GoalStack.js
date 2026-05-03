@@ -114,6 +114,30 @@ class GoalStack {
         matchScore: gateResult.score,
         matchedCapability: gateResult.matched.id,
       }, { source: 'GoalStack' });
+
+      // v7.5.8 (Phase 3b — numerical dissonance pushback).
+      // Memory #15 roadmap item: "Pushback with numerical dissonance score —
+      // chat-message on conflict, not auto-block." When the capability-gate
+      // sees a similar-but-not-identical goal (action='warn'), emit a
+      // structured pushback signal alongside the warning so AgentLoop /
+      // ChatOrchestrator can surface a chat message ("This looks ~63%
+      // similar to goal X — proceed anyway?") rather than silently blocking
+      // or silently proceeding.
+      //
+      // Score is the matchScore from the capability-gate (TF-IDF cosine
+      // similarity, 0..1 — higher = more similar). Threshold is the same
+      // gate threshold; this just adds the explicit chat-channel signal.
+      this.bus.emit('goal:dissonance-pushback', {
+        goalId: `pending_${Date.now()}`,
+        proposedDescription: description.slice(0, 200),
+        matchedGoalId: gateResult.matched.id,
+        matchedDescription: (gateResult.matched.description || gateResult.matched.id).slice(0, 200),
+        dissonanceScore: gateResult.score,  // 0..1 (higher = more similar)
+        source,
+        suggestion: source === 'user'
+          ? 'User-proposed: warn but pass through. UI may ask for confirmation.'
+          : 'Auto-proposed: warn-only here; downstream may filter.',
+      }, { source: 'GoalStack' });
     }
     if (gateResult.action === 'novel-claimed') {
       // Override was used — record for later auditing

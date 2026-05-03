@@ -381,6 +381,12 @@ const EVENTS = Object.freeze({
     /** v7.3.1: User-sourced goal looks similar to existing capability (non-blocking) */
     /** @payload {{ goalId: string, matchScore: number, matchedCapability: string }} */
     DUPLICATE_WARNING:    'goal:duplicate-warning',
+    /** v7.5.8: Numerical dissonance pushback (Memory #15 roadmap). Emits alongside
+     *  duplicate-warning when proposed goal is similar-but-not-identical, so chat
+     *  can surface "this looks ~63% similar to X" instead of silent block. */
+    /** @payload {{ goalId: string, proposedDescription: string, matchedGoalId: string,
+     *              dissonanceScore: number, source: string }} */
+    DISSONANCE_PUSHBACK:  'goal:dissonance-pushback',
     /** v7.3.3: Goal marked as stuck — still relevant but unable to progress */
     /** @payload {{ id: string, description: string, reason: string }} */
     STALLED:     'goal:stalled',

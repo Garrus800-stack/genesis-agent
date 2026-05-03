@@ -72,11 +72,16 @@ function enforceSlashDiscipline(result, message) {
   if (!result) return result;
   const isSlashOnly = SLASH_ONLY_INTENTS.has(result.type) || SECURITY_REQUIRED_SLASH.has(result.type);
   if (!isSlashOnly) return result;
-  // A literal / anywhere in the message is sufficient. The per-intent
-  // patterns then decide WHICH slash-command was meant; this guard only
-  // decides whether ANY slash-command is allowed at all.
-  if (typeof message === 'string' && message.includes('/')) return result;
-  // Rewrite: slash-only intent without slash → general.
+  // v7.5.8: A literal `/` anywhere in the message is too permissive — a
+  // 6-point reflection list that happened to contain a date "03/05" or a
+  // markdown link slipped past, the LLM-classifier returned 'self-modify',
+  // and an 18-item code-improvement plan was generated from a personal
+  // values discussion. Fix: require the `/` to be in actual slash-command
+  // position (start-of-message or after whitespace, followed by a word).
+  // The per-intent patterns then decide WHICH slash-command was meant;
+  // this guard only decides whether ANY slash-command is allowed at all.
+  if (typeof message === 'string' && /(?:^|\s)\/[a-z][\w-]*\b/i.test(message)) return result;
+  // Rewrite: slash-only intent without slash-command position → general.
   return { type: 'general', confidence: 0.3, match: 'slash-discipline-guard' };
 }
 

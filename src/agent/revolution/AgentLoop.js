@@ -193,8 +193,18 @@ class AgentLoop {
     // emit the completion event from every return path.
     const _emitFailure = (errorMessage) => {
       try {
+        // v7.5.8 hotfix: at this point this.currentGoalId may still be null
+        // (set on Z. ~386 via _registeredGoal.id), so we synthesise a stable
+        // fallback so the schema-required goalId field is never missing.
+        // Live-Befund (Garrus-Win, 2026-05-03): runtime warning
+        //   "agent-loop:complete missing required field goalId. Source: AgentLoop"
+        // appeared when the early-return path fired before goal-registration.
+        const _emittedGoalId = this.currentGoalId
+          || (typeof goalDescription === 'string'
+                ? `loop_early_${Date.now()}`
+                : `loop_early_${Date.now()}`);
         this.bus.fire('agent-loop:complete', {
-          goalId: this.currentGoalId,
+          goalId: _emittedGoalId,
           success: false,
           steps: this.stepCount,
           title: (typeof goalDescription === 'string' ? goalDescription : '').slice(0, 100),

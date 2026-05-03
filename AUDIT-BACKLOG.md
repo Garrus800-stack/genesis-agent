@@ -1,9 +1,165 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.5.6 · Last updated: v7.5.6 (Bug-fix release + carry-over cleanup)
+> Version: 7.5.8 · Last updated: v7.5.8 (Bug-fix release: openPath, slash-discipline, OneDrive)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.5.8
+
+Bug-fix release. Four live-discovered bugs from a Win-Rechner
+session on a cloud-synced project folder, plus the
+carry-over Cleanup-Pass from v7.5.7. See `CHANGELOG.md` `[7.5.8]` for
+per-item details. Compressed list:
+
+- **Item 1 (Cleanup-Pass)** — AUDIT-BACKLOG sync to v7.5.7 with retroactive
+  closes; ModelBridge extraction (`MODEL_TIERS`, `detectAvailable`,
+  `_scoreModel`, `_selectBestModel`, `getRankedModels` → new
+  `ModelBridgeDiscovery.js`). ModelBridge.js: 898 → 697 LOC, out of
+  File-Size-Guard warning. Same mixin pattern as
+  `ModelBridgeAvailability.js` (v7.5.6).
+- **Item 2 — `openPath` greedy Windows-path regex** (`CommandHandlersShell.js`).
+  Pre-fix `[^\n"']+` matched to end-of-line. Post-fix `[^\s"']*` stops
+  at whitespace; paths with spaces must be quoted (already supported
+  via the quoted-match path).
+- **Item 3 — `openPath` vague-anaphora resolver** (`CommandHandlersShell.js`).
+  New anaphora-resolver block: `"(der|dein|mein|...)\s+genesis(?:[-\s]ordner|projekt|...)"` →
+  `rootDir`; `".genesis"`-variant → `rootDir/.genesis`. Possessive
+  required so literal `"starte genesis"` still routes to app-launch.
+- **Item 4 — Slash-Discipline guard too permissive** (`IntentPatterns.js`).
+  `message.includes('/')` accepted any `/` (date `03/05`, URLs, paths,
+  prose `"Ehrlichkeit / Aufrichtigkeit"`). New strict pattern
+  `/(?:^|\s)\/[a-z][\w-]*\b/i` requires actual slash-command
+  position. Live-evidence: a 6-point reflection list no longer
+  triggers `self-modify` → 18-item code-plan generation.
+- **Item 5 — ReadSource OneDrive Files-On-Demand handling**
+  (`SelfModelSourceRead.js`). Two-layer defence: cheap path-heuristic
+  for `\OneDrive\`, `\iCloudDrive\`, `\Dropbox\`, `\Google Drive\`
+  paths (plus Mac equivalents); defensive read-timeout
+  (`Promise.race`, 1500ms cap on idle reads). Chat-time reads stay
+  sync but warn under cloud roots.
+- **Item 6 (hotfix) — Filename-Resolution with variants**
+  (`SelfModelSourceRead.js`). Live-Befund: user said "fasse die
+  readme zusammen" / "die ONTOGENESIS"; LLM passed strings as-is;
+  literal path didn't exist; LLM then confabulated "size 0". New
+  `_resolveFileWithVariants` helper: extension-append, case-
+  insensitive match, fuzzy (Levenshtein ≤ 1), well-known `docs/`
+  retry. `readme` → `README.md`, `redme` → `README.md` (typo),
+  `ontogenesis` → `docs/ONTOGENESIS.md`.
+- **Item 7 (hotfix) — Anaphora extended (Dativ + doc-folder alias)**
+  (`CommandHandlersShell.js`). Dativ forms (`deinem/meinem/...`)
+  added via `POSSESSIVE` constant; `doc/docs/dokumentation` →
+  `<rootDir>/docs` alias added. Hierarchical references
+  ("in deinem Genesis ordner ist ein doc ordner") resolve to the
+  inner doc-folder.
+
+### Tests / fitness / audits at v7.5.8
+
+- 6438 passed (Linux). Diff to v7.5.7: +34 v758-fix (22 base + 12 hotfix)
+- Architectural fitness: 127/130 (98%)
+- `audit-events --strict`: green
+- `scan-schemas`: zero mismatches
+- `check-stale-refs`: all checks passed
+
+### Files
+
+22 new tests in `test/modules/v758-fix.test.js`. Plus existing
+`openpath-path-extraction.test.js` (v7.5.6) which still passes — the
+v7.5.8 winPath fix is a tightening of the same regex it already pins.
+
+---
+
+## Resolved in v7.5.7
+
+Three audit-backlog items, four live-bug fixes, three foundation-hardening
+rounds, and a nine-stage UI polish pass — 19 numbered items total. See
+CHANGELOG.md `[7.5.7]` for full per-item details. Compressed list:
+
+**Audit-backlog (Items 1–3):**
+- Item 1 — Activity-Claim Confabulation Detection (`SelfStatementLog`
+  detects 1st-person present-progressive activity claims against an
+  empty goalStack, emits `self-statement:activity-hint` soft signal)
+- Item 2 — Slash-Discipline Audit-Script (`scripts/audit-slash-discipline.js`,
+  baseline 32 intents / 0 findings)
+- Item 3 — Contract-Markers Expansion (1 → 7 contracts in
+  `check-stale-refs.js` plus `audit-contracts.js` discovery-tool)
+
+**Live-bug fixes (Items 4–7) from deployment-day cloud failure:**
+- Item 4 — Subscription-Required failover reason (24h TTL,
+  `model:cloud-without-fallback` boot-event)
+- Item 5 — Fallback-Chain UI rebuild (two-list interface,
+  `[+ Add]` / `[↑] [↓] [×]`, ☁ for cloud-suffixed models)
+- Item 6 — Settings modal width and tooltip (`.modal-wide` 720px,
+  `cursor: help`)
+- Item 7 — Right-click context menu (`webContents.on('context-menu')`)
+
+**Foundation hardening (Items 8–10):**
+- Item 8 — Auto-Routing default off + Settings expansion (22 internal
+  knobs now first-class data-layer settings)
+- Item 9 — Worker IPC + EventStore/Journal rotation (structured IPC,
+  configurable rotation 50MB/10MB defaults)
+- Item 10 — UI honesty pass (boot log reflects actual versus advertised
+  state)
+
+**UI polish (Items 11–19, nine rounds):**
+- Item 11 — Foundation bug fixes (EventStore hash-chain across rotation,
+  auto-commit gating, settings-save log dedup)
+- Item 12 — Settings completeness (six-tab UI, ~22 knobs)
+- Item 13 — Settings behaviour & validation (FIELD_REGISTRY, per-field
+  reset/hint/range, sanityClampOnLoad)
+- Item 14 — JSON editor (~50 settings, masked secrets, form-wins-on-conflict)
+- Item 15 — Live-test follow-ups
+- Item 16 — i18n completeness
+- Item 17 — i18n live-refresh (Language.js 392 keys symmetric en+de)
+- Item 18 — Status badge & Monaco CSP
+- Item 19 — Monaco worker path & status fallback
+
+**Defaults flipped (both re-enableable in Settings):**
+- `agency.autoRouteByTask`: `true` → `false` (multi-model loading on
+  CPU-only Ollama caused 180s timeouts)
+- `agency.commitSnapshotOnShutdown`: hardcoded-on → `false` (was
+  polluting collaborator git histories)
+
+### Retroactive closes from earlier Open items
+
+- **EmotionalState reaction to `model:failover-unavailable`** — RESOLVED
+  v7.5.2 (Boy-Scout in `EmotionalState`, not as carrying open item).
+  Listener now adds slight extra frustration/helplessness on
+  Plan-B-not-available beyond the regular failover reaction.
+  Was inadvertently still listed as Open / deferred in this backlog.
+- **O-6: Branch Coverage 75.9% → 76% target** — RESOLVED organically
+  at 77.17% over normal v7.4.x test additions. CI ratchet already
+  enforces. Was open since v7.2.0.
+- **`stream-filter` test inline state-machine** — RESOLVED v7.5.6 Item 3
+  (Reasoning-Block-Filter shipped as pure-function source in
+  `src/agent/core/thinking-block-stream-filter.js` with 25 unit tests
+  on the pure filter). The test now imports `stripThinkingBlocks` as a
+  pure function — no inline state-machine.
+- **`llm-failover.test.js` mock smell** — CLOSED as not-a-smell. The
+  mock-test header explicitly documents the split: mock = SEMANTICS
+  tests, `v748-fix.test.js` (Component C) = Source-Path tests against
+  the real `ModelBridge`. Intentional split, not legacy debt.
+
+### Tests / fitness / audits at v7.5.7
+
+- 6416 passed Windows / 6397 passed Linux (19-test difference is
+  Windows-only e2e-electron suite)
+- Architectural fitness: 127/130 (98%)
+- `audit-events --strict`: green
+- `scan-schemas`: zero mismatches
+- `check-stale-refs`: all checks passed (now 7 contracts)
+
+### Files
+
+96 new tests across 15 new files in `test/modules/`
+(`v757-fix-cloud-fallback`, `v757-fix-fallback-ui`, `v757-fix-ui-polish`,
+`v757-fix-phase2/2b/2c`, `v757-fix-phase3` plus nine `etappe-N` files
+retained as historical anchors).
+
+Plus: new `docs/SETTINGS.md` (six-tab reference). README and QUICK-START
+link to it.
 
 ---
 
@@ -626,8 +782,6 @@ what is known.
 - **CostStream integration for failover events** — deferred to v7.5.0.
   Existing `_goalTally` shape doesn't fit; ~30 LOC needed not
   the originally proposed 2-line listener.
-- **EmotionalState reaction to model:failover-unavailable** — currently
-  no handler. Hook for v7.5.x pushback work.
 
 ---
 
@@ -672,11 +826,6 @@ what is known.
   latencyMs}` keyed on `goalId`. A real failover integration needs
   new tally field + schema mapping + queryCost extension + tests
   (~30 LOC, not the 2-line listener originally proposed).
-- **EmotionalState reaction to model:failover-unavailable** — currently
-  no handler. `model:failover` triggers `frustration +0.06, energy
-  -0.03`. Plan-B-not-available (helplessness) is a qualitatively
-  different experience than Plan-A-failed-but-B-took-over and
-  warrants a stronger reaction. Hook for v7.5.x pushback work.
 
 ---
 

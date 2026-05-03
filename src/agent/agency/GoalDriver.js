@@ -390,8 +390,16 @@ class GoalDriver {
       setTimeout(() => {
         if (this._running) this._scanAndMaybePursue();
       }, pauseMs + 100);
-      if (entry.count >= 3) {
-        _log.warn(`[DRIVER] goal ${goalId} rejected ${entry.count}× — marking as stalled`);
+      // v7.5.8 hotfix: stall on FIRST user-rejection, not after 3 strikes.
+      // Live-Befund (Garrus-Win, 2026-05-03): a goal was re-picked 4×
+      // after explicit user rejection because the threshold was 3 and
+      // the goal-driver scan loop kept retrying. When the user explicitly
+      // rejects a plan ("Failed: User rejected plan with blockers"), the
+      // goal should not be re-attempted from the same plan — stall it
+      // immediately so user can either rewrite the plan or close the goal.
+      const REJECTION_STALL_THRESHOLD = 1;
+      if (entry.count >= REJECTION_STALL_THRESHOLD) {
+        _log.warn(`[DRIVER] goal ${goalId} rejected by user — marking as stalled (no further auto-pickup)`);
         try {
           if (typeof this.goalStack.setStatus === 'function') {
             this.goalStack.setStatus(goalId, 'stalled');

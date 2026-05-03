@@ -189,7 +189,13 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
 
   await test('B5 source-presence: detectAvailable filters marked at all 4 priorities', () => {
     const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
-    const isMarkedHits = mbSrc.match(/this\.isMarkedUnavailable\s*\(/g) || [];
+    // v7.5.7: detectAvailable + _scoreModel + _selectBestModel + getRankedModels
+    // were extracted to ModelBridgeDiscovery.js (mixin) for the LOC budget.
+    // Search both files together — the boot-time selection still has to skip
+    // marked-unavailable models at every priority.
+    const discoverySrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeDiscovery.js'), 'utf8');
+    const combined = mbSrc + '\n' + discoverySrc;
+    const isMarkedHits = combined.match(/this\.isMarkedUnavailable\s*\(/g) || [];
     // 1× fallback + 1× cross-backend ollama + 4× boot-selection (P1, P2 anthropic, P2 openai, P3 + P4 each via filter) = at least 5
     assert(isMarkedHits.length >= 5, `boot-time + fallback isMarkedUnavailable usage too low (${isMarkedHits.length})`);
   });
