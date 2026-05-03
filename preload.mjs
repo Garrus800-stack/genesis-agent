@@ -30,6 +30,7 @@ const ALLOWED_INVOKE = [
   'agent:read-external-file',
   'agent:get-settings',
   'agent:set-setting',
+  'agent:set-settings-batch',
   'agent:get-goals',
   'agent:get-goal-tree',
   'agent:undo',

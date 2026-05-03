@@ -192,36 +192,53 @@ const sections = {
         sections.push({ weight: sessionEdges[0].weight, content: sessionText });
       }
 
-      // v7.1.5: Emotional imprints
-      if (this._emotionalFrontier) {
-        try {
-          const emoCtx = this._emotionalFrontier.buildPromptContext();
-          if (emoCtx) sections.push({ weight: 0.8, content: emoCtx.slice(0, TYPE_BUDGET) });
-        } catch (_e) { /* optional */ }
-      }
+      // v7.5.7-fix Phase 3: Frontier-Sektionen sind LLM-generierte Selbst-
+      // Reflexionen aus früheren Sessions ("rate was unfinished war",
+      // "rate was suspicious war"). Wurden bisher mit "100% strength" als
+      // Fakten in JEDEN Prompt geschmissen — Hauptursache für Konfabulation
+      // ("ich habe X reserviert/gespeichert"), weil nächste LLM diese
+      // Vermutungen als getane Welt-Aktionen interpretiert.
+      //
+      // Default: AUS. Genesis ruft sich Frontier-Inhalte bei Bedarf über
+      // Tools ab (siehe /recall, knowledge-graph queries) statt sie blind
+      // bei jeder Antwort mitzusenden.
+      //
+      // Per Setting wieder aktivierbar wenn jemand explizit will:
+      //   prompt.includeFrontiers = true
+      const includeFrontiers = this._settings?.get?.('prompt.includeFrontiers') === true;
 
-      // v7.1.6: Unfinished work
-      if (this._unfinishedWorkFrontier) {
-        try {
-          const uwCtx = this._unfinishedWorkFrontier.buildPromptContext(TYPE_BUDGET);
-          if (uwCtx) sections.push({ weight: 0.9, content: uwCtx });
-        } catch (_e) { /* optional */ }
-      }
+      if (includeFrontiers) {
+        // v7.1.5: Emotional imprints
+        if (this._emotionalFrontier) {
+          try {
+            const emoCtx = this._emotionalFrontier.buildPromptContext();
+            if (emoCtx) sections.push({ weight: 0.8, content: emoCtx.slice(0, TYPE_BUDGET) });
+          } catch (_e) { /* optional */ }
+        }
 
-      // v7.1.6: Suspicion
-      if (this._suspicionFrontier) {
-        try {
-          const susCtx = this._suspicionFrontier.buildPromptContext(TYPE_BUDGET);
-          if (susCtx) sections.push({ weight: 0.7, content: susCtx });
-        } catch (_e) { /* optional */ }
-      }
+        // v7.1.6: Unfinished work
+        if (this._unfinishedWorkFrontier) {
+          try {
+            const uwCtx = this._unfinishedWorkFrontier.buildPromptContext(TYPE_BUDGET);
+            if (uwCtx) sections.push({ weight: 0.9, content: uwCtx });
+          } catch (_e) { /* optional */ }
+        }
 
-      // v7.1.6: Lessons applied
-      if (this._lessonFrontier) {
-        try {
-          const lesCtx = this._lessonFrontier.buildPromptContext(TYPE_BUDGET);
-          if (lesCtx) sections.push({ weight: 0.6, content: lesCtx });
-        } catch (_e) { /* optional */ }
+        // v7.1.6: Suspicion
+        if (this._suspicionFrontier) {
+          try {
+            const susCtx = this._suspicionFrontier.buildPromptContext(TYPE_BUDGET);
+            if (susCtx) sections.push({ weight: 0.7, content: susCtx });
+          } catch (_e) { /* optional */ }
+        }
+
+        // v7.1.6: Lessons applied
+        if (this._lessonFrontier) {
+          try {
+            const lesCtx = this._lessonFrontier.buildPromptContext(TYPE_BUDGET);
+            if (lesCtx) sections.push({ weight: 0.6, content: lesCtx });
+          } catch (_e) { /* optional */ }
+        }
       }
 
       if (sections.length === 0) return '';

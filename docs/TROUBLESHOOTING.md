@@ -182,7 +182,7 @@ ollama pull gemma2:9b # Pull a model if empty
 
 ### Cloud API returns 401/403
 
-**Cause:** Invalid or expired API key, or — for Ollama-cloud models — an expired subscription.
+**Cause:** Invalid or expired API key, or — for Ollama-cloud models — an expired or missing subscription.
 
 **Fix:** Open Settings → check `models.anthropicApiKey` or `models.openaiApiKey`. Ensure no extra whitespace. Test the key with curl:
 ```bash
@@ -193,18 +193,53 @@ curl https://api.anthropic.com/v1/messages \
   -d '{"model":"claude-sonnet-4-20250514","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
 ```
 
-**v7.5.6 behavior:** When a model fails with 403 (or 401, or rate-limit/timeout), Genesis now:
-1. Marks the model unavailable in `.genesis/model-unavailable.json` with a TTL (1h for auth, 5min for rate-limit, 10min for timeout).
-2. Immediately falls back to the next model in `models.fallbackChain` (or to a different backend if no chain entry on the failed backend works).
-3. Skips the marked model on every subsequent call — including across restarts — until the TTL expires or `/model-reset` clears it.
+**v7.5.6 behavior:** When a model fails with 403 (or 401, or rate-limit/timeout), Genesis marks the model unavailable in `.genesis/model-unavailable.json` with a TTL (1h for auth, 5min for rate-limit, 10min for timeout), then falls back to the next model in `models.fallbackChain`.
 
-This closes the pre-v7.5.6 behavior where Genesis would retry a 403-failing cloud model every 5 minutes for 9 hours straight without ever falling back.
+**v7.5.7 refinement:** Ollama Cloud's Pro-gated 403s (response body contains `"subscription"` or `"upgrade for access"`) are now classified as `subscription-required` with a **24h TTL** rather than the generic `auth` 1h TTL. Reason: a Pro-gate is not resolved by waiting an hour. Either you subscribe, or you switch model. Retrying every hour just spams the endpoint.
 
 If your subscription comes back online before the TTL expires (e.g. you renewed), use:
 ```
-/model-reset qwen3-vl:235b-cloud      # clear specific model
+/model-reset qwen3-coder-next:cloud   # clear specific model
 /model-reset                          # clear all marked models
 ```
+
+### Ollama Cloud model returns 403 "this model requires a subscription"
+
+**Cause:** Ollama gated the model behind a paid Pro tier (`$20/month` since Sept 2025). Live-affected models reported by the community: `kimi-k2.5:cloud`, `kimi-k2.6:cloud`, `qwen3-coder-next:cloud`, `glm-5.1:cloud`. Other cloud models (e.g. `gemma:cloud`) may still work without Pro depending on Ollama's current free-tier policy.
+
+**Three options:**
+
+1. **Switch to the local variant** — most cloud models have a non-cloud counterpart that runs on your hardware. `qwen3-coder-next:cloud` → `qwen3-coder-next:q4_K_M`. No Pro needed, no rate limit, no 403. Open Settings, change Preferred Model.
+2. **Configure a fallback chain** — Settings → Fallback Chain. Add 2–4 local models in priority order. When a cloud-403 hits, Genesis will mark the cloud model unavailable for 24h and continue on the next chain entry without interruption.
+3. **Subscribe to Ollama Pro** — only worth it if you specifically need the cloud model's GPU acceleration and accept the recurring cost. Ollama accepts credit/debit cards only; no PayPal, no SEPA, no prepaid vouchers.
+
+**Boot warning (v7.5.7):** If your preferred model is a cloud model AND no fallback chain is configured, Genesis emits `[MODEL] Preferred is a cloud model (...) and no fallbackChain is configured` at boot and fires the `model:cloud-without-fallback` event. The warning surfaces the risk at one decision-point rather than as a mid-session surprise after several 403s.
+
+### Configuring the Fallback Chain (v7.5.7)
+
+The fallback-chain UI was rebuilt in v7.5.7. The previous `<select multiple size="3">` with "Hold Ctrl to select multiple" was unintuitive and frequently misread (markiert ≠ ausgewählt) — the most direct consequence was that users who thought they had configured a chain actually had an empty chain, and the v7.5.6 model-unavailability marker had nothing to fall back to.
+
+The new UI is in **Settings → Fallback Chain**:
+
+- **Available Models** (left list) — every detected model with a `[+ Add]` button. Cloud-suffixed models carry a `☁` marker so you can see at a glance which require a subscription.
+- **Your Chain** (right list) — your selected fallbacks in execution order. Each entry has `[↑] [↓]` to reorder and `[×]` to remove.
+- An empty chain shows "No fallback models — Genesis will fail if primary breaks." in red.
+
+The chain is persisted to `models.fallbackChain` in `.genesis/settings.json`. You can edit that file directly if you prefer; the UI is just a builder for it.
+
+### Right-click in chat does nothing / can't paste with the mouse (pre-v7.5.7)
+
+**Fixed in v7.5.7.** Electron apps default to NO context-menu — pre-fix Genesis chat had only Ctrl+C / Ctrl+V, which is unintuitive on Windows. v7.5.7 installs a `webContents.on('context-menu', ...)` handler in main.js that builds the menu per-click:
+
+- Editable fields (chat input, settings text-fields): Ausschneiden / Kopieren / Einfügen / Alles auswählen
+- Non-editable text with selection: Kopieren + Alles auswählen
+- Empty area: Alles auswählen only
+
+If right-click still does nothing after upgrading, you're either still on a build before the fix or the renderer hasn't reloaded. Restart the app.
+
+### Settings modal too narrow / model names truncated (pre-v7.5.7)
+
+**Fixed in v7.5.7.** The settings modal now uses a wider `.modal-wide` CSS class (720px) so model names like `mannix/deepseek-coder-v2-lite-instruct:fp16` are readable in the fallback-chain lists. If a name is still truncated (very long names + narrow window), hovering over it reveals the full name as a tooltip — the cursor changes to a `?` (help cursor) over names that have a tooltip.
 
 ### Genesis stops trying my preferred model after one failure
 
@@ -490,6 +525,25 @@ The CI ratchet compares the current state against `scripts/ratchet.json` and exi
 If the regression is intentional (e.g. you deliberately removed an obsolete test suite), edit `scripts/ratchet.json` by hand to lower the floor. The script never updates itself — that's a deliberate human decision so the floor stays meaningful.
 
 For local pre-commit checks, use `npm run ratchet:fast` which skips the slow full-test-count check.
+
+### `npm run audit:slash` shows findings (v7.5.7)
+
+The slash-discipline audit categorizes every intent in `IntentPatterns.js` as pure-slash-only / fuzzy+slash-mix / fuzzy-only and cross-checks against `SECURITY_REQUIRED_SLASH`. A finding means: an intent has a fuzzy (free-text) pattern AND is not in the security set AND is not in the script's `FUZZY_BY_DESIGN` whitelist.
+
+What to do per finding:
+
+- If the intent triggers a sensitive action (writes, code-exec, OS-side-effect) → add it to `SECURITY_REQUIRED_SLASH` in `IntentPatterns.js`. The guard then rewrites it to `general` unless the message contains a `/`.
+- If the intent is intentionally fuzzy by design (conversational UX) → add it to `FUZZY_BY_DESIGN` in `audit-slash-discipline.js` with a one-line rationale.
+
+Don't suppress findings without picking one of those two paths.
+
+### `npm run audit:contracts` shows unprotected candidates (v7.5.7)
+
+The contract-candidate audit finds tests in security-relevant files (gate, injection, sandbox, etc.) whose names look like security-guards (block, reject, deny, must, never, fail-closed, …) but lack a `<x> contract: ` prefix.
+
+What to do per candidate: decide whether the test's accidental removal would weaken Genesis. If yes, rename it with a contract prefix (e.g. `injection-gate contract: …`) and add the prefix to the `contracts` array in `scripts/stale-refs.json` with a `minCount`. `npm run check:stale` then verifies it on every release.
+
+Marking is conservative — a candidate is just a suggestion, not a directive. Many test names look security-shaped but are exercising failure paths or edge cases that aren't load-bearing for the safety boundary.
 
 ---
 

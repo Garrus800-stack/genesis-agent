@@ -7,12 +7,15 @@
 // and returns the result. NOT a full Genesis instance.
 //
 // Capabilities:
-//   - LLM calls via Ollama HTTP (direct, no ModelBridge overhead)
+//   - LLM calls via IPC to parent (parent uses ModelBridge — same
+//     concurrency/cache/keep-alive as the rest of Genesis).
+//     v7.5.7-fix Phase 2: was direct Ollama HTTP, which bypassed
+//     the LLM_MAX_CONCURRENT semaphore — workers could pile up calls
+//     against Ollama in parallel even when ModelBridge was full.
 //   - Code execution via vm sandbox
 //   - File read/write within project scope
 // ============================================================
 
-const http = require('http');
 const { TIMEOUTS } = require('../core/Constants');
 const vm = require('vm');
 const fs = require('fs');
@@ -21,6 +24,11 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('_self-worker');
 
 let taskPayload = null;
+
+// v7.5.7-fix Phase 2: pending LLM requests waiting for parent's response.
+// Map<requestId, { resolve, reject }>
+const _pendingLlm = new Map();
+let _llmRequestCounter = 0;
 
 process.on('message', async (/** @type {*} */ msg) => {
   if (msg.type === 'task') {
@@ -32,6 +40,14 @@ process.on('message', async (/** @type {*} */ msg) => {
       process.send?.({ type: 'result', success: false, error: err.message });
     }
     process.exit(0);
+  } else if (msg.type === 'llm-response') {
+    // v7.5.7-fix Phase 2: parent answered our llm-request
+    const pending = _pendingLlm.get(msg.requestId);
+    if (pending) {
+      _pendingLlm.delete(msg.requestId);
+      if (msg.error) pending.reject(new Error(msg.error));
+      else pending.resolve(msg.text || '');
+    }
   }
 });
 
@@ -58,47 +74,44 @@ async function executeTask(payload) {
   }
 }
 
-// ── LLM Query (direct Ollama HTTP) ────────────────────────
+// ── LLM Query (via IPC to parent — uses ModelBridge) ───────
+//
+// v7.5.7-fix Phase 2: was a direct HTTP call to Ollama which bypassed
+// the LLM_MAX_CONCURRENT semaphore. Now sends `llm-request` to parent
+// SelfSpawner; parent calls model.chat() (going through the semaphore,
+// cache, keep_alive logic) and replies with `llm-response`.
+
+function _ipcLlmQuery(systemPrompt, userPrompt, taskType) {
+  return new Promise((resolve, reject) => {
+    if (!process.send) {
+      reject(new Error('Worker has no IPC channel to parent'));
+      return;
+    }
+    const requestId = `llm_${++_llmRequestCounter}_${Date.now()}`;
+    _pendingLlm.set(requestId, { resolve, reject });
+    process.send({
+      type: 'llm-request',
+      requestId,
+      systemPrompt: systemPrompt || 'You are a focused sub-task worker. Be concise and precise.',
+      userPrompt: userPrompt || '',
+      taskType: taskType || 'analysis',
+    });
+    // Hard timeout in case parent never responds (parent crashed, etc.)
+    const timeoutMs = TIMEOUTS.LLM_RESPONSE_LOCAL || 180000;
+    setTimeout(() => {
+      if (_pendingLlm.has(requestId)) {
+        _pendingLlm.delete(requestId);
+        reject(new Error(`LLM IPC timeout after ${timeoutMs}ms`));
+      }
+    }, timeoutMs);
+  });
+}
 
 async function llmQuery(prompt, context, modelConfig) {
   if (!modelConfig) throw new Error('No model configuration');
-
-  const url = new URL(modelConfig.ollamaUrl || 'http://127.0.0.1:11434');
-
-  const body = JSON.stringify({
-    model: modelConfig.activeModel || modelConfig.model,
-    messages: [
-      { role: 'system', content: context.systemPrompt || 'You are a focused sub-task worker. Be concise and precise.' },
-      { role: 'user', content: prompt },
-    ],
-    stream: false,
-    options: { temperature: 0.3 },
-  });
-
-  return new Promise((resolve, reject) => {
-    const req = http.request({
-      hostname: url.hostname,
-      port: url.port || 11434,
-      path: '/api/chat',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      timeout: TIMEOUTS.TEST_INSTALL,
-    }, (res) => {
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => {
-        try {
-          const data = JSON.parse(Buffer.concat(chunks).toString());
-          resolve({ output: data.message?.content || '', model: modelConfig.activeModel });
-        } catch (err) { reject(new Error('LLM parse error')); }
-      });
-    });
-
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('LLM timeout')); });
-    req.write(body);
-    req.end();
-  });
+  const systemPrompt = (context && context.systemPrompt) || null;
+  const text = await _ipcLlmQuery(systemPrompt, prompt, 'analysis');
+  return { output: text, model: modelConfig.activeModel };
 }
 
 // ── Code Execution (vm sandbox) ───────────────────────────

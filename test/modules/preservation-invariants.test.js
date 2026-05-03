@@ -119,14 +119,14 @@ describe('PreservationInvariants — SAFETY_RULE_COUNT', () => {
 // ── SCANNER_FAIL_CLOSED ──────────────────────────────────────
 
 describe('PreservationInvariants — SCANNER_FAIL_CLOSED', () => {
-  test('blocks when fail-closed removed', () => {
+  test('preservation contract: blocks when fail-closed removed', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/intelligence/CodeSafetyScanner.js',
       fakeScanner(5, { failClosed: true }), fakeScanner(5, { failClosed: false }));
     assert(r.violations.some(v => v.invariant === 'SCANNER_FAIL_CLOSED'), 'Should block');
   });
 
-  test('passes when fail-closed preserved', () => {
+  test('preservation contract: passes when fail-closed preserved', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/intelligence/CodeSafetyScanner.js',
       fakeScanner(5, { failClosed: true }), fakeScanner(6, { failClosed: true }));

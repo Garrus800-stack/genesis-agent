@@ -175,15 +175,29 @@ function phase9(ctx, R) {
     // v7.5.5: SelfStatementLog — captures Genesis's own statements,
     // classifies them, and detects structural claims without _introspectionContext
     // data backing. See ARCHITECTURE.md → Self-Audit cluster.
+    // v7.5.7: Optional goalStack lateBinding for activity-claim snapshots —
+    // when Genesis claims "ich beschäftige mich mit X" the snapshot of
+    // active goals at chat-completed time decides whether it's a soft
+    // confabulation. Optional because phase4 → phase9 wiring is reliable
+    // but the feature degrades gracefully if goalStack is missing.
     ['selfStatementLog', {
       phase: 9,
-      deps: ['storage', 'eventStore'],
+      deps: ['storage', 'eventStore', 'settings'],
       tags: ['cognitive', 'self', 'audit'],
-      factory: (c) => new (R('SelfStatementLog').SelfStatementLog)({
-        bus,
-        storageDir: c.resolve('storage').baseDir,
-        eventStore: c.resolve('eventStore'),
-      }),
+      lateBindings: [
+        { prop: 'goalStack', service: 'goalStack', optional: true, expects: ['getActiveGoals'] },
+      ],
+      factory: (c) => {
+        const settings = c.resolve('settings');
+        // v7.5.7-fix Phase 2: configurable count-cap. 0/undefined = unlimited.
+        const maxStatements = settings?.get?.('selfStatementLog.maxStatements');
+        return new (R('SelfStatementLog').SelfStatementLog)({
+          bus,
+          storageDir: c.resolve('storage').baseDir,
+          eventStore: c.resolve('eventStore'),
+          maxStatements: typeof maxStatements === 'number' ? maxStatements : 0,
+        });
+      },
     }],
 
     // v5.2.0: PromptEvolution — A/B testing for prompt template sections

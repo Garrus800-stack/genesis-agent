@@ -192,6 +192,8 @@ const EVENTS = Object.freeze({
   SELF_STATEMENT: Object.freeze({
     /** @payload {{ text: string, type: 'strukturell'|'versprechen'|'emotional'|'uncertain', intent: string, ts: string }} */
     CONTRADICTION: 'self-statement:contradiction',
+    /** @payload {{ text: string, intent: string, activeGoalCount: number, ts: string }} — v7.5.7 soft signal: 1st-person activity claim with goalStack snapshot showing 0 active goals */
+    ACTIVITY_HINT: 'self-statement:activity-hint',
   }),
 
   // ── Circuit Breaker ────────────────────────────────────
@@ -558,6 +560,9 @@ const EVENTS = Object.freeze({
   KNOWLEDGE: Object.freeze({
     LEARNED:    'knowledge:learned',
     NODE_ADDED: 'knowledge:node-added',
+    /** v7.5.7-fix Phase 2: emitted after LRU pruning when KG exceeds maxNodes.
+     *  @payload {{ count: number, remaining: number }} */
+    NODES_PRUNED: 'knowledge:nodes-pruned',
   }),
 
   // ── Learning Service ───────────────────────────────────
@@ -714,6 +719,11 @@ const EVENTS = Object.freeze({
     /** v7.5.6: telemetry-only — marker cleared (TTL expired or manual /model-reset).
      *  @payload {{ modelName: string, automatic: boolean }} */
     UNAVAILABLE_CLEARED:  'model:unavailable-cleared',
+    /** v7.5.7-fix: telemetry-only — emitted at boot when the preferred
+     *  model is a cloud-suffixed model AND no fallback chain is configured.
+     *  Subscribers (Dashboard) can surface a one-time hint to the user.
+     *  @payload {{ model: string, backend: string }} */
+    CLOUD_WITHOUT_FALLBACK: 'model:cloud-without-fallback',
     /** v7.5.6: emitted by ChatOrchestrator after streamChat/_directChat when the
      *  model produced a <think>...</think> block. ReasoningTracer subscribes.
      *  @payload {{ text: string, modelName: string }} */
@@ -889,6 +899,8 @@ const EVENTS = Object.freeze({
     PRESERVATION_BLOCK:  'store:PRESERVATION_BLOCK',
     /** v7.5.6: Emitted by SelfStatementLog._fireContradiction but missing from catalog (live-found 2026-05-02) */
     SELF_STATEMENT_CONTRADICTION: 'store:SELF_STATEMENT_CONTRADICTION',
+    /** v7.5.7: Emitted by SelfStatementLog._fireActivityHint when Genesis claims an ongoing activity (1st-person present-progressive) but goalStack snapshot at chat-completed shows zero active goals. Soft signal — confidence 0.6, intentionally not "contradiction". Catches the "ich beschäftige mich mit X" confabulation pattern observed in v7.5.x live tests. */
+    SELF_STATEMENT_ACTIVITY_HINT: 'store:SELF_STATEMENT_ACTIVITY_HINT',
     SHELL_PLAN_EXECUTED: 'store:SHELL_PLAN_EXECUTED',
     SKILL_CREATED:       'store:SKILL_CREATED',
     SURPRISE_NOVEL:      'store:SURPRISE_NOVEL',

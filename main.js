@@ -154,13 +154,20 @@ app.whenReady().then(async () => {
   // Even though LLM output is sanitized (esc(), safeHref(), HTML-tag stripping),
   // CSP blocks execution of any injected script that slips through.
   // 'unsafe-inline' for style is required by Monaco Editor's dynamic theming.
+  // v7.5.7-fix Phase 3 Etappe 8: Monaco creates web workers via blob: URLs
+  // (its preferred mode — falls back to main-thread workers otherwise,
+  // causing UI freezes). The HTML <meta> CSP already permitted this; the
+  // HTTP-header CSP from main.js was stricter and blocked it. Aligned them:
+  //   - script-src: + blob: (Monaco worker bootstrap is blob-loaded)
+  //   - worker-src: 'self' blob: (explicit so workers don't fall back to script-src)
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           "default-src 'self';" +
-          " script-src 'self' https://cdnjs.cloudflare.com;" +  // Monaco CDN fallback
+          " script-src 'self' https://cdnjs.cloudflare.com blob:;" +  // Monaco CDN + workers
+          " worker-src 'self' blob:;" +  // Monaco web workers (avoid main-thread fallback)
           " style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;" +  // Monaco CSS
           " font-src 'self' https://cdnjs.cloudflare.com;" +
           " img-src 'self' data:;" +
@@ -234,6 +241,34 @@ app.whenReady().then(async () => {
       }
     }
     return { action: 'deny' }; // Never open new Electron windows
+  });
+
+  // v7.5.7-fix: Right-click context-menu (cut/copy/paste/select-all).
+  // Electron defaults to NO context-menu on right-click — without this
+  // hook Genesis chat has only Ctrl+C / Ctrl+V, which is unintuitive on
+  // Windows where mouse-right-click is the standard expectation.
+  // The menu is built per-click so editable fields get cut/paste, plain
+  // text gets copy/select-all only.
+  const { Menu: _CtxMenu, MenuItem: _CtxMenuItem } = require('electron');
+  mainWindow.webContents.on('context-menu', (_e, params) => {
+    const menu = new _CtxMenu();
+    const editable = !!params.isEditable;
+    const hasSelection = !!(params.selectionText && params.selectionText.length > 0);
+    if (editable) {
+      menu.append(new _CtxMenuItem({ role: 'cut',       label: 'Ausschneiden', enabled: hasSelection }));
+      menu.append(new _CtxMenuItem({ role: 'copy',      label: 'Kopieren',     enabled: hasSelection }));
+      menu.append(new _CtxMenuItem({ role: 'paste',     label: 'Einfügen' }));
+      menu.append(new _CtxMenuItem({ type: 'separator' }));
+      menu.append(new _CtxMenuItem({ role: 'selectAll', label: 'Alles auswählen' }));
+    } else if (hasSelection) {
+      menu.append(new _CtxMenuItem({ role: 'copy',      label: 'Kopieren' }));
+      menu.append(new _CtxMenuItem({ type: 'separator' }));
+      menu.append(new _CtxMenuItem({ role: 'selectAll', label: 'Alles auswählen' }));
+    } else {
+      // Right-click on empty area — minimal menu (just select-all).
+      menu.append(new _CtxMenuItem({ role: 'selectAll', label: 'Alles auswählen' }));
+    }
+    menu.popup({ window: mainWindow });
   });
 
   // Phase 3: Boot Agent Core
@@ -590,6 +625,73 @@ const CHANNELS = {
       } catch (_e) { /* best-effort */ }
     }
     return { ok: true };
+  },
+
+  // v7.5.7-fix Phase 3: batch-set multiple settings in a single IPC.
+  // UI was previously sending one IPC per setting (4-8 per Save click),
+  // each triggering listeners and producing log spam. This handler
+  // applies all changes through Settings.setBatch (single _save call,
+  // toggle events fired only at the end).
+  'agent:set-settings-batch': async (event, payload) => {
+    if (!agent) return { error: 'Not booted' };
+    if (!payload || !Array.isArray(payload.entries)) return { error: 'Invalid payload (expected entries[])' };
+    const validated = [];
+    for (const entry of payload.entries) {
+      if (!Array.isArray(entry) || entry.length !== 2) continue;
+      const [key, value] = entry;
+      if (typeof key !== 'string' || !key) continue;
+      if (typeof value === 'function' || typeof value === 'symbol') continue;
+      validated.push([key, value]);
+    }
+    const settings = agent.container.resolve('settings');
+    const changes = settings.setBatch(validated);
+
+    // v7.5.7-fix Phase 3 Etappe 3: per-change log line so users can
+    // verify in the log which settings actually changed and to what.
+    // Sensitive keys (API keys, etc.) are redacted to first 4 chars.
+    if (changes.length > 0) {
+      const log = require('./src/agent/core/Logger').createLogger('Settings');
+      const SENSITIVE = new Set(['models.anthropicApiKey', 'models.openaiApiKey', 'peer.discoveryToken']);
+      for (const c of changes) {
+        const redact = (v) => {
+          if (SENSITIVE.has(c.key)) {
+            if (typeof v === 'string' && v.length > 0) return v.slice(0, 4) + '…(redacted)';
+            return v ? '(set)' : '(empty)';
+          }
+          if (Array.isArray(v)) return `[${v.length} items]`;
+          if (typeof v === 'object' && v !== null) return JSON.stringify(v).slice(0, 60);
+          return String(v);
+        };
+        log.info(`[CHANGE] ${c.key}: ${redact(c.from)} → ${redact(c.to)}`);
+      }
+    }
+
+    // Side-effects equivalent to single set-setting handler, but only
+    // run them once for each side-effect topic (apiKey/preferred/roles).
+    const changedKeys = new Set(changes.map(c => c.key));
+    if (changedKeys.has('models.anthropicApiKey')) {
+      const v = settings.get('models.anthropicApiKey');
+      if (v) { try { agent.container.resolve('model').configureBackend('anthropic', { apiKey: v }); } catch (_e) {} }
+    }
+    if (changedKeys.has('models.openaiApiKey') || changedKeys.has('models.openaiBaseUrl') || changedKeys.has('models.openaiModels')) {
+      const apiKey = settings.get('models.openaiApiKey');
+      const baseUrl = settings.get('models.openaiBaseUrl');
+      const models = settings.get('models.openaiModels') || [];
+      if (apiKey && baseUrl) { try { agent.container.resolve('model').configureBackend('openai', { baseUrl, apiKey, models }); } catch (_e) {} }
+    }
+    if (changedKeys.has('models.preferred')) {
+      const v = settings.get('models.preferred');
+      if (v) { try { await agent.switchModel(v); } catch (_e) {} }
+    }
+    // Roles: ANY role change → setRoles called once with full object
+    if ([...changedKeys].some(k => k.startsWith('models.roles.'))) {
+      try {
+        const roles = settings.get('models.roles') || {};
+        agent.container.resolve('model').setRoles(roles);
+      } catch (_e) {}
+    }
+
+    return { ok: true, changes };
   },
 
   'agent:get-goals': async () => {

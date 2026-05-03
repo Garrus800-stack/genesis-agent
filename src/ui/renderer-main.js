@@ -16,9 +16,9 @@
 const { t, loadI18n } = require('./modules/i18n');
 const { addMessage, startStreamingMessage, appendToStream, finishStream, sendMessage, stopGeneration, getStreamingState } = require('./modules/chat');
 const { initMonaco, setCurrentFile } = require('./modules/editor');
-const { updateStatus, showToast, showHealth, showSelfModel } = require('./modules/statusbar');
+const { updateStatus, refreshStatusI18n, showToast, showHealth, showSelfModel } = require('./modules/statusbar');
 const { loadFileTree } = require('./modules/filetree');
-const { openSettings, closeSettings, saveSettings, showGoalTree, undoLastChange, setupDragDrop, autoResize } = require('./modules/settings');
+const { openSettings, closeSettings, saveSettings, showGoalTree, undoLastChange, setupDragDrop, autoResize, refreshSettingsI18n } = require('./modules/settings');
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -218,6 +218,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       await window.genesis.invoke('agent:set-lang', this.value);
       await loadI18n();
+      // v7.5.7-fix Phase 3 Etappe 7: re-render JS-generated UI text
+      // (default-hints, MCP add-button, list empty-state) so the
+      // language change shows up in already-decorated elements.
+      try { refreshSettingsI18n(); }
+      catch (e) { console.warn('[UI] refreshSettingsI18n failed:', e.message); }
+      // v7.5.7-fix Phase 3 Etappe 8: re-render the live status-badge
+      // label with the new language (without it the badge snaps back
+      // to whatever data-i18n="ui.booting" resolves to).
+      try { refreshStatusI18n(); }
+      catch (e) { console.warn('[UI] refreshStatusI18n failed:', e.message); }
       showToast('Language: ' + this.value.toUpperCase(), 'success');
     } catch (err) { console.debug('[UI] Lang switch error:', err.message); }
   });

@@ -87,7 +87,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   // Component B — Failover Reason Classification
   // ──────────────────────────────────────────────────────────────
 
-  await test('B1 _classifyFailoverReason classifies all 5 categories correctly', () => {
+  await test('B1 _classifyFailoverReason classifies all 6 categories correctly', () => {
     const { ModelBridge } = require('../../src/agent/foundation/ModelBridge');
     const bridge = new ModelBridge({});
     // rate-limit
@@ -104,6 +104,15 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
     // auth
     assertEqual(bridge._classifyFailoverReason(new Error('401 Unauthorized')), 'auth');
     assertEqual(bridge._classifyFailoverReason(new Error('Invalid API key')), 'auth');
+    // v7.5.7-fix: subscription-required (live-observed: Ollama Cloud Pro-gated models)
+    assertEqual(
+      bridge._classifyFailoverReason(new Error('[OLLAMA] HTTP 403: {"error":"this model requires a subscription, upgrade for access: https://ollama.com/upgrade"}')),
+      'subscription-required'
+    );
+    assertEqual(
+      bridge._classifyFailoverReason(new Error('403 Forbidden: subscription required')),
+      'subscription-required'
+    );
     // other
     assertEqual(bridge._classifyFailoverReason(new Error('weird unknown failure')), 'other');
     assertEqual(bridge._classifyFailoverReason(null), 'other');

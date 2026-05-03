@@ -125,6 +125,32 @@ const availability = {
       _log.warn(`[MODEL] _persistUnavailable failed: ${err.message}`);
     }
   },
+
+  /**
+   * v7.5.7-fix: Cloud-model detection. Used by the boot-time warning
+   * when a cloud model is preferred without a configured fallback-chain.
+   * Mirrors the fbIsCloud helper in src/ui/modules/settings.js — the
+   * two need to agree on what "cloud" means.
+   * @param {string} modelName
+   * @returns {boolean}
+   */
+  _isCloudModelName(modelName) {
+    return typeof modelName === 'string' && /[:-]cloud(\b|$)/i.test(modelName);
+  },
+
+  /**
+   * v7.5.7-fix: emit boot-time warning + telemetry event when the
+   * preferred model is cloud-suffixed AND the fallback chain is empty.
+   * Called from ModelBridge boot's preferred-model selection path.
+   * @param {{ name: string, backend: string }} chosen
+   */
+  _warnIfCloudWithoutFallback(chosen) {
+    if (!chosen || !this._isCloudModelName(chosen.name)) return;
+    const chain = this._settings?.get?.('models.fallbackChain') || [];
+    if (Array.isArray(chain) && chain.length > 0) return;
+    _log.warn(`[MODEL] Preferred is cloud (${chosen.name}) without fallbackChain — Genesis will fail if this model is gated. Configure Settings → Fallback Chain.`);
+    this.bus?.fire?.('model:cloud-without-fallback', { model: chosen.name, backend: chosen.backend }, { source: 'ModelBridge' });
+  },
 };
 
 module.exports = { availability };

@@ -131,7 +131,7 @@ describe('SelfStatementLog: recordPromise (direct-API)', () => {
 // ────────────────────────────────────────────────────────
 
 describe('SelfStatementLog: race-safe message correlation', () => {
-  test('per-message flag survives parallel turn interleaving', () => {
+  test('self-statement contract: per-message flag survives parallel turn interleaving', () => {
     const events = [];
     const svc = makeService({ bus: { fire: (e, d) => events.push({ e, d }) } });
 
@@ -151,7 +151,7 @@ describe('SelfStatementLog: race-safe message correlation', () => {
     assertEqual(contradictions.length, 1, 'exactly one contradiction (turn B)');
   });
 
-  test('falls back to global flag when message not provided', () => {
+  test('self-statement contract: falls back to global flag when message not provided', () => {
     const events = [];
     const svc = makeService({ bus: { fire: (e, d) => events.push({ e, d }) } });
     svc.setLastIntrospectionPopulated(false);  // no message arg
@@ -160,7 +160,7 @@ describe('SelfStatementLog: race-safe message correlation', () => {
     assertEqual(contradictions.length, 1, 'contradiction via fallback');
   });
 
-  test('expired pending flags are GC-d', () => {
+  test('self-statement contract: expired pending flags are GC-d', () => {
     const svc = makeService();
     svc.setLastIntrospectionPopulated(true, 'old-msg');
     // Manually expire the entry

@@ -393,7 +393,15 @@ class AgentCoreHealth {
     safe('hotReloader', () => { c.tryResolve('hotReloader')?.unwatchAll(); });
     await safeAsync('network',    async () => { await c.tryResolve('network')?.shutdown(); });
     await safeAsync('mcpClient',  async () => { await c.tryResolve('mcpClient')?.shutdown(); });
-    await safeAsync('selfModel',  async () => { await c.tryResolve('selfModel')?.commitSnapshot('shutdown'); });
+    // v7.5.7-fix Phase 3: shutdown-snapshot commit was unconditionally on,
+    // pollutes git history on collaborator machines. Now opt-in via setting.
+    // Default: off (was: always on). Reflector/SelfModificationPipeline
+    // commits remain unchanged — those are at actual code-change boundaries.
+    await safeAsync('selfModel', async () => {
+      const settings = c.tryResolve('settings');
+      const enabled = settings?.get?.('agency.commitSnapshotOnShutdown') === true;
+      if (enabled) await c.tryResolve('selfModel')?.commitSnapshot('shutdown');
+    });
     await safeRetry('storage',    async () => { await c.tryResolve('storage')?.flush(); });
     safe('sandbox', () => { c.tryResolve('sandbox')?.cleanup(); });
 

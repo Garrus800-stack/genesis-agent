@@ -338,12 +338,39 @@ body {
   border-radius: 12px; width: 440px; max-width: 90vw; max-height: 80vh;
   overflow-y: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
+/* v7.5.7-fix: Settings modal needs more width — model names like
+   `qwen3-coder-next:q4_K_M` and `mannix/deepseek-coder-v2-lite-instruct:fp16`
+   were truncated to `mistral-…` / `mannix/d…` in the 440px default,
+   making models with similar prefixes indistinguishable. */
+.modal-content.modal-wide { width: 720px; }
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 20px; border-bottom: 1px solid var(--border);
 }
 .modal-header h3 { font-size: 15px; font-weight: 600; color: var(--text-primary); }
 .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+/* v7.5.7-fix Phase 2: Settings tabs to organize the (now larger) settings list. */
+.settings-tabs {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-tab {
+  background: transparent; border: none;
+  padding: 10px 16px;
+  color: var(--text-secondary); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+  border-bottom: 2px solid transparent;
+  font-family: inherit;
+}
+.settings-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.settings-tab.active {
+  color: var(--accent); border-bottom-color: var(--accent);
+}
+.settings-tab-panel { display: flex; flex-direction: column; gap: 16px; }
+.settings-tab-panel.hidden { display: none; }
+
 .modal-footer {
   display: flex; justify-content: flex-end; gap: 8px;
   padding: 12px 20px; border-top: 1px solid var(--border);
@@ -362,7 +389,58 @@ body {
 }
 .setting-divider { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
 .setting-section-label { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.8px; }
-.setting-hint { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+.setting-hint { font-size: 12px; color: var(--text-secondary); margin-top: 4px; line-height: 1.4; }
+.cloud-hint { color: var(--text-secondary); font-style: italic; }
+
+/* v7.5.7-fix: Fallback-Chain UI — two-column add/reorder layout */
+.fallback-chain-block {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  margin-top: 4px;
+}
+.fallback-chain-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fallback-chain-col-title {
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.fallback-list {
+  list-style: none; margin: 0; padding: 4px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-height: 140px; max-height: 320px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.fallback-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px; border-radius: var(--radius);
+  font-size: 12px; color: var(--text-primary);
+  background: transparent; transition: background 0.1s;
+}
+.fallback-item:hover { background: var(--bg-hover); }
+.fallback-item-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 12px;
+  cursor: help;
+}
+.fallback-item-backend { font-size: 10px; color: var(--text-secondary); padding: 1px 4px; border-radius: 3px; background: var(--bg); flex-shrink: 0; }
+.fallback-item-cloud { color: #d4a000; font-size: 11px; flex-shrink: 0; }
+.fallback-item-pos { font-size: 10px; color: var(--text-secondary); min-width: 16px; text-align: right; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.fallback-btn {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-secondary); cursor: pointer;
+  padding: 2px 6px; border-radius: 3px; font-size: 11px;
+  font-family: var(--font-sans); transition: all 0.1s;
+}
+.fallback-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.fallback-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.fallback-btn:disabled:hover { background: transparent; color: var(--text-secondary); border-color: var(--border); }
+.fallback-btn-add { color: var(--accent); }
+.fallback-btn-remove:hover { background: #c84141; border-color: #c84141; }
+.fallback-empty {
+  font-size: 11px; color: #c84141; padding: 4px 8px;
+  text-align: center; font-style: italic;
+}
+.fallback-empty.hidden { display: none; }
 .modal-btn {
   padding: 8px 20px; border-radius: var(--radius); border: none;
   cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s;
@@ -418,3 +496,66 @@ body.drag-over::after {
   .user-message .message-content, .agent-message .message-content { max-width: 95%; }
   .modal-content { width: 95vw; }
 }
+
+/* ── MCP Server List (v7.5.7-fix Phase 3 Etappe 2) ──────── */
+
+.mcp-server-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.mcp-server-row {
+  display: flex; gap: 8px; align-items: center; padding: 6px 8px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px;
+}
+.mcp-server-row .mcp-server-name { font-weight: 600; min-width: 120px; }
+.mcp-server-row .mcp-server-url {
+  flex: 1; font-family: monospace; font-size: 12px; color: var(--text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mcp-server-row .mcp-server-remove {
+  background: transparent; border: 1px solid var(--border); color: var(--text-secondary);
+  padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;
+}
+.mcp-server-row .mcp-server-remove:hover { color: #ff6b6b; border-color: #ff6b6b; }
+.mcp-server-list-empty { color: var(--text-secondary); font-style: italic; padding: 6px 0; }
+.mcp-server-add-row { display: flex; gap: 8px; align-items: center; }
+.mcp-server-add-row .mcp-server-input { flex: 1; }
+
+/* ── Default Hint + Reset Button (v7.5.7-fix Phase 3 Etappe 3) ── */
+
+.setting-default-hint {
+  display: inline-block; font-size: 12px; color: var(--text-secondary);
+  margin-left: 8px; opacity: 0.85; font-style: italic;
+}
+.setting-input-row { display: flex; gap: 6px; align-items: center; }
+.setting-input-row .setting-input { flex: 1; min-width: 0; }
+.setting-reset-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--text-secondary);
+  width: 28px; height: 28px; border-radius: 4px; cursor: pointer; font-size: 13px;
+  flex-shrink: 0; padding: 0; line-height: 1;
+}
+.setting-reset-btn:hover { color: var(--accent); border-color: var(--accent); }
+.setting-reset-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.setting-input.invalid { border-color: #ff6b6b !important; box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.2); }
+.setting-error {
+  display: block; color: #ff6b6b; font-size: 11px; margin-top: 4px;
+  font-weight: 500;
+}
+
+/* ── JSON Editor (v7.5.7-fix Phase 3 Etappe 4) ──────────── */
+
+.json-editor-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.json-editor-textarea {
+  width: 100%; min-height: 360px;
+  font-family: 'SF Mono', Consolas, 'Cascadia Code', monospace;
+  font-size: 12px; line-height: 1.5;
+  background: var(--bg-elevated); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+  resize: vertical; tab-size: 2;
+}
+.json-editor-textarea:focus { outline: none; border-color: var(--accent); }
+.json-editor-textarea.invalid { border-color: #ff6b6b; }
+.json-editor-status {
+  font-size: 12px; color: var(--text-secondary);
+  flex: 1; text-align: right;
+}
+.json-editor-status.valid { color: #4ade80; }
+.json-editor-status.invalid { color: #ff6b6b; }

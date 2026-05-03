@@ -375,6 +375,64 @@ class GraphStore {
     return toRemove.length;
   }
 
+  /**
+   * v7.5.7-fix Phase 2: Prune nodes when count exceeds maxNodes.
+   * LRU-basiert: ältester `accessed` Timestamp + niedrigster accessCount fliegt zuerst.
+   * Edges die zum gepruneten Node gehen werden mitentfernt.
+   * @param {number} maxNodes - Cap. 0 = unlimited (no-op).
+   * @returns {number} count of pruned nodes
+   */
+  pruneNodes(maxNodes) {
+    if (!maxNodes || maxNodes <= 0) return 0;
+    if (this.nodes.size <= maxNodes) return 0;
+
+    // Score nodes: lower = more prune-worthy.
+    // Combine recency (accessed) and usage (accessCount).
+    const now = Date.now();
+    const scored = [];
+    for (const [id, node] of this.nodes) {
+      const ageMs = now - (node.accessed || node.created || 0);
+      // Lower accessCount → more prune-worthy. Older accessed → more prune-worthy.
+      // Score normalized roughly: high accessCount and recent access = high score.
+      const score = (node.accessCount || 0) * 1000 - ageMs / (1000 * 60); // count weighted heavily
+      scored.push({ id, score });
+    }
+    scored.sort((a, b) => a.score - b.score); // ascending → lowest first
+    const toRemove = scored.slice(0, this.nodes.size - maxNodes).map(s => s.id);
+
+    for (const id of toRemove) {
+      const node = this.nodes.get(id);
+      if (!node) continue;
+      // Remove edges connected to this node
+      const edgeIds = this.neighborIndex.get(id);
+      if (edgeIds) {
+        for (const edgeId of edgeIds) {
+          const edge = this.edges.get(edgeId);
+          if (edge) {
+            const otherSide = edge.source === id ? edge.target : edge.source;
+            const otherSet = this.neighborIndex.get(otherSide);
+            if (otherSet) otherSet.delete(edgeId);
+            this.edges.delete(edgeId);
+          }
+        }
+        this.neighborIndex.delete(id);
+      }
+      // Remove from indexes
+      const normLabel = node.label.toLowerCase().trim();
+      const dedupeKey = `${node.type}::${normLabel}`;
+      this._dedupeIndex.delete(dedupeKey);
+      // labelIndex is last-write-wins, so only remove if it points at this id
+      if (this.labelIndex.get(normLabel) === id) this.labelIndex.delete(normLabel);
+      const typeSet = this.typeIndex.get(node.type);
+      if (typeSet) {
+        typeSet.delete(id);
+        if (typeSet.size === 0) this.typeIndex.delete(node.type);
+      }
+      this.nodes.delete(id);
+    }
+    return toRemove.length;
+  }
+
   // ── Serialization ─────────────────────────────────────
 
   serialize() {

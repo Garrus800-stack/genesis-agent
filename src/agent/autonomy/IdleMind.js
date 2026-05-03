@@ -113,6 +113,12 @@ class IdleMind {
     this.planPath = path.join(storageDir, 'plans.json');
     this.plans = this._loadPlans();
 
+    // v7.5.7-fix Phase 2: journal rotation. Default 10MB, keep 3 rotations.
+    // Read from settings if available (settings is late-bound — fallback ok).
+    this._journalMaxFileSizeMB = 10;
+    this._journalMaxRotations = 3;
+    this._journalRotateCheckCounter = 0;
+
     // Track what activities have been done recently
     this.activityLog = [];
     this._lastInsightTs = 0; // v5.7.0: Rate-limit proactive insights
@@ -534,6 +540,12 @@ class IdleMind {
     };
 
     try {
+      // v7.5.7-fix Phase 2: rotate journal if too large. Check every 50 writes.
+      this._journalRotateCheckCounter = (this._journalRotateCheckCounter || 0) + 1;
+      if (this._journalRotateCheckCounter >= 50) {
+        this._journalRotateCheckCounter = 0;
+        this._rotateJournalIfNeeded();
+      }
       if (this.storage) {
         this.storage.appendText('journal.jsonl', JSON.stringify(entry) + '\n');
       } else {
@@ -546,6 +558,34 @@ class IdleMind {
 
     if (this.eventStore) {
       this.eventStore.append('IDLE_THOUGHT', { activity, summary: content.slice(0, 200) }, 'IdleMind');
+    }
+  }
+
+  /**
+   * v7.5.7-fix Phase 2: rotate journal.jsonl when it exceeds max size.
+   * Best-effort, swallows errors. Same pattern as EventStore rotation.
+   */
+  _rotateJournalIfNeeded() {
+    if (this._journalMaxFileSizeMB <= 0) return;
+    try {
+      const stat = fs.statSync(this.journalPath);
+      const sizeMB = stat.size / (1024 * 1024);
+      if (sizeMB < this._journalMaxFileSizeMB) return;
+      // Walk backwards: drop the oldest, shift others up by one
+      for (let i = this._journalMaxRotations; i >= 1; i--) {
+        const cur = `${this.journalPath}.${i}`;
+        const next = `${this.journalPath}.${i + 1}`;
+        if (!fs.existsSync(cur)) continue;
+        if (i === this._journalMaxRotations) {
+          try { fs.unlinkSync(cur); } catch (_e) { /* swallow */ }
+        } else {
+          try { fs.renameSync(cur, next); } catch (_e) { /* swallow */ }
+        }
+      }
+      try { fs.renameSync(this.journalPath, `${this.journalPath}.1`); } catch (_e) { /* swallow */ }
+      _log.info(`[IDLE-MIND] Rotated journal.jsonl (was ${sizeMB.toFixed(1)}MB)`);
+    } catch (_err) {
+      // File doesn't exist yet — nothing to rotate
     }
   }
 }

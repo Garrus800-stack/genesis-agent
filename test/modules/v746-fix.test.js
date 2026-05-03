@@ -192,7 +192,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     assert(r.ok, `expected ok for inside path, got: ${JSON.stringify(r)}`);
   });
 
-  await test('#31 _checkRootDirSandbox rejects "dir /s C:\\"', () => {
+  await test('shell-safety contract: #31 _checkRootDirSandbox rejects "dir /s C:\\"', () => {
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const agent = Object.create(ShellAgent.prototype);
     agent.rootDir = 'C:\\Users\\Genesis\\project';
@@ -202,7 +202,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     assert(/recursive|outside/i.test(r.reason || ''), `reason: ${r.reason}`);
   });
 
-  await test('#31 _checkRootDirSandbox rejects "where /r C:\\"', () => {
+  await test('shell-safety contract: #31 _checkRootDirSandbox rejects "where /r C:\\"', () => {
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const agent = Object.create(ShellAgent.prototype);
     agent.rootDir = 'C:\\Users\\Genesis\\project';
@@ -211,7 +211,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     assert(!r.ok, 'expected reject "where /r C:\\"');
   });
 
-  await test('#31 _checkRootDirSandbox rejects absolute path outside rootDir on Windows', () => {
+  await test('shell-safety contract: #31 _checkRootDirSandbox rejects absolute path outside rootDir on Windows', () => {
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const agent = Object.create(ShellAgent.prototype);
     agent.rootDir = 'C:\\Users\\Genesis\\project';

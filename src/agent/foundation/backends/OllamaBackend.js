@@ -17,11 +17,39 @@ const { createLogger } = require('../../core/Logger');
 const _log = createLogger('OllamaBackend');
 
 class OllamaBackend {
-  /** @param {{ baseUrl?: string }} [opts] */
-  constructor({ baseUrl } = {}) {
+  /** @param {{ baseUrl?: string, keepAlive?: string|number }} [opts] */
+  constructor({ baseUrl, keepAlive } = {}) {
     this.name = 'Ollama';
     this.type = 'ollama';
     this.baseUrl = baseUrl || 'http://127.0.0.1:11434';
+    // v7.5.7-fix Phase 2: keep_alive sent to Ollama with each chat call.
+    // Default null = use Ollama's own default (5 minutes). Strings like
+    // "5m", "1h", "30s" or numeric seconds are valid Ollama values.
+    // 0 or "0" tells Ollama to immediately unload the model after the call.
+    // Genesis uses unloadModel() to actively unload a model when switching.
+    this.keepAlive = keepAlive == null ? null : keepAlive;
+  }
+
+  /**
+   * v7.5.7-fix Phase 2: Explicitly unload a model from Ollama's RAM.
+   * Used when Genesis switches from one model to another so we don't keep
+   * the previous one cached for 5min (Ollama default) while the new one
+   * loads — that's when users see "two models in RAM" issues.
+   * Implemented via POST /api/generate with empty prompt and keep_alive=0.
+   * Best-effort: errors are swallowed (model might not be loaded).
+   */
+  async unloadModel(modelName) {
+    if (!modelName) return false;
+    try {
+      await this._httpPost(`${this.baseUrl}/api/generate`, {
+        model: modelName,
+        prompt: '',
+        keep_alive: 0,
+      }, {}, 5000);
+      return true;
+    } catch (_err) {
+      return false;
+    }
   }
 
   /** Check if this backend is configured and usable */
@@ -68,6 +96,8 @@ class OllamaBackend {
         // for short one-word answers; saves cost on cloud-Ollama setups).
         ...(maxTokens ? { num_predict: maxTokens } : {}),
       },
+      // v7.5.7-fix Phase 2: respect configured keep_alive (null = Ollama default).
+      ...(this.keepAlive != null ? { keep_alive: this.keepAlive } : {}),
     };
 
     const data = await this._httpPost(
@@ -93,6 +123,8 @@ class OllamaBackend {
       messages: ollamaMessages,
       stream: true,
       options: { temperature, num_ctx: 8192 },
+      // v7.5.7-fix Phase 2: respect configured keep_alive.
+      ...(this.keepAlive != null ? { keep_alive: this.keepAlive } : {}),
     };
     if (typeof maxTokens === 'number' && maxTokens > 0) body.options.num_predict = maxTokens;
 

@@ -27,6 +27,15 @@ function applyI18n() {
     const translated = t(key);
     if (translated !== key) el.placeholder = translated;
   }
+  // v7.5.7-fix Phase 3 Etappe 6: HTML-content i18n for hints with
+  // inline tags (<code>, <strong>). Translation strings may include
+  // HTML — only use this for trusted, statically-defined strings,
+  // never for user-supplied content (XSS risk).
+  for (const el of $$('[data-i18n-html]')) {
+    const key = el.getAttribute('data-i18n-html');
+    const translated = t(key);
+    if (translated !== key) el.innerHTML = translated;
+  }
 }
 
 async function loadI18n() {

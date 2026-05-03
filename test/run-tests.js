@@ -1045,12 +1045,12 @@ describe('ConversationMemory v2 (TF-IDF)', () => {
 describe('Sandbox v2 (Security)', () => {
   const sandbox2 = new Sandbox(TEST_ROOT);
 
-  test('should block dangerous modules', async () => {
+  test('sandbox contract: should block dangerous modules', async () => {
     const result = await sandbox2.execute('const cp = require("child_process"); console.log(cp);');
     assert(result.error && (result.error.includes('not allowed') || result.error.includes('gesperrt')), 'Should block child_process: ' + result.error);
   });
 
-  test('should block filesystem writes outside sandbox', async () => {
+  test('sandbox contract: should block filesystem writes outside sandbox', async () => {
     // FIX v5.1.0: Cross-platform — /tmp doesn't exist on Windows
     const blockedPath = process.platform === 'win32' ? 'C:\\\\Windows\\\\evil.txt' : '/tmp/evil.txt';
     const result = await sandbox2.execute(`
@@ -1099,7 +1099,7 @@ describe('ToolRegistry v2 (System Tools)', () => {
     assert(result.stdout.includes('hello'), 'Should capture stdout');
   });
 
-  test('should block dangerous shell commands', async () => {
+  test('sandbox contract: should block dangerous shell commands', async () => {
     // FIX v5.1.0: Cross-platform — rm doesn't exist on Windows
     const dangerousCmd = process.platform === 'win32' ? 'del /f /s /q C:\\*' : 'rm -rf /';
     const result = await tools2.execute('shell', { command: dangerousCmd });

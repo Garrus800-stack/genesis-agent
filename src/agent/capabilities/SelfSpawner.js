@@ -141,7 +141,7 @@ class SelfSpawner {
         }, timeoutMs);
 
         // IPC messages from worker
-        worker.on('message', (msg) => {
+        worker.on('message', async (msg) => {
           if (msg.type === 'result') {
             clearTimeout(timer);
             this._stats.completed++;
@@ -149,6 +149,23 @@ class SelfSpawner {
             done({ success: msg.success, result: msg.result, error: msg.error });
           } else if (msg.type === 'progress') {
             this.bus.emit('spawner:progress', { taskId, ...msg.data }, { source: 'SelfSpawner' });
+          } else if (msg.type === 'llm-request') {
+            // v7.5.7-fix Phase 2: worker delegates LLM call to parent so it
+            // goes through ModelBridge (semaphore, cache, keep_alive).
+            // Best-effort — if model isn't available, send error back.
+            const requestId = msg.requestId;
+            try {
+              if (!this.model || typeof this.model.chat !== 'function') {
+                worker.send({ type: 'llm-response', requestId, error: 'Parent has no model' });
+                return;
+              }
+              const messages = [{ role: 'user', content: msg.userPrompt || '' }];
+              const text = await this.model.chat(msg.systemPrompt || '', messages, msg.taskType || 'analysis');
+              worker.send({ type: 'llm-response', requestId, text });
+            } catch (err) {
+              try { worker.send({ type: 'llm-response', requestId, error: err.message || String(err) }); }
+              catch (_e) { /* worker may be dead — swallow */ }
+            }
           }
         });
 

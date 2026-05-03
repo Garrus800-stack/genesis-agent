@@ -117,7 +117,7 @@ cd genesis-agent
 npm install
 npm start
 ```
-Then open Settings → paste your **Anthropic API key** or **OpenAI API key**. Genesis auto-detects and selects the best available model.
+Then open Settings → paste your **Anthropic API key** or **OpenAI API key**. Genesis auto-detects and selects the best available model. For a full reference of every settings field with defaults and validation rules, see [docs/SETTINGS.md](./docs/SETTINGS.md).
 
 **Option B — Local with Ollama (fully offline, private):**
 

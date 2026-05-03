@@ -119,10 +119,10 @@ function makeBridgeWithMocks(opts = {}) {
 
 describe('v7.5.2/A · Setting & Defaults', () => {
 
-  test('A1: agency.autoRouteByTask default is true', () => {
+  test('A1: agency.autoRouteByTask default is false (v7.5.7-fix Phase 2 — was true in v7.5.2; parallel model loads on CPU caused 180s timeouts. Users with GPU re-enable via UI.)', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-v752-'));
     const s = new Settings(dir);
-    assertEqual(s.get('agency.autoRouteByTask'), true);
+    assertEqual(s.get('agency.autoRouteByTask'), false);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 

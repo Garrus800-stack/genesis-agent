@@ -11,7 +11,24 @@ let monacoEditor = null;
 let currentFile = null;
 
 function initMonaco() {
-  const localPath = '../../node_modules/monaco-editor/min/vs';
+  // v7.5.7-fix Phase 3 Etappe 9: Monaco's worker uses `paths.vs` to resolve
+  // worker files via importScripts(). When `paths.vs` is a RELATIVE URL
+  // ('../../node_modules/...'), the AMD loader keeps it relative — but the
+  // worker runs in a `blob:` context where relative URLs cannot be resolved
+  // back to file paths. The worker then crashes with:
+  //   "Failed to execute 'importScripts': The URL '../../node_modules/.../tsWorker.js' is invalid."
+  // Fix: resolve to an ABSOLUTE URL against the document base before
+  // handing it to Monaco. This way the worker bootstrap (which lives at
+  // a blob: URL with no useful base) still has a fully-qualified file://
+  // (or https://) URL to importScripts().
+  const localPathRel = '../../node_modules/monaco-editor/min/vs';
+  let localPath;
+  try {
+    // window.location.href in Electron renderer = file:///.../index.bundled.html
+    localPath = new URL(localPathRel, window.location.href).href;
+  } catch (_e) {
+    localPath = localPathRel; // fallback shouldn't be hit, but stay safe
+  }
   const cdnPath = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs';
 
   function bootstrapMonaco() {
@@ -27,7 +44,7 @@ function initMonaco() {
       scrollBeyondLastLine: false,
     });
     monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveCurrentFile);
-    console.debug('[UI] Monaco Editor ready');
+    console.debug('[UI] Monaco Editor ready (path: ' + localPath + ')');
   }
 
   /* global require:false, monaco:false */

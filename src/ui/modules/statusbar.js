@@ -7,9 +7,24 @@ const { t } = require('./i18n');
 
 const $ = (sel) => document.querySelector(sel);
 
+// v7.5.7-fix Phase 3 Etappe 8: remember the last applied status so we
+// can re-render its label when the language changes. Without this, the
+// status-badge shows whatever the static `data-i18n="ui.booting"` text
+// resolves to right after `applyI18n()` runs — i.e. it snaps back to
+// "Booting..." even if the live state is "ready" or "idle".
+let _lastStatus = null;
+
 function updateStatus(status) {
   const badge = $('#status-badge');
   if (!badge || !status) return;
+  // Once we have a real (non-initial) status update, the static i18n
+  // attribute on the element becomes a liability — applyI18n() would
+  // overwrite our live textContent on every language switch. Drop it
+  // after the first real update; we manage the text ourselves.
+  if (status.state && status.state !== 'booting' && badge.hasAttribute('data-i18n')) {
+    badge.removeAttribute('data-i18n');
+  }
+  _lastStatus = status;
   badge.className = 'badge badge-' + (status.state || 'ready');
   const labels = {
     ready: t('ui.ready'), thinking: t('ui.thinking'),
@@ -21,6 +36,36 @@ function updateStatus(status) {
   const label = labels[status.state];
   if (label) badge.textContent = label;
   if (status.detail) badge.title = status.detail;
+}
+
+/**
+ * Re-render the status-badge label using the most recent status payload.
+ * Called from the language-change handler after applyI18n(), so the live
+ * status (e.g. "Ready" / "Bereit") follows the language switch.
+ *
+ * If we've never seen a real status update yet (renderer registered its
+ * listener after the agent fired the initial `ready` event), fall back
+ * to refreshing whatever the badge currently says by mapping its known
+ * CSS class back to a state. Without this, language switches could leave
+ * a stale label in place (the symptom: badge stays "Bereit" even after
+ * switching to EN).
+ */
+function refreshStatusI18n() {
+  if (_lastStatus) {
+    updateStatus(_lastStatus);
+    return;
+  }
+  // Fallback: derive state from the badge's CSS class. This handles the
+  // case where the agent's initial status:'ready' fired before we
+  // registered our IPC listener — _lastStatus is still null but the
+  // badge already shows something.
+  if (typeof document === 'undefined') return; // safe in non-browser test env
+  const badge = $('#status-badge');
+  if (!badge) return;
+  const m = (badge.className || '').match(/badge-(\w+)/);
+  if (m && m[1] && m[1] !== 'booting') {
+    updateStatus({ state: m[1] });
+  }
 }
 
 function showToast(message, type = 'info') {
@@ -68,4 +113,4 @@ async function showSelfModel() {
   } catch (err) { addMessage('agent', `Self-model error: ${err.message}`, 'error'); }
 }
 
-module.exports = { updateStatus, showToast, showHealth, showSelfModel };
+module.exports = { updateStatus, refreshStatusI18n, showToast, showHealth, showSelfModel };

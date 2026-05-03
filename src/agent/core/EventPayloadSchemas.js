@@ -65,6 +65,7 @@ const SCHEMAS = {
 
   // Self-Statement Log (v7.5.5)
   'self-statement:contradiction': { text: 'required', type: 'required', intent: 'required', ts: 'required' },
+  'self-statement:activity-hint': { text: 'required', intent: 'required', activeGoalCount: 'required', ts: 'required' },
 
   // Circuit Breaker
   'circuit:state-change': { from: 'required', to: 'required' },
@@ -323,6 +324,7 @@ const SCHEMAS = {
   // v7.5.6: model availability tracking
   'model:marked-unavailable':    { modelName: 'required', reason: 'required', ttlMs: 'required' },
   'model:unavailable-cleared':   { modelName: 'required', automatic: 'required' },
+  'model:cloud-without-fallback': { model: 'required', backend: 'required' },
   // v7.5.6: reasoning-block trace from <think>...</think> output of reasoning models
   'model:thinking-trace':        { text: 'required', modelName: 'required' },
 
@@ -679,6 +681,8 @@ const SCHEMAS = {
   'intent:cascade-decision': { stage: 'required', verdict: 'required', signalsMatched: 'optional' },
   'knowledge:learned':      { count: 'optional', source: 'optional', text: 'optional' },
   'knowledge:node-added':   { id: 'required', type: 'optional', label: 'optional' },
+  // v7.5.7-fix Phase 2: KG LRU-pruning emit
+  'knowledge:nodes-pruned': { count: 'required', remaining: 'required' },
   'meta:outcome-recorded':  { category: 'required', success: 'required', model: 'optional', total: 'optional' },
   'meta:recommendations-updated': {},
   'needs:high-drive':       { need: 'required' },
@@ -730,6 +734,7 @@ const SCHEMAS = {
   'store:PRESERVATION_BLOCK':          { id: 'required', type: 'required', payload: 'required' },
   // v7.5.6 carry-over: live-found via DEV-warning on Windows 2026-05-02
   'store:SELF_STATEMENT_CONTRADICTION': { id: 'required', type: 'required', payload: 'required' },
+  'store:SELF_STATEMENT_ACTIVITY_HINT': { id: 'required', type: 'required', payload: 'required' },
 
   // v7.1.2: Causal Annotation
   'causal:recorded':            { stepId: 'required', changes: 'required', relation: 'required' },

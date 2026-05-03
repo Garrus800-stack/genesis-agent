@@ -30,8 +30,16 @@ function phase2(ctx, R) {
     }],
 
     ['workerPool', {
-      phase: 2, deps: [], tags: ['intelligence'],
-      factory: () => new (R('WorkerPool').WorkerPool)({ bus }),
+      phase: 2, deps: ['settings'], tags: ['intelligence'],
+      // v7.5.7-fix Phase 2: pass settings-driven maxWorkers when configured.
+      // 0/undefined falls back to original logic (cpus()-1).
+      factory: (c) => {
+        const settings = c.tryResolve ? c.tryResolve('settings') : null;
+        const maxWorkers = settings?.get?.('workerPool.maxWorkers');
+        const opts = { bus };
+        if (typeof maxWorkers === 'number' && maxWorkers > 0) opts.maxWorkers = maxWorkers;
+        return new (R('WorkerPool').WorkerPool)(opts);
+      },
     }],
 
     ['promptBuilder', {

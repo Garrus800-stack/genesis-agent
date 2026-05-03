@@ -381,11 +381,19 @@ Genesis is transparent about its reasoning. Watch for these markers:
 
 ## 9. Configuration
 
-All settings are in the Settings panel (gear icon in the UI):
+All settings are in the Settings panel (gear icon in the UI). Six tabs
+group ~150 fields by purpose: **Models**, **Behavior**, **Limits**,
+**MCP**, **Advanced**, **JSON Editor** (for fields not surfaced by the
+dedicated tabs).
 
-**Models:** API keys, preferred model, role assignments (chat, code, analysis, planning)
+For a full reference with every field, default value, and validation
+range, see [SETTINGS.md](./SETTINGS.md). Quick highlights:
 
-**Autonomy:** Trust level (0–3), max steps per goal, idle thinking interval
+**Models:** API keys, preferred model, per-task role assignments (chat, code, analysis, creative), Ollama keep-alive
+
+**Behavior:** Trust level (0–3), Daemon and IdleMind toggles, goal-add mode, auto-route by task
+
+**Limits:** Cost-Guard token caps, memory caps (KG / SelfStatementLog / EpisodicMemory), shell/HTTP/Git timeouts
 
 You can also change the trust level directly from the chat — no settings panel needed. Just type:
 

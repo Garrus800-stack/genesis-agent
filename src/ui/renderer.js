@@ -51,6 +51,7 @@ Genesis.UI.i18n = (() => {
   function apply() {
     $$('[data-i18n]').forEach(el => { const k = el.getAttribute('data-i18n'), v = t(k); if (v !== k) el.textContent = v; });
     $$('[data-i18n-placeholder]').forEach(el => { const k = el.getAttribute('data-i18n-placeholder'), v = t(k); if (v !== k) el.placeholder = v; });
+    $$('[data-i18n-html]').forEach(el => { const k = el.getAttribute('data-i18n-html'), v = t(k); if (v !== k) el.innerHTML = v; });
   }
   async function load() {
     try { strings = await window.genesis.invoke('agent:get-lang-strings'); apply(); if (strings._lang) { const s = $('#lang-select'); if (s) s.value = strings._lang; } }
@@ -159,7 +160,13 @@ Genesis.UI.markdown = (() => {
 Genesis.UI.monaco = (() => {
   let editor = null, currentFile = null;
   function init() {
-    const local = '../../node_modules/monaco-editor/min/vs';
+    // v7.5.7-fix Phase 3 Etappe 9: relative `paths.vs` breaks Monaco's
+    // worker because importScripts() in a blob: worker can't resolve
+    // '../../...'. Convert to absolute URL via the document base.
+    const localRel = '../../node_modules/monaco-editor/min/vs';
+    let local;
+    try { local = new URL(localRel, window.location.href).href; }
+    catch (_e) { local = localRel; }
     // FIX v4.10.0 (L-4): CDN fallback gated behind explicit user action.
     // Previous: silently loaded from cdnjs.cloudflare.com if local node_modules
     // was missing. This is a supply-chain risk (CDN compromise → code injection).
@@ -528,7 +535,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   $('#btn-settings').addEventListener('click', () => Genesis.UI.settings.open());
   $('#btn-undo').addEventListener('click', () => Genesis.UI.undo.exec());
-  $('#lang-select').addEventListener('change', async function() { if (!Genesis.UI.boot.ready) return; try { await window.genesis.invoke('agent:set-lang', this.value); await Genesis.UI.i18n.load(); Genesis.UI.toast.show('Language: '+this.value.toUpperCase(), 'success'); } catch (e) { console.debug('[UI] Lang:', e.message); } });
+  $('#lang-select').addEventListener('change', async function() { if (!Genesis.UI.boot.ready) return; try { await window.genesis.invoke('agent:set-lang', this.value); await Genesis.UI.i18n.load(); if (Genesis.UI.settings && typeof Genesis.UI.settings.refreshI18n === 'function') Genesis.UI.settings.refreshI18n(); Genesis.UI.toast.show('Language: '+this.value.toUpperCase(), 'success'); } catch (e) { console.debug('[UI] Lang:', e.message); } });
   $('#model-select').addEventListener('change', function() { Genesis.UI.models.switchTo(this.value); });
   document.addEventListener('keydown', (e) => { if (e.ctrlKey&&e.key==='z'&&!e.shiftKey&&document.activeElement?.id!=='chat-input'&&!Genesis.UI.monaco.editor?.hasTextFocus()) { e.preventDefault(); Genesis.UI.undo.exec(); } });
 

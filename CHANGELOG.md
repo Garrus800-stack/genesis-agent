@@ -1,3 +1,470 @@
+## [7.5.7]
+
+**A multi-stage release** covering three audit-backlog items, four
+live-bug fixes discovered in the first hours of running v7.5.7,
+foundation hardening for cost/concurrency/rotation, and a nine-stage
+UI polish pass that turned every active runtime knob into a UI control
+and translated every label and hint.
+
+Triggered by a live `qwen3-coder-next:cloud` failure during deployment
+that exposed several latent issues at once: subscription-gated 403s
+being retried as auth-failures every hour, a fallback-chain UI that
+users could not tell whether they had configured, a settings modal too
+narrow for full model names, and Genesis chat with no right-click
+context menu. All four fixed in-version. The completeness pass that
+followed exposed deeper gaps (settings not editable from the UI,
+partial i18n, status badge stuck on language switches, Monaco worker
+crashes) which were worked through stage by stage.
+
+Defaults are unchanged with two exceptions:
+- `agency.autoRouteByTask` flipped from `true` to `false` (caused
+  multi-model loading on CPU-only Ollama setups; can be re-enabled in
+  Settings)
+- `agency.commitSnapshotOnShutdown` flipped from hardcoded-on to `false`
+  (was polluting collaborator git histories; can be re-enabled in
+  Settings)
+
+### Item 1 — Activity-Claim Confabulation Detection
+
+`SelfStatementLog._classify()` already detects structural confabulations
+(structural-without-introspection-data). It does NOT yet detect activity
+confabulations: Genesis claiming "I'm working on X" in 1st-person
+present-progressive while `goalStack` shows zero active goals.
+Live-evidenced in v7.5.x test runs.
+
+Implementation: a new dimension parallel to `_classify`. Pattern matches
+DE+EN present-progressive activity verbs (excluding future markers and
+past markers), checked at `chat:completed` time against a snapshot of
+`goalStack.getActiveGoals()`. When the claim fires against an empty
+goal-stack, emit `self-statement:activity-hint` (soft signal —
+confidence 0.6, intentionally NOT named "contradiction" because a
+single instance is not strong evidence; consumers should look at
+patterns).
+
+`goalStack` injected via optional lateBinding in `phase9-cognitive.js`
+(degrades silently when missing). Activity-claim is a separate dimension
+from the existing structural/promise/emotional classification — a
+single statement can be flagged on both. New event in catalog:
+`SELF_STATEMENT.ACTIVITY_HINT` plus `store:SELF_STATEMENT_ACTIVITY_HINT`.
+New JSONL fields per record: `activityClaim` (boolean) and
+`activeGoalCount` (number or null).
+
+### Item 2 — Slash-Discipline Audit-Script
+
+The slash-only / fuzzy / fuzzy+slash-mix classification across all
+intents was scattered across `IntentPatterns.js` and human reasoning.
+`scripts/audit-slash-discipline.js` makes it machine-readable: parses
+every intent, classifies match-style, cross-checks against
+`SECURITY_REQUIRED_SLASH`, and lists unprotected fuzzy intents as
+findings. A built-in `FUZZY_BY_DESIGN` whitelist documents which
+intents are intentionally fuzzy with per-entry rationale (greeting,
+retry, project-scan, web-lookup, settings, undo, open-path, mcp).
+
+At v7.5.7 baseline: 32 intents, 18 pure slash-only, 8 fuzzy+slash mix
+(10 entries in security-set), 6 fuzzy-only, 0 findings.
+
+`open-path` and `mcp` are explicitly whitelisted — natural-language
+interaction is the design intent, and the sandbox + path-existence
+checks (v7.5.6 ShellSafety) provide the real boundary. Slash-only there
+would be theatre.
+
+New npm scripts: `audit:slash`, `audit:slash:strict` (exit 1 on
+findings).
+
+### Item 3 — Contract-Markers Expansion
+
+`scripts/check-stale-refs.js` had ONE contract entry pre-v7.5.7
+(gate-contract from v7.3.6 #11). The mechanism — minimum-count
+regression-guard against test-rename / test-delete — was sitting
+nominally available but unused. v7.5.7 adds six more contracts covering
+Genesis core safety boundaries:
+
+- `injection-gate contract:` (4 tests) — authority+credential detection
+- `preservation contract:` (2 tests) — fail-closed enforcement
+- `self-gate contract:` (3 tests) — observe-only mode (intentional v7.3
+  design — accidental promotion to block-mode would break the agency
+  contract)
+- `sandbox contract:` (3 tests) — module/fs/shell guards
+- `shell-safety contract:` (3 tests) — rootDir-sandbox
+- `self-statement contract:` (3 tests) — race-safe message correlation
+
+Tests get a prefix-rename only — no behavior change. `check-stale-refs.js`
+now verifies all 7 contracts (1 old + 6 new) every run.
+
+Plus `scripts/audit-contracts.js`: discovery-tool that scans
+security-relevant test files for tests with security-verb names that
+LACK a contract-prefix marker. v7.5.7 baseline: 77 unprotected
+candidates across 16 files. The script never adds anything
+automatically — it is a checklist, not a writer.
+
+New npm scripts: `audit:contracts`, `audit:contracts:strict`.
+
+### Item 4 — Subscription-Required failover reason
+
+Live-bug discovered minutes after deployment: Ollama Cloud Pro-gated
+403s were misclassified as `auth` and retried every hour for the 1h
+auth-TTL. Live log showed 4 × 403 in 12 minutes before the user
+noticed. Subscription-gates are not "fix yourself in an hour" problems.
+
+New failover reason `subscription-required` (24h TTL), checked BEFORE
+the generic `auth` branch in `_classifyFailoverReason`. Triggered by
+response bodies containing `subscription`, `requires upgrade`, or
+`ollama.com/upgrade`. Cloud models that are Pro-gated stop being
+hammered every hour.
+
+New event `model:cloud-without-fallback` emitted at boot when the
+preferred model is cloud-suffixed (`:cloud` or `-cloud`) AND no
+fallback chain is configured. Surfaces the risk at one decision-point
+instead of as a mid-session surprise.
+
+`docs/TROUBLESHOOTING.md` gained a section explaining the three user
+options on a 403: switch to a local variant, configure a fallback
+chain, or subscribe.
+
+### Item 5 — Fallback-Chain UI rebuild
+
+The previous `<select multiple size="3">` with "Hold Ctrl to select
+multiple" was unintuitive and frequently misread (marked ≠ selected).
+Live-discovered: a user with 24 installed models had an empty
+`fallbackChain` because what they thought was selection was only
+marking. The v7.5.6 unavailability-marker had nothing to fall back to
+when the cloud model started 403-ing.
+
+Rebuilt as two adjacent lists: "Available Models" and "Your Chain"
+with `[+ Add]` / `[↑] [↓] [×]` per row, cloud-suffixed models marked
+with a `☁` icon, empty-chain warning when the chain has zero entries.
+Pure helpers (`fbAdd`, `fbRemove`, `fbMove`, `fbIsCloud`) extracted so
+the logic is unit-testable without a DOM.
+
+### Item 6 — Settings modal width and tooltip
+
+Even with the new chain UI in place, the 440px modal was too narrow:
+names like `qwen3-coder-next:q4_K_M` and
+`mannix/deepseek-coder-v2-lite-instruct:fp16` displayed as
+`qwen3-co…` / `mannix/d…`. Models with similar prefixes were
+indistinguishable.
+
+Modal made wider via a `.modal-wide` CSS class (720px instead of the
+default 440px). Default modal stays narrow for simple dialogs.
+Fallback-list min-height bumped from 96 to 140px and max-height from
+200 to 320px so more rows fit without scrolling. `fallback-item-name`
+gets `cursor: help` as a visual signal that hovering reveals the full
+name via the existing `title` attribute.
+
+### Item 7 — Right-click context menu
+
+Genesis chat had no mouse context-menu. Right-click did nothing — only
+Ctrl+C / Ctrl+V worked. Unintuitive on Windows where mouse-context is
+the standard expectation. Users could mark text with the mouse but had
+to switch to keyboard to copy.
+
+Right-click context-menu installed in `main.js` via
+`webContents.on('context-menu', ...)`. Editable fields get
+Cut / Copy / Paste / Select-All; selected text in non-editable areas
+gets Copy + Select-All; empty area gets Select-All only. Labels are
+localized to the UI language.
+
+### Item 8 — Auto-Routing default off + Settings expansion
+
+`agency.autoRouteByTask` (introduced v7.5.2) was loading multiple model
+weights into Ollama in parallel — one per task category — which on
+CPU-only setups led to 180-second timeouts as Ollama swapped models in
+and out. Default flipped to `false`. Users with GPU or multi-backend
+setups can re-enable in Settings.
+
+Settings tree expanded with previously-internal-only knobs now exposed
+in the data layer:
+
+- `models.ollamaKeepAlive` — `null` (= Ollama default 5min), `30s` to
+  free RAM faster, `0` to unload immediately, `-1` or `1h` to keep
+  loaded longer
+- `models.maxConcurrent` — parallel LLM-request cap (default 3)
+- `selfSpawner.{maxWorkers, timeoutMs, memoryLimitMB}`
+- `workerPool.maxWorkers` (0 = auto)
+- `eventStore.{maxFileSizeMB, maxRotations}` for `events.jsonl` rotation
+- `knowledgeGraph.maxNodes`, `selfStatementLog.maxStatements`,
+  `episodicMemory.maxEpisodes` for memory caps
+- `ui.{editorFontSize, chatFontSize}`
+- `health.{httpEnabled, httpPort}`
+- `llm.costGuard.{enabled, sessionTokenLimit, dailyTokenLimit, warnThreshold}`
+
+All values default to the previous service-internal values — no
+behaviour change, only now persistable and visible.
+
+### Item 9 — Worker IPC + EventStore/Journal rotation
+
+`SelfSpawner` workers now talk to the parent process over a structured
+IPC channel rather than parsing log output, allowing typed tool-calls
+and cancellation. `EventStore` and `IdleMind`'s journal now rotate at
+configurable size limits (defaults 50MB / 10MB) with N rotations kept
+(default 3), preventing unbounded disk growth on long-running installs.
+
+### Item 10 — UI honesty pass
+
+Boot log now reports actual versus advertised state. Examples:
+- `[+] Auto-routing: enabled (taskType → ModelRouter)` vs
+  `[+] Auto-routing: disabled` — depending on the actual config, not
+  the `autoRouteByTask` field's existence
+- `[+] Active: Cost-Guard 500k/session 2.0M/day` — only printed when
+  Cost-Guard is wired and active, with the actual limits
+- `[+] MCP: 0/0 servers, 0 tools` — distinguishes "MCP enabled but
+  empty" from "MCP disabled"
+
+Quiet log = vanilla install. Anything off-default surfaces in the boot
+log.
+
+### Item 11 — Foundation bug fixes (UI-pass round 1)
+
+Three real bugs discovered during Phase-2 review and live operation:
+
+**EventStore rotation broke the hash-chain.** Item 9 added file
+rotation for `events.jsonl`. `_loadLastHash()` read only `events.jsonl`,
+so after rotation it found an empty file → `lastHash` reset to genesis
+hash → first new event got the wrong `prevHash` →
+`verifyIntegrity()` reported `broken-chain` permanently. Fix:
+`_loadLastHash()` falls back to scanning rotated files when
+`events.jsonl` is empty, walking lines backwards for the last valid
+hash. `verifyIntegrity({ includeRotated: true })` (now default) walks
+all rotated files in chronological order. Reports file path alongside
+event ID for any violations.
+
+**Auto-commit polluted git history on collaborator machines.**
+`AgentCoreHealth.js` shutdown handler called
+`selfModel.commitSnapshot('shutdown')` unconditionally —
+`git add -A && git commit -m "shutdown" --allow-empty` ran in every
+`.git` repo. On collaborator clones this added "shutdown" commits to
+push-history just from `npm install` / `npm test` triggering the
+lifecycle. Now gated behind `agency.commitSnapshotOnShutdown` (default
+`false`). Code-change snapshots in `Reflector` /
+`SelfModificationPipeline` are unaffected.
+
+**Settings save log spam.** Saving the Settings dialog produced one
+log line per field (~30 lines for an unchanged save) because each
+field-write fired its own write callback. New `Settings.setBatch()`
+deduplicates via JSON-equality before writing, plus
+`ModelBridge.setRoles` got JSON-equality dedup. Save now produces one
+batch IPC + one `[CHANGE]` line per actually-changed field (zero lines
+if nothing changed). Sensitive fields (API keys, peer discovery token)
+are redacted to first 4 chars in the change log.
+
+### Item 12 — Settings completeness (UI-pass round 2)
+
+22 active runtime knobs that previously required hand-editing
+`.genesis/settings.json` are now first-class UI fields, grouped across
+six tabs (Models / Behavior / Limits / MCP / Advanced / JSON Editor):
+
+Cost-Guard (4 fields), EventStore rotation (2), SelfSpawner (3),
+WorkerPool max-workers, EpisodicMemory max-episodes, IdleMind journal
+rotation (2), `daemon.autoRepair` / `daemon.autoOptimize`,
+`idleMind.maxActiveGoals`, `security.allowNetworkPeers` /
+`allowFileExecution`, `agency.commitSnapshotOnShutdown`, MCP server
+list (editable rows), Health server toggle and port,
+`ui.editorFontSize` / `chatFontSize`, OpenAI custom models list.
+
+Wiring fix: `episodicMemory.maxEpisodes` was previously read from a
+hardcoded constant; now wired via `phase5-hexagonal.js` factory.
+`Settings.js` defaults expanded for `health.{httpEnabled, httpPort}`
+and `llm.costGuard.{enabled, sessionTokenLimit, dailyTokenLimit,
+warnThreshold}` so the data layer matches what the UI now exposes.
+
+### Item 13 — Settings behaviour & validation (UI-pass round 3)
+
+Field-level UX layer on top of the new completeness:
+
+- Central `src/ui/modules/settings-defaults.js` with `FIELD_REGISTRY`:
+  single source of truth for defaults, ranges, and reset-safety
+- Per-field reset button (↺) returns the field to default — except for
+  API keys (default is empty, no point)
+- Per-field default hint (`Default: <value>`, with min/max where
+  applicable) translated into the active language
+- Range validation with red border + inline error; Save is blocked
+  until all fields validate
+- Per-field-change log line in `main.js`:
+  `[CHANGE] foo.bar: 5 → 7`. Sensitive keys (`apiKeys`,
+  `peer.discoveryToken`) redacted to first 4 chars
+- Boot summary block lists non-default toggles so users can see at a
+  glance what is active for this run
+- `Settings._sanityClampOnLoad()` clamps ~25 known numeric paths after
+  load, in case the on-disk JSON has out-of-range values from manual
+  edits
+
+### Item 14 — JSON editor (UI-pass round 4)
+
+Power-user tab for the ~50 settings that don't have a dedicated form
+input: textarea showing pretty-printed `settings.json`, Validate /
+Reload buttons, live syntax check (debounced 400ms) with a status
+indicator. API keys and the peer discovery token are masked as
+`***MASKED***`; the diff-collector skips the masked sentinel so
+secrets cannot be accidentally exfiltrated by editing here. Form-field
+values win on conflict — a stale JSON edit cannot clobber a fresh form
+change.
+
+### Item 15 — Live-test follow-ups (UI-pass round 5)
+
+Six bugs surfaced when running the round-1 to round-4 changes live:
+
+- Save and Cancel buttons were appearing under the chat panel because
+  `index.bundled.html` had a duplicate modal-footer plus stale script
+  tags from `index.html`. Removed the corrupted block.
+- Build warning `Duplicate key "ui.blocked"` — earlier i18n bulk inserts
+  added the same key twice. Removed duplicates.
+- `[CHANGE] mcp.servers: [0 items] → [0 items]` showed up on every save
+  because arrays were compared by reference. `Settings.setBatch()` now
+  uses `JSON.stringify` deep-equality.
+- Default-hint text was rendered at 10–11px — too small to read at a
+  glance. Bumped to 12px with `line-height: 1.4`.
+- EN mode still showed German strings for ~95 newly-added labels and
+  hints. Added `data-i18n` attributes plus EN/DE strings in
+  `Language.js` via a bulk pass.
+- The bulk pass had thrown away the `fr`/`es` blocks and the closing
+  `};` of `Language.js`. Repaired via `git stash` + tail-extraction
+  from the pre-pass file.
+
+### Item 16 — i18n completeness (UI-pass round 6)
+
+After round 5, EN mode still showed German strings in 11 labels, 4
+section headers, 1 placeholder, and 2 hints that the bulk pass could
+not match. Manually added `data-i18n` attributes to all of them:
+Active Model, role-name labels (Chat / Code / Analysis / Creative),
+Model Roles, Fallback Chain, API Keys, IdleMind, MCP placeholders,
+Ollama keep-alive hint with inline `<code>` tags.
+
+`buildDefaultHint()` in `settings-defaults.js` made i18n-aware via an
+optional translate-function parameter (`Default` / `Min` / `Max` /
+`on` / `off` / `empty` keys). `validateField()` similarly i18n-aware.
+
+New attribute `data-i18n-html` for hints with inline markup like the
+Ollama keep-alive hint, which contains `<code>` tags — applied via
+`innerHTML` in `i18n.js` and `renderer.js`. Eight stray duplicate
+keys removed (`settings.section.idle_mind`,
+`mcp.placeholder_name/url`, `keepalive.hint`).
+
+### Item 17 — i18n live-refresh (UI-pass round 7)
+
+Root cause: `applyI18n()` only patches elements with a `data-i18n*`
+attribute. JS-generated text (default-hints, MCP empty-state list,
+JSON-editor status, Add/Remove buttons) has no attribute and stays
+in the previous language on switch.
+
+Fix: `_decorateField()` re-renders the default-hint on every call (not
+only the first); structural decoration is gated by a `_decorated` flag
+so it still runs only once. MCP list, JSON-editor status text, and
+Add/Remove buttons now use `t(key)`. New exported function
+`refreshSettingsI18n()` re-decorates every field, re-renders the MCP
+list, and re-translates buttons; called from the language-change
+handler. New i18n keys (en+de): `settings.mcp.error_*`,
+`settings.json.status_*`. `Language.js` now has 392 keys symmetric en
++ de.
+
+### Item 18 — Status badge & Monaco CSP (UI-pass round 8)
+
+**Status badge stuck on "Booting..." after language switch.**
+`<span data-i18n="ui.booting">` was being overwritten by `applyI18n()`
+on every switch even after boot was complete. Fix in `statusbar.js`:
+`updateStatus()` removes the `data-i18n` attribute on the first
+non-booting update. `_lastStatus` is kept module-scoped. New exported
+`refreshStatusI18n()` re-renders the badge in the new language.
+
+**Monaco web-worker blocked by CSP.** `main.js` was sending an HTTP
+header CSP without `worker-src` or `blob:`. Workers crashed at
+construction. Fix: added `script-src ... blob:` and
+`worker-src 'self' blob:` to the headers CSP. The HTML-meta CSP was
+already correct.
+
+### Item 19 — Monaco worker path & status fallback (UI-pass round 9)
+
+**Monaco worker `importScripts()` failed with invalid URL.** With CSP
+unblocked from round 8, workers started — and immediately crashed
+because `paths.vs` was set to a relative URL (`../../node_modules/...`).
+Workers run at a `blob:` URL; relative paths cannot be resolved back
+to a real file there. Fix in `editor.js` and `renderer.js`: convert to
+absolute URL via `new URL(rel, window.location.href).href` before
+handing to Monaco. CDN fallback is unchanged (already absolute).
+
+**Status badge stuck on the previous language even after round 8 fix.**
+Race: if the agent's initial `status:'ready'` event fired before the
+renderer registered its IPC listener, `_lastStatus` stayed `null` and
+`refreshStatusI18n()` had nothing to do. Fix: when `_lastStatus` is
+null, derive the state from the badge's CSS class (`badge-ready` →
+`state:'ready'`) and re-render with the new translation. The
+`booting` class is excluded so the badge does not flash back to
+`Booting...` on a language switch.
+
+Errors in `refreshSettingsI18n()` and `refreshStatusI18n()` are now
+logged via `console.warn` instead of swallowed by `try { ... } catch
+{ }`.
+
+### Architecture
+
+`ModelBridge.js` was rebalanced — `setRoles` JSON-equality dedup
+absorbed without breaking the 900-LOC architectural-fitness limit
+(now 897 LOC). `EventStore.verifyIntegrity` signature extended with
+optional `{ includeRotated }` to remain backwards compatible with the
+rotation work.
+
+UI render path: legacy `index.html` and bundled `index.bundled.html`
+must stay in sync (the e2e-electron test enforces this). Same for
+`preload.js` / `preload.mjs` (the IPC channel-count test enforces
+this). Both pairs were touched in nearly every UI item and verified
+green at the end of each round.
+
+`src/ui/modules/settings-defaults.js` introduces a single source of
+truth for field defaults, ranges, and reset-safety, replacing
+ad-hoc inline values that were drifting between `Settings.js`
+(persisted defaults), the UI form (placeholder values), and the
+sanity-clamp ranges.
+
+### Tests
+
+96 new tests across 9 new files spanning the UI-pass items, plus
+backend tests for the live-bug fixes:
+
+- `test/modules/v757-fix-cloud-fallback.test.js` (14)
+- `test/modules/v757-fix-fallback-ui.test.js` (22)
+- `test/modules/v757-fix-ui-polish.test.js` (13)
+- `test/modules/v757-fix-phase2.test.js` (26)
+- `test/modules/v757-fix-phase2b.test.js` (13)
+- `test/modules/v757-fix-phase2c.test.js` (9)
+- `test/modules/v757-fix-phase3.test.js` (12)
+- `test/modules/v757-fix-phase3-etappe2.test.js` (10)
+- `test/modules/v757-fix-phase3-etappe3.test.js` (16)
+- `test/modules/v757-fix-phase3-etappe4.test.js` (11)
+- `test/modules/v757-fix-phase3-etappe5.test.js` (12)
+- `test/modules/v757-fix-phase3-etappe6.test.js` (11)
+- `test/modules/v757-fix-phase3-etappe7.test.js` (10)
+- `test/modules/v757-fix-phase3-etappe8.test.js` (8)
+- `test/modules/v757-fix-phase3-etappe9.test.js` (6)
+
+(Test filenames retain the work-stage marker — historical anchors,
+not surfaced to end users.)
+
+Total v7.5.7: **6416 passed on Windows, 6397 on Linux** (the difference
+is the 19 e2e-electron tests that only run on Windows). All audits
+green: 0 schema mismatches, all listeners have at least one emitter,
+fitness 127/130 (98%), stale-refs check passes (now 7 contracts).
+
+### Items verified-closed during v7.5.7 (no code change)
+
+- **Branch-coverage 76% target** (open since v7.2.0) — the CI ratchet
+  is already at branches 76, full suite passes. The memory-item was
+  stale.
+
+### Files
+
+- `src/agent/foundation/{EventStore,Settings,ModelBridge,ModelBridgeAvailability}.js`
+- `src/agent/{AgentCore,AgentCoreBoot,AgentCoreHealth,AgentCoreWire}.js`
+- `src/agent/manifest/phase5-hexagonal.js`
+- `src/agent/core/{Language,EventTypes,EventPayloadSchemas}.js`
+- `src/agent/cognitive/SelfStatementLog.js`
+- `main.js`, `preload.js`, `preload.mjs`
+- `src/ui/index.html`, `src/ui/index.bundled.html`
+- `src/ui/styles.css`
+- `src/ui/renderer.js`, `src/ui/renderer-main.js`
+- `src/ui/modules/{settings,settings-defaults,statusbar,editor,i18n,filetree}.js`
+- `scripts/{audit-slash-discipline,audit-contracts,check-stale-refs}.js`
+- `docs/{TROUBLESHOOTING,SETTINGS,QUICK-START}.md`
+- 15 test files in `test/modules/`
+
 ## [7.5.6]
 
 **Bug-fix release: model-availability tracking, same-backend failover,

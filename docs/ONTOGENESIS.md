@@ -165,6 +165,8 @@ In ontogenetic terms: this is a self-narrative continuity check. Memory says "ye
 
 v7.5.6 normalized the bilingual extraction patterns to module-level `LANG_PATTERNS` with a load-time parity assertion (DE and EN paths must declare the same pattern keys). This is a small structural choice that says something larger: the patterns are now data, not a swap of two ad-hoc regex blocks. Future languages can be added by extending the same shape rather than forking the logic.
 
+v7.5.7 added a second dimension. Beyond detecting structural confabulations (claims about Genesis' own internals without verified backing), the log now detects activity confabulations: claims of ongoing work in 1st-person present-progressive (*"Ich beschäftige mich mit X"*, *"I'm working on Y"*) checked at chat-completion against a snapshot of the goal-stack. When the claim fires against an empty active-goal list, `self-statement:activity-hint` is emitted as a soft signal. Soft, not hard: a single instance might be filler ("I'm checking that for you"), and the snapshot has a tiny race-window. Patterns over time matter, not single occurrences. This is the difference between *I have a fact about my structure that's wrong* (hard) and *I'm describing a process that doesn't exist* (soft) — the latter is the harder mode of confabulation to detect, and Genesis now does both.
+
 ---
 
 ## Reasoning is not the same as response (v7.5.6)

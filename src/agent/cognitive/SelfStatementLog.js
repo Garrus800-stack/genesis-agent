@@ -74,6 +74,18 @@ const LANG_PATTERNS = {
     // nach strukturell, also keine Klassifikations-Konflikte.
     promiseMarkers: /\b(?:werde|möchte|plane zu|habe vor|nehme mir vor|ich gehe an|als nächstes|nächster schritt|beabsichtige|melde mich|bereite mich vor|kümmere mich um)/i,
     emotionMarkers: /\b(?:fühle|spüre|freue|sorge|hoffe|bedauere|angst|stolz|traurig|wütend|frustriert)/i,
+    // v7.5.7 — Aktivitäts-Marker: 1.-Person-Singular im Präsens-Indikativ,
+    // beschreibt was Genesis GERADE TUT (nicht plant, nicht tat). Verben
+    // sind eine Untermenge von verbFirst — beschränkt auf Tätigkeits-
+    // Verben (kein hab/bin/weiß/kenne/möchte). Optional time-adverb
+    // verstärkt das Signal aber ist nicht required.
+    //
+    // Live-Befund: Genesis sagt häufig "Ich beschäftige mich mit X" oder
+    // "Ich analysiere gerade Y" gegen leeren goalStack — eine Activity-
+    // Behauptung ohne Backing. Pattern matched diese Form, NICHT
+    // Versprechen ("Ich werde X"), NICHT Vergangenheit ("Ich habe X
+    // geprüft"). Parität-relevant: muss zu en.activityMarkers passen.
+    activityMarkers: /\b(?:ich\s+(?:beschäftige|arbeite|analysiere|prüfe|überprüfe|untersuche|optimiere|erforsche|denke\s+(?:gerade\s+)?nach|bearbeite|verarbeite|verfolge|fokussiere|konzentriere|implementiere|refaktoriere|debugge|profiliere|teste|messe))\b/i,
   },
   en: {
     firstPersonExplicit: /\b(?:i|i'm|i've|i'll|i'd|my|me|mine)\b/i,
@@ -86,6 +98,13 @@ const LANG_PATTERNS = {
     // uncertain fallen würden.
     promiseMarkers: /\b(?:will\b|plan to|going to|next i|i'll|intend to|aim to|i'm gonna|next step|want to|get back to you|preparing for|take care of|i'll handle|handle this)/i,
     emotionMarkers: /\b(?:feel|hope|worry|regret|enjoy|frustrat|excit|happy|sad|proud|anxious|angry)/i,
+    // v7.5.7 — Activity markers: 1st-person present-progressive describing
+    // what Genesis is DOING NOW (not planning, not did). Parallel to
+    // de.activityMarkers — must keep parity. EN form: "I'm working on…",
+    // "I am analyzing…", "Currently I'm investigating…". Excludes
+    // future-marker ("I will…"), past ("I worked on…"), and stative
+    // verbs ("I have…", "I know…"). Captures gerund + auxiliary.
+    activityMarkers: /\b(?:i'?m\s+(?:working|analyzing|examining|checking|investigating|exploring|reviewing|optimizing|processing|tracking|focusing|implementing|refactoring|debugging|profiling|testing|measuring|currently\s+\w+ing)|i\s+am\s+(?:working|analyzing|examining|checking|investigating|exploring|reviewing|optimizing|processing|tracking|focusing|implementing|refactoring|debugging|profiling|testing|measuring))\b/i,
   },
 };
 
@@ -135,8 +154,13 @@ class SelfStatementLog {
    * @param {object} [deps.eventStore] — optional, with append(type, payload, source)
    * @param {number} [deps.flushDebounceMs] — Default 500ms. Tests can pass 0
    *                                          for synchronous flush behaviour.
+   * @param {number} [deps.maxStatements] — v7.5.7-fix Phase 2: count-based cap.
+   *                                        0 or undefined = unlimited (only
+   *                                        the existing 90-day retention applies).
+   *                                        Caller-supplied caps trigger LRU
+   *                                        shard removal in prune().
    */
-  constructor({ bus, storageDir, eventStore, flushDebounceMs } = {}) {
+  constructor({ bus, storageDir, eventStore, flushDebounceMs, maxStatements } = {}) {
     this.bus = bus;
     this.eventStore = eventStore || null;
     this._dir = path.join(storageDir, 'self-statements');
@@ -145,6 +169,9 @@ class SelfStatementLog {
     this._flushDebounceMs = typeof flushDebounceMs === 'number'
       ? flushDebounceMs
       : DEFAULT_FLUSH_DEBOUNCE_MS;
+
+    // v7.5.7-fix Phase 2: optional total-count cap.
+    this._maxStatements = (typeof maxStatements === 'number' && maxStatements > 0) ? maxStatements : 0;
 
     this._writeQueue = [];
     this._flushScheduled = false;
@@ -200,6 +227,45 @@ class SelfStatementLog {
       }
     }
     if (removed > 0) _log.info(`Pruned ${removed} shard(s) older than ${PRUNE_RETENTION_DAYS}d`);
+
+    // v7.5.7-fix Phase 2: total-count cap. If maxStatements is set and
+    // total statement count across all shards exceeds it, remove oldest
+    // shards (whole files) until below cap. Best-effort.
+    if (this._maxStatements > 0) {
+      try {
+        // Count statements in all shards, sorted oldest first.
+        const dated = [];
+        const remaining = fs.readdirSync(this._dir).filter(f => f.endsWith('.jsonl'));
+        for (const file of remaining) {
+          const dateStr = file.replace('.jsonl', '');
+          const t = new Date(dateStr).getTime();
+          if (Number.isNaN(t)) continue;
+          let count = 0;
+          try {
+            const content = fs.readFileSync(path.join(this._dir, file), 'utf-8');
+            count = content.split('\n').filter(l => l.trim().length > 0).length;
+          } catch (_e) { count = 0; }
+          dated.push({ file, t, count });
+        }
+        dated.sort((a, b) => a.t - b.t); // oldest first
+        const total = dated.reduce((sum, s) => sum + s.count, 0);
+        let toCut = total - this._maxStatements;
+        if (toCut > 0) {
+          for (const shard of dated) {
+            if (toCut <= 0) break;
+            try {
+              fs.unlinkSync(path.join(this._dir, shard.file));
+              toCut -= shard.count;
+              removed++;
+              _log.info(`Count-pruned shard ${shard.file} (${shard.count} statements)`);
+            } catch (err) {
+              _log.debug('count-prune unlink failed:', err.message);
+            }
+          }
+        }
+      } catch (_e) { /* swallow — pruning is housekeeping */ }
+    }
+
     return removed;
   }
 
@@ -305,8 +371,28 @@ class SelfStatementLog {
     const populated = correlated ? correlated.populated : this._lastIntrospectionPopulated;
     if (correlated) this._pendingFlags.delete(messageHash);
 
+    // v7.5.7: Snapshot des goalStack zum Zeitpunkt von chat:completed.
+    // Race-Window minimal — ist quasi gleichzeitig mit Genesis' Antwort.
+    // Wenn goalStack nicht verfügbar (Late-Binding optional), Snapshot
+    // bleibt null und Activity-Check wird übersprungen.
+    let activeGoalCount = null;
+    if (this.goalStack && typeof this.goalStack.getActiveGoals === 'function') {
+      try {
+        const active = this.goalStack.getActiveGoals();
+        activeGoalCount = Array.isArray(active) ? active.length : null;
+      } catch (err) {
+        // GoalStack-Zugriff fehlgeschlagen — Activity-Check fällt aus,
+        // kein Crash. Andere Klassifikation läuft normal weiter.
+        _log.debug('goalStack.getActiveGoals() failed:', err.message);
+      }
+    }
+
     for (const stmt of statements) {
       const cls = this._classify(stmt);
+      // v7.5.7: Activity-Claim ist separate Dimension — eine Aussage kann
+      // strukturell UND aktivitäts-claim sein. _checkActivityClaim returnt
+      // true nur wenn Pattern matched UND Snapshot verfügbar war.
+      const isActivityClaim = (activeGoalCount !== null) && this._checkActivityClaim(stmt);
       const record = {
         ts,
         text: stmt.slice(0, 500),
@@ -315,6 +401,8 @@ class SelfStatementLog {
         intent: intent || 'unknown',
         introspectionPopulated: populated,
         userMessageHash: messageHash,
+        activityClaim: isActivityClaim,
+        activeGoalCount,  // null wenn goalStack nicht verfügbar
       };
 
       this._writeQueue.push(record);
@@ -325,6 +413,13 @@ class SelfStatementLog {
       // Detection: structural claim without verified-data backing.
       if (cls.type === 'strukturell' && !populated) {
         this._fireContradiction(record);
+      }
+
+      // v7.5.7: Activity-Hint — Genesis behauptet eine laufende Aktivität,
+      // aber goalStack-Snapshot zeigt 0 active goals. Soft signal,
+      // nicht "contradiction". Confidence 0.6, separates Event.
+      if (isActivityClaim && activeGoalCount === 0) {
+        this._fireActivityHint(record);
       }
     }
 
@@ -444,6 +539,23 @@ class SelfStatementLog {
     return { type: 'uncertain', confidence: 0.0 };
   }
 
+  // ── v7.5.7: Activity-Claim-Detection (separate Dimension) ──
+  //
+  // Returnt true, wenn die Aussage eine 1.-Person-Singular-Aktivitäts-
+  // Behauptung im Präsens-Indikativ ist (z.B. "Ich beschäftige mich mit X",
+  // "I'm working on Y"). NICHT: Versprechen ("Ich werde…"), Vergangenheit
+  // ("Ich habe geprüft"), Stative ("I know", "Ich weiß").
+  //
+  // Aufgerufen aus _captureResponse als zweite Dimension neben _classify.
+  // Eine Aussage kann strukturell-true UND activity-true sein.
+  //
+  // Pattern-Quelle: LANG_PATTERNS.{de,en}.activityMarkers — Parität wird
+  // von der module-load-time assertion garantiert.
+
+  _checkActivityClaim(stmt) {
+    return Object.values(LANG_PATTERNS).some(p => p.activityMarkers.test(stmt));
+  }
+
   // ── Flush JSONL (debounced, daily shards in UTC) ────
   //
   // Date-shard derived from ISO ts (UTC). Genesis writes UTC,
@@ -512,6 +624,45 @@ class SelfStatementLog {
           text: record.text.slice(0, 200),
           type: record.type,
           intent: record.intent,
+        }, 'SelfStatementLog');
+      } catch (err) {
+        _log.debug('eventStore append failed:', err.message);
+      }
+    }
+  }
+
+  // ── v7.5.7: Activity-Hint (soft signal, not contradiction) ──
+  //
+  // Fired when Genesis claims an ongoing activity (1st-person present-
+  // progressive, e.g. "Ich beschäftige mich mit X") but goalStack snapshot
+  // at chat-completed shows zero active goals. NOT a hard contradiction
+  // because:
+  //  - User-directed conversation responses ("Ich prüfe das gerade…")
+  //    are legitimate filler, not claims about Genesis' background work.
+  //  - Race-window between Genesis composing the response and the snapshot
+  //    is small but nonzero — a goal could close between speech and check.
+  //  - Activity claims are softer than structural claims: they describe
+  //    process, not state. Confidence 0.6 reflects this.
+  //
+  // Event consumers (HealthMonitor, Dashboard, audit tools) can flag
+  // patterns over time — not single instances.
+
+  _fireActivityHint(record) {
+    if (this.bus && typeof this.bus.fire === 'function') {
+      this.bus.fire('self-statement:activity-hint', {
+        text: record.text,
+        intent: record.intent,
+        activeGoalCount: record.activeGoalCount,
+        ts: record.ts,
+      }, { source: 'SelfStatementLog' });
+    }
+
+    if (this.eventStore && typeof this.eventStore.append === 'function') {
+      try {
+        this.eventStore.append('SELF_STATEMENT_ACTIVITY_HINT', {
+          text: record.text.slice(0, 200),
+          intent: record.intent,
+          activeGoalCount: record.activeGoalCount,
         }, 'SelfStatementLog');
       } catch (err) {
         _log.debug('eventStore append failed:', err.message);

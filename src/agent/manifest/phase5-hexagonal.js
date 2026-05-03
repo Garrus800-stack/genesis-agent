@@ -19,11 +19,19 @@ function phase5(ctx, R) {
 
     ['episodicMemory', {
       phase: 5, deps: ['storage'], tags: ['hexagonal', 'memory'],
-      factory: (c) => new (R('EpisodicMemory').EpisodicMemory)({
-        bus, storage: c.resolve('storage'),
-        embeddingService: c.tryResolve('embeddingService'),
-        intervals,
-      }),
+      factory: (c) => {
+        // v7.5.7-fix Phase 3 Etappe 2: pass episodicMemory.maxEpisodes from
+        // settings — was hardcoded to 500 before. Default unchanged.
+        const settings = c.tryResolve('settings');
+        const cap = settings?.get?.('episodicMemory.maxEpisodes');
+        const inst = new (R('EpisodicMemory').EpisodicMemory)({
+          bus, storage: c.resolve('storage'),
+          embeddingService: c.tryResolve('embeddingService'),
+          intervals,
+        });
+        if (typeof cap === 'number' && cap >= 0) inst._maxEpisodes = cap;
+        return inst;
+      },
     }],
 
     ['chatOrchestrator', {

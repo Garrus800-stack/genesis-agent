@@ -108,7 +108,7 @@ describe('#2 checkSelfAction — pure function', () => {
     assert(['pass', 'warn', 'block'].includes(scan.verdict));
   });
 
-  test('two signals still verdict=warn in v7.3.6 (Warn-Mode)', () => {
+  test('self-gate contract: two signals still verdict=warn in v7.3.6 (Warn-Mode)', () => {
     const scan = checkSelfAction({
       actionType: 'goal-push',
       actionPayload: { label: 'database migration' },
@@ -124,7 +124,7 @@ describe('#2 checkSelfAction — pure function', () => {
 
 describe('#2 SelfGate class — stateful', () => {
 
-  test('default mode is warn', () => {
+  test('self-gate contract: default mode is warn', () => {
     const gate = new SelfGate();
     assert.strictEqual(gate.mode, 'warn');
   });
@@ -184,7 +184,7 @@ describe('#2 SelfGate class — stateful', () => {
     }));
   });
 
-  test('warn-mode: allowed=true even on warn', () => {
+  test('self-gate contract: warn-mode: allowed=true even on warn', () => {
     const gate = new SelfGate({ mode: 'warn' });
     const result = gate.check({
       actionType: 'goal-push',

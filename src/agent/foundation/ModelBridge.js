@@ -1,21 +1,11 @@
 // @ts-checked-v5.8
 // ============================================================
-// GENESIS AGENT — ModelBridge.js (v4.10.0 — Backend Delegation)
+// GENESIS AGENT — ModelBridge.js
 //
-// v4.10.0 REFACTOR: Backend implementations extracted to:
-//   backends/OllamaBackend.js    — local LLM via Ollama
-//   backends/AnthropicBackend.js — Anthropic Claude API
-//   backends/OpenAIBackend.js    — OpenAI-compatible APIs
-//
-// ModelBridge is now purely orchestration:
-//   - Backend routing (dispatch, failover)
-//   - Concurrency (semaphore)
-//   - Caching (LLMCache)
-//   - MetaLearning integration
-//   - Structured output (JSON mode)
-//
-// Previous: 854 LOC (3 backend implementations inline)
-// Now:      ~350 LOC (orchestration only)
+// Orchestrates LLM backends (Ollama, Anthropic, OpenAI):
+// dispatch + failover + concurrency (semaphore) + caching +
+// MetaLearning integration + structured output (JSON mode).
+// Backend implementations live in backends/.
 // ============================================================
 
 const path = require('path');
@@ -43,13 +33,14 @@ const TASK_TYPE_ROUTING_MAP = {
   // 'user' bleibt unrouted (siehe _userChat-Marker in ChatOrchestrator)
 };
 
-// v7.5.6: TTL by failover-reason for the unavailable-marker. 'connection-error'
-// and 'other' are intentionally absent — those are usually transient (ollama
-// not yet warmed up, network blip) and a lockout would only delay recovery.
+// v7.5.6/v7.5.7-fix: TTL by failover-reason for the unavailable-marker.
+// 'connection-error' and 'other' are intentionally absent (transient).
+// 'subscription-required' (v7.5.7-fix): 24h, Pro-gates don't fix in 1h.
 const UNAVAILABLE_TTL_MAP = {
-  'auth':       60 * 60 * 1000,  // 1h
-  'rate-limit':  5 * 60 * 1000,  // 5min
-  'timeout':    10 * 60 * 1000,  // 10min
+  'auth':                  60 * 60 * 1000,         // 1h
+  'rate-limit':              5 * 60 * 1000,        // 5min
+  'timeout':                10 * 60 * 1000,        // 10min
+  'subscription-required': 24 * 60 * 60 * 1000,    // 24h
 };
 
 // ── Lightweight Semaphore ─────────────────────────────────
@@ -113,27 +104,25 @@ class _LLMSemaphore {
 }
 
 class ModelBridge {
-  /** @param {{ bus?: *, maxConcurrentLLM?: number, genesisDir?: string }} [deps] */
-  constructor({ bus, maxConcurrentLLM, genesisDir } = {}) {
+  /** @param {{ bus?: *, maxConcurrentLLM?: number, genesisDir?: string, ollamaKeepAlive?: string|number|null }} [deps] */
+  constructor({ bus, maxConcurrentLLM, genesisDir, ollamaKeepAlive } = {}) {
     this.bus = bus || NullBus;
     this.activeModel = null;
     this.activeBackend = null;
     this.availableModels = [];
-
     this._semaphore = new _LLMSemaphore(
       maxConcurrentLLM || LIMITS.LLM_MAX_CONCURRENT,
       TIMEOUTS.SEMAPHORE_STARVATION
     );
-
     this._cache = new LLMCache({
       maxSize: 100,
       ttlMs: 5 * 60 * 1000,
       noCacheTaskTypes: ['chat', 'creative'],
     });
-
-    // v4.10.0: Backend instances (replaces inline config objects)
+    // v4.10.0: Backend instances. v7.5.7-fix Phase 2: Ollama gets keepAlive
+    // (null = Ollama default 5min; "30s"/"1h"/0 override).
     this.backends = {
-      ollama: new OllamaBackend(),
+      ollama: new OllamaBackend({ keepAlive: ollamaKeepAlive == null ? null : ollamaKeepAlive }),
       anthropic: new AnthropicBackend(),
       openai: new OpenAIBackend(),
     };
@@ -167,19 +156,20 @@ class ModelBridge {
   }
 
   /**
-   * v5.1.0: Set per-task model roles from settings.
+   * v5.1.0 / v7.5.7-fix Phase 3: set per-task roles. Logs only on actual
+   * change (UI saves used to send 4 individual IPCs → 4 identical log lines).
    * @param {{ chat?: string, code?: string, analysis?: string, creative?: string }} roles
    */
   setRoles(roles) {
-    this._roles = roles || {};
+    const newRoles = roles || {};
+    const oldStr = JSON.stringify(this._roles || {});
+    const newStr = JSON.stringify(newRoles);
+    this._roles = newRoles;
+    if (oldStr === newStr) return;
     _log.info(`[MODEL] Roles updated: ${Object.entries(this._roles).filter(([,v]) => v).map(([k,v]) => `${k}→${v}`).join(', ') || 'all auto'}`);
   }
 
-  /**
-   * Resolve model+backend for a given task type.
-   * Priority: role-assigned model → active model.
-   * Returns { model, backend } or null if no override.
-   */
+  /** Resolve role-assigned model+backend for taskType, or null. */
   _resolveForTask(taskType) {
     const roleName = this._roles[taskType];
     if (!roleName) return null;
@@ -188,9 +178,7 @@ class ModelBridge {
     return { model: found.name, backend: found.backend };
   }
 
-  // ════════════════════════════════════════════════════════
-  // MODEL MANAGEMENT
-  // ════════════════════════════════════════════════════════
+  // ── MODEL MANAGEMENT ────────────────────────────────────
 
   async detectAvailable() {
     // FIX v4.10.0: Remember current user selection before refreshing list
@@ -248,6 +236,8 @@ class ModelBridge {
                 || this.availableModels.find(m => m.name.startsWith(preferredName.split(':')[0]) && m.name.includes(preferredName.split(':')[1] || ''));
           if (chosen) {
             _log.info(`[MODEL] Using preferred model from settings: ${chosen.name}`);
+            // v7.5.7-fix: warn if cloud-preferred without fallback-chain
+            this._warnIfCloudWithoutFallback(chosen);
           } else {
             _log.warn(`[MODEL] Preferred model "${preferredName}" not found in ${this.availableModels.length} available models`);
           }
@@ -396,6 +386,17 @@ class ModelBridge {
   async switchTo(modelName) {
     const model = this.availableModels.find(m => m.name === modelName);
     if (!model) throw new Error(`Model not found: ${modelName}`);
+    // v7.5.7-fix Phase 2: when switching Ollama models, unload the previous
+    // one so Ollama doesn't keep both in RAM for 5min (default keep_alive).
+    // Best-effort — silent on failure.
+    const previousModel = this.activeModel;
+    if (
+      previousModel && previousModel !== model.name &&
+      this.activeBackend === 'ollama' &&
+      this.backends?.ollama?.unloadModel
+    ) {
+      try { await this.backends.ollama.unloadModel(previousModel); } catch (_e) { /* swallow */ }
+    }
     this.activeModel = model.name;
     this.activeBackend = model.backend;
     return { ok: true, model: this.activeModel, backend: this.activeBackend };
@@ -757,6 +758,10 @@ class ModelBridge {
   // without string-matching err.message themselves.
   _classifyFailoverReason(err) {
     const msg = (err?.message || '').toLowerCase();
+    // v7.5.7-fix: subscription checked before generic 401/403 'auth'
+    // — Ollama Cloud Pro-gates carry both. Without this, gated cloud
+    // models would get the 1h auth-TTL not the 24h subscription-TTL.
+    if (/subscription|requires.*upgrade|upgrade for access|ollama\.com\/upgrade/.test(msg)) return 'subscription-required';
     if (/rate.?limit|429|too many/.test(msg)) return 'rate-limit';
     if (/timeout|timed out|etimedout/.test(msg)) return 'timeout';
     if (/econnrefused|enotfound|eai_again|network|socket hang up|fetch failed/.test(msg)) return 'connection-error';
@@ -764,16 +769,10 @@ class ModelBridge {
     return 'other';
   }
 
-  // ── v7.5.6: Model-availability tracking with TTL ─────────────────────
-  // When a model fails with auth/rate-limit/timeout, we mark it as
-  // unavailable for a configured TTL. Failover and boot-time selection
-  // skip marked models. Closes the loop where Genesis would retry the
-  // same dead model every IdleMind tick (live-observed: 9h with 403).
-  //
-  // Implementation extracted to ModelBridgeAvailability.js (mixin) to
-  // keep this file under the architectural-fitness LOC limit. Methods
-  // mixed in below: markUnavailable, isMarkedUnavailable,
-  // clearUnavailable, _loadUnavailable, _persistUnavailable.
+  // ── v7.5.6: Model-availability tracking — extracted to mixin ─────
+  // Methods mixed in: markUnavailable, isMarkedUnavailable,
+  // clearUnavailable, _loadUnavailable, _persistUnavailable,
+  // _isCloudModelName, _warnIfCloudWithoutFallback.
 
   // v7.4.8: emitted when _findFallbackBackend returns null. Closes the
   // observability gap — without this event, "Genesis tried to failover

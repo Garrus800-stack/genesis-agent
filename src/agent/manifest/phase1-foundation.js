@@ -66,8 +66,19 @@ function phase1(ctx, R) {
         { prop: '_modelRouter', service: 'modelRouter', optional: true },
       ],
       factory: (c) => {
-        const mb = new (R('ModelBridge').ModelBridge)({ bus, genesisDir });
-        mb._settings = c.resolve('settings');
+        const settings = c.resolve('settings');
+        // v7.5.7-fix Phase 2: ollamaKeepAlive from settings — null/undefined
+        // means "use Ollama's default" (5 min).
+        const ollamaKeepAlive = settings?.get?.('models.ollamaKeepAlive');
+        // v7.5.7-fix Phase 2: maxConcurrent configurable from settings
+        // (was hardcoded 3 via LIMITS.LLM_MAX_CONCURRENT).
+        const maxConcurrent = settings?.get?.('models.maxConcurrent');
+        const mb = new (R('ModelBridge').ModelBridge)({
+          bus, genesisDir,
+          ollamaKeepAlive: ollamaKeepAlive == null ? null : ollamaKeepAlive,
+          maxConcurrentLLM: (typeof maxConcurrent === 'number' && maxConcurrent > 0) ? maxConcurrent : undefined,
+        });
+        mb._settings = settings;
         return mb;
       },
     }],
@@ -101,17 +112,27 @@ function phase1(ctx, R) {
     }],
 
     ['eventStore', {
-      phase: 1, deps: ['storage'], tags: ['foundation'],
+      phase: 1, deps: ['storage', 'settings'], tags: ['foundation'],
       factory: (c) => {
-        const es = new (R('EventStore').EventStore)(genesisDir, bus, c.resolve('storage'));
+        const settings = c.resolve('settings');
+        // v7.5.7-fix Phase 2: rotation thresholds from settings.
+        const opts = {
+          maxFileSizeMB: settings?.get?.('eventStore.maxFileSizeMB') ?? 50,
+          maxRotations: settings?.get?.('eventStore.maxRotations') ?? 3,
+        };
+        const es = new (R('EventStore').EventStore)(genesisDir, bus, c.resolve('storage'), opts);
         es.installDefaults();
         return es;
       },
     }],
 
     ['knowledgeGraph', {
-      phase: 1, deps: ['storage'], tags: ['foundation', 'knowledge'],
-      factory: (c) => new (R('KnowledgeGraph').KnowledgeGraph)({ bus, storage: c.resolve('storage') }),
+      phase: 1, deps: ['storage', 'settings'], tags: ['foundation', 'knowledge'],
+      factory: (c) => new (R('KnowledgeGraph').KnowledgeGraph)({
+        bus,
+        storage: c.resolve('storage'),
+        settings: c.resolve('settings'),
+      }),
     }],
 
     ['capabilityGuard', {

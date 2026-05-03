@@ -18,7 +18,7 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('KnowledgeGraph');
 
 class KnowledgeGraph {
-  constructor({ bus, storage }) {
+  constructor({ bus, storage, settings }) {
     this.bus = bus || NullBus;
     this.storage = storage;
     this.graph = new GraphStore();
@@ -26,6 +26,12 @@ class KnowledgeGraph {
     this._embeddings = null;
     this._nodeVectors = new Map();
     this._maxNodeVectors = 2000;
+
+    // v7.5.7-fix Phase 2: Configurable node-cap with LRU pruning.
+    // 0 = unlimited (default behaviour preserved). Default 5000 is generous —
+    // KG with 5000 nodes is still fast for lookup/search.
+    this._maxNodes = settings?.get?.('knowledgeGraph.maxNodes');
+    if (typeof this._maxNodes !== 'number') this._maxNodes = 5000;
 
     // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()
     // this._load();
@@ -40,6 +46,15 @@ class KnowledgeGraph {
 
   addNode(type, label, properties = {}) {
     const id = this.graph.addNode(type, label, properties);
+    // v7.5.7-fix Phase 2: prune if over cap. Best-effort, never throws.
+    if (this._maxNodes > 0 && this.graph.nodes.size > this._maxNodes) {
+      try {
+        const pruned = this.graph.pruneNodes(this._maxNodes);
+        if (pruned > 0) {
+          this.bus.emit('knowledge:nodes-pruned', { count: pruned, remaining: this.graph.nodes.size }, { source: 'KnowledgeGraph' });
+        }
+      } catch (_e) { /* swallow — pruning is opportunistic */ }
+    }
     this._save();
     this.bus.emit('knowledge:node-added', { id, type, label }, { source: 'KnowledgeGraph' });
     return id;

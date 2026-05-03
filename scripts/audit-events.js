@@ -127,6 +127,7 @@ const EXCLUDED_EVENTS = new Set([
   // Electron app/window/webContents internal events
   'did-finish-load', 'did-fail-load', 'dom-ready',
   'will-navigate', 'window-all-closed', 'before-quit', 'activate',
+  'context-menu',
   // v7.1.7 H-3: Removed 'prompt-evolution:promoted' — it IS a Bus event since v7.1.6
 ]);
 

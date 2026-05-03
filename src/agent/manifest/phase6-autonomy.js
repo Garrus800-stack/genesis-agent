@@ -18,12 +18,21 @@ function phase6(ctx, R) {
         { prop: 'goalStack', service: 'goalStack', optional: true, expects: ['reviewGoals'],
           impact: 'No periodic goal lifecycle review (goals stay active even after all steps done)' },
       ],
-      factory: (c) => new (R('AutonomousDaemon').AutonomousDaemon)({
-        bus, reflector: c.resolve('reflector'), selfModel: c.resolve('selfModel'),
-        memory: c.resolve('memory'), model: c.resolve('llm'),
-        prompts: c.resolve('prompts'), skills: c.resolve('skills'),
-        sandbox: c.resolve('sandbox'), guard, intervals,
-      }),
+      factory: (c) => {
+        const dm = new (R('AutonomousDaemon').AutonomousDaemon)({
+          bus, reflector: c.resolve('reflector'), selfModel: c.resolve('selfModel'),
+          memory: c.resolve('memory'), model: c.resolve('llm'),
+          prompts: c.resolve('prompts'), skills: c.resolve('skills'),
+          sandbox: c.resolve('sandbox'), guard, intervals,
+        });
+        // v7.5.7-fix Phase 2 round 3: cycleMinutes from settings (UI exposed).
+        const settings = c.tryResolve ? c.tryResolve('settings') : null;
+        const cycleMin = settings?.get?.('daemon.cycleMinutes');
+        if (typeof cycleMin === 'number' && cycleMin > 0 && dm.config) {
+          dm.config.cycleInterval = cycleMin * 60 * 1000;
+        }
+        return dm;
+      },
     }],
 
     ['idleMind', {
@@ -63,13 +72,27 @@ function phase6(ctx, R) {
         // v7.2.0: LessonsStore — for self-define activity
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expectedActive: true, expects: ['getAll', 'getStats'] },
       ],
-      factory: (c) => new (R('IdleMind').IdleMind)({
-        bus, model: c.resolve('llm'), prompts: c.resolve('prompts'),
-        selfModel: c.resolve('selfModel'), memory: c.resolve('memory'),
-        knowledgeGraph: c.resolve('knowledgeGraph'), eventStore: c.resolve('eventStore'),
-        storageDir: genesisDir, goalStack: c.resolve('goalStack'),
-        intervals, storage: c.resolve('storage'),
-      }),
+      factory: (c) => {
+        const im = new (R('IdleMind').IdleMind)({
+          bus, model: c.resolve('llm'), prompts: c.resolve('prompts'),
+          selfModel: c.resolve('selfModel'), memory: c.resolve('memory'),
+          knowledgeGraph: c.resolve('knowledgeGraph'), eventStore: c.resolve('eventStore'),
+          storageDir: genesisDir, goalStack: c.resolve('goalStack'),
+          intervals, storage: c.resolve('storage'),
+        });
+        // v7.5.7-fix Phase 2: journal rotation + interval thresholds from settings.
+        const settings = c.tryResolve ? c.tryResolve('settings') : null;
+        const sz = settings?.get?.('idleMind.journalMaxFileSizeMB');
+        const rot = settings?.get?.('idleMind.journalMaxRotations');
+        if (typeof sz === 'number') im._journalMaxFileSizeMB = sz;
+        if (typeof rot === 'number') im._journalMaxRotations = rot;
+        // v7.5.7-fix Phase 2 round 3: idle/think minutes from settings (UI exposed).
+        const idleMin = settings?.get?.('idleMind.idleMinutes');
+        const thinkMin = settings?.get?.('idleMind.thinkMinutes');
+        if (typeof idleMin === 'number' && idleMin > 0) im.idleThreshold = idleMin * 60 * 1000;
+        if (typeof thinkMin === 'number' && thinkMin > 0) im.thinkInterval = thinkMin * 60 * 1000;
+        return im;
+      },
     }],
 
     ['healthMonitor', {

@@ -312,6 +312,35 @@ class AgentCoreBoot {
       : true;
     _log.info(`  [+] Auto-routing: ${autoRoute ? 'enabled (taskType → ModelRouter)' : 'disabled'}`);
 
+    // v7.5.7-fix Phase 3 Etappe 3: Active-settings boot summary so users
+    // can verify configuration without opening the UI. Shows non-default
+    // values for the most user-visible toggles.
+    if (c.has('settings')) {
+      const s = c.resolve('settings');
+      const summary = [];
+      const cgEnabled = s.get('llm.costGuard.enabled');
+      if (cgEnabled !== false) {
+        const sl = s.get('llm.costGuard.sessionTokenLimit') ?? 500000;
+        const dl = s.get('llm.costGuard.dailyTokenLimit') ?? 2000000;
+        summary.push(`Cost-Guard ${(sl/1000).toFixed(0)}k/session ${(dl/1000000).toFixed(1)}M/day`);
+      } else {
+        summary.push('Cost-Guard OFF');
+      }
+      const commitOn = s.get('agency.commitSnapshotOnShutdown');
+      if (commitOn === true) summary.push('Auto-commit-on-shutdown ON');
+      const httpOn = s.get('health.httpEnabled');
+      if (httpOn === true) summary.push(`Health-HTTP on :${s.get('health.httpPort') ?? 9090}`);
+      const allowPeers = s.get('security.allowNetworkPeers');
+      if (allowPeers === false) summary.push('Peer-Network OFF');
+      const allowExec = s.get('security.allowFileExecution');
+      if (allowExec === false) summary.push('File-Exec OFF');
+      const autoRepair = s.get('daemon.autoRepair');
+      if (autoRepair === false) summary.push('Daemon auto-repair OFF');
+      const autoOpt = s.get('daemon.autoOptimize');
+      if (autoOpt === true) summary.push('Daemon auto-optimize ON');
+      _log.info(`  [+] Active: ${summary.join(' · ')}`);
+    }
+
     // v5.1.0: Reconfigure ContextManager now that asyncLoad has detected the actual model.
     // Phase 2 configured with activeModel=null (8192 default). Now we know the real model.
     if (model.activeModel && c.has('context')) {

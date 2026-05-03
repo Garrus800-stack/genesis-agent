@@ -102,9 +102,32 @@ class Settings {
         preferred: null, fallbackChain: [], anthropicApiKey: '', openaiBaseUrl: '', openaiApiKey: '', openaiModels: [],
         // v5.1.0: Per-task model assignment — null = use preferred/auto
         roles: { chat: null, code: null, analysis: null, creative: null },
+        // v7.5.7-fix Phase 2: ollamaKeepAlive — null = Ollama default (5min).
+        // Set to e.g. "30s" to free RAM faster, "0" to immediately unload
+        // after each call, or "1h"/"-1" to keep loaded longer/forever.
+        ollamaKeepAlive: null,
+        // v7.5.7-fix Phase 2: maxConcurrent — how many parallel LLM requests
+        // ModelBridge allows. Default 3 is the legacy value; users on
+        // CPU-only setups may lower to 1 to avoid model thrashing in Ollama.
+        maxConcurrent: 3,
       },
       daemon: { enabled: true, cycleMinutes: 5, autoRepair: true, autoOptimize: false },
-      idleMind: { enabled: true, idleMinutes: 2, thinkMinutes: 3, maxActiveGoals: 3 },
+      idleMind: { enabled: true, idleMinutes: 2, thinkMinutes: 3, maxActiveGoals: 3, journalMaxFileSizeMB: 10, journalMaxRotations: 3 },
+      // v7.5.7-fix Phase 2: SelfSpawner config
+      selfSpawner: { maxWorkers: 3, timeoutMs: 5 * 60 * 1000, memoryLimitMB: 256 },
+      // v7.5.7-fix Phase 2: WorkerPool (worker_threads, used by GenericWorker
+      // for code-analysis/syntax-check/etc). 0 = use auto (cpus-1).
+      workerPool: { maxWorkers: 0 },
+      // v7.5.7-fix Phase 2: EventStore rotation. events.jsonl grows
+      // unbounded over time; rotation keeps disk usage in check while
+      // preserving recent history. 0 = disable rotation.
+      eventStore: { maxFileSizeMB: 50, maxRotations: 3 },
+      // v7.5.7-fix Phase 2: Memory caps. 0 = unlimited.
+      // Generous defaults — users can lower if they hit performance issues
+      // from large memory stores, or set 0 for unlimited.
+      knowledgeGraph: { maxNodes: 5000 },
+      selfStatementLog: { maxStatements: 5000 },
+      episodicMemory: { maxEpisodes: 500 },
       ui: { language: 'de', editorFontSize: 13, chatFontSize: 13 },
       security: { allowSelfModify: true, allowNetworkPeers: true, allowFileExecution: true },
       // v7.4.7: Trust level (0..3 = SUPERVISED..FULL_AUTONOMY).
@@ -122,8 +145,33 @@ class Settings {
       // queries ModelRouter for non-user-chat taskTypes and switches model
       // per-call (without mutating activeModel). Direct user chat is
       // explicitly protected via _userChat marker in ChatOrchestrator.
-      agency: { autoResumeGoals: 'ask', negotiateBeforeAdd: false, autoRouteByTask: true },
+      // v7.5.7-fix Phase 2: autoRouteByTask Default false. Was true (v7.5.2),
+      // caused Genesis to load multiple model weights into Ollama in parallel
+      // (one per task category) which on CPU-only setups led to 180s timeouts.
+      // Users with GPU/multi-backend setups can re-enable via UI toggle.
+      // v7.5.7-fix Phase 3: commitSnapshotOnShutdown — was hardcoded to
+      // always-on in AgentCoreHealth.js, pollutes git history on collaborator
+      // machines (commits .genesis/ state files at every shutdown). Default
+      // false now — only opt-in for users who want shutdown-state in git.
+      // Code-change snapshots in Reflector/SelfModificationPipeline are
+      // unaffected — those happen at actual modification boundaries.
+      agency: { autoResumeGoals: 'ask', negotiateBeforeAdd: false, autoRouteByTask: false, commitSnapshotOnShutdown: false },
       mcp: { enabled: true, servers: [], serve: { enabled: false, port: 3580 } },
+      // v7.5.7-fix Phase 3 Etappe 2: Health-Server defaults — was missing in
+      // settings tree, only read by HealthServer service via .get(). UI now
+      // exposes these so users can enable HTTP /health, /metrics endpoints.
+      health: { httpEnabled: false, httpPort: 9090 },
+      // v7.5.7-fix Phase 3 Etappe 2: Cost-Guard defaults — service uses
+      // its own DEFAULTS (500k/2M/0.8), but settings tree was empty so the
+      // UI couldn't pre-fill values. Defaults here mirror CostGuard.js.
+      llm: {
+        costGuard: {
+          enabled: true,
+          sessionTokenLimit: 500000,
+          dailyTokenLimit: 2000000,
+          warnThreshold: 0.8,
+        },
+      },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
       timeouts: { approvalSec: 60, shellMs: 15000, httpMs: 60000, gitMs: 5000 },
       // v3.7.0: Cognitive strictMode — when true, AgentLoop refuses to run
@@ -206,7 +254,68 @@ class Settings {
     // and reads models.preferred BEFORE Settings._load() applies env overrides.
     // Result: GENESIS_MODEL env var was ignored, auto-select picked wrong model.
     this._load();
+    // v7.5.7-fix Phase 3 Etappe 3: Sanity-clamp known numeric fields after load.
+    // Without this, a malformed settings.json (manual edit, copied from older
+    // version) could make Genesis crash because e.g. maxConcurrent=-1 or
+    // sessionTokenLimit=NaN gets passed to schedulers/budgets.
+    this._sanityClampOnLoad();
   }
+
+  /**
+   * v7.5.7-fix Phase 3 Etappe 3: Clamp known numeric settings to valid ranges.
+   * Logs a warning when clamping; does not throw. Mirror of the UI's
+   * settings-defaults.js registry.
+   */
+  _sanityClampOnLoad() {
+    const log = (msg) => { try { require('../core/Logger').createLogger('Settings').warn(`[SANITY] ${msg}`); } catch (_e) { /* logger optional */ } };
+    const clamp = (path, min, max) => {
+      const v = this.get(path);
+      if (typeof v !== 'number' || Number.isNaN(v)) return;
+      if (v < min) { this._setRaw(path, min); log(`${path}=${v} clamped to ${min} (min)`); }
+      else if (v > max) { this._setRaw(path, max); log(`${path}=${v} clamped to ${max} (max)`); }
+    };
+    clamp('models.maxConcurrent',                 1, 50);
+    clamp('selfSpawner.maxWorkers',               1, 50);
+    clamp('selfSpawner.timeoutMs',                10000, 3600000);
+    clamp('selfSpawner.memoryLimitMB',            64, 8192);
+    clamp('workerPool.maxWorkers',                0, 64);
+    clamp('eventStore.maxFileSizeMB',             0, 5000);
+    clamp('eventStore.maxRotations',              0, 100);
+    clamp('knowledgeGraph.maxNodes',              0, 1000000);
+    clamp('selfStatementLog.maxStatements',       0, 1000000);
+    clamp('episodicMemory.maxEpisodes',           0, 1000000);
+    clamp('llm.costGuard.sessionTokenLimit',      1000, 100000000);
+    clamp('llm.costGuard.dailyTokenLimit',        1000, 1000000000);
+    clamp('llm.costGuard.warnThreshold',          0.5, 0.99);
+    clamp('idleMind.idleMinutes',                 1, 1440);
+    clamp('idleMind.thinkMinutes',                1, 1440);
+    clamp('idleMind.maxActiveGoals',              1, 100);
+    clamp('idleMind.journalMaxFileSizeMB',        1, 5000);
+    clamp('idleMind.journalMaxRotations',         0, 100);
+    clamp('daemon.cycleMinutes',                  1, 1440);
+    clamp('mcp.serve.port',                       1024, 65535);
+    clamp('health.httpPort',                      1024, 65535);
+    clamp('timeouts.approvalSec',                 10, 86400);
+    clamp('cognitive.simulation.maxBranches',     1, 100);
+    clamp('cognitive.simulation.maxDepth',        1, 1000);
+    clamp('organism.emotions.decayIntervalMs',    1000, 3600000);
+    clamp('organism.emotions.lonelinessIntervalMs', 1000, 86400000);
+    clamp('ui.editorFontSize',                    8, 48);
+    clamp('ui.chatFontSize',                      8, 48);
+    clamp('trust.level',                          0, 3);
+  }
+
+  /** Internal: write value at dot-path without touching events or _save. */
+  _setRaw(dotPath, value) {
+    const parts = dotPath.split('.');
+    let obj = this.data;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!obj[parts[i]] || typeof obj[parts[i]] !== 'object') return;
+      obj = obj[parts[i]];
+    }
+    obj[parts[parts.length - 1]] = value;
+  }
+
 
   /** @param {string} dotPath @param {*} value */
   /**
@@ -247,6 +356,71 @@ class Settings {
         } catch (_e) { /* never let event-emit break a save */ }
       }
     }
+  }
+
+  /**
+   * v7.5.7-fix Phase 3: batch-set multiple settings in a single call.
+   * UI was previously sending one IPC per setting (4-8 per Save click),
+   * each triggering listeners (e.g. ModelBridge.setRoles → log spam).
+   * This call writes everything, then emits toggle events once at the end.
+   *
+   * Returns array of changes for caller (e.g. for change-log display).
+   *
+   * @param {Array<[string, *]>} entries - [dotPath, value] pairs
+   * @returns {Array<{ key: string, from: *, to: * }>} changes that occurred
+   */
+  setBatch(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) return [];
+    const changes = [];
+    const eventQueue = [];
+
+    for (const [dotPath, value] of entries) {
+      if (typeof dotPath !== 'string') continue;
+      const parts = dotPath.split('.');
+      let obj = this.data;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!obj[parts[i]] || typeof obj[parts[i]] !== 'object') obj[parts[i]] = {};
+        obj = obj[parts[i]];
+      }
+      const oldValue = obj[parts[parts.length - 1]];
+      if (SENSITIVE_KEYS.has(dotPath) && value && typeof value === 'string' && !value.startsWith(ENC_PREFIX) && !value.startsWith(ENC_PREFIX_V2)) {
+        obj[parts[parts.length - 1]] = encryptValue(value, this._encSalt);
+      } else {
+        obj[parts[parts.length - 1]] = value;
+      }
+      // v7.5.7-fix Phase 3 followup: deep-equality for arrays/objects so
+      // that "no actual change" doesn't trigger spurious change-log entries
+      // (was visible in user logs as `mcp.servers: [0 items] → [0 items]`).
+      // Reference-inequality alone fires even when contents are identical.
+      const isChanged = (() => {
+        if (oldValue === value) return false;
+        if (typeof oldValue !== typeof value) return true;
+        if (oldValue === null || value === null) return oldValue !== value;
+        if (typeof oldValue === 'object') {
+          try { return JSON.stringify(oldValue) !== JSON.stringify(value); }
+          catch (_e) { return true; }
+        }
+        return oldValue !== value;
+      })();
+      if (isChanged) {
+        changes.push({ key: dotPath, from: oldValue, to: value });
+        const eventKey = TOGGLE_EVENT_KEYS[dotPath];
+        if (eventKey) eventQueue.push({ eventKey, payload: { from: oldValue, to: value, key: dotPath } });
+      }
+    }
+
+    // Single save for entire batch (debounced anyway, but call once cleanly)
+    this._save();
+
+    // Emit toggle events after all writes are done
+    if (this._bus) {
+      for (const ev of eventQueue) {
+        try { this._bus.emit(ev.eventKey, ev.payload, { source: 'Settings' }); }
+        catch (_e) { /* never let event-emit break the batch */ }
+      }
+    }
+
+    return changes;
   }
 
   get(dotPath) {
