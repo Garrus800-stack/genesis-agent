@@ -88,11 +88,21 @@ function phase3(ctx, R) {
       // ShellAgent has a setter that propagates the binding to its
       // ShellPlanner instance (ShellPlanner.recordPromise then captures
       // shell-task plans as `versprechen`-class self-statements).
+      // v7.5.9 ZIP2 Phase 1: late-bind trustLevelSystem + settings for
+      // the 3-tier sandbox (project / user-home / permissive). Without
+      // these, sandbox falls back to default trust=1, scope='user-home'
+      // (which is still safer + more useful than the pre-ZIP2 rootDir-only).
       lateBindings: [
         { prop: 'selfStatementLog', service: 'selfStatementLog',
           optional: true, expectedActive: true,
           expects: ['recordPromise'],
           impact: 'shell-task plans not captured into Self-Statement-Log' },
+        { prop: 'trustLevelSystem', service: 'trustLevelSystem',
+          optional: true, expectedActive: true, expects: ['getLevel'],
+          impact: 'sandbox falls back to default trust=1 (ASSISTED)' },
+        { prop: 'settings', service: 'settings',
+          optional: true, expectedActive: true, expects: ['get'],
+          impact: 'sandbox falls back to default scope=user-home' },
       ],
       factory: (c) => new (R('ShellAgent').ShellAgent)({
         bus, lang: R('Language').lang, model: c.resolve('llm'), selfModel: c.resolve('selfModel'),

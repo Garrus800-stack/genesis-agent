@@ -51,6 +51,7 @@ Models tab.
 | OpenAI API key | `''` | Same. Also `openaiBaseUrl` for OpenAI-compatible endpoints. |
 | Ollama keep-alive | `null` (= 5min) | `30s` to free RAM faster, `0` to unload immediately, `-1` or `1h` to keep loaded longer. |
 | Max concurrent LLM requests | `3` | Lower to `1` on CPU-only setups to avoid Ollama thrashing. |
+| LLM local timeout (ms) | `180_000` | HTTP timeout for local Ollama. **Raise to `300_000` or higher on slow CPUs running 7B+ models** — first inference can take 240–300s. Setting key: `llm.localTimeoutMs`. *(v7.5.9)* |
 
 ### Behavior
 
@@ -68,6 +69,8 @@ Models tab.
 | Negotiate before add | `false` | If on, `/goal add` proposes goals as pending; Genesis clarifies first. |
 | Auto-route by task | `false` | If on, ModelBridge picks model per task-type. Off because it caused multi-model thrashing on CPU-only setups. Re-enable with caution. |
 | Commit-snapshot on shutdown | `false` | Was always-on, polluted git history on collaborator machines. Off now — opt in if you want shutdown-state in git. |
+| Software-Installation: Install-Ziel | `machine` | Where `/install` puts new software. `machine` = system-wide (Program Files on Win, sudo apt on Linux); `user` = per-user (no admin); `auto` = winget default. Setting key: `install.scope`. *(v7.5.9)* |
+| Software-Installation: Auto-Install | `false` | If on (and trust ≥ AUTONOMOUS), `/install <pkg>` runs the package-manager command directly instead of just previewing. Setting key: `install.allowAutoInstall`. *(v7.5.9)* |
 
 ### Limits
 

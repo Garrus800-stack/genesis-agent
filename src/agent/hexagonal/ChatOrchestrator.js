@@ -81,8 +81,6 @@ class ChatOrchestrator {
     this._loadHistory();
   }
 
-
-
   /* c8 ignore stop */
 
   registerHandler(intentType, handler) {
@@ -115,7 +113,9 @@ class ChatOrchestrator {
       if (traceId) this._provenance.recordIntent(traceId, { type: intent.type, confidence: intent.confidence || 0.5, method: intent.method || 'regex' });
 
       let response;
-      const handler = this.handlers.get(intent.type);
+      // v7.5.9 ZIP7: route slash-discipline rewrites to slash-hint handler.
+      const handlerKey = (intent._wasSlashOnlyRewrite && this.handlers.has('slash-hint')) ? 'slash-hint' : intent.type;
+      const handler = this.handlers.get(handlerKey);
 
       if (handler) {
         response = await handler(message, { history: this.history, intent });
@@ -158,7 +158,14 @@ class ChatOrchestrator {
       this._saveHistory();
       // v3.5.0: Record conversation as episodic memory (ChatOrchestratorHelpers mixin)
       (/** @type {any} */ (this))._recordEpisode(message, response, intent.type);
-      this.bus.fire('chat:completed', { message, response, intent: intent.type, success: !response.startsWith('**' + this.lang.t('agent.error')) }, { source: 'ChatOrchestrator' });
+      // v7.5.9 B4: success is structurally true here — we reached this line
+      // without an exception. Pre-fix used a fragile string-sniff
+      // (`!response.startsWith('**' + agent.error)`) which missed
+      // handler-emitted soft-failures like "⚠️ ...", "❌ Skill failed",
+      // "Fehler: ..." and contaminated SelfStatementLog / MetaLearning
+      // telemetry. Hard failures throw, are caught below, and emit
+      // chat:completed with success: false there.
+      this.bus.fire('chat:completed', { message, response, intent: intent.type, success: true }, { source: 'ChatOrchestrator' });
       // v7.3.7: Release any active-reference claims made during this turn
       // so DreamCycle Phase 4c stops skipping those episodes.
       if (this.activeRefs && traceId) {
@@ -193,6 +200,18 @@ class ChatOrchestrator {
       // For isSystemMessage=true: do NOT push to history. User sees it,
       // next turn doesn't reference it.
 
+      // v7.5.9 B4: emit chat:completed even on failure path so listeners
+      // (SelfStatementLog, MetaLearning, telemetry) get a consistent
+      // signal. Pre-fix this branch was silent and the success-flag in
+      // the try-branch was string-sniffed; together that meant failure
+      // telemetry was either missing or wrong.
+      this.bus.fire('chat:completed', {
+        message,
+        response: result.text,
+        intent: result.isSystemMessage ? 'system-error' : 'error',
+        success: false,
+      }, { source: 'ChatOrchestrator' });
+
       return { text: result.text, intent: result.isSystemMessage ? 'system-error' : 'error' };
     }
   }
@@ -226,7 +245,9 @@ class ChatOrchestrator {
       if (traceId) this._provenance.recordIntent(traceId, { type: intent.type, confidence: intent.confidence || 0.5, method: intent.method || 'regex' });
 
       // Check for registered handler (non-streaming path)
-      const handler = this.handlers.get(intent.type);
+      // v7.5.9 ZIP7: route to slash-hint if guard rewrote intent.
+      const handlerKey = (intent._wasSlashOnlyRewrite && this.handlers.has('slash-hint')) ? 'slash-hint' : intent.type;
+      const handler = this.handlers.get(handlerKey);
       if (handler) {
         let response = await handler(message, { history: this.history, intent });
         // v7.3.3: If a handler returns null (LLM timeout, circuit breaker, empty stream),
@@ -364,7 +385,6 @@ class ChatOrchestrator {
     }
   }
 
-
   /** Strip tool call markup and status noise from text before storing in history */
   _cleanForHistory(text) {
     return text
@@ -456,11 +476,44 @@ class ChatOrchestrator {
 
         let history = [...ctx.messages];
         const MAX_TOOL_ROUNDS = 5;
+        // v7.5.9 ZIP1 Phase 0.3: track whether we've already issued the
+        // "you said you'd use a tool but didn't" re-prompt for this turn.
+        // We allow at most one such re-prompt per turn; further failures
+        // fall through to normal "no tools" behavior.
+        let _toolIntentReprompted = false;
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           const parsed = this.tools.parseToolCalls(response);
           if (parsed.toolCalls.length === 0) {
-            // No tools → done. Emit reasoning trace if any was collected.
+            // v7.5.9 ZIP1 Phase 0.3: before giving up, check if the LLM
+            // signaled tool intent ("Tools ausführen...", "let me use ...")
+            // without emitting an actual call block. If yes AND we haven't
+            // re-prompted yet this turn, send one corrective message and
+            // try again.
+            if (!_toolIntentReprompted
+                && typeof this.tools.detectToolIntentWithoutCall === 'function'
+                && this.tools.detectToolIntentWithoutCall(response)) {
+              _toolIntentReprompted = true;
+              this.bus.emit('tool-use:reprompt-needed', {
+                round,
+                excerpt: response.slice(0, 200),
+              }, { source: 'ChatOrchestrator' });
+
+              const isDE = this.lang && this.lang.current === 'de';
+              const correctiveMsg = isDE
+                ? 'Du hast geschrieben, dass du ein Tool nutzen möchtest, aber keinen <tool_call>-Block gesendet. Sende den Tool-Call jetzt im exakt diesem Format:\n<tool_call>{"name": "tool-name", "input": {"param": "value"}}</tool_call>\nWenn doch kein Tool nötig ist, antworte direkt ohne Tool-Call.'
+                : 'You indicated you want to use a tool but did not send a <tool_call> block. Send the tool call now in this exact format:\n<tool_call>{"name": "tool-name", "input": {"param": "value"}}</tool_call>\nIf no tool is actually needed, just answer directly without a tool call.';
+
+              history.push({ role: 'assistant', content: response });
+              history.push({ role: 'user', content: correctiveMsg });
+              raw = await this.model.chat(ctx.system, history, 'chat', { _userChat: true });
+              stripped = stripThinkingBlocks(raw);
+              if (stripped.reasoning) reasoningParts.push(stripped.reasoning);
+              response = stripped.clean;
+              continue;  // re-evaluate at top of loop
+            }
+
+            // No tools (and no re-prompt warranted) → done.
             if (reasoningParts.length > 0) {
               this.bus.emit('model:thinking-trace', {
                 text: reasoningParts.join('\n---\n'),
@@ -475,7 +528,13 @@ class ChatOrchestrator {
           for (const call of parsed.toolCalls) {
             try {
               const result = await this.tools.execute(call.name, call.input);
-              toolResults.push(`[Tool: ${call.name}] Result: ${JSON.stringify(result).slice(0, 1500)}`);
+              // v7.5.9 ZIP2 Phase 3: post-process tool result to surface
+              // structured failures (sandbox-block, exists:false, etc.) as
+              // *actionable* feedback rather than naked JSON. The LLM gets
+              // the raw result + a humanly-readable next-step hint so it
+              // can adjust its strategy on the next round.
+              const enriched = this._enrichToolResult(call, result);
+              toolResults.push(enriched);
               // FIX v6.1.1: Record success in LessonsStore
               if (this.lessonsStore) {
                 this.lessonsStore.record({
@@ -526,8 +585,6 @@ class ChatOrchestrator {
       }
     });
   }
-
-
 
   // ── Helpers → ChatOrchestratorHelpers.js (v5.6.0) ──
   // (prototype delegation, see bottom of file)
@@ -632,11 +689,9 @@ class ChatOrchestrator {
 
 module.exports = { ChatOrchestrator };
 
+// v7.3.9 + v7.5.9 ZIP2: helpers + source-read methods are extracted to
+// sibling modules and prototype-delegated to keep this file under the
+// 700-LOC threshold. External API unchanged.
 const { helpers: _coHelpers } = require('./ChatOrchestratorHelpers');
-Object.assign(ChatOrchestrator.prototype, _coHelpers);
-
-// v7.3.9: Source-read methods extracted to ChatOrchestratorSourceRead.js
-// to keep this file under the 700-LOC threshold. Same prototype-
-// delegation pattern as ChatOrchestratorHelpers. External API unchanged.
 const { sourceRead: _coSourceRead } = require('./ChatOrchestratorSourceRead');
-Object.assign(ChatOrchestrator.prototype, _coSourceRead);
+Object.assign(ChatOrchestrator.prototype, _coHelpers, _coSourceRead);

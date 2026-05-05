@@ -181,6 +181,8 @@ const SCHEMAS = {
   // v5.7.0 SA-P8: Tool Synthesis
   'tool:synthesized':        { name: 'required', description: 'required', attempt: 'required' },
   'tool:synthesis-failed':   { description: 'required' },
+  // v7.5.9 ZIP1 Phase 0.3
+  'tool-use:reprompt-needed': { round: 'required', excerpt: 'required' },
 
   // v5.9.2: Colony Mode
   'colony:run-started':      { id: 'required', goal: 'required' },

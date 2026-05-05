@@ -248,6 +248,19 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     assert(/outside rootDir/i.test(r.reason || ''), `reason: ${r.reason}`);
   });
 
+  // v7.5.9 Linux-fix: same test at trust=2 (AUTONOMOUS) — pre-fix this
+  // failed on Linux because path.resolve(Win-path) on Linux became a
+  // relative path under /home/<user>/, which then matched the safe-area
+  // home check and was let through. Platform-aware path.win32.resolve
+  // keeps the Win-path absolute so the rootDir-mismatch wins.
+  await test('#31 _checkRootDirSandbox rejects Win-path outside rootDir at trust=2 (cross-platform)', () => {
+    const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
+    const rootDir = 'C:\\Users\\Foo\\OneDrive\\Desktop\\Github v5.9.3\\Genesis-v5_9_3';
+    const cmd = `type "C:\\Program Files\\Common Files\\foo.txt"`;
+    const r = checkRootDirSandbox(cmd, rootDir, { platform: 'win32', trustLevel: 2 });
+    assert(!r.ok, `expected reject even at trust=2, got: ${JSON.stringify(r)}`);
+  });
+
   await test('#31 _checkRootDirSandbox accepts quoted Linux path with spaces inside rootDir', () => {
     const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
     const rootDir = '/home/garrus/My Files/Genesis';

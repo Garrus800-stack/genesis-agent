@@ -133,6 +133,9 @@ function phase5(ctx, R) {
         // the trust handler tried bus._container?.resolve and always
         // returned "Trust level system not available."
         { prop: 'trustLevelSystem', service: 'trustLevelSystem', optional: true },
+        // v7.5.9 ZIP4 Phase 8: P5→P1 for /architecture diagram —
+        // needs selfModel.getFullModel() + _manifestMeta to render.
+        { prop: 'selfModel', service: 'selfModel', optional: true },
       ],
       factory: (c) => {
         const { lang } = R('Language');

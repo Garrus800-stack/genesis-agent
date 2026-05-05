@@ -280,7 +280,12 @@ describe('v7.5.8 hotfix — Filename-Resolution with variants', () => {
     assert(/_levenshtein/.test(src), 'levenshtein helper missing');
     assert(/_resolveInDir/.test(src), 'per-dir helper missing');
     assert(/COMMON_FILE_EXTS/.test(src), 'common-extensions list missing');
-    assert(/_looksLikeDocFilename/.test(src), 'doc-like heuristic missing');
+    // v7.5.9 ZIP2 v5: dropped the _looksLikeDocFilename gate (was a regex
+    // that excluded names with digits — e.g. "phase9-cognitive-architecture"
+    // failed). Replaced by unconditional docs/ fallback. Verify the
+    // unconditional fallback exists instead of the deleted heuristic.
+    assert(/docs/.test(src) && /_resolveInDir\(docsDir/.test(src),
+      'docs/ unconditional fallback missing');
   });
 
   test('source-presence: readSourceSync uses variant-resolution', () => {

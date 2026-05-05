@@ -138,6 +138,34 @@ async function build() {
     }
   }
 
+  // Mermaid: copy local mermaid.min.js to dist/ for the chat renderer.
+  try {
+    const mermaidSrc = path.join(ROOT, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js');
+    if (fs.existsSync(mermaidSrc)) {
+      const mermaidDest = path.join(DIST, 'mermaid.min.js');
+      fs.copyFileSync(mermaidSrc, mermaidDest);
+      const sizeKB = Math.round(fs.statSync(mermaidDest).size / 1024);
+      console.log(`  dist/mermaid.min.js: ${sizeKB}KB (local fallback)`);
+    } else {
+      console.log('[BUILD] mermaid not in node_modules — diagram rendering will fail until installed');
+    }
+  } catch (err) {
+    console.warn('[BUILD] mermaid copy failed:', err.message);
+  }
+
+  // AMD-bypass scripts. Monaco's AMD loader sets define.amd which makes
+  // mermaid's UMD wrapper register via define() instead of as
+  // window.mermaid. We park define around the mermaid script tag.
+  // Must be EXTERNAL .js files because the CSP forbids inline scripts.
+  fs.writeFileSync(
+    path.join(DIST, 'amd-bypass-pre.js'),
+    'window.__amdDefineBackup=window.define;window.define=undefined;'
+  );
+  fs.writeFileSync(
+    path.join(DIST, 'amd-bypass-post.js'),
+    'window.define=window.__amdDefineBackup;delete window.__amdDefineBackup;'
+  );
+
   if (isWatch) {
     console.log('[BUILD] Watching for changes...');
     // esbuild watch mode with rebuild

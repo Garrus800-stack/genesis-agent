@@ -135,7 +135,10 @@ async function main() {
                 // performs full project scan + DI-manifest walk, runs ~40-80s
                 // depending on filesystem speed. 30s caused flaky failures on
                 // slower Linux containers while Windows passed consistently.
-                timeout: 90000,
+                // v7.5.9 Linux-fix: node:test files (headless-boot etc.) do
+                // full agent boot — slow CPUs need 180s+. Bump timeout for
+                // those specifically; non-node:test files keep 90s.
+                timeout: isNodeTest ? 240000 : 90000,
               });
               // On some platforms node:test may write TAP to stderr; merge both
               const combinedOut = stdout + (nodeStderr || '');
@@ -143,7 +146,18 @@ async function main() {
             } catch (err) {
               const out = err.stdout || err.stderr || '';
               const hasContent = out.includes('TAP version') || out.includes(' passed') || out.includes(' failed') || out.includes('# pass');
-              return { moduleName, stdout: out, error: hasContent ? null : (err.stderr || err.message) };
+              // v7.5.9 Linux-fix: subprocess timeouts (err.killed = true)
+              // were reported as "0 passed" instead of failure because
+              // hasContent was false → error was returned but the parser
+              // counted 0 passed and 0 failed, hiding the real problem.
+              // Now: explicitly tag timeout/kill as a failure with context.
+              const isTimeout = err.killed === true || /timed out|ETIMEDOUT/i.test(err.message || '');
+              return {
+                moduleName,
+                stdout: out,
+                error: hasContent ? null : (err.stderr || err.message),
+                timeout: isTimeout,
+              };
             }
           })
         );

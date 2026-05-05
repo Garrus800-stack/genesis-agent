@@ -130,6 +130,31 @@ class Settings {
       episodicMemory: { maxEpisodes: 500 },
       ui: { language: 'de', editorFontSize: 13, chatFontSize: 13 },
       security: { allowSelfModify: true, allowNetworkPeers: true, allowFileExecution: true },
+      // v7.5.9 ZIP3 Phase 4a + ZIP5 Phase 4d: Software-installation defaults.
+      // allowAutoInstall=false means "preview-only by default" — Genesis
+      // shows the command it would run but does not execute. Set to true
+      // AND raise trust to AUTONOMOUS (2) to enable Tier-1 (PM-install)
+      // and Tier-2 (PM-bootstrap) automatically.
+      //
+      // fullAutonomy=true additionally enables Tier-3: direct download
+      // from Genesis's curated software DB to ~/Downloads, and auto-launch
+      // of the installer (Windows still shows a UAC prompt — that cannot
+      // be bypassed). Without this toggle, Tier-3 stays preview-only even
+      // at Trust 3.
+      install: {
+        allowAutoInstall: false,
+        fullAutonomy: false,
+        preferredPackageManager: 'auto',
+        requireConfirmation: true,
+        downloadDir: '~/Downloads',
+      },
+      // v7.5.9 ZIP3 Phase 4c: Language-Guard for self-modification.
+      // Genesis only modifies its own JS/TS sources. Extending this
+      // list is a deliberate decision — the safety properties of
+      // ast-diff and the sandbox depend on the target being JS.
+      selfModify: {
+        allowedExtensions: ['.js', '.ts'],
+      },
       // v7.4.7: Trust level (0..3 = SUPERVISED..FULL_AUTONOMY).
       // Read by TrustLevelSystem.asyncLoad — overrides the persisted
       // trust-level.json default. UI dropdown writes here.

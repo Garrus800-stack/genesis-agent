@@ -22,6 +22,14 @@ function phase2(ctx, R) {
       lateBindings: [
         // v5.7.0 SA-P8: Auto-synthesize missing tools on first call
         { prop: '_toolSynthesis', service: 'dynamicToolSynthesis', optional: true },
+        // v7.5.9 ZIP2 v3 (Bug 4): late-bind trust + settings so
+        // file-read/file-list use the 3-tier sandbox.
+        { prop: '_trustLevelSystem', service: 'trustLevelSystem',
+          optional: true, expectedActive: true, expects: ['getLevel'],
+          impact: 'file-read/file-list fall back to default trust=1' },
+        { prop: '_settings', service: 'settings',
+          optional: true, expectedActive: true, expects: ['get'],
+          impact: 'file-read/file-list fall back to default scope=user-home' },
       ],
       factory: () => {
         const { lang } = R('Language');

@@ -1100,7 +1100,17 @@ ipcMain.on('agent:request-stream', (event, message) => {
     }
     return;
   }
-  if (!agent) return;
+  if (!agent) {
+    // v7.5.9 B2: send stream-done so UI doesn't hang in '...' state.
+    // Pre-fix the early-return left the renderer stuck in streaming mode
+    // with no chunk and no done-signal. Symmetric to the rate-limit branch
+    // above.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('agent:stream-chunk', '[Agent not ready — please retry]');
+      mainWindow.webContents.send('agent:stream-done');
+    }
+    return;
+  }
   agent.handleChatStream(message, (chunk) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('agent:stream-chunk', chunk);

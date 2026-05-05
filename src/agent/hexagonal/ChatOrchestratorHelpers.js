@@ -477,6 +477,84 @@ const helpers = {
     };
   },
 
+  /**
+   * v7.5.9 ZIP2 Phase 3: Post-process a tool-call result before feeding
+   * it back to the LLM. Surfaces structured failure patterns (sandbox
+   * blocks, exists:false, command-not-found) as actionable hints so the
+   * LLM can pick a different approach instead of confabulating.
+   *
+   * Lives in helpers (not ChatOrchestrator) to keep ChatOrchestrator.js
+   * under the 700-LOC structural budget. Same prototype-delegation
+   * pattern as the rest of the helpers — `this` is the ChatOrchestrator
+   * instance at call time, but this method does not actually use `this`,
+   * which is why it's safe to put here.
+   *
+   * @param {{name: string, input: object}} call
+   * @param {*} result - tool execution result
+   * @returns {string} formatted line for the tool-result history
+   */
+  _enrichToolResult(call, result) {
+    const name = call.name;
+    const inputStr = JSON.stringify(call.input).slice(0, 150);
+    const baseLine = `[Tool: ${name}] Input: ${inputStr}`;
+
+    if (result === null || result === undefined) {
+      return `${baseLine}\nResult: (empty)`;
+    }
+    if (typeof result !== 'object') {
+      return `${baseLine}\nResult: ${String(result).slice(0, 1500)}`;
+    }
+
+    const resJson = JSON.stringify(result).slice(0, 1500);
+    const hints = [];
+
+    // Pattern A: file-read / file-list returned exists:false
+    if (result.exists === false && (name === 'file-read' || name === 'file-list')) {
+      const requested = call.input?.path || call.input?.dir || '<unknown>';
+      hints.push(
+        `HINT: The literal path "${requested}" was not found. ` +
+        `The file-read tool already tries common variants (case, extension, fuzzy). ` +
+        `If you're looking for a file with a typo or unusual case, try file-list on the parent directory first to see what's actually there.`
+      );
+    }
+
+    // Pattern B: shell sandbox block
+    if (result.sandboxBlock === true
+        || (typeof result.stderr === 'string' && /\[SHELL\]\s+Sandbox/.test(result.stderr))) {
+      const reason = (result.stderr || '').replace(/^.*Sandbox:\s*/, '').slice(0, 400);
+      hints.push(
+        `HINT: Sandbox blocked the path. Reason: ${reason}. ` +
+        `Possible alternatives: use a path inside the project rootDir, ` +
+        `or (if user-home access is needed) ask the user to raise their trust level. ` +
+        `For READ-only listing of folders on Desktop/Documents/Downloads, trust ASSISTED (1) is enough.`
+      );
+    }
+
+    // Pattern C: shell command not found / unknown
+    if (typeof result.stderr === 'string'
+        && /command not found|nicht gefunden|nicht erkannt/i.test(result.stderr)) {
+      hints.push(
+        `HINT: The command does not exist on this system. ` +
+        `Different operating systems use different commands — on Windows use 'dir' instead of 'ls', 'type' instead of 'cat', 'where' instead of 'which'. ` +
+        `Use the file-list tool for portable directory listing.`
+      );
+    }
+
+    // Pattern D: read-source budget exhausted
+    if (result.blocked === true && name === 'read-source') {
+      hints.push(
+        `HINT: Source-read budget exhausted for this turn or session. ` +
+        `Either continue without reading more files, or ask the user to confirm reading additional sources.`
+      );
+    }
+
+    let line = `${baseLine}\nResult: ${resJson}`;
+    if (hints.length > 0) {
+      line += `\n${hints.join('\n')}`;
+    }
+    return line;
+  },
+
 };
 
 module.exports = { helpers };

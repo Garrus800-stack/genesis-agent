@@ -104,8 +104,8 @@ class _LLMSemaphore {
 }
 
 class ModelBridge {
-  /** @param {{ bus?: *, maxConcurrentLLM?: number, genesisDir?: string, ollamaKeepAlive?: string|number|null }} [deps] */
-  constructor({ bus, maxConcurrentLLM, genesisDir, ollamaKeepAlive } = {}) {
+  /** @param {{ bus?: *, maxConcurrentLLM?: number, genesisDir?: string, ollamaKeepAlive?: string|number|null, ollamaLocalTimeoutMs?: number }} [deps] */
+  constructor({ bus, maxConcurrentLLM, genesisDir, ollamaKeepAlive, ollamaLocalTimeoutMs } = {}) {
     this.bus = bus || NullBus;
     this.activeModel = null;
     this.activeBackend = null;
@@ -122,7 +122,10 @@ class ModelBridge {
     // v4.10.0: Backend instances. v7.5.7-fix Phase 2: Ollama gets keepAlive
     // (null = Ollama default 5min; "30s"/"1h"/0 override).
     this.backends = {
-      ollama: new OllamaBackend({ keepAlive: ollamaKeepAlive == null ? null : ollamaKeepAlive }),
+      ollama: new OllamaBackend({
+        keepAlive: ollamaKeepAlive == null ? null : ollamaKeepAlive,
+        localTimeoutMs: ollamaLocalTimeoutMs,
+      }),
       anthropic: new AnthropicBackend(),
       openai: new OpenAIBackend(),
     };
@@ -395,6 +398,7 @@ class ModelBridge {
         ...(arg.maxTokens   !== undefined ? { maxTokens:   arg.maxTokens   } : {}),
         ...(arg.temperature !== undefined ? { temperature: arg.temperature } : {}),
         ...(arg.priority    !== undefined ? { priority:    arg.priority    } : {}),
+        ...(arg.noCache     !== undefined ? { noCache:     arg.noCache     } : {}),  // v7.5.9 B5: parity with chat()
         ...(arg._userChat   !== undefined ? { _userChat:   arg._userChat   } : {}),  // v7.5.2
       };
     }

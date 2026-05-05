@@ -99,7 +99,12 @@ describe('v7.3.8 #B — PromptBuilder source-content', () => {
     const block = pb._getSourceContentBlock();
     assert.ok(block.includes('CHANGELOG.md'));
     assert.ok(block.includes('## [7.3.8]'));
-    assert.ok(block.includes('Grundlage deiner Antwort'));
+    // v7.5.9 ZIP4: prompt-block was rewritten with stronger anti-
+    // confabulation framing. The "Grundlage deiner Antwort" footer
+    // was replaced by an authoritative-source marker plus an explicit
+    // KONFABULIERE-NICHT instruction. Check for the new markers.
+    assert.ok(block.includes('AUTORITATIVE QUELLE'));
+    assert.ok(block.includes('KONFABULIERE NICHT'));
   });
 
   it('clearSourceContent removes the content', () => {

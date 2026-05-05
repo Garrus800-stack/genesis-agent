@@ -123,6 +123,35 @@ const selfModificationPipelineModify = {
     const fileMatch = message.match(/(?:in|bei|datei)\s+(\S+\.js)/i);
     const targetFile = fileMatch?.[1] || null;
 
+    // v7.5.9 ZIP3 Phase 4c — Language-Guard for self-modify.
+    //
+    // Self-modification only operates on Genesis's own JavaScript/TypeScript
+    // sources. If a message references a non-JS/TS extension explicitly
+    // (.py, .sh, .rb, .go etc.), refuse — those would be treated as
+    // foreign-language patches and the LLM-generated content would not
+    // be validatable by ast-diff/sandbox. Out-of-language modification
+    // is a clear signal of either confusion or a hijacked prompt.
+    //
+    // The setting `selfModify.allowedExtensions` overrides the default if
+    // the user later wants to expand (default: ['.js', '.ts']).
+    //
+    // Defensive default: optional-chain returns undefined when settings
+    // service is not wired (test scaffolding) — `||` falls back to the
+    // explicit default array so `.includes()` never sees undefined.
+    const allowedExt = (this._settings?.get?.('selfModify.allowedExtensions', ['.js', '.ts'])) || ['.js', '.ts'];
+    const path = require('path');
+    if (targetFile) {
+      const ext = path.extname(targetFile).toLowerCase();
+      if (!allowedExt.includes(ext)) {
+        this._gateStats.consciousnessBlocked = (this._gateStats.consciousnessBlocked || 0) + 1;
+        _log.warn(`[SELFMOD] Language-guard: rejected target file with extension "${ext}"`);
+        this.bus.emit('selfmod:language-guard-blocked', {
+          targetFile, ext, allowedExt,
+        }, { source: 'SelfModPipeline' });
+        return `⛔ **Language-Guard** — Self-modification operates only on JavaScript/TypeScript sources. Target "${targetFile}" has extension "${ext}". Allowed: ${allowedExt.join(', ')}.`;
+      }
+    }
+
     // Strategy 1: Try ASTDiff for precise changes (less tokens, fewer errors)
     if (this.astDiff && targetFile) {
       const result = await this._modifyWithDiff(message, targetFile);
@@ -327,7 +356,34 @@ const selfModificationPipelineModify = {
     const patches = [];
     const rx = /(?:\/\/\s*FILE:\s*(\S+)|---\s*(\S+\.js)\s*---)\n```(?:\w+)?\n([\s\S]+?)```/g;
     let m;
-    while ((m = rx.exec(response))) patches.push({ file: m[1] || m[2], code: m[3].trim() });
+    // v7.5.9 ZIP3 Phase 4c: Language-Guard for full-file patches.
+    // If the LLM-generated patch starts with a shell/python/perl/ruby
+    // shebang or contains shell-script declarations, reject the patch.
+    // Genesis sources are JS — anything else is a confused or hijacked
+    // generation attempt. The check is per-patch so one bad patch
+    // doesn't block sibling patches in the same response, but the bad
+    // one is dropped with a warning event.
+    //
+    // FOREIGN_LANG_RE matches any shebang followed by a non-JS interpreter
+    // identifier somewhere on the same line — covers both /bin/bash and
+    // /usr/bin/env python3 forms without enumerating every path prefix.
+    const FOREIGN_LANG_RE = /^\s*#!\s*\/\S*(?:bash|zsh|fish|python\d?|perl|ruby|php)\b|^\s*#!\s*\/\S*\bsh\b|^\s*#!\s*\S*\benv\s+(?:bash|zsh|fish|python\d?|perl|ruby|php|sh)\b/m;
+    const SHELL_DECL_RE = /^\s*(?:set\s+-[eux]+|export\s+\w+=|trap\s+['"]|function\s+\w+\s*\(\)\s*\{)/m;
+    while ((m = rx.exec(response))) {
+      const code = m[3].trim();
+      if (FOREIGN_LANG_RE.test(code) || SHELL_DECL_RE.test(code)) {
+        if (this.bus?.emit) {
+          this.bus.emit('selfmod:language-guard-blocked', {
+            file: m[1] || m[2],
+            reason: 'foreign-language-patch',
+            preview: code.slice(0, 200),
+          }, { source: 'SelfModPipeline' });
+        }
+        _log.warn(`[SELFMOD] Language-guard: dropped foreign-language patch for ${m[1] || m[2]}`);
+        continue;
+      }
+      patches.push({ file: m[1] || m[2], code });
+    }
     return patches;
   },
 

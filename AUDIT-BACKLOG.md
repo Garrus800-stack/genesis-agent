@@ -1,9 +1,99 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.5.8 · Last updated: v7.5.8 (Bug-fix release: openPath, slash-discipline, OneDrive)
+> Version: 7.5.9 · Last updated: v7.5.9 (Audit-driven bug-fix release: 6 bugs + 1 cleanup)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.5.9
+
+Audit-driven release. Static-analysis pass over v7.5.8 surfaced six
+precise bugs and one cleanup item. The audit also verified the
+codebase is structurally healthy: zero cycles in `src/agent/`, zero
+cross-layer violations, zero unresolved Service-Locator lookups, zero
+truly-dead files. See `CHANGELOG.md` `[7.5.9]` for per-item details.
+Compressed list:
+
+- **B1 — Slash-Discipline fast-path enforcement** (`IntentRouter.js`,
+  `IntentPatterns.js`). The regex/fuzzy fast-path returned directly
+  without enforcement, so `SECURITY_REQUIRED_SLASH` intents could be
+  triggered via free-text imperatives (e.g. "fuehr aus den code" →
+  execute-code). Now `_enforceSlashDiscipline` wraps both fast-path
+  returns. Plus narrow exception: a message starting with a fenced
+  code block is a documented alternate trigger for `execute-code`.
+- **B2 — `agent === null` stream-done** (`main.js`). Pre-fix bare
+  `if (!agent) return;` left the renderer hanging in '...' state.
+  Now sends `[Agent not ready — please retry]` chunk + stream-done,
+  symmetric to the rate-limit branch.
+- **B3 — `openPath` capture-group + punct-strip** (`CommandHandlersShell.js`).
+  Pre-fix arithmetic offset (`+ alias.length + 1`) was off-by-one for
+  the `^`-branch (zero-width assertion). Edge case: "desktop.txt"
+  lost the leading dot. Now uses capture-group + match()-based offset,
+  plus strips leading punctuation from `afterAlias`.
+- **B4 — `chat:completed` structural success flag**
+  (`ChatOrchestrator.js`). Pre-fix string-sniff
+  (`!response.startsWith('**' + agent.error)`) missed handler-emitted
+  soft-failures with other markers. Now: try-branch always emits
+  `success: true` (structural); catch-branch also emits
+  `chat:completed` with `success: false`. Both paths consistent.
+- **B5 — `streamChat` noCache parity** (`ModelBridge.js`). One-line
+  fix to keep the chat()/streamChat() object-form adapters symmetric.
+- **B6 — `_llmClassify` per-call timeout** (`IntentRouter.js`). 8s
+  `Promise.race` cap so a hanging Ollama "loading model" can't block
+  the classifier indefinitely.
+- **Cleanup — `slash-commands.js` dead exports**. Three never-called
+  functions (`slashPatternFor`, `detectSlashCommand`, `getCommand`)
+  removed after grep verified zero callers. `SLASH_COMMANDS` and
+  `allCommandNames` remain.
+
+### Live-fix (added same release after first cloud-test round, 2026-05-04)
+
+- **L1 — B6 timeout 8s → 30s, configurable** via
+  `Settings.intent.llmClassifyTimeoutMs`. Cloud models routinely take
+  10-25s for analysis-task; the 8s cap caused every classification to
+  time out, silently breaking open-path / source-read routing.
+- **L2 — open-path natural-phrasing patterns**. Three new patterns
+  for "öffne den X ordner", Win-path-anywhere, and "welche dateien
+  sind in ihm" implicit listing.
+- **L3 — `file-read` tool gets filename-variant resolution**.
+  `_resolveFileWithVariants` exported from `SelfModelSourceRead.js`,
+  imported into `ToolRegistry.js`, called as fallback when the
+  literal path doesn't exist. Project-scope safeguard re-validated
+  on the resolved path.
+
+### Tests / fitness / audits at v7.5.9
+
+- 6641 passed (Linux). Diff to v7.5.8: +196 tests (audit-driven + live-fix
+  + plan-cards + architecture-routing + Linux-readiness pass)
+- Architectural fitness: 126/130 (97%)
+- `audit-events --strict`: green
+- `scan-schemas`: zero mismatches
+- `check-stale-refs`: all checks passed
+- `audit-slash-discipline --strict`: no findings
+
+### Verified structurally healthy at v7.5.9 (audit findings)
+
+The audit also verified — for the record, no action needed:
+- Zero cyclic dependencies in `src/agent/`
+- Zero cross-layer violations (foundation → capabilities/cognitive)
+- `ports/` layer purity preserved (only depends on `core/`)
+- Zero unresolved Service-Locator R() lookups
+- Zero truly-dead files (14 unresolved files are all legitimate
+  entry-points or HTML-loaded scripts)
+- Hub-pattern fan-in distribution as designed (Logger 183, EventBus
+  108, Constants 57, utils 42)
+- README/QUICK-START claims spot-checked: 12 boot phases, ~168
+  services, 10-layer security, Phase 13 (Consciousness) → AwarenessPort
+  migration — all accurate
+
+### Deferred to v7.6+
+
+- UI doppelpfad (renderer.js Monolith vs Bundle)
+- ModelBridge `_prepareCallContext` extract (chat/streamChat dedup)
+- Goal-DAG embedding-cluster
+- Self-Gate per-node configurable mode (Outpost preparation)
 
 ---
 

@@ -157,6 +157,12 @@ const EVENTS = Object.freeze({
     LLM_FAILURE: 'chat:llm-failure',
   }),
 
+  // ── Install (v7.5.9 ZIP8) ──────────────────────────────
+  INSTALL: Object.freeze({
+    /** @payload {{ packageName: string, path: string|null }} */
+    COMPLETED: 'install:completed',
+  }),
+
   // ── Injection Gate (v7.3.5) ─────────────────────────────
   INJECTION: Object.freeze({
     /** @payload {{ signals: Array<{kind: string, note: string}>, toolCount: number }} */
@@ -225,6 +231,9 @@ const EVENTS = Object.freeze({
     /** v7.5.1: emitted when SelfModificationPipeline rejects a request because security.allowSelfModify=false in settings */
     /** @payload {{ message: string }} */
     SETTINGS_BLOCKED: 'selfmod:settings-blocked',
+    /** v7.5.9 ZIP3 Phase 4c: emitted when language-guard rejects a target file (extension not in selfModify.allowedExtensions) or a generated patch (foreign-language shebang/shell-decl). Two payload shapes: target-file-rejection has {targetFile, ext, allowedExt}; patch-rejection has {file, reason, preview}. */
+    /** @payload {{ targetFile?: string, ext?: string, allowedExt?: string[], file?: string, reason?: string, preview?: string }} */
+    LANGUAGE_GUARD_BLOCKED: 'selfmod:language-guard-blocked',
   }),
 
   // ── Cognitive Monitor ──────────────────────────────────
@@ -938,6 +947,13 @@ const EVENTS = Object.freeze({
     SYNTHESIZED:       'tool:synthesized',
     /** @payload {{ description: string }} */
     SYNTHESIS_FAILED:  'tool:synthesis-failed',
+    // v7.5.9 ZIP1 Phase 0.3: emitted when LLM signaled tool intent
+    // ("Tools ausführen...", "let me use ...") but emitted no parseable
+    // tool_call block. ChatOrchestrator issues exactly one corrective
+    // re-prompt per turn and fires this event so we can observe how
+    // often the format gets missed.
+    /** @payload {{ round: number, excerpt: string }} */
+    REPROMPT_NEEDED:   'tool-use:reprompt-needed',
   }),
 
   // ── User ───────────────────────────────────────────────

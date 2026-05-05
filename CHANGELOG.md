@@ -1,10 +1,188 @@
+## [7.5.9]
+
+**Audit-driven release plus Linux-Welle.** Started as a closeout for
+the v7.5.8 deep-analysis findings (six precise bugs around
+Slash-Discipline, openPath capture, stream-done handling, cloud-model
+timeout scaling). Grew into a Linux-readiness pass after the first
+real-world Linux test surfaced a row of platform-specific gaps that
+had been silently passing CI on Windows-only paths. Plus a new
+**Plan-Cards** rendering layer for multi-step LLM responses.
+
+No new architecture, no defaults changed beyond the few noted under
+Defaults below. Test count rose from 6445 (v7.5.8) to **6641** —
++196 tests covering the audit fixes, plan-card rendering,
+architecture-routing guard, and the Linux fixes (open, install,
+sandbox cross-platform path resolution).
+
+### Highlights
+
+**Plan-Cards (new)** — When the LLM emits a `<plan title="…">` block
+followed by a list of steps, the chat renderer turns it into a
+visual card with header (icon + title + step count) and numbered
+step list. Plan-Cards parse and persist as part of the assistant
+message so they survive scrollback and chat resume. The PromptBuilder
+now hints to the LLM about this format for multi-step tasks (3+
+steps). Live-tested on both Windows and Linux: "wie tausche ich
+eine Festplatte aus", "5-Schritt-Plan für git rebase", etc.
+
+**Architecture-routing guard** — `/architecture` was being
+auto-triggered by any free-text mention of "mermaid". A request
+like "zeichne mir ein mermaid mit drei Boxen A, B, C" routed to
+the architecture handler and dumped the full Genesis service graph
+instead of producing the simple ad-hoc diagram the user asked for.
+Fixed with an arch-keyword-or-slash gate; ad-hoc mermaid prompts
+now go to the chat handler with a small hint.
+
+**Architecture diagram cleanup** — The Phase 0/12 distinction is
+now consistent: README documents 12 architectural phases, the
+ASCII renderer reports "12 architektonische Phase(n) (+ Phase 0
+Bootstrap)", and the mermaid renderer shows phases 1-12 only.
+Phase 0 (Bootstrap-Infrastruktur: rootDir, guard, bus, container,
+storage) is counted in the boot but not drawn as an architectural
+layer, mirroring the README. Service caps trimmed for in-chat
+readability; the ASCII default still shows the full data.
+
+**Audit-driven items** — All six findings from the v7.5.8 deep
+analysis closed:
+- B1: Slash-Discipline guard now also covers the regex/fuzzy
+  fast-path (was bypassable for security-relevant intents).
+- B2: openPath capture for absolute Windows paths with spaces no
+  longer greedy-matches to end-of-line.
+- B3: openPath alias-resolver strips leading punctuation so
+  "desktop, bilder" extracts "bilder" not ",".
+- B4: Stream-done event uses correct correlation field.
+- B5: ModelBridge fail-fast on cloud-model 503 + clean error
+  classification (subscription-required vs network).
+- B6: Cloud-model HTTP timeout default raised from 8s to 30s with
+  per-instance override (`models.ollamaCloudTimeoutMs`).
+- One cleanup: ModelBridge `chat()` extraction; file size
+  898 → 697 LOC.
+
+**Linux fixes** — A flurry of platform gaps fixed in three sub-rounds:
+
+*Round 1 — `/open` and slash-hint:*
+- `/open ~/Dokumente` → "Pfad existiert nicht: /open" (the unix-path
+  regex was matching the slash-command itself as a path; now the
+  prefix is stripped before path extraction).
+- `öffne den Downloads-Ordner` → "Probier: /open den" (article
+  was being captured as the target; now `den/das/die/the` are
+  skipped, and compound suffixes `-Ordner`/`-Verzeichnis` get
+  stripped).
+- `/open firefox` showed "Windows-Registry, Start-Menu-Shortcuts"
+  on Linux (hardcoded help text). Now platform-aware: Linux gets
+  PATH-Probe, /usr/bin, /usr/local/bin, /snap/bin, ~/.local/bin,
+  .desktop-Files.
+- `/open firefox` on Linux returned null without trying common
+  install dirs. PATH-probe now uses both `command -v` and `which`,
+  plus fallback to common dirs and `.desktop`-File lookup with
+  Exec= line resolution.
+
+*Round 2 — sandbox + tilde + install:*
+- `_checkRootDirSandbox` cross-platform test failed only on Linux
+  with trust=2: `path.resolve(Win-path)` on Linux became a relative
+  path under `/home/<user>/`, then matched the safe-area home check
+  and was let through. Fixed with platform-aware `path.win32` /
+  `path.posix` selection driven by `opts.platform`.
+- `~`-expansion in openPath: `~/X` is now expanded to `/home/<user>/X`
+  before the `existsSync` check. Localized siblings (Documents↔
+  Dokumente, Pictures↔Bilder, Desktop↔Schreibtisch, Music↔Musik)
+  fall back to each other when only one exists — common on German
+  Linux installs.
+- `~`-expansion in tool `file-read` resolver: same fix in the
+  ToolRegistry helper so an LLM that calls `file-read({path:'~/foo'})`
+  resolves correctly.
+- `sudo` non-interactive: install commands prefixed with `sudo` are
+  now rewritten to `sudo -n` for execution. Pre-fix: sudo silently
+  waited on stdin for a password the chat UI cannot provide;
+  Genesis appeared to hang or reported "✅ installiert" without
+  anything actually being installed. With `-n`, sudo fails fast
+  if no cached credential is available; Genesis then surfaces a
+  clear "copy this command into a terminal" message with the
+  actual unmodified command.
+- Linux package-manager aliases expanded: apt/dnf/pacman/zypper/apk/
+  snap aliases for firefox, chromium, vscode, git, python, nodejs,
+  vlc, gimp, inkscape, docker, curl, wget, htop, 7zip. Pre-fix
+  most aliases existed only for winget/choco/brew.
+
+*Round 3 — runtime + test infra:*
+- LLM HTTP timeout configurable: new setting `llm.localTimeoutMs`
+  (default 180000ms = 180s). Slow CPUs running 7B+ local models
+  need 240–300s for first inference — pre-fix this was hardcoded
+  and the user saw silent "no response" on slow machines.
+- Test-runner timeout-as-failure: subprocess timeouts in
+  `test/index.js` were being reported as "0 passed" instead of
+  failures, hiding real problems. Now timeouts are explicitly
+  tagged. Plus node:test files (boot tests) get 240s timeout
+  instead of 90s — slow Linux containers hit the old limit.
+
+**Live-fixes during the v7.5.9 cycle:**
+- Cloud model timeout scaling fix: 8s default → 30s + per-call
+  override, with classification of timeout vs subscription-required
+  vs network errors.
+- openPath natural-language phrasings: "öffne X ordner unter dem
+  desktop", "X auf dem desktop" now resolve to subfolders correctly.
+- Filename-variant resolution in `read-source`: when the LLM passes
+  "readme" / "ONTOGENESIS" without extension, the resolver tries
+  common extensions, case-insensitive matches, single-edit
+  Levenshtein, and well-known docs/ retry — instead of confabulating
+  a "file does not exist" answer.
+- IntentRouter article-skip in install hint generator (mirrors the
+  open-target fix).
+
+### Defaults
+
+- `llm.localTimeoutMs` — new, default 180000ms.
+- `models.ollamaCloudTimeoutMs` — new, default 30000ms (was a
+  hardcoded 8000ms).
+- `install.scope` — new UI toggle (Settings → Verhalten →
+  Software-Installation), values `machine` / `user` / `auto`.
+
+### Tests / fitness / audits at v7.5.9
+
+- **6641 passed** (Linux). Diff to v7.5.8: +196 tests.
+- New test files: `v759-fix`, `v759-zip1` through `v759-zip4`,
+  `v759-zip5-plancards` (12 plan-card tests),
+  `v759-linux-open` (11 Linux regression tests).
+- Architectural fitness: **126/130 (97%)**.
+- `audit-events --strict`: green.
+- `scan-schemas`: zero mismatches.
+- `check-stale-refs`: all checks passed.
+- `audit-slash-discipline --strict`: no findings.
+
+### Items NOT in v7.5.9 (deferred)
+
+The audit identified four structural items that need their own
+release window:
+
+- **UI dual-path consolidation** (renderer.js Monolith vs Bundle).
+  Either Bundle becomes mandatory and `renderer.js` (+567 LOC)
+  goes, or the reverse. ~40% reduction in UI maintenance surface.
+- **ModelBridge `_prepareCallContext` extract** to deduplicate
+  `chat()` and `streamChat()` routing logic (~80 LOC). Reduces
+  the asymmetry-class that produced B5.
+- **Goal-DAG embedding-cluster** for full duplicate detection.
+  TF-IDF dissonance from v7.5.8 Phase 3b is sufficient for the
+  chat-message use-case today.
+- **Self-Gate per-node configurable** (warn/enforce). Hauptstandort
+  defaults warn, outposts default enforce — belongs to the release
+  window when the outpost concept is implemented.
+
+Plus Ubuntu-specific install detection (firefox via apt installs a
+transitional snap stub on 22.04+; success exit-code, but no usable
+binary in PATH for several seconds while snap downloads in
+background) — recognized as a quirk, not yet auto-detected.
+
+---
+
 ## [7.5.8]
 
-**Bug-fix release.** Four live-discovered bugs from a Win-Rechner
-session on a cloud-synced project folder (2026-05-03), plus the
-carry-over Cleanup-Pass from v7.5.7. Plus a same-day hotfix patch
-covering filename-resolution and extended anaphora — same release,
-no version-bump.
+**Audit-driven bug-fix release.** Six bugs and one cleanup item from
+the v7.5.8 deep-analysis pass. The audit verified the codebase is
+structurally healthy (zero cycles, zero cross-layer violations, zero
+unresolved Service-Locator lookups), and surfaced six precise findings
+— the most important being a Defense-in-Depth gap in IntentRouter
+where slash-discipline was silently bypassed on the regex/fuzzy
+fast-path. No new features, no defaults changed.
 
 ### Hotfix items (added same release after first push)
 

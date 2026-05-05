@@ -54,6 +54,13 @@ class ShellAgent {
     // destructive operations during AgentLoop/IdleMind autonomous runs.
     this.permissionLevel = 'read';
 
+    // v7.5.9 ZIP2 Phase 1: late-bound trustLevelSystem + settings for the
+    // 3-tier sandbox (project / user-home / permissive). These remain null
+    // when ShellAgent is constructed early (Phase 2 of boot); the manifest
+    // wires them in Phase 8 via lateBindings.
+    /** @type {*} */ this.trustLevelSystem = null;
+    /** @type {*} */ this.settings = null;
+
     this.history = [];
     this.maxHistory = 200;
 
@@ -122,7 +129,14 @@ class ShellAgent {
     command = sanitized.command;
 
     // rootDir sandbox: reject absolute paths outside rootDir, recursive scans
-    const sandboxCheck = Safety.checkRootDirSandbox(command, this.rootDir, { platform: this.platform });
+    // v7.5.9 ZIP2 Phase 1: pass trustLevel + settings so the 3-tier sandbox
+    // can decide if user-home / Desktop access is allowed.
+    const _trustLevel = this.trustLevelSystem?.getLevel?.() ?? undefined;
+    const sandboxCheck = Safety.checkRootDirSandbox(command, this.rootDir, {
+      platform: this.platform,
+      trustLevel: _trustLevel,
+      settings: this.settings,
+    });
     if (!sandboxCheck.ok) {
       const sbResult = {
         ok: false,
@@ -541,7 +555,13 @@ class ShellAgent {
   }
 
   _checkRootDirSandbox(command) {
-    return Safety.checkRootDirSandbox(command, this.rootDir, { platform: this.platform });
+    // v7.5.9 ZIP2 Phase 1: pass trust+settings for tier-aware sandbox.
+    const _trustLevel = this.trustLevelSystem?.getLevel?.() ?? undefined;
+    return Safety.checkRootDirSandbox(command, this.rootDir, {
+      platform: this.platform,
+      trustLevel: _trustLevel,
+      settings: this.settings,
+    });
   }
 
   _checkShellRateLimit(tier) {

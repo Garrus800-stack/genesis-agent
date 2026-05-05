@@ -421,6 +421,14 @@ async function openSettings() {
     _setBool('#set-allow-peers', s?.security?.allowNetworkPeers ?? true);
     _setBool('#set-allow-file-exec', s?.security?.allowFileExecution ?? true);
     _setBool('#set-commit-on-shutdown', s?.agency?.commitSnapshotOnShutdown ?? false);
+    // v7.5.9 ZIP6 — Install-pipeline toggles.
+    _setBool('#set-install-allow-auto', s?.install?.allowAutoInstall ?? false);
+    _setBool('#set-install-full-autonomy', s?.install?.fullAutonomy ?? false);
+    const scopeEl = document.querySelector('#set-install-scope');
+    if (scopeEl) {
+      const scope = s?.install?.scope ?? 'machine';
+      scopeEl.value = ['machine', 'user', 'auto'].includes(scope) ? scope : 'machine';
+    }
 
     // Health-Server
     _setBool('#set-health-http', s?.health?.httpEnabled ?? false);
@@ -857,6 +865,15 @@ async function saveSettings() {
   if (fileExecEl) sets.push(['security.allowFileExecution', fileExecEl.value === 'true']);
   const commitEl = $('#set-commit-on-shutdown');
   if (commitEl) sets.push(['agency.commitSnapshotOnShutdown', commitEl.value === 'true']);
+  // v7.5.9 ZIP6 — Install-pipeline toggles.
+  const installAutoEl = $('#set-install-allow-auto');
+  if (installAutoEl) sets.push(['install.allowAutoInstall', installAutoEl.value === 'true']);
+  const installFullEl = $('#set-install-full-autonomy');
+  if (installFullEl) sets.push(['install.fullAutonomy', installFullEl.value === 'true']);
+  const installScopeEl = $('#set-install-scope');
+  if (installScopeEl && ['machine', 'user', 'auto'].includes(installScopeEl.value)) {
+    sets.push(['install.scope', installScopeEl.value]);
+  }
 
   // Health-Server
   const healthEl = $('#set-health-http');

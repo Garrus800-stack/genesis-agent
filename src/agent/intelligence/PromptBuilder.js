@@ -232,11 +232,30 @@ class PromptBuilder {
    * Get the source-content block for prompt assembly, or empty string.
    * The block marks the content as authoritative, so the LLM treats it
    * as ground truth instead of as optional context.
+   *
+   * v7.5.9 ZIP4 Bonus: stronger anti-confabulation framing. Earlier
+   * versions used a soft "(Der Inhalt dieser Datei ist die Grundlage…)"
+   * footer, which some models ignored in favor of priors ("X ist nicht
+   * dokumentiert", confabulating from training data). The new framing
+   * is explicit about: authoritative source, no confabulation, and the
+   * fallback phrase the model must use when content is missing.
    */
   _getSourceContentBlock() {
     if (!this._sourceContent) return '';
     const { content, label } = this._sourceContent;
-    return `\n[Quelle: ${label}]\n${content}\n(Der Inhalt dieser Datei ist die Grundlage deiner Antwort.)\n`;
+    return [
+      ``,
+      `=== AUTORITATIVE QUELLE: ${label} ===`,
+      content,
+      `=== ENDE AUTORITATIVE QUELLE ===`,
+      ``,
+      `WICHTIG: Beantworte die Frage AUSSCHLIESSLICH aus dem Inhalt`,
+      `zwischen den === AUTORITATIVE QUELLE ===-Markern. Wenn die`,
+      `Antwort dort nicht steht, sage wörtlich: "Im Inhalt dieser`,
+      `Datei nicht enthalten." — KONFABULIERE NICHT auf Basis von`,
+      `Trainingsdaten oder allgemeinem Wissen.`,
+      ``,
+    ].join('\n');
   }
 
   /**

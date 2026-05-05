@@ -547,6 +547,38 @@ Marking is conservative — a candidate is just a suggestion, not a directive. M
 
 ---
 
+## v7.5.9 Linux quirks
+
+### `/install <pkg>` says "✅ installiert" but `/open <pkg>` doesn't find it
+
+Most common on Ubuntu 22.04+: `apt-get install firefox` succeeds with exit-code 0, but the package is actually a transitional stub that triggers a snap download in the background. The real binary at `/snap/bin/firefox` lands several seconds (sometimes minutes) later.
+
+Workaround: wait ~30 seconds after install, then retry `/open firefox`. Or install the snap directly: `sudo snap install firefox`.
+
+### `/install <pkg>` says "Installation braucht ein Passwort"
+
+Genesis runs install commands with `sudo -n` (non-interactive) so it cannot stall the chat UI on a hidden password prompt. If sudo has no cached credential, Genesis tells you to copy the unmodified command into your terminal and run it yourself. After that, `/open <pkg>` will find the binary.
+
+To pre-cache credentials so future installs run through, run any sudo command in a terminal first — credentials cache for ~15 minutes.
+
+### `/open ~/Dokumente` says "trust level 1 is too low"
+
+By design: at Trust level ASSISTED (1), Genesis can read user-home but not launch into it. Two options:
+- Settings → Behavior → Trust level → AUTONOMOUS (2) — opens user-home folders.
+- `/open <full-path>` — works at any trust level when the full absolute path is given.
+
+### LLM responses are empty / Genesis appears to hang
+
+On slow CPUs running local 7B+ models, the first inference can take 240–300s. The default `llm.localTimeoutMs` is 180000 (180s).
+
+Fix: Settings → Models → LLM local timeout → raise to `300000` or `600000`. Setting key: `llm.localTimeoutMs`.
+
+### German folder names not recognized
+
+`/open ~/Dokumente` works on a German Ubuntu install where the folder is actually `Dokumente` (not `Documents`). Localized siblings fall back to each other automatically: Documents↔Dokumente, Pictures↔Bilder, Desktop↔Schreibtisch, Music↔Musik. If the folder doesn't exist under either spelling, Genesis reports it.
+
+---
+
 ## Getting Help
 
 1. Check the [docs/](.) directory for architecture details

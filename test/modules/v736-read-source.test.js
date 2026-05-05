@@ -111,37 +111,74 @@ describe('#9 SelfModel.readSourceSync — budget + cache', () => {
     assert.strictEqual(first, second, 'same content returned');
     const budget = m.getReadSourceBudget();
     assert.strictEqual(budget.cacheSize, 1, 'cache has exactly 1 entry');
-    // But both calls still counted for budget purposes
-    assert.strictEqual(budget.turnCount, 2);
+    // v7.5.9 ZIP1 Phase 6: cache-hits NO LONGER count against budget.
+    // Only the first read does I/O and counts. The second read is free.
+    assert.strictEqual(budget.turnCount, 1, 'only first read counts');
+    assert.strictEqual(budget.sessionCount, 1, 'only first read counts (session)');
   });
 
   test('hard-per-turn limit blocks further reads (returns null)', () => {
     const m = makeModel();
-    // Do 10 successful reads of different paths by artificial key
-    // Since we only have finite real files, read package.json then 9 more
-    // from cache (but cache hits still count against budget).
-    for (let i = 0; i < 10; i++) {
-      m.readSourceSync('package.json');
+    // v7.5.9 ZIP1 Phase 6: defaults raised to softPerTurn:15 / hardPerTurn:30.
+    // Cache-hits don't count, so we need 30 DISTINCT reads to hit the cap.
+    // Build a list of 30 distinct .js files from src/agent/core + foundation.
+    const root = path.resolve(__dirname, '../../');
+    const distinctFiles = [];
+    for (const subdir of ['src/agent/core', 'src/agent/foundation', 'src/agent/intelligence']) {
+      const fullDir = path.join(root, subdir);
+      if (!fs.existsSync(fullDir)) continue;
+      for (const f of fs.readdirSync(fullDir)) {
+        if (f.endsWith('.js')) distinctFiles.push(path.join(subdir, f));
+        if (distinctFiles.length >= 30) break;
+      }
+      if (distinctFiles.length >= 30) break;
     }
-    const blocked = m.readSourceSync('package.json');
-    assert.strictEqual(blocked, null, '11th read should be blocked');
+    assert(distinctFiles.length >= 30, `need 30 distinct files, got ${distinctFiles.length}`);
+
+    for (let i = 0; i < 30; i++) {
+      m.readSourceSync(distinctFiles[i]);
+    }
+    // Now the 31st DISTINCT read must be blocked.
+    const blocked = m.readSourceSync('CHANGELOG.md');
+    assert.strictEqual(blocked, null, '31st read should be blocked');
   });
 
   test('hard-per-session limit blocks across turns', () => {
     const m = makeModel();
-    for (let i = 0; i < 20; i++) {
-      m.startReadSourceTurn(`turn-${i}`);
-      m.readSourceSync('package.json');
+    // v7.5.9 ZIP1 Phase 6: defaults raised to hardPerSession:100. Plus cache
+    // hits don't count. We need 100 DISTINCT (uncached) reads across turns.
+    // Read .js files from multiple agent subfolders to get enough distinct paths.
+    const dirs = ['core', 'foundation', 'intelligence', 'cognitive', 'capabilities'];
+    const allFiles = [];
+    for (const d of dirs) {
+      const fullDir = path.join(__dirname, '../../src/agent', d);
+      if (!fs.existsSync(fullDir)) continue;
+      for (const f of fs.readdirSync(fullDir)) {
+        if (f.endsWith('.js')) allFiles.push(path.join('src/agent', d, f));
+        if (allFiles.length >= 100) break;
+      }
+      if (allFiles.length >= 100) break;
     }
-    m.startReadSourceTurn('turn-21');
-    const blocked = m.readSourceSync('package.json');
-    assert.strictEqual(blocked, null, '21st read in session should be blocked');
+    assert(allFiles.length >= 100, `need 100 distinct files, found ${allFiles.length}`);
+
+    for (let i = 0; i < 100; i++) {
+      m.startReadSourceTurn(`turn-${i}`);
+      m.readSourceSync(allFiles[i]);
+    }
+    m.startReadSourceTurn('turn-101');
+    const blocked = m.readSourceSync('CHANGELOG.md');
+    assert.strictEqual(blocked, null, '101st read in session should be blocked');
   });
 
   test('startReadSourceTurn resets per-turn counter', () => {
     const m = makeModel();
-    for (let i = 0; i < 8; i++) {
-      m.readSourceSync('package.json');
+    // v7.5.9 ZIP1 Phase 6: cache-hits don't count, so reading same file 8x
+    // counts as 1. Use 8 different files to get turnCount=8.
+    const files = ['package.json', 'README.md', 'CHANGELOG.md', 'AUDIT-BACKLOG.md',
+      'LICENSE', 'src/kernel/SafeGuard.js', 'src/agent/AgentCore.js',
+      'src/agent/AgentCoreBoot.js'];
+    for (const f of files) {
+      m.readSourceSync(f);
     }
     let b = m.getReadSourceBudget();
     assert.strictEqual(b.turnCount, 8);

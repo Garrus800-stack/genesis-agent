@@ -66,6 +66,8 @@ const SECURITY_REQUIRED_SLASH = new Set([
   'memory-veto',
   'memory-mark',
   'self-recall',  // v7.5.5
+  'install-software',  // v7.5.9 ZIP3 Phase 4a — fuzzy + slash; injection-relevant
+  'open-software',     // v7.5.9 ZIP8 — fuzzy + slash; could be tricked into launching unintended binaries
 ]);
 
 function enforceSlashDiscipline(result, message) {
@@ -81,8 +83,30 @@ function enforceSlashDiscipline(result, message) {
   // The per-intent patterns then decide WHICH slash-command was meant;
   // this guard only decides whether ANY slash-command is allowed at all.
   if (typeof message === 'string' && /(?:^|\s)\/[a-z][\w-]*\b/i.test(message)) return result;
-  // Rewrite: slash-only intent without slash-command position → general.
-  return { type: 'general', confidence: 0.3, match: 'slash-discipline-guard' };
+  // v7.5.9 B1: narrow exception for execute-code — a message starting with
+  // a fenced code block (```...```) is a documented alternate trigger
+  // (user pasted runnable code, explicit content). This is intentionally
+  // NOT extended to free-text imperatives like "fuehr aus den code"
+  // (those still rewrite to general). Sandbox + Trust still hold the
+  // line on actual execution.
+  if (result.type === 'execute-code' && typeof message === 'string' && /^```/.test(message)) {
+    return result;
+  }
+  // v7.5.9 ZIP7: Mark the result with metadata so ChatOrchestrator can
+  // route to the slash-hint handler instead of falling through to the
+  // LLM (which used to confabulate refusals like "Ich kann keine
+  // Software installieren" — wrong AND frustrating). Type stays
+  // 'general' for backward compat with existing slash-discipline tests
+  // that assert the LLM-bypass behavior; the metadata is consulted
+  // by ChatOrchestrator before the general handler runs.
+  return {
+    type: 'general',
+    confidence: 0.3,
+    match: 'slash-discipline-guard',
+    _wasSlashOnlyRewrite: true,
+    originalIntent: result.type,
+    originalMessage: message,
+  };
 }
 
 // FIX v5.1.0 (N-5): Declarative intent definitions.
@@ -194,6 +218,24 @@ const INTENT_DEFINITIONS = [
     /(?:oeffne|öffne|open)\s+["']?[A-Za-z]:\\/i,
     /(?:oeffne|öffne|open)\s+["']?[~/]\S+/i,
     /(?:zeig|show)\s+(?:mir\s+)?(?:den\s+)?(?:ordner|folder|inhalt|content)/i,
+    // v7.5.9 live-fix: catch natural phrasings the regex above missed.
+    // (a) "öffne den github ordner auf dem desktop" — alias-name BEFORE
+    //     the noun "ordner". The original pattern needed "ordner" right
+    //     after "öffne (den)", so it failed on this common form.
+    // (b) "kannst den ordner öffnen ? C:\..." — "öffnen" trailing the
+    //     phrase, plus a Windows path anywhere in the message.
+    // (c) "auf dem desktop ist ein ordner ... welche dateien sind in ihm"
+    //     — implicit listing request. Routed through open-path so the
+    //     ShellAgent.openPath handler can do the alias resolution.
+    /(?:oeffne|öffne)\s+(?:den\s+|das\s+|die\s+)?\w+[-_.\w]*\s+(?:ordner|folder|verzeichnis|dir|datei|file)\b/i,
+    /(?:ordner|folder|verzeichnis|datei|file)\s+(?:oeffnen|öffnen|open)\b/i,
+    // Win-path standalone — but not when the message starts with a
+    // different slash-command like /install, /open-this, /run, etc.
+    // The negative lookahead protects "/install winrar D:\Programme"
+    // from being routed to open-path instead of install-software.
+    /^(?!\/(?!open\b)\w)[^\n]*?[A-Za-z]:\\[^\s"']{2,}/,
+    /welche\s+dateien.*(?:in\s+(?:ihm|dem|diesem))/i,
+    /(?:was|welche)\s+(?:ist|sind|liegt|liegen)\s+(?:in|im)\s+(?:dem\s+|diesem\s+)?(?:ordner|folder|verzeichnis)/i,
   ], 15, ['öffnen', 'oeffnen', 'ordner', 'folder', 'verzeichnis', 'datei', 'pfad', 'explorer']],
 
   ['mcp', [
@@ -206,6 +248,43 @@ const INTENT_DEFINITIONS = [
     /externe?.*tools?.*(?:verbind|connect)/i,
     /tool.?server.*(?:verbind|connect|add)/i,
   ], 14, ['mcp', 'server', 'tool', 'connect', 'verbinden', 'extern', 'protocol']],
+
+  // v7.5.9 ZIP3 Phase 4a: Software-installation requests.
+  // In SECURITY_REQUIRED_SLASH because the action is a write-intent
+  // shell command, so a literal `/` anywhere in the message is required
+  // before any of these patterns can fire (enforceSlashDiscipline guard).
+  // Free-text patterns are kept for natural UX once the user typed `/`.
+  // The negative-lookahead after the verb excludes article-words ("die",
+  // "das", "den", "the", "alle", "all") so abstract phrases like
+  // "/install die Abhängigkeiten" stay general — those are coding
+  // requests, not software installs.
+  ['install-software', [
+    /(?:^|\s)\/install(?:-software)?\b/i,
+    /(?:installier(?:e|t|st)?|install)\s+(?:mir\s+)?(?:bitte\s+)?(?!(?:die|das|den|the|alle|all|ein|eine|einen|a|an)\b)[a-z0-9][a-z0-9._-]{1,49}/i,
+    /(?:lad(?:e|s|et)?|download)\s+(?:mir\s+)?(?!(?:die|das|den|the|alle|all|ein|eine|einen|a|an)\b)[a-z0-9][a-z0-9._-]{1,49}\s+(?:runter|herunter|down)/i,
+    /(?:setze?|setup)\s+(?!(?:die|das|den|the|alle|all|ein|eine|einen|a|an)\b)[a-z0-9][a-z0-9._-]{1,49}\s+auf\b/i,
+  ], 13, ['installier', 'install', 'setup', 'download', 'paket', 'package']],
+
+  // v7.5.9 ZIP4 Phase 8: Architecture-diagram (deterministic Mermaid).
+  // Slash-only: free-text mentions of "architektur" are conversational
+  // ("ich hätte gerne ein Diagramm der Architektur" → general). The
+  // /architecture command emits a Mermaid block with the live module
+  // map; Phase 11 renders it as SVG.
+  ['architecture-diagram', [
+    /(?:^|\s)\/architect(?:ure)?(?:-diagram)?\b/i,
+    /(?:^|\s)\/diagram\b/i,
+    /(?:^|\s)\/arch\b/i,
+  ], 11, ['architecture', 'architektur', 'diagram', 'diagramm']],
+
+  // v7.5.9 ZIP8: Open an installed application. Slash-form is the
+  // primary path. Free-text "öffne <X>" / "starte <X>" / "führe <X>
+  // aus" is supported because launching an already-installed app is
+  // low-risk (Trust 1 reaches it). The handler also resolves pronouns
+  // like "öffne es" by looking up the most-recently-installed package.
+  ['open-software', [
+    /(?:^|\s)\/open\b/i,
+    /(?:öffne|starte?|f[üu]hre)\s+(?:mir\s+)?(?:bitte\s+)?(?:es|das|ihn|sie|[a-z0-9][a-z0-9._-]{1,49})\b/i,
+  ], 12, ['open', 'öffne', 'starte', 'launch', 'run']],
 
   // Slash-only. Free-text mentions ("was hast du so gedacht?",
   // "dein Tagebuch klingt spannend") fall through to general where

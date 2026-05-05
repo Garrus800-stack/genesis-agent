@@ -17,8 +17,8 @@ const { createLogger } = require('../../core/Logger');
 const _log = createLogger('OllamaBackend');
 
 class OllamaBackend {
-  /** @param {{ baseUrl?: string, keepAlive?: string|number }} [opts] */
-  constructor({ baseUrl, keepAlive } = {}) {
+  /** @param {{ baseUrl?: string, keepAlive?: string|number, localTimeoutMs?: number }} [opts] */
+  constructor({ baseUrl, keepAlive, localTimeoutMs } = {}) {
     this.name = 'Ollama';
     this.type = 'ollama';
     this.baseUrl = baseUrl || 'http://127.0.0.1:11434';
@@ -28,6 +28,13 @@ class OllamaBackend {
     // 0 or "0" tells Ollama to immediately unload the model after the call.
     // Genesis uses unloadModel() to actively unload a model when switching.
     this.keepAlive = keepAlive == null ? null : keepAlive;
+    // v7.5.9 Linux-fix: per-instance HTTP timeout. Slow machines (older
+    // CPUs, no GPU) need more than 180s for first inference, especially
+    // for 7B+ models. Settings: `llm.localTimeoutMs` (default
+    // TIMEOUTS.LLM_RESPONSE_LOCAL = 180000ms = 180s).
+    this.localTimeoutMs = (typeof localTimeoutMs === 'number' && localTimeoutMs > 0)
+      ? localTimeoutMs
+      : TIMEOUTS.LLM_RESPONSE_LOCAL;
   }
 
   /**
@@ -102,7 +109,7 @@ class OllamaBackend {
 
     const data = await this._httpPost(
       `${this.baseUrl}/api/chat`, body, {},
-      TIMEOUTS.LLM_RESPONSE_LOCAL
+      this.localTimeoutMs
     );
 
     return data.message?.content || '';
@@ -186,9 +193,9 @@ class OllamaBackend {
         abortSignal.addEventListener('abort', () => { req.destroy(); _resolve(); }, { once: true });
       }
 
-      req.setTimeout(TIMEOUTS.LLM_RESPONSE_LOCAL, () => {
+      req.setTimeout(this.localTimeoutMs, () => {
         req.destroy();
-        _reject(new Error(`[TIMEOUT] Ollama not responding (${Math.round(TIMEOUTS.LLM_RESPONSE_LOCAL / 1000)}s)`));
+        _reject(new Error(`[TIMEOUT] Ollama not responding (${Math.round(this.localTimeoutMs / 1000)}s)`));
       });
       req.on('error', (err) => _reject(new Error(`[NETWORK] Ollama: ${err.message}`)));
       req.write(postData);

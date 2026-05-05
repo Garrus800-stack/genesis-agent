@@ -222,6 +222,10 @@ class AgentCoreBoot {
     // Intelligence
     const model = c.resolve('model');
     c.resolve('intentRouter').setModel(model);
+    // v7.5.9: late-bind settings so IntentRouter._llmClassify can read
+    // `intent.llmClassifyTimeoutMs` (default 30s, 0 = disabled).
+    const _settingsForIntent = c.tryResolve?.('settings');
+    if (_settingsForIntent) c.resolve('intentRouter').setSettings(_settingsForIntent);
     _log.info('  [2] Intelligence resolved');
 
     // Capabilities: tool bootstrap needs multiple services

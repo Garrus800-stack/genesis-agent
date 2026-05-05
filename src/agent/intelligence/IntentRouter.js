@@ -40,6 +40,13 @@ class IntentRouter {
 
   setModel(model) { this.model = model; }
 
+  /**
+   * v7.5.9: Late-bind Settings for runtime configuration of
+   * `intent.llmClassifyTimeoutMs` (and any future intent.* settings).
+   * Optional — without it, defaults apply.
+   */
+  setSettings(settings) { this.settings = settings; }
+
   register(name, patterns, priority = 10, keywords = []) {
     this.routes.push({ name, patterns, priority, keywords });
     this.routes.sort((a, b) => b.priority - a.priority);
@@ -176,7 +183,15 @@ class IntentRouter {
     }
 
     const fast = this.classify(message);
-    if (fast.confidence >= 0.6) return fast;
+    // v7.5.9 B1: enforce slash-discipline on fast-path too. Pre-fix the
+    // regex/fuzzy fast-path returned directly without enforcement, so any
+    // SECURITY_REQUIRED_SLASH intent (execute-code, shell-run, run-skill,
+    // ...) could be triggered via free-text imperatives — e.g. "fuehr aus
+    // den code" matched /fuehre? aus/i for execute-code with confidence 1.0,
+    // bypassing the slash-only policy. Sandbox + Trust still held the line
+    // (no RCE path), but the policy was violated. Now enforce on every
+    // return that exits classifyAsync.
+    if (fast.confidence >= 0.6) return _enforceSlashDiscipline(fast, message);
 
     // v4.10.0: Try LocalClassifier before LLM fallback (saves 2-3s per message)
     if (this._localClassifier) {
@@ -200,7 +215,8 @@ class IntentRouter {
         return _enforceSlashDiscipline(llm, message);
       }
     }
-    return fast;
+    // v7.5.9 B1: also enforce on the final fall-through return.
+    return _enforceSlashDiscipline(fast, message);
   }
 
   listIntents() {
@@ -305,7 +321,40 @@ INTENT: [category]
 CONFIDENCE: [0.0-1.0]`;
 
     try {
-      const response = await this.model.chat(prompt, [], 'analysis');
+      // v7.5.9 ZIP1 Phase 5: per-call timeout cap, default DISABLED.
+      //
+      // Background: cloud LLMs (qwen3-vl:235b-cloud, gpt-4o, claude-sonnet)
+      // routinely take 10-25s for analysis-task and occasionally >30s under
+      // load. Earlier defaults (8s, then 30s) caused frequent classification
+      // timeouts on cloud setups, which silently broke open-path / source-read
+      // routing because the fast-path returned `general` for natural folder
+      // requests that needed LLM disambiguation.
+      //
+      // ModelBridge has its own backend-level timeouts and failover. A second
+      // ceiling here was redundant defense-in-depth; the cost was correctness.
+      //
+      // Default is now 0 (disabled). Settings.intent.llmClassifyTimeoutMs
+      // overrides; any positive number enables the race. Setting to 0
+      // explicitly also disables. ModelBridge failover still applies
+      // regardless.
+      const _settings = this.settings || null;
+      const _configured = _settings?.get?.('intent.llmClassifyTimeoutMs');
+      const _LLM_CLASSIFY_TIMEOUT_MS = (typeof _configured === 'number' && _configured >= 0)
+        ? _configured
+        : 0;
+      let response;
+      if (_LLM_CLASSIFY_TIMEOUT_MS === 0) {
+        // Timeout disabled — direct await, ModelBridge failover still applies.
+        response = await this.model.chat(prompt, [], 'analysis');
+      } else {
+        const _timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('LLM_CLASSIFY_TIMEOUT')), _LLM_CLASSIFY_TIMEOUT_MS)
+        );
+        response = await Promise.race([
+          this.model.chat(prompt, [], 'analysis'),
+          _timeoutPromise,
+        ]);
+      }
       const im = response.match(/INTENT:\s*(\S+)/i);
       const cm = response.match(/CONFIDENCE:\s*([\d.]+)/i);
       if (im) {

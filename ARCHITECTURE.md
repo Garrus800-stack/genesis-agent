@@ -3,12 +3,15 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.5.1 · Last verified: 0 schema mismatches (443 catalogued / 443 schemas),
+> Version: 7.5.9 · Last verified: 0 schema mismatches (458 catalogued events / 458 schemas),
 > 0 orphan / missing, 0 stale references, all event-validation checks green
-> (fitness, ratchet, and full test-suite numbers from the v7.5.1 baseline:
-> 5816 tests, fitness 127/130, audit-events:strict exit 0, audit-intents:strict exit 0).
+> (fitness, ratchet, and full test-suite numbers from the v7.5.9 baseline:
+> 6641 tests, fitness 126/130, audit-events:strict exit 0, audit-slash-discipline:strict exit 0).
 > v7.5.1 added an `intent-tool-coherence` cross-validator as a third gate-layer
 > alongside `injection-gate` and `self-gate` — see [docs/GATE-INVENTORY.md](docs/GATE-INVENTORY.md).
+> v7.5.9 added Plan-Cards (visual rendering for multi-step LLM responses) and a
+> Linux-readiness pass (~ expansion, sudo non-interactive, German folder
+> fallback, expanded apt/dnf/snap aliases).
 
 ---
 
@@ -16,7 +19,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~85k LOC of JavaScript (CommonJS), 273 source modules, with zero external runtime frameworks. The manifest statically registers 154 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count above 165 — this is what you'll see in the final boot log line. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~104k LOC of JavaScript (CommonJS), 311 source modules, with zero external runtime frameworks. The manifest statically registers 155 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 168 — this is what you'll see in the final boot log line. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
 
 ---
 

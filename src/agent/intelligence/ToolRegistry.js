@@ -16,6 +16,11 @@ const path = require('path');
 const { robustJsonParse } = require('../core/utils');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+// v7.5.9 live-fix: filename-variant resolution for file-read tool. Shared
+// helper from SelfModelSourceRead so the LLM's tool-call gets the same
+// readme→README.md / ontogenesis→docs/ONTOGENESIS.md resolution that the
+// internal _maybeReadSourceSync already gets.
+const { _resolveFileWithVariants } = require('../foundation/SelfModelSourceRead');
 const _log = createLogger('ToolRegistry');
 
 class ToolRegistry {
@@ -28,6 +33,11 @@ class ToolRegistry {
     this.historyLimit = 200;
     // v5.7.0 SA-P8: Dynamic tool synthesis (late-bound)
     this._toolSynthesis = null;
+    // v7.5.9 ZIP2 v3 (Bug 4): late-bound trust + settings so file-read /
+    // file-list can use the 3-tier sandbox. Keep null when unwired —
+    // _resolveProjectPath then falls back to default trust=1.
+    this._trustLevelSystem = null;
+    this._settings = null;
   }
 
   register(name, schema, handler, source = 'system') {
@@ -141,16 +151,81 @@ ${descriptions.join('\n\n')}`;
 
   parseToolCalls(response) {
     const toolCalls = [];
-    const regex = /<tool_call>\s*(\{[\s\S]*?\})\s*<\/tool_call>/g;
+    let text = response;
+
+    // Format 1: <tool_call>{...}</tool_call> (canonical)
+    const tagRegex = /<tool_call>\s*(\{[\s\S]*?\})\s*<\/tool_call>/g;
     let match;
-    while ((match = regex.exec(response))) {
+    while ((match = tagRegex.exec(response))) {
       try {
         const parsed = this._robustJsonParse(match[1]);
         if (parsed?.name) toolCalls.push({ name: parsed.name, input: parsed.input || {} });
-      } catch (err) { /* skip invalid */ }
+      } catch (_err) { /* skip invalid */ }
     }
-    const text = response.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').trim();
-    return { text, toolCalls };
+    text = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '');
+
+    // v7.5.9 ZIP1 Phase 0.1: Format 2 — markdown-fence variant.
+    // Some models emit ```tool_call ... ``` instead of XML tags.
+    // Accept it and convert internally.
+    const fenceRegex = /```tool_call\s*\n?([\s\S]*?)```/g;
+    while ((match = fenceRegex.exec(response))) {
+      try {
+        const parsed = this._robustJsonParse(match[1].trim());
+        if (parsed?.name) toolCalls.push({ name: parsed.name, input: parsed.input || {} });
+      } catch (_err) { /* skip */ }
+    }
+    text = text.replace(/```tool_call\s*\n?[\s\S]*?```/g, '');
+
+    // v7.5.9 ZIP1 Phase 0.1: Format 3 — bare JSON-fence with registered tool name.
+    // Strict: object must have `name` field that matches a registered tool,
+    // and `input` field. Anything else (e.g. JSON in a code example) is
+    // ignored to prevent false-positives.
+    if (toolCalls.length === 0) {
+      const jsonFenceRegex = /```(?:json)?\s*\n?(\{[\s\S]*?\})\s*```/g;
+      while ((match = jsonFenceRegex.exec(response))) {
+        try {
+          const parsed = this._robustJsonParse(match[1].trim());
+          if (parsed?.name && typeof parsed.name === 'string'
+              && this.tools.has(parsed.name)
+              && 'input' in parsed) {
+            toolCalls.push({ name: parsed.name, input: parsed.input || {} });
+            text = text.replace(match[0], '');
+          }
+        } catch (_err) { /* skip */ }
+      }
+    }
+
+    return { text: text.trim(), toolCalls };
+  }
+
+  /**
+   * v7.5.9 ZIP1 Phase 0.2: Detect when LLM said it would use a tool but
+   * never emitted a tool_call block. Used by ChatOrchestrator to issue
+   * a single re-prompt with the format example before giving up.
+   *
+   * Returns true ONLY if the response contains tool-intent language AND
+   * has no parseable tool calls. The check is conservative — false matches
+   * cost a wasted re-prompt; missed matches preserve current (broken)
+   * behavior.
+   *
+   * @param {string} response - LLM response text (after parseToolCalls strip)
+   * @returns {boolean}
+   */
+  detectToolIntentWithoutCall(response) {
+    if (!response || typeof response !== 'string') return false;
+    // Already stripped of tool_call blocks → if any of these patterns match
+    // in the visible text, the model intended a tool but emitted no call.
+    const patterns = [
+      /\bTools?\s+(?:ausf[üu]hren|ausgef[üu]hrt|aufrufen)/i,           // DE
+      /\b(?:I will|let me|ich werde)\s+(?:use|call|run|verwende[n]?|nutze[n]?|rufe)\s+(?:the\s+)?[\w-]+\s*(?:tool)?/i,
+      /\b(?:calling|aufruf|nutze)\s+(?:tool|werkzeug)\s*[:\-]/i,
+      /\btool[_\-]?call\s*[:\-]/i,
+      /\bführe\s+(?:das\s+)?tool\b/i,
+    ];
+    for (const p of patterns) {
+      if (p.test(response)) return true;
+    }
+    return false;
   }
 
   /** FIX v3.5.0: Delegates to shared utility (was duplicated in ModelBridge) */
@@ -241,13 +316,46 @@ ${descriptions.join('\n\n')}`;
       // for telemetry. Use this in chat when Genesis needs to inspect actual
       // source before answering, rather than guessing / hallucinating paths.
       this.register('read-source', {
-        description: 'Read a source file synchronously during a chat turn (budget-enforced, cached). Returns null if budget exhausted, path blocked, or file not found.',
+        description: 'Read a source file synchronously during a chat turn (budget-enforced, cached). Returns blocked:true with reason on failure.',
         input: { file: 'string' },
-        output: { code: 'string', truncated: 'boolean', blocked: 'boolean' },
+        output: { code: 'string', truncated: 'boolean', blocked: 'boolean', reason: 'string?' },
       }, (input) => {
-        const content = selfModel.readSourceSync(input.file, { bus: this.bus });
+        // v7.5.9 ZIP2 v3 (Bug 5): differentiate reasons so the LLM doesn't
+        // confabulate "budget exhausted" for every blocked outcome. Pre-fix
+        // the tool returned `{blocked: true}` for budget OR path-blocked OR
+        // file-not-found, and the LLM had no way to tell.
+        const fs = require('fs');
+        const path = require('path');
+        const rawFile = input.file || '';
+        // Strip surrounding markdown link syntax: "[X](http://X)" → "X"
+        const cleanFile = rawFile.replace(/^\[(.+?)\]\(.+?\)\s*$/, '$1').trim();
+        // Pre-flight: file-not-found check before invoking budget.
+        const rootDir = selfModel?.rootDir || process.cwd();
+        const absCheck = path.isAbsolute(cleanFile)
+          ? cleanFile
+          : path.join(rootDir, cleanFile);
+        if (!fs.existsSync(absCheck)) {
+          // Try variant resolution before giving up.
+          let resolved = null;
+          try {
+            const { _resolveFileWithVariants } = require('../foundation/SelfModelSourceRead');
+            resolved = _resolveFileWithVariants(absCheck, rootDir);
+          } catch { /* fall through */ }
+          if (!resolved) {
+            return { code: '', truncated: false, blocked: true, reason: 'not-found' };
+          }
+        }
+        // Budget-pre-check: if at hard cap, return reason explicitly.
+        const budget = selfModel?.getReadSourceBudget?.();
+        if (budget && (budget.turnCount >= budget.hardPerTurn
+                    || budget.sessionCount >= budget.hardPerSession)) {
+          return { code: '', truncated: false, blocked: true, reason: 'budget-exhausted' };
+        }
+        const content = selfModel.readSourceSync(cleanFile, { bus: this.bus });
         if (content === null) {
-          return { code: '', truncated: false, blocked: true };
+          // Read returned null AFTER budget pre-check — must be SafeGuard
+          // path-blocked or post-resolve file-missing.
+          return { code: '', truncated: false, blocked: true, reason: 'path-not-allowed-or-missing' };
         }
         const truncated = /\[\.\.\. truncated,/.test(content);
         return { code: content, truncated, blocked: false };
@@ -328,25 +436,91 @@ ${descriptions.join('\n\n')}`;
       }
     }, 'system');
 
-    // ── v7.5.1 (K+L fix): Project-scope boundary helper, shared by file-read
-    // and file-list. Replaces v5.1.0's incomplete block-list approach: previously
-    // anything not on a hand-curated "sensitive paths" list (e.g. /etc/passwd,
-    // /var/log/auth.log) was readable. Now: default-deny outside rootDir, plus
-    // a small in-project blacklist for secret-file conventions (.env, *.pem, *.key).
+    // ── v7.5.1 (K+L fix) + v7.5.9 ZIP2 v3 (Bug 4):
+    // Project+user-home scope helper, shared by file-read and file-list.
     //
-    // Returns { ok: true, abs } on accept, { ok: false, error } on reject.
-    const _resolveProjectPath = (relOrAbs) => {
+    // Pre-ZIP2-v3: this was project-only — file-list on the user's
+    // Desktop was rejected even at trust level 2+. That broke "liste auf
+    // was auf meinem desktop liegt" because file-list-tool answered
+    // "outside project root", regardless of trust.
+    //
+    // Post-ZIP2-v3: scope is project for trust 0, project+user-home for
+    // trust 1+. Always-blocked paths (system, secrets) stay blocked at
+    // any trust. Mirrors ShellSafety.checkRootDirSandbox semantics so
+    // file-list and shell.run agree on what's reachable.
+    const Safety = require('../capabilities/shell/ShellSafety');
+    const _CRITICAL_PATH_PATTERNS_RAW = [
+      // POSIX critical
+      '/etc/', '/system/', '/usr/bin/', '/usr/sbin/', '/sbin/',
+      '/proc/', '/sys/', '/dev/', '/boot/',
+      // Cross-platform secret dirs
+      '/.ssh/', '\\.ssh\\', '/.aws/', '\\.aws\\', '/.gnupg/', '\\.gnupg\\',
+      // Win critical
+      '\\windows\\', '\\appdata\\roaming\\',
+    ];
+    const _resolveProjectPath = (relOrAbs, intent = 'read') => {
       const projectRoot = path.resolve(rootDir);
-      const abs = path.resolve(rootDir, relOrAbs || '');
-      const inProject = abs === projectRoot || abs.startsWith(projectRoot + path.sep);
-      if (!inProject) {
-        return { ok: false, error: '[SAFEGUARD] Path outside project root blocked' };
+      // v7.5.9 Linux-fix: expand leading "~" / "~/" to user home BEFORE
+      // path.resolve. Pre-fix the LLM could call file-read({ path: "~/foo" })
+      // and path.resolve would treat "~" as a literal directory under rootDir,
+      // producing nonsense paths and "file does not exist" errors.
+      let expanded = relOrAbs || '';
+      if (typeof expanded === 'string' && (expanded === '~' || expanded.startsWith('~/') || expanded.startsWith('~\\'))) {
+        const home = require('os').homedir();
+        expanded = path.join(home, expanded.slice(2) || '');
       }
+      const abs = path.resolve(rootDir, expanded);
+      const inProject = abs === projectRoot || abs.startsWith(projectRoot + path.sep);
       // In-project secret-file blacklist. Match basename only — files like
       // src/config/env-helper.js or main.key-handler.js stay readable.
       const base = path.basename(abs);
       if (/^\.env(\..+)?$/i.test(base) || /\.(pem|key)$/i.test(base)) {
         return { ok: false, error: '[SAFEGUARD] Secret file blocked: ' + base };
+      }
+      // v7.5.9 ZIP2 v4 (Bug B): even if the resolved path lands in-project
+      // (or in user-home), reject if the RAW input contains a critical
+      // system pattern. Catches:
+      //   "/etc/passwd"               — direct
+      //   "../../../etc/passwd"       — traversal that lands somewhere
+      //                                 user-home-accessible on Win
+      //   "C:\\Windows\\System32\\.." — direct critical
+      // Raw-string match is intentional (not resolved): the user's intent
+      // was clearly to reference the system path, regardless of whether
+      // the FS resolves it that way.
+      // v7.5.9 ZIP2 v5 (Bug B-fix #2): match raw pattern as substring OR
+      // at end-of-string. The previous version required the trailing slash
+      // for substring match — '../../etc' (no trailing /) slipped through
+      // because rawLower.includes('/etc/') was false. Now we also match
+      // when the path ENDS with the pattern minus trailing slash.
+      const rawLower = (relOrAbs || '').toLowerCase();
+      for (const pat of _CRITICAL_PATH_PATTERNS_RAW) {
+        const patNoSlash = pat.replace(/[\\/]$/, '');
+        if (rawLower.includes(pat) || rawLower.endsWith(patNoSlash) || rawLower === patNoSlash) {
+          return {
+            ok: false,
+            error: '[SAFEGUARD] Path contains a critical system pattern (' + pat + ') and is blocked.',
+          };
+        }
+      }
+      if (inProject) return { ok: true, abs };
+
+      // Outside project — gate via 3-tier sandbox so file-list/file-read
+      // can reach Desktop/Documents at trust 1+ (read) / trust 2+ (write).
+      // Synthesize a shell-style command to reuse the same helpers.
+      const fakeCmd = (intent === 'write' ? 'rm "' : 'ls "') + abs + '"';
+      const trustLevel = (typeof this._trustLevelSystem?.getLevel === 'function')
+        ? this._trustLevelSystem.getLevel()
+        : 1;
+      const sandboxCheck = Safety.checkRootDirSandbox(fakeCmd, rootDir, {
+        platform: process.platform,
+        trustLevel,
+        settings: this._settings,
+      });
+      if (!sandboxCheck.ok) {
+        return {
+          ok: false,
+          error: '[SAFEGUARD] ' + (sandboxCheck.reason || 'path blocked by sandbox'),
+        };
       }
       return { ok: true, abs };
     };
@@ -359,8 +533,30 @@ ${descriptions.join('\n\n')}`;
     }, (input) => {
       const r = _resolveProjectPath(input.path);
       if (!r.ok) return { content: '', size: 0, exists: false, error: r.error };
-      const filePath = r.abs;
-      if (!fs.existsSync(filePath)) return { content: '', size: 0, exists: false };
+      let filePath = r.abs;
+      // v7.5.9 live-fix: filename-variant resolution. Pre-fix the LLM
+      // could call file-read({ path: 'readme' }) and get exists:false,
+      // even though README.md exists — because the literal lookup
+      // fails. SelfModelSourceRead has _resolveFileWithVariants for
+      // its own internal reads (v7.5.8), but tool-calls go through
+      // here. Same five-step strategy:
+      //   (1) common-extension append
+      //   (2) case-insensitive exact
+      //   (3) case-insensitive base any-extension
+      //   (4) fuzzy Levenshtein ≤ 1 (single candidate only)
+      //   (5) well-known docs/ retry for doc-like base-names
+      if (!fs.existsSync(filePath)) {
+        const resolved = _resolveFileWithVariants(filePath, rootDir);
+        if (resolved) {
+          // Re-run the project-scope check on the resolved path so a
+          // Levenshtein hit can't escape the safeguard.
+          const r2 = _resolveProjectPath(path.relative(rootDir, resolved));
+          if (r2.ok) filePath = r2.abs;
+          else return { content: '', size: 0, exists: false, error: r2.error };
+        } else {
+          return { content: '', size: 0, exists: false };
+        }
+      }
       const stat = fs.statSync(filePath);
       if (stat.isDirectory()) return { content: '', size: 0, exists: true, error: 'Path is a directory' };
       const maxBytes = input.maxBytes || 100000;

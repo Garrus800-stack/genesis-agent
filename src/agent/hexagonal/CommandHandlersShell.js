@@ -80,6 +80,14 @@ const commandHandlersShell = {
   async openPath(message) {
     if (!this.shell) return this.lang.t('agent.shell_unavailable');
 
+    // v7.5.9 Linux-fix: strip leading slash-command (/open, /öffne, /oeffne)
+    // so the unix-path regex below doesn't match it as a literal path.
+    // Pre-fix: "/open ~/Dokumente" → unixPath regex `(?:^|\s)\/[^\s"']+`
+    // matched "/open" at column 0 → "Pfad existiert nicht: /open".
+    if (typeof message === 'string') {
+      message = message.replace(/^\s*\/(?:open|öffne|oeffne)(?=\s|$)/i, '').trim();
+    }
+
     // FIX v6.1.1: Resolve semantic folder names (Desktop, Downloads, etc.)
     const os = require('os');
     const path = require('path');
@@ -97,81 +105,62 @@ const commandHandlersShell = {
       'home': home,
     };
 
-    // Check for semantic folder reference first.
-    //
-    // v7.5.6 Live-Befund (entdeckt durch openpath-path-extraction tests):
-    // pre-fix war `lower.includes(alias)` ein reiner Substring-Match. Das
-    // hat false-positives produziert wie "öffne C:\Users\Garrus\Desktop"
-    // → matcht "desktop" als Substring im Windows-Pfad und löst die
-    // Alias-Auflösung zu ~/Desktop aus statt den expliziten Windows-Pfad
-    // weiter zu extrahieren. Lösung: Alias muss von Whitespace ODER
-    // Satz-Grenze umgeben sein — NICHT von Pfad-Separatoren (\, /, .).
-    // Reines `\b` reicht nicht, weil `\b` zwischen Backslash und 'd'
-    // (Non-Word + Word) auch eine Wortgrenze sieht und damit
-    // ".garrus\desktop" matchen würde.
+    // Alias-resolver: alias must be surrounded by whitespace or sentence
+    // boundary, NOT path separators (\ / .) — pre-fix `lower.includes`
+    // matched "desktop" inside "C:\Users\X\Desktop" and false-resolved.
     const lower = message.toLowerCase();
     let targetPath = null;
 
-    // v7.5.8: Anaphora-resolver — "der/dein/mein/das/den genesis(-)ordner"
-    // and ".genesis(-)ordner" variants. Pre-fix these phrases fell through
-    // every regex below, returned the generic "welchen Ordner?" prompt,
-    // and (worse) the LLM in chat-mode then confabulated an answer like
-    // "ich kann nicht außerhalb der Sandbox" — even though the rootDir is
-    // exactly what was being asked about. Live-Befund 2026-05-03.
-    //
-    // v7.5.8 hotfix (live-Befund 2 same day): added Dativ forms (deinem,
-    // meinem, deiner, ...) which are common after "in/im/aus/von" — e.g.
-    // "in deinem Genesis ordner". Also added "doc/docs/dokumentation"
-    // alias for rootDir/docs since multiple users referred to that folder
-    // by its short name.
-    //
-    // Resolution targets:
-    //   "genesis ordner"          → rootDir            (the project itself)
-    //   ".genesis ordner"         → rootDir/.genesis   (Genesis' identity folder)
-    //   "doc/docs/dokumentation"  → rootDir/docs       (project docs)
-    //
-    // Possessives accepted (Nominativ + Akkusativ + Dativ):
-    //   der/dem/dein(em|er|en)/mein(em|er|en)/sein(em|er|en)/unser(em|er|en)
-    //   das/den/einen/einem
-    // Required to be present so we don't accidentally resolve a literal
-    // "genesis" as the project (e.g. "starte genesis" → app launch path).
+    // v7.5.8: Anaphora-resolver — "der/dein/mein genesis(-)ordner" and
+    // ".genesis(-)ordner" variants resolve to rootDir / rootDir/.genesis /
+    // rootDir/docs. Required possessive guards against accidental match
+    // of literal "genesis" (e.g. "starte genesis" → app launch).
     const rootDir = this.fp?.rootDir || process.cwd();
     const POSSESSIVE = '(?:der|dem|den|das|ein(?:en|em|er)?|dein(?:e|er|em|en)?|mein(?:e|er|em|en)?|sein(?:e|er|em|en)?|unser(?:e|er|em|en)?|euer|eurem|euren|eure)';
     const FOLDER_NOUN = '(?:[-\\s](?:ordner|folder|verzeichnis|dir|projekt|project))?';
     const anaphoraResolvers = [
-      {
-        // ".genesis"-Variante zuerst (spezifischer als "genesis").
-        pattern: new RegExp(`\\b${POSSESSIVE}\\s+\\.genesis${FOLDER_NOUN}\\b`, 'i'),
-        target: () => path.join(rootDir, '.genesis'),
-      },
-      {
-        // "doc/docs/dokumentation/dokumente"-Alias.
-        pattern: new RegExp(`\\b${POSSESSIVE}\\s+(?:doc|docs|dokumentation|dokumente)${FOLDER_NOUN}\\b`, 'i'),
-        target: () => path.join(rootDir, 'docs'),
-      },
-      {
-        // "genesis-ordner"-Variante (catch-all für "im/in deinem genesis ordner").
-        pattern: new RegExp(`\\b${POSSESSIVE}\\s+genesis${FOLDER_NOUN}\\b`, 'i'),
-        target: () => rootDir,
-      },
+      { pattern: new RegExp(`\\b${POSSESSIVE}\\s+\\.genesis${FOLDER_NOUN}\\b`, 'i'),
+        target: () => path.join(rootDir, '.genesis') },
+      { pattern: new RegExp(`\\b${POSSESSIVE}\\s+(?:doc|docs|dokumentation|dokumente)${FOLDER_NOUN}\\b`, 'i'),
+        target: () => path.join(rootDir, 'docs') },
+      { pattern: new RegExp(`\\b${POSSESSIVE}\\s+genesis${FOLDER_NOUN}\\b`, 'i'),
+        target: () => rootDir },
     ];
     for (const { pattern, target } of anaphoraResolvers) {
-      if (pattern.test(message)) {
-        targetPath = target();
-        break;
-      }
+      if (pattern.test(message)) { targetPath = target(); break; }
     }
 
     for (const [alias, resolved] of Object.entries(folderAliases)) {
       if (targetPath) break;  // anaphora-resolver already matched
       const escAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // v7.5.9 ZIP2 v3 (Bug 2): "X ordner auf dem desktop" — subfolder
+      // named BEFORE alias. Pre-fix only looked AFTER, lost the subfolder.
+      const beforeRe = new RegExp(`(?:öffne|oeffne|open|zeig(?:e)?(?:\\s+mir)?|show)?\\s*(?:den\\s+|das\\s+|die\\s+|the\\s+)?([\\w][\\w-]*)\\s+(?:ordner|folder|verzeichnis|dir)\\s+(?:auf|in|unter|on|im)\\s+(?:dem|den|der|de|the)\\s+${escAlias}\\b`, 'i');
+      const beforeMatch = message.match(beforeRe);
+      if (beforeMatch && beforeMatch[1]) {
+        targetPath = path.join(resolved, beforeMatch[1].trim());
+        break;
+      }
+
       // Match the alias only when surrounded by whitespace, sentence boundary,
       // or string boundaries — explicitly NOT preceded/followed by a path
-      // separator (\ / .) or word character. Treat both sides symmetrically.
-      const aliasRe = new RegExp(`(?:^|\\s)${escAlias}(?:$|\\s|[.,;:!?])`, 'i');
-      if (aliasRe.test(lower)) {
-        // Check if there's a subfolder/file mentioned after the alias
-        const afterAlias = message.slice(lower.search(aliasRe) + alias.length + 1).trim();
+      // separator (\ / .) or word character.
+      const aliasRe = new RegExp(`(?:^|\\s)(${escAlias})(?:$|\\s|[.,;:!?])`, 'i');
+      const aliasMatch = lower.match(aliasRe);
+      if (aliasMatch) {
+        // v7.5.9 B3: capture-group + indexOf instead of arithmetic. Pre-fix
+        // used `lower.search(aliasRe) + alias.length + 1` which assumed the
+        // `(?:^|\s)` prefix consumed exactly one char; for the `^`-branch
+        // (alias at string-start) the prefix is zero-width, so the +1
+        // skipped one char too many. Worked by luck for whitespace-separated
+        // input ("desktop bilder" → trim eats the gap), broke for `.`-separated
+        // input ("desktop.txt" → lost the leading dot of the subpath).
+        const aliasInMatch = aliasMatch[0].toLowerCase().indexOf(alias.toLowerCase());
+        const afterIdx = aliasMatch.index + aliasInMatch + alias.length;
+        // v7.5.9 B3: strip leading punctuation (,;:!?) so "desktop, bilder"
+        // doesn't extract "," as the subfolder. The dot is preserved on
+        // purpose ("desktop.txt" → ".txt" → joins to <desktop>/.txt).
+        const afterAlias = message.slice(afterIdx).trim().replace(/^[,;:!?\s]+/, '');
         const subMatch = afterAlias.match(/(?:ordner|folder|datei|file)?\s*[\"']?([^\s\"']+)[\"']?/i);
         targetPath = subMatch && subMatch[1] ? path.join(resolved, subMatch[1]) : resolved;
         break;
@@ -222,6 +211,21 @@ const commandHandlersShell = {
     }
 
     if (!targetPath) {
+      // v7.5.9 ZIP2 v3 (Bug 3): "öffne den X ordner" — try X as subdir
+      // under rootDir, then Desktop, then Documents BEFORE app-launch.
+      // Pre-fix routed to appMatch and tried to launch "X ordner" as app.
+      const m = message.match(/(?:oeffne|öffne|open|zeig(?:e)?(?:\s+mir)?|show)\s+(?:den\s+|das\s+|die\s+|the\s+)?([\w][\w-]*)\s+(?:ordner|folder|verzeichnis|dir)\b/i);
+      if (m && m[1]) {
+        const fs = require('fs');
+        const cand = m[1].trim();
+        for (const p of [path.join(rootDir, cand), path.join(home, 'Desktop', cand), path.join(home, 'Documents', cand)]) {
+          if (fs.existsSync(p)) { targetPath = p; break; }
+        }
+        if (!targetPath) return `Den Ordner "${cand}" konnte ich nicht finden — weder unter ${rootDir}, noch im Desktop oder Documents.`;
+      }
+    }
+
+    if (!targetPath) {
       // FIX v6.1.1: Detect application launch requests (öffne firefox, chrome, etc.)
       const appMatch = message.match(/(?:oeffne|öffne|open|start|starte)\s+(?:den\s+|das\s+|die\s+)?(\w[\w\s.-]*\w)/i);
       if (appMatch) {
@@ -229,7 +233,7 @@ const commandHandlersShell = {
         const platform = process.platform;
         const cmd = platform === 'win32' ? `start "" "${appName}"` : platform === 'darwin' ? `open -a "${appName}"` : `xdg-open "${appName}" 2>/dev/null || ${appName}`;
         try {
-          const result = await this.shell.run(cmd, 'read');
+          const result = await this.shell.run(cmd, { tier: 'read' });
           return `Anwendung gestartet: ${appName}`;
         } catch (err) { return `Konnte "${appName}" nicht starten: ${err.message}`; }
       }
@@ -245,9 +249,39 @@ const commandHandlersShell = {
     // eine klare deutsche Fehlermeldung. Fragt explizit nicht den shell-
     // tool ab, sondern direkt `fs` weil das billiger und plattform-
     // konsistent ist.
+    // v7.5.9 Linux-fix: expand leading "~" / "~/" to user home BEFORE
+    // existsSync. Pre-fix: "/open ~/Dokumente" → after slash-strip
+    // targetPath was literal "~/Dokumente". fs.existsSync doesn't
+    // shell-expand, so it returned false → "Pfad existiert nicht: ~/Dokumente".
+    if (typeof targetPath === 'string' && (targetPath === '~' || targetPath.startsWith('~/') || targetPath.startsWith('~\\'))) {
+      targetPath = path.join(home, targetPath.slice(2) || '');
+    }
+
     const fs = require('fs');
     if (!fs.existsSync(targetPath)) {
-      return `Pfad existiert nicht: \`${targetPath}\``;
+      // v7.5.9 Linux-fix: many German Linux distros use localized folder
+      // names — `~/Dokumente` exists, `~/Documents` does not. If the
+      // requested path doesn't exist but a German-localized sibling does,
+      // try that. Symmetrical: also `~/Documents` → `~/Dokumente`.
+      const localizedSiblings = {
+        'Documents': 'Dokumente', 'Dokumente': 'Documents',
+        'Downloads': 'Downloads',  // same on both
+        'Pictures':  'Bilder',     'Bilder':  'Pictures',
+        'Music':     'Musik',      'Musik':   'Music',
+        'Videos':    'Videos',
+        'Desktop':   'Schreibtisch', 'Schreibtisch': 'Desktop',
+      };
+      const baseName = path.basename(targetPath);
+      if (localizedSiblings[baseName]) {
+        const sibling = path.join(path.dirname(targetPath), localizedSiblings[baseName]);
+        if (fs.existsSync(sibling)) {
+          targetPath = sibling;
+        } else {
+          return `Pfad existiert nicht: \`${targetPath}\``;
+        }
+      } else {
+        return `Pfad existiert nicht: \`${targetPath}\``;
+      }
     }
 
     // Determine OS-specific open command
@@ -262,7 +296,7 @@ const commandHandlersShell = {
     }
 
     try {
-      const result = await this.shell.run(cmd, 'read');
+      const result = await this.shell.run(cmd, { tier: 'read' });
       if (result.ok || result.exitCode === 0 || result.exitCode === 1) {
         // explorer returns exit 1 even on success sometimes
         return `Ordner geöffnet: \`${targetPath}\``;

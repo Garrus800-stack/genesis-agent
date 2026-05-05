@@ -55,10 +55,16 @@ class SelfModel {
     this._hotReloadUnsub = null;
 
     // v7.3.6 #9: Synchronous Source-Read — per-turn and per-session budget.
+    // v7.5.9 ZIP1 Phase 6: defaults raised from 5/10/20 to 15/30/100. The
+    // earlier numbers were tuned for v7.3.6 where source-read was rare; with
+    // v7.5.8+ pattern coverage and tool-call retries the legitimate read
+    // count per turn is much higher. The 100-session cap accommodates long
+    // pair-programming sessions. File-cap (20KB per file) unchanged so
+    // total context-window budget stays bounded.
     this._readSourceBudget = {
-      softPerTurn: 5,
-      hardPerTurn: 10,
-      hardPerSession: 20,
+      softPerTurn: 15,
+      hardPerTurn: 30,
+      hardPerSession: 100,
       maxFileBytes: 20 * 1024,
     };
     this._readSourceState = {

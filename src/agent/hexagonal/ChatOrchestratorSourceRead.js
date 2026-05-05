@@ -50,6 +50,12 @@ const sourceRead = {
     const lower = message.toLowerCase();
     const rootDir = this._rootDir();
 
+    // v7.5.9 ZIP2 v3 (Bug 5 companion): some chat UIs auto-convert
+    // filename mentions into markdown-link syntax — e.g. "ONTOGENESIS.md"
+    // becomes "[ONTOGENESIS.md](http://ONTOGENESIS.md)". Strip those
+    // before pattern-matching so the regex still sees the bare filename.
+    const lowerStripped = lower.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
+
     // Pattern 1: "was hat sich geändert" / "was ist neu" → CHANGELOG.md
     if (/was\s+(hat\s+sich|ist\s+neu|gibt.*neu)/.test(lower)) {
       const section = this._readChangelogLatestSection(path.join(rootDir, 'CHANGELOG.md'));
@@ -72,6 +78,56 @@ const sourceRead = {
           label: 'package.json',
         });
         this._lastSourceReadAttempted = true;
+      }
+      return;
+    }
+
+    // v7.5.9 ZIP2 Phase 2: file-content patterns. The user names a file
+    // explicitly ("fasse README zusammen", "lies ONTOGENESIS.md", "was
+    // steht in package.json"). Resolve via _resolveFileWithVariants so
+    // case/extension typos still hit. False-positive guard: pattern
+    // requires a filename-capture group; if no name is captured, skip.
+    const fileSummaryMatch = lowerStripped.match(
+      /(?:f?ass(?:e|t)?|summ(?:arize|ar(?:y|isiere))|lies|read|zeig(?:e)?(?:\s+mir)?|show)\s+(?:mir\s+)?(?:die\s+|den\s+|das\s+|the\s+)?(?:datei\s+)?([\w][\w\s.-]*?\.(?:md|txt|json|js|ts|yaml|yml|toml|html|css))(?:\s|\b|$)/i
+    ) || lowerStripped.match(
+      /(?:f?ass(?:e|t)?|lies|summ\w*)\s+(?:mir\s+)?(?:die\s+|den\s+)?([a-z][a-z0-9_-]{2,40})\s+(?:zusammen|durch)/i
+    ) || lowerStripped.match(
+      /was\s+steht\s+in\s+(?:der\s+)?(?:datei\s+)?([\w][\w\s.-]*?(?:\.\w+)?)\b/i
+    );
+    if (fileSummaryMatch) {
+      const requestedName = fileSummaryMatch[1].trim();
+      // Resolve via SelfModelSourceRead's variant helper — this also walks
+      // into docs/ for doc-like names (README, ONTOGENESIS, ARCHITECTURE).
+      // The helper is exported from SelfModelSourceRead.js (v7.5.9).
+      try {
+        const { _resolveFileWithVariants } = require('../foundation/SelfModelSourceRead');
+        const candidate = path.isAbsolute(requestedName)
+          ? requestedName
+          : path.join(rootDir, requestedName);
+        const resolved = _resolveFileWithVariants(candidate, rootDir);
+        if (resolved) {
+          // Use the source-read tool path to honor budget + caching.
+          if (this.selfModel?.readSourceSync) {
+            const relPath = path.relative(rootDir, resolved);
+            const content = this.selfModel.readSourceSync(relPath, { bus: this.bus });
+            if (content) {
+              this.promptBuilder.attachSourceContent({
+                content,
+                label: relPath,
+              });
+              this._lastSourceReadAttempted = true;
+              return;
+            }
+          }
+        }
+        // No match found — leave a hint so the LLM doesn't confabulate.
+        this.promptBuilder.attachSourceContent({
+          content: `[Note: file "${requestedName}" not found in project. Available top-level files include README.md, CHANGELOG.md, AUDIT-BACKLOG.md, package.json. The docs/ directory contains ONTOGENESIS.md and others.]`,
+          label: 'file-not-found',
+        });
+        this._lastSourceReadAttempted = true;
+      } catch (err) {
+        _log.debug('[CHAT] Phase 2 file-summary pattern failed:', err.message);
       }
     }
   },

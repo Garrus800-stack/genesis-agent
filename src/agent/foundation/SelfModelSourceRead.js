@@ -116,19 +116,34 @@ function _levenshtein(a, b) {
   return prev[a.length];
 }
 
-function _looksLikeDocFilename(baseName) {
-  // Heuristic: alphabetic-only, length >= 4, no path separators.
-  // README, CHANGELOG, ONTOGENESIS, ARCHITECTURE — all true. "x", "main.js" — false.
-  return /^[A-Za-z][A-Za-z_-]{2,}$/.test(baseName);
-}
-
 function _resolveInDir(dir, targetBase) {
   if (!fs.existsSync(dir)) return null;
   let entries;
   try { entries = fs.readdirSync(dir); } catch { return null; }
   const targetLower = targetBase.toLowerCase();
 
-  // Step 1: append common extension to original case.
+  // v7.5.9 ZIP2 fix: prefer readdir-match before existsSync.
+  // On Windows the FS is case-insensitive, so existsSync('readme.md')
+  // returns true even when the real file is 'README.md'. That returned
+  // the user-typed case ('readme.md'), which broke callers expecting
+  // the real on-disk case (e.g. test asserts endsWith('README.md')).
+  // Reading entries with readdirSync gives us the real case, so we
+  // try that first.
+
+  // Step 0: case-insensitive base+ext match against actual entries.
+  for (const ext of COMMON_FILE_EXTS) {
+    const wantedLower = (targetBase + ext).toLowerCase();
+    for (const entry of entries) {
+      if (entry.toLowerCase() === wantedLower) {
+        const candidate = path.join(dir, entry);
+        try {
+          if (fs.statSync(candidate).isFile()) return candidate;
+        } catch { /* skip */ }
+      }
+    }
+  }
+
+  // Step 1: append common extension to original case (Linux fallback).
   for (const ext of COMMON_FILE_EXTS) {
     const candidate = path.join(dir, targetBase + ext);
     try {
@@ -195,10 +210,14 @@ function _resolveFileWithVariants(absPath, rootDir) {
   const inOriginal = _resolveInDir(dir, baseName);
   if (inOriginal) return inOriginal;
 
-  // Step 5: well-known docs/ retry. Only when the original lookup was at
-  // the project root AND the base-name is doc-like (README, ONTOGENESIS,
-  // ARCHITECTURE etc., not "main.js" or "x").
-  if (rootDir && path.resolve(dir) === path.resolve(rootDir) && _looksLikeDocFilename(baseName)) {
+  // Step 5: docs/ fallback. v7.5.9 ZIP2 v5: dropped the "looks like doc"
+  // filter (was a regex `^[A-Za-z][A-Za-z_-]{2,}$` that excluded any
+  // filename with digits or dots — e.g. "phase9-cognitive-architecture"
+  // failed because of the 9). The filter was an arbitrary restriction
+  // that surprised users; if a file isn't at the original location,
+  // just try docs/ — cheap, deterministic, no false-positives because
+  // _resolveInDir only returns files that actually exist.
+  if (rootDir && path.resolve(dir) === path.resolve(rootDir)) {
     const docsDir = path.join(rootDir, 'docs');
     const inDocs = _resolveInDir(docsDir, baseName);
     if (inDocs) return inDocs;
@@ -278,11 +297,15 @@ const selfModelSourceRead = {
       if (resolved) absPath = resolved;
     }
 
-    // Cache hit
+    // Cache hit — return cached content WITHOUT counting against budget.
+    // v7.5.9 ZIP1 Phase 6: previously cache-hits incremented turnCount and
+    // sessionCount. That's a bug: re-reading the same file later in the
+    // same turn (legitimate when the LLM references it twice) consumed
+    // budget for zero new I/O work. With the higher budgets (15/30/100)
+    // this matters less but the principle is wrong either way — budget
+    // limits I/O cost, and a cache-hit IS the savings, not the cost.
     const cached = state.sessionCache.get(absPath);
     if (cached !== undefined) {
-      state.turnCount++;
-      state.sessionCount++;
       return cached;
     }
 
@@ -482,4 +505,4 @@ const selfModelSourceRead = {
   },
 };
 
-module.exports = { selfModelSourceRead };
+module.exports = { selfModelSourceRead, _resolveFileWithVariants };

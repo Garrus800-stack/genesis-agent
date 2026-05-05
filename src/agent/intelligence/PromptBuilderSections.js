@@ -98,6 +98,18 @@ const sections = {
       // Trait bleibt unangetastet; er darf weiterhin tief fragen, nur
       // ohne rhetorische Ankündigung ("darf ich tiefer fragen?").
       'Kündige Tiefe nicht an — stell die Frage einfach, wenn sie drückt.',
+      // v7.5.9 ZIP 15a: Plan-Cards. When the user asks for a multi-step
+      // plan, an approach, or "what would you do step by step", emit a
+      // <plan>…</plan> block — the UI renders it as a structured card
+      // with numbered steps. Format:
+      //   <plan title="Brief title">
+      //   - First concrete step
+      //   - Second concrete step
+      //   - Third concrete step
+      //   </plan>
+      // Use it for genuinely multi-step intentions (3+ concrete actions),
+      // not for single-sentence answers or open-ended discussions.
+      'Bei mehrstufigen Aufgaben (3+ konkrete Schritte) nutze einen <plan title="…">…</plan> Block mit Schritten als "- ..."-Zeilen — die UI zeigt das als strukturierte Plan-Card.',
     ].join('\n');
     if (this.promptEvolution) {
       return this.promptEvolution.getSection('formatting', defaultText).text;

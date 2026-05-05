@@ -34,6 +34,10 @@ const { commandHandlersMemory }  = require('./CommandHandlersMemory');
 const { commandHandlersSystem }  = require('./CommandHandlersSystem');
 const { commandHandlersNetwork } = require('./CommandHandlersNetwork');
 const { commandHandlersSelf }    = require('./CommandHandlersSelf');
+const { commandHandlersInstall } = require('./CommandHandlersInstall');
+const { commandHandlersArchitecture } = require('./CommandHandlersArchitecture');
+const { commandHandlersSlashHint } = require('./CommandHandlersSlashHint');
+const { commandHandlersOpen } = require('./CommandHandlersOpen');
 
 class CommandHandlers {
   constructor({ bus, lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient, coreMemories}) {
@@ -87,6 +91,19 @@ class CommandHandlers {
     orchestrator.registerHandler('self-recall', (msg) => this.selfRecall(msg));
     // v7.5.6: Model availability marker reset
     orchestrator.registerHandler('model-reset', (msg) => this.modelReset(msg));
+    // v7.5.9 ZIP3 Phase 4a: Software-installation handler
+    orchestrator.registerHandler('install-software', (msg) => this.installSoftware(msg));
+    // v7.5.9 ZIP4 Phase 8: Architecture-diagram (deterministic mermaid)
+    orchestrator.registerHandler('architecture-diagram', (msg) => this.architectureDiagram(msg));
+    // v7.5.9 ZIP8: open installed application + pronoun resolution.
+    orchestrator.registerHandler('open-software', (msg) => this.openSoftware(msg));
+    // v7.5.9 ZIP7: Slash-Discipline-Hint — when a user types a free-text
+    // form of a security-relevant intent (e.g. "installiere winrar"), the
+    // slash-discipline guard rewrites the intent to `slash-hint` instead
+    // of silently falling through to the LLM (which previously
+    // confabulated refusals like "I cannot install software"). This
+    // handler renders the correct slash command suggestion for the user.
+    orchestrator.registerHandler('slash-hint', (msg, ctx) => this.slashHint(msg, ctx));
   }
 
   // ── Undo (Git Revert) ──────────────────────────────────
@@ -160,7 +177,11 @@ Object.assign(
   commandHandlersMemory,
   commandHandlersSystem,
   commandHandlersNetwork,
-  commandHandlersSelf  // v7.5.5
+  commandHandlersSelf,        // v7.5.5
+  commandHandlersInstall,     // v7.5.9 ZIP3 Phase 4a
+  commandHandlersArchitecture, // v7.5.9 ZIP4 Phase 8
+  commandHandlersSlashHint,   // v7.5.9 ZIP7
+  commandHandlersOpen         // v7.5.9 ZIP8
 );
 
 module.exports = { CommandHandlers };

@@ -276,6 +276,147 @@ body {
   border-top: 1px solid #1a1d28; font-size: 12px; max-height: 200px; overflow: auto;
 }
 .code-run-output.error { color: #f87171; }
+
+/* v7.5.9 ZIP4 Phase 11 — Mermaid diagram rendering. */
+/* ── Plan-Card (ZIP 15a Basics) ──────────────────────────── */
+.plan-card {
+  margin: 10px 0;
+  background: var(--bg-2, #181a22);
+  border: 1px solid var(--accent-dim, #324558);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.plan-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-3, #1f2230);
+  border-bottom: 1px solid var(--border-1, #2a2d38);
+  font-weight: 600;
+  font-size: 14px;
+}
+.plan-card-icon { font-size: 16px; opacity: 0.9; }
+.plan-card-title { flex: 1; color: var(--accent, #5b9dd6); }
+.plan-card-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--fg-2, #9aa0aa);
+  background: var(--bg-1, #14161e);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.plan-card-steps {
+  list-style: none;
+  margin: 0;
+  padding: 8px 14px 12px;
+  counter-reset: plan-step;
+}
+.plan-card-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--border-1, #2a2d38);
+}
+.plan-card-step:last-child { border-bottom: none; }
+.plan-card-step-num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-1, #d4d6db);
+  background: var(--bg-1, #14161e);
+  border: 1px solid var(--border-1, #2a2d38);
+  border-radius: 50%;
+}
+.plan-card-step-text {
+  flex: 1;
+  color: var(--fg-1, #d4d6db);
+  word-break: break-word;
+}
+
+.mermaid-block-wrapper {
+  position: relative;
+  margin: 8px 0;
+  background: var(--bg-2, #181a22);
+  border: 1px solid var(--border-1, #2a2d38);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.mermaid-block-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 6px;
+  background: var(--bg-3, #1f2230);
+  border-bottom: 1px solid var(--border-1, #2a2d38);
+}
+.mermaid-toggle-btn {
+  background: var(--accent-dim, #324558);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0.8;
+  font-family: var(--font-sans);
+}
+.mermaid-toggle-btn:hover { opacity: 1; }
+.mermaid-diagram {
+  padding: 12px;
+  text-align: center;
+  overflow: auto;
+  min-height: 200px;
+  max-height: 70vh;
+  background: var(--bg-1, #14161e);
+}
+.mermaid-diagram svg {
+  /* SVG fills the container width. Mermaid sets an inline
+     style="max-width: ..." with useMaxWidth=true; we override it
+     with !important so the diagram actually uses the available
+     chat width and is readable. height: auto preserves the
+     aspect ratio. */
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto;
+}
+.mermaid-loading {
+  opacity: 0.6;
+  font-size: 0.9em;
+  font-style: italic;
+  padding: 8px;
+}
+.mermaid-error {
+  color: #f87171;
+  font-size: 0.85em;
+  padding: 8px;
+  text-align: left;
+}
+.mermaid-fallback-source {
+  margin: 8px 0 0 0;
+  padding: 8px 12px;
+  background: var(--bg-1, #14161e);
+  font-size: 11px;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mermaid-code {
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--bg-1, #14161e);
+  font-size: 12px;
+  overflow: auto;
+}
 .intent-tag {
   display: inline-block; font-size: 9px; padding: 1px 6px;
   border-radius: 3px; background: var(--accent-soft); color: var(--accent);

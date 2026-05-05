@@ -73,9 +73,14 @@ function phase1(ctx, R) {
         // v7.5.7-fix Phase 2: maxConcurrent configurable from settings
         // (was hardcoded 3 via LIMITS.LLM_MAX_CONCURRENT).
         const maxConcurrent = settings?.get?.('models.maxConcurrent');
+        // v7.5.9 Linux-fix: per-instance HTTP timeout for slow machines.
+        // Default 180s is too short for older CPUs running 7B+ models —
+        // first inference can take 240–300s. Settings: `llm.localTimeoutMs`.
+        const localTimeoutMs = settings?.get?.('llm.localTimeoutMs');
         const mb = new (R('ModelBridge').ModelBridge)({
           bus, genesisDir,
           ollamaKeepAlive: ollamaKeepAlive == null ? null : ollamaKeepAlive,
+          ollamaLocalTimeoutMs: (typeof localTimeoutMs === 'number' && localTimeoutMs > 0) ? localTimeoutMs : undefined,
           maxConcurrentLLM: (typeof maxConcurrent === 'number' && maxConcurrent > 0) ? maxConcurrent : undefined,
         });
         mb._settings = settings;
