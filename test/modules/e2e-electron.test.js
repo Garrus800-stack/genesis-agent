@@ -148,7 +148,7 @@ describe('E2E Electron — HTML Entry Points', () => {
   test('bundled HTML exists as fallback', () => {
     const fs = require('fs');
     assert(
-      fs.existsSync(path.join(ROOT, 'src/ui/index.bundled.html')),
+      fs.existsSync(path.join(ROOT, 'src/ui/index.html')),
       'Bundled HTML should exist'
     );
   });

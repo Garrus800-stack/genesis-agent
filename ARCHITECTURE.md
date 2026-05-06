@@ -3,15 +3,18 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.5.9 · Last verified: 0 schema mismatches (458 catalogued events / 458 schemas),
+> Version: 7.6.0 · Last verified: 0 schema mismatches (458 catalogued events / 458 schemas),
 > 0 orphan / missing, 0 stale references, all event-validation checks green
-> (fitness, ratchet, and full test-suite numbers from the v7.5.9 baseline:
-> 6641 tests, fitness 126/130, audit-events:strict exit 0, audit-slash-discipline:strict exit 0).
+> (fitness, ratchet, and full test-suite numbers from the v7.6.0 baseline:
+> 6607 tests, fitness 127/130, audit-events:strict exit 0, audit-slash-discipline:strict exit 0).
 > v7.5.1 added an `intent-tool-coherence` cross-validator as a third gate-layer
 > alongside `injection-gate` and `self-gate` — see [docs/GATE-INVENTORY.md](docs/GATE-INVENTORY.md).
 > v7.5.9 added Plan-Cards (visual rendering for multi-step LLM responses) and a
 > Linux-readiness pass (~ expansion, sudo non-interactive, German folder
 > fallback, expanded apt/dnf/snap aliases).
+> v7.6.0 consolidated the UI dual-path: the legacy monolithic
+> `renderer.js` was deleted, the bundled renderer is now the only
+> codepath. ~40% reduction in UI maintenance surface.
 
 ---
 

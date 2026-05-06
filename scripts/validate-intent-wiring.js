@@ -87,12 +87,30 @@ const handlerFiles = [
 ];
 
 const handlers = new Map(); // type → file
+const virtualHandlers = new Set(); // synthesized by orchestrator, not classified
 for (const rel of handlerFiles) {
   const fPath = path.join(ROOT, rel);
   if (!fs.existsSync(fPath)) continue;
   const content = fs.readFileSync(fPath, 'utf8');
-  for (const m of content.matchAll(/registerHandler\('([\w-]+)'/g)) {
-    handlers.set(m[1], path.basename(rel));
+
+  // v7.6.0 audit §3.3: detect the @virtual-handler doc-anchor convention.
+  // A registerHandler() call preceded (within ~12 lines above) by a
+  // comment containing `@virtual-handler` is a synthesized handler that
+  // is intentionally absent from INTENT_DEFINITIONS — ChatOrchestrator
+  // routes to it from a non-classification source (e.g. _wasSlashOnlyRewrite).
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const m = line.match(/registerHandler\('([\w-]+)'/);
+    if (!m) continue;
+    const type = m[1];
+    handlers.set(type, path.basename(rel));
+    // Look up to 12 lines back for the @virtual-handler anchor.
+    const lookbackStart = Math.max(0, i - 12);
+    const lookback = lines.slice(lookbackStart, i).join('\n');
+    if (/@virtual-handler\b/.test(lookback)) {
+      virtualHandlers.add(type);
+    }
   }
 }
 
@@ -101,9 +119,11 @@ for (const rel of handlerFiles) {
 const errors = [];
 const warnings = [];
 
-// 1. Every handler must have a definition (or be 'general')
+// 1. Every handler must have a definition (or be 'general' or @virtual-handler)
 for (const [type, file] of handlers) {
-  if (!definitions.has(type) && type !== 'general') {
+  if (type === 'general') continue;
+  if (virtualHandlers.has(type)) continue; // intentionally synthesized
+  if (!definitions.has(type)) {
     errors.push(`Handler '${type}' (${file}) has no INTENT_DEFINITIONS entry — IntentRouter can never route to it`);
   }
 }

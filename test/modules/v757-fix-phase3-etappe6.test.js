@@ -90,7 +90,7 @@ test('validateField: returns i18n-aware reason', () => {
   assert.ok(r2.reason.includes('MinX'), `expected MinX in reason, got "${r2.reason}"`);
 });
 
-// ── i18n.js + renderer.js: data-i18n-html support ─────────
+// ── i18n.js: data-i18n-html support ───────────────────────
 
 test('i18n.js: applyI18n handles data-i18n-html attribute', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/i18n.js'), 'utf8');
@@ -98,16 +98,15 @@ test('i18n.js: applyI18n handles data-i18n-html attribute', () => {
   assert.ok(src.includes('innerHTML'), 'i18n.js must use innerHTML for HTML content');
 });
 
-test('renderer.js: applyI18n handles data-i18n-html', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/renderer.js'), 'utf8');
-  assert.ok(src.includes('data-i18n-html'), 'renderer.js must handle data-i18n-html');
-});
+// v7.6.0: legacy `renderer.js: applyI18n handles data-i18n-html` test
+// removed when the dual-path was consolidated.
 
 // ── HTML coverage ──────────────────────────────────────────
 
 test('All data-i18n* keys in HTML resolve in en + de', () => {
   const lang = require(path.join(ROOT, 'src/agent/core/Language.js'));
-  for (const f of ['src/ui/index.html', 'src/ui/index.bundled.html']) {
+  // v7.6.0: dual-path consolidated, only one HTML file remains.
+  for (const f of ['src/ui/index.html']) {
     const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
     const matches = [...html.matchAll(/data-i18n(?:-html|-placeholder)?="([^"]+)"/g)].map(m => m[1]);
     const uniq = [...new Set(matches)];
@@ -165,7 +164,7 @@ test('No duplicate keys in any language block', () => {
 // ── HTML cleanup ───────────────────────────────────────────
 
 test('HTML: no German hint text without data-i18n', () => {
-  for (const f of ['src/ui/index.html', 'src/ui/index.bundled.html']) {
+  for (const f of ['src/ui/index.html']) {
     const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
     // Find all setting-hint / setting-section-label without data-i18n
     const pattern = /<(?:span class="setting-hint"|label class="setting-section-label")(?![^>]*data-i18n)[^>]*>([\s\S]*?)<\/(?:span|label)>/g;

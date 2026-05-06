@@ -148,6 +148,29 @@ Verified during the v7.5.1 quality-sweep:
   fixtures with the literal substring `VERYSECRETPRODUCTIONKEY` to
   exercise the sensitive-data scanner.
 
+### Lockfile policy (v7.6.0 audit §4.5)
+
+The release tarball ships **without** `package-lock.json`. Two
+implications:
+
+1. **Reproducibility:** users who run `npm install` from a tarball
+   will resolve transitive dependencies fresh against npm's registry.
+   Within the published version constraints in `package.json` this is
+   safe, but the exact transitive-closure can differ between two
+   installs done weeks apart.
+2. **Supply-chain anchor:** there is no committed cryptographic anchor
+   that would allow detecting a tampered transitive bump.
+
+Genesis is currently developed by a solo maintainer across two
+machines (different OS and Node-version baselines), and committing a
+single lockfile would lock the install to whichever machine generated
+it last. A future release should either commit a Linux-baseline
+lockfile (with a documented `npm ci` workflow on Windows) or use
+`overrides` in `package.json` to pin the security-critical transitive
+dependencies. Until then, users wanting reproducibility can run
+`npm install` on a clean Linux container and commit the resulting
+lockfile in their own fork.
+
 ## Scope
 
 This security policy covers the Genesis Agent application. It does **not** cover:

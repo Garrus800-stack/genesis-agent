@@ -79,7 +79,7 @@ test('UI HTML: new emotion fields are present (real paths)', () => {
 });
 
 test('UI bundled.html: same structure as index.html', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.bundled.html'), 'utf8');
+  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
   assert.ok(!/id="set-em-max"/.test(html), 'bundled: set-em-max must be removed');
   assert.ok(!/id="set-shell-timeout"/.test(html), 'bundled: set-shell-timeout must be removed');
   assert.ok(/id="set-emotion-decay-interval"/.test(html), 'bundled: new field must exist');

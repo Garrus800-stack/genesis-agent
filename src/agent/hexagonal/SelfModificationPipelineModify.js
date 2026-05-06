@@ -373,10 +373,21 @@ const selfModificationPipelineModify = {
       const code = m[3].trim();
       if (FOREIGN_LANG_RE.test(code) || SHELL_DECL_RE.test(code)) {
         if (this.bus?.emit) {
+          // v7.6.0 audit §3.2: payload schema aligned with the other
+          // emit site at line ~148 — same event, same shape. Pre-fix
+          // this site emitted { file, reason, preview } and the other
+          // emitted { targetFile, ext, allowedExt }, which would have
+          // surfaced as an EventPayloadSchemas mismatch.
+          // Subscribers needing the file path read `targetFile`; the
+          // foreign-language reason becomes the `ext` slot ("foreign-
+          // language" instead of a real extension), and the original
+          // `preview`-snippet is dropped — telemetry is enough, the
+          // preview was log-only.
+          const targetFile = m[1] || m[2];
           this.bus.emit('selfmod:language-guard-blocked', {
-            file: m[1] || m[2],
-            reason: 'foreign-language-patch',
-            preview: code.slice(0, 200),
+            targetFile,
+            ext: 'foreign-language',
+            allowedExt: ['.js', '.mjs', '.cjs', '.ts'],
           }, { source: 'SelfModPipeline' });
         }
         _log.warn(`[SELFMOD] Language-guard: dropped foreign-language patch for ${m[1] || m[2]}`);

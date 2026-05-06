@@ -1,13 +1,13 @@
-// @ts-checked-v7.5.9
+// @ts-checked-v7.6.0
 // ============================================================
 // GENESIS — CommandHandlersInstall.js
-// ZIP 3 Phase 4a + ZIP 5 Phase 4d (v7.5.9)
+// ZIP 3 Phase 4a + ZIP 5 Phase 4d (v7.5.9), v7.6.0 Track A #2 split.
 //
-// Full install pipeline. Three tiers:
+// Top-level install handler. Three tiers:
 //
 //   Tier 1 — Package-Manager available
 //     winget / choco / scoop on Win, brew on macOS, apt/dnf/pacman
-//     on Linux. Detect, then install. Same as ZIP 3.
+//     on Linux. Detect, then install.
 //
 //   Tier 2 — Package-Manager missing → bootstrap (Trust ≥ 2)
 //     Win: try `Add-AppxPackage` for winget via PowerShell, or
@@ -43,6 +43,15 @@
 //   security boundary; no setting circumvents it. Genesis prepares
 //   everything, the user does one click.
 //
+// ── v7.6.0 Track A #2 — split structure ──
+//   CommandHandlersInstallDB.js     — pure-data tables (~190 LOC)
+//   CommandHandlersInstallDetect.js — detection + helper mixin (~260 LOC)
+//   CommandHandlersInstall.js       — Tier 1/2/3 pipeline (this file, ~340 LOC)
+//
+//   The Detect mixin is wired into this object via Object.assign at
+//   the bottom of this file, same pattern as ModelBridgeAvailability /
+//   ModelBridgeDiscovery (v7.5.6, v7.5.8).
+//
 // Prototype-Delegation from CommandHandlers.js via Object.assign.
 // ============================================================
 
@@ -50,141 +59,19 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('CommandHandlersInstall');
 
-// ── Per-OS package managers ───────────────────────────────────
-const _PACKAGE_MANAGERS = {
-  win32: [
-    { name: 'winget', detect: 'winget --version', install: 'winget install --id {pkg} -e {scope} {location} --silent --accept-source-agreements --accept-package-agreements', bootstrap: 'winget' },
-    { name: 'choco', detect: 'choco --version', install: 'choco install {pkg} -y', bootstrap: 'choco' },
-    { name: 'scoop', detect: 'scoop --version', install: 'scoop install {pkg}', bootstrap: 'scoop' },
-  ],
-  darwin: [
-    { name: 'brew', detect: 'brew --version', install: 'brew install {pkg}', bootstrap: 'brew' },
-  ],
-  linux: [
-    { name: 'apt', detect: 'apt-get --version', install: 'sudo apt-get install -y {pkg}', bootstrap: null },
-    { name: 'dnf', detect: 'dnf --version', install: 'sudo dnf install -y {pkg}', bootstrap: null },
-    { name: 'pacman', detect: 'pacman --version', install: 'sudo pacman -S --noconfirm {pkg}', bootstrap: null },
-    { name: 'zypper', detect: 'zypper --version', install: 'sudo zypper install -y {pkg}', bootstrap: null },
-    { name: 'apk', detect: 'apk --version', install: 'sudo apk add {pkg}', bootstrap: null },
-  ],
-};
+const _db = require('./CommandHandlersInstallDB');
+const _detectMixin = require('./CommandHandlersInstallDetect');
 
-// ── Bootstrap scripts (PM-install commands) ───────────────────
-// All PowerShell scripts use bypass execution policy and rely on
-// the standard download-and-pipe pattern. The user still gets a
-// UAC prompt for elevation. Failure modes are obvious from output.
-const _BOOTSTRAP_COMMANDS = {
-  win32: {
-    winget: {
-      // winget is bundled in modern Win10+/Win11. If missing, point
-      // the user to the Microsoft Store "App Installer" page —
-      // Genesis cannot side-load AppX packages without admin.
-      cmd: null,
-      manual: 'Öffne Microsoft Store und suche nach "App Installer" (= winget). Installation dort dauert <1min.',
-    },
-    choco: {
-      // Standard chocolatey installer.
-      cmd: 'powershell -Command "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString(\'https://community.chocolatey.org/install.ps1\'))"',
-      manual: null,
-    },
-    scoop: {
-      // scoop installer; doesn't need admin.
-      cmd: 'powershell -Command "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser; irm get.scoop.sh | iex"',
-      manual: null,
-    },
-  },
-  darwin: {
-    brew: {
-      cmd: '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
-      manual: null,
-    },
-  },
-  linux: {},
-};
-
-// ── Software direct-download DB ───────────────────────────────
-// Curated list of known-good direct URLs for popular software.
-// Used as Tier-3 fallback when no PM is available. Each entry can
-// have per-OS variants. Filename is what the file is saved as in
-// Downloads — Windows installers with .exe extension auto-launch
-// when opened, .msi too. .pkg on macOS opens the installer.
-//
-// Adding entries is safe — direct URLs go to the official vendor.
-// Updating versions is best-effort; many vendors have a "latest"
-// redirect we use where possible.
-const _SOFTWARE_DB = {
-  'winrar': {
-    win32: { url: 'https://www.win-rar.com/fileadmin/winrar-versions/sfxen.exe', filename: 'winrar-installer.exe', label: 'WinRAR' },
-  },
-  '7zip': {
-    win32: { url: 'https://www.7-zip.org/a/7z2408-x64.exe', filename: '7zip-installer.exe', label: '7-Zip' },
-  },
-  'firefox': {
-    win32: { url: 'https://download.mozilla.org/?product=firefox-stub&os=win&lang=de', filename: 'firefox-installer.exe', label: 'Firefox' },
-    darwin: { url: 'https://download.mozilla.org/?product=firefox-latest&os=osx&lang=de', filename: 'Firefox.dmg', label: 'Firefox' },
-  },
-  'chrome': {
-    win32: { url: 'https://dl.google.com/chrome/install/latest/chrome_installer.exe', filename: 'chrome-installer.exe', label: 'Google Chrome' },
-  },
-  'vscode': {
-    win32: { url: 'https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-user', filename: 'vscode-installer.exe', label: 'Visual Studio Code' },
-    darwin: { url: 'https://code.visualstudio.com/sha/download?build=stable&os=darwin-universal', filename: 'VSCode.zip', label: 'Visual Studio Code' },
-  },
-  'git': {
-    win32: { url: 'https://gitforwindows.org/', filename: null, label: 'Git for Windows', note: 'Direkter Installer-Download nicht möglich (Vendor-Seite redirect-only). Öffne den Link.' },
-  },
-  'python': {
-    win32: { url: 'https://www.python.org/downloads/windows/', filename: null, label: 'Python', note: 'Wähle Version auf der python.org-Seite.' },
-  },
-  'nodejs': {
-    win32: { url: 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-x64.msi', filename: 'nodejs-v20.18.1.msi', label: 'Node.js v20 LTS' },
-    darwin: { url: 'https://nodejs.org/dist/v20.18.1/node-v20.18.1.pkg', filename: 'nodejs-v20.18.1.pkg', label: 'Node.js v20 LTS' },
-  },
-  'notepad++': {
-    win32: { url: 'https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.7.1/npp.8.7.1.Installer.x64.exe', filename: 'notepad-plus-plus.exe', label: 'Notepad++' },
-  },
-  'vlc': {
-    win32: { url: 'https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.exe', filename: 'vlc-installer.exe', label: 'VLC Media Player' },
-    darwin: { url: 'https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-universal.dmg', filename: 'VLC.dmg', label: 'VLC Media Player' },
-  },
-};
-
-// ── PM-specific package-id aliases ────────────────────────────
-// Linux: apt (Debian/Ubuntu), dnf (Fedora/RHEL), pacman (Arch).
-// snap/flatpak listed when they're the most reliable source for
-// closed-source apps not in distro repos (Chrome, VSCode).
-const _PACKAGE_ALIASES = {
-  'winrar':    { winget: 'RARLab.WinRAR', choco: 'winrar' /* Linux: use unrar/rar from distro repos directly */ },
-  '7zip':      { winget: '7zip.7zip', choco: '7zip', apt: 'p7zip-full', dnf: 'p7zip', pacman: 'p7zip' },
-  'firefox':   { winget: 'Mozilla.Firefox', choco: 'firefox', brew: '--cask firefox', apt: 'firefox', dnf: 'firefox', pacman: 'firefox' },
-  'chrome':    { winget: 'Google.Chrome', choco: 'googlechrome', brew: '--cask google-chrome' /* Linux: not in standard repos, use google's .deb or flatpak */ },
-  'chromium':  { apt: 'chromium-browser', dnf: 'chromium', pacman: 'chromium' },
-  'vscode':    { winget: 'Microsoft.VisualStudioCode', choco: 'vscode', brew: '--cask visual-studio-code', snap: 'code --classic' },
-  'code':      { snap: 'code --classic' /* alias for vscode via snap */ },
-  'git':       { winget: 'Git.Git', choco: 'git', brew: 'git', apt: 'git', dnf: 'git', pacman: 'git', zypper: 'git', apk: 'git' },
-  'python':    { winget: 'Python.Python.3.12', choco: 'python', brew: 'python', apt: 'python3', dnf: 'python3', pacman: 'python', zypper: 'python3', apk: 'python3' },
-  'nodejs':    { winget: 'OpenJS.NodeJS', choco: 'nodejs', brew: 'node', apt: 'nodejs', dnf: 'nodejs', pacman: 'nodejs', zypper: 'nodejs', apk: 'nodejs' },
-  'notepad++': { winget: 'Notepad++.Notepad++', choco: 'notepadplusplus' /* Linux alternative: gedit, kate */ },
-  'vlc':       { winget: 'VideoLAN.VLC', choco: 'vlc', brew: '--cask vlc', apt: 'vlc', dnf: 'vlc', pacman: 'vlc', zypper: 'vlc' },
-  'gimp':      { winget: 'GIMP.GIMP', choco: 'gimp', brew: '--cask gimp', apt: 'gimp', dnf: 'gimp', pacman: 'gimp', zypper: 'gimp' },
-  'inkscape':  { winget: 'Inkscape.Inkscape', apt: 'inkscape', dnf: 'inkscape', pacman: 'inkscape', zypper: 'inkscape' },
-  'docker':    { winget: 'Docker.DockerDesktop', apt: 'docker.io', dnf: 'docker', pacman: 'docker', zypper: 'docker' },
-  'curl':      { apt: 'curl', dnf: 'curl', pacman: 'curl', zypper: 'curl', apk: 'curl', brew: 'curl' },
-  'wget':      { apt: 'wget', dnf: 'wget', pacman: 'wget', zypper: 'wget', apk: 'wget', brew: 'wget' },
-  'htop':      { apt: 'htop', dnf: 'htop', pacman: 'htop', zypper: 'htop', apk: 'htop', brew: 'htop' },
-};
-
-const _PACKAGE_NAME_RE = /^[a-z0-9][a-z0-9._+-]{1,49}$/i;
-
-// v7.5.9 ZIP8: Track the most-recently-installed package so a follow-up
-// "öffne es" / "starte es" can resolve the pronoun to the actual binary
-// instead of having the LLM guess (and sometimes confabulate "Anwendung
-// gestartet: es" when there's no real referent).
-let _lastInstalled = null;
+const {
+  _PACKAGE_MANAGERS,
+  _BOOTSTRAP_COMMANDS,
+  _SOFTWARE_DB,
+  _PACKAGE_ALIASES,
+  _PACKAGE_NAME_RE,
+} = _db;
 
 const CommandHandlersInstall = {
 
@@ -548,279 +435,18 @@ const CommandHandlersInstall = {
     }
     return out.join('\n');
   },
-
-  _setLastInstalled(packageName, installPath) {
-    // Module-singleton state — one user per Genesis instance, fine.
-    _lastInstalled = { packageName, installPath, timestamp: Date.now() };
-  },
-
-  _getLastInstalled() {
-    if (!_lastInstalled) return null;
-    // Expire after 10 minutes — stale references shouldn't resolve.
-    if (Date.now() - _lastInstalled.timestamp > 600000) return null;
-    return _lastInstalled;
-  },
-
-  async _checkAlreadyInstalled(packageName) {
-    const lower = packageName.toLowerCase();
-    // Layer 1: PATH lookup. Fast, works for CLI tools.
-    const probes = process.platform === 'win32'
-      ? [`where.exe ${lower}`, `where.exe ${lower}.exe`]
-      : [`which ${lower}`];
-    for (const probe of probes) {
-      try {
-        const result = await this.shell.run(probe, { tier: 'read' });
-        if ((result.ok !== false) && (result.exitCode === 0 || result.exitCode === undefined) && result.stdout) {
-          const firstLine = result.stdout.trim().split('\n')[0];
-          if (firstLine && firstLine.length > 2 && await this._fileExistsCheck(firstLine)) {
-            return { found: true, via: 'PATH', path: firstLine };
-          }
-        }
-      } catch { /* skip */ }
-    }
-
-    // Layer 2 (Win): Windows-specific GUI-app lookup.
-    if (process.platform === 'win32') {
-      const winFound = await this._findWindowsApp(lower);
-      if (winFound) return winFound;
-    }
-    return { found: false };
-  },
-
-  async _fileExistsCheck(filePath) {
-    if (!this.shell) return false;
-    if (process.platform === 'win32') {
-      try {
-        const r = await this.shell.run(`if exist "${filePath}" echo FOUND`, { tier: 'read' });
-        return /FOUND/.test(r.stdout || '');
-      } catch { return false; }
-    }
-    try {
-      const r = await this.shell.run(`test -e "${filePath}" && echo FOUND`, { tier: 'read' });
-      return /FOUND/.test(r.stdout || '');
-    } catch { return false; }
-  },
-
-  async _findWindowsApp(lower) {
-    // Stage 1: Standard install dirs.
-    const KNOWN_APPS = {
-      'winrar':      { dir: 'WinRAR',          exe: 'WinRAR.exe' },
-      '7zip':        { dir: '7-Zip',           exe: '7zFM.exe' },
-      'notepad++':   { dir: 'Notepad++',       exe: 'notepad++.exe' },
-      'vlc':         { dir: 'VideoLAN\\VLC',   exe: 'vlc.exe' },
-      'firefox':     { dir: 'Mozilla Firefox', exe: 'firefox.exe' },
-      'chrome':      { dir: 'Google\\Chrome\\Application', exe: 'chrome.exe' },
-    };
-    const known = KNOWN_APPS[lower];
-    if (known) {
-      const candidates = [
-        `C:\\Program Files\\${known.dir}\\${known.exe}`,
-        `C:\\Program Files (x86)\\${known.dir}\\${known.exe}`,
-      ];
-      for (const c of candidates) {
-        if (await this._fileExistsCheck(c)) {
-          return { found: true, via: 'install-dir', path: c };
-        }
-      }
-    }
-
-    // Stage 2: Registry — VERIFY the install dir contains the .exe.
-    // Earlier versions returned the registry's InstallLocation blindly,
-    // which led to "Pfad: C:\Program Files\WinRAR" being shown even when
-    // nothing was actually there.
-    try {
-      const cmd = `reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "${lower}" /d 2>nul | findstr /I "InstallLocation"`;
-      const r = await this.shell.run(cmd, { tier: 'read', timeout: 8000 });
-      if (r.stdout && r.stdout.trim()) {
-        const match = r.stdout.match(/REG_SZ\s+(.+?)$/im);
-        if (match && match[1]) {
-          const dir = match[1].trim();
-          if (dir) {
-            // Try to find the actual .exe inside the dir.
-            const knownExe = known ? known.exe : null;
-            if (knownExe) {
-              const candidate = `${dir}\\${knownExe}`;
-              if (await this._fileExistsCheck(candidate)) {
-                return { found: true, via: 'registry', path: candidate };
-              }
-            }
-            // Generic fallback inside dir.
-            try {
-              const lr = await this.shell.run(`dir /b "${dir}\\*.exe" 2>nul`, { tier: 'read' });
-              if (lr.stdout && lr.stdout.trim()) {
-                const first = lr.stdout.trim().split('\n')[0].trim();
-                if (first) {
-                  const candidate = `${dir}\\${first}`;
-                  if (await this._fileExistsCheck(candidate)) {
-                    return { found: true, via: 'registry', path: candidate };
-                  }
-                }
-              }
-            } catch { /* skip */ }
-          }
-        }
-      }
-    } catch { /* skip */ }
-
-    // Stage 3: Start-Menu .lnk shortcut. winget often installs into
-    // %LOCALAPPDATA%\Microsoft\WinGet\Packages and only puts a .lnk
-    // into the Start Menu. Windows resolves the .lnk to the real .exe
-    // on launch, so a verified .lnk is sufficient.
-    //
-    // Matching is exact: a request for "git" only matches "git.lnk",
-    // not "GitHub Desktop.lnk" or "GitKraken.lnk". Substring matching
-    // produced false-positives ("git" → found "GitHub Desktop", reported
-    // as installed even when plain Git wasn't).
-    const startMenuRoots = [
-      `%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs`,
-      `%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs`,
-    ];
-    for (const root of startMenuRoots) {
-      try {
-        const cmd = `dir /b /s /a-d "${root}\\${lower}.lnk" 2>nul`;
-        const r = await this.shell.run(cmd, { tier: 'read' });
-        if (r.stdout && r.stdout.trim()) {
-          const first = r.stdout.trim().split('\n')[0].trim();
-          // Only accept if the result actually looks like a .lnk file path —
-          // some shells/mocks return arbitrary stdout on unmatched commands.
-          if (first && /\.lnk$/i.test(first) && /[\\\/]/.test(first)) {
-            return { found: true, via: 'startmenu-lnk', path: first };
-          }
-        }
-      } catch { /* skip */ }
-    }
-
-    return null;
-  },
-
-  async _detectPackageManager(settings) {
-    const candidates = _PACKAGE_MANAGERS[process.platform];
-    if (!candidates) return null;
-    const preferred = settings?.get?.('install.preferredPackageManager', 'auto');
-    if (preferred && preferred !== 'auto') {
-      const match = candidates.find(p => p.name === preferred);
-      if (match && await this._pmAvailable(match)) return match;
-    }
-    for (const pm of candidates) {
-      if (await this._pmAvailable(pm)) return pm;
-    }
-    return null;
-  },
-
-  async _pmAvailable(pm) {
-    try {
-      const r = await this.shell.run(pm.detect, { tier: 'read' });
-      return r.exitCode === 0 || r.code === 0;
-    } catch { return false; }
-  },
-
-  _resolveAlias(packageName, pmName) {
-    const lower = packageName.toLowerCase();
-    return _PACKAGE_ALIASES[lower]?.[pmName] || packageName;
-  },
-
-  // Returns { name, location } — location is null unless the user
-  // appended a target path like "/install winrar D:\Programme\WinRAR".
-  // The path is detected as a token starting with [A-Z]: or `/` or `~`.
-  _extractPackageInfo(message) {
-    const name = this._extractPackageName(message);
-    if (!name) return { name: null, location: null };
-    // Look for an absolute path anywhere after the package name.
-    // Win drive: D:\Programme\WinRAR  (with optional spaces inside, so
-    // we match through end of message). POSIX: /opt/winrar.
-    const winPath = message.match(/\b([A-Za-z]:[\\\/][^\r\n]*?)(?:\s*$|\s{2,})/);
-    if (winPath && winPath[1]) {
-      const trimmed = winPath[1].trim();
-      // Sanity: must be at least drive: + 2 chars
-      if (trimmed.length >= 3) return { name, location: trimmed };
-    }
-    const posixPath = message.match(/\s(\/[a-zA-Z][^\s]*)/);
-    if (posixPath && posixPath[1]) {
-      return { name, location: posixPath[1] };
-    }
-    return { name, location: null };
-  },
-
-  _extractPackageName(message) {
-    if (typeof message !== 'string') return null;
-    const lower = message.toLowerCase();
-    const ARTICLES = new Set(['die','das','den','the','alle','all','ein','eine','einen','a','an','der','dem','des']);
-    const verbPrefixes = [
-      /(?:installier(?:e|t|st)?|install)\s+(?:mir\s+)?(?:bitte\s+)?(.+)/i,
-      /(?:lad(?:e|s|et)?|download)\s+(?:mir\s+)?(.+?)\s+(?:runter|herunter|down)/i,
-      /(?:setze?|setup)\s+(.+?)\s+auf\b/i,
-    ];
-    let after = null;
-    for (const re of verbPrefixes) {
-      const m = lower.match(re);
-      if (m && m[1]) { after = m[1].trim(); break; }
-    }
-    if (!after) return null;
-    const tokens = after.split(/\s+/).filter(Boolean);
-    if (tokens.length === 0) return null;
-    const first = tokens[0];
-    if (ARTICLES.has(first)) return null;
-    if (_PACKAGE_NAME_RE.test(first)) {
-      // Space-collapse for "win rar" / "vs code" / "notepad ++" → "winrar" / "vscode" / "notepad++"
-      if (tokens.length >= 2) {
-        const second = tokens[1];
-        if (!ARTICLES.has(second) && /^[a-z0-9+]{2,5}$/i.test(second) && /^[a-z]{2,4}$/i.test(first)) {
-          const collapsed = (first + second).toLowerCase();
-          if (_PACKAGE_NAME_RE.test(collapsed)) return collapsed;
-        }
-      }
-      return first;
-    }
-    return null;
-  },
-
-  _previewWhyNotExecuting(allowAuto, trustLevel) {
-    if (!allowAuto) return 'Setting "install.allowAutoInstall" ist false (default). Aktiviere in Settings für autonomen Install.';
-    if (trustLevel < 2) return `Trust-Level ${trustLevel} reicht nicht — AUTONOMOUS (2) oder höher nötig.`;
-    return 'Bestätigung erforderlich.';
-  },
-
-  _getDownloadDir() {
-    const settings = this.settings;
-    const fromSetting = settings?.get?.('install.downloadDir', null);
-    if (fromSetting) {
-      // Expand ~ if user used it.
-      return fromSetting.replace(/^~(?=\/|\\|$)/, os.homedir());
-    }
-    return path.join(os.homedir(), 'Downloads');
-  },
-
-  _buildDownloadCommand(url, targetFile) {
-    if (process.platform === 'win32') {
-      // PowerShell Invoke-WebRequest — handles redirects.
-      return `powershell -Command "Invoke-WebRequest -Uri '${url}' -OutFile '${targetFile}' -UseBasicParsing"`;
-    }
-    return `curl -fsSL '${url}' -o '${targetFile}'`;
-  },
-
-  _buildLaunchCommand(filePath) {
-    if (process.platform === 'win32') {
-      // `start` opens with the default handler. .exe → executes,
-      // .msi → msiexec, .zip → explorer. UAC kicks in for installers.
-      return `cmd /c start "" "${filePath}"`;
-    }
-    if (process.platform === 'darwin') {
-      return `open "${filePath}"`;
-    }
-    return `xdg-open "${filePath}"`;
-  },
-
-  _formatSize(filePath) {
-    try {
-      const bytes = fs.statSync(filePath).size;
-      if (bytes < 1024) return `${bytes} B`;
-      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-      return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-    } catch { return '?'; }
-  },
 };
 
+// v7.6.0 Track A #2: wire detection + helper methods from the Detect mixin.
+// Object.assign copies own enumerable properties; the resulting handler
+// behaves identically to the pre-split monolithic object. Same pattern
+// as ModelBridgeAvailability / ModelBridgeDiscovery (v7.5.6, v7.5.8).
+Object.assign(CommandHandlersInstall, _detectMixin);
+
 module.exports = { commandHandlersInstall: CommandHandlersInstall };
+
+// Test-Hooks: re-export the data tables so tests like v756-fix and
+// v759-zip4 that read `commandHandlersInstall._SOFTWARE_DB` keep working.
 module.exports.commandHandlersInstall._PACKAGE_NAME_RE = _PACKAGE_NAME_RE;
 module.exports.commandHandlersInstall._PACKAGE_MANAGERS = _PACKAGE_MANAGERS;
 module.exports.commandHandlersInstall._PACKAGE_ALIASES = _PACKAGE_ALIASES;

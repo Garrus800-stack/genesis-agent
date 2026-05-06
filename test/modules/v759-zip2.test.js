@@ -55,13 +55,13 @@ function test(name, fn) {
 
 describe('v7.5.9 ZIP2 Phase 1 — Sandbox 3-Tier with trust', () => {
 
-  const { checkRootDirSandbox } = require(path.join(ROOT, 'src/agent/capabilities/shell/ShellSafety'));
+  const { checkRootDirSandbox } = require(path.join(ROOT, 'src/agent/core/shell/ShellSafety'));
   const home = os.homedir();
   const projectRoot = ROOT;
   const homeDesktop = path.join(home, 'Desktop', 'github');
 
   test('source-presence: trustLevel parameter accepted', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/capabilities/shell/ShellSafety.js'), 'utf8');
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/core/shell/ShellSafety.js'), 'utf8');
     assert(/trustLevel/.test(src), 'trustLevel must be referenced');
     assert(/_isCriticalSystemPath|_isSecretFile|_isUserHomeSafeArea/.test(src),
       'tier-classification helpers must exist');

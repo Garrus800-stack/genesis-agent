@@ -67,7 +67,7 @@ test('Settings: existing daemon sub-toggles unchanged (autoRepair=true, autoOpti
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-// ── HTML: all new field IDs present in index.html AND index.bundled.html ─
+// ── HTML: all new field IDs present in index.html ─────────
 
 const NEW_FIELD_IDS = [
   // Cost-Guard
@@ -104,18 +104,12 @@ test('UI: all new field IDs present in index.html', () => {
   }
 });
 
-test('UI: all new field IDs present in index.bundled.html (synced)', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.bundled.html'), 'utf8');
-  for (const id of NEW_FIELD_IDS) {
-    assert.ok(html.includes(`id="${id}"`), `missing in bundled.html: id="${id}"`);
-  }
-});
+// v7.6.0: dual-path consolidated — duplicate "synced" check no longer
+// applies, only one HTML file remains.
 
-test('UI: old read-only mcp-servers-info removed from both HTMLs', () => {
-  const html1 = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
-  const html2 = fs.readFileSync(path.join(ROOT, 'src/ui/index.bundled.html'), 'utf8');
-  assert.ok(!html1.includes('id="mcp-servers-info"'), 'index.html still has old read-only display');
-  assert.ok(!html2.includes('id="mcp-servers-info"'), 'bundled.html still has old read-only display');
+test('UI: old read-only mcp-servers-info removed from index.html', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
+  assert.ok(!html.includes('id="mcp-servers-info"'), 'index.html still has old read-only display');
 });
 
 // ── settings.js (UI module): load + save logic for new fields ──

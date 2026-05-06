@@ -182,20 +182,36 @@ app.whenReady().then(async () => {
     });
   });
 
-  // FIX v4.13.0: Prefer bundled HTML when renderer bundle exists.
-  // index.bundled.html loads dist/renderer.bundle.js (esbuild output)
-  // which eliminates all CJS require() from the renderer process.
+  // v7.6.0: UI dual-path consolidated. The bundled renderer (esbuild
+  // output) is the only supported UI path. The legacy monolithic
+  // renderer.js + index.html were removed — every UI bug-fix used to
+  // need to be applied in two places, and tests were prefixed with
+  // "legacy: same fix applied" to keep them in sync. Now there is one
+  // source of truth: src/ui/modules/*.js → dist/renderer.bundle.js.
+  //
+  // The bundle is built by scripts/build-bundle.js, which runs
+  // automatically as a postinstall step (see package.json). If
+  // npm install finished cleanly, the bundle is already there.
+  // If it's missing, we fail fast with a clear message rather than
+  // booting silently with a blank window.
   const bundledRenderer = path.join(__dirname, 'dist', 'renderer.bundle.js');
-  const bundledHtml = path.join(__dirname, 'src', 'ui', 'index.bundled.html');
-  const useBundledUI = fs.existsSync(bundledRenderer) && fs.existsSync(bundledHtml);
-  const htmlPath = useBundledUI
-    ? bundledHtml
-    : path.join(__dirname, 'src', 'ui', 'index.html');
-  if (useBundledUI) {
-    console.log('[KERNEL] UI: Bundled renderer (dist/renderer.bundle.js)');
-  } else {
-    console.log('[KERNEL] UI: Monolithic renderer (src/ui/renderer.js)');
+  const htmlPath = path.join(__dirname, 'src', 'ui', 'index.html');
+  if (!fs.existsSync(bundledRenderer)) {
+    const msg = [
+      '',
+      '[KERNEL] ERROR: UI bundle missing (dist/renderer.bundle.js).',
+      '',
+      'The renderer bundle is built by `npm install` (postinstall step).',
+      'To rebuild manually, run:  npm run build:ui',
+      '',
+      'Cannot start the Electron window without it. Exiting.',
+      '',
+    ].join('\n');
+    console.error(msg);
+    app.exit(1);
+    return;
   }
+  console.log('[KERNEL] UI: Bundled renderer (dist/renderer.bundle.js)');
   mainWindow.loadFile(htmlPath);
 
   // FIX v4.10.0 (M-6): Permission handler — deny all permissions except notifications.
@@ -1074,6 +1090,13 @@ const CHANNELS = {
   'agent:open-in-editor': null, // Agent -> UI (push only)
   'agent:loop-progress': null,  // v3.5.0: Agent -> UI (push only)
   'agent:loop-approval-needed': null, // v3.5.0: Agent -> UI (push only)
+  // v7.6.0: declared after audit §3.4 — these were emitted via push() in
+  // AgentCoreWire.js (line 194, 227) and listened for in renderer-main.js,
+  // but were missing from this CHANNELS contract. validate-channels.js
+  // flagged the drift. Adding them as null entries (push-only) keeps the
+  // contract list complete and prevents future drift.
+  'agent:chat-system-message': null, // Agent -> UI (push only — system messages in chat)
+  'ui:resume-prompt': null,           // Agent -> UI (push only — resume previous goal?)
 };
 
 // Register all invoke handlers (with rate limiting)

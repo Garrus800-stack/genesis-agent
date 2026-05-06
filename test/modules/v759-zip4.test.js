@@ -266,12 +266,10 @@ describe('v7.5.9 ZIP4 Phase 8 — CommandHandlers wiring', () => {
 
 describe('v7.5.9 ZIP4 Phase 11 — chat.js mermaid branch', () => {
 
-  // src/ui/modules/chat.js is the actual bundle entry (via
-  // renderer-main.js → esbuild → dist/renderer.bundle.js). The
-  // legacy src/ui/renderer.js is NOT in the bundle and is kept for
-  // backward-compat reference only. Earlier versions of this test
-  // checked renderer.js by mistake — that file's edits never reached
-  // the running app.
+  // src/ui/modules/chat.js is the bundle entry (via renderer-main.js →
+  // esbuild → dist/renderer.bundle.js). v7.6.0 consolidated the dual-
+  // path UI — the former monolithic src/ui/renderer.js was deleted, so
+  // this is now the only renderer source.
   const chat = fs.readFileSync(path.join(ROOT, 'src/ui/modules/chat.js'), 'utf8');
 
   test('chat.js captures fenced-block lang', () => {
@@ -292,7 +290,7 @@ describe('v7.5.9 ZIP4 Phase 11 — chat.js mermaid branch', () => {
   test('chat.js relies on static window.mermaid (no CDN injection)', () => {
     assert(/window\.mermaid/.test(chat), 'should reference window.mermaid');
     assert(!/cdnjs\.cloudflare\.com\/ajax\/libs\/mermaid/.test(chat),
-      'CDN fallback was removed — mermaid is now loaded only via static <script> tag in index.bundled.html');
+      'CDN fallback was removed — mermaid is now loaded only via static <script> tag in index.html');
   });
   test('chat.js has _hydrateMermaid', () => {
     assert(/_hydrateMermaid\s*\(/.test(chat), '_hydrateMermaid missing');

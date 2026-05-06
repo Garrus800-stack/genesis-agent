@@ -157,8 +157,11 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
     assert(/_persistUnavailable\s*\(/.test(combined), '_persistUnavailable missing');
     assert(/atomicWriteFileSync/.test(combined), 'atomicWriteFileSync usage missing');
     assert(/safeJsonParse/.test(combined), 'safeJsonParse usage missing');
-    // ModelBridge must wire the mixin
-    assert(/Object\.assign\s*\(\s*ModelBridge\.prototype\s*,\s*availability\s*\)/.test(mbSrc),
+    // ModelBridge must wire the mixin. v7.5.8 added a second mixin
+    // (ModelBridgeDiscovery), so the call became
+    // Object.assign(ModelBridge.prototype, availability, discovery).
+    // The check accepts both single- and multi-mixin forms.
+    assert(/Object\.assign\s*\(\s*ModelBridge\.prototype\s*,[^)]*\bavailability\b/.test(mbSrc),
       'ModelBridge must Object.assign(availability) at module bottom');
   });
 

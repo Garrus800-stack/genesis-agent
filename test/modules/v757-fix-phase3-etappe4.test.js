@@ -42,8 +42,8 @@ test('HTML: JSON-Editor tab button (index.html)', () => {
   assert.ok(html.includes('data-tab-panel="json"'), 'panel must exist');
 });
 
-test('HTML: JSON-Editor tab button (index.bundled.html — synced)', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.bundled.html'), 'utf8');
+test('HTML: JSON-Editor tab button (index.html — synced)', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
   assert.ok(html.includes('data-tab="json"'), 'tab button must exist');
   assert.ok(html.includes('data-tab-panel="json"'), 'panel must exist');
 });

@@ -41,8 +41,8 @@ const ROOT = path.join(__dirname, '..', '..');
 
 // ── Fix 1: only ONE modal-footer in each HTML ──────────────
 
-test('HTML: index.bundled.html has exactly one modal-footer', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.bundled.html'), 'utf8');
+test('HTML: index.html has exactly one modal-footer', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
   const matches = html.match(/modal-footer/g) || [];
   assert.strictEqual(matches.length, 1,
     `expected exactly 1 modal-footer, found ${matches.length}`);
@@ -56,7 +56,7 @@ test('HTML: index.html has exactly one modal-footer', () => {
 });
 
 test('HTML: only one toast-container in bundled (no duplicate)', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.bundled.html'), 'utf8');
+  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
   const matches = html.match(/toast-container/g) || [];
   assert.strictEqual(matches.length, 1,
     `expected exactly 1 toast-container, found ${matches.length}`);

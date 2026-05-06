@@ -266,14 +266,19 @@ class ResourceRegistry {
     const next = { available: !!available, lastChecked: Date.now(), reason: reason || null };
     this._cache.set(token, next);
 
-    // Emit only on flip (or on first registration)
+    // Emit only on flip (or on first registration).
+    // v7.6.0 audit §4.2: split into two literal emits so static analyzers
+    // (architectural-fitness phantom-listener check, grep, etc.) can see
+    // both event names directly. Behavior is identical — same payload,
+    // same source, same try/catch.
     if (!prev || prev.available !== next.available) {
-      const eventName = next.available ? 'resource:available' : 'resource:unavailable';
+      const payload = { token, reason: next.reason };
       try {
-        this.bus.fire(eventName, {
-          token,
-          reason: next.reason,
-        }, { source: 'ResourceRegistry' });
+        if (next.available) {
+          this.bus.fire('resource:available',   payload, { source: 'ResourceRegistry' });
+        } else {
+          this.bus.fire('resource:unavailable', payload, { source: 'ResourceRegistry' });
+        }
       } catch (_e) { /* best-effort */ }
 
       _log.debug(`[RESOURCE] ${token} → ${next.available ? 'AVAILABLE' : 'UNAVAILABLE'}${reason ? ` (${reason})` : ''}`);

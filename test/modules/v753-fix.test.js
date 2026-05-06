@@ -29,7 +29,9 @@ const fs = require('fs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const RENDERER_MAIN = path.join(ROOT, 'src/ui/renderer-main.js');
-const RENDERER_LEGACY = path.join(ROOT, 'src/ui/renderer.js');
+// v7.6.0: dual-path consolidated. The legacy `renderer.js` was removed
+// along with its B-section tests. Only renderer-main.js (the bundle
+// entry) remains.
 
 describe('v7.5.3/A · waitForBridge in renderer-main.js (bundled entry)', () => {
 
@@ -78,33 +80,6 @@ describe('v7.5.3/A · waitForBridge in renderer-main.js (bundled entry)', () => 
       'renderer-main.js must not instruct users to delete preload.mjs');
     assert(!/force CJS fallback/i.test(src),
       'renderer-main.js must not point users at CJS fallback workaround');
-  });
-});
-
-describe('v7.5.3/B · waitForBridge in renderer.js (legacy entry)', () => {
-
-  test('B1: waitForBridge function is defined in legacy renderer too', () => {
-    const src = fs.readFileSync(RENDERER_LEGACY, 'utf8');
-    assert(/function waitForBridge\s*\(/.test(src),
-      'renderer.js must define waitForBridge function');
-  });
-
-  test('B2: legacy renderer also waits before .on() calls', () => {
-    const src = fs.readFileSync(RENDERER_LEGACY, 'utf8');
-    const domStart = src.indexOf("addEventListener('DOMContentLoaded'");
-    const firstOnCall = src.indexOf('window.genesis.on(', domStart);
-    const waitCall = src.indexOf('waitForBridge', domStart);
-    assert(waitCall > 0, 'waitForBridge must be called inside DOMContentLoaded');
-    assert(firstOnCall > waitCall,
-      'waitForBridge must come before the first window.genesis.on() call');
-  });
-
-  test('B3: legacy renderer no longer points at delete-preload workaround', () => {
-    const src = fs.readFileSync(RENDERER_LEGACY, 'utf8');
-    assert(!/Delete\s+<code>preload\.mjs<\/code>/i.test(src),
-      'renderer.js must not tell users to delete preload.mjs');
-    assert(!/force CJS fallback/i.test(src),
-      'renderer.js must not point users at CJS fallback workaround');
   });
 });
 

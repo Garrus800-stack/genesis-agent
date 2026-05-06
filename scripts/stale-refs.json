@@ -1,6 +1,6 @@
 {
-  "_description": "v7.3.6 — Known-deleted symbols and required test contracts. Updated per release.",
-  "_locked_at": "v7.3.6",
+  "_description": "v7.3.6 \u2014 Known-deleted symbols and required test contracts. Updated per release.",
+  "_locked_at": "v7.6.0",
   "symbols": [
     {
       "name": "AgentLoopDelegate",
@@ -37,37 +37,42 @@
     {
       "prefix": "gate contract: ",
       "minCount": 2,
-      "note": "v7.3.6 #11 — Injection-Gate Multi-Round-Bypass-Schließung. Two regression-guard tests in chatorchestrator.test.js: 'block verdict prevents tools in any loop round' and 'safe verdict lets multi-round tools proceed normally'. Do not delete or rename without rethinking the gate pattern."
+      "note": "v7.3.6 #11 \u2014 Injection-Gate Multi-Round-Bypass-Schlie\u00dfung. Two regression-guard tests in chatorchestrator.test.js: 'block verdict prevents tools in any loop round' and 'safe verdict lets multi-round tools proceed normally'. Do not delete or rename without rethinking the gate pattern."
     },
     {
       "prefix": "injection-gate contract: ",
       "minCount": 4,
-      "note": "v7.5.7 — Injection-Gate authority+credential+urgency detection. Four block-cases in injection-gate.test.js: full Anthropic Safety Engineer message, Konfiguration einsehen reword, English variant, two-signal block. Removing or weakening these breaks defense against the v7.3.4 live-observed prompt-injection class."
+      "note": "v7.5.7 \u2014 Injection-Gate authority+credential+urgency detection. Four block-cases in injection-gate.test.js: full Anthropic Safety Engineer message, Konfiguration einsehen reword, English variant, two-signal block. Removing or weakening these breaks defense against the v7.3.4 live-observed prompt-injection class."
     },
     {
       "prefix": "preservation contract: ",
       "minCount": 2,
-      "note": "v7.5.7 — Preservation-Invariants fail-closed enforcement. Two tests in preservation-invariants.test.js (SCANNER_FAIL_CLOSED): blocks when fail-closed removed, passes when preserved. Fail-closed is the property that stops unsafe defaults from sneaking in via self-modification."
+      "note": "v7.5.7 \u2014 Preservation-Invariants fail-closed enforcement. Two tests in preservation-invariants.test.js (SCANNER_FAIL_CLOSED): blocks when fail-closed removed, passes when preserved. Fail-closed is the property that stops unsafe defaults from sneaking in via self-modification."
     },
     {
       "prefix": "self-gate contract: ",
       "minCount": 3,
-      "note": "v7.5.7 — Self-Gate observe-only mode invariant. Three tests in v736-self-gate.test.js: default-warn, allowed=true even on warn, two-signal still warn (not block). Self-Gate is intentionally telemetry-only by design (v7.3 decision); accidental promotion to block-mode would break Genesis' agency contract."
+      "note": "v7.5.7 \u2014 Self-Gate observe-only mode invariant. Three tests in v736-self-gate.test.js: default-warn, allowed=true even on warn, two-signal still warn (not block). Self-Gate is intentionally telemetry-only by design (v7.3 decision); accidental promotion to block-mode would break Genesis' agency contract."
     },
     {
       "prefix": "sandbox contract: ",
       "minCount": 3,
-      "note": "v7.5.7 — Sandbox v2 security guards. Three tests in run-tests.js (Sandbox v2): blocks dangerous modules (child_process), blocks fs writes outside sandbox, blocks dangerous shell commands. Removing any leaves a hole in the runtime-execution boundary."
+      "note": "v7.5.7 \u2014 Sandbox v2 security guards. Three tests in run-tests.js (Sandbox v2): blocks dangerous modules (child_process), blocks fs writes outside sandbox, blocks dangerous shell commands. Removing any leaves a hole in the runtime-execution boundary."
     },
     {
       "prefix": "shell-safety contract: ",
       "minCount": 3,
-      "note": "v7.5.7 — ShellSafety rootDir-sandbox enforcement. Three tests in v746-fix.test.js (#31): rejects dir /s C:\\, rejects where /r C:\\, rejects absolute path outside rootDir. Bypass would let agents escape working-directory boundary via shell-tool."
+      "note": "v7.5.7 \u2014 ShellSafety rootDir-sandbox enforcement. Three tests in v746-fix.test.js (#31): rejects dir /s C:\\, rejects where /r C:\\, rejects absolute path outside rootDir. Bypass would let agents escape working-directory boundary via shell-tool."
     },
     {
       "prefix": "self-statement contract: ",
       "minCount": 3,
-      "note": "v7.5.7 — Self-Statement-Log race-safe message correlation. Three tests in self-statement-hardening.test.js: per-message flag survives parallel turn interleaving, fallback to global flag, expired flags are GC'd. Race-window correlation (v7.5.5) is what prevents Genesis' confabulation-detection from misattributing populated-state across concurrent turns."
+      "note": "v7.5.7 \u2014 Self-Statement-Log race-safe message correlation. Three tests in self-statement-hardening.test.js: per-message flag survives parallel turn interleaving, fallback to global flag, expired flags are GC'd. Race-window correlation (v7.5.5) is what prevents Genesis' confabulation-detection from misattributing populated-state across concurrent turns."
+    },
+    {
+      "prefix": "shell-safety contract: ",
+      "minCount": 14,
+      "note": "v7.6.0 audit \u00a74.7 \u2014 ShellSafety BLOCKED_PATTERNS tier-block invariants and checkRootDirSandbox rejections, both anchoring how the agent refuses dangerous shell commands. The 16 contract-prefixed tests in shell-safety.test.js cover: 5 tier-block invariants (frozen, observe blocks all, read/write/system tier scopes), 8 checkRootDirSandbox rejections (non-string, null-byte, empty-after-trim, oversize, Windows abs outside root, dir /s from drive root, where /r from drive root, POSIX abs outside root), default-patterns fallback, unknown-tier behavior, and rate-limit-rejects. Removing or weakening these would re-open the v7.4.5 root-dir escape class. minCount 14 = 16 - 2 safety margin."
     }
   ],
   "_scanRoots": [

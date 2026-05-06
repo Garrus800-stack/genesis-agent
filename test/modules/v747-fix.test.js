@@ -198,9 +198,9 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   });
 
   // ── #4: UI source-presence ──────────────────────────────────
-  await test('#4 index.bundled.html has all 4 new settings fields', () => {
+  await test('#4 index.html has all 4 new settings fields', () => {
     const html = fs.readFileSync(
-      path.join(__dirname, '..', '..', 'src', 'ui', 'index.bundled.html'),
+      path.join(__dirname, '..', '..', 'src', 'ui', 'index.html'),
       'utf-8'
     );
     assert(html.includes('id="set-trust-level"'), 'missing set-trust-level');

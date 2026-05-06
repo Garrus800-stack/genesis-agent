@@ -448,7 +448,7 @@ ${descriptions.join('\n\n')}`;
     // trust 1+. Always-blocked paths (system, secrets) stay blocked at
     // any trust. Mirrors ShellSafety.checkRootDirSandbox semantics so
     // file-list and shell.run agree on what's reachable.
-    const Safety = require('../capabilities/shell/ShellSafety');
+    const Safety = require('../core/shell/ShellSafety');
     const _CRITICAL_PATH_PATTERNS_RAW = [
       // POSIX critical
       '/etc/', '/system/', '/usr/bin/', '/usr/sbin/', '/sbin/',

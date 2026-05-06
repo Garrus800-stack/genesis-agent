@@ -406,6 +406,22 @@ class ModelBridge {
     let temp = this.temperatures[taskType] || this.temperatures.chat;
     // v7.5.1.x: per-call temperature override (parity with chat()).
     if (typeof options.temperature === 'number') temp = options.temperature;
+
+    // v7.6.0 audit §4.1: parity with chat() — pull MetaLearning's
+    // temperature recommendation for non-chat task types when no
+    // explicit override was given. Pre-fix, streamChat() ran the static
+    // default while chat() used the recommendation, which (a) made
+    // streaming non-chat tasks systematically suboptimally-tempered and
+    // (b) produced asymmetric MetaLearning training data for the same
+    // task. Track A #4 will eventually extract this into a shared
+    // _prepareCallContext().
+    if (this.metaLearning && taskType !== 'chat' && options.temperature === undefined) {
+      try {
+        const rec = this.metaLearning.recommend(taskType, this.activeModel);
+        if (rec && rec.temperature !== undefined) temp = rec.temperature;
+      } catch (_e) { _log.debug('[catch] MetaLearning not ready:', _e.message); }
+    }
+
     const maxTokens = (typeof options.maxTokens === 'number' && options.maxTokens > 0)
       ? options.maxTokens
       : undefined;

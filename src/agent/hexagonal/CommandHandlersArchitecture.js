@@ -224,7 +224,7 @@ const CommandHandlersArchitecture = {
 
     // 3-tier sandbox check.
     try {
-      const Safety = require('../capabilities/shell/ShellSafety');
+      const Safety = require('../core/shell/ShellSafety');
       const trustLevel = (typeof this.trustLevelSystem?.getLevel === 'function')
         ? this.trustLevelSystem.getLevel() : 1;
       const fakeCmd = `ls "${abs}"`;

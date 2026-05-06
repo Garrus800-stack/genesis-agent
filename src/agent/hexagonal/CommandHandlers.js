@@ -103,6 +103,14 @@ class CommandHandlers {
     // of silently falling through to the LLM (which previously
     // confabulated refusals like "I cannot install software"). This
     // handler renders the correct slash command suggestion for the user.
+    //
+    // @virtual-handler — `slash-hint` is synthesized by ChatOrchestrator
+    // (when intent._wasSlashOnlyRewrite is true), not produced by
+    // IntentRouter classification. It is intentionally absent from
+    // INTENT_DEFINITIONS. Audit §3.3 (v7.6.0) introduced this anchor
+    // so validate-intent-wiring.js can recognize the convention without
+    // an ad-hoc allowlist. Future synthesized handlers should use the
+    // same anchor on their registerHandler call.
     orchestrator.registerHandler('slash-hint', (msg, ctx) => this.slashHint(msg, ctx));
   }
 

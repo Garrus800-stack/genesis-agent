@@ -163,9 +163,17 @@ const SCHEMAS = {
   'selfmod:success':         { file: 'required' },
   // v7.5.1: emitted from SelfModificationPipelineModify when settings.security.allowSelfModify=false
   'selfmod:settings-blocked': { message: 'optional' },
+  // v7.6.0: emitted from SelfModificationPipelineModify when target file
+  // extension is not in the language-allow-list. Audit §3.2.
+  'selfmod:language-guard-blocked': { targetFile: 'required', ext: 'required', allowedExt: 'required' },
 
   // Daemon
   'daemon:skill-created':    { skill: 'required', reason: 'required' },
+
+  // Install handler (v7.6.0 — emitted from CommandHandlersInstall after a
+  // successful Tier-1 install. path is null when post-install verification
+  // doesn't find a binary on disk yet (PATH not refreshed). Audit §3.2.)
+  'install:completed':       { packageName: 'required', path: 'optional' },
 
   // Reserved (registered in EventTypes, not yet emitted — schemas ready for use)
   // v7.1.6: shell:complete removed — consolidated to shell:outcome (see line 322)

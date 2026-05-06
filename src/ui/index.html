@@ -3,11 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- v4.0.0 FIX F-01: Hardened CSP — removed 'unsafe-inline' and 'unsafe-eval' from script-src.
-       Aligned with index.bundled.html. Monaco 0.44 AMD loader works without unsafe-eval
-       when loaded via src attribute (no inline scripts). 'unsafe-inline' retained only for
-       style-src (Monaco injects style elements for syntax highlighting). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' data: https://cdnjs.cloudflare.com; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com http://127.0.0.1:*;">
+  <!--
+    v3.8.0: Tightened CSP — 'unsafe-eval' removed from script-src.
+    Monaco Editor loads via its own AMD loader (vs/loader.min.js)
+    which needs 'unsafe-eval' ONLY for its worker blobs. We use
+    MonacoEnvironment.getWorkerUrl with blob: to scope this to
+    web workers only, keeping the main thread eval-free.
+
+    If you need to revert to the original renderer.js (unbundled),
+    add 'unsafe-eval' back to script-src and swap the script tags
+    at the bottom of this file.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdnjs.cloudflare.com blob:;
+    worker-src 'self' blob:;
+    style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+    font-src 'self' data: https://cdnjs.cloudflare.com;
+    img-src 'self' data: blob:;
+    connect-src 'self' https://cdnjs.cloudflare.com http://127.0.0.1:*;
+  ">
   <title>Genesis</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.min.css">
@@ -42,7 +57,7 @@
     <aside id="file-tree-panel" class="panel hidden">
       <div class="panel-header">
         <span data-i18n="ui.project_structure">Project structure</span>
-        <button class="btn-icon" id="btn-close-filetree">✕</button>
+        <button id="btn-close-filetree" class="btn-icon">✕</button>
       </div>
       <div id="file-tree" class="file-tree"></div>
     </aside>
@@ -50,7 +65,7 @@
     <aside id="goals-panel" class="panel hidden">
       <div class="panel-header">
         <span data-i18n="ui.goals">Goals</span>
-        <button class="btn-icon" id="btn-close-goals">✕</button>
+        <button id="btn-close-goals" class="btn-icon">✕</button>
       </div>
       <div id="goal-tree" class="goal-tree"></div>
     </aside>
@@ -61,14 +76,14 @@
         <div>
           <button id="btn-save" class="btn-icon" title="Save (Ctrl+S)">💾</button>
           <button id="btn-run-sandbox" class="btn-icon" title="Run in sandbox">▶</button>
-          <button class="btn-icon" id="btn-close-editor">✕</button>
+          <button id="btn-close-editor" class="btn-icon">✕</button>
         </div>
       </div>
       <div id="monaco-container"></div>
       <div id="sandbox-output" class="sandbox-output hidden">
         <div class="panel-header">
           <span>Sandbox Output</span>
-          <button class="btn-icon" id="btn-close-sandbox-output">✕</button>
+          <button id="btn-close-sandbox-output" class="btn-icon">✕</button>
         </div>
         <pre id="sandbox-result"></pre>
       </div>
@@ -286,6 +301,34 @@
               <option value="true" data-i18n="settings.commit_shutdown.on">An — committet .genesis/ bei jedem Beenden</option>
             </select>
             <span class="setting-hint" data-i18n="settings.commit_shutdown.hint">Default: aus (v7.5.7-fix Phase 3). Auf einem geteilten Repo: aus lassen, sonst landen Genesis-Files in deiner Git-History.</span>
+          </div>
+          <div class="setting-group setting-divider">
+            <label class="setting-section-label" data-i18n="settings.section.install">Software-Installation (v7.5.9 ZIP 5)</label>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="settings.install.allow_auto.label">Auto-Install via Package-Manager (Tier 1+2)</label>
+            <select id="set-install-allow-auto" class="setting-input">
+              <option value="false" data-i18n="settings.install.allow_auto.off">Aus (Default) — nur Vorschau anzeigen</option>
+              <option value="true" data-i18n="settings.install.allow_auto.on">An — winget/choco/brew/apt automatisch ausführen, plus Bootstrap wenn PM fehlt</option>
+            </select>
+            <span class="setting-hint" data-i18n="settings.install.allow_auto.hint">Wenn an + Trust ≥ AUTONOMOUS: Genesis installiert via Package-Manager ohne Bestätigung. Wenn der PM fehlt, versucht Genesis ihn einzurichten. Default: aus.</span>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="settings.install.full_autonomy.label">Volle Install-Autonomie (Tier 3 — Direct Download)</label>
+            <select id="set-install-full-autonomy" class="setting-input">
+              <option value="false" data-i18n="settings.install.full_autonomy.off">Aus (Default) — kein automatischer Download</option>
+              <option value="true" data-i18n="settings.install.full_autonomy.on">An — Genesis lädt Installer von offiziellen Vendor-URLs und startet sie</option>
+            </select>
+            <span class="setting-hint" data-i18n="settings.install.full_autonomy.hint">Nur wirksam wenn "Auto-Install" auch an. Wenn an: bei "installiere X" lädt Genesis Files (winrar, vscode, firefox, chrome, git, python, nodejs, vlc, 7zip, notepad++) nach Downloads und startet den Installer. Du musst nur den Windows-UAC-Dialog klicken — der ist nicht automatisierbar. Default: aus.</span>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="settings.install.scope.label">Install-Ziel (winget --scope)</label>
+            <select id="set-install-scope" class="setting-input">
+              <option value="machine" data-i18n="settings.install.scope.machine">Machine — system-weit in C:\Program Files\ (Default, Admin-Prompt)</option>
+              <option value="user" data-i18n="settings.install.scope.user">User — pro Benutzer in AppData\ (kein Admin nötig)</option>
+              <option value="auto" data-i18n="settings.install.scope.auto">Auto — winget entscheidet (manche Pakete ignorieren --scope)</option>
+            </select>
+            <span class="setting-hint" data-i18n="settings.install.scope.hint">Bestimmt wo winget Software ablegt. "Machine" erzeugt einen Admin-Prompt aber landet in Program Files. "User" ist Admin-frei aber landet in AppData (manchmal nur als .lnk). Manche Pakete (wie WinRAR) ignorieren --scope und installieren immer im selben Bereich. Per-Aufruf überschreibbar mit /install &lt;name&gt; &lt;pfad&gt; (z.B. /install winrar D:\Programme\WinRAR).</span>
           </div>
         </div>
 
@@ -521,7 +564,22 @@
 
   <div id="toast-container"></div>
 
+  <!--
+    Monaco AMD loader — loads Monaco Editor without eval in main thread.
+    The loader itself uses eval for worker creation, which is allowed
+    via blob: in worker-src. Main-thread code stays eval-free.
+  -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+
+  <!--
+    v3.8.0: Bundled renderer (6 modules compiled by esbuild).
+    Falls back to original renderer.js if bundle doesn't exist.
+    To use original: replace these two lines with:
+      <script src="DashboardRenderers.js"></script>
+      <script src="DashboardStyles.js"></script>
+      <script src="dashboard.js"></script>
+      <script src="renderer.js"></script>
+  -->
   <script src="components/ArchitectureGraph.js"></script>
   <script src="renderers/OrganismRenderers.js"></script>
   <script src="renderers/AgentRenderers.js"></script>
@@ -530,6 +588,27 @@
   <script src="DashboardRenderers.js"></script>
   <script src="DashboardStyles.js"></script>
   <script src="dashboard.js"></script>
-  <script src="renderer.js"></script>
+  <!--
+    Mermaid library for diagram rendering. Loaded statically (rather
+    than dynamically injected) so the <script src> goes through the
+    normal CSP path. The local copy is placed in dist/ by
+    scripts/build-bundle.js.
+
+    Monaco's vs/loader.min.js (loaded above) defines window.define
+    with define.amd=true. Mermaid is UMD; if it sees define.amd it
+    registers via AMD instead of as window.mermaid. We park define
+    around the mermaid script tag (external scripts because CSP
+    forbids inline) so it takes the global path.
+  -->
+  <script src="../../dist/amd-bypass-pre.js"></script>
+  <script src="../../dist/mermaid.min.js"></script>
+  <script src="../../dist/amd-bypass-post.js"></script>
+  <!--
+    v4.13.0: Bundled renderer — esbuild output eliminates all CJS require().
+    Enables sandbox:true without ESM preload.
+    To rebuild: npm run build:ui
+    To use original: switch main.js loadFile to index.html
+  -->
+  <script src="../../dist/renderer.bundle.js"></script>
 </body>
 </html>

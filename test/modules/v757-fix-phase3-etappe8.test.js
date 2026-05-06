@@ -116,7 +116,7 @@ test('main.js CSP has explicit worker-src', () => {
 });
 
 test('HTML <meta> CSP and main.js CSP are aligned', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.bundled.html'), 'utf8');
+  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
   const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
   // Both must allow blob: in script-src (the laxer of the two becomes
   // the effective policy when both are present, but we want them the

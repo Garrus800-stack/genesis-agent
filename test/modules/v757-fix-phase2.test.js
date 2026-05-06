@@ -324,7 +324,7 @@ test('UI HTML: all new field IDs present', () => {
 });
 
 test('UI bundled.html: tabs + new fields present', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.bundled.html'), 'utf8');
+  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
   assert.ok(/<div class="settings-tabs">/.test(html), 'tabs missing in bundled');
   assert.ok(/id="set-auto-route"/.test(html), 'set-auto-route missing in bundled');
   assert.ok(/id="set-max-concurrent"/.test(html), 'set-max-concurrent missing in bundled');

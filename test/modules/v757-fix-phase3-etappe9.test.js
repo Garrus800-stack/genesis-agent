@@ -52,12 +52,8 @@ test('editor.js: localPath converted to absolute URL', () => {
     'paths.vs must not be the raw relative string');
 });
 
-test('renderer.js (legacy): same fix applied', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/renderer.js'), 'utf8');
-  // The legacy fallback also has a Monaco init — must be aligned
-  assert.ok(/new URL\([^)]*window\.location\.href/.test(src),
-    'renderer.js must also convert paths.vs to absolute');
-});
+// v7.6.0: legacy `renderer.js (legacy): same fix applied` test removed
+// when the dual-path was consolidated. Only the bundled path remains.
 
 test('Monaco worker URL: relative resolution would have failed', () => {
   // Sanity: confirm the bug we fixed actually existed. If you naively

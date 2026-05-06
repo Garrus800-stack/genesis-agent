@@ -194,8 +194,8 @@ test('HTML: key labels have data-i18n attributes (index.html)', () => {
   }
 });
 
-test('HTML: key labels have data-i18n attributes (index.bundled.html)', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.bundled.html'), 'utf8');
+test('HTML: key labels have data-i18n attributes (index.html)', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
   const required = [
     'settings.cost_guard.enabled', 'settings.section.cost_guard',
     'settings.episodic.max', 'settings.health.http_enabled',

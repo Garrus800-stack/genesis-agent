@@ -1,8 +1,35 @@
-// @ts-checked-v7.5.9
+// @ts-checked-v7.6.0
+// ============================================================
+// GENESIS — CommandHandlersOpen.js
+// v7.6.0 Track A #3 — slim dispatcher. Per-platform resolution
+// extracted to CommandHandlersOpenWin.js / OpenLinux.js / OpenDarwin.js.
+//
+// Responsibilities of this file:
+//   - Top-level intent handling (openSoftware, _launch)
+//   - Message parsing (_extractOpenTarget, pronoun resolution)
+//   - PATH probe — shared across all platforms, lives here
+//   - Dispatch to platform-specific resolver based on process.platform
+//   - Win-only inner helper _findMainExeInDir (used by Win resolver
+//     and by knownPath verification)
+//
+// Per-platform resolvers are pure async functions that take a name
+// + a ctx bag with shell + helpers. They return {path, via} or null.
+//
+// Future Linux polish (snap-as-Tier-1, transitional snap detection,
+// Trust 1 own-user-folders) lands in CommandHandlersOpenLinux.js
+// without touching this dispatcher. Same for Win-specific changes.
+// ============================================================
+
 'use strict';
 
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('CommandHandlersOpen');
+
+const { fileExists: _fileExistsHelper } = require('./CommandHandlersHelpers');
+const { _KNOWN_WIN_APPS } = require('./CommandHandlersInstallDB');
+const { resolveWin } = require('./CommandHandlersOpenWin');
+const { resolveLinux } = require('./CommandHandlersOpenLinux');
+const { resolveDarwin } = require('./CommandHandlersOpenDarwin');
 
 const _PRONOUN_PATTERN = /^(?:es|das|ihn|sie|the\s+app|it)$/i;
 
@@ -75,11 +102,24 @@ const CommandHandlersOpen = {
     }
   },
 
-  // Returns {path, via} or null. Each candidate is verified to actually
-  // exist on disk before being returned.
+  // Returns {path, via} or null. Resolution order:
+  //   1. knownPath (if caller passed one — verify on disk)
+  //   2. PATH probe (where.exe / command -v / which) — shared across platforms
+  //   3. Platform-specific resolver (Win/Linux/Darwin)
+  // Each candidate is verified to actually exist on disk before being returned.
   async _resolveLaunchPath(name, knownPath) {
+    // Build the ctx bag passed to platform resolvers. fileExists is bound
+    // to this handler's shell so resolvers don't need to care about it.
+    const ctx = {
+      shell: this.shell,
+      fileExists: (p) => this._fileExists(p),
+      findMainExeInDir: (dir, n) => this._findMainExeInDir(dir, n),
+    };
+
+    // 1. knownPath shortcut.
     if (knownPath) {
       if (process.platform === 'win32' && !/\.(exe|lnk)$/i.test(knownPath)) {
+        // knownPath is a directory on Win — find the main .exe inside it.
         const exe = await this._findMainExeInDir(knownPath, name);
         if (exe) return { path: exe, via: 'install-dir-exe' };
       } else {
@@ -87,7 +127,7 @@ const CommandHandlersOpen = {
       }
     }
 
-    // Stage 1: PATH probe.
+    // 2. PATH probe — shared.
     const probes = process.platform === 'win32'
       ? [`where.exe ${name}`, `where.exe ${name}.exe`]
       : [`command -v ${name}`, `which ${name}`];
@@ -103,158 +143,25 @@ const CommandHandlersOpen = {
       } catch { /* skip */ }
     }
 
-    if (process.platform !== 'win32') {
-      // Linux/macOS: stage 2+3 — common install dirs and (Linux) .desktop files.
-      const home = require('os').homedir();
-      const commonDirs = process.platform === 'darwin'
-        ? ['/Applications', '/usr/local/bin', '/opt/homebrew/bin', '/usr/bin']
-        : ['/usr/bin', '/usr/local/bin', '/snap/bin', '/opt/' + name + '/' + name,
-           require('path').join(home, '.local/bin')];
-      for (const dir of commonDirs) {
-        const candidate = process.platform === 'darwin' && dir === '/Applications'
-          ? `${dir}/${name}.app`
-          : `${dir}/${name}`;
-        if (await this._fileExists(candidate)) {
-          return { path: candidate, via: 'common-dir' };
-        }
-      }
-      // Linux .desktop file lookup — applications installed via package
-      // manager often expose only a .desktop file with the Exec= line.
-      if (process.platform === 'linux') {
-        const desktopRoots = [
-          '/usr/share/applications',
-          '/usr/local/share/applications',
-          require('path').join(home, '.local/share/applications'),
-          '/var/lib/flatpak/exports/share/applications',
-          require('path').join(home, '.local/share/flatpak/exports/share/applications'),
-        ];
-        for (const root of desktopRoots) {
-          try {
-            // Look for <name>.desktop and *<name>*.desktop (case-insensitive).
-            const cmd = `ls "${root}" 2>/dev/null | grep -i "${name}" | grep -i "\\.desktop$" | head -1`;
-            const r = await this.shell.run(cmd, { tier: 'read' });
-            if (r.stdout && r.stdout.trim()) {
-              const file = r.stdout.trim().split('\n')[0].trim();
-              const fullPath = `${root}/${file}`;
-              if (await this._fileExists(fullPath)) {
-                // Read the Exec= line and use that binary.
-                const execCmd = `grep -m 1 "^Exec=" "${fullPath}" | cut -d= -f2- | awk '{print $1}'`;
-                const er = await this.shell.run(execCmd, { tier: 'read' });
-                if (er.stdout && er.stdout.trim()) {
-                  const exe = er.stdout.trim();
-                  // Exec might be a bare name or absolute path.
-                  if (exe.startsWith('/') && await this._fileExists(exe)) {
-                    return { path: exe, via: 'desktop-file' };
-                  }
-                  // Bare name — re-probe via command -v.
-                  try {
-                    const cv = await this.shell.run(`command -v ${exe}`, { tier: 'read' });
-                    if (cv.stdout && cv.stdout.trim()) {
-                      const resolvedExe = cv.stdout.trim().split('\n')[0].trim();
-                      if (await this._fileExists(resolvedExe)) {
-                        return { path: resolvedExe, via: 'desktop-file' };
-                      }
-                    }
-                  } catch { /* skip */ }
-                }
-              }
-            }
-          } catch { /* skip */ }
-        }
-      }
-      return null;
-    }
-
-    // Stage 2: Standard install dirs (Windows).
-    const KNOWN_APPS = {
-      'winrar':    { dir: 'WinRAR',          exe: 'WinRAR.exe' },
-      '7zip':      { dir: '7-Zip',           exe: '7zFM.exe' },
-      'notepad++': { dir: 'Notepad++',       exe: 'notepad++.exe' },
-      'vlc':       { dir: 'VideoLAN\\VLC',   exe: 'vlc.exe' },
-      'firefox':   { dir: 'Mozilla Firefox', exe: 'firefox.exe' },
-      'chrome':    { dir: 'Google\\Chrome\\Application', exe: 'chrome.exe' },
-    };
-    const known = KNOWN_APPS[name.toLowerCase()];
-    if (known) {
-      const candidates = [
-        `C:\\Program Files\\${known.dir}\\${known.exe}`,
-        `C:\\Program Files (x86)\\${known.dir}\\${known.exe}`,
-      ];
-      for (const c of candidates) {
-        if (await this._fileExists(c)) return { path: c, via: 'install-dir' };
-      }
-    }
-
-    // Stage 3: Registry — but VERIFY .exe exists inside the dir.
-    try {
-      const cmd = `reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "${name}" /d 2>nul | findstr /I "InstallLocation"`;
-      const r = await this.shell.run(cmd, { tier: 'read', timeout: 8000 });
-      if (r.stdout && r.stdout.trim()) {
-        const m = r.stdout.match(/REG_SZ\s+(.+?)$/im);
-        if (m && m[1]) {
-          const dir = m[1].trim();
-          const exe = await this._findMainExeInDir(dir, name);
-          if (exe && await this._fileExists(exe)) {
-            return { path: exe, via: 'registry+exe' };
-          }
-        }
-      }
-    } catch { /* skip */ }
-
-    // Stage 4: Start-Menu .lnk lookup. winget installs into
-    // %LOCALAPPDATA%\Microsoft\WinGet\Packages\... and only puts a .lnk
-    // into the Start Menu. Windows resolves the .lnk to the real .exe
-    // when launched via cmd /c start.
-    // Exact name match — substring match found "GitHub Desktop.lnk" for
-    // "git" requests.
-    const lower = name.toLowerCase();
-    const startMenuRoots = [
-      `%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs`,
-      `%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs`,
-    ];
-    for (const root of startMenuRoots) {
-      try {
-        const cmd = `dir /b /s /a-d "${root}\\${lower}.lnk" 2>nul`;
-        const r = await this.shell.run(cmd, { tier: 'read' });
-        if (r.stdout && r.stdout.trim()) {
-          const first = r.stdout.trim().split('\n')[0].trim();
-          if (first && /\.lnk$/i.test(first) && /[\\\/]/.test(first)) {
-            return { path: first, via: 'startmenu-lnk' };
-          }
-        }
-      } catch { /* skip */ }
-    }
-
-    return null;
+    // 3. Platform-specific resolver.
+    if (process.platform === 'win32') return await resolveWin(name, ctx);
+    if (process.platform === 'darwin') return await resolveDarwin(name, ctx);
+    return await resolveLinux(name, ctx);
   },
 
   async _fileExists(filePath) {
-    if (!this.shell) return false;
-    if (process.platform === 'win32') {
-      try {
-        const r = await this.shell.run(`if exist "${filePath}" echo FOUND`, { tier: 'read' });
-        return /FOUND/.test(r.stdout || '');
-      } catch { return false; }
-    }
-    try {
-      const r = await this.shell.run(`test -e "${filePath}" && echo FOUND`, { tier: 'read' });
-      return /FOUND/.test(r.stdout || '');
-    } catch { return false; }
+    return _fileExistsHelper(this.shell, filePath);
   },
 
+  // Win-specific: find the main .exe in an install directory. Used both by
+  // the knownPath verification above and by the Win resolver's registry
+  // lookup. KNOWN_WIN_APPS gives us the canonical .exe per app; for
+  // unknown apps we fall back to the first .exe in the directory.
   async _findMainExeInDir(dir, packageName) {
     if (!this.shell) return null;
-    const KNOWN_EXES = {
-      'winrar':    'WinRAR.exe',
-      '7zip':      '7zFM.exe',
-      'notepad++': 'notepad++.exe',
-      'vlc':       'vlc.exe',
-      'firefox':   'firefox.exe',
-      'chrome':    'chrome.exe',
-    };
-    const known = KNOWN_EXES[packageName.toLowerCase()];
+    const known = _KNOWN_WIN_APPS[packageName.toLowerCase()];
     if (known) {
-      const candidate = `${dir}\\${known}`;
+      const candidate = `${dir}\\${known.exe}`;
       if (await this._fileExists(candidate)) return candidate;
     }
     try {

@@ -1,8 +1,260 @@
-## [7.5.9]
+## [7.6.0]
 
-**Audit-driven release plus Linux-Welle.** Started as a closeout for
-the v7.5.8 deep-analysis findings (six precise bugs around
-Slash-Discipline, openPath capture, stream-done handling, cloud-model
+**Cleanup release — Track A: Monolith reduction.**
+
+### Track A #3 — Open handler platform-resolver split + dedup
+
+`CommandHandlersOpen.js` was 304 LOC carrying three responsibilities
+in a single `_resolveLaunchPath` method: Win-specific resolution
+(KNOWN_APPS lookup, registry, Start-Menu .lnk), Linux-specific
+resolution (common dirs, .desktop file lookup), and macOS resolution
+(/Applications, brew). All three platforms branched off a single
+`if (process.platform === ...)` chain. Two pieces of duplicated data
+also lived in the file:
+
+- `KNOWN_APPS` (6 Win apps with dir + exe) was inline in
+  `_resolveLaunchPath`, again as `KNOWN_EXES` in `_findMainExeInDir`,
+  and a third time in `CommandHandlersInstallDetect.js`.
+- `_fileExists` (12 LOC, platform-aware shell check) was byte-
+  identical to `_fileExistsCheck` in `CommandHandlersInstallDetect.js`.
+
+This release consolidates the data and extracts the per-platform
+resolvers into pure async functions, while keeping the dispatcher
+small and platform-agnostic.
+
+### Changes (Track A #3)
+
+**Single source of truth for Win app data:**
+
+- **`CommandHandlersInstallDB.js`** — gains `_KNOWN_WIN_APPS`
+  export. Six apps (winrar, 7zip, notepad++, vlc, firefox, chrome)
+  with their canonical install dir + main .exe. Adding a new app
+  here surfaces it in both Open and Install handlers
+  automatically.
+
+**Shared file-existence helper:**
+
+- **`CommandHandlersHelpers.js`** — new file. Currently exports a
+  single `fileExists(shell, filePath)` async function. Pure (no
+  `this`), no side effects beyond the shell call. Future shared
+  helpers will land here.
+- **`CommandHandlersInstallDetect.js`** — `_fileExistsCheck` now
+  delegates to the helper (4 LOC instead of 12). Inline KNOWN_APPS
+  in `_findWindowsApp` removed in favor of the DB import.
+
+**Per-platform resolvers as pure functions:**
+
+- **`CommandHandlersOpenWin.js`** — new file. `resolveWin(name, ctx)`
+  exports a pure async function. Stages: KNOWN_WIN_APPS lookup,
+  HKLM Uninstall registry with verified .exe, Start-Menu .lnk.
+  ~95 LOC. No `this`, no mixin — receives shell and helpers via
+  the ctx bag.
+- **`CommandHandlersOpenLinux.js`** — new file. `resolveLinux(name, ctx)`.
+  Stages: common install dirs (/usr/bin, /usr/local/bin, /snap/bin,
+  ~/.local/bin, /opt/), then .desktop file lookup with Exec= line
+  resolution. ~100 LOC. **This is the file Track C Linux polish
+  (snap-as-Tier-1, transitional snap detection, Trust 1 own-user-
+  folders) will land in — clean boundary, no need to touch the
+  dispatcher or the Win/Darwin resolvers.**
+- **`CommandHandlersOpenDarwin.js`** — new file. `resolveDarwin(name, ctx)`.
+  /Applications/<name>.app, then CLI tool dirs. ~45 LOC.
+
+**Open dispatcher stays slim:**
+
+- **`CommandHandlersOpen.js`** — 304 → 211 LOC. Now responsible for
+  `openSoftware`, `_launch`, `_extractOpenTarget`, `_findMainExeInDir`
+  (Win-only inner helper used by both knownPath verification and the
+  Win resolver), `_fileExists` (delegating to helper), and
+  `_resolveLaunchPath` which handles knownPath + the shared PATH
+  probe and dispatches to the platform-specific resolver.
+
+### Net effect
+
+| File | Before | After |
+|---|---|---|
+| `CommandHandlersOpen.js` | 304 | 211 |
+| `CommandHandlersOpenWin.js` | — | 94 |
+| `CommandHandlersOpenLinux.js` | — | 102 |
+| `CommandHandlersOpenDarwin.js` | — | 45 |
+| `CommandHandlersHelpers.js` | — | 46 |
+| `CommandHandlersInstallDetect.js` | 328 | 314 |
+| `CommandHandlersInstallDB.js` | 153 | 168 |
+
+LOC sum increased slightly (more file headers), but every file is now
+single-purpose and well under the 320-LOC soft-guard. The largest is
+the dispatcher at 211 LOC. Future Linux polish lands in a 102-LOC
+file, not a growing monolith.
+
+### What this is NOT
+
+- Not a behavior change. The launch resolution sequence is identical:
+  knownPath → PATH probe → platform-specific stages.
+- Not a separation of `_findMainExeInDir` — that helper is
+  Win-specific by nature and stays on the dispatcher because the Win
+  resolver and the Win knownPath branch both need it.
+- Not new feature code. The split is preparation for Track C Linux
+  polish; that work has not landed yet in this release.
+
+### Bonus dedup, while we were there
+
+- Three copies of `KNOWN_APPS` collapsed into one `_KNOWN_WIN_APPS`
+  in the DB.
+- Two copies of `_fileExists` collapsed into one `fileExists` helper.
+
+### Track A #2 (recap from earlier in v7.6.0) — Install handler split
+
+Largest mixin file (829 LOC) carried three responsibilities mixed
+together: data tables, Tier 1/2/3 install pipeline, and detection
+methods. Split into three files following the Object.assign mixin
+pattern from `ModelBridgeAvailability.js` / `ModelBridgeDiscovery.js`:
+
+- **`CommandHandlersInstallDB.js`** — pure data (now 168 LOC).
+- **`CommandHandlersInstallDetect.js`** — detection + helpers (314 LOC).
+- **`CommandHandlersInstall.js`** — Tier 1/2/3 pipeline only (454 LOC).
+
+Bonus fix: `v756-fix.test.js` "B2 source-presence" assertion was
+silently failing since v7.5.8. The regex required
+`Object.assign(prototype, availability)` but v7.5.8 made it
+multi-mixin. Test-suite-runner reported "33 passed" while one
+assertion failed inside. Regex updated to accept both forms.
+
+### Track A #1 (recap from earlier in v7.6.0) — UI dual-path consolidation
+
+Genesis used to ship two UI codepaths: a monolithic `src/ui/renderer.js`
+(566 LOC) and a modular bundle. Every UI bug-fix had to be applied
+twice; tests had `legacy: same fix applied` parity asserts. In
+practice the bundle was always the active path, so the monolith was
+maintenance burden without serving any user.
+
+- **`src/ui/renderer.js`** — deleted (566 LOC).
+- **`src/ui/index.html`** (legacy) — deleted, `index.bundled.html`
+  renamed to `index.html`.
+- **`main.js`** — single-path renderer load with fail-fast if the
+  bundle is missing.
+- **`test/modules/renderer.test.js`** (930 LOC eval-in-vm sandbox)
+  — deleted. Replaced by `ui-bundle-modules.test.js` (~200 LOC,
+  XSS-contract tests against `chat.js` `escapeHtml` +
+  `renderMarkdown`, and `i18n.js` `t()`, loaded via require + DOM
+  shim).
+- 4 other test files: legacy `same fix applied` asserts removed,
+  `index.bundled.html` references replaced with `index.html`.
+
+### Migration notes for users
+
+If you previously ran Genesis without `npm install` (e.g. constrained
+environment) and relied on the monolithic UI fallback, you must now
+run `npm install` once before `npm start`. The postinstall step builds
+the bundle. Subsequent starts do not rebuild.
+
+If `npm install` cannot run, `npm run build:ui` builds the bundle
+manually with esbuild available.
+
+### Tests / fitness / audits at v7.6.0
+
+- 6607 passed (Linux), 0 failed. +11 contract tests for the split files
+  (`v76-splits.contract.test.js`) plus +1 v756 bonus = +12 vs the
+  audit's pre-fix baseline.
+- Architectural fitness: 127/130 (98%). The score rose 124 → 127
+  through three independent improvements during the audit closeout:
+  +1 from §4.3 contract-test coverage closing the test-coverage-gap
+  metric, +1 from §4.4 ShellSafety move (cross-phase coupling fixed),
+  +1 from §4.7 shell-safety contract-prefix pinning. Ratchet floor
+  is set to 124 with a v7.6.0 note explaining the trade-off.
+- **Full audit gate panel** — all green, all run by `npm run ci`:
+  - `node test/index.js` — 6607 passed
+  - `node scripts/architectural-fitness.js --ci` — score 127/130
+  - `node scripts/audit-events.js --strict` — events match catalog,
+    every listener has at least one emitter
+  - `node scripts/validate-events.js` — 100% schema coverage (454/454)
+  - `node scripts/validate-channels.js` — 73 channels in sync
+  - `node scripts/validate-service-wiring.js --strict` — 916/916
+    references resolve
+  - `node scripts/validate-intent-wiring.js --strict` — all intents
+    wired (`slash-hint` correctly recognized as `@virtual-handler`)
+  - `node scripts/scan-schemas.js` — 0 mismatches
+  - `node scripts/check-stale-refs.js` — all checks passed
+  - `node scripts/audit-slash-discipline.js --strict` — no findings
+  - `node scripts/check-ratchet.js --skip-tests` — fitness ≥ 124,
+    schema-missing 0, schema-orphan 0, broken-links 0
+
+### v7.6.0 audit pass — Critical/High closeout
+
+After the initial v7.6.0 split work, a static audit pass surfaced
+gaps in CI coverage (the CHANGELOG had been listing the "usual" five
+gates while `npm run ci` ran a broader set, including
+`validate-events.js`, `validate-intent-wiring.js`, and
+`check-ratchet.js`). All Critical/High findings closed in this
+release:
+
+- **§3.2** — `EventPayloadSchemas.js` gained two missing schemas:
+  `install:completed` (emitted from the Install handler post-Tier-1)
+  and `selfmod:language-guard-blocked`. The second emit site of
+  `selfmod:language-guard-blocked` (in
+  `SelfModificationPipelineModify.js:376`) used a different payload
+  shape `{file, reason, preview}` than the primary site at line 148
+  `{targetFile, ext, allowedExt}`; aligned both to the canonical
+  shape so subscribers see one schema.
+- **§3.3** — `slash-hint` virtual-handler doc-anchor convention.
+  `validate-intent-wiring.js` now recognizes `@virtual-handler`
+  comments above `registerHandler()` calls (looking back ~12 lines)
+  and skips the no-INTENT_DEFINITIONS-entry error. Future synthesized
+  handlers reuse the convention without script changes.
+- **§3.4** — two missing push-only channels added to `main.js
+  CHANNELS`: `agent:chat-system-message`, `ui:resume-prompt`.
+- **§3.5** — `scripts/ratchet.json` updated to v7.6.0 with fitness
+  floor 127 → 124 and a note explaining the deliberate trade-off
+  (smaller single-purpose files vs. binary File-Size-Guard count).
+- **§4.1** — `ModelBridge.streamChat()` MetaLearning-recommend block
+  added (parity with `chat()`). Pre-fix, streaming non-chat tasks
+  ran the static default temperature while non-streaming used the
+  recommendation, producing systematically suboptimal streaming
+  temperatures and asymmetric MetaLearning training data. Track A
+  #4 (planned `_prepareCallContext` extract) will move this to a
+  shared helper.
+- **§4.2** — `ResourceRegistry.js` dynamic-emit split into two
+  literal `bus.fire('resource:available' / 'resource:unavailable',
+  ...)` branches so static analyzers see both event names directly.
+- **§4.3** — four split files now have direct contract tests in
+  `test/modules/v76-splits.contract.test.js` (11 tests). They pin
+  export shape, KNOWN_WIN_APPS structure, mixin method presence,
+  Linux .desktop-file branch, and no-inline-duplication invariants.
+- **§4.4** — `ShellSafety.js` moved from
+  `src/agent/capabilities/shell/` to `src/agent/core/shell/`. Pre-fix
+  was a cross-phase coupling violation: Phase 2 (intelligence,
+  `ToolRegistry.js`) imported Phase 3 (capabilities). ShellSafety is
+  a frozen-constants/regex/check module with no side effects, so
+  conceptually it belonged in `core/` from the start. Net change: 4
+  source-side import paths + 3 test-side import paths updated.
+- **§4.7** — 16 security-relevant tests in
+  `test/modules/shell-safety.test.js` renamed with the
+  `shell-safety contract: ` prefix and pinned in `scripts/stale-refs.json`
+  with `minCount: 14`. Removing or weakening any of these now causes
+  `check-stale-refs` to fail. Covered: 5 BLOCKED_PATTERNS tier-block
+  invariants (frozen, observe blocks all, read/write/system tier
+  scopes), 8 checkRootDirSandbox rejections, default-patterns fallback,
+  unknown-tier behavior, and rate-limit-rejects.
+- **§6 #6** — `check-ratchet.js --skip-tests` is now part of the
+  `ci` and `ci:full` scripts. Closes the script-sampling drift
+  that produced this whole audit.
+
+### Track A — done. What's still open for later releases
+
+This release ships #1 (UI dual-path), #2 (Install split), and
+#3 (Open platform-resolver split + dedup). Still on the v7.6+
+backlog:
+
+- **#4** — `ModelBridge._prepareCallContext` extract. `chat()` and
+  `streamChat()` have ~80 LOC of duplicated routing logic. This is
+  the asymmetry that produced bug B5 in v7.5.9. Worth its own
+  release window with focused testing.
+- Track B (Phase 12 → 9 merge, slash-discipline expansion to all
+  SECURITY_REQUIRED_SLASH intents).
+- Track C (snap as Tier-1 package manager, Ubuntu transitional snap
+  detection, Trust 1 for own-user-folders in `/open`).
+
+---
+
+
 timeout scaling). Grew into a Linux-readiness pass after the first
 real-world Linux test surfaced a row of platform-specific gaps that
 had been silently passing CI on Windows-only paths. Plus a new

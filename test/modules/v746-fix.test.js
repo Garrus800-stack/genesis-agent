@@ -231,7 +231,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     // Direct call to ShellSafety.checkRootDirSandbox so we can specify the
     // platform without relying on process.platform — covers the live bug
     // regardless of where the test runs.
-    const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
+    const { checkRootDirSandbox } = require('../../src/agent/core/shell/ShellSafety');
     const rootDir = 'C:\\Users\\Foo\\OneDrive\\Desktop\\Github v5.9.3\\Genesis-v5_9_3';
     const cmd = `dir /b "${rootDir}\\src"`;
     const r = checkRootDirSandbox(cmd, rootDir, { platform: 'win32' });
@@ -239,7 +239,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   });
 
   await test('#31 _checkRootDirSandbox rejects quoted Windows path with spaces outside rootDir', () => {
-    const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
+    const { checkRootDirSandbox } = require('../../src/agent/core/shell/ShellSafety');
     const rootDir = 'C:\\Users\\Foo\\OneDrive\\Desktop\\Github v5.9.3\\Genesis-v5_9_3';
     // Path is quoted, has spaces, but lives in System32 — must be rejected.
     const cmd = `type "C:\\Program Files\\Common Files\\foo.txt"`;
@@ -254,7 +254,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   // home check and was let through. Platform-aware path.win32.resolve
   // keeps the Win-path absolute so the rootDir-mismatch wins.
   await test('#31 _checkRootDirSandbox rejects Win-path outside rootDir at trust=2 (cross-platform)', () => {
-    const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
+    const { checkRootDirSandbox } = require('../../src/agent/core/shell/ShellSafety');
     const rootDir = 'C:\\Users\\Foo\\OneDrive\\Desktop\\Github v5.9.3\\Genesis-v5_9_3';
     const cmd = `type "C:\\Program Files\\Common Files\\foo.txt"`;
     const r = checkRootDirSandbox(cmd, rootDir, { platform: 'win32', trustLevel: 2 });
@@ -262,7 +262,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   });
 
   await test('#31 _checkRootDirSandbox accepts quoted Linux path with spaces inside rootDir', () => {
-    const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
+    const { checkRootDirSandbox } = require('../../src/agent/core/shell/ShellSafety');
     const rootDir = '/home/garrus/My Files/Genesis';
     const cmd = `ls -la "${rootDir}/src"`;
     const r = checkRootDirSandbox(cmd, rootDir, { platform: 'linux' });
@@ -270,7 +270,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   });
 
   await test('#31 _checkRootDirSandbox rejects quoted Linux path with spaces outside rootDir', () => {
-    const { checkRootDirSandbox } = require('../../src/agent/capabilities/shell/ShellSafety');
+    const { checkRootDirSandbox } = require('../../src/agent/core/shell/ShellSafety');
     const rootDir = '/home/garrus/My Files/Genesis';
     const cmd = `cat "/etc/My Config/passwd"`;
     const r = checkRootDirSandbox(cmd, rootDir, { platform: 'linux' });

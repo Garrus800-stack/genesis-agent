@@ -26,7 +26,7 @@ const { SHELL: SHELL_LIMITS, TIMEOUTS, THRESHOLDS } = require('../core/Constants
 const { safeJsonParse } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
 // v7.5.4: extracted helpers
-const Safety = require('./shell/ShellSafety');
+const Safety = require('../core/shell/ShellSafety');
 const OSAdapter = require('./shell/ShellOSAdapter');
 const { ShellPlanner } = require('./shell/ShellPlanner');
 const _log = createLogger('ShellAgent');

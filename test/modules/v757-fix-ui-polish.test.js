@@ -61,8 +61,8 @@ test('settings modal in index.html uses modal-wide class', () => {
     'settings-modal must use modal-content modal-wide');
 });
 
-test('settings modal in index.bundled.html uses modal-wide class', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.bundled.html'), 'utf8');
+test('settings modal in index.html uses modal-wide class', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
   const settingsBlock = html.match(/<div id="settings-modal"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/);
   assert.ok(settingsBlock, 'settings-modal block must exist (bundled)');
   assert.ok(/class="modal-content modal-wide"/.test(settingsBlock[0]),
