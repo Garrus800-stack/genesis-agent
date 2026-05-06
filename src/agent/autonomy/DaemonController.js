@@ -264,6 +264,23 @@ class DaemonController extends DaemonControlPort {
       throw new Error('AgentLoop not available');
     }
 
+    // v7.6.1 audit-closeout: Self-Gate observation for 'daemon-action'.
+    // Fires before the pursuit path is chosen (driver vs. direct). Pairs
+    // with the 'plan-start' check inside AgentLoop.pursue() — both fire
+    // for socket-triggered autonomy, but at different layers.
+    if (this.selfGate) {
+      try {
+        this.selfGate.check({
+          actionType: 'daemon-action',
+          actionPayload: { description: desc.slice(0, 200) },
+          userContext: '',
+          triggerSource: 'daemon-controller-socket',
+        });
+      } catch (err) {
+        _log.debug(`[SELF-GATE] daemon-action check skipped: ${err?.message || err}`);
+      }
+    }
+
     // v7.4.5: Prefer GoalDriver (centralised pursuit decisions, auto-resume,
     // sub-goal coordination). Fall back to direct agentLoop.pursue() if the
     // driver is unavailable — the legacy path stays functional as a safety net.

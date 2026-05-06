@@ -287,53 +287,12 @@ class ModelBridge {
       };
     }
 
-    let temp = this.temperatures[taskType] || this.temperatures.chat;
-
-    // v7.5.1: per-call temperature override (used by dream/wakeup paths)
-    if (typeof options.temperature === 'number') temp = options.temperature;
-
-    if (this.metaLearning && taskType !== 'chat' && options.temperature === undefined) {
-      try {
-        const rec = this.metaLearning.recommend(taskType, this.activeModel);
-        if (rec && rec.temperature !== undefined) temp = rec.temperature;
-      } catch (_e) { _log.debug('[catch] MetaLearning not ready:', _e.message); }
-    }
-
-    // v7.5.2: optional auto-routing for background tasks (per-call modelOverride pattern)
-    let routedSwitch = null;
-    if (
-      this._settings?.get?.('agency.autoRouteByTask') !== false &&
-      this._modelRouter &&
-      taskType &&
-      options._userChat !== true   // direct user chat NEVER auto-routed
-    ) {
-      try {
-        const routerCategory = TASK_TYPE_ROUTING_MAP[taskType] || taskType;
-        const routed = this._modelRouter.route(routerCategory);
-        if (routed?.model && routed.model !== this.activeModel) {
-          // Resolve backend for routed model. Without this, routing in
-          // multi-backend setups (Ollama local + Anthropic cloud) would send
-          // routed-model to wrong backend → 404. Backend lives in availableModels[].
-          const found = this.availableModels.find(m => m.name === routed.model);
-          if (found?.backend) {
-            routedSwitch = {
-              originalModel: this.activeModel,
-              routedModel: routed.model,
-              routedBackend: found.backend,
-              taskType,
-              reason: routed.reason,
-            };
-            this._routingStats.autoRouted++;
-            this._routingStats.lastRouted = { ...routedSwitch, at: Date.now() };
-            this.bus.emit('model:auto-switched', routedSwitch, { source: 'ModelBridge' });
-          }
-          // If model exists in router but not in availableModels, silently abandon
-          // routing — fall through to activeModel/activeBackend.
-        }
-      } catch (_e) {
-        // Router error → silent fallback to activeModel, no crash
-      }
-    }
+    // v7.6.1 Track A #4: routing/temp/role context shared with streamChat().
+    // _prepareCallContext returns { temp, routedSwitch, roleOverride,
+    // targetBackend, effectiveModel, calledModel, priority } and emits
+    // 'model:auto-switched' (plus _routingStats++) when auto-routing fires.
+    const { temp, routedSwitch, targetBackend, effectiveModel, calledModel, priority } =
+      this._prepareCallContext({ taskType, options });
 
     // v7.5.2: when auto-routed, bypass cache because cache-key has no model.
     // Otherwise a code-gen request might return a cached chat-model result.
@@ -345,21 +304,7 @@ class ModelBridge {
       if (cached) return cached;
     }
 
-    const priority = options.priority ?? (taskType === 'chat' ? 10 : 0);
     const startTime = Date.now();
-    // v5.1.0: Role-based model dispatch - check if task has assigned model
-    // v7.5.2: Priority routedSwitch > roleOverride > activeBackend.
-    // Begründung: agency.autoRouteByTask ist eine *explizite* User-Setting.
-    // Wenn an, gewinnt sie über Roles. Wer Auto-Routing nicht will: Setting=false.
-    const roleOverride = this._resolveForTask(taskType);
-    const targetBackend = routedSwitch?.routedBackend
-                       || roleOverride?.backend
-                       || this.activeBackend;
-    const effectiveModel = routedSwitch?.routedModel
-                        || roleOverride?.model;  // undefined → backend uses activeModel
-    // v7.5.6: track which model was actually called, so we can mark
-    // it unavailable in the catch-block and skip it in failover.
-    const calledModel = effectiveModel || this.activeModel;
     await this._semaphore.acquire(priority);
     try {
       const result = await this._dispatchChat(targetBackend, systemPrompt, messages, temp, effectiveModel, options.maxTokens);
@@ -403,18 +348,71 @@ class ModelBridge {
       };
     }
 
-    let temp = this.temperatures[taskType] || this.temperatures.chat;
-    // v7.5.1.x: per-call temperature override (parity with chat()).
-    if (typeof options.temperature === 'number') temp = options.temperature;
+    // v7.6.1 Track A #4: routing/temp/role context shared with chat().
+    // _prepareCallContext returns { temp, routedSwitch, roleOverride,
+    // targetBackend, effectiveModel, calledModel, priority } and emits
+    // 'model:auto-switched' (plus _routingStats++) when auto-routing fires.
+    // Pre-extract, streamChat() drifted from chat() three times: v7.5.6
+    // (MetaLearning), v7.5.9 B5 (noCache parity), v7.6.0 §4.1 (recommend).
+    // Each fix was symptomatic — this extract makes drift structurally
+    // impossible.
+    // Drift-risk (v7.6.1 audit): streamChat skips routedSwitch — streams
+    // don't cache. If a stream-cache is ever added, destructure it here
+    // and replicate the cache-bypass from chat() (auto-routed code-model
+    // calls would otherwise return cached chat-model results).
+    const { temp, targetBackend, effectiveModel, calledModel, priority } =
+      this._prepareCallContext({ taskType, options });
 
-    // v7.6.0 audit §4.1: parity with chat() — pull MetaLearning's
-    // temperature recommendation for non-chat task types when no
-    // explicit override was given. Pre-fix, streamChat() ran the static
-    // default while chat() used the recommendation, which (a) made
-    // streaming non-chat tasks systematically suboptimally-tempered and
-    // (b) produced asymmetric MetaLearning training data for the same
-    // task. Track A #4 will eventually extract this into a shared
-    // _prepareCallContext().
+    const maxTokens = (typeof options.maxTokens === 'number' && options.maxTokens > 0)
+      ? options.maxTokens
+      : undefined;
+
+    const startTime = Date.now();
+    await this._semaphore.acquire(priority);
+    try {
+      const result = await this._dispatchStream(targetBackend, systemPrompt, messages, onChunk, abortSignal, temp, effectiveModel, maxTokens);
+      this._recordMetaOutcome(taskType, temp, startTime, true, options, calledModel);
+      return result;
+    } catch (err) {
+      return this._handleFailoverError(err, {
+        taskType, temp, startTime, options, calledModel, targetBackend, label: 'Stream',
+        dispatch: (backend) => this._dispatchStream(backend, systemPrompt, messages, onChunk, abortSignal, temp, undefined, maxTokens),
+      });
+    } finally {
+      this._semaphore.release();
+    }
+  }
+
+  // ════════════════════════════════════════════════════════
+  // SHARED CALL-CONTEXT PREPARATION
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Prepares the per-call routing context shared between chat() and streamChat().
+   * v7.6.1 Track A #4: extracted from chat()/streamChat() to eliminate ~70 LOC
+   * of structural duplication. Pre-extract, the two paths drifted multiple
+   * times — v7.5.6 added MetaLearning to chat() but not streamChat() (silently
+   * lost streaming-failure data); v7.5.9 B5 added noCache parity to streamChat;
+   * v7.6.0 §4.1 added MetaLearning recommend to streamChat. Each fix was
+   * symptomatic, none addressed the structural root cause. This method is
+   * the root-cause fix.
+   *
+   * Resolves, in order:
+   *   1. Temperature: this.temperatures[taskType] → options.temperature override
+   *      → MetaLearning.recommend (non-chat tasks only, no override given)
+   *   2. Auto-routing: ModelRouter.route(taskType) if enabled and not _userChat
+   *      → routedSwitch with backend resolved from availableModels
+   *   3. Role/Target/Effective: routedSwitch > roleOverride > activeBackend
+   *      precedence chain. effectiveModel may be undefined (backend uses default).
+   *   4. Priority: options.priority || (chat:10, otherwise:0)
+   *
+   * @param {{ taskType: string, options: object }} args
+   * @returns {{ temp, routedSwitch, roleOverride, targetBackend, effectiveModel, calledModel, priority }}
+   */
+  _prepareCallContext({ taskType, options }) {
+    // 1. Temperature resolution
+    let temp = this.temperatures[taskType] || this.temperatures.chat;
+    if (typeof options.temperature === 'number') temp = options.temperature;
     if (this.metaLearning && taskType !== 'chat' && options.temperature === undefined) {
       try {
         const rec = this.metaLearning.recommend(taskType, this.activeModel);
@@ -422,11 +420,7 @@ class ModelBridge {
       } catch (_e) { _log.debug('[catch] MetaLearning not ready:', _e.message); }
     }
 
-    const maxTokens = (typeof options.maxTokens === 'number' && options.maxTokens > 0)
-      ? options.maxTokens
-      : undefined;
-
-    // v7.5.2: optional auto-routing for background tasks (parity with chat())
+    // 2. Auto-routing (skip for direct user chat)
     let routedSwitch = null;
     if (
       this._settings?.get?.('agency.autoRouteByTask') !== false &&
@@ -451,38 +445,27 @@ class ModelBridge {
             this._routingStats.lastRouted = { ...routedSwitch, at: Date.now() };
             this.bus.emit('model:auto-switched', routedSwitch, { source: 'ModelBridge' });
           }
+          // If model exists in router but not in availableModels, silently abandon
+          // routing — fall through to activeModel/activeBackend.
         }
-      } catch (_e) { /* silent fallback */ }
+      } catch (_e) {
+        // Router error → silent fallback to activeModel, no crash
+      }
     }
 
-    const priority = options.priority ?? (taskType === 'chat' ? 10 : 0);
-    // v5.1.0: Role-based model dispatch
-    // v7.5.2: routedSwitch > roleOverride > activeBackend (parity with chat())
+    // 3. Role-based + routing precedence: routedSwitch > roleOverride > activeBackend
     const roleOverride = this._resolveForTask(taskType);
     const targetBackend = routedSwitch?.routedBackend
                        || roleOverride?.backend
                        || this.activeBackend;
     const effectiveModel = routedSwitch?.routedModel
-                        || roleOverride?.model;
-    // v7.5.6: track which model was actually called
+                        || roleOverride?.model;  // undefined → backend uses activeModel
     const calledModel = effectiveModel || this.activeModel;
-    // v7.5.6: streamChat now feeds MetaLearning too — pre-v7.5.6 only chat()
-    // recorded outcomes, so streaming-failure rates were invisible to the
-    // learner. Same calledModel/fallbackModelName attribution as chat().
-    const startTime = Date.now();
-    await this._semaphore.acquire(priority);
-    try {
-      const result = await this._dispatchStream(targetBackend, systemPrompt, messages, onChunk, abortSignal, temp, effectiveModel, maxTokens);
-      this._recordMetaOutcome(taskType, temp, startTime, true, options, calledModel);
-      return result;
-    } catch (err) {
-      return this._handleFailoverError(err, {
-        taskType, temp, startTime, options, calledModel, targetBackend, label: 'Stream',
-        dispatch: (backend) => this._dispatchStream(backend, systemPrompt, messages, onChunk, abortSignal, temp, undefined, maxTokens),
-      });
-    } finally {
-      this._semaphore.release();
-    }
+
+    // 4. Priority — chat tasks get higher priority in semaphore
+    const priority = options.priority ?? (taskType === 'chat' ? 10 : 0);
+
+    return { temp, routedSwitch, roleOverride, targetBackend, effectiveModel, calledModel, priority };
   }
 
   // ════════════════════════════════════════════════════════

@@ -175,6 +175,28 @@ class AgentLoop {
       return { success: false, error: msg };
     }
 
+    // v7.6.1 audit-closeout: Self-Gate observation for 'plan-start' actionType.
+    // Telemetry-only (does not block); closes the symmetry gap where
+    // self-gate.js documented 'plan-start' but no call site existed.
+    // Reflexivity patterns ("Ich sollte als nächstes X angehen") that
+    // mund directly into a plan-pursuit (rather than a tool-call or
+    // goal-push) were previously invisible to the gate.
+    if (this.selfGate) {
+      try {
+        this.selfGate.check({
+          actionType: 'plan-start',
+          actionPayload: {
+            goalDescription,
+            goalId: _presetGoal?.id || null,
+          },
+          userContext: this._lastUserMessage || '',
+          triggerSource: this._triggerSource || '',
+        });
+      } catch (err) {
+        _log.debug(`[SELF-GATE] plan-start check skipped: ${err?.message || err}`);
+      }
+    }
+
     this.running = true;
     this._aborted = false;
     this.stepCount = 0;

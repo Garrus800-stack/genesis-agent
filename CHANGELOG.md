@@ -1,3 +1,296 @@
+## [7.6.1]
+
+**Code-hygiene release — three structural splits, no behavior change.**
+
+Continues the Track A cleanup line from v7.6.0. Three files dropped under
+the 700-LOC threshold via two extracted modules and one extracted
+in-class helper. One byte-identical dead-code block removed. All eleven
+CI audit gates green, fitness 127/130 stable.
+
+### Track A #4 — ModelBridge `_prepareCallContext` extract
+
+`ModelBridge.chat()` and `ModelBridge.streamChat()` carried ~70 LOC of
+byte-identical routing logic: object-form arg adapter, temperature
+resolution with MetaLearning recommend, auto-routing block with
+`model:auto-switched` emission, role/target/effective/calledModel
+precedence chain, and priority calculation. The two paths drifted three
+times historically — v7.5.6 (MetaLearning recordOutcome added to chat
+only), v7.5.9 B5 (noCache parity gap), v7.6.0 §4.1 (MetaLearning
+recommend missing in stream). Each fix was symptomatic; the structural
+root cause stayed.
+
+This release extracts the shared block into `_prepareCallContext({
+taskType, options })` returning `{ temp, routedSwitch, roleOverride,
+targetBackend, effectiveModel, calledModel, priority }`. Side-effects
+(`_routingStats.autoRouted++`, `_routingStats.lastRouted`,
+`bus.emit('model:auto-switched')`) fire exactly once per call, verified
+by the existing `v752-fix.test.js B3` watchdog. Object-form adapters
+stay inline in chat() and streamChat() because their argument signatures
+diverge (chat: 5 args, stream: 7 — adds onChunk and abortSignal) and
+extracting them would add complexity rather than remove it.
+
+`ModelBridge.js`: 803 → 696 LOC (−107). Future drift between chat() and
+streamChat() routing is now structurally impossible — a single source of
+truth for the precedence chain.
+
+### Track A — SelfStatementLog classifier-mixin split
+
+`SelfStatementLog.js` (790 LOC) mixed two concerns: lifecycle/persistence
+(constructor, prune, recall, flush, recordPromise) and statement
+classification (regex patterns, classification, contradiction emission).
+The two share state via `this`, so this is **not** an architectural
+decoupling — it's file-size separation following the established
+InstallDB/InstallDetect mixin pattern.
+
+New file `src/agent/cognitive/SelfStatementClassifier.js` (344 LOC)
+hosts:
+- `ABBREV` regex (sentence-segmentation safe abbreviations)
+- `LANG_PATTERNS` (DE/EN bundles with parity assertion at module-load)
+- `NEUTRAL_PATTERNS` (modulePrefix, structuralNouns, bullet — language-
+  neutral)
+- `AUDIT_WINDOW_MS` constant (24h rolling window)
+- Six methods exported as `classifierMixin`: `_extractStatements`,
+  `_classify`, `_checkActivityClaim`, `_fireContradiction`,
+  `_fireActivityHint`, `_updateAuditWindow`
+
+`SelfStatementLog` constructor calls `Object.assign(this,
+classifierMixin)` after pruning so the methods are present on every
+instance. `getAuditStat()` reads `AUDIT_WINDOW_MS` from the classifier
+module to keep the window-size single-sourced.
+
+Source-presence test in `v756-fix.test.js D1/D2` updated to look in the
+classifier file (where the patterns now live) rather than the log file
+(where they were).
+
+`SelfStatementLog.js`: 790 → 537 LOC (−253). Both files under 700.
+
+### Track A — PromptBuilderSections awareness-cluster split + dead-code purge
+
+`PromptBuilderSections.js` (775 LOC) had 30 section methods clustered
+into four conceptual groups (core, memory/knowledge, runtime, awareness).
+The 10-method awareness cluster (organism, metacognitive, self-aware,
+perception, consciousness, values, user-model, body-schema, autonomy,
+episodic) had **zero** internal cross-method calls — verified by direct
+grep. They each read `this` (PromptBuilder instance state — emotional-
+state, organism subsystems, goalStack, episodicMemory) but never call
+each other.
+
+New file `src/agent/intelligence/PromptBuilderSectionsAwareness.js`
+(247 LOC) exports `awarenessSection` mixin object with all 10 methods.
+
+Dead-code finding: `_versionContext` existed in both
+`PromptBuilderSections.js` (lines 729-771) AND `PromptBuilderSectionsExtra.js`
+(lines 245-285). The two implementations were **byte-identical** (MD5
+`0d094b934da9cdd3a827baabe195f5c1`). The Object.assign order in
+`PromptBuilder.js` is `sections, sectionsExtra, runtimeStateSection` —
+sectionsExtra always overwrote the main copy. The main-file copy had
+been dead code since v7.0.4 (comment in Extra: "moved from main").
+Removed in this release alongside the awareness extract: 51 LOC of
+dead code that had been shipping for years.
+
+`PromptBuilder.js` Object.assign updated to include
+`awarenessSection` — verified zero name collision with sections,
+sectionsExtra, or runtimeStateSection.
+
+`promptbuilder-sections.test.js` `allSections` aggregator updated to
+include awarenessSection (test was checking the prototype-merged
+namespace as a whole).
+
+`PromptBuilderSections.js`: 775 → 518 LOC (−257). Awareness cluster
+isolated; main file at well-controlled size.
+
+### Aggregate impact
+
+- Files `>700` LOC dropped by 3 (ModelBridge, SelfStatementLog,
+  PromptBuilderSections all moved under).
+- Two new mixin files: SelfStatementClassifier (344), PromptBuilderSections-
+  Awareness (247).
+- 51 LOC of byte-identical dead code removed (`_versionContext` duplicate).
+- Three structural duplications eliminated:
+  1. ModelBridge chat()/streamChat() routing block (∼70 LOC)
+  2. SelfStatementLog patterns + 6 methods inside the lifecycle file
+  3. _versionContext implementation duplicated across two section files
+
+### Tests / Fitness / Audits
+
+- **6606 tests passing on Linux**, 0 failed.
+- Architectural fitness: **127/130 (98%)** — stable across all three
+  splits.
+- All 11 CI audit gates green: tests, architectural-fitness --ci,
+  audit-events --strict, validate-events, validate-channels, validate-
+  service-wiring --strict (916/916 references resolve), validate-intent-
+  wiring --strict, scan-schemas (zero mismatches), check-stale-refs,
+  audit-slash-discipline --strict, check-ratchet --skip-tests.
+
+### Migration notes
+
+None. No behavior change, no API surface change, no settings change.
+Existing tests continue to cover the moved methods through the public
+paths (chat(), streamChat(), `_captureResponse`, prompt section build).
+
+### Backlog status after v7.6.1
+
+Files >700 LOC remaining: 8, of which 4 are data files (EventTypes,
+Language, EventPayloadSchemas — splitting useless), 1 is the UI settings
+module (own domain), 3 are the goal-driver triple (AgentLoop, GoalDriver,
+GoalStack — addressed by the Goal-DAG rework, not yet scheduled).
+EpisodicMemory.js at 758 LOC is the next reasonable split candidate.
+
+Other open items: Slash-Discipline expansion to self-inspect/reflect/
+modify/repair/daemon/peer/clone (still keyword-regex), Linux Track C
+(snap as Tier-1, transitional snap detection, Trust-1 own-user-folders),
+lockfile policy (documented in SECURITY.md).
+
+### Audit Closeout (post-ship findings)
+
+External tiefenanalyse on the as-shipped v7.6.1 codebase identified five
+high-priority items that fit the patch-into-version pattern (analogous
+to v7.6.0 §3.2-§4.7). All five are addressed below; nothing in this
+section changes runtime behavior of the shipped Track-A splits.
+
+**§5.1 — `streamChat()` drift-risk note (ModelBridge.js)**
+
+`chat()` destructures `routedSwitch` from `_prepareCallContext` to bypass
+the cache when auto-routing flips the backend; `streamChat()` does not,
+because streams are not cached. This intentional asymmetry was
+undocumented and could re-emerge as a real drift if a streaming-cache
+layer is ever added: an auto-routed code-model request would silently
+return cached chat-model results. A four-line drift-risk comment in
+`streamChat()` makes the asymmetry explicit and points at the exact
+fix required by any future stream-cache author.
+
+**§5.2 — SelfStatementLog mixin: per-instance → prototype**
+
+`SelfStatementLog`'s constructor used `Object.assign(this,
+classifierMixin)`, which works functionally (the methods land as
+own-properties on each instance) but is the only file in the codebase
+that takes the per-instance route. ModelBridge, PromptBuilder, GoalStack
+all bind their mixins onto the class prototype at module-load via
+`Object.assign(SomeClass.prototype, ...)`. Four mixin styles in one
+codebase with no documented convention is drift-bait — the next split
+would land in a fifth random style.
+
+This release moves the binding to `Object.assign(SelfStatementLog.prototype,
+classifierMixin)` at file end, matching the canonical pattern.
+Verified: `Object.prototype.hasOwnProperty.call(instance, '_extractStatements')`
+is now `false`, methods resolve via prototype, all 117 self-statement
+tests stay green.
+
+**§5.3 — ARCHITECTURE.md § 5.8 Mixin Conventions**
+
+New documentation subsection codifying the prototype-mixin pattern as
+the canonical extract-and-bind shape for v7.6.x and onwards. Lists the
+five verified examples (ModelBridge, PromptBuilder, GoalStack,
+SelfStatementLog, EpisodicMemory) and the two intentional exceptions
+(`CommandHandlersInstall` is a plain object, not a class; constructor-
+time `Object.assign(this, ...)` is forbidden in new code). Includes
+"when to extract" / "when not to extract" guidance and references the
+contract-test pattern (`v76-splits.contract.test.js`) that pins each
+extract.
+
+**§5.4 — EpisodicMemory split (`EpisodicMemoryRecall` mixin)**
+
+`EpisodicMemory.js` was 758 LOC and triggered the File-Size-Guard WARN.
+Methods clustered cleanly into core lifecycle/persistence (constructor,
+recordEpisode, recall, getByTag, getRecent, buildContext, getStats,
+layer-cap enforcement, save/load) and a self-contained recall/scoring/
+embedding cluster (8 methods, ~205 LOC) that share state via `this`
+(`_vectors`, `_queryCache`, `_embeddings`, `_episodes`, `_causalLinks`)
+but don't need the persistence APIs.
+
+New file `src/agent/hexagonal/EpisodicMemoryRecall.js` (240 LOC) exports
+`recallMixin` with eight methods: `_scoreRelevance`, `_tokenize`,
+`_detectCausalLinks`, `_traceCausalChain`, `_embedEpisode`,
+`_semanticSimilarity`, `_cacheQueryEmbedding`, `_cosineSimilarity`.
+Mixed onto the prototype at module-load.
+
+`EpisodicMemory.js`: 758 → 582 LOC (−176). One File-Size WARN cleared.
+The contract pattern (Core's `recordEpisode` calls
+`this._detectCausalLinks` and `this._embedEpisode`; `recall` calls
+`this._scoreRelevance`) works through the prototype binding —
+verified by the existing `episodicmemory.test.js` (10 tests) and
+`v737-episodic-memory.test.js` (26 tests), both green.
+
+**§5.5 — Self-Gate symmetry gap closed**
+
+`self-gate.js` documented four `actionType` values in its JSDoc header
+(`tool-call`, `goal-push`, `plan-start`, `daemon-action`), but only the
+first two had call sites in `src/agent`. Reflexivity patterns
+("Ich sollte als nächstes X angehen") that produced a plan-start or a
+daemon-action without a preceding tool-call/goal-push were systematically
+invisible to the gate — i.e. exactly the autonomous-action telemetry the
+gate exists to observe.
+
+This release wires the missing two actionTypes:
+
+| actionType      | Wired site                                                |
+|-----------------|-----------------------------------------------------------|
+| `plan-start`    | `AgentLoop.pursue()` after the strict-cognitive-mode check |
+| `daemon-action` | `AutonomousDaemon._runCycle()` once per autonomous cycle  |
+| `daemon-action` | `DaemonController._methodGoal()` on socket-triggered actions |
+
+`selfGate` is added as an optional late-binding to phase-8-revolution
+(AgentLoop), phase-6-autonomy `daemon` (AutonomousDaemon), and phase-6-
+autonomy `daemonController`. `service-wiring` references rose 916 → 919.
+Each call is wrapped in try/catch so a missing/late-bound `selfGate` is
+a no-op rather than a failure path. `docs/GATE-INVENTORY.md` gains a
+new "Self-Gate actionType Coverage Matrix" subsection listing every
+documented type with its wired call site.
+
+**§5.6 — `audit-self-gate-coverage.js` script + CI gate**
+
+A new `scripts/audit-self-gate-coverage.js` parses the actionType list
+out of `self-gate.js`'s JSDoc and verifies every documented type has at
+least one `selfGate.check({ actionType: '...' })` call site under
+`src/agent`. The match is intentionally strict: the literal must be
+preceded within 400 chars by `selfGate.check(`, which excludes
+`EventPayloadSchemas.js` (`actionType: 'required'` is the schema marker,
+not a real action-type).
+
+Adding a new actionType to the JSDoc without wiring it is an exit-1 CI
+failure. Wiring an actionType without documenting it is a warning. The
+script is wired into `npm run ci` and `npm run ci:full` after the
+intent-wiring validator and before `check-ratchet`. This template for
+"intention-documented-but-implementation-missing" drift-class audits is
+explicitly meant to grow — the same shape applies to other architectural
+contracts (slash-discipline coverage, gate-stats coverage,
+manifest-tag claims).
+
+### Build status after audit-closeout
+
+- Tests: 6606 passed, 0 failed (no count change — no new public tests
+  were added; the closeout work is structural and exercised through
+  existing suites).
+- Architectural fitness: 127/130 (98%) — unchanged. The File-Size-Guard
+  saw EpisodicMemory leave the WARN list, ModelBridge join it (701 LOC,
+  one over the threshold from the drift-risk comment expanding the
+  shared-context block); net WARN count unchanged at 4.
+- All 12 CI audit gates green, plus the new `audit-self-gate-coverage`
+  gate green. `validate-service-wiring`: 919/919 references resolve
+  (was 916 before the three new selfGate late-bindings).
+
+### Items deferred from the audit-closeout
+
+Five report findings are explicitly out of scope for this closeout and
+sit in `AUDIT-BACKLOG.md`:
+
+- AgentLoop `pursue`/`_executeLoop` internal decomposition (367+259 LOC
+  mega-methods; report calls this "the eigentliche Problem" but warns
+  it needs its own release window — it's the prerequisite for Goal-DAG).
+- GoalDriver split into 3 files (FailurePolicy + BootRecovery + core)
+  and GoalStack `addGoal` internal decompose.
+- 61 unprotected security-test candidates (`audit-contracts.js` advisory)
+  — pass to add `<contract>:` prefixes and lift the gate to strict.
+- Slash-Discipline coverage inventory for `self-inspect/reflect/modify/
+  repair/daemon/peer/clone`.
+- SECURITY.md "Supply-Chain assumptions" subsection covering pinned
+  version spans + override rationale.
+
+These are architectural follow-ups, not drift; they belong in scoped
+later releases.
+
+---
+
 ## [7.6.0]
 
 **Cleanup release — Track A: Monolith reduction.**

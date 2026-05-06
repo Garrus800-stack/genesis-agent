@@ -53,6 +53,30 @@ Regression tests for the v7.5.x additions: `test/modules/v751-fix.test.js`,
 > for stats consistency but the more meaningful telemetry is the `model:thinking-trace`
 > event itself.
 
+### Self-Gate actionType Coverage Matrix (v7.6.1 audit-closeout)
+
+`self-gate.js` documents four `actionType` values in its JSDoc header.
+Until v7.6.1, only two were wired — the other two appeared in documentation
+but no caller fired them, so the intended telemetry was systematically
+incomplete. The v7.6.1 audit-closeout added the missing call sites.
+
+| actionType        | Documented | Wired since | Call site                                                                | Notes |
+|-------------------|------------|-------------|--------------------------------------------------------------------------|-------|
+| `tool-call`       | v7.3.6     | v7.3.6      | `src/agent/hexagonal/ChatOrchestratorHelpers.js` (`_processToolLoop`)    | Per LLM-decided tool call inside chat orchestration |
+| `goal-push`       | v7.3.6     | v7.3.6      | `src/agent/planning/GoalStack.js` (`addGoal`, source≠'user')             | Per non-user goal addition |
+| `plan-start`      | v7.3.6     | **v7.6.1**  | `src/agent/revolution/AgentLoop.js` (`pursue`, after strict-mode check)  | Per pursuit start, before the loop sets `running=true` |
+| `daemon-action`   | v7.3.6     | **v7.6.1**  | `src/agent/autonomy/AutonomousDaemon.js` (`_runCycle`) **and** `src/agent/autonomy/DaemonController.js` (`_methodGoal`) | Two call sites — autonomous cycles fire once per cycle; socket-triggered actions fire before the pursuit path is chosen |
+
+**Drift protection:** `scripts/audit-self-gate-coverage.js` (added in v7.6.1
+audit-closeout, runs as part of `npm run ci`) parses the actionType list out
+of `self-gate.js`'s JSDoc header and verifies every documented actionType
+has at least one call site under `src/agent`. Adding a new actionType to
+the JSDoc without wiring it is a CI failure; wiring an actionType without
+documenting it produces a warning. This closes the
+"intention-documented-but-implementation-missing" drift class for self-gate
+specifically and is a template for similar audits on other architectural
+contracts.
+
 > **Important note on the AwarenessPort gate (row 7):** As long as the default implementation
 > `NullAwareness` is registered, `getCoherence()` constantly returns `1.0`. With
 > `THRESHOLDS.SELFMOD_COHERENCE_MIN = 0.4`, the condition `1.0 < 0.4` is always false,

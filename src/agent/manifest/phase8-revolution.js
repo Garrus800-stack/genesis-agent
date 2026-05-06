@@ -71,6 +71,10 @@ function phase8(ctx, R) {
         // v7.4.5 Baustein C: ResourceRegistry — pre-existence check
         // before each step. Missing resources block goal instead of fail.
         { prop: 'resourceRegistry', service: 'resourceRegistry', optional: true },
+        // v7.6.1 audit-closeout: Self-Gate observation on plan-start.
+        // Closes the symmetry gap where 'plan-start' was a documented
+        // actionType in self-gate.js but had no call site.
+        { prop: 'selfGate', service: 'selfGate', optional: true },
       ],
       factory: (c) => new (R('AgentLoop').AgentLoop)({
         bus, model: c.resolve('llm'), goalStack: c.resolve('goalStack'),

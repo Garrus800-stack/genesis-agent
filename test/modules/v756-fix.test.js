@@ -284,8 +284,9 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   // Component D — Self-Statement-Log DE/EN parity (Item 4)
   // ──────────────────────────────────────────────────────────────
 
-  await test('D1 source-presence: SelfStatementLog uses module-level LANG_PATTERNS', () => {
-    const sslSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/cognitive/SelfStatementLog.js'), 'utf8');
+  await test('D1 source-presence: SelfStatementClassifier uses module-level LANG_PATTERNS', () => {
+    // v7.6.1 Track A: patterns moved from SelfStatementLog to SelfStatementClassifier.
+    const sslSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/cognitive/SelfStatementClassifier.js'), 'utf8');
     assert(/const\s+LANG_PATTERNS\s*=\s*\{/.test(sslSrc), 'LANG_PATTERNS const must exist at module level');
     assert(/de\s*:\s*\{[\s\S]*?firstPersonExplicit[\s\S]*?verbFirst[\s\S]*?promiseMarkers[\s\S]*?emotionMarkers/.test(sslSrc),
       'LANG_PATTERNS.de must have all 4 keys');
@@ -294,11 +295,15 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   });
 
   await test('D2 source-presence: NEUTRAL_PATTERNS module-level (deduped MODULE_PREFIX)', () => {
-    const sslSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/cognitive/SelfStatementLog.js'), 'utf8');
-    assert(/const\s+NEUTRAL_PATTERNS\s*=\s*\{/.test(sslSrc), 'NEUTRAL_PATTERNS const must exist');
-    // Old duplicate const MODULE_PREFIX inside _classify must be gone
-    const moduleConstHits = sslSrc.match(/const\s+MODULE_PREFIX\s*=/g) || [];
-    assertEqual(moduleConstHits.length, 0,
+    // v7.6.1 Track A: NEUTRAL_PATTERNS lives in SelfStatementClassifier; the
+    // old MODULE_PREFIX duplicate must remain absent in BOTH SelfStatementLog
+    // (where it was originally) and SelfStatementClassifier (the new home).
+    const classifierSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/cognitive/SelfStatementClassifier.js'), 'utf8');
+    const logSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/cognitive/SelfStatementLog.js'), 'utf8');
+    assert(/const\s+NEUTRAL_PATTERNS\s*=\s*\{/.test(classifierSrc), 'NEUTRAL_PATTERNS const must exist in SelfStatementClassifier');
+    const dupHitsClassifier = classifierSrc.match(/const\s+MODULE_PREFIX\s*=/g) || [];
+    const dupHitsLog        = logSrc.match(/const\s+MODULE_PREFIX\s*=/g) || [];
+    assertEqual(dupHitsClassifier.length + dupHitsLog.length, 0,
       'duplicate const MODULE_PREFIX inside methods must be removed (use NEUTRAL_PATTERNS instead)');
   });
 

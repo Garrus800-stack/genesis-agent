@@ -1,9 +1,101 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.6.0 · Last updated: v7.6.0 (Cleanup release — Track A: Monolith reduction)
+> Version: 7.6.1 · Last updated: v7.6.1 audit-closeout (post-ship findings addressed in-version)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.6.1 (audit-closeout)
+
+External tiefenanalyse on the as-shipped v7.6.1 codebase identified five
+high-priority items, all addressed in-version (no version bump). See
+`CHANGELOG.md` `[7.6.1] § Audit Closeout` for per-item details.
+
+- **§5.1 — `streamChat()` drift-risk note.** Four-line comment in
+  `ModelBridge.streamChat()` documenting why `routedSwitch` is not
+  destructured (streams are not cached) and what to do if a future
+  stream-cache is added.
+- **§5.2 — SelfStatementLog mixin moved to prototype.** Per-instance
+  `Object.assign(this, classifierMixin)` removed from constructor,
+  replaced with `Object.assign(SelfStatementLog.prototype,
+  classifierMixin)` at file end — matches the canonical pattern used
+  by ModelBridge, PromptBuilder, GoalStack.
+- **§5.3 — ARCHITECTURE.md § 5.8 Mixin Conventions.** New documentation
+  subsection codifying the prototype-mixin pattern, the two intentional
+  exceptions (CommandHandlersInstall plain object; constructor-time
+  `Object.assign(this, ...)` forbidden), and when-to-extract guidance.
+- **§5.4 — EpisodicMemory recall-mixin split.** `EpisodicMemory.js`
+  758 → 582 LOC. New `EpisodicMemoryRecall.js` (240 LOC) holds
+  scoring/causality/embedding methods. One File-Size-Guard WARN
+  cleared.
+- **§5.5 — Self-Gate symmetry gap closed.** `plan-start` wired in
+  `AgentLoop.pursue()`, `daemon-action` wired in
+  `AutonomousDaemon._runCycle()` and `DaemonController._methodGoal()`.
+  All four documented `actionType` values now have at least one call
+  site. `selfGate` added as optional late-binding to phase-8-revolution
+  and two phase-6-autonomy services.
+- **§5.6 — `audit-self-gate-coverage.js` script + CI gate.** New
+  `scripts/audit-self-gate-coverage.js` parses `self-gate.js`'s JSDoc
+  for documented actionTypes and verifies wiring under `src/agent`.
+  Wired into `npm run ci` and `npm run ci:full`. This template is
+  meant to grow — same shape applies to other architectural contracts.
+
+### Tests / fitness / audits at v7.6.1 audit-closeout
+
+- Tests: 6606 passed, 0 failed (no count change — closeout is
+  structural, not behavioral; existing suites cover the refactors)
+- Architectural fitness: 127/130 (98%) — unchanged
+- All 12 CI audit gates green + new `audit-self-gate-coverage` gate
+- Service-wiring: 919/919 references resolve (was 916; +3 selfGate
+  late-bindings)
+- Files >700 LOC: 7 (was 8 — EpisodicMemory cleared; ModelBridge
+  ticked one over with the drift-risk comment expansion)
+
+### Items deferred from the v7.6.1 audit
+
+These are explicitly out of scope for the closeout — they are
+architectural follow-ups, not drift, and warrant scoped later releases:
+
+- **AgentLoop `pursue`/`_executeLoop` decomposition** (367 + 259 LOC
+  mega-methods). Report identifies this as the prerequisite for the
+  Goal-DAG rework and recommends an own release window.
+- **GoalDriver split into 3 files** (FailurePolicy + BootRecovery +
+  core) and **GoalStack `addGoal` internal decompose**. Mid-priority
+  cleanup; not urgent.
+- **`audit-contracts.js` strict-mode lift.** 61 unprotected
+  security-test candidates across 15 files; the recommended pass
+  adds `<contract>:` prefixes to 8-10 clearest clusters then lifts
+  the advisory gate to a CI failure.
+- **Slash-Discipline coverage inventory** for `self-inspect/reflect/
+  modify/repair/daemon/peer/clone`. Need to verify which intents
+  are already pure-slash-only versus still keyword-regex.
+- **SECURITY.md "Supply-Chain assumptions" subsection** covering
+  pinned version spans (acorn, chokidar, tree-kill `~`-tilde) and
+  override rationale (`@xmldom/xmldom`, `basic-ftp`).
+
+### Memory-backlog reality-check (informational)
+
+The audit verified the implementation status of memory-resident
+roadmap items. Compressed snapshot:
+
+- **CostStream-Failover-Integration**: partially implemented —
+  `goal:dissonance-pushback` event exists since v7.5.8 Phase 3b, but
+  `CostStream.js` does not subscribe to it. A one-listener patch would
+  close it.
+- **ImpactForecast.fragilityDelta**: not implemented; zero matches
+  for `ImpactForecast` or `fragility` in `src/`.
+- **Hauptstandort + Außenposten architecture**: only path-allowlist
+  artifacts (`ShellSafety.js` Z.364 — `genesis-projects|genesis-clones|
+  genesis-outposts`), no runtime primary-vs-outpost logic.
+- **Identity-migration between machines**: not implemented.
+- **Layer-Truncation**: solved differently — `EpisodicMemory.LAYER_CAPS`
+  + `_enforceLayerCaps` (v7.3.7) replaces truncation with layer
+  transition.
+- **Goal-DAG**: not implemented; gated on AgentLoop decomposition.
+- **Self-Gate per-node config for Außenposten**: not implemented —
+  selfGate is a global singleton. Waits for Außenposten backbone.
 
 ---
 

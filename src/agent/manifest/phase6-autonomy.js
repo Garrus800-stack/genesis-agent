@@ -17,6 +17,10 @@ function phase6(ctx, R) {
         // v7.3.5: Goal lifecycle review scheduling (cross-phase 6→4 to goalStack)
         { prop: 'goalStack', service: 'goalStack', optional: true, expects: ['reviewGoals'],
           impact: 'No periodic goal lifecycle review (goals stay active even after all steps done)' },
+        // v7.6.1 audit-closeout: Self-Gate observation on autonomous cycles.
+        // Closes the symmetry gap where 'daemon-action' was a documented
+        // actionType in self-gate.js but had no call site.
+        { prop: 'selfGate', service: 'selfGate', optional: true },
       ],
       factory: (c) => {
         const dm = new (R('AutonomousDaemon').AutonomousDaemon)({
@@ -150,6 +154,11 @@ function phase6(ctx, R) {
       phase: 6, deps: ['daemon'], tags: ['autonomy', 'control'],
       lateBindings: [
         { prop: 'agentLoop', service: 'agentLoop', optional: true },
+        // v7.6.1 audit-closeout: Self-Gate observation on socket-triggered
+        // autonomous actions (extern daemon control → Genesis acts). Pairs
+        // with the 'plan-start' check in AgentLoop.pursue() — both fire
+        // when the action passes through both layers.
+        { prop: 'selfGate', service: 'selfGate', optional: true },
       ],
       factory: (c) => {
         const settings = c.has('settings') ? c.resolve('settings') : null;

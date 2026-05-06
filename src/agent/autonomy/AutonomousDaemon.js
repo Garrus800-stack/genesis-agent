@@ -128,6 +128,28 @@ class AutonomousDaemon {
     if (!this.running) return;
     this.cycleCount++;
 
+    // v7.6.1 audit-closeout: Self-Gate observation for 'daemon-action' actionType.
+    // Telemetry-only (does not block); fires once per autonomous cycle. The
+    // payload describes the cycle without the per-sub-action breakdown — that
+    // is observable via 'daemon:cycle-complete'. The actionType signals
+    // "Genesis took an action without an explicit user request" which is
+    // exactly the reflexivity-pattern self-gate is meant to catch.
+    if (this.selfGate) {
+      try {
+        this.selfGate.check({
+          actionType: 'daemon-action',
+          actionPayload: {
+            cycleNumber: this.cycleCount,
+            triggerSource: 'autonomous-daemon',
+          },
+          userContext: '',
+          triggerSource: 'autonomous-daemon',
+        });
+      } catch (err) {
+        _log.debug(`[SELF-GATE] daemon-action check skipped: ${err?.message || err}`);
+      }
+    }
+
     const cycleStart = Date.now();
     const actions = [];
 

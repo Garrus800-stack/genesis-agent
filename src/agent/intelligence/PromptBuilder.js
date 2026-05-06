@@ -522,10 +522,18 @@ class PromptBuilder {
 // as Dashboard → DashboardRenderers, WorldState → WorldStateQueries.
 // v7.3.3: Further extraction to PromptBuilderSectionsExtra.js for size-guard
 // (hosts groundedness, sourceAccess, introspection, version sections).
+// v7.4.0: runtime-state section extracted to keep PromptBuilderSections
+// under size threshold.
+// v7.6.1 Track A: awareness-cluster (10 sections — organism, metacog,
+// self-aware, perception, consciousness, values, user-model, body-schema,
+// autonomy, episodic) extracted to PromptBuilderSectionsAwareness.js.
+// Order matters: sections, sectionsExtra, awarenessSection, runtimeStateSection.
+// Each later module's keys overwrite earlier ones — see verified zero-collision
+// invariant in v76-splits.contract.test.js.
 const { sections } = require('./PromptBuilderSections');
 const { sectionsExtra } = require('./PromptBuilderSectionsExtra');
-// v7.4.0: runtime-state section extracted to keep PromptBuilderSections under size threshold.
+const { awarenessSection } = require('./PromptBuilderSectionsAwareness');
 const { runtimeStateSection } = require('./PromptBuilderRuntimeState');
-Object.assign(PromptBuilder.prototype, sections, sectionsExtra, runtimeStateSection);
+Object.assign(PromptBuilder.prototype, sections, sectionsExtra, awarenessSection, runtimeStateSection);
 
 module.exports = { PromptBuilder };

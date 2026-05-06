@@ -12,11 +12,16 @@ const { sectionsExtra } = require('../../src/agent/intelligence/PromptBuilderSec
 // file-size discipline (PromptBuilderSections.js was approaching
 // the 700-LOC warn threshold).
 const { runtimeStateSection } = require('../../src/agent/intelligence/PromptBuilderRuntimeState');
+// v7.6.1 Track A: awareness-cluster (10 sections) extracted to its own file.
+const { awarenessSection } = require('../../src/agent/intelligence/PromptBuilderSectionsAwareness');
 
 // v7.3.3: sections were split across two files for the 700-LOC size guard.
-// The test treats them as a unified namespace — callers (the PromptBuilder
-// prototype) see all of them as instance methods via Object.assign anyway.
-const allSections = { ...sections, ...sectionsExtra, ...runtimeStateSection };
+// v7.6.1: split into four — sections, sectionsExtra, awarenessSection,
+// runtimeStateSection. The test treats them as a unified namespace —
+// callers (the PromptBuilder prototype) see all of them as instance
+// methods via Object.assign anyway. Order matches PromptBuilder.js:
+// later modules' keys overwrite earlier ones (verified zero-collision).
+const allSections = { ...sections, ...sectionsExtra, ...awarenessSection, ...runtimeStateSection };
 
 function createBuilder(overrides = {}) {
   return new PromptBuilder({

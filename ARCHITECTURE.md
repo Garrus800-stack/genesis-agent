@@ -3,10 +3,10 @@
 > Everything you need to understand how Genesis works, why it's built this way,
 > and how to add to it without breaking things.
 >
-> Version: 7.6.0 · Last verified: 0 schema mismatches (458 catalogued events / 458 schemas),
+> Version: 7.6.1 · Last verified: 0 schema mismatches (458 catalogued events / 458 schemas),
 > 0 orphan / missing, 0 stale references, all event-validation checks green
-> (fitness, ratchet, and full test-suite numbers from the v7.6.0 baseline:
-> 6607 tests, fitness 127/130, audit-events:strict exit 0, audit-slash-discipline:strict exit 0).
+> (fitness, ratchet, and full test-suite numbers from the v7.6.1 baseline:
+> 6606 tests, fitness 127/130, audit-events:strict exit 0, audit-slash-discipline:strict exit 0).
 > v7.5.1 added an `intent-tool-coherence` cross-validator as a third gate-layer
 > alongside `injection-gate` and `self-gate` — see [docs/GATE-INVENTORY.md](docs/GATE-INVENTORY.md).
 > v7.5.9 added Plan-Cards (visual rendering for multi-step LLM responses) and a
@@ -15,6 +15,12 @@
 > v7.6.0 consolidated the UI dual-path: the legacy monolithic
 > `renderer.js` was deleted, the bundled renderer is now the only
 > codepath. ~40% reduction in UI maintenance surface.
+> v7.6.1 cleanup pass: ModelBridge chat()/streamChat() routing extracted
+> to a shared `_prepareCallContext()` helper (eliminates structural
+> drift between the two paths), SelfStatementLog classifier methods
+> extracted to a mixin module, PromptBuilderSections awareness-cluster
+> extracted to its own file, byte-identical `_versionContext` dead code
+> removed. Three files dropped under the 700-LOC threshold.
 
 ---
 
@@ -392,6 +398,82 @@ node scripts/architectural-fitness.js --ci  # 127/130, 0 missing shutdown
 ```
 
 If any check fails, you missed a step. The most commonly forgotten: TO_STOP entry, event schema, preload whitelist.
+
+### 5.8 Mixin Conventions
+
+When a service grows past the 700-LOC soft-guard, the canonical response
+is a **prototype mixin extract** — split a coherent method-cluster into a
+neighbouring module that exports an object, then bind it onto the original
+class's prototype. This pattern recurs throughout the codebase
+(ModelBridge, PromptBuilder, GoalStack, SelfStatementLog, EpisodicMemory)
+and is the only mixin shape new code should use.
+
+**The canonical pattern:**
+
+```js
+// SomeServiceMixin.js
+module.exports = {
+  classifierMixin: {
+    _someMethod(arg) {
+      // `this` is the original-class instance — read/write
+      // shared state via this._field.
+      return this._field.transform(arg);
+    },
+    _another() { /* ... */ },
+  },
+};
+
+// SomeService.js (at end of file, before module.exports)
+const { classifierMixin } = require('./SomeServiceMixin');
+class SomeService { /* ... */ }
+Object.assign(SomeService.prototype, classifierMixin);
+
+module.exports = { SomeService };
+```
+
+**Why prototype, not per-instance:**
+
+The prototype binding happens **once at module-load**, not per-construct.
+Stack traces show methods as `SomeService.prototype._someMethod`, not
+`Object._someMethod`. `Object.keys(instance)` returns only own-properties
+(constructor-set state), not the mixed-in methods. Tests can stub methods
+via `SomeService.prototype._someMethod = jest.fn()` for entire test runs
+without re-binding per instance.
+
+**Verified examples in the codebase:**
+
+| File | Mixin target | Notes |
+|---|---|---|
+| `ModelBridge.js` | `Object.assign(ModelBridge.prototype, availability, discovery)` | Two mixins on one prototype |
+| `PromptBuilder.js` | `Object.assign(PromptBuilder.prototype, sections, sectionsExtra, awarenessSection, runtimeStateSection)` | Four mixins — order matters, later overrides earlier |
+| `GoalStack.js` | Two `Object.assign(GoalStack.prototype, ...)` calls | Sequential is fine |
+| `SelfStatementLog.js` | `Object.assign(SelfStatementLog.prototype, classifierMixin)` | Single mixin |
+| `EpisodicMemory.js` | `Object.assign(EpisodicMemory.prototype, recallMixin)` | Single mixin |
+
+**Two intentional exceptions:**
+
+1. **`CommandHandlersInstall.js`** uses `Object.assign(CommandHandlersInstall, _detectMixin)` — without `.prototype` — because `CommandHandlersInstall` is a **plain object**, not a class. The handler dispatch in this module is method-on-namespace-object style. If a future refactor turns it into a class, the mixin should also move to `.prototype`.
+
+2. **Constructor-time `Object.assign(this, mixin)`** is **forbidden** in new code. Earlier versions of `SelfStatementLog` did this (per-instance binding inside the constructor). It works functionally — methods land as own-properties on each instance — but breaks all the prototype-pattern affordances above. The v7.6.1 audit closeout converted it to the canonical prototype pattern.
+
+**When to extract a mixin:**
+
+- File approaches 700 LOC and the methods cluster naturally by concern.
+- The cluster is coherent enough that a meaningful filename describes it (`SelfStatementClassifier`, `EpisodicMemoryRecall`, `ModelBridgeDiscovery`).
+- The cluster's methods read/write state via `this`, but don't need their own state — they share the instance state of the parent class.
+- `architectural-fitness` would otherwise raise a File-Size-Guard WARN.
+
+**When NOT to extract a mixin:**
+
+- The methods don't share enough state to justify staying on one instance — a separate service registered in the manifest is cleaner.
+- The cluster has clear public-API methods that other services should call directly — those belong in their own service, not a hidden mixin.
+- The split would create cross-cluster `this._otherCluster._method()` calls — that's a sign the boundary is wrong.
+
+The contract test pattern (`v76-splits.contract.test.js`) verifies for each
+extract that the merged prototype has all expected methods, no name
+collisions between mixins, and no inline duplication of methods between
+the main file and the mixin file. New mixin extracts should add a
+matching contract assertion.
 
 ---
 
