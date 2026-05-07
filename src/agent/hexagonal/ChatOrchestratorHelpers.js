@@ -142,8 +142,13 @@ const helpers = {
         for (const tc of toolCalls) {
           try {
             const verdict = recordCoherenceCheck(this.bus, intentType, tc.name);
-            if (this.gateStats && !verdict.coherent) {
-              this.gateStats.recordGate('intent-tool-coherence', { verdict: 'mismatch' });
+            // v7.6.2 audit-closeout (H1): record on every tool-call (not only
+            // mismatches) so blockRate has a meaningful denominator. Pass a
+            // valid verdict string ('pass'|'warn') — the previous Object form
+            // {verdict:'mismatch'} was silently dropped by GateStats since
+            // v7.5.1 (recordGate validates against {'pass','block','warn'}).
+            if (this.gateStats) {
+              this.gateStats.recordGate('intent-tool-coherence', verdict.coherent ? 'pass' : 'warn');
             }
           } catch (err) {
             _log.debug('[COHERENCE] check skipped:', err.message);

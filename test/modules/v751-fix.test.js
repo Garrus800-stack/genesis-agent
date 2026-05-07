@@ -122,7 +122,10 @@ console.log('\n  📦 v7.5.1 Regression Tests\n');
 // ── 50ms: GoalDriver idempotency window raised ────────────────
 (async () => {
   await test('50ms: GoalDriver._applyFailurePause uses 500ms window', async () => {
-    const driverSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/agency/GoalDriver.js'), 'utf8');
+    // v7.6.2 Track A: _applyFailurePause now lives in GoalDriverFailurePolicy.js
+    // (extracted as failurePolicyMixin onto GoalDriver.prototype). Source-
+    // presence check was moved with it.
+    const driverSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/agency/GoalDriverFailurePolicy.js'), 'utf8');
     // Should contain the 500ms guard, NOT the old 50ms
     assert(driverSrc.includes('_now - lastPaused < 500'), 'window raised to 500ms');
     assert(!driverSrc.includes('_now - lastPaused < 50)'), 'old 50ms window removed');

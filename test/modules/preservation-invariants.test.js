@@ -51,8 +51,12 @@ function fakeMainJs(files) {
 }
 
 function fakeEventBus({ dedup = true } = {}) {
+  // v7.6.2 audit-closeout (M3): EVENTBUS_DEDUP rule was tightened from
+  // /dedup|_listenerKeys/ to /_keyedEntries|compositeKey/ — the actual
+  // identifiers used in the real EventBus.js dedup logic. The synthetic
+  // fixture mirrors the real pattern so the rule fires when removed.
   return dedup
-    ? `class EventBus {\n  constructor() { this._listenerKeys = new Map(); }\n  on(name, fn, opts) { /* dedup */ }\n}\n`
+    ? `class EventBus {\n  constructor() { this._keyedEntries = new Map(); }\n  on(name, fn, opts) { const compositeKey = name + '::' + opts.key; this._keyedEntries.set(compositeKey, fn); }\n}\n`
     : `class EventBus {\n  constructor() { }\n  on(name, fn) { }\n}\n`;
 }
 

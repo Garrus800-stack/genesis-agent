@@ -68,87 +68,15 @@ class GoalStack {
    * @param {object} options - { parentId, blockedBy: [goalId], tags: [] }
    */
   async addGoal(description, source = 'self', priority = 'medium', options = {}) {
-    // v7.3.6 #2: Self-Gate observation. Only fires for non-user sources
-    // — user-originated goals are always responsive. Idle, daemon, and
-    // self-originated goals get observed for topic mismatch. Telemetry
-    // event fires; the goal always pushes.
-    if (this.selfGate && source !== 'user') {
-      try {
-        this.selfGate.check({
-          actionType: 'goal-push',
-          actionPayload: { label: description, description },
-          userContext: options.userContext || '',
-          triggerSource: options.triggerSource || `goal source: ${source}`,
-        });
-      } catch (err) {
-        _log.debug('[SELF-GATE] goal-push check skipped:', err?.message);
-      }
-    }
+    // v7.3.6 #2: Self-Gate observation (telemetry, never blocks).
+    this._observeGoalPush(description, source, options);
 
     // v7.3.1: Capability-Gate — prevent duplicate goal proposals.
     // Runs before decomposition (saves LLM calls on blocks).
     // Skipped when override is claimed via options.novel.
     const gateResult = this._capabilityGate(description, source, options);
-    if (gateResult.action === 'block') {
-      _log.info(`[GOAL-GATE] Blocked duplicate: "${description.slice(0, 60)}" ~ ${gateResult.matched.id} (score ${gateResult.score})`);
-      // Record lesson + emit event so dashboard can surface this
-      this._recordLesson('duplicate-proposal', {
-        goalText: description.slice(0, 200),
-        matchedCapability: gateResult.matched.id,
-        matchScore: gateResult.score,
-        source,
-      });
-      this.bus.emit('goal:blocked-as-duplicate', {
-        goalId: `blocked_${Date.now()}`,
-        matchScore: gateResult.score,
-        matchedCapability: gateResult.matched.id,
-        source,
-      }, { source: 'GoalStack' });
+    if (this._handleGateResult(gateResult, description, source, options) === 'block') {
       return null;
-    }
-    if (gateResult.action === 'warn') {
-      // User goals never block — they always pass through, but we emit
-      // a warning so the UI can surface "looks similar to X" inline.
-      this.bus.emit('goal:duplicate-warning', {
-        goalId: `pending_${Date.now()}`,
-        matchScore: gateResult.score,
-        matchedCapability: gateResult.matched.id,
-      }, { source: 'GoalStack' });
-
-      // v7.5.8 (Phase 3b — numerical dissonance pushback).
-      // Memory #15 roadmap item: "Pushback with numerical dissonance score —
-      // chat-message on conflict, not auto-block." When the capability-gate
-      // sees a similar-but-not-identical goal (action='warn'), emit a
-      // structured pushback signal alongside the warning so AgentLoop /
-      // ChatOrchestrator can surface a chat message ("This looks ~63%
-      // similar to goal X — proceed anyway?") rather than silently blocking
-      // or silently proceeding.
-      //
-      // Score is the matchScore from the capability-gate (TF-IDF cosine
-      // similarity, 0..1 — higher = more similar). Threshold is the same
-      // gate threshold; this just adds the explicit chat-channel signal.
-      this.bus.emit('goal:dissonance-pushback', {
-        goalId: `pending_${Date.now()}`,
-        proposedDescription: description.slice(0, 200),
-        matchedGoalId: gateResult.matched.id,
-        matchedDescription: (gateResult.matched.description || gateResult.matched.id).slice(0, 200),
-        dissonanceScore: gateResult.score,  // 0..1 (higher = more similar)
-        source,
-        suggestion: source === 'user'
-          ? 'User-proposed: warn but pass through. UI may ask for confirmation.'
-          : 'Auto-proposed: warn-only here; downstream may filter.',
-      }, { source: 'GoalStack' });
-    }
-    if (gateResult.action === 'novel-claimed') {
-      // Override was used — record for later auditing
-      this._recordLesson('novel-claimed', {
-        goalText: description.slice(0, 200),
-        matchedCapability: gateResult.matched?.id || null,
-        matchScore: gateResult.score,
-        reason: options.novel.reason,
-        contrasting: options.novel.contrasting,
-        source,
-      });
     }
 
     // GoalStackExecution mixin — single cast covers all delegated calls in this method
@@ -199,6 +127,105 @@ class GoalStack {
 
     this.bus.emit('goal:created', { goalId: goal.id, id: goal.id, description, steps: steps.length, parentId: goal.parentId }, { source: 'GoalStack' });
     return goal;
+  }
+
+  /**
+   * v7.6.2 Track A: extracted from addGoal — fires Self-Gate observation
+   * (telemetry only, never blocks) for non-user-originated goal pushes.
+   * User-originated goals are always responsive and skip this check.
+   * Idle, daemon, and self-originated goals get observed for topic mismatch.
+   * @param {string} description
+   * @param {string} source
+   * @param {object} options
+   */
+  _observeGoalPush(description, source, options) {
+    if (this.selfGate && source !== 'user') {
+      try {
+        this.selfGate.check({
+          actionType: 'goal-push',
+          actionPayload: { label: description, description },
+          userContext: options.userContext || '',
+          triggerSource: options.triggerSource || `goal source: ${source}`,
+        });
+      } catch (err) {
+        _log.debug('[SELF-GATE] goal-push check skipped:', err?.message);
+      }
+    }
+  }
+
+  /**
+   * v7.6.2 Track A: extracted from addGoal — handles the four
+   * capability-gate verdicts (block / warn / novel-claimed / pass).
+   * Emits the appropriate events and records lessons in-place. Returns
+   * 'block' when the goal must NOT be created (caller returns null);
+   * returns 'pass' when the caller should continue with goal creation.
+   *
+   * Block path:        emits goal:blocked-as-duplicate, records duplicate-proposal lesson
+   * Warn path:         emits goal:duplicate-warning + goal:dissonance-pushback (v7.5.8 Phase 3b)
+   * Novel-claimed:     records novel-claimed lesson (audit trail for the override)
+   * Pass:              no side-effect
+   *
+   * @param {{action: 'pass'|'warn'|'block'|'novel-claimed', score: number, matched?: object}} gateResult
+   * @param {string} description
+   * @param {string} source
+   * @param {object} options
+   * @returns {'block'|'pass'}
+   */
+  _handleGateResult(gateResult, description, source, options) {
+    if (gateResult.action === 'block') {
+      _log.info(`[GOAL-GATE] Blocked duplicate: "${description.slice(0, 60)}" ~ ${gateResult.matched.id} (score ${gateResult.score})`);
+      this._recordLesson('duplicate-proposal', {
+        goalText: description.slice(0, 200),
+        matchedCapability: gateResult.matched.id,
+        matchScore: gateResult.score,
+        source,
+      });
+      this.bus.emit('goal:blocked-as-duplicate', {
+        goalId: `blocked_${Date.now()}`,
+        matchScore: gateResult.score,
+        matchedCapability: gateResult.matched.id,
+        source,
+      }, { source: 'GoalStack' });
+      return 'block';
+    }
+    if (gateResult.action === 'warn') {
+      // User goals never block — they always pass through, but we emit
+      // a warning so the UI can surface "looks similar to X" inline.
+      this.bus.emit('goal:duplicate-warning', {
+        goalId: `pending_${Date.now()}`,
+        matchScore: gateResult.score,
+        matchedCapability: gateResult.matched.id,
+      }, { source: 'GoalStack' });
+
+      // v7.5.8 (Phase 3b — numerical dissonance pushback). When the
+      // capability-gate sees a similar-but-not-identical goal, emit a
+      // structured pushback signal so AgentLoop / ChatOrchestrator can
+      // surface a chat message ("This looks ~63% similar to goal X —
+      // proceed anyway?") rather than silently blocking or proceeding.
+      // Score is the TF-IDF cosine similarity (0..1, higher = more similar).
+      this.bus.emit('goal:dissonance-pushback', {
+        goalId: `pending_${Date.now()}`,
+        proposedDescription: description.slice(0, 200),
+        matchedGoalId: gateResult.matched.id,
+        matchedDescription: (gateResult.matched.description || gateResult.matched.id).slice(0, 200),
+        dissonanceScore: gateResult.score,
+        source,
+        suggestion: source === 'user'
+          ? 'User-proposed: warn but pass through. UI may ask for confirmation.'
+          : 'Auto-proposed: warn-only here; downstream may filter.',
+      }, { source: 'GoalStack' });
+    }
+    if (gateResult.action === 'novel-claimed') {
+      this._recordLesson('novel-claimed', {
+        goalText: description.slice(0, 200),
+        matchedCapability: gateResult.matched?.id || null,
+        matchScore: gateResult.score,
+        reason: options.novel.reason,
+        contrasting: options.novel.contrasting,
+        source,
+      });
+    }
+    return 'pass';
   }
 
   /**

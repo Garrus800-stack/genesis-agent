@@ -43,11 +43,6 @@ const _DEFAULTS = Object.freeze({
   inactivityWarnMs: 5 * 60_000,
 });
 
-// Stuck-prompt safety: if the UI doesn't render or answer the
-// resume-prompt within this window, the driver auto-declines so
-// freshly-created goals can still be picked up. Without this the
-// dashboard hangs at "Idle — no active goal" forever.
-const RESUME_PROMPT_TIMEOUT_MS = 60_000;
 
 /**
  * Settings keys read by GoalDriver:
@@ -319,141 +314,6 @@ class GoalDriver {
     this._scanAndMaybePursue();
   }
 
-  /**
-   * v7.4.5.fix #19: idempotent failure-pause helper.
-   * Called from BOTH the event-handler path (_onPursuitComplete,
-   * fires inside pursue's bus.fire BEFORE pursue returns) AND the
-   * resolve-side path (_beginPursuit, after await pursue() resolves
-   * with success:false). Whichever reaches it first sets the
-   * pause; the second call is a no-op for that failure because
-   * the same `errMsg` produces the same _failureBurst entry update
-   * — but the count would double if we don't guard. Solution:
-   * track "just paused this goal at timestamp X" via _lastPausedAt
-   * and skip duplicate calls within 500ms of each other (raised
-   * from 50ms in v7.5.1 — see body comment for rationale).
-   *
-   * @param {string} goalId
-   * @param {string} errMsg  - may be empty (generic-backoff applies)
-   * @param {object} [goal]  - goalStack entry, optional
-   */
-  async _applyFailurePause(goalId, errMsg, goal) {
-    if (!goalId) return;
-    const _now = Date.now();
-    this._failureBurst = this._failureBurst || new Map();
-    this._goalPausedUntil = this._goalPausedUntil || new Map();
-    this._lastPausedAt = this._lastPausedAt || new Map();
-
-    // Idempotency guard: if we paused this goal in the last 500ms,
-    // a second call (event-side + resolve-side for the same
-    // failure) would double-count. Skip the second one.
-    //
-    // v7.5.1 (was 50ms, raised to 500ms): on loaded systems the gap
-    // between event-handler emit and resolve-side await can exceed
-    // 50ms (observed 91ms in CI containers; production under GC/IO
-    // pressure can spike higher). With 50ms the second call slipped
-    // through and goals were prematurely stalled (count→stalled
-    // after 3 real failures instead of 6). The real race is always
-    // within the same pursue() execution — anything beyond 500ms is
-    // a different failure event.
-    const lastPaused = this._lastPausedAt.get(goalId) || 0;
-    if (_now - lastPaused < 500) return;
-    this._lastPausedAt.set(goalId, _now);
-
-    const _isRateLimit = /rate limit|rate.limited|budget exhausted/i.test(errMsg || '');
-    const _isUserRejection = (errMsg || '').startsWith('User rejected');
-
-    if (!goal) {
-      goal = this.goalStack.goals?.find(g => g.id === goalId);
-    }
-
-    if (_isRateLimit) {
-      const pauseMs = 60_000;
-      this._goalPausedUntil.set(goalId, _now + pauseMs);
-      setTimeout(() => {
-        if (this._running) this._scanAndMaybePursue();
-      }, pauseMs + 100);
-      _log.warn(`[DRIVER] pursuit of ${goalId} hit LLM rate limit — pausing this goal for ${Math.round(pauseMs/1000)}s`);
-    } else if (_isUserRejection) {
-      const entry = this._failureBurst.get(goalId) || { count: 0, firstAt: _now, kind: 'reject' };
-      if (_now - entry.firstAt > 60_000) {
-        entry.count = 0;
-        entry.firstAt = _now;
-      }
-      entry.count++;
-      this._failureBurst.set(goalId, entry);
-      // v7.4.5.fix #19: short pause between rejection attempts (1s).
-      // Without this, the scan loop re-picks the goal in <1ms after
-      // each rejection, generating 1000+ pickup logs/second before
-      // the 3-strike stall kicks in.
-      const pauseMs = 1_000;
-      this._goalPausedUntil.set(goalId, _now + pauseMs);
-      setTimeout(() => {
-        if (this._running) this._scanAndMaybePursue();
-      }, pauseMs + 100);
-      // v7.5.8 hotfix: stall on FIRST user-rejection, not after 3 strikes.
-      // Live-Befund (Garrus-Win, 2026-05-03): a goal was re-picked 4×
-      // after explicit user rejection because the threshold was 3 and
-      // the goal-driver scan loop kept retrying. When the user explicitly
-      // rejects a plan ("Failed: User rejected plan with blockers"), the
-      // goal should not be re-attempted from the same plan — stall it
-      // immediately so user can either rewrite the plan or close the goal.
-      const REJECTION_STALL_THRESHOLD = 1;
-      if (entry.count >= REJECTION_STALL_THRESHOLD) {
-        _log.warn(`[DRIVER] goal ${goalId} rejected by user — marking as stalled (no further auto-pickup)`);
-        try {
-          if (typeof this.goalStack.setStatus === 'function') {
-            this.goalStack.setStatus(goalId, 'stalled');
-          } else if (typeof this.goalStack.updateGoal === 'function') {
-            await this.goalStack.updateGoal(goalId, { status: 'stalled' });
-          }
-          this.bus.fire('goal:stalled', {
-            id: goalId,
-            description: goal?.description,
-            reason: `${entry.count} consecutive plan rejections`,
-          }, { source: 'GoalDriver' });
-        } catch (e) {
-          _log.warn('[DRIVER] failed to mark goal stalled:', e.message);
-        }
-        this._failureBurst.delete(goalId);
-        this._goalPausedUntil.delete(goalId); // cleared by stall
-      }
-    } else {
-      // Generic failure (incl. empty errMsg) → exponential backoff.
-      const entry = this._failureBurst.get(goalId) || { count: 0, firstAt: _now, kind: 'generic' };
-      if (_now - entry.firstAt > 10 * 60_000) {
-        entry.count = 0;
-        entry.firstAt = _now;
-      }
-      entry.count++;
-      this._failureBurst.set(goalId, entry);
-      const backoffSchedule = [5_000, 30_000, 120_000, 600_000, 1_800_000];
-      if (entry.count > backoffSchedule.length) {
-        _log.warn(`[DRIVER] goal ${goalId} failed ${entry.count}× — marking as stalled`);
-        try {
-          if (typeof this.goalStack.setStatus === 'function') {
-            this.goalStack.setStatus(goalId, 'stalled');
-          } else if (typeof this.goalStack.updateGoal === 'function') {
-            await this.goalStack.updateGoal(goalId, { status: 'stalled' });
-          }
-          this.bus.fire('goal:stalled', {
-            id: goalId,
-            description: goal?.description,
-            reason: `${entry.count} consecutive failures: ${(errMsg || '<empty>').slice(0, 100)}`,
-          }, { source: 'GoalDriver' });
-        } catch (e) {
-          _log.warn('[DRIVER] failed to mark goal stalled:', e.message);
-        }
-        this._failureBurst.delete(goalId);
-      } else {
-        const backoffMs = backoffSchedule[entry.count - 1];
-        this._goalPausedUntil.set(goalId, _now + backoffMs);
-        setTimeout(() => {
-          if (this._running) this._scanAndMaybePursue();
-        }, backoffMs + 100);
-        _log.warn(`[DRIVER] pursuit of ${goalId} failed (${entry.count}/${backoffSchedule.length+1}) — backing off ${Math.round(backoffMs/1000)}s: ${(errMsg || '<empty>').slice(0, 80)}`);
-      }
-    }
-  }
 
   _onResourceAvailable(data) {
     if (!this._running) return;
@@ -530,147 +390,7 @@ class GoalDriver {
     this._scanAndMaybePursue();
   }
 
-  // ════════════════════════════════════════════════════════
-  // BOOT PICKUP — handles regular resume + crash-mid-subgoal case
-  // ════════════════════════════════════════════════════════
 
-  _handleBootPickup() {
-    const all = this.goalStack.goals || [];
-
-    // (A) Regular candidates: user-goals that should be resumed.
-    // v7.4.5.1: A user-goal counts as a resume candidate when it is
-    // 'active' AND either:
-    //   - has begun execution (currentStep > 0), OR
-    //   - was created in the last 24h but hasn't started yet (so a
-    //     fresh goal that crashed before its first step still gets
-    //     picked up — exactly the case we just hit on Garrus's box).
-    // The 24h cutoff prevents zombiehaft hochzuholen alte Goals
-    // die seit Wochen im Stack vergessen lagen.
-    const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;  // 24h
-    const now = Date.now();
-    const isRecent = (g) => {
-      const created = new Date(g.created || 0).getTime();
-      return Number.isFinite(created) && (now - created) < RESUME_WINDOW_MS;
-    };
-    const regular = all.filter(g =>
-      g.source === 'user'
-      && g.status === 'active'
-      && ((g.currentStep || 0) > 0 || isRecent(g))
-    );
-
-    // (B) Blocked-with-subgoals: crash mid-sub-goal scenario
-    const blockedWithSubs = all.filter(g =>
-      g.source === 'user'
-      && g.status === 'blocked'
-      && Array.isArray(g.blockedBy)
-      && g.blockedBy.length > 0
-    );
-
-    if (regular.length === 0 && blockedWithSubs.length === 0) {
-      _log.info('[DRIVER] boot-pickup: no resume candidates found');
-      return;
-    }
-
-    const mode = this.settings.get('agency.autoResumeGoals') || 'ask';
-
-    // For each blocked user-goal, surface its sub-goals as
-    // implicit resume candidates (they will be picked first by
-    // priority desc).
-    // We do NOT prompt for sub-goals separately — the parent's
-    // accept covers them.
-    for (const parent of blockedWithSubs) {
-      // Sanity: nothing to do here at startup; the sub-goals are
-      // already 'active' in the stack. We just need to make sure the
-      // parent's resume decision implicitly triggers their pursuit.
-      // (Sub-goal source !== 'user', so they won't be picked by
-      // _selectNext otherwise, but priority='high' will surface
-      // them as soon as we scan.)
-    }
-
-    // Pick the first user-goal to prompt for
-    const candidates = [...regular, ...blockedWithSubs];
-    if (candidates.length === 0) {
-      _log.info('[DRIVER] boot-pickup: no candidates after filter');
-      return;
-    }
-
-    _log.info(`[DRIVER] boot-pickup: ${candidates.length} candidate(s), mode='${mode}'`);
-
-    const first = candidates[0];
-
-    if (mode === 'never') {
-      _log.info(`[DRIVER] autoResumeGoals='never' — ${candidates.length} goal(s) not resumed`);
-      return;
-    }
-    if (mode === 'always') {
-      _log.info(`[DRIVER] auto-resuming ${candidates.length} goal(s)`);
-      this.bus.fire('goal:resumed-auto', {
-        goalIds: candidates.map(g => g.id),
-        mode,
-      }, { source: 'GoalDriver' });
-      this._scanAndMaybePursue();
-      return;
-    }
-
-    // 'ask' — emit a UI prompt for the first user-goal.
-    // (Handling multiple in sequence is left to the UI's choice.)
-    this._pendingResumePrompt = first.id;
-    let reason;
-    if (first.status === 'blocked') reason = 'blocked-with-subgoals';
-    else if ((first.currentStep || 0) > 0) reason = 'mid-pursuit';
-    else reason = 'fresh-not-started';
-    _log.info(`[DRIVER] firing ui:resume-prompt for ${first.id} (reason=${reason}) — auto-decline in ${RESUME_PROMPT_TIMEOUT_MS / 1000}s if no UI answer`);
-    this.bus.fire('ui:resume-prompt', {
-      goalId: first.id,
-      title: first.description?.slice(0, 100),
-      currentStep: first.currentStep || 0,
-      totalSteps: first.steps?.length || 0,
-      lastUpdated: first.updated,
-      reason,
-    }, { source: 'GoalDriver' });
-
-    // Stuck-prompt safety: if no UI answers within RESUME_PROMPT_TIMEOUT_MS,
-    // auto-decline so the driver can pursue freshly-created goals after the
-    // user took action via /add etc. This prevents the dashboard's
-    // "Idle — no active goal" deadlock when the UI doesn't render the prompt.
-    if (this._resumePromptTimer) clearTimeout(this._resumePromptTimer);
-    this._resumePromptTimer = setTimeout(() => {
-      if (this._pendingResumePrompt === first.id) {
-        _log.warn(`[DRIVER] resume-prompt for ${first.id} timed out — auto-declining`);
-        this.bus.fire('ui:resume-decision', {
-          goalId: first.id,
-          decision: 'pause',
-          rememberAs: undefined,
-        }, { source: 'GoalDriver' });
-      }
-    }, RESUME_PROMPT_TIMEOUT_MS);
-  }
-
-  async _discardGoalAndSubgoals(goalId) {
-    const goal = this.goalStack.goals?.find(g => g.id === goalId);
-    if (!goal) return;
-
-    // Cascade: parent + all subgoals it was blocked by
-    const toDiscard = [goalId];
-    if (Array.isArray(goal.blockedBy)) {
-      for (const subId of goal.blockedBy) {
-        toDiscard.push(subId);
-      }
-    }
-
-    for (const id of toDiscard) {
-      try {
-        await this.goalStack.updateGoal?.(id, {
-          status: 'abandoned',
-          updated: new Date().toISOString(),
-        });
-      } catch (err) {
-        _log.warn(`[DRIVER] failed to discard ${id}:`, err.message);
-      }
-    }
-    this.bus.fire('goal:discarded', { ids: toDiscard, via: 'user-resume-prompt' },
-                  { source: 'GoalDriver' });
-  }
 
   // ════════════════════════════════════════════════════════
   // CORE LOOP — select-and-pursue
@@ -837,5 +557,26 @@ class GoalDriver {
     }
   }
 }
+
+// v7.6.2 Track A continuation: failure-pause policy mixin.
+// _applyFailurePause (~118 LOC: rate-limit, user-rejection, exponential
+// backoff, stall-threshold) extracted to GoalDriverFailurePolicy.js as
+// a prototype mixin. Methods read/write shared state via `this` (the
+// GoalDriver instance) — see GoalDriverFailurePolicy.js header for the
+// state-coupling note and ARCHITECTURE.md § 5.8 for the canonical
+// mixin convention.
+const { failurePolicyMixin } = require('./GoalDriverFailurePolicy');
+Object.assign(GoalDriver.prototype, failurePolicyMixin);
+
+// v7.6.2 Track A continuation: boot-pickup + discard-cascade mixin.
+// _handleBootPickup (~111 LOC: 24h-window resume detection, ask/always/
+// never modes, ui:resume-prompt with auto-decline timer) and
+// _discardGoalAndSubgoals (~25 LOC: parent + blocking-subgoals cascade)
+// extracted to GoalDriverBootRecovery.js as a prototype mixin. Plus the
+// RESUME_PROMPT_TIMEOUT_MS constant moved with them. Mixin reads/writes
+// this._pendingResumePrompt and this._resumePromptTimer which the main
+// class also touches in stop() and _onResumeDecision().
+const { bootRecoveryMixin } = require('./GoalDriverBootRecovery');
+Object.assign(GoalDriver.prototype, bootRecoveryMixin);
 
 module.exports = { GoalDriver };

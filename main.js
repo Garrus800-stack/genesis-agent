@@ -77,6 +77,19 @@ app.whenReady().then(async () => {
     // gates. PreservationInvariants rules 3-5 count gate calls but can be gamed
     // by adding a new bypass path without reducing existing call counts.
     'src/agent/hexagonal/SelfModificationPipeline.js',
+    // v7.6.2 audit-closeout (M1): the four methods that actually write to disk
+    // (modify, _modifyWithDiff, _modifyFullFile, _extractPatches) live in this
+    // extracted file since v7.4.3. Without hash-locking it, the v7.2.1 defense
+    // chain above is bypassable — Genesis could rewrite the write-side of the
+    // pipeline while leaving Pipeline.js untouched. The hash-lock-coverage audit
+    // (scripts/audit-hash-lock-coverage.js) prevents recurrence after future splits.
+    'src/agent/hexagonal/SelfModificationPipelineModify.js',
+    // v7.6.2 audit-closeout (M1, related): VM prototype isolation patterns
+    // (Object.freeze, Object.create(null)) live in this file since the v7.1.2
+    // Sandbox split. Hash-locking it closes the same defense-in-depth gap as
+    // the SANDBOX_ISOLATION PreservationInvariants rule (whose targets were
+    // also widened to include this file in the same closeout).
+    'src/agent/foundation/SandboxVM.js',
   ]);
 
   // Phase 2: Create window

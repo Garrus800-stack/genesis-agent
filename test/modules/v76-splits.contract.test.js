@@ -144,4 +144,110 @@ describe('v76-splits contract: CommandHandlersOpenLinux', () => {
 
 });
 
+// ────────────────────────────────────────────────────────────────
+// v7.6.1 audit-closeout split: EpisodicMemoryRecall
+// ────────────────────────────────────────────────────────────────
+describe('v76-splits contract: EpisodicMemoryRecall (v7.6.1)', () => {
+
+  test('exports recallMixin with the eight required methods', () => {
+    const { recallMixin } = require(path.join(ROOT, 'src/agent/hexagonal/EpisodicMemoryRecall'));
+    assert(typeof recallMixin === 'object', 'recallMixin must be an object');
+    const expected = [
+      '_scoreRelevance', '_tokenize', '_detectCausalLinks', '_traceCausalChain',
+      '_embedEpisode', '_semanticSimilarity', '_cacheQueryEmbedding', '_cosineSimilarity',
+    ];
+    for (const m of expected) {
+      assertEqual(typeof recallMixin[m], 'function', `recallMixin.${m} must be a function`);
+    }
+  });
+
+  test('EpisodicMemory.prototype carries the recall methods after Object.assign', () => {
+    const { EpisodicMemory } = require(path.join(ROOT, 'src/agent/hexagonal/EpisodicMemory'));
+    assertEqual(typeof EpisodicMemory.prototype._scoreRelevance, 'function');
+    assertEqual(typeof EpisodicMemory.prototype._embedEpisode, 'function');
+    assertEqual(typeof EpisodicMemory.prototype._tokenize, 'function');
+  });
+
+  test('main file does not duplicate the extracted recall methods', () => {
+    const fs = require('fs');
+    const main = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/EpisodicMemory.js'), 'utf8');
+    // Each recall method must appear exactly once in the codebase — only in the mixin file.
+    // Main file may still reference them via this. but must not redefine them.
+    assert(!/^\s*_scoreRelevance\s*\(/m.test(main), 'main file must not redefine _scoreRelevance');
+    assert(!/^\s*_embedEpisode\s*\(/m.test(main), 'main file must not redefine _embedEpisode');
+  });
+
+});
+
+// ────────────────────────────────────────────────────────────────
+// v7.6.2 Track A continuation: GoalDriverFailurePolicy
+// ────────────────────────────────────────────────────────────────
+describe('v76-splits contract: GoalDriverFailurePolicy (v7.6.2)', () => {
+
+  test('exports failurePolicyMixin with _applyFailurePause', () => {
+    const { failurePolicyMixin } = require(path.join(ROOT, 'src/agent/agency/GoalDriverFailurePolicy'));
+    assert(typeof failurePolicyMixin === 'object', 'failurePolicyMixin must be an object');
+    assertEqual(typeof failurePolicyMixin._applyFailurePause, 'function',
+      'failurePolicyMixin._applyFailurePause must be a function');
+  });
+
+  test('GoalDriver.prototype carries _applyFailurePause after Object.assign', () => {
+    const { GoalDriver } = require(path.join(ROOT, 'src/agent/agency/GoalDriver'));
+    assertEqual(typeof GoalDriver.prototype._applyFailurePause, 'function');
+  });
+
+  test('main file does not duplicate _applyFailurePause', () => {
+    const fs = require('fs');
+    const main = fs.readFileSync(path.join(ROOT, 'src/agent/agency/GoalDriver.js'), 'utf8');
+    assert(!/^\s*async\s+_applyFailurePause\s*\(/m.test(main),
+      'main file must not redefine _applyFailurePause');
+  });
+
+  test('FailurePolicy keeps the 500ms idempotency-window guard', () => {
+    const fs = require('fs');
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/agency/GoalDriverFailurePolicy.js'), 'utf8');
+    assert(/_now - lastPaused < 500/.test(src), '500ms window guard must be present');
+    assert(/REJECTION_STALL_THRESHOLD\s*=\s*1/.test(src), 'rejection stall threshold = 1 must be present');
+  });
+
+});
+
+// ────────────────────────────────────────────────────────────────
+// v7.6.2 Track A continuation: GoalDriverBootRecovery
+// ────────────────────────────────────────────────────────────────
+describe('v76-splits contract: GoalDriverBootRecovery (v7.6.2)', () => {
+
+  test('exports bootRecoveryMixin with the two required methods', () => {
+    const { bootRecoveryMixin } = require(path.join(ROOT, 'src/agent/agency/GoalDriverBootRecovery'));
+    assert(typeof bootRecoveryMixin === 'object', 'bootRecoveryMixin must be an object');
+    assertEqual(typeof bootRecoveryMixin._handleBootPickup, 'function');
+    assertEqual(typeof bootRecoveryMixin._discardGoalAndSubgoals, 'function');
+  });
+
+  test('GoalDriver.prototype carries the boot-recovery methods after Object.assign', () => {
+    const { GoalDriver } = require(path.join(ROOT, 'src/agent/agency/GoalDriver'));
+    assertEqual(typeof GoalDriver.prototype._handleBootPickup, 'function');
+    assertEqual(typeof GoalDriver.prototype._discardGoalAndSubgoals, 'function');
+  });
+
+  test('main file does not duplicate the extracted boot-recovery methods', () => {
+    const fs = require('fs');
+    const main = fs.readFileSync(path.join(ROOT, 'src/agent/agency/GoalDriver.js'), 'utf8');
+    assert(!/^\s*_handleBootPickup\s*\(/m.test(main),
+      'main file must not redefine _handleBootPickup');
+    assert(!/^\s*async\s+_discardGoalAndSubgoals\s*\(/m.test(main),
+      'main file must not redefine _discardGoalAndSubgoals');
+  });
+
+  test('BootRecovery keeps the 24h resume-window and auto-decline timer', () => {
+    const fs = require('fs');
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/agency/GoalDriverBootRecovery.js'), 'utf8');
+    assert(/RESUME_PROMPT_TIMEOUT_MS\s*=\s*60_000/.test(src), 'RESUME_PROMPT_TIMEOUT_MS must be 60s');
+    assert(/24 \* 60 \* 60 \* 1000/.test(src) || /RESUME_WINDOW_MS/.test(src),
+      'must include 24h resume window');
+    assert(/ui:resume-prompt/.test(src), 'must fire ui:resume-prompt');
+  });
+
+});
+
 run();

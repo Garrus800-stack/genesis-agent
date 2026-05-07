@@ -68,7 +68,13 @@ const INVARIANTS = [
   {
     id: 'VERIFICATION_GATE',
     description: 'SelfModificationPipeline must call _verifyCode before writing',
-    targets: [/SelfModificationPipeline\.js$/],
+    // v7.6.2 audit-closeout (H4): the four methods that write to disk
+    // (modify, _modifyWithDiff, _modifyFullFile, _extractPatches) were
+    // extracted to SelfModificationPipelineModify.js in v7.4.3. Both the
+    // 2× this._verifyCode() calls and the 2× this.guard.validateWrite()
+    // calls live in Modify.js — Pipeline.js itself has 0 such calls.
+    // Targets must cover both files for the rule to actually defend.
+    targets: [/SelfModificationPipeline(?:Modify)?\.js$/],
     check(oldCode, newCode) {
       const oldCalls = _countPattern(oldCode, /this\._verifyCode\s*\(/g);
       const newCalls = _countPattern(newCode, /this\._verifyCode\s*\(/g);
@@ -83,10 +89,15 @@ const INVARIANTS = [
   {
     id: 'SAFETY_SCAN_GATE',
     description: 'SelfModificationPipeline must call codeSafety.scanCode before writing',
-    targets: [/SelfModificationPipeline\.js$/],
+    // v7.6.2 audit-closeout (H4 doubly-dark): same target fix as above PLUS
+    // the regex was defeated by the TypeScript-cast-parenthesis pattern
+    //   /** @type {any} */ (this)._codeSafety.scanCode(...)
+    // used in Modify.js Z.190 + Z.278. The (?:this|\(this\)) alternative
+    // matches both the bare `this.` form and the `(this).` cast form.
+    targets: [/SelfModificationPipeline(?:Modify)?\.js$/],
     check(oldCode, newCode) {
-      const oldCalls = _countPattern(oldCode, /this\._codeSafety\.scanCode\s*\(/g);
-      const newCalls = _countPattern(newCode, /this\._codeSafety\.scanCode\s*\(/g);
+      const oldCalls = _countPattern(oldCode, /(?:this|\(this\))\._codeSafety\.scanCode\s*\(/g);
+      const newCalls = _countPattern(newCode, /(?:this|\(this\))\._codeSafety\.scanCode\s*\(/g);
       if (newCalls < oldCalls) {
         return { pass: false, detail: `Safety scan calls reduced from ${oldCalls} to ${newCalls}` };
       }
@@ -98,7 +109,8 @@ const INVARIANTS = [
   {
     id: 'SAFEGUARD_GATE',
     description: 'SelfModificationPipeline must call guard.validateWrite before writing',
-    targets: [/SelfModificationPipeline\.js$/],
+    // v7.6.2 audit-closeout (H4): see VERIFICATION_GATE comment above.
+    targets: [/SelfModificationPipeline(?:Modify)?\.js$/],
     check(oldCode, newCode) {
       const oldCalls = _countPattern(oldCode, /this\.guard\.validateWrite\s*\(/g);
       const newCalls = _countPattern(newCode, /this\.guard\.validateWrite\s*\(/g);
@@ -127,7 +139,12 @@ const INVARIANTS = [
   {
     id: 'SANDBOX_ISOLATION',
     description: 'Sandbox must maintain VM prototype isolation',
-    targets: [/Sandbox\.js$/],
+    // v7.6.2 audit-closeout (H2): regex was /Sandbox\.js$/ — but the real
+    // Object.freeze / Object.create(null) patterns live in SandboxVM.js
+    // since the v7.1.2 split. Sandbox.js itself has 0 such patterns.
+    // Targets now cover both files; Sandbox.js will trivially pass
+    // (oldFreeze=0), SandboxVM.js gets the actual protection.
+    targets: [/Sandbox\.js$/, /SandboxVM\.js$/],
     check(oldCode, newCode) {
       // Check that Object.freeze / Object.create(null) patterns are preserved
       const oldFreeze = _countPattern(oldCode, /Object\.freeze|Object\.create\(null\)/g);
@@ -142,13 +159,25 @@ const INVARIANTS = [
   // ── 8. Shutdown sync write integrity ───────────────────────
   {
     id: 'SHUTDOWN_SYNC_WRITES',
-    description: 'Shutdown paths must use synchronous writes (not async/debounced)',
-    targets: [/AgentCoreHealth\.js$/],
+    description: 'Files that persist via sync writes must not regress to async (data-loss risk on shutdown)',
+    // v7.6.2 audit-closeout (H3): regex was /AgentCoreHealth\.js$/ — but
+    // that file has 0 sync-write patterns. The actual sync writes live
+    // in 28 service files (StorageService, ConversationMemory, Settings,
+    // GoalPersistence, Homeostasis, NeedsSystem, ImmuneSystem, etc.).
+    // Targets are now broad (all src/agent/**.js); the early-return in
+    // check() makes the rule a no-op for files without sync-write
+    // patterns, so existing services without persistence are unaffected.
+    // Architectural-fitness Check #4 ('Shutdown Persist Safety') remains
+    // as the second defense layer (CI-side); this rule is the live-side
+    // (self-mod-time) enforcement.
+    targets: [/^src\/agent\/.*\.js$/],
     check(oldCode, newCode) {
       // Ensure _saveSync or writeFileSync patterns aren't replaced with async
       const oldSync = _countPattern(oldCode, /_saveSync|writeFileSync|writeJSONSync/g);
+      // Early-return: file is not a sync-writing service, rule doesn't apply.
+      if (oldSync === 0) return { pass: true };
       const newSync = _countPattern(newCode, /_saveSync|writeFileSync|writeJSONSync/g);
-      if (oldSync > 0 && newSync < oldSync) {
+      if (newSync < oldSync) {
         return { pass: false, detail: `Synchronous shutdown writes reduced from ${oldSync} to ${newSync}` };
       }
       // Check for introduction of writeJSONDebounced in stop() paths
@@ -166,8 +195,15 @@ const INVARIANTS = [
     description: 'EventBus listener dedup mechanism must not be removed',
     targets: [/EventBus\.js$/],
     check(oldCode, newCode) {
-      const oldDedup = /dedup|_listenerKeys/.test(oldCode);
-      const newDedup = /dedup|_listenerKeys/.test(newCode);
+      // v7.6.2 audit-closeout (M3): the previous regex /dedup|_listenerKeys/
+      // matched the three "dedup" mentions in EventBus.js — all of which are
+      // in JSDoc / inline comments (Z.70, Z.92, Z.114). The actual dedup
+      // logic uses identifiers _keyedEntries (Map) and compositeKey (the
+      // computed `${event}::${key}` string). Tightening to those identifiers
+      // means the rule fires when the real code is removed, not just when
+      // a comment word disappears.
+      const oldDedup = /_keyedEntries\b|compositeKey\b/.test(oldCode);
+      const newDedup = /_keyedEntries\b|compositeKey\b/.test(newCode);
       if (oldDedup && !newDedup) {
         return { pass: false, detail: 'EventBus listener dedup mechanism removed — accumulation risk' };
       }

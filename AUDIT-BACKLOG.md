@@ -1,9 +1,125 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.6.1 · Last updated: v7.6.1 audit-closeout (post-ship findings addressed in-version)
+> Version: 7.6.2 · Last updated: v7.6.2 (Track A continuation — Goal-Driver-Trio cleanup)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.6.2
+
+Track A continuation focused on the Goal-Driver-Trio identified in the
+v7.6.1 audit. Two structural splits plus one in-class decomposition,
+no behavior change. See `CHANGELOG.md` `[7.6.2]` for per-item details.
+
+- **GoalDriver split into three files.** `GoalDriver.js` 841 → 582 LOC
+  via two extracted prototype mixins:
+  - `GoalDriverFailurePolicy.js` (180 LOC) holds `_applyFailurePause`
+    (rate-limit, user-rejection, exponential backoff, stall threshold,
+    500ms idempotency window).
+  - `GoalDriverBootRecovery.js` (198 LOC) holds `_handleBootPickup`
+    and `_discardGoalAndSubgoals` plus `RESUME_PROMPT_TIMEOUT_MS` const.
+  - One File-Size-Guard WARN cleared. Source-presence tests
+    (v751-fix, v758-fix) repointed to the new files.
+- **GoalStack `addGoal` internal decomposition.** Body 133 → 61 LOC
+  via two helpers: `_observeGoalPush` (Self-Gate telemetry) and
+  `_handleGateResult` (block/warn/novel-claimed/pass dispatch). File
+  total grew slightly (823 → 851 LOC) due to JSDoc headers; remains
+  in the WARN list pending the Goal-DAG rework. Public-API unchanged.
+- **Contract tests extended.** `v76-splits.contract.test.js` from 11
+  to 22 tests, now also pins EpisodicMemoryRecall (v7.6.1) plus the
+  two new GoalDriver mixins. Each contract verifies mixin exports,
+  prototype binding, no inline duplication, and key invariants.
+
+### Audit closeout (v7.6.2 in-version, no version bump)
+
+A post-ship static analysis surfaced four high and two medium findings
+— all dark / weak preservation rules and one hash-lock-list gap drifted
+in over previous releases. Patched into the v7.6.2 line directly.
+
+- **H1 `intent-tool-coherence` GateStats wiring.** `recordGate` was
+  passed `{ verdict: 'mismatch' }` (Object) since v7.5.1 — silently
+  dropped by the `VALID_VERDICTS` Set lookup. Counter empty for ~12
+  months. Replaced with `verdict.coherent ? 'pass' : 'warn'` recorded
+  on every tool call.
+- **H2 `SANDBOX_ISOLATION` rule dark.** Targets was `Sandbox.js$` but
+  the `Object.freeze` / `Object.create(null)` patterns live in
+  `SandboxVM.js` since v7.1.2. Targets widened to cover both files.
+- **H3 `SHUTDOWN_SYNC_WRITES` rule dark.** Targets was
+  `AgentCoreHealth.js$` (0 sync-write patterns). Re-scoped to
+  `^src/agent/.*\.js$` with early-return for non-persisting files;
+  now defends 28 service-side persistence paths at self-mod time.
+- **H4 three SelfMod-Pipeline rules dark, one doubly-dark.**
+  `VERIFICATION_GATE`, `SAFETY_SCAN_GATE`, `SAFEGUARD_GATE` targeted
+  `SelfModificationPipeline.js$` but the four disk-writing methods
+  moved to `SelfModificationPipelineModify.js` in v7.4.3. Targets
+  widened to `SelfModificationPipeline(?:Modify)?\.js$`.
+  `SAFETY_SCAN_GATE` regex additionally tightened to
+  `(?:this|\(this\))\._codeSafety` so the TypeScript-cast-parenthesis
+  pattern (`/** @type {any} */ (this)._codeSafety...`) is matched.
+- **M1 hash-lock list incomplete.** `main.js` `lockCritical([...])`
+  listed `SelfModificationPipeline.js` but not the actual disk-writer
+  `SelfModificationPipelineModify.js`. Same v7.4.3 extract-without-
+  update story as H4. Added Modify.js and SandboxVM.js — list now
+  18 files, all verified to exist.
+- **M3 `EVENTBUS_DEDUP` regex matched comments.** Old regex
+  `/dedup|_listenerKeys/` matched the three "dedup" mentions which
+  are all JSDoc/inline comments; the real code uses `_keyedEntries`
+  (Map) and `compositeKey` identifiers. Tightened to
+  `/_keyedEntries\b|compositeKey\b/`. Test fixture
+  `fakeEventBus` updated to use the real identifiers.
+
+**Two new audit gates wired into CI:**
+
+- `scripts/audit-gate-stats-callers.js` — static-analyzes every
+  `recordGate(name, verdict, ...)` call site, fails on Object literals
+  or invalid string verdicts, warns on dynamic identifiers. Strips
+  comments before scanning. 14th CI gate.
+- `scripts/audit-hash-lock-coverage.js` — parses `lockCritical([...])`,
+  walks `src/agent` for files calling all three SelfMod-pipeline
+  gates (3-of-3 = strict, must be locked; 2-of-3 = warn for drift
+  visibility). Reports stale lock-list entries. 15th CI gate.
+
+**Real-source contract tests:** `test/modules/v762-closeout.contract.test.js`
+(19 tests) pins each fix against the actual source files, plus smoke
+tests for both new audit scripts and ci-wiring verification.
+
+### Tests / fitness / audits at v7.6.2 (post-closeout)
+
+- Tests: 6636 passed Linux (was 6617 — +19 closeout contract tests),
+  0 failed.
+- Architectural fitness: 127/130 (98%), File-Size-Guard 7/10, Test-
+  Coverage 10/10 (the two new audit scripts referenced in
+  `v762-closeout.contract.test.js`).
+- All 15 CI audit gates green.
+- Service-wiring 919/919, late-bindings 316/316 — unchanged.
+- 5 dark/weak PreservationInvariants rules → 0 dark.
+- Hash-lock coverage: 16 → 18 files.
+
+### Items still deferred after v7.6.2
+
+These are carried forward from the v7.6.1 audit-closeout deferred list.
+None are drift; all are architectural follow-ups warranting scoped
+later releases:
+
+- **AgentLoop `pursue` / `_executeLoop` decomposition** (367 + 259 LOC
+  mega-methods). Prerequisite for the Goal-DAG rework — own release.
+- **`audit-contracts.js` strict lift** (61 unprotected security-test
+  candidates across 15 files; ~1h pass to add `<contract>:` prefixes
+  to 8-10 clearest clusters and lift the advisory gate to CI failure).
+- **Slash-Discipline coverage inventory** for `self-inspect/reflect/
+  modify/repair/daemon/peer/clone` — verify which intents are
+  pure-slash-only vs. still keyword-regex; document in
+  `docs/GATE-INVENTORY.md`.
+- **SECURITY.md "Supply-Chain assumptions" subsection** covering
+  pinned version spans (acorn, chokidar, tree-kill `~`-tilde) and
+  override rationale.
+- **CostStream-failover-listener** (pushback event exists since v7.5.8
+  Phase 3b, CostStream subscription missing — additive feature).
+- **ImpactForecast.fragilityDelta** (not implemented).
+- **Goal-DAG, Hauptstandort + Außenposten, identity-migration** (gated
+  on AgentLoop decomposition / architectural design reife).
 
 ---
 

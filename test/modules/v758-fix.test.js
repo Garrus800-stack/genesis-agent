@@ -411,7 +411,10 @@ describe('v7.5.8 hotfix-2 — agent-loop:complete goalId fallback', () => {
 describe('v7.5.8 hotfix-2 — Goal-failure single-strike on user-rejection', () => {
 
   test('source-presence: REJECTION_STALL_THRESHOLD = 1', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/agency/GoalDriver.js'), 'utf8');
+    // v7.6.2 Track A: _applyFailurePause was extracted from GoalDriver.js
+    // to GoalDriverFailurePolicy.js (failurePolicyMixin onto prototype).
+    // The REJECTION_STALL_THRESHOLD constant moved with the method.
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/agency/GoalDriverFailurePolicy.js'), 'utf8');
     assert(/REJECTION_STALL_THRESHOLD\s*=\s*1/.test(src),
       'threshold must be 1 (stall on first user-rejection)');
     assert(/no further auto-pickup/.test(src),
