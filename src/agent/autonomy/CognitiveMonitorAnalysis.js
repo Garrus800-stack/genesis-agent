@@ -113,47 +113,53 @@ const analysis = {
   // ── Event Wiring ────────────────────────────────────────
 
   _wireEvents() {
+    // v7.6.4 L1 fix: this._sub is grafted onto the host prototype by
+    // applySubscriptionHelper(CognitiveMonitor, ...) before Object.assign
+    // below merges this mixin in. At runtime `this` is a CognitiveMonitor
+    // instance so _sub resolves via the prototype chain. Each subscription
+    // is tracked on this._unsubs and torn down by CognitiveMonitor.stop().
+
     // v4.12.5-fix: Was 'tool:executed' — ToolRegistry emits 'tools:result'
     // with { name, duration, success }. Adapted field: duration (not durationMs).
-    this.bus.on('tools:result', (data) => {
+    this._sub('tools:result', (data) => {
       this.recordToolCall(data.name, data.success !== false, data.duration || 0);
-    }, { source: 'CognitiveMonitor' });
+    });
 
     // Listen for LLM call metrics
-    this.bus.on('llm:call-complete', (data) => {
+    this._sub('llm:call-complete', (data) => {
       this.updateTokenUsage(
         (data.promptTokens || 0) + (data.responseTokens || 0)
       );
-    }, { source: 'CognitiveMonitor' });
+    });
 
     // Listen for reasoning results
-    this.bus.on('reasoning:step', (data) => {
+    this._sub('reasoning:step', (data) => {
       if (data.conclusion) {
         this.recordReasoning(data.conclusion, { source: 'ReasoningEngine' });
       }
-    }, { source: 'CognitiveMonitor' });
+    });
 
     // Listen for agent loop steps
     // v4.12.5-fix: agent-loop:step-complete is only emitted on successful steps
     // (errors break out of the loop). Removed false data.success check.
-    this.bus.on('agent-loop:step-complete', (data) => {
+    this._sub('agent-loop:step-complete', (data) => {
       if (data.result) {
         this.recordReasoning(
           `Step ${data.stepIndex}: ${data.type} → OK`,
           { source: 'AgentLoop', goalId: data.goalId }
         );
       }
-    }, { source: 'CognitiveMonitor' });
+    });
 
     // Listen for goal completions (decision quality feedback)
-    this.bus.on('goal:completed', (data) => {
+    this._sub('goal:completed', (data) => {
       // Find decisions related to this goal
       for (let i = this._decisions.length - 1; i >= 0; i--) {
         if (this._decisions[i].goalId === data.id && this._decisions[i].quality === null) {
           this.evaluateDecision(i, data.success ? 'success' : 'failure');
         }
       }
-    }, { source: 'CognitiveMonitor' });
+    });
   },
 
   // ── Periodic Analysis ───────────────────────────────────

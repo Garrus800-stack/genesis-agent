@@ -154,30 +154,36 @@ const vitals = {
   // ── Event Wiring ──────────────────────────────────────────
 
   _wireEvents() {
+    // v7.6.4 L1 fix: this._sub is grafted onto the host prototype by
+    // applySubscriptionHelper(Homeostasis, ...) before Object.assign merges
+    // this mixin in. At runtime `this` is a Homeostasis instance so _sub
+    // resolves via the prototype chain. Each subscription is tracked on
+    // this._unsubs and torn down by Homeostasis.stop().
+
     // Track errors for error rate calculation
-    this.bus.on('chat:error', () => {
+    this._sub('chat:error', () => {
       this._errorWindow.push(Date.now());
     }, { source: 'Homeostasis', priority: -10 });
 
-    this.bus.on('circuit:state-change', (data) => {
+    this._sub('circuit:state-change', (data) => {
       const stateMap = { CLOSED: 0, HALF_OPEN: 1, OPEN: 2 };
       this.vitals.circuitState.value = stateMap[data.to] ?? 0;
     }, { source: 'Homeostasis', priority: -10 });
 
     // Track KG size
-    this.bus.on('knowledge:node-added', () => {
+    this._sub('knowledge:node-added', () => {
       this.vitals.kgNodeCount.value++;
     }, { source: 'Homeostasis', priority: -10 });
 
     // Response to prune requests from self
-    this.bus.on('homeostasis:prune-knowledge', (data) => {
+    this._sub('homeostasis:prune-knowledge', (data) => {
       // IdleMind or KnowledgeGraph can listen and act
-    }, { source: 'Homeostasis' });
+    });
 
     // Throttle requests pause IdleMind
-    this.bus.on('homeostasis:throttle', () => {
+    this._sub('homeostasis:throttle', () => {
       this.bus.fire('homeostasis:pause-autonomy', {}, { source: 'Homeostasis' });
-    }, { source: 'Homeostasis' });
+    });
   },
 
 };

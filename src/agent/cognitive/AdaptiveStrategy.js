@@ -54,6 +54,13 @@ class AdaptiveStrategy {
     /** @type {*} */ this.modelRouter = null;
     /** @type {*} */ this.onlineLearner = null;
     /** @type {*} */ this.quickBenchmark = null;
+    // v7.6.4 in-version (typecheck closeout): wired via late-binding in
+    // phase9-cognitive.js — declared here so the type-checker can see it on
+    // the instance type. Used by the apply-delegate to defer adaptations
+    // during emotional rest mode and to inspect bias/escalation signals.
+    // Signal shape mirrors EmotionalSteering._emptySignals() return value.
+    /** @type {{ getSignals?: () => { modelEscalation?: boolean, promptStyleChange?: boolean, suggestedPromptStyle?: string|null, planLengthLimit?: number|null, allowExperimentalSteps?: boolean, skipIdleThinking?: boolean, restMode?: boolean, suggestAbort?: boolean, activityBias?: { explore?: number, study?: number, reflect?: number, dream?: number, ideate?: number } | null, boostCurrentSchema?: boolean, captureInsight?: boolean } } | null} */
+    this.emotionalSteering = null;
 
     // ── State ─────────────────────────────────────────────
     /** @type {Array<AdaptationRecord>} */
@@ -417,13 +424,21 @@ class AdaptiveStrategy {
     }
   }
 
-  /** @private */
+  /**
+   * Check cooldown gate. Internal — called by the apply-delegate.
+   * Underscore prefix denotes module-internal convention only; the method
+   * is intentionally accessible from AdaptiveStrategyApplyDelegate which
+   * holds a back-reference to the strategy instance.
+   */
   _isOnCooldown(key) {
     const lastApplied = this._cooldowns[key] || 0;
     return (Date.now() - lastApplied) < this._config.cooldownMs;
   }
 
-  /** @private */
+  /**
+   * Check rollback memory. Internal — called by the apply-delegate.
+   * See _isOnCooldown rationale for the access pattern.
+   */
   _wasRecentlyRolledBack(proposal) {
     const key = proposal.bias || proposal.taskType || proposal.type;
     const recent = this._history.slice(-10);

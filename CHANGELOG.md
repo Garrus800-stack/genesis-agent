@@ -1,6 +1,306 @@
-## [7.6.3]
+## [7.6.4]
 
-**Drift cleanup, audit-contracts strict, CostStream failover wiring.**
+**Listener-lifecycle closeout. L1 backlog item from v7.6.3 closed at zero.**
+
+Single-track release. No new features, no behavior changes for end users.
+The v7.6.3 audit shipped `audit-listener-lifecycle.js` as a discovery tool
+with 10 leak-risk findings under `src/agent/` — modules registering ≥2
+`bus.on(...)` listeners with no teardown path, so a hot-reload or
+`ServiceRecovery` reinstantiation would stack closures on the bus. Of
+those 10 findings, 6 were real and 4 were audit false-positives the
+static regex couldn't see through. v7.6.4 closes both halves: the audit
+script now recognises the missing patterns, and the 6 real targets are
+migrated to `applySubscriptionHelper` with `stop()`-driven `_unsubAll()`.
+Audit lifted to `--strict` in CI; baseline 0.
+
+### Audit-script extensions (no Genesis-code change)
+
+The pre-fix detector counted 10 findings. The detector was extended in
+three places, reclassifying 4 modules to clean without touching any
+runtime code:
+
+- **Digit-suffix unsub-pattern.** The unsub-assign regex used `[A-Za-z]*`
+  for the suffix on `this._unsub`, which excluded numeric suffixes.
+  `OnlineLearner` (uses `_unsub1`, `_unsub2`) and `LessonsStore` (uses
+  `_unsub1...7`) had textbook teardown patterns the audit could not see.
+  Quantifier widened to `[A-Za-z0-9]*`.
+- **Array-push pattern.** `GoalDriver` (8 listeners) and
+  `ResourceRegistry` (5 listeners) use `this._unsubs = []` plus
+  `this._unsubs.push(bus.on(...))` plus `for (const u of this._unsubs)
+  { u(); }` in `stop()`. The pre-fix audit only matched per-field
+  assignment. New three-way detector: array-init plus push-call plus
+  iterate-or-clear in teardown.
+- **Mixin-host reclassification.** Files that export a plain object
+  merged into a host class via `Object.assign(Host.prototype, mixin)`
+  bind their `this.bus.on(...)` calls to the host at runtime, so cleanup
+  must live on the host. New `buildMixinHostMap()` resolves which file a
+  mixin export lands in (via the `require()` import in the host plus the
+  destructure shape), then checks the host for cleanup. If the host has
+  no teardown, the finding migrates to the host with a `mixinHost` tag.
+
+### Migrated modules
+
+Six modules with no teardown were migrated to the
+`applySubscriptionHelper` mixin from `src/agent/core/subscription-helper.js`.
+The mixin grafts `_sub(event, handler, opts)` and `_unsubAll()` onto the
+class prototype; subscriptions register through `this._sub(...)` and are
+tracked on `this._unsubs`; `stop()` calls `this._unsubAll()`.
+
+| Module | Listeners | Pattern |
+|---|---|---|
+| `planning/SelfOptimizer.js` | 2 | standard class — listeners in constructor, new `stop()` |
+| `organism/FrontierWriter.js` | 2 | standard class — listeners in `enableEventBuffer()` method, new `stop()`. Three registered service instances (`unfinishedWorkFrontier`, `suspicionFrontier`, `lessonFrontier`) each get an independent `_unsubs` array. |
+| `planning/Anticipator.js` | 3 | standard class — listeners in constructor, new `stop()` |
+| `revolution/VectorMemory.js` | 4 | standard class — listeners in `_wireEvents()` called from constructor, new `stop()` |
+| `autonomy/CognitiveMonitor.js` + `CognitiveMonitorAnalysis.js` | 5 | prototype-mixin pair. Helper applied to host BEFORE `Object.assign(CognitiveMonitor.prototype, _cmAnalysis)` so `_sub` is on the prototype chain when the mixin's `_wireEvents()` runs. Mixin rewrites `this.bus.on(...)` → `this._sub(...)`. Host's existing `stop()` extended with `_unsubAll()` after `clearInterval`. |
+| `organism/Homeostasis.js` + `HomeostasisVitals.js` | 5 | prototype-mixin pair, same pattern as CognitiveMonitor pair. Host's existing `stop()` extended with `_unsubAll()` between `clearInterval` and `_saveSync()`. |
+
+`AgentCoreHealth.js` `TO_STOP` list extended with the six service-names
+(`selfOptimizer`, `unfinishedWorkFrontier`, `suspicionFrontier`,
+`lessonFrontier`, `anticipator`, `vectorMemory`); the two mixin-pair
+hosts (`cognitiveMonitor`, `homeostasis`) were already listed. The
+`architectural-fitness` Check #3 (Shutdown Coverage) catches missing
+entries here in general; this release pins the v7.6.4 additions
+specifically via the new contract test below.
+
+### CI lift
+
+`audit-listener-lifecycle.js --strict` is now wired into both `ci` and
+`ci:full` between `audit-class-wiring` and `check-ratchet`. Baseline 0;
+new findings block CI. CI audit gates 14 → 15. The
+`audit-listener-lifecycle` and `audit-listener-lifecycle:strict` npm
+scripts are exposed for direct invocation.
+
+### Contract test
+
+`test/modules/v764-listener-lifecycle.contract.test.js` (19 tests, 57
+assertions) pins three things the audit should not regress on:
+
+- The 6 migrated modules retain their `applySubscriptionHelper` import,
+  the `_unsubs = []` initialiser, the `_sub()` calls, and the
+  `_unsubAll()` teardown. For the two mixin-pair hosts, the helper-call
+  position is also pinned (must run before `Object.assign`).
+- The 4 audit false-positives retain their existing teardown shape
+  (array-push pattern for `GoalDriver`, `ResourceRegistry`; digit-suffix
+  unsub-fields for `OnlineLearner`, `LessonsStore`). If anyone refactors
+  these out, the audit-script extensions added in v7.6.4 lose their
+  justification — this test pins the patterns so the extensions stay
+  honest.
+- The 6 v7.6.4-added entries in the `AgentCoreHealth.js` `TO_STOP`
+  list are present, plus the audit baseline is zero.
+
+### Lessons learned this release
+
+- **Apostrophes in `TO_STOP` comments break `architectural-fitness`
+  Check #3.** The fitness regex `/'([^']+)'/g` extracts service names
+  from the array; an apostrophe inside a comment in the array body
+  (e.g. `enableEventBuffer's collectEvent`) breaks the parse and the
+  service-names after that comment vanish from the extraction set.
+  Caught during Schritt 2 (FrontierWriter) when the score dropped 127
+  → 118 after a clean migration. Defensive: no apostrophes in
+  comments inside the `TO_STOP` array body.
+- **Helper-before-mixin order matters for prototype-mixin pairs.**
+  `applySubscriptionHelper(Host)` must run BEFORE
+  `Object.assign(Host.prototype, mixin)`. Otherwise the mixin's
+  `_wireEvents()` runs in a context where `this._sub` resolves to
+  `undefined` even though `this.bus` is fine. Both v7.6.4 host
+  migrations enforce this order; the contract test pins it.
+
+### Documentation
+
+`docs/GATE-INVENTORY.md` CI-audit-gate table extended from 12 rows to
+15: rows 12–14 cover `audit-raw-settimeout` and `audit-class-wiring`
+(both v7.6.3, previously not in the table) and the new
+`audit-listener-lifecycle` (v7.6.4); footer text corrected to match
+the live `ci` / `ci:full` script content. `docs/ARCHITECTURE-DEEP-DIVE.md`
+header gate-count updated 14 → 15.
+
+### In-version closeout — external audit follow-up
+
+After the listener-lifecycle ship, an external review of the v7.6.4 ZIP
+flagged four findings worth closing in-version (no v7.6.5 bump). All
+fixed without behavior change to the agent itself.
+
+**T1 — `tsconfig.ci.json` `ignoreDeprecations: "6.0"` aborts tsc with
+TS5103.** The v7.6.3 reconstruction of `tsconfig.ci.json` (Bug C of the
+erweiterte Analyse) set `"ignoreDeprecations": "6.0"` with the rationale
+"TypeScript 6 requires this value" — both halves of which were wrong.
+TypeScript 6 does not exist; TypeScript 5.9.x (pinned by
+`package-lock.json`) accepts only `"5.0"`. The wrong value caused tsc to
+exit on TS5103 before reading any source file, masking the 27 known
+mixin-pattern errors documented in the same config's header comment and
+silently breaking `npm run ci:full` at the third step (the type-check).
+Caught only because `npm run ci` (which most release-verification runs
+use) does not invoke tsc at all. Fixed: `"6.0"` → `"5.0"`. The 27 latent
+errors now surface correctly in `ci:full` as advisory output (they remain
+on the v7.6.x deferred list, awaiting the `@mixes` JSDoc decl on
+`subscription-helper.js`). `ARCHITECTURE.md` §10 entry corrected with the
+real failure mechanism and the chain of how the wrong rationale carried
+forward across releases.
+
+**T2 — Three 2-of-3-gate files added to `lockCritical([...])`.**
+`audit-hash-lock-coverage` had advisory-only WARNs on `PluginRegistry.js`,
+`SkillManager.js`, and `PeerNetworkExchange.js` — each held two of the
+three self-mod gates (`validateWrite` + `scanCode`) but was excluded from
+hash-lock under the rationale "writes only to its own subdirectory
+(pluginsDir / skillsDir / peer-exchange dir)". The argument doesn't hold
+once the same files are also the **only** defence against subdirectory
+writes: `PluginRegistry.js` carries the AST safety scan plus
+path-traversal check for plugin code, `SkillManager.js` does the same for
+skills, and `PeerNetworkExchange.js` is the surface where peer-code
+exchange (the social-engineering vector class observed in past Camj78
+attempts) enters the system. If Genesis self-modified one of these files
+to remove the scan, future installs would silently bypass it. Fixed by
+adding all three to `lockCritical([...])` in `main.js` with rationale
+comments. `lockCritical` count 18 → 21; `audit-hash-lock-coverage`
+advisory-WARN count 3 → 0; `architectural-fitness` Check #3 still 10/10.
+Doc updates: `ARCHITECTURE-DEEP-DIVE.md` header and `CAPABILITIES.md`
+hash-locked-files row both updated 18 → 21; `audit-doc-drift` clean
+across 21 doc claims.
+
+**T3 — Two raw `setTimeout` fire-and-forget sites migrated to tracked
+timers.** `audit-raw-settimeout` baseline was 12 sites with 10 covered
+by structural exemptions (Promise.race, assigned-to-this, JSDoc-typecast,
+object-literal property form, HTTP req.setTimeout, MockBackend
+fake-latency). The two remaining were genuine fire-and-forget patterns:
+`HotReloader.js:69` (debounce timer in a closure local; survived
+`unwatch()` and would still call `_handleChange` against torn-down state
+if the watcher closed mid-debounce) and `SelfStatementLog.js:386`
+(_scheduleFlush timer untracked; a stop() during the debounce window
+would run `_flush()` twice or miss the pending flush entirely). Both
+migrated to the documented per-site fix: capture handle as
+`this._<name>Timer` (Map for HotReloader since one handle per watched
+file, single field for SelfStatementLog), clear in
+`unwatch()` / `unwatchAll()` / `stop()`. Audit baseline still 12 with 10
+exempt; the two non-exempt sites are now zero. No behavioral change at
+the runtime level — both code paths already accepted late-firing timers
+as silent no-ops before the migration; the migration just makes that
+explicit and prevents the two narrow race windows.
+
+**T4 — `audit-gate-stats-callers` dynamic-verdict warnings cleared via
+inline-hint pattern.** Three call sites used bare identifiers as the
+verdict argument (`recordGate('self-gate', verdict)`,
+`recordGate('injection-gate', v)`,
+`recordGate('tool-call-verification', gv)`) and the regex-based audit
+could not statically prove the values were in `VALID_VERDICTS`. Two of
+the three sites already extracted the value through a literal-branch
+ternary one line above, but the audit only looked at the immediate
+argument expression. Fix is structural: `audit-gate-stats-callers.js`
+gained a documented opt-in hint pattern — `// recordGate-verdict: a |
+b | c` on the line immediately above the call. The hint must list
+values that are all in `VALID_VERDICTS`; if so the call counts as pass,
+if values are listed that aren't valid the call still fails (so the
+hint can't be used to silently lie about origin). All three sites now
+carry hints documenting the actual verdict-source: self-gate is `pass
+| warn` (never block; `checkSelfAction` returns `score >= 1 ? 'warn' :
+'pass'`), injection-gate is `pass | warn | block` (gateScan.verdict ∈
+safe|warn|block with safe→pass mapping), tool-call-verification is
+`pass | warn` (verified→pass, anything else→warn). Audit result:
+5 valid, 0 dynamic, 0 invalid (was 2 valid, 3 dynamic).
+
+**T5 — All 27 latent TypeScript errors resolved; `ci:full` typecheck
+step now green.** Once T1 unmasked the errors, six files surfaced 27
+issues across three structural patterns. The fixes were carefully
+chosen to be additive (no behavior change at runtime) and to make the
+Mixin/late-binding/encapsulation contracts visible to the JSDoc/TS
+checker rather than papering over them with `@ts-ignore` directives.
+
+The subscription-helper mixin pattern produced 11 errors across four
+files (CausalAnnotation, AdaptivePromptStrategy, ExecutionProvenance,
+plus the v7.6.4 listener-lifecycle migrants which were flagged earlier
+in the build): `_sub` and `_unsubAll` were grafted onto class
+prototypes by `applySubscriptionHelper(Class)` at module load, but the
+type-checker scanning a single file at a time never saw the methods
+appear. Two coordinated changes resolved this. `subscription-helper.js`
+moved from a guarded graft (`if (!proto._sub)`) to unconditional
+override — same logical implementation either way, idempotent under
+re-application — which permitted the mixin host classes to declare
+typed stub methods of the same name without breaking the mixin. Each
+host class now carries a stub block with full JSDoc signatures
+documenting that the helper replaces them at module load. The
+behavioural test for the helper (`subscription-helper.test.js`) was
+updated from "does not overwrite" to "overrides existing methods" to
+pin the new contract. No call site changed.
+
+The late-binding pattern produced 6 errors in `GoalSynthesizer.js`
+(`_unfinishedWorkFrontier`, `_suspicionFrontier`, `_lessonFrontier`)
+plus 1 in `AdaptiveStrategy.js` (`emotionalSteering`). The container
+wires these into the instance via the late-binding manifest entries in
+`phase9-cognitive.js`/`phase2-intelligence.js`/`phase8-revolution.js`,
+but neither constructor declared them — so the type-checker saw bare
+property reads on instances that, statically, had no such property. Each
+property is now declared explicitly in its constructor as `null` with
+the matching JSDoc `@type` annotation. The runtime contract is
+unchanged (the late-binding pass sets the real reference; the null
+default is the documented "service unavailable" state already handled
+by every read site through optional chaining). The `emotionalSteering`
+type spells out the full signal shape (modelEscalation, planLengthLimit,
+activityBias.{explore,study,reflect,dream,ideate}, restMode, etc.) so
+that `AdaptiveStrategyApplyDelegate.diagnose()` can read the fields
+without further casts.
+
+The encapsulation pattern produced 8 errors in `AdaptiveStrategyApply.js`
+where the apply-delegate accessed parent-class members `_isOnCooldown`,
+`_wasRecentlyRolledBack`, and `emotionalSteering`. The two methods
+carried `/** @private */` JSDoc tags that the checker honoured as a
+hard private-access barrier — but the apply-delegate is the documented
+intended caller of these methods (it is the extracted-composition
+counterpart of the strategy class, see v7.1.2 history). Both tags were
+removed and replaced with prose comments that explain the
+module-internal access pattern. Care was taken to avoid the literal
+string `@private` in the new JSDoc body, because the parser was found
+to detect the tag inside prose blocks too (it had silently triggered
+the same TS2341 error during the first attempt at a fix).
+
+Last, `AutoUpdater.js` produced one error on `cfg.autoApply`: the
+constructor's JSDoc typed `config` as `Partial<typeof DEFAULTS>` and
+`DEFAULTS` did not include `autoApply` (which lives outside the four
+standard fields). The opts type was widened to
+`Partial<typeof DEFAULTS> & { autoApply?: boolean }` to admit the
+optional flag without polluting `DEFAULTS` with a runtime entry that
+isn't actually a default.
+
+`tsc --project tsconfig.ci.json --noEmit` now exits 0; `npm run ci:full`
+reaches the build-bundle step without aborting; the 27 errors documented
+in the `tsconfig.ci.json` header comment are no longer "latent" and that
+header note is now obsolete.
+
+### Verification
+
+- `npm test` 6705 passed · 0 failed · 123s (Win baseline) / 6694 passed · 0 failed · 165s (Linux). Test count delta vs v7.6.3: +19 Win / +9 Linux. The 19 new tests are all in the new contract file `v764-listener-lifecycle.contract.test.js`; the smaller Linux net delta reflects platform-conditional tests in unrelated suites.
+- 15 CI audit gates green. Architectural fitness 127/130 (98%).
+- `audit-listener-lifecycle` baseline 0 findings, 12 modules clean
+  (6 migrated + 4 false-positives + 2 mixin-pair components).
+- `audit-hash-lock-coverage` 0 missing (3 advisory WARNs cleared in the
+  in-version closeout above).
+- `audit-raw-settimeout` non-exempt findings 2 → 0 (HotReloader debounce
+  + SelfStatementLog flush both lifecycle-tracked); 10 sites remain in
+  baseline, all structurally exempt (Promise.race, assigned timers,
+  JSDoc-typecast wrappers, object-literal property form, HTTP req
+  timeouts, MockBackend fake-latency).
+- `audit-gate-stats-callers` 5/0/0 (was 2 valid / 3 dynamic / 0
+  invalid). All three formerly-dynamic verdict args now carry the
+  documented `// recordGate-verdict: ...` hint comment.
+- `audit-doc-drift` clean across 21 doc claims. Banner counts updated
+  321 → 322 modules and 6650 → 6705 tests (Win baseline). Hash-lock
+  count updated 18 → 21 across `ARCHITECTURE-DEEP-DIVE.md` and
+  `CAPABILITIES.md` to match the in-version closeout.
+- Shutdown-Coverage on Win run reports 76 stoppable services in
+  `TO_STOP` (was 71 in v7.6.3); the +5 net are this release's
+  additions visible to architectural-fitness Check #3
+  (`selfOptimizer`, `anticipator`, `vectorMemory`, plus the three
+  FrontierWriter instances which collapse to one detection-shape in
+  the audit). The two mixin-pair hosts (`cognitiveMonitor`,
+  `homeostasis`) were already counted before v7.6.4.
+- Real boot+shutdown verified on Win:
+  168 services, 1320ms boot, 316/316 late-bindings, 21 critical files
+  hash-protected, 13 integrity-verified, GenesisBackup snapshot on
+  shutdown, clean shutdown without `[catch]` entries from any of the
+  six newly-stoppable services.
+
+---
+
+
 
 Four-track cleanup release. No new features, no behavior changes for end users.
 The catalog-vs-runtime drift accumulated over recent versions has been collapsed

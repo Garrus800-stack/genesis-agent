@@ -43,7 +43,7 @@ const DEFAULTS = {
 
 class AutoUpdater {
   /**
-   * @param {{ bus?: *, settings?: *, intervals?: *, config?: Partial<typeof DEFAULTS> }} opts
+   * @param {{ bus?: *, settings?: *, intervals?: *, config?: Partial<typeof DEFAULTS> & { autoApply?: boolean } }} opts
    */
   constructor({ bus, settings, intervals, config } = {}) {
     this.bus = bus || { emit() {}, fire() {} };

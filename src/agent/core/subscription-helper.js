@@ -80,19 +80,25 @@ function applySubscriptionHelper(TargetClass, options = {}) {
   const proto = TargetClass.prototype;
   const defaultSource = options.defaultSource;
 
-  if (!proto._sub) {
-    if (defaultSource) {
-      proto._sub = function (event, handler, opts) {
-        const merged = (opts && opts.source) ? opts : { ...(opts || {}), source: defaultSource };
-        const unsub = this.bus.on(event, handler, merged);
-        this._unsubs.push(typeof unsub === 'function' ? unsub : () => {});
-        return unsub;
-      };
-    } else {
-      proto._sub = _sub;
-    }
+  // v7.6.4 in-version (typecheck closeout): unconditional override.
+  // Pre-fix the helper guarded with `if (!proto._sub)` to avoid double-grafting,
+  // but that prevented mixin hosts from declaring typed stub methods on their
+  // own class for the JSDoc/TypeScript checker. Idempotent override is safe —
+  // the helper assigns the same logical implementation regardless of how often
+  // it runs against the same prototype, and stub methods on host classes are
+  // intentionally declared so tsc can see `this._sub(...)` and `this._unsubAll()`
+  // at typecheck time. Real runtime behaviour is unchanged.
+  if (defaultSource) {
+    proto._sub = function (event, handler, opts) {
+      const merged = (opts && opts.source) ? opts : { ...(opts || {}), source: defaultSource };
+      const unsub = this.bus.on(event, handler, merged);
+      this._unsubs.push(typeof unsub === 'function' ? unsub : () => {});
+      return unsub;
+    };
+  } else {
+    proto._sub = _sub;
   }
-  if (!proto._unsubAll) proto._unsubAll = _unsubAll;
+  proto._unsubAll = _unsubAll;
 }
 
 module.exports = { applySubscriptionHelper, _sub, _unsubAll };

@@ -30,6 +30,7 @@
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
 const { ORGANISM } = require('../core/Constants');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('Homeostasis');
 
 class Homeostasis {
@@ -117,6 +118,11 @@ class Homeostasis {
       };
     }
 
+    // v7.6.4 L1 fix: lifecycle-aware subscriptions for the prototype-mixin
+    // (HomeostasisVitals._wireEvents). The 5 listeners registered there are
+    // tracked on this._unsubs and torn down by stop()'s this._unsubAll() —
+    // added so reinstantiation does not stack listeners on the bus.
+    this._unsubs = [];
     this._wireEvents();
     // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()
     // this._load();
@@ -141,6 +147,8 @@ class Homeostasis {
     if (this._intervals) {
       this._intervals.clear('homeostasis-tick');
     }
+    // v7.6.4 L1 fix: tear down mixin-registered listeners.
+    this._unsubAll();
     // FIX v5.1.0 (C-1): Sync write on shutdown.
     this._saveSync();
   }
@@ -367,6 +375,12 @@ class Homeostasis {
     } catch (err) { _log.debug('[HOMEOSTASIS] Load state error:', err.message); }
   }
 }
+
+// v7.6.4 L1 fix: apply subscription-helper BEFORE the prototype-mixin so
+// the mixin can call this._sub() (resolved via the prototype chain at
+// runtime). Object.assign below merges in the mixin methods after the
+// helper has installed _sub/_unsubAll on the prototype.
+applySubscriptionHelper(Homeostasis, { defaultSource: 'Homeostasis' });
 
 module.exports = { Homeostasis };
 

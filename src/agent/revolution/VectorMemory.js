@@ -30,6 +30,7 @@ const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
 const { TIMEOUTS } = require('../core/Constants');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('VectorMemory');
 
 class VectorMemory {
@@ -59,7 +60,18 @@ class VectorMemory {
 
     // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()
     // this._load();
+    // v7.6.4 L1 fix: lifecycle-aware subscriptions. Pre-fix the four
+    // _wireEvents() bus.on() calls had no teardown, so reinstantiation
+    // by ServiceRecovery left stale closures attached to the old this.
+    this._unsubs = [];
     this._wireEvents();
+  }
+
+  /**
+   * v7.6.4 L1: lifecycle teardown — _unsubAll() at shutdown / reinstantiation.
+   */
+  stop() {
+    this._unsubAll();
   }
 
   // ════════════════════════════════════════════════════════
@@ -239,7 +251,7 @@ class VectorMemory {
 
   _wireEvents() {
     // Auto-add conversation summaries
-    this.bus.on('chat:completed', async (data) => {
+    this._sub('chat:completed', async (data) => {
       if (!data?.message || !data?.response) return;
       const text = `User: ${data.message.slice(0, 200)}\nGenesis: ${data.response.slice(0, 300)}`;
       await this.add('conversations', text, {
@@ -249,21 +261,21 @@ class VectorMemory {
     }, { source: 'VectorMemory', priority: -10 });
 
     // Auto-add knowledge graph learnings
-    this.bus.on('knowledge:learned', async (data) => {
+    this._sub('knowledge:learned', async (data) => {
       if (data?.text) {
         await this.add('knowledge', data.text, { source: data.source });
       }
     }, { source: 'VectorMemory', priority: -10 });
 
     // Auto-add memory facts
-    this.bus.on('memory:fact-stored', async (data) => {
+    this._sub('memory:fact-stored', async (data) => {
       if (data?.key && data?.value) {
         await this.add('knowledge', `${data.key}: ${data.value}`, { type: 'fact' });
       }
     }, { source: 'VectorMemory', priority: -10 });
 
     // Auto-add idle thoughts
-    this.bus.on('idle:thought-complete', async (data) => {
+    this._sub('idle:thought-complete', async (data) => {
       if (data?.summary) {
         await this.add('knowledge', data.summary, { type: 'thought', activity: data.activity });
       }
@@ -358,5 +370,7 @@ class VectorMemory {
     }
   }
 }
+
+applySubscriptionHelper(VectorMemory, { defaultSource: 'VectorMemory' });
 
 module.exports = { VectorMemory };

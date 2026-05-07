@@ -63,6 +63,18 @@ class GoalSynthesizer {
     this._regressions = 0;
     this._paused = false;
     this._pauseUntilTasks = 0;
+
+    // ── Late-bound frontier services (v7.6.4 in-version typecheck closeout) ──
+    // These properties are assigned by the container's late-binding pass after
+    // the corresponding frontier services have constructed themselves. Declared
+    // as null here so the JSDoc/TS checker sees them on the instance type.
+    // See src/agent/manifest/phase9-cognitive.js for the wire-up.
+    /** @type {{ getRecent?: (n: number) => any[] } | null} */
+    this._unfinishedWorkFrontier = null;
+    /** @type {{ getRecent?: (n: number) => any[] } | null} */
+    this._suspicionFrontier = null;
+    /** @type {{ getRecent?: (n: number) => any[] } | null} */
+    this._lessonFrontier = null;
   }
 
   // ════════════════════════════════════════════════════════

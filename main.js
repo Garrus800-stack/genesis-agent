@@ -90,6 +90,20 @@ app.whenReady().then(async () => {
     // the SANDBOX_ISOLATION PreservationInvariants rule (whose targets were
     // also widened to include this file in the same closeout).
     'src/agent/foundation/SandboxVM.js',
+    // v7.6.4 audit-closeout: three files held 2-of-3 self-mod gates each
+    // (validateWrite + scanCode) but were excluded from hash-lock because
+    // they only write to their own subdirectories (pluginsDir, skillsDir,
+    // peer-exchange dir). The argument doesn't hold once you notice these
+    // files ARE the only defense against subdirectory-writes — if Genesis
+    // rewrote PluginRegistry.js or SkillManager.js it would silently disable
+    // the AST-safety scan + path-traversal check for plugin/skill code, and
+    // PeerNetworkExchange.js is the surface where peer-code exchange
+    // (Camj78-style social-engineering vectors) enters the system. Hash-
+    // locking them aligns the protection with their actual responsibility:
+    // the only wall between Genesis and unscanned third-party code.
+    'src/agent/capabilities/PluginRegistry.js',
+    'src/agent/capabilities/SkillManager.js',
+    'src/agent/hexagonal/PeerNetworkExchange.js',
   ]);
 
   // Phase 2: Create window

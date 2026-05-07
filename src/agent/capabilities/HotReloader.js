@@ -31,6 +31,12 @@ class HotReloader {
     this.moduleCache = new Map();  // file → { module, hash, loadedAt }
     this.watchers = new Map();     // file → FSWatcher
     this.reloadCallbacks = new Map(); // file → callback(newModule)
+    // v7.6.4 in-version (audit-raw-settimeout closeout): debounce timers
+    // tracked per-file so unwatch() and unwatchAll() can clear pending
+    // callbacks. Pre-fix the timer was a closure-scoped local that survived
+    // unwatch — when the watcher fired close() but a debounce was in flight,
+    // the callback would still run _handleChange against a torn-down state.
+    this._debounceTimers = new Map();  // file → Timer
   }
 
   /**
@@ -60,15 +66,19 @@ class HotReloader {
 
     // Watch for changes
     try {
-      let debounceTimer = null;
       const watcher = fs.watch(fullPath, (eventType) => {
         if (eventType !== 'change') return;
 
-        // Debounce: wait 200ms for writes to finish
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
+        // Debounce: wait 200ms for writes to finish.
+        // v7.6.4 in-version: timer captured on this._debounceTimers so
+        // unwatch()/unwatchAll() can clear it before the callback fires.
+        const existing = this._debounceTimers.get(filePath);
+        if (existing) clearTimeout(existing);
+        const t = setTimeout(() => {
+          this._debounceTimers.delete(filePath);
           this._handleChange(filePath, fullPath);
         }, 200);
+        this._debounceTimers.set(filePath, t);
       });
 
       this.watchers.set(filePath, watcher);
@@ -94,6 +104,12 @@ class HotReloader {
       watcher.close();
       this.watchers.delete(filePath);
     }
+    // v7.6.4 in-version: clear any pending debounced reload for this file.
+    const pending = this._debounceTimers.get(filePath);
+    if (pending) {
+      clearTimeout(pending);
+      this._debounceTimers.delete(filePath);
+    }
     this.reloadCallbacks.delete(filePath);
     this.moduleCache.delete(filePath);
   }
@@ -106,6 +122,9 @@ class HotReloader {
       watcher.close();
     }
     this.watchers.clear();
+    // v7.6.4 in-version: clear all pending debounced reloads.
+    for (const t of this._debounceTimers.values()) clearTimeout(t);
+    this._debounceTimers.clear();
     this.reloadCallbacks.clear();
   }
 

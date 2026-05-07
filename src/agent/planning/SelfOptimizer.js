@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('SelfOptimizer');
 class SelfOptimizer {
   constructor({ bus,  eventStore, memory, goalStack, storageDir, storage }) {
@@ -26,9 +27,22 @@ class SelfOptimizer {
     /** @type {{ responses: Array<{timestamp: number, intent: *, msgLength: number, respLength: number, success: boolean, hasCode: boolean}>, errors: Array<{timestamp: number, message: string}>, analysisCount: number, lastAnalysis?: * }} */
     this.metrics = { responses: [], errors: [], analysisCount: 0 };
 
-    // Listen for completed chats to track quality
-    this.bus.on('chat:completed', (data) => this._trackQuality(data), { source: 'SelfOptimizer', priority: -3 });
-    this.bus.on('chat:error', (data) => this._trackError(data), { source: 'SelfOptimizer' });
+    // v7.6.4 L1 fix: lifecycle-aware subscriptions via subscription-helper.
+    // Pre-fix listeners registered in the constructor lived for the lifetime
+    // of the bus, so a hot-reload or service-recovery reinstantiation left
+    // stale closures attached. _sub tracks them on this._unsubs; stop() tears
+    // them down via _unsubAll().
+    this._unsubs = [];
+    this._sub('chat:completed', (data) => this._trackQuality(data), { source: 'SelfOptimizer', priority: -3 });
+    this._sub('chat:error',     (data) => this._trackError(data));
+  }
+
+  /**
+   * v7.6.4 L1: lifecycle teardown. Called from AgentCoreHealth's TO_STOP
+   * sequence at shutdown plus by ServiceRecovery when reinstantiating.
+   */
+  stop() {
+    this._unsubAll();
   }
 
   /**
@@ -250,5 +264,7 @@ class SelfOptimizer {
     return { responses: [], errors: [], analysisCount: 0 };
   }
 }
+
+applySubscriptionHelper(SelfOptimizer, { defaultSource: 'SelfOptimizer' });
 
 module.exports = { SelfOptimizer };

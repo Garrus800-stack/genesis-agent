@@ -34,6 +34,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 
 class FrontierWriter {
   /**
@@ -81,6 +82,12 @@ class FrontierWriter {
       evicted: 0,
       skipped: 0,
     };
+
+    // v7.6.4 L1 fix: lifecycle-aware subscriptions for enableEventBuffer.
+    // Pre-fix the buffer callbacks were registered via bare bus.on() with
+    // no teardown path; multiple FrontierWriter instances reinstantiated
+    // by ServiceRecovery would stack up listeners.
+    this._unsubs = [];
   }
 
   // ════════════════════════════════════════════════════════
@@ -367,17 +374,27 @@ class FrontierWriter {
     this._bufferContextKey = contextKey;
     this._bufferMaxSize = maxSize;
 
-    this.bus.on(collectEvent, (data) => {
+    this._sub(collectEvent, (data) => {
       if (this._eventBuffer.length >= this._bufferMaxSize) this._eventBuffer.shift();
       this._eventBuffer.push(data);
     }, { source: `FrontierWriter:${this._name}`, key: `${this._name}-buffer` });
 
-    this.bus.on(triggerEvent, (data) => {
+    this._sub(triggerEvent, (data) => {
       if (this._eventBuffer.length > 0) {
         this.write(data?.sessionId || 'unknown', { [contextKey]: [...this._eventBuffer] });
         this._eventBuffer.length = 0;
       }
     }, { source: `FrontierWriter:${this._name}`, key: `${this._name}-flush` });
+  }
+
+  /**
+   * v7.6.4 L1: lifecycle teardown. Called from AgentCoreHealth's TO_STOP
+   * sequence at shutdown plus by ServiceRecovery on reinstantiation. Tears
+   * down the enableEventBuffer subscriptions so a reinstantiated writer does
+   * not stack a second pair of buffer/flush listeners on the same events.
+   */
+  stop() {
+    this._unsubAll();
   }
 
   /**
@@ -448,5 +465,7 @@ class FrontierWriter {
     return `${days} day${days > 1 ? 's' : ''} ago`;
   }
 }
+
+applySubscriptionHelper(FrontierWriter);
 
 module.exports = { FrontierWriter };

@@ -1,6 +1,6 @@
 # Genesis Agent — Communication Architecture
 
-> v7.6.3 — How Genesis instances communicate with each other and the outside world.
+> v7.6.4 — How Genesis instances communicate with each other and the outside world.
 > Updated through v7.6.3: same-backend failover (LLM transport layer recovers from sticky errors without relying on cross-backend escape), reasoning-block filter on the model-out path, the carry-over `streamChat` MetaLearning fix, and the v7.6.3 CostStream failover-counter that surfaces `model:failover-unavailable` events alongside cost telemetry without polluting the cost ledger. Internal event bus migrated from `bus.emit` (async, returns Promise) to `bus.fire` (fire-and-forget with `console.warn` error logging) for 446 call sites in v7.6.3 — semantically equivalent for callers that didn't await but errors are now logged instead of silently swallowed.
 
 ---

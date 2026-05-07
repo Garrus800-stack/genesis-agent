@@ -24,6 +24,7 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('CognitiveMonitor');
 
 class CognitiveMonitor {
@@ -73,6 +74,12 @@ class CognitiveMonitor {
     this._cognitiveLoad = 0;    // 0.0 - 1.0
 
     /** @type {*} */ this._intervalHandle = null;
+
+    // v7.6.4 L1 fix: lifecycle-aware subscriptions for the prototype-mixin
+    // (CognitiveMonitorAnalysis._wireEvents). The 5 listeners registered
+    // there are tracked on this._unsubs and torn down by stop()'s
+    // this._unsubAll() — added so reinstantiation does not stack listeners.
+    this._unsubs = [];
     this._wireEvents();
   }
 
@@ -100,6 +107,8 @@ class CognitiveMonitor {
       clearInterval(this._intervalHandle);
       /** @type {*} */ this._intervalHandle = null;
     }
+    // v7.6.4 L1 fix: tear down mixin-registered listeners.
+    this._unsubAll();
   }
 
   // ════════════════════════════════════════════════════════
@@ -408,6 +417,12 @@ class CognitiveMonitor {
 
 
 }
+
+// v7.6.4 L1 fix: apply subscription-helper BEFORE the prototype-mixin so
+// the mixin can call this._sub() (resolved via the prototype chain at
+// runtime). Object.assign below merges in the mixin methods after the
+// helper has installed _sub/_unsubAll on the prototype.
+applySubscriptionHelper(CognitiveMonitor, { defaultSource: 'CognitiveMonitor' });
 
 module.exports = { CognitiveMonitor };
 

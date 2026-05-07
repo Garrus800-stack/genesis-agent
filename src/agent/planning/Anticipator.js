@@ -8,6 +8,7 @@
 // ============================================================
 
 const { NullBus } = require('../core/EventBus');
+const { applySubscriptionHelper } = require('../core/subscription-helper');
 
 class Anticipator {
   constructor({ bus,  memory, knowledgeGraph, eventStore, model }) {
@@ -27,10 +28,20 @@ class Anticipator {
     // Predictions ready to surface
     this.predictions = [];
 
-    // Listen to events
-    this.bus.on('intent:classified', (data) => this._trackIntent(data), { source: 'Anticipator' });
-    this.bus.on('chat:completed', (data) => this._trackCompletion(data), { source: 'Anticipator' });
-    this.bus.on('chat:error', () => { this.errorCount++; }, { source: 'Anticipator' });
+    // v7.6.4 L1 fix: lifecycle-aware subscriptions. Pre-fix the listeners
+    // were registered via bare bus.on() with no teardown, so a hot-reload
+    // or service-recovery reinstantiation left stale closures attached.
+    this._unsubs = [];
+    this._sub('intent:classified', (data) => this._trackIntent(data));
+    this._sub('chat:completed',    (data) => this._trackCompletion(data));
+    this._sub('chat:error',        () => { this.errorCount++; });
+  }
+
+  /**
+   * v7.6.4 L1: lifecycle teardown — _unsubAll() at shutdown / reinstantiation.
+   */
+  stop() {
+    this._unsubAll();
   }
 
   /**
@@ -184,5 +195,7 @@ class Anticipator {
     return null;
   }
 }
+
+applySubscriptionHelper(Anticipator, { defaultSource: 'Anticipator' });
 
 module.exports = { Anticipator };

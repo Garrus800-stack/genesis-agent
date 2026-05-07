@@ -1,9 +1,129 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.6.3 · Last updated: v7.6.3 (Drift cleanup, audit-contracts strict, CostStream failover wiring, erweiterte Analyse-Bericht follow-up)
+> Version: 7.6.4 · Last updated: v7.6.4 (Listener-lifecycle closeout — L1 backlog item from v7.6.3 closed at zero, audit lifted to --strict in CI)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.6.4
+
+### L1 — Listener lifecycle (10 findings closed)
+
+The v7.6.3 `audit-listener-lifecycle.js` shipped as a discovery tool with
+10 findings under `src/agent/`. Closed in two ways:
+
+**Audit-script extensions reclassified 4 modules as clean** — pre-fix
+the static regex could not see digit-suffix unsub-fields
+(`OnlineLearner._unsub1`, `LessonsStore._unsub1...7`) or the
+array-push pattern (`GoalDriver`, `ResourceRegistry` — `this._unsubs.push(bus.on(...))`
+plus `for-of` iterate in `stop()`). All four had textbook teardown
+already; the audit just couldn't see it. Detector widened in three
+places: digit-suffix quantifier `[A-Za-z]*` → `[A-Za-z0-9]*`,
+array-push three-way detector (init + push + iterate-or-clear),
+mixin-host reclassification via `Object.assign(Host.prototype, mixin)`
+resolution.
+
+**6 real targets migrated** to `applySubscriptionHelper`:
+
+- `planning/SelfOptimizer.js` (2 listeners) — standard class, listeners in constructor, new `stop()`.
+- `organism/FrontierWriter.js` (2 listeners in `enableEventBuffer()`) — three registered service instances each get an independent `_unsubs`.
+- `planning/Anticipator.js` (3 listeners) — standard class.
+- `revolution/VectorMemory.js` (4 listeners in `_wireEvents()`) — standard class.
+- `autonomy/CognitiveMonitor.js` + `CognitiveMonitorAnalysis.js` (5 listeners) — prototype-mixin pair, helper applied to host BEFORE `Object.assign` so `_sub` is on the prototype chain when the mixin runs.
+- `organism/Homeostasis.js` + `HomeostasisVitals.js` (5 listeners) — same prototype-mixin pattern.
+
+`AgentCoreHealth.js` `TO_STOP` extended with the six new service-names.
+`audit-listener-lifecycle --strict` lifted into both `ci` and `ci:full`
+between `audit-class-wiring` and `check-ratchet`. Baseline 0; 15 CI
+audit gates total. Contract test
+`v764-listener-lifecycle.contract.test.js` (19 tests, 57 assertions)
+pins the migration patterns and the false-positive shapes so future
+audit-script tightening can't accidentally invalidate the v7.6.4
+extensions.
+
+### In-version closeout — external audit follow-up (no version bump)
+
+After the listener-lifecycle ship, an external review of the v7.6.4 ZIP
+flagged four findings worth closing in-version (no v7.6.5 bump). All
+fixed without behavior change to the agent itself.
+
+- **T1 — `tsconfig.ci.json` `ignoreDeprecations: "6.0"` aborts tsc with
+  TS5103.** TypeScript 6 does not exist; TypeScript 5.9.x (pinned by
+  package-lock.json) accepts only `"5.0"`. The wrong value caused tsc to
+  exit before reading any source file, masking the 27 known mixin-pattern
+  errors documented in the same config's header comment and silently
+  breaking `npm run ci:full` at the third step. `npm run ci` (which most
+  release-verification runs use) does not invoke tsc, so the bug was
+  invisible until ci:full was actually run. Fixed: `"6.0"` → `"5.0"`.
+  `ARCHITECTURE.md` §10 entry corrected with the real failure mechanism.
+
+- **T2 — Three 2-of-3-gate files added to `lockCritical`.**
+  `audit-hash-lock-coverage` had advisory-only WARNs on
+  `PluginRegistry.js`, `SkillManager.js`, and `PeerNetworkExchange.js`.
+  Each held two of the three self-mod gates but was excluded under the
+  "writes only to its own subdirectory" rationale. The argument doesn't
+  hold once the same files are also the only defence against
+  subdirectory writes (AST safety scan + path-traversal check for
+  plugins/skills, peer-code-exchange surface). Added all three to
+  `lockCritical([...])` in `main.js` with rationale comments.
+  `lockCritical` count 18 → 21; advisory-WARN count 3 → 0;
+  doc updates: `ARCHITECTURE-DEEP-DIVE.md` and `CAPABILITIES.md`
+  hash-locked-files row both updated 18 → 21.
+
+- **T3 — Two raw `setTimeout` fire-and-forget sites migrated to tracked
+  timers.** `HotReloader.js:69` (debounce timer was a closure-local
+  that survived `unwatch()` and would fire `_handleChange` against
+  torn-down state) migrated to a `this._debounceTimers` Map cleared
+  in `unwatch()`/`unwatchAll()`. `SelfStatementLog.js:386` (`_scheduleFlush`
+  timer was untracked; a stop() during the debounce window could run
+  `_flush()` twice or miss the pending flush) migrated to `this._flushTimer`
+  cleared in `stop()` before the synchronous flush. `audit-raw-settimeout`
+  baseline still 12 with 10 structurally exempt; the two non-exempt
+  sites are now zero. No runtime behavior change at load — both code
+  paths already accepted late-firing timers as silent no-ops, the
+  migration just makes the cleanup explicit and prevents the two narrow
+  race windows.
+
+- **T4 — `audit-gate-stats-callers` dynamic-verdict warnings cleared via
+  inline-hint pattern.** Three call sites used bare identifiers as the
+  verdict argument (`recordGate('self-gate', verdict)`,
+  `recordGate('injection-gate', v)`,
+  `recordGate('tool-call-verification', gv)`). Two of the three already
+  extracted the value through a literal-branch ternary one line above,
+  but the regex auditor only looked at the immediate argument expression.
+  Fix is structural: `audit-gate-stats-callers.js` gained a documented
+  opt-in hint pattern — `// recordGate-verdict: a | b | c` on the line
+  immediately above the call. The hint must list values that are all
+  in `VALID_VERDICTS`; if so the call counts as pass, if values are
+  listed that aren't valid the call still fails (so the hint can't
+  silently lie about origin). All three sites now carry hints
+  documenting the actual verdict-source: self-gate is `pass | warn`
+  (never `block`; `checkSelfAction` returns `score >= 1 ? 'warn' :
+  'pass'`), injection-gate is `pass | warn | block` (gateScan.verdict
+  ∈ safe|warn|block with safe→pass mapping), tool-call-verification
+  is `pass | warn` (verified→pass, anything else→warn). Audit result:
+  5 valid, 0 dynamic, 0 invalid (was 2 valid, 3 dynamic).
+
+### Items still deferred after v7.6.4
+
+These came up in the same external audit but are too large for an
+in-version fix and are carried forward:
+
+- **27 latent TS errors in 6 files** (AdaptivePromptStrategy,
+  ExecutionProvenance, AdaptiveStrategyApply, CausalAnnotation,
+  GoalSynthesizer, AutoUpdater) — all stem from the
+  `applySubscriptionHelper(this)` mixin pattern. Now visible in
+  `ci:full` after T1 fix. Resolution: add `@mixes` JSDoc decl on
+  `subscription-helper.js` so these files re-enter the typecheck scope
+  cleanly.
+- **`os.hostname():username:genesis-v2` storage-encryption key
+  (Settings.js:42)** — Hostname change = key loss = `.genesis/`
+  unreadable. Concrete migration path needed, e.g. asymmetric re-encrypt
+  on first boot on new machine triggered by a `/migrate-identity
+  <export-passphrase>` slash. Fits the Hauptstandort architecture
+  directly; should be designed before it bites.
 
 ---
 

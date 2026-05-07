@@ -72,6 +72,7 @@ class SelfStatementLog {
 
     this._writeQueue = [];
     this._flushScheduled = false;
+    this._flushTimer = null;  // v7.6.4 in-version: pending _scheduleFlush handle
     this._wired = false;
 
     // v7.5.5: Per-turn flag for whether _introspectionContext was populated.
@@ -196,6 +197,15 @@ class SelfStatementLog {
   }
 
   stop() {
+    // v7.6.4 in-version: clear pending debounced flush before running the
+    // synchronous flush. Pre-fix a pending _scheduleFlush callback could
+    // fire after stop() and run _flush() against an already-flushed queue
+    // (harmless but noisy in logs).
+    if (this._flushTimer) {
+      clearTimeout(this._flushTimer);
+      this._flushTimer = null;
+      this._flushScheduled = false;
+    }
     // Best-effort flush of pending writes.
     if (this._writeQueue.length > 0) {
       try { this._flush(); } catch (_e) { /* swallow */ }
@@ -383,8 +393,15 @@ class SelfStatementLog {
       return;
     }
     this._flushScheduled = true;
-    setTimeout(() => {
+    // v7.6.4 in-version (audit-raw-settimeout closeout): timer captured on
+    // this._flushTimer so stop() can clear a pending flush before the
+    // synchronous flush runs again. Pre-fix the timer was fire-and-forget,
+    // so a stop() during the debounce window would either run flush twice
+    // (in stop() and then again from the pending callback) or miss the
+    // pending flush if the runtime tore down before it fired.
+    this._flushTimer = setTimeout(() => {
       this._flushScheduled = false;
+      this._flushTimer = null;
       this._flush();
     }, this._flushDebounceMs);
   }

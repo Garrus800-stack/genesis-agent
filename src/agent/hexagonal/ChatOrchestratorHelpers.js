@@ -37,6 +37,7 @@ const helpers = {
     // since GateStats tracks pass/block/warn only. Optional injection.
     try {
       const v = gateScan.verdict === 'safe' ? 'pass' : gateScan.verdict;
+      // recordGate-verdict: pass | warn | block (gateScan.verdict ∈ safe|warn|block; safe maps to pass)
       this.gateStats?.recordGate('injection-gate', v);
     } catch (_) { /* gateStats optional */ }
     if (gateScan.verdict === 'block') {
@@ -255,6 +256,7 @@ const helpers = {
         // anything else = warn (detective, not preventative).
         try {
           const gv = verification.verdict === 'verified' ? 'pass' : 'warn';
+          // recordGate-verdict: pass | warn (ternary maps verified→pass, anything else→warn)
           this.gateStats?.recordGate('tool-call-verification', gv);
         } catch (_) { /* gateStats optional */ }
         if (verification.verdict !== 'verified') {

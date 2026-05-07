@@ -99,13 +99,21 @@ describe('subscription-helper', () => {
     if (svc._unsubs.length !== 0) throw new Error('cleared despite error');
   });
 
-  test('applySubscriptionHelper does not overwrite existing methods', () => {
+  test('applySubscriptionHelper overrides existing methods (v7.6.4 in-version)', () => {
+    // v7.6.4 in-version (typecheck closeout): the helper now overrides
+    // unconditionally. This lets mixin hosts declare typed stub methods
+    // for the JSDoc/TS checker without preventing the real implementation
+    // from being grafted at module load. Stub methods on host classes are
+    // expected to be replaced — this test pins that behaviour.
     class Service {
-      _sub() { return 'custom-sub'; }
+      constructor() { this._unsubs = []; }
+      _sub() { throw new Error('stub — should be replaced by helper'); }
     }
     applySubscriptionHelper(Service);
     const svc = new Service();
-    if (svc._sub() !== 'custom-sub') throw new Error('custom _sub was overwritten');
+    svc.bus = { on: () => () => {} };
+    // Real helper-provided _sub does not throw — confirms override.
+    svc._sub('x', () => {});
   });
 
   test('_sub returns the underlying unsub function', () => {

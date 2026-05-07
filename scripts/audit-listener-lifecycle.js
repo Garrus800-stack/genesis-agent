@@ -88,9 +88,20 @@ function detect(filePath) {
   const onMatches  = (src.match(/(?:bus|events|this\.bus|eventBus|this\.eventBus|this\.events)\.on\(/g) || []).length;
   const offMatches = (src.match(/(?:bus|events|this\.bus|eventBus|this\.eventBus|this\.events)\.(?:off|removeListener)\(/g) || []).length;
 
-  // unsub-pattern: assignment of a bus.on() return value to a field/var that is later called
-  const hasUnsubAssign = /(?:this\._unsub|this\.unsub|const\s+unsub|let\s+unsub|this\._dispose|this\.dispose)[A-Za-z]*\s*=\s*(?:this\.)?(?:bus|events|eventBus)\.on\(/.test(src);
-  const hasUnsubCall   = /(?:this\._unsub|this\.unsub)[A-Za-z]*\(\)/.test(src);
+  // unsub-pattern: assignment of a bus.on() return value to a field/var that is later called.
+  // v7.6.4: regex extended to [A-Za-z0-9]* — pre-fix the `[A-Za-z]*` quantifier did not match
+  // digit-suffixed fields like `this._unsub1`, `this._unsub7` (used by OnlineLearner,
+  // LessonsStore etc.) so they read as offenders despite having textbook cleanup.
+  const hasUnsubAssign = /(?:this\._unsub|this\.unsub|const\s+unsub|let\s+unsub|this\._dispose|this\.dispose)[A-Za-z0-9]*\s*=\s*(?:this\.)?(?:bus|events|eventBus)\.on\(/.test(src);
+  const hasUnsubCall   = /(?:this\._unsub|this\.unsub)[A-Za-z0-9]*\??\.?\(\)/.test(src);
+
+  // v7.6.4: array-push pattern — `this._unsubs = []` plus `this._unsubs.push(bus.on(...))`
+  // plus a cleanup loop in stop(). Used by GoalDriver (8 listeners) and ResourceRegistry
+  // (5 listeners). Pre-fix audit only saw the .push() and recognised neither side.
+  const hasArrayInit    = /this\._unsubs\s*=\s*\[\]/.test(src);
+  const hasArrayPush    = /this\._unsubs\.push\(/.test(src);
+  const hasArrayCleanup = /for\s*\(\s*const\s+\w+\s+of\s+this\._unsubs|this\._unsubs\.forEach|this\._unsubs\.length\s*=\s*0/.test(src);
+  const hasArrayPattern = hasArrayInit && hasArrayPush && hasArrayCleanup;
 
   // mixin-pattern: applySubscriptionHelper(this) — subscription-helper.js
   // grafts _sub() and _unsubAll() so the file wires listeners via _sub
@@ -102,8 +113,52 @@ function detect(filePath) {
     off: offMatches,
     hasUnsubAssign,
     hasUnsubCall,
+    hasArrayPattern,
     usesMixin,
   };
+}
+
+// ── Mixin-host map ──────────────────────────────────────────────────
+// v7.6.4: prototype-delegation files (CognitiveMonitorAnalysis, HomeostasisVitals,
+// GoalStackExecution etc.) export a plain object that a host class merges via
+// `Object.assign(Host.prototype, mixin)`. Their `this.bus.on(...)` calls bind to
+// the host at runtime, so cleanup must live on the host. The audit treats them
+// as host-controlled: a finding migrates to the host file if the host has no
+// cleanup, and the mixin file gets a 'mixin' classification when the host does.
+
+function buildMixinHostMap(allFiles) {
+  // mixinFile -> { hostFile, hostClass, mixinExportName }
+  const map = new Map();
+  for (const hostFile of allFiles) {
+    const hostSrc = fs.readFileSync(hostFile, 'utf-8');
+    const assignMatches = hostSrc.matchAll(/Object\.assign\(\s*(\w+)\.prototype\s*,\s*([^)]+)\)/g);
+    for (const m of assignMatches) {
+      const hostClass = m[1];
+      const argNames = m[2].split(',').map(s => s.trim()).filter(Boolean);
+      for (const argName of argNames) {
+        // Find the require() that brings in argName: const { x } = require('./Y')
+        // or const { x: argName } = require('./Y'). We resolve the file path.
+        const importRe = new RegExp(`(?:const|let|var)\\s*\\{[^}]*\\b(\\w+)(?:\\s*:\\s*${argName.replace(/[$()*+.?[\\\]^{|}]/g, '\\\\$&')})?[^}]*\\}\\s*=\\s*require\\(['"]([^'"]+)['"]\\)`, 'g');
+        const reqMatches = hostSrc.matchAll(importRe);
+        for (const r of reqMatches) {
+          const exportName = r[1];
+          const reqPath = r[2];
+          if (!reqPath.startsWith('.')) continue;
+          // resolve relative to host file
+          const resolved = path.resolve(path.dirname(hostFile), reqPath);
+          // try .js suffix
+          const candidates = [resolved + '.js', resolved];
+          for (const cand of candidates) {
+            if (fs.existsSync(cand) && allFiles.includes(cand)) {
+              map.set(cand, { hostFile, hostClass, mixinExportName: exportName });
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+  return map;
 }
 
 // ── Main ────────────────────────────────────────────────────────────
@@ -112,6 +167,9 @@ const all = walk(SCAN_DIR);
 const findings = [];
 const cleanModules = [];
 
+// v7.6.4: build mixin-host map first so we can reclassify mixin-files.
+const mixinHostMap = buildMixinHostMap(all);
+
 for (const f of all) {
   const rel = path.relative(SCAN_DIR, f).replace(/\\/g, '/');
   const d = detect(f);
@@ -119,8 +177,34 @@ for (const f of all) {
 
   const hasUnsubPattern = d.hasUnsubAssign && d.hasUnsubCall;
   const hasOffCall      = d.off > 0;
-  const cleanupOK       = hasOffCall || hasUnsubPattern || d.usesMixin;
+  const cleanupOK       = hasOffCall || hasUnsubPattern || d.hasArrayPattern || d.usesMixin;
   const whitelisted     = !!WHITELIST[rel];
+
+  // v7.6.4: mixin-file reclassification. If the file is a prototype-mixin merged
+  // into a host class, the host owns the lifecycle. Check whether the host has
+  // a cleanup pattern; if it does, this file is OK; if not, the finding migrates
+  // to the host (with mixin attribution).
+  const mixinInfo = mixinHostMap.get(f);
+  if (mixinInfo && !cleanupOK && !whitelisted) {
+    const hostDetect = detect(mixinInfo.hostFile);
+    const hostHasUnsub = hostDetect.hasUnsubAssign && hostDetect.hasUnsubCall;
+    const hostCleanupOK = hostDetect.off > 0 || hostHasUnsub || hostDetect.hasArrayPattern || hostDetect.usesMixin;
+    if (hostCleanupOK) {
+      cleanModules.push({ rel, on: d.on, off: d.off, kind: 'mixin-host-controlled', host: path.basename(mixinInfo.hostFile) });
+      continue;
+    }
+    // Host has no cleanup either — finding stays but with mixin context.
+    findings.push({
+      rel, on: d.on, off: d.off,
+      hasUnsubAssign: d.hasUnsubAssign,
+      hasUnsubCall: d.hasUnsubCall,
+      hasArrayPattern: d.hasArrayPattern,
+      usesMixin: d.usesMixin,
+      mixinHost: path.basename(mixinInfo.hostFile),
+      mixinHostClass: mixinInfo.hostClass,
+    });
+    continue;
+  }
 
   if (cleanupOK || whitelisted) {
     cleanModules.push({ rel, on: d.on, off: d.off, kind: cleanupOK ? 'cleanup' : 'whitelist' });
@@ -129,6 +213,7 @@ for (const f of all) {
       rel, on: d.on, off: d.off,
       hasUnsubAssign: d.hasUnsubAssign,
       hasUnsubCall: d.hasUnsubCall,
+      hasArrayPattern: d.hasArrayPattern,
       usesMixin: d.usesMixin,
     });
   }

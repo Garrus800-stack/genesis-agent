@@ -715,9 +715,9 @@ this._unsubs.push(
 
 ### TypeScript ignoreDeprecations
 
-**Symptom:** `tsc` exits with code 2, no source errors visible.
-**Cause:** TypeScript 6 requires `"ignoreDeprecations": "6.0"` in tsconfig for legacy options.
-**History:** Listed as fixed in v5.9.3 CHANGELOG but was never actually added. Found in v5.9.9.
+**Symptom:** `tsc` exits with code 1 on TS5103 (`Invalid value for '--ignoreDeprecations'`), no source errors visible.
+**Cause:** The `ignoreDeprecations` option only accepts version strings the running TypeScript actually supports. For TypeScript 5.x (the line currently pinned by `package-lock.json`) the only valid value is `"5.0"`. Setting `"6.0"` aborts before any source file is read.
+**History:** A v5.9.3 CHANGELOG entry once described the fix incorrectly as "TypeScript 6 requires `\"ignoreDeprecations\": \"6.0\"`" — this was wrong on two counts (TypeScript 6 does not exist, and even when it does the tsconfig value must match the *running* compiler, not a future one). The same wrong rationale was carried into the v7.6.3 `tsconfig.ci.json` reconstruction (Bug C of the erweiterte Analyse), where `"6.0"` was set against TypeScript 5.9.3 and silently broke `npm run ci:full` at the tsc step. Caught by an external review of v7.6.4 and corrected in-version: `"6.0"` → `"5.0"`. The 27 latent mixin-pattern TS errors documented in `tsconfig.ci.json`'s header comment now surface correctly (and remain advisory in `ci:full`, advisory-only because `npm run ci` does not invoke `tsc`).
 
 ### Organism Metrics Leaking to User
 

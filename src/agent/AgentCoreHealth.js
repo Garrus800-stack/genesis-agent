@@ -350,6 +350,20 @@ class AgentCoreHealth {
       'pendingMomentsStore', 'wakeUpRoutine',
       // v7.5.5: SelfStatementLog — stop() flushes pending JSONL writes.
       'selfStatementLog',
+      // v7.6.4: SelfOptimizer — _unsubAll() during stop() (chat:completed +
+      // chat:error subscriptions registered via applySubscriptionHelper).
+      'selfOptimizer',
+      // v7.6.4: FrontierWriter instances — _unsubAll() during stop() tears
+      // down the collectEvent + triggerEvent subscriptions registered by
+      // enableEventBuffer.
+      'unfinishedWorkFrontier', 'suspicionFrontier', 'lessonFrontier',
+      // v7.6.4: Anticipator — _unsubAll() during stop() (intent:classified,
+      // chat:completed, chat:error subscriptions).
+      'anticipator',
+      // v7.6.4: VectorMemory — _unsubAll() during stop() tears down the
+      // four _wireEvents subscriptions (chat:completed, knowledge:learned,
+      // memory:fact-stored, idle:thought-complete).
+      'vectorMemory',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

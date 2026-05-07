@@ -261,6 +261,7 @@ class SelfGate {
     const { verdict, signals } = scan;
 
     try {
+      // recordGate-verdict: pass | warn (checkSelfAction returns 'pass' if score < 1 else 'warn'; never 'block')
       this.gateStats?.recordGate('self-gate', verdict);
     } catch (_) { /* optional */ }
 

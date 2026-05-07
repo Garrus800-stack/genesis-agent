@@ -1,6 +1,6 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.6.3 — What Genesis can do, organized by category.
+> v7.6.4 — What Genesis can do, organized by category.
 > Scale: 6650 tests (Win baseline), 452 events with 452 payload schemas (full parity since v7.6.x), fitness 127/130, 168 DI services (155 manifest + 13 bootstrap), 321 modules (live `selfModel.moduleCount()`) across 12 boot phases.
 > Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry-only by design),
 > Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard),
@@ -36,7 +36,7 @@ Genesis can rewrite its own code, but every change passes through multiple safet
 | Layer | Mechanism |
 |---|---|
 | **Immutable kernel** | `main.js`, `preload.mjs`, `src/kernel/` — agent cannot write to these |
-| **Hash-locked files** | SHA-256 locks on 18 critical files (kernel + safety scanners + sandbox + DI container + self-mod pipeline + approval gate + …; full list in `main.js` `lockCritical([...])`, drift-checked by `scripts/audit-hash-lock-coverage.js` since v7.6.2) — agent cannot weaken its own safety checks |
+| **Hash-locked files** | SHA-256 locks on 21 critical files (kernel + safety scanners + sandbox + DI container + self-mod pipeline + approval gate + plugin/skill/peer-exchange registries; full list in `main.js` `lockCritical([...])`, drift-checked by `scripts/audit-hash-lock-coverage.js` since v7.6.2) — agent cannot weaken its own safety checks |
 | **AST code scanner** | Every generated code file is parsed into an AST and checked against 20+ rules (eval, Function, kernel circumvention, Electron security flags, system directory writes, etc.) |
 | **Verification engine** | Programmatic post-execution checks (file exists? tests pass? syntax valid?) |
 | **Sandbox execution** | Code runs in a VM2 sandbox with frozen prototypes, or Linux namespace isolation (PID/Net/Mount/IPC) |

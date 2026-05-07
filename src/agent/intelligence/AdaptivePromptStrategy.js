@@ -104,6 +104,18 @@ class AdaptivePromptStrategy {
     this._unsubAll();
   }
 
+  // ── Subscription mixin stubs (v7.6.4 in-version typecheck closeout) ──
+  // Replaced at module load by applySubscriptionHelper(AdaptivePromptStrategy)
+  // below. Declared statically so the JSDoc/TS checker can see the signatures.
+  /**
+   * @param {string} _event
+   * @param {Function} _handler
+   * @param {object} [_opts]
+   * @returns {Function}
+   */
+  _sub(_event, _handler, _opts) { throw new Error('subscription-helper mixin not yet applied'); }
+  _unsubAll() { throw new Error('subscription-helper mixin not yet applied'); }
+
   // ═══════════════════════════════════════════════════════════
   // QUERY API — called by PromptBuilder
   // ═══════════════════════════════════════════════════════════

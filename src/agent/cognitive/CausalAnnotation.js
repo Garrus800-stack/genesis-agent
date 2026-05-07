@@ -198,6 +198,7 @@ class CausalAnnotation {
    * @returns {Object<string, { suspicion: number, failCount: number, successCount: number, observations: number }>}
    */
   getSuspicionStats() {
+    /** @type {Object<string, { suspicion: number, failCount: number, successCount: number, observations: number }>} */
     const result = {};
     for (const [key, stats] of this._suspicion.entries()) {
       const total = stats.failCount + stats.successCount;
@@ -288,6 +289,24 @@ class CausalAnnotation {
 
   /** Stop bus listeners (called during shutdown). */
   stop() { this._unsubAll(); }
+
+  // ── Subscription mixin stubs (v7.6.4 in-version typecheck closeout) ──
+  // These stubs are replaced at module load by applySubscriptionHelper(CausalAnnotation)
+  // below. They exist solely so the JSDoc/TypeScript checker can see the signatures
+  // when tsc runs against this file. Calling them before the helper has run would
+  // throw — but the helper runs at module load (the call at the bottom of this
+  // file), strictly before any constructor invocation.
+  /**
+   * Subscribe to bus event; auto-cleanup registered in this._unsubs.
+   * @param {string} _event
+   * @param {Function} _handler
+   * @param {object} [_opts]
+   * @returns {Function}
+   */
+  _sub(_event, _handler, _opts) { throw new Error('subscription-helper mixin not yet applied'); }
+
+  /** Call all tracked unsub functions, clear the list. */
+  _unsubAll() { throw new Error('subscription-helper mixin not yet applied'); }
 
   /** Get tracking statistics */
   getStats() {
