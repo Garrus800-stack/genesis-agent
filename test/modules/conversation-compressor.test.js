@@ -21,7 +21,7 @@ function mockBus() {
     emit: (evt, data) => events.push({ evt, data }),
     _events: events,
     _handlers: handlers,
-  };
+   fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 function mockTokenizer(charsPerToken = 4) {

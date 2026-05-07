@@ -5,7 +5,7 @@
 // ============================================================
 
 const { createLogger } = require('../core/Logger');
-const { scanForInjection, formatGateResponse, formatWarnAnnotation } = require('../core/injection-gate');
+const { scanForInjection, formatGateResponse, formatWarnAnnotation, classifyToolSource, scanToolResult } = require('../core/injection-gate');
 const { verifyToolClaims, formatVerificationNote } = require('../core/tool-call-verification');
 const { recordCoherenceCheck } = require('../core/intent-tool-coherence');
 const { stripThinkingBlocks } = require('../core/thinking-block-stream-filter');
@@ -159,10 +159,55 @@ const helpers = {
       onChunk(`\n\n*${this.lang.t('chat.tools_executing')}*\n`);
       const results = await this.tools.executeToolCalls(toolCalls);
 
-      const resultSummary = results.map(r =>
-        r.success ? `[${r.name}]: ${JSON.stringify(r.result).slice(0, 500)}`
-                  : `[${r.name}]: ${this.lang.t('agent.error').toUpperCase()} - ${r.error}`
-      ).join('\n');
+      // v7.6.3 S1 — Tool-Result-Injection-Scan (warning-only).
+      // Pre-fix the injection-gate scanned only userMessage. Tool-results
+      // from the open web (web-fetch), MCP servers, and user-uploaded files
+      // are passed verbatim to the synthesis LLM, where they can carry
+      // authority claims / credential requests / urgency signals that the
+      // model will then act on via the next tool-call. The S1 finding in
+      // the v7.6.3 erweiterte Analyse-report flagged this as the only gate
+      // surface left uncovered. This step:
+      //   (1) classifies each tool-result by source heuristic (web/mcp/
+      //       file:user/file:internal/sandbox/unknown),
+      //   (2) scans content from external sources via scanForInjection,
+      //   (3) emits `injection:tool-result-flagged` once per offending
+      //       result, replaces the content with a [BLOCKED:...] marker
+      //       before it reaches the synthesis prompt.
+      // Intentionally non-blocking — the tool-loop continues. This is
+      // an Input-Gate extension, not a Self-Gate change (Self-Gate stays
+      // observation-only by design).
+      for (const r of results) {
+        if (!r.success || !r.result) continue;
+        const toolInput = (toolCalls.find(tc => tc.name === r.name) || {}).input;
+        const source = classifyToolSource(r.name, toolInput);
+        const stringified = typeof r.result === 'string' ? r.result : JSON.stringify(r.result);
+        const { shouldScan, scan } = scanToolResult(stringified, source);
+        if (!shouldScan || !scan || scan.verdict === 'safe') continue;
+        // Fire warning-only event
+        try {
+          this.bus?.fire('injection:tool-result-flagged', {
+            toolName: r.name,
+            toolSource: source,
+            signals: scan.signals,
+            score: scan.score,
+          }, { source: 'ChatOrchestratorHelpers' });
+        } catch (_) { /* fire-and-forget telemetry */ }
+        // Annotate result with marker — keep enough metadata so synthesis
+        // can still describe what happened without quoting the content.
+        const kinds = scan.signals.map(s => s.kind).join(',');
+        r.result = { _injectionFlagged: true, source, kinds, originalLength: stringified.length };
+        try {
+          this.gateStats?.recordGate('injection-gate', 'warn');
+        } catch (_) { /* gateStats optional */ }
+      }
+
+      const resultSummary = results.map(r => {
+        if (!r.success) return `[${r.name}]: ${this.lang.t('agent.error').toUpperCase()} - ${r.error}`;
+        if (r.result && r.result._injectionFlagged) {
+          return `[${r.name}]: [BLOCKED: injection-signal in fetched content from ${r.result.source}; kinds=${r.result.kinds}; ${r.result.originalLength} chars]`;
+        }
+        return `[${r.name}]: ${JSON.stringify(r.result).slice(0, 500)}`;
+      }).join('\n');
 
       // Synthesize with tool results — now WITH system prompt and conversation context
       const synthesisMessages = [
@@ -452,7 +497,7 @@ const helpers = {
 
     if (classified) {
       // Hard LLM failure — emit specific event, then render system message
-      this.bus.emit('chat:llm-failure', {
+      this.bus.fire('chat:llm-failure', {
         stage: context.stage || 'main-response',
         errorType: classified.errorType,
         backend: this.model?.activeBackend || 'unknown',

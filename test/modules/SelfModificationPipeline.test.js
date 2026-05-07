@@ -18,7 +18,7 @@ fs.mkdirSync(path.join(ROOT, 'src', 'agent'), { recursive: true });
 fs.mkdirSync(path.join(ROOT, 'sandbox'), { recursive: true });
 
 // Minimal mocks for constructor
-const nullBus = { emit() {}, fire() {}, on() {} };
+const nullBus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() {} };
 const nullModel = { createCompletion() { return { text: '' }; } };
 const nullSelfModel = { getSourceMap() { return {}; }, get() { return ''; } };
 const nullSandbox = { execute() { return { exitCode: 0, stdout: 'ok' }; }, syntaxCheck() { return { valid: true }; } };

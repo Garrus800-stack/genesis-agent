@@ -41,7 +41,7 @@ class JournalWriter {
    */
   constructor({ bus, storageDir, clock = Date }) {
     if (!storageDir) throw new Error('JournalWriter requires storageDir');
-    this.bus = bus || { emit: () => {} };
+    this.bus = bus || { emit: () => {} , fire() {}};
     this._clock = clock;
     this.dir = path.join(storageDir, 'journal');
     this._ensureDir();
@@ -144,7 +144,7 @@ class JournalWriter {
     this._index.totalEntries++;
     this._saveIndex();
 
-    this.bus.emit('journal:written', {
+    this.bus.fire('journal:written', {
       visibility,
       source,
       byteLength: content.length,

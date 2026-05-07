@@ -174,7 +174,7 @@ test('Bug 3a: Settings.setBatch fires toggle events only at end', () => {
   const { Settings } = require(path.join(ROOT, 'src/agent/foundation/Settings'));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-p3-bug3aa-'));
   const events = [];
-  const fakeBus = { emit: (key, payload) => events.push({ key, payload }) };
+  const fakeBus = { emit: (key, payload) => events.push({ key, payload }), fire(...args) { return this.emit(...args); } };
   const s = new Settings(dir);
   s._bus = fakeBus;
   s.setBatch([

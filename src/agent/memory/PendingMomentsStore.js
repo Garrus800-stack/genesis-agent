@@ -38,7 +38,7 @@ class PendingMomentsStore {
    */
   constructor({ bus, storageDir, clock = Date }) {
     if (!storageDir) throw new Error('PendingMomentsStore requires storageDir');
-    this.bus = bus || { emit: () => {} };
+    this.bus = bus || { emit: () => {} , fire() {}};
     this._clock = clock;
     this.file = path.join(storageDir, 'pending-moments.jsonl');
     this._moments = [];
@@ -121,7 +121,7 @@ class PendingMomentsStore {
     this._moments.push(record);
     this._persist();
 
-    this.bus.emit('memory:marked', {
+    this.bus.fire('memory:marked', {
       id,
       episodeId,
       timestamp: record.pinnedAt,

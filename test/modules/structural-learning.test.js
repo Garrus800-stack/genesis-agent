@@ -94,7 +94,7 @@ describe('PatternMatcher — similarity', () => {
 describe('StructuralAbstraction — lifecycle', () => {
   test('creates with pending status', () => {
     const { StructuralAbstraction } = require('../../src/agent/cognitive/StructuralAbstraction');
-    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } } });
+    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } , fire(...args) { return this.emit ? this.emit(...args) : undefined; }} });
     const stats = sa.getStats();
     assertEqual(stats.pending, 0);
     assertEqual(stats.extracted, 0);
@@ -103,7 +103,7 @@ describe('StructuralAbstraction — lifecycle', () => {
 
   test('queueExtraction adds to pending', () => {
     const { StructuralAbstraction } = require('../../src/agent/cognitive/StructuralAbstraction');
-    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } } });
+    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } , fire(...args) { return this.emit ? this.emit(...args) : undefined; }} });
 
     sa.queueExtraction({
       lessonId: 'lesson-1',
@@ -116,7 +116,7 @@ describe('StructuralAbstraction — lifecycle', () => {
 
   test('getPendingExtractions returns queued items', () => {
     const { StructuralAbstraction } = require('../../src/agent/cognitive/StructuralAbstraction');
-    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } } });
+    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } , fire(...args) { return this.emit ? this.emit(...args) : undefined; }} });
 
     sa.queueExtraction({ lessonId: 'lesson-1', text: 'test', category: 'test' });
     sa.queueExtraction({ lessonId: 'lesson-2', text: 'test2', category: 'test' });
@@ -127,7 +127,7 @@ describe('StructuralAbstraction — lifecycle', () => {
 
   test('markExtracted removes from pending', () => {
     const { StructuralAbstraction } = require('../../src/agent/cognitive/StructuralAbstraction');
-    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } } });
+    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } , fire(...args) { return this.emit ? this.emit(...args) : undefined; }} });
 
     sa.queueExtraction({ lessonId: 'lesson-1', text: 'test', category: 'test' });
     sa.markExtracted('lesson-1', { category: 'test', elements: ['x'] });
@@ -138,7 +138,7 @@ describe('StructuralAbstraction — lifecycle', () => {
 
   test('markFailed tracks failure reason', () => {
     const { StructuralAbstraction } = require('../../src/agent/cognitive/StructuralAbstraction');
-    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } } });
+    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } , fire(...args) { return this.emit ? this.emit(...args) : undefined; }} });
 
     sa.queueExtraction({ lessonId: 'lesson-1', text: 'test', category: 'test' });
     sa.markFailed('lesson-1', 'llm-timeout');
@@ -152,7 +152,7 @@ describe('StructuralAbstraction — lifecycle', () => {
 
   test('markFailed increments retry count', () => {
     const { StructuralAbstraction } = require('../../src/agent/cognitive/StructuralAbstraction');
-    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } } });
+    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } , fire(...args) { return this.emit ? this.emit(...args) : undefined; }} });
 
     sa.queueExtraction({ lessonId: 'lesson-1', text: 'test', category: 'test' });
     sa.markFailed('lesson-1', 'llm-timeout');
@@ -167,7 +167,7 @@ describe('StructuralAbstraction — lifecycle', () => {
 
   test('contradicts-existing does not retry', () => {
     const { StructuralAbstraction } = require('../../src/agent/cognitive/StructuralAbstraction');
-    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } } });
+    const sa = new StructuralAbstraction({ bus: { emit() {}, on() { return () => {}; } , fire(...args) { return this.emit ? this.emit(...args) : undefined; }} });
 
     sa.queueExtraction({ lessonId: 'lesson-1', text: 'test', category: 'test' });
     sa.markFailed('lesson-1', 'contradicts-existing');

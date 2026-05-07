@@ -152,7 +152,7 @@ class SchemaStore {
       this._dirty = true;
       this._scheduleSave();
 
-      this.bus.emit('schema:merged', {
+      this.bus.fire('schema:merged', {
         id: existing.id,
         name: existing.name,
         occurrences: existing.occurrences,
@@ -175,7 +175,7 @@ class SchemaStore {
 
     this._scheduleSave();
 
-    this.bus.emit('schema:stored', {
+    this.bus.fire('schema:stored', {
       id: normalized.id,
       name: normalized.name,
       confidence: normalized.confidence,
@@ -285,7 +285,7 @@ class SchemaStore {
     this._dirty = true;
     this._scheduleSave();
 
-    this.bus.emit('schema:removed', {
+    this.bus.fire('schema:removed', {
       id: removed.id, name: removed.name,
     }, { source: 'SchemaStore' });
 

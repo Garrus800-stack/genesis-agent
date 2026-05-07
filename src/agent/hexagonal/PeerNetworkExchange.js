@@ -160,7 +160,7 @@ const exchange = {
     atomicWriteFileSync(codePath, peerSkill.code, 'utf-8');
     await this.skills.loadSkills();
 
-    this.bus.emit('peer:skill-imported', { peerId, skillName }, { source: 'PeerNetwork' });
+    this.bus.fire('peer:skill-imported', { peerId, skillName }, { source: 'PeerNetwork' });
     return { success: true, reason: `Skill "${skillName}" imported from peer "${peerId}"` };
   },
 

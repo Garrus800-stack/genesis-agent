@@ -1,6 +1,6 @@
 const { describe, test, run, assert, assertEqual } = require('../harness');
 const { LearningService } = require('../../src/agent/hexagonal/LearningService');
-function make() { return new LearningService({ bus: { emit(){}, on(){} }, memory: null, knowledgeGraph: null, eventStore: null, storageDir: require('os').tmpdir(), intervals: null, storage: { readJSON: ()=>null, writeJSON: ()=>{} } }); }
+function make() { return new LearningService({ bus: { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){} }, memory: null, knowledgeGraph: null, eventStore: null, storageDir: require('os').tmpdir(), intervals: null, storage: { readJSON: ()=>null, writeJSON: ()=>{} } }); }
 describe('LearningService', () => {
   test('constructs', () => { if (!make()) throw new Error('Fail'); });
   test('getMetrics returns object', () => { if (typeof make().getMetrics() !== 'object') throw new Error('Should return object'); });
@@ -11,7 +11,7 @@ function makeLS(overrides = {}) {
   const unsubs = [];
   const bus = {
     emit() {},
-    fire() {},
+    fire(...args) { return this.emit ? this.emit(...args) : undefined; },
     on(event, handler, opts) {
       const fn = () => {};
       unsubs.push(fn);
@@ -36,7 +36,7 @@ describe('LearningService — getMetrics()', () => {
 describe('LearningService — start / stop', () => {
   test('start registers bus subscriptions', () => {
     const subs = [];
-    const bus = { emit(){}, fire(){}, on(e){ subs.push(e); return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(e){ subs.push(e); return ()=>{}; } };
     const ls = new LearningService({ bus });
     ls.start();
     assert(subs.length >= 4, `Expected ≥4 subscriptions, got ${subs.length}`);
@@ -50,7 +50,7 @@ describe('LearningService — start / stop', () => {
   });
 
   test('stop clears unsubs array', () => {
-    const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const ls = new LearningService({ bus });
     ls.start();
     assert(ls._unsubs.length > 0);
@@ -59,7 +59,7 @@ describe('LearningService — start / stop', () => {
   });
 
   test('start is idempotent (double start does not throw)', () => {
-    const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const ls = new LearningService({ bus });
     ls.start();
     ls.start();
@@ -156,7 +156,7 @@ describe('LearningService — _trackIntentSequence()', () => {
   test('detects repeating pair pattern', () => {
     const ls = makeLS();
     let patternFired = false;
-    ls.bus = { emit(e) { if (e === 'learning:pattern-detected') patternFired = true; }, fire(){} };
+    ls.bus = { emit(e) { if (e === 'learning:pattern-detected') patternFired = true; }, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     // Push same pair 10+ times to trigger _recordPattern repeatedly
     for (let i = 0; i < 12; i++) {
       ls._trackIntentSequence(i % 2 === 0 ? 'code' : 'general');
@@ -169,7 +169,7 @@ describe('LearningService — _trackIntentSequence()', () => {
 describe('LearningService — _detectFrustration()', () => {
   test('does not emit for single message', () => {
     const events = [];
-    const bus = { emit(e){ events.push(e); }, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(e){ events.push(e); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const ls = new LearningService({ bus });
     ls._detectFrustration('hello world', 'greeting');
     assertEqual(events.filter(e => e === 'learning:frustration-detected').length, 0);
@@ -177,7 +177,7 @@ describe('LearningService — _detectFrustration()', () => {
 
   test('emits frustration event for highly similar repeated messages', () => {
     const events = [];
-    const bus = { emit(e){ events.push(e); }, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(e){ events.push(e); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const ls = new LearningService({ bus });
     const msg = 'please help me with the file upload feature';
     ls._detectFrustration(msg, 'code');
@@ -190,7 +190,7 @@ describe('LearningService — _detectFrustration()', () => {
 describe('LearningService — _detectCapabilityGap()', () => {
   test('no-ops when response is null', () => {
     const events = [];
-    const bus = { emit(e){ events.push(e); }, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(e){ events.push(e); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const ls = new LearningService({ bus });
     ls._detectCapabilityGap('do something', null);
     assertEqual(events.length, 0);
@@ -198,7 +198,7 @@ describe('LearningService — _detectCapabilityGap()', () => {
 
   test('emits capability-gap for admission phrases (English)', () => {
     const events = [];
-    const bus = { emit(e){ events.push(e); }, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(e){ events.push(e); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const ls = new LearningService({ bus });
     ls._detectCapabilityGap('can you access my calendar?', 'I cannot access external calendars.');
     assert(events.includes('learning:capability-gap'));
@@ -206,7 +206,7 @@ describe('LearningService — _detectCapabilityGap()', () => {
 
   test('emits capability-gap for German admission phrases', () => {
     const events = [];
-    const bus = { emit(e){ events.push(e); }, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(e){ events.push(e); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const ls = new LearningService({ bus });
     ls._detectCapabilityGap('kannst du das machen?', 'Das ist leider nicht möglich in dieser Umgebung.');
     assert(events.includes('learning:capability-gap'));
@@ -214,7 +214,7 @@ describe('LearningService — _detectCapabilityGap()', () => {
 
   test('does not emit for normal successful response', () => {
     const events = [];
-    const bus = { emit(e){ events.push(e); }, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(e){ events.push(e); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const ls = new LearningService({ bus });
     ls._detectCapabilityGap('list files', 'Here are your files: a.js, b.js');
     assertEqual(events.filter(e => e === 'learning:capability-gap').length, 0);
@@ -323,7 +323,7 @@ describe('LearningService — _extractPreferences()', () => {
 describe('LearningService — _detectCapabilityGap() (void path)', () => {
   test('no-ops for short user message', () => {
     const events = [];
-    const bus = { emit(e){ events.push(e); }, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(e){ events.push(e); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const ls = new LearningService({ bus });
     ls._detectCapabilityGap('ok', 'I cannot do this');
     assertEqual(events.filter(e => e === 'learning:capability-gap').length, 0);

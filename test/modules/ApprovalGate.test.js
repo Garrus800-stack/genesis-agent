@@ -34,7 +34,7 @@ describe('ApprovalGate', () => {
     assertEqual(gate.isPending, false);
   });
 
-  test('reject resolves with false', async () => {
+  test('gate contract: reject resolves with false', async () => {
     const gate = create({ timeoutMs: 5000 });
     const p = gate.request('write', 'Write a file');
     gate.reject('Nope');
@@ -49,7 +49,7 @@ describe('ApprovalGate', () => {
     assertEqual(await p, false);
   });
 
-  test('timeout auto-rejects', async () => {
+  test('gate contract: timeout auto-rejects', async () => {
     const gate = create({ timeoutMs: 50 }); // 50ms timeout
     const result = await gate.request('slow', 'Will timeout');
     assertEqual(result, false);
@@ -120,7 +120,7 @@ describe('ApprovalGate', () => {
     gate.approve(); // should not throw
   });
 
-  test('reject is no-op when nothing pending', () => {
+  test('gate contract: reject is no-op when nothing pending', () => {
     const gate = create();
     gate.reject('test'); // should not throw
   });

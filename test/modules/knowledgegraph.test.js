@@ -30,7 +30,7 @@ fs.mkdirSync(tmpDir, { recursive: true });
 const { KnowledgeGraph } = require('../../src/agent/foundation/KnowledgeGraph');
 const { StorageService } = require('../../src/agent/foundation/StorageService');
 
-const mockBus = { emit() {}, on() {}, off() {} };
+const mockBus = { emit() {}, on() {}, off() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 const storage = new StorageService(tmpDir);
 
 console.log('\n  📦 KnowledgeGraph Traversal');

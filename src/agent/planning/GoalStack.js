@@ -125,7 +125,7 @@ class GoalStack {
     this._prioritize();
     this._save();
 
-    this.bus.emit('goal:created', { goalId: goal.id, id: goal.id, description, steps: steps.length, parentId: goal.parentId }, { source: 'GoalStack' });
+    this.bus.fire('goal:created', { goalId: goal.id, id: goal.id, description, steps: steps.length, parentId: goal.parentId }, { source: 'GoalStack' });
     return goal;
   }
 
@@ -180,7 +180,7 @@ class GoalStack {
         matchScore: gateResult.score,
         source,
       });
-      this.bus.emit('goal:blocked-as-duplicate', {
+      this.bus.fire('goal:blocked-as-duplicate', {
         goalId: `blocked_${Date.now()}`,
         matchScore: gateResult.score,
         matchedCapability: gateResult.matched.id,
@@ -191,7 +191,7 @@ class GoalStack {
     if (gateResult.action === 'warn') {
       // User goals never block — they always pass through, but we emit
       // a warning so the UI can surface "looks similar to X" inline.
-      this.bus.emit('goal:duplicate-warning', {
+      this.bus.fire('goal:duplicate-warning', {
         goalId: `pending_${Date.now()}`,
         matchScore: gateResult.score,
         matchedCapability: gateResult.matched.id,
@@ -203,7 +203,7 @@ class GoalStack {
       // surface a chat message ("This looks ~63% similar to goal X —
       // proceed anyway?") rather than silently blocking or proceeding.
       // Score is the TF-IDF cosine similarity (0..1, higher = more similar).
-      this.bus.emit('goal:dissonance-pushback', {
+      this.bus.fire('goal:dissonance-pushback', {
         goalId: `pending_${Date.now()}`,
         proposedDescription: description.slice(0, 200),
         matchedGoalId: gateResult.matched.id,
@@ -329,7 +329,7 @@ class GoalStack {
       this._unblockDependents(goal.id);
       // Check if parent goal's sub-goals are all done
       if (goal.parentId) this._checkParentCompletion(goal.parentId);
-      this.bus.emit('goal:completed', { id: goal.id, description: goal.description }, { source: 'GoalStack' });
+      this.bus.fire('goal:completed', { id: goal.id, description: goal.description }, { source: 'GoalStack' });
       return { goalId: goal.id, action: 'completed', description: goal.description };
     }
 
@@ -337,7 +337,7 @@ class GoalStack {
     goal.attempts++;
     goal.updated = new Date().toISOString();
 
-    this.bus.emit('goal:step-start', {
+    this.bus.fire('goal:step-start', {
       goalId: goal.id, stepIndex: goal.currentStep, step: goal.currentStep + 1,
       total: goal.steps.length, action: step.action,
     }, { source: 'GoalStack' });
@@ -363,7 +363,7 @@ class GoalStack {
         // Check if goal is now complete
         if (goal.currentStep >= goal.steps.length) {
           goal.status = 'completed';
-          this.bus.emit('goal:completed', { id: goal.id, description: goal.description }, { source: 'GoalStack' });
+          this.bus.fire('goal:completed', { id: goal.id, description: goal.description }, { source: 'GoalStack' });
         }
       } else {
         // Step failed
@@ -372,7 +372,7 @@ class GoalStack {
           const replanned = await _exe._replan(goal, result.error);
           if (!replanned) {
             goal.status = 'failed';
-            this.bus.emit('goal:failed', { id: goal.id, reason: result.error || 'step failed (no error details)' }, { source: 'GoalStack' });
+            this.bus.fire('goal:failed', { id: goal.id, reason: result.error || 'step failed (no error details)' }, { source: 'GoalStack' });
           }
         }
       }
@@ -519,7 +519,7 @@ class GoalStack {
     this._unblockDependents(goalId);
     if (g.parentId) this._checkParentCompletion(g.parentId);
     if (this.bus && this.bus.emit) {
-      this.bus.emit('goal:completed', {
+      this.bus.fire('goal:completed', {
         id: g.id, description: g.description,
       }, { source: 'GoalStack' });
     }
@@ -649,7 +649,7 @@ class GoalStack {
     g.stalledReason = String(reason).slice(0, 200);
     g.updated = new Date().toISOString();
     this._save();
-    this.bus.emit('goal:stalled', {
+    this.bus.fire('goal:stalled', {
       id: g.id, description: g.description, reason: g.stalledReason,
     }, { source: 'GoalStack' });
     return true;
@@ -674,7 +674,7 @@ class GoalStack {
     g.obsoleteReason = String(reason).slice(0, 200);
     g.updated = new Date().toISOString();
     this._save();
-    this.bus.emit('goal:obsolete', {
+    this.bus.fire('goal:obsolete', {
       id: g.id, description: g.description, reason: g.obsoleteReason,
     }, { source: 'GoalStack' });
     return true;
@@ -713,7 +713,7 @@ class GoalStack {
         g.status = 'completed';
         g.updated = new Date().toISOString();
         changed.push({ id: g.id, from: 'active', to: 'completed', reason: 'all-steps-done-but-status-was-active' });
-        this.bus.emit('goal:completed', { id: g.id, description: g.description, auto: true }, { source: 'GoalStack:review' });
+        this.bus.fire('goal:completed', { id: g.id, description: g.description, auto: true }, { source: 'GoalStack:review' });
         continue;
       }
 
@@ -722,7 +722,7 @@ class GoalStack {
         g.status = 'failed';
         g.updated = new Date().toISOString();
         changed.push({ id: g.id, from: 'active', to: 'failed', reason: 'attempts-exhausted-but-status-was-active' });
-        this.bus.emit('goal:failed', { id: g.id, reason: 'auto-review: attempts exhausted', auto: true }, { source: 'GoalStack:review' });
+        this.bus.fire('goal:failed', { id: g.id, reason: 'auto-review: attempts exhausted', auto: true }, { source: 'GoalStack:review' });
         continue;
       }
 
@@ -736,7 +736,7 @@ class GoalStack {
           g.stalledReason = `no progress for ${Math.floor((now - lastUpdate) / (60 * 60 * 1000))}h`;
           g.updated = new Date().toISOString();
           changed.push({ id: g.id, from: 'active', to: 'stalled', reason: g.stalledReason });
-          this.bus.emit('goal:stalled', {
+          this.bus.fire('goal:stalled', {
             id: g.id, description: g.description, reason: g.stalledReason, auto: true,
           }, { source: 'GoalStack:review' });
         }
@@ -775,7 +775,7 @@ class GoalStack {
       if (g.blockedBy.length === 0) {
         g.status = 'active';
         g.updated = new Date().toISOString();
-        this.bus.emit('goal:unblocked', { id: g.id, description: g.description }, { source: 'GoalStack' });
+        this.bus.fire('goal:unblocked', { id: g.id, description: g.description }, { source: 'GoalStack' });
       }
     }
     this._save();
@@ -791,7 +791,7 @@ class GoalStack {
       parent.status = 'completed';
       parent.updated = new Date().toISOString();
       this._save();
-      this.bus.emit('goal:completed', { id: parent.id, description: parent.description, via: 'sub-goals' }, { source: 'GoalStack' });
+      this.bus.fire('goal:completed', { id: parent.id, description: parent.description, via: 'sub-goals' }, { source: 'GoalStack' });
     }
   }
 

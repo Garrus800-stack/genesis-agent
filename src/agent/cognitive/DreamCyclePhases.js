@@ -71,7 +71,7 @@ const dreamCyclePhases = {
             this.episodicMemory.setProtected(moment.episodeId, true);
             this.episodicMemory.setLinkedCoreMemoryId(moment.episodeId, coreMem.id);
           }
-          this.bus.emit('memory:self-elevated', {
+          this.bus.fire('memory:self-elevated', {
             episodeId: moment.episodeId,
             reason: 'pin-review-elevate',
           }, { source: 'DreamCycle' });
@@ -79,7 +79,7 @@ const dreamCyclePhases = {
           _log.warn('[DREAM] elevate failed for', moment.id, '—', e.message);
         }
       } else if (decision === 'let_fade') {
-        this.bus.emit('memory:self-released', {
+        this.bus.fire('memory:self-released', {
           episodeId: moment.episodeId,
         }, { source: 'DreamCycle' });
       }
@@ -133,7 +133,7 @@ const dreamCyclePhases = {
           episode.linkedCoreMemoryId,
           { fromLayer, toLayer }
         );
-        this.bus.emit('memory:layer-transition-asked', {
+        this.bus.fire('memory:layer-transition-asked', {
           coreMemoryId: episode.linkedCoreMemoryId,
           fromLayer, toLayer, decision,
         }, { source: 'DreamCycle' });
@@ -151,7 +151,7 @@ const dreamCyclePhases = {
       if (newEpisode) {
         const ok = this.episodicMemory.replaceEpisode(episode.id, newEpisode);
         if (ok) {
-          this.bus.emit('memory:consolidated', {
+          this.bus.fire('memory:consolidated', {
             episodeId: episode.id,
             fromLayer,
             toLayer,
@@ -162,7 +162,7 @@ const dreamCyclePhases = {
           results.push({ id: episode.id, action: 'replace-failed' });
         }
       } else {
-        this.bus.emit('memory:consolidation-failed', {
+        this.bus.fire('memory:consolidation-failed', {
           episodeId: episode.id,
           error: 'all-fallbacks-failed',
         }, { source: 'DreamCycle' });

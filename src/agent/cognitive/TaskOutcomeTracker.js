@@ -205,7 +205,7 @@ class TaskOutcomeTracker {
     this.stats.recorded++;
     this._dirty = true;
 
-    this.bus.emit('task-outcome:recorded', outcome);
+    this.bus.fire('task-outcome:recorded', outcome);
 
     // Prune if over cap
     if (this._outcomes.length > MAX_OUTCOMES) {
@@ -218,7 +218,7 @@ class TaskOutcomeTracker {
 
     // Emit aggregate stats periodically (every 10 records)
     if (this.stats.recorded % 10 === 0) {
-      this.bus.emit('task-outcome:stats-updated', this.getAggregateStats());
+      this.bus.fire('task-outcome:stats-updated', this.getAggregateStats());
     }
   }
 

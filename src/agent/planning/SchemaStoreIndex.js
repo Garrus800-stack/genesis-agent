@@ -161,7 +161,7 @@ const indexMethods = {
       }
     }
 
-    this.bus.emit('schema:pruned', {
+    this.bus.fire('schema:pruned', {
       removed: toRemove.length,
       remaining: this._schemas.length,
     }, { source: 'SchemaStore' });

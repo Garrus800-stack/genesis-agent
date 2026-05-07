@@ -147,7 +147,7 @@ class ShellAgent {
         blocked: true,
         sandboxBlock: true,
       };
-      if (!silent) this.bus.emit('shell:blocked', { command, tier, reason: sandboxCheck.reason }, { source: 'ShellAgent' });
+      if (!silent) this.bus.fire('shell:blocked', { command, tier, reason: sandboxCheck.reason }, { source: 'ShellAgent' });
       return { ok: false, result: sbResult };
     }
 
@@ -155,7 +155,7 @@ class ShellAgent {
     const blockedCheck = Safety.checkBlockedPattern(command, tier, this.blockedPatterns);
     if (!blockedCheck.ok) {
       const result = { ok: false, stdout: '', stderr: this.lang.t('shell.blocked_tier', { tier, cmd: command }), exitCode: -1, duration: 0, blocked: true };
-      if (!silent) this.bus.emit('shell:blocked', { command, tier }, { source: 'ShellAgent' });
+      if (!silent) this.bus.fire('shell:blocked', { command, tier }, { source: 'ShellAgent' });
       return { ok: false, result };
     }
 
@@ -163,7 +163,7 @@ class ShellAgent {
     const rateCheck = Safety.checkRateLimit(this._shellCalls, tier, SHELL_LIMITS.RATE_LIMITS, SHELL_LIMITS.RATE_WINDOW_MS);
     if (!rateCheck.ok) {
       const limit = rateCheck.limit;
-      if (!silent) this.bus.emit('shell:rate-limited', { tier, count: limit, limit, windowMs: SHELL_LIMITS.RATE_WINDOW_MS }, { source: 'ShellAgent' });
+      if (!silent) this.bus.fire('shell:rate-limited', { tier, count: limit, limit, windowMs: SHELL_LIMITS.RATE_WINDOW_MS }, { source: 'ShellAgent' });
       return { ok: false, result: { ok: false, stdout: '', stderr: `[SHELL] Rate limited — ${tier} tier: max ${limit} commands per ${Math.round(SHELL_LIMITS.RATE_WINDOW_MS / 60000)}min window exceeded.`, exitCode: -2, duration: 0, blocked: false, rateLimited: true } };
     }
 
@@ -235,7 +235,7 @@ class ShellAgent {
         originalCommand,
       };
       this._record(command, cwd, result);
-      if (!silent) this.bus.emit('shell:executed', { command: command.slice(0, 100), exitCode: 0, duration }, { source: 'ShellAgent' });
+      if (!silent) this.bus.fire('shell:executed', { command: command.slice(0, 100), exitCode: 0, duration }, { source: 'ShellAgent' });
       return result;
     } catch (err) {
       const duration = Date.now() - startTime;
@@ -247,7 +247,7 @@ class ShellAgent {
         originalCommand,
       };
       this._record(command, cwd, result);
-      if (!silent) this.bus.emit('shell:failed', { command: command.slice(0, 100), error: result.stderr.slice(0, 200) }, { source: 'ShellAgent' });
+      if (!silent) this.bus.fire('shell:failed', { command: command.slice(0, 100), error: result.stderr.slice(0, 200) }, { source: 'ShellAgent' });
       return result;
     }
   }
@@ -342,7 +342,7 @@ class ShellAgent {
         continue;
       }
 
-      this.bus.emit('shell:step', { step: i + 1, total: steps.length, cmd: step.cmd.slice(0, 80) }, { source: 'ShellAgent' });
+      this.bus.fire('shell:step', { step: i + 1, total: steps.length, cmd: step.cmd.slice(0, 80) }, { source: 'ShellAgent' });
       const result = await this.run(step.cmd, { cwd, timeout: TIMEOUTS.TIMEOUT_MS });
       results.push({ step: i + 1, cmd: step.cmd, description: step.description, ...result });
       if (!result.ok && step.critical) allOk = false;
@@ -514,7 +514,7 @@ class ShellAgent {
     }
     const old = this.permissionLevel;
     this.permissionLevel = level;
-    this.bus.emit('shell:permission-changed', { from: old, to: level }, { source: 'ShellAgent' });
+    this.bus.fire('shell:permission-changed', { from: old, to: level }, { source: 'ShellAgent' });
     return { ok: true, level };
   }
 

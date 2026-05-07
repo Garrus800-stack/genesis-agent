@@ -159,7 +159,7 @@ class EpisodicMemory {
     // Persist
     this._save();
 
-    this.bus.emit('episodic:recorded', {
+    this.bus.fire('episodic:recorded', {
       id, topic: episode.topic, outcome: episode.outcome,
     }, { source: 'EpisodicMemory' });
 
@@ -375,14 +375,14 @@ class EpisodicMemory {
       pendingTransitions++;
     }
 
-    this.bus.emit('memory:layer-overflow', {
+    this.bus.fire('memory:layer-overflow', {
       layer: 1,
       count: layer1.length,
       pendingTransitions,
     }, { source: 'EpisodicMemory' });
 
     if (layer1.length > HARD_RUNAWAY_CAP_L1) {
-      this.bus.emit('dream:cycle-forced', {
+      this.bus.fire('dream:cycle-forced', {
         reason: 'layer-1-runaway',
         layerCount: layer1.length,
       }, { source: 'EpisodicMemory' });

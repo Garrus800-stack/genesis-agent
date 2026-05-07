@@ -18,7 +18,7 @@ function makeGS() {
   const events = [];
   const gs = new GoalStack({
     lang: { t: (k, v) => v ? `${k}: ${JSON.stringify(v)}` : k },
-    bus: { emit(e, d) { events.push({ e, d }); }, fire() {}, on() {} },
+    bus: { emit(e, d) { events.push({ e, d }); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() {} },
     model: { chat: async () => 'think: do' },
     prompts: {},
     storage: null,

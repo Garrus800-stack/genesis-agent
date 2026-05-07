@@ -67,7 +67,7 @@ const vitals = {
             allo.shifts++;
             allo.warningStart = now; // Reset timer for next potential shift
 
-            this.bus.emit('homeostasis:allostasis', {
+            this.bus.fire('homeostasis:allostasis', {
               vital: name,
               oldMax: vital.healthy.max - Math.abs(shift),
               newMax,
@@ -122,19 +122,19 @@ const vitals = {
 
       switch (action) {
         case 'throttle-autonomy':
-          this.bus.emit('homeostasis:throttle', { reason: name, level: status }, { source: 'Homeostasis' });
+          this.bus.fire('homeostasis:throttle', { reason: name, level: status }, { source: 'Homeostasis' });
           break;
         case 'prune-caches':
-          this.bus.emit('homeostasis:prune-caches', { memoryPressure: vital.value }, { source: 'Homeostasis' });
+          this.bus.fire('homeostasis:prune-caches', { memoryPressure: vital.value }, { source: 'Homeostasis' });
           break;
         case 'prune-knowledge':
-          this.bus.emit('homeostasis:prune-knowledge', { nodeCount: vital.value }, { source: 'Homeostasis' });
+          this.bus.fire('homeostasis:prune-knowledge', { nodeCount: vital.value }, { source: 'Homeostasis' });
           break;
         case 'reduce-load':
-          this.bus.emit('homeostasis:reduce-load', { circuit: vital.value }, { source: 'Homeostasis' });
+          this.bus.fire('homeostasis:reduce-load', { circuit: vital.value }, { source: 'Homeostasis' });
           break;
         case 'reduce-context':
-          this.bus.emit('homeostasis:reduce-context', { latency: vital.value }, { source: 'Homeostasis' });
+          this.bus.fire('homeostasis:reduce-context', { latency: vital.value }, { source: 'Homeostasis' });
           break;
       }
     }
@@ -176,7 +176,7 @@ const vitals = {
 
     // Throttle requests pause IdleMind
     this.bus.on('homeostasis:throttle', () => {
-      this.bus.emit('homeostasis:pause-autonomy', {}, { source: 'Homeostasis' });
+      this.bus.fire('homeostasis:pause-autonomy', {}, { source: 'Homeostasis' });
     }, { source: 'Homeostasis' });
   },
 

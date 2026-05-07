@@ -171,7 +171,7 @@ class AgentLoop {
       const msg = `Strict cognitive mode: refusing to pursue goal — missing: ${missing.join(', ')}. ` +
         `Disable via Settings → cognitive.strictMode = false, or install missing dependencies.`;
       _log.error(`[AGENT-LOOP] ${msg}`);
-      this.bus.emit('agent:status', { state: 'error', detail: msg }, { source: 'AgentLoop' });
+      this.bus.fire('agent:status', { state: 'error', detail: msg }, { source: 'AgentLoop' });
       return { success: false, error: msg };
     }
 
@@ -267,7 +267,7 @@ class AgentLoop {
           elapsed: TIMEOUTS.AGENT_LOOP_GLOBAL,
         }, { source: 'AgentLoop' });
         // v4.12.5-fix: Also emit goal:abandoned for GoalPersistence
-        this.bus.emit('goal:abandoned', {
+        this.bus.fire('goal:abandoned', {
           goalId: this.currentGoalId,
           reason: `Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms)`,
           stepsCompleted: this.stepCount,
@@ -700,7 +700,7 @@ class AgentLoop {
         onProgress({ phase: 'error', step: i + 1, detail: result.error });
 
         // v6.0.7: Emit step-failed for EarnedAutonomy tracking
-        this.bus.emit('agent-loop:step-failed', {
+        this.bus.fire('agent-loop:step-failed', {
           goalId: this.currentGoalId,
           stepIndex: i,
           type: step.type,
@@ -746,7 +746,7 @@ class AgentLoop {
             continue;
           } else {
             // v4.12.5-fix: Emit goal:abandoned so GoalPersistence can record failure
-            this.bus.emit('goal:abandoned', {
+            this.bus.fire('goal:abandoned', {
               goalId: this.currentGoalId,
               reason: `Max errors at step ${i + 1}: ${result.error}`,
               stepsCompleted: i,
@@ -763,7 +763,7 @@ class AgentLoop {
 
         // v4.12.5-fix: Standardized to 'agent-loop:step-complete' (was 'agentloop:step-complete').
         // Matches EVENTS.AGENT_LOOP.STEP_COMPLETE and EventPayloadSchemas.
-        this.bus.emit('agent-loop:step-complete', {
+        this.bus.fire('agent-loop:step-complete', {
           goalId: this.currentGoalId,
           stepIndex: i,
           result: result.output?.slice(0, 200) || '',

@@ -204,7 +204,7 @@ class LearningService {
     // Performance alert: 4 out of 5 recent failures
     const recent5 = m.recentOutcomes.slice(-5);
     if (recent5.length >= 5 && recent5.filter(o => !o.success).length >= 4) {
-      this.bus.emit('learning:performance-alert', {
+      this.bus.fire('learning:performance-alert', {
         intent,
         successRate: m.success / m.total,
         message: `Intent "${intent}": ${m.fail} errors in last 5 requests`,
@@ -280,7 +280,7 @@ class LearningService {
 
     // Emit skill suggestion at 5x, 10x, 15x ...
     if (existing && existing.count >= 5 && existing.count % 5 === 0) {
-      this.bus.emit('learning:pattern-detected', {
+      this.bus.fire('learning:pattern-detected', {
         pattern: key, count: existing.count,
         suggestion: `Wiederkehrendes Muster: ${key} (${existing.count}x). Skill-Kandidat?`,
       }, { source: 'LearningService' });
@@ -330,7 +330,7 @@ class LearningService {
       }
       const avgSim = similarities.reduce((a, b) => a + b, 0) / similarities.length;
       if (avgSim > 0.6) {
-        this.bus.emit('learning:frustration-detected', {
+        this.bus.fire('learning:frustration-detected', {
           similarity: avgSim, intent,
           message: `User wiederholt sich (${Math.round(avgSim * 100)}% Aehnlichkeit).`,
         }, { source: 'LearningService' });
@@ -348,7 +348,7 @@ class LearningService {
     ];
     const isAdmission = cannotPhrases.some(p => p.test(response));
     if (isAdmission && message.length > 10) {
-      this.bus.emit('learning:capability-gap', {
+      this.bus.fire('learning:capability-gap', {
         userRequest: message.slice(0, 200),
         response: response.slice(0, 200),
         timestamp: Date.now(),
@@ -362,7 +362,7 @@ class LearningService {
 
     const intentFallbacks = this._llmFallbacks.filter(f => f.intent === data.intent);
     if (intentFallbacks.length >= 5 && intentFallbacks.length % 5 === 0) {
-      this.bus.emit('learning:intent-suggestion', {
+      this.bus.fire('learning:intent-suggestion', {
         intent: data.intent, count: intentFallbacks.length,
         examples: intentFallbacks.slice(-3).map(f => f.message),
         suggestion: `Intent "${data.intent}" braucht ${intentFallbacks.length}x LLM-Fallback. Neue Regex empfohlen.`,

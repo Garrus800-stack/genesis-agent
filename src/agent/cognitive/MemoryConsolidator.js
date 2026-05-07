@@ -159,7 +159,7 @@ class MemoryConsolidator {
       this._stats.lastRunTs = now;
 
       // Emit completion event
-      this.bus.emit('memory:consolidation-complete', {
+      this.bus.fire('memory:consolidation-complete', {
         kgMerged: report.kg.merged,
         kgPruned: report.kg.pruned,
         lessonsArchived: report.lessons.archived,
@@ -173,7 +173,7 @@ class MemoryConsolidator {
 
     } catch (err) {
       _log.warn('[CONSOLIDATOR] Consolidation failed:', err.message);
-      this.bus.emit('memory:consolidation-failed', {
+      this.bus.fire('memory:consolidation-failed', {
         error: err.message,
       }, { source: 'MemoryConsolidator' });
       return { ...report, error: err.message };

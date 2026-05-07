@@ -1,6 +1,6 @@
 const { describe, test, run } = require('../harness');
 const { MentalSimulator, STEP_VALUES, RETRYABLE } = require('../../src/agent/cognitive/MentalSimulator');
-function make() { return new MentalSimulator({ bus: { emit(){} }, worldState: { get: () => null, snapshot: () => ({}) }, expectationEngine: null, storage: null, config: {} }); }
+function make() { return new MentalSimulator({ bus: { emit(){} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, worldState: { get: () => null, snapshot: () => ({}) }, expectationEngine: null, storage: null, config: {} }); }
 describe('MentalSimulator', () => {
   test('STEP_VALUES exported', () => { if (typeof STEP_VALUES !== 'object') throw new Error('Missing'); });
   test('simulate returns result for empty plan', () => {

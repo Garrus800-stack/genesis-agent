@@ -1,6 +1,6 @@
 const { describe, test, run } = require('../harness');
 const { HomeostasisEffectors } = require('../../src/agent/organism/HomeostasisEffectors');
-function make() { return new HomeostasisEffectors({ bus: { emit(){}, on(){}, fire(){} }, storage: null, config: {} }); }
+function make() { return new HomeostasisEffectors({ bus: { emit(){}, on(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } }, storage: null, config: {} }); }
 describe('HomeostasisEffectors', () => {
   test('constructs', () => { if (!make()) throw new Error('Fail'); });
   test('getReport returns object', () => {

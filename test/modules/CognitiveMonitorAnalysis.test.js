@@ -3,7 +3,7 @@ const { CognitiveMonitor } = require('../../src/agent/autonomy/CognitiveMonitor'
 
 function makeCM() {
   return new CognitiveMonitor({
-    bus: { emit(){}, fire(){}, on(){} },
+    bus: { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){} },
     eventStore: null, storage: null, intervals: null, config: {},
   });
 }

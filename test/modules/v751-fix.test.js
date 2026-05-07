@@ -364,7 +364,7 @@ console.log('\n  📦 v7.5.1 Regression Tests\n');
   await test('N: recordCoherenceCheck emits intent:tool-mismatch on bus', async () => {
     const { recordCoherenceCheck } = require('../../src/agent/core/intent-tool-coherence');
     const recorded = [];
-    const fakeBus = { emit: (n, p) => recorded.push({ event: n, payload: p }) };
+    const fakeBus = { emit: (n, p) => recorded.push({ event: n, payload: p }), fire(...args) { return this.emit(...args); } };
     
     recordCoherenceCheck(fakeBus, 'general', 'shell-run', { correlationId: 'test' });
     assert.strictEqual(recorded.length, 1);

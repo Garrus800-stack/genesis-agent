@@ -191,7 +191,7 @@ function createMocks(overrides = {}) {
 
 describe('SelfModPipeline: Safety Scanner Integration', () => {
 
-  test('modify blocks code when scanner rejects (eval-like)', async () => {
+  test('selfmod contract: modify blocks code when scanner rejects (eval-like)', async () => {
     mockScannerBlock('eval() — arbitrary code execution');
     const { pipeline, eventStore, hotReloader } = createMocks();
     pipeline.astDiff.parseDiffs = () => [{ op: 'replace', range: [0, 10], text: 'eval("danger")' }];
@@ -207,7 +207,7 @@ describe('SelfModPipeline: Safety Scanner Integration', () => {
     assertEqual(hotReloader._reloaded.length, 0, 'No files should be hot-reloaded when safety blocks');
   });
 
-  test('modify logs safety block to eventStore', async () => {
+  test('selfmod contract: modify logs safety block to eventStore', async () => {
     mockScannerBlock('new Function() detected');
     const { pipeline, eventStore } = createMocks();
     pipeline.astDiff.parseDiffs = () => [{ op: 'replace' }];
@@ -223,7 +223,7 @@ describe('SelfModPipeline: Safety Scanner Integration', () => {
     assert(safetyEvents[0].data.file || safetyEvents[0].data.files, 'Block event should reference file(s)');
   });
 
-  test('modify emits code:safety-blocked event on block', async () => {
+  test('selfmod contract: modify emits code:safety-blocked event on block', async () => {
     mockScannerBlock('process.exit detected');
     const { pipeline, events } = createMocks();
     pipeline.astDiff.parseDiffs = () => [{ op: 'replace' }];
@@ -239,7 +239,7 @@ describe('SelfModPipeline: Safety Scanner Integration', () => {
     assert(safetyEvents[0].data.issues, 'Should include issues list');
   });
 
-  test('full-file modify blocks multi-patch when scanner rejects', async () => {
+  test('selfmod contract: full-file modify blocks multi-patch when scanner rejects', async () => {
     mockScannerBlock('dangerous pattern');
     const { pipeline, eventStore } = createMocks();
     pipeline.reasoning.solve = async () => ({
@@ -280,7 +280,7 @@ describe('SelfModPipeline: Safety Scanner Integration', () => {
     assert(warns.length >= 1, 'Warnings should be logged to eventStore');
   });
 
-  test('real scanner (no acorn) blocks all self-mod as fail-safe', async () => {
+  test('selfmod contract: real scanner (no acorn) blocks all self-mod as fail-safe', async () => {
     mockScannerReal();
     const { pipeline, hotReloader } = createMocks();
     pipeline.astDiff.parseDiffs = () => [{ op: 'replace' }];
@@ -359,7 +359,7 @@ describe('SelfModPipeline: ASTDiff Modify Path', () => {
     assert(result.includes('reasoning result'), 'Should fall back to reasoning');
   });
 
-  test('ASTDiff throws: falls back to full-file gracefully', async () => {
+  test('selfmod contract: ASTDiff throws: falls back to full-file gracefully', async () => {
     mockScannerSafe();
     const { pipeline } = createMocks();
     pipeline.astDiff.parseDiffs = () => { throw new Error('Parse explosion'); };
@@ -423,7 +423,7 @@ describe('SelfModPipeline: Full-File Modify Path', () => {
     assertEqual(modEvents[0].data.success, true, 'Should mark as success');
   });
 
-  test('test failure prevents all patches from being written', async () => {
+  test('selfmod contract: test failure prevents all patches from being written', async () => {
     mockScannerSafe();
     const { pipeline, hotReloader, tmpRoot } = createMocks();
     pipeline.reasoning.solve = async () => ({
@@ -512,7 +512,7 @@ describe('SelfModPipeline: Event Emission & Status Lifecycle', () => {
     assertEqual(statusEvents[0].data.state, 'self-repairing', 'First should be self-repairing');
   });
 
-  test('status returns to ready even when reasoning throws during modify', async () => {
+  test('selfmod contract: status returns to ready even when reasoning throws during modify', async () => {
     mockScannerSafe();
     const { pipeline, events } = createMocks();
     pipeline.reasoning.solve = async () => { throw new Error('LLM crashed'); };

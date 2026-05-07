@@ -52,7 +52,7 @@ const goalStackPending = {
     const entry = { id, description: trimmed, source, priority, createdAt: Date.now() };
     this.pendingGoals.set(id, entry);
     try {
-      this.bus.emit('goal:proposed', {
+      this.bus.fire('goal:proposed', {
         id, description: entry.description, source,
       }, { source: 'GoalStack' });
     } catch (_e) { /* never break */ }
@@ -71,7 +71,7 @@ const goalStackPending = {
     if (!entry) return null;
     this.pendingGoals.delete(pendingId);
     try {
-      this.bus.emit('goal:negotiation-confirmed', {
+      this.bus.fire('goal:negotiation-confirmed', {
         pendingId, description: entry.description,
       }, { source: 'GoalStack' });
     } catch (_e) { /* never break */ }
@@ -93,7 +93,7 @@ const goalStackPending = {
     entry.description = newDescription.trim();
     entry.createdAt = Date.now();  // reset TTL on revision
     try {
-      this.bus.emit('goal:negotiation-revised', {
+      this.bus.fire('goal:negotiation-revised', {
         pendingId, description: entry.description,
       }, { source: 'GoalStack' });
     } catch (_e) { /* never break */ }
@@ -112,7 +112,7 @@ const goalStackPending = {
     if (!entry) return null;
     this.pendingGoals.delete(pendingId);
     try {
-      this.bus.emit('goal:negotiation-dismissed', {
+      this.bus.fire('goal:negotiation-dismissed', {
         pendingId, description: entry.description,
       }, { source: 'GoalStack' });
     } catch (_e) { /* never break */ }
@@ -135,7 +135,7 @@ const goalStackPending = {
       if (entry.createdAt < cutoff) {
         this.pendingGoals.delete(id);
         try {
-          this.bus.emit('goal:negotiation-expired', {
+          this.bus.fire('goal:negotiation-expired', {
             pendingId: id, description: entry.description,
           }, { source: 'GoalStack' });
         } catch (_e) { /* never break */ }

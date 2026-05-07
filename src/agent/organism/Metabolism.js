@@ -231,7 +231,7 @@ class Metabolism {
         this.needsSystem.needs.rest.value + (cost * 0.5));
     }
 
-    this.bus.emit('metabolism:cost', {
+    this.bus.fire('metabolism:cost', {
       cost: Math.round(cost * 1000) / 1000,
       tokens: data?.tokens || data?.totalTokens || 0,
       latencyMs: data?.latencyMs || data?.duration || 0,
@@ -377,7 +377,7 @@ class Metabolism {
 
     if (this._energy < cost) {
       _log.debug(`[METABOLISM] Cannot afford "${activity}" (need ${cost}, have ${Math.round(this._energy)})`);
-      this.bus.emit('metabolism:insufficient', {
+      this.bus.fire('metabolism:insufficient', {
         activity, cost, available: Math.round(this._energy),
       }, { source: 'Metabolism' });
       return { ok: false, cost, remaining: Math.round(this._energy), state: this.getEnergyState() };
@@ -394,14 +394,14 @@ class Metabolism {
     if (state !== prevState) {
       this._lastEnergyState = state;
       _log.info(`[METABOLISM] Energy state: ${prevState} → ${state} (${Math.round(this._energy)}/${this._maxEnergy})`);
-      this.bus.emit('metabolism:state-changed', {
+      this.bus.fire('metabolism:state-changed', {
         state: state, from: prevState, to: state,
         energy: Math.round(this._energy),
         max: this._maxEnergy,
       }, { source: 'Metabolism' });
     }
 
-    this.bus.emit('metabolism:consumed', {
+    this.bus.fire('metabolism:consumed', {
       activity, cost,
       tokens: this._lastTokenCount || 0,
       remaining: Math.round(this._energy),

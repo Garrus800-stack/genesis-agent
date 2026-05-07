@@ -145,7 +145,7 @@ class CausalAnnotation {
     // ── Check for promotions based on suspicion ──
     this._checkPromotions();
 
-    this.bus.emit('causal:recorded', {
+    this.bus.fire('causal:recorded', {
       stepId,
       changes: delta.changes.length,
       relation: isIsolated ? REL.CAUSED : REL.CORRELATED,
@@ -188,7 +188,7 @@ class CausalAnnotation {
         // GraphStore.promoteEdge() handles this
         this._stats.promotions++;
         _log.info(`[CAUSAL] Promoting ${key} to "caused" (suspicion: ${suspicion.toFixed(2)}, obs: ${stats.observations})`);
-        this.bus.emit('causal:promoted', { action: key, suspicion, observations: stats.observations }, { source: 'CausalAnnotation' });
+        this.bus.fire('causal:promoted', { action: key, suspicion, observations: stats.observations }, { source: 'CausalAnnotation' });
       }
     }
   }
@@ -227,7 +227,7 @@ class CausalAnnotation {
     // For now: emit event and track stat
     this._stats.degradations++;
     _log.info(`[CAUSAL] Staleness: ${filePath} changed ${(diffPct * 100).toFixed(0)}% — degrading caused edges`);
-    this.bus.emit('causal:staleness-triggered', {
+    this.bus.fire('causal:staleness-triggered', {
       file: filePath,
       diffPct,
       threshold: this._refactorThreshold,

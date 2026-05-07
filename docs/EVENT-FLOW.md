@@ -1,7 +1,7 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.5.6 — Event flow documentation. 449 catalogued events, 445 payload schemas (100% coverage of non-fire-and-forget events),
-> all emit sites validated (0 mismatches). Active gates with bus events:
+> v7.6.3 — Event flow documentation. 452 catalogued events, 452 payload schemas (full parity since v7.6.x — every catalog entry has a registered schema),
+> all emit sites validated (0 mismatches). v7.6.3 dropped 4 dead entries (`self-gate:blocked`, three `frontier:*:written`); 25 `store:*` entries that were briefly removed as part of the same sweep are restored, with B1+B2 regression tests in `store-event-catalog.test.js` enforcing the link from every `eventStore.append('TYPE', ...)` call site to its catalog + schema entry. Active gates with bus events:
 > Injection-Gate (`injection:blocked`), Tool-Call-Verification (`tool-call:unverified`),
 > Self-Gate (`self-gate:warned`, telemetry-only by design), Source-Read (`read-source:called`,
 > `read-source:soft-limit`), Reasoning-Block Filter (v7.5.6 — emits `model:thinking-trace`
@@ -708,7 +708,6 @@ Tool-Call-Verification and Self-Gate).
 | `injection:blocked` | ChatOrchestrator (via `injection-gate.js`) | Dashboard / metrics (planned) | Fires when the input-side injection gate blocks an LLM-decided tool call. Two or more signals from {authority claim, credential request, artificial urgency} were detected in the user message. Payload: `{ signals: Array<{kind, note}>, toolCount }`. The tool call is not executed; the gate response is sent to the chat instead. |
 | `tool-call:unverified` | ChatOrchestrator (via `tool-call-verification.js`) | Dashboard / metrics (planned) | Fires when Genesis' final response claims concrete action (file write, shell, sandbox) but no matching tool fired in the turn. Detective signal — the response still reaches the user, with an annotation suggesting verification. Payload: `{ verdict: 'suspicious'\|'unverified', flagCount, categories: Array<string> }`. |
 | `self-gate:warned` | ChatOrchestrator tool-calls, GoalStack pushes (non-user) — via `self-gate.js` | GateStats, Dashboard (planned) | Telemetry event when a Self-Gate observation detects reflexivity (LLM self-imperative without user request) or user-topic-mismatch on an action. Does not block — records the pattern for later analysis. Payload: `{ actionType, signals: Array<{kind, note}>, triggerSource }`. |
-| `self-gate:blocked` | — | — | Reserved in the catalog for a potential future enforcement mode. Not currently fired; the design commitment is that Self-Gate stays observational. |
 | `read-source:called` | SelfModel.readSourceSync | Dashboard (planned) | Fires on every successful source-read during a chat turn. Payload: `{ path, bytes, turnId? }`. Turn IDs propagate from ChatOrchestrator via `startReadSourceTurn(traceId)`. |
 | `read-source:soft-limit` | SelfModel.readSourceSync | Dashboard (planned) | Fires when `turnCount` crosses `softPerTurn` (5) within a single chat turn. Telemetry only — the read succeeds. Payload: `{ turnCount, softLimit, hardLimit, turnId? }`. |
 

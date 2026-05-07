@@ -221,7 +221,7 @@ class IdleMind {
 
     // v7.2.5: Emit cycle-start after all gates pass.
     // Listeners can trust this means a cycle IS happening, not just considered.
-    this.bus.emit('idle:cycle-start', {
+    this.bus.fire('idle:cycle-start', {
       thoughtCount: this.thoughtCount,
       timeSinceUser,
       energy: this._metabolism?.getEnergy?.() || 0,
@@ -231,12 +231,12 @@ class IdleMind {
     if (this.goalStack) {
       const activeGoals = this.goalStack.getActiveGoals();
       if (activeGoals.length > 0) {
-        this.bus.emit('idle:thinking', { activity: 'goal', thought: this.thoughtCount }, { source: 'IdleMind' });
+        this.bus.fire('idle:thinking', { activity: 'goal', thought: this.thoughtCount }, { source: 'IdleMind' });
         try {
           const result = await this.goalStack.executeNextStep();
           if (result) {
             this._journal('goal', `[${result.goalId}] Step: ${result.action} -> ${result.success ? 'OK' : 'FAIL'}: ${(result.output || '').slice(0, 200)}`);
-            this.bus.emit('idle:thought-complete', { activity: 'goal', summary: result.action }, { source: 'IdleMind' });
+            this.bus.fire('idle:thought-complete', { activity: 'goal', summary: result.action }, { source: 'IdleMind' });
             return;
           }
         } catch (err) {
@@ -248,7 +248,7 @@ class IdleMind {
     // PRIORITY 2: Needs-driven + emotion-weighted activity selection
     const activity = this._pickActivity();
 
-    this.bus.emit('idle:thinking', { activity, thought: this.thoughtCount }, { source: 'IdleMind' });
+    this.bus.fire('idle:thinking', { activity, thought: this.thoughtCount }, { source: 'IdleMind' });
 
     try {
       let result;
@@ -264,7 +264,7 @@ class IdleMind {
         // Keep only last 20 activity entries
         if (this.activityLog.length > 20) this.activityLog = this.activityLog.slice(-20);
 
-        this.bus.emit('idle:thought-complete', { activity, summary: result.slice(0, 200) }, { source: 'IdleMind' });
+        this.bus.fire('idle:thought-complete', { activity, summary: result.slice(0, 200) }, { source: 'IdleMind' });
 
         // v5.7.0: Proactive insight — share significant findings with the user
         if (this._isSignificantInsight(activity, result)) {

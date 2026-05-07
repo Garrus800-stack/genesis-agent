@@ -119,7 +119,7 @@ describe('ReasoningEngine: GraphReasoner path', () => {
   test('uses graphReasoner when it answers', async () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
     const events = [];
-    const bus = { emit: (n, d) => events.push({ n, d }), fire() {}, on() { return () => {}; } };
+    const bus = { emit: (n, d) => events.push({ n, d }), fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const model = { chat: async () => 'llm answer' };
     const re = new ReasoningEngine(model, null, null, bus);
     re._graphReasoner = { tryAnswer: () => ({ answered: true, result: 'graph answer', method: 'path', data: {} }) };
@@ -132,7 +132,7 @@ describe('ReasoningEngine: GraphReasoner path', () => {
 
   test('falls through when graphReasoner returns unanswered', async () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const model = { chat: async () => 'fallback answer', chatStructured: async () => ({ strategy: 'direct', level: 1 }) };
     const re = new ReasoningEngine(model, null, null, bus);
     re._graphReasoner = { tryAnswer: () => ({ answered: false }) };
@@ -143,7 +143,7 @@ describe('ReasoningEngine: GraphReasoner path', () => {
 
   test('handles graphReasoner throw gracefully', async () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const model = { chat: async () => 'ok', chatStructured: async () => ({ strategy: 'direct', level: 1 }) };
     const re = new ReasoningEngine(model, null, null, bus);
     re._graphReasoner = { tryAnswer: () => { throw new Error('graph error'); } };
@@ -157,7 +157,7 @@ describe('ReasoningEngine: InferenceEngine path (v7.1.1)', () => {
   test('uses inferenceEngine when confidence >= 0.7', async () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
     const events = [];
-    const bus = { emit: (n, d) => events.push({ n, d }), fire() {}, on() { return () => {}; } };
+    const bus = { emit: (n, d) => events.push({ n, d }), fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const model = { chat: async () => 'llm answer' };
     const re = new ReasoningEngine(model, null, null, bus);
     re._inferenceEngine = {
@@ -172,7 +172,7 @@ describe('ReasoningEngine: InferenceEngine path (v7.1.1)', () => {
 
   test('falls through when inference confidence < 0.7', async () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const model = { chat: async () => 'llm answer', chatStructured: async () => ({ strategy: 'direct', level: 1 }) };
     const re = new ReasoningEngine(model, null, null, bus);
     re._inferenceEngine = {
@@ -185,7 +185,7 @@ describe('ReasoningEngine: InferenceEngine path (v7.1.1)', () => {
 
   test('falls through when inference returns empty', async () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const model = { chat: async () => 'direct', chatStructured: async () => ({ strategy: 'direct', level: 1 }) };
     const re = new ReasoningEngine(model, null, null, bus);
     re._inferenceEngine = { infer: () => [] };
@@ -198,7 +198,7 @@ describe('ReasoningEngine: InferenceEngine path (v7.1.1)', () => {
 describe('ReasoningEngine: _assessComplexity branches', () => {
   test('short German question → direct', () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const re = new ReasoningEngine({}, null, null, bus);
     const c = re._assessComplexity('Was ist das?', {});
     assertEqual(c.strategy, 'direct');
@@ -206,7 +206,7 @@ describe('ReasoningEngine: _assessComplexity branches', () => {
 
   test('code block → direct', () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const re = new ReasoningEngine({}, null, null, bus);
     const c = re._assessComplexity('run ```js\nconsole.log(1)\n```', {});
     assertEqual(c.strategy, 'direct');
@@ -214,7 +214,7 @@ describe('ReasoningEngine: _assessComplexity branches', () => {
 
   test('self-modification keyword → decompose', () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const re = new ReasoningEngine({}, null, null, bus);
     const c = re._assessComplexity('modifiziere deine eigene Konfiguration', {});
     assertEqual(c.strategy, 'decompose');
@@ -222,7 +222,7 @@ describe('ReasoningEngine: _assessComplexity branches', () => {
 
   test('analysis keyword → chain-of-thought', () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const re = new ReasoningEngine({}, null, null, bus);
     const c = re._assessComplexity('erkläre wie das funktioniert', {});
     assertEqual(c.strategy, 'chain-of-thought');
@@ -230,7 +230,7 @@ describe('ReasoningEngine: _assessComplexity branches', () => {
 
   test('multi-part keyword → decompose', () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const re = new ReasoningEngine({}, null, null, bus);
     // 'außerdem' triggers decompose; no analysis keywords to avoid chain-of-thought branch
     const c = re._assessComplexity('bitte erstelle eine Datei zusätzlich noch eine weitere Datei erstellen', {});
@@ -239,7 +239,7 @@ describe('ReasoningEngine: _assessComplexity branches', () => {
 
   test('research keyword → research', () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const re = new ReasoningEngine({}, null, null, bus);
     const c = re._assessComplexity('recherchiere best practices für async code', {});
     assertEqual(c.strategy, 'research');
@@ -247,7 +247,7 @@ describe('ReasoningEngine: _assessComplexity branches', () => {
 
   test('long task → chain-of-thought default', () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const re = new ReasoningEngine({}, null, null, bus);
     // 31+ words triggers chain-of-thought in the default branch
     // >30 words triggers chain-of-thought in the default branch (no keyword matches)
@@ -260,7 +260,7 @@ describe('ReasoningEngine: _assessComplexity branches', () => {
 describe('ReasoningEngine: strategy dispatch', () => {
   test('chain-of-thought strategy executes', async () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     let chatCalls = 0;
     const model = { chat: async () => { chatCalls++; return 'step answer'; }, chatStructured: async () => ({ strategy: 'chain-of-thought', level: 2 }) };
     const re = new ReasoningEngine(model, null, null, bus);
@@ -272,7 +272,7 @@ describe('ReasoningEngine: strategy dispatch', () => {
 
   test('research strategy executes', async () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const model = { chat: async () => 'research answer', chatStructured: async () => ({ strategy: 'research', level: 2 }) };
     const re = new ReasoningEngine(model, null, null, bus);
 
@@ -282,7 +282,7 @@ describe('ReasoningEngine: strategy dispatch', () => {
 
   test('decompose strategy executes', async () => {
     const { ReasoningEngine } = require('../../src/agent/intelligence/ReasoningEngine');
-    const bus = { emit() {}, fire() {}, on() { return () => {}; } };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() { return () => {}; } };
     const model = { chat: async () => 'decomposed answer', chatStructured: async () => ({ strategy: 'decompose', level: 3, subTasks: ['task1', 'task2'] }) };
     const re = new ReasoningEngine(model, null, null, bus);
 

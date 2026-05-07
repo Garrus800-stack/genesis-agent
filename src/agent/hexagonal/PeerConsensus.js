@@ -267,7 +267,7 @@ class PeerConsensus {
     this._stats.itemsReceived += accepted;
 
     if (accepted > 0) {
-      this.bus.emit('peer:sync-applied', {
+      this.bus.fire('peer:sync-applied', {
         from: payload.selfId,
         accepted, rejected, conflicts,
       }, { source: 'PeerConsensus' });

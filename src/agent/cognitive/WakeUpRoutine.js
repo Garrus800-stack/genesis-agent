@@ -31,7 +31,7 @@ const LLM_BUDGET_FLOOR_MS = 3_000;  // below this, stub instead
 
 class WakeUpRoutine {
   constructor({ bus, model, clock } = {}) {
-    this.bus = bus || { emit: () => {}, on: () => {} };
+    this.bus = bus || { emit: () => {}, on: () => {} , fire() {}};
     this.model = model || null;
     this._clock = clock || Date;
 
@@ -97,7 +97,7 @@ class WakeUpRoutine {
     const reentry = await this._writeReEntry(ctx, pendingReview, remaining());
 
     const duration = this._clock.now() - t0;
-    this.bus.emit('lifecycle:re-entry-complete', {
+    this.bus.fire('lifecycle:re-entry-complete', {
       duration,
       entriesRead: ctx.readCounts || {},
       journalWritten: !!reentry,

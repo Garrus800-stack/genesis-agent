@@ -1,14 +1,14 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.5.6 — What Genesis can do, organized by category.
-> Scale: 6141 tests, 449 events with 445 payload schemas (100% coverage of non-fire-and-forget events), fitness 127/130, 168 DI services (155 manifest + 13 bootstrap) across 12 boot phases.
+> v7.6.3 — What Genesis can do, organized by category.
+> Scale: 6650 tests (Win baseline), 452 events with 452 payload schemas (full parity since v7.6.x), fitness 127/130, 168 DI services (155 manifest + 13 bootstrap), 321 modules (live `selfModel.moduleCount()`) across 12 boot phases.
 > Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry-only by design),
 > Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard),
 > Reasoning-Block Filter (v7.5.6 — strips `<think>...</think>` from response and tool-call audit, re-emits as `model:thinking-trace`),
-> Runtime-State Quoting (v7.4.1 directive + anti-tool-call).
+> Runtime-State Quoting (v7.4.1 directive + anti-tool-call). 12 CI audit gates (v7.6.3 added `audit-contracts --strict` and `audit-doc-drift --strict`; the contracts gate enforces 12 contract-prefix families covering 112 regression-locked security tests; the doc-drift gate compares numeric claims in docs/*.md against live values; see GATE-INVENTORY.md).
 > Synchronous source-read in chat with per-turn + session budget (`read-source:called`, `read-source:soft-limit`).
 > Model-Availability TTL marker (v7.5.6) — sticky failures (auth/rate-limit/timeout) lock the model for 1h/5min/10min, persisted across restarts in `.genesis/model-unavailable.json`. Manual override via `/model-reset [name]`.
-> Same-backend failover (v7.5.6) — `_findFallbackBackend()` skips only the failed model name, not the whole backend, so an Ollama-only fallback chain works.
+> Same-backend failover (v7.5.6) — `_findFallbackBackend()` skips only the failed model name, not the whole backend, so an Ollama-only fallback chain works. CostStream tracks failover-unavailable events as a separate counter (v7.6.3) so the cost ledger stays clean.
 > AwarenessPort coherence gate is structurally inert until a real Awareness implementation lands — default `NullAwareness.getCoherence()` returns 1.0, threshold is 0.4.
 
 ---
@@ -36,7 +36,7 @@ Genesis can rewrite its own code, but every change passes through multiple safet
 | Layer | Mechanism |
 |---|---|
 | **Immutable kernel** | `main.js`, `preload.mjs`, `src/kernel/` — agent cannot write to these |
-| **Hash-locked files** | SHA-256 locks on CodeSafetyScanner, VerificationEngine, Container, EventBus, Constants, McpWorker, PreservationInvariants — agent cannot weaken its own safety checks |
+| **Hash-locked files** | SHA-256 locks on 18 critical files (kernel + safety scanners + sandbox + DI container + self-mod pipeline + approval gate + …; full list in `main.js` `lockCritical([...])`, drift-checked by `scripts/audit-hash-lock-coverage.js` since v7.6.2) — agent cannot weaken its own safety checks |
 | **AST code scanner** | Every generated code file is parsed into an AST and checked against 20+ rules (eval, Function, kernel circumvention, Electron security flags, system directory writes, etc.) |
 | **Verification engine** | Programmatic post-execution checks (file exists? tests pass? syntax valid?) |
 | **Sandbox execution** | Code runs in a VM2 sandbox with frozen prototypes, or Linux namespace isolation (PID/Net/Mount/IPC) |
@@ -256,7 +256,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **335 test suites** | 5668 tests, coverage gates: 80% lines, 76% branches, 78% functions |
+| **384 test files** | 6650 tests (Win baseline, v7.6.3), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |
@@ -503,7 +503,7 @@ The v7 line is dominated by structural maturation: smaller, more honest, better-
 | **Identity-Leak-Fix** (v7.4.0) | LLM model name removed from `_identity()` block. Explicit "Du bist NICHT das zugrundeliegende Sprachmodell". 55-test regression lock against 23 branded names. |
 | **Anti-Hallucination Quoting** (v7.4.1) | PromptBuilder forces verbatim quoting of runtime values. Forbids fabricated log-lines, JSON, timestamps. Anti-tool-call directive prevents declarative metaphors from being interpreted as file-read calls. |
 | **IntentRouter Meta-State Patterns** (v7.4.1) | 13 alternations for "wie viel energie" / "welche ziele" / "how do you feel" route directly to runtime block instead of escalating to tasks. |
-| **Event-Schema 100%** (v7.4.1) | 405/424 catalogued events have payload schemas. 0 mismatches. |
+| **Event-Schema 100%** (v7.4.1, full parity since v7.6.x) | 452/452 catalogued events have payload schemas. 0 mismatches. |
 | **AUDIT-BACKLOG drift closed** (v7.4.2) | Five releases of missing entries caught up. Principle 0.8: *AUDIT-BACKLOG is part of every release*. |
 | **CommandHandlers Domain-Split** (v7.4.2) | 846→under 700 LOC via 6 domain mixins (Code, Shell, Goals, Memory, System, Network). |
 | **Self-Gate explicit telemetry-only** (v7.4.2) | Self-Gate documented as observation-only by design (vs. Input-Gate which blocks). Symmetry with Injection-Gate is intentional, not a deficit. |

@@ -441,7 +441,7 @@ class AgentLoopStepsDelegate {
       return this._stepAnalyze(step, context);
     }
 
-    loop.bus.emit('agent-loop:step-delegating', {
+    loop.bus.fire('agent-loop:step-delegating', {
       description: step.description, skills: requiredSkills,
     }, { source: 'AgentLoop' });
 

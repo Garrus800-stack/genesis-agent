@@ -57,7 +57,7 @@ module.exports = {
     }
 
     // Phase 2: MemoryConsolidator (KG + Lessons) via bus
-    idleMind.bus.emit('idle:consolidate-memory', {}, { source: 'IdleMind' });
+    idleMind.bus.fire('idle:consolidate-memory', {}, { source: 'IdleMind' });
     parts.push('KG+Lessons consolidation triggered');
 
     return parts.length > 0

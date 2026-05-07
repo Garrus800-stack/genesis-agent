@@ -68,7 +68,7 @@ class FormalPlanner {
   async plan(goalDescription, context = {}) {
     this._stats.plans++;
 
-    this.bus.emit('planner:started', {
+    this.bus.fire('planner:started', {
       goal: goalDescription.slice(0, 100),
     }, { source: 'FormalPlanner' });
 
@@ -85,7 +85,7 @@ class FormalPlanner {
         const signals = this._emotionalSteering.getSignals();
         if (signals.planLengthLimit && steps.length > signals.planLengthLimit) {
           steps = steps.slice(0, signals.planLengthLimit);
-          this.bus.emit('planner:truncated', {
+          this.bus.fire('planner:truncated', {
             original: rawPlan.steps.length,
             limited: steps.length,
             reason: 'Low energy — plan shortened',
@@ -104,7 +104,7 @@ class FormalPlanner {
     if (!simulation.valid && simulation.issues.length > 0) {
       this._stats.replans++;
 
-      this.bus.emit('planner:replanning', {
+      this.bus.fire('planner:replanning', {
         issues: simulation.issues.length,
       }, { source: 'FormalPlanner' });
 
@@ -482,7 +482,7 @@ Respond with JSON: { "steps": [...] } using the same format as before.`;
     // Order by dependencies (topological sort)
     const orderedSteps = this._topologicalSort(typedSteps);
 
-    this.bus.emit('planner:complete', {
+    this.bus.fire('planner:complete', {
       title: title.slice(0, 80),
       steps: orderedSteps.length,
       cost: simulation.totalCost,

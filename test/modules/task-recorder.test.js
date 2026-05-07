@@ -24,7 +24,7 @@ function mockBus() {
     _events: events,
     _handlers: handlers,
     _fire: (evt, data) => handlers[evt]?.(data),
-  };
+   fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 function tmpDataDir() {

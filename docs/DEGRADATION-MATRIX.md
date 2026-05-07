@@ -1,7 +1,7 @@
 # Genesis — Graceful Degradation Matrix
 
-Generated: 2026-05-02T12:44:52.508Z
-Services: 155 | Bindings: 592
+Generated: 2026-05-07T11:54:15.724Z
+Services: 155 | Bindings: 605
 
 ## Critical Services (removal breaks dependents)
 
@@ -12,8 +12,8 @@ Services: 155 | Bindings: 592
 | selfModel | P1 | 18 | promptBuilder, context, analyzer, reflector, cloner, network, shellAgent, selfModPipeline, daemon, idleMind, agentLoop, multiFileRefactor, htnPlanner, formalPlanner, failureAnalyzer, selfNarrative, architectureReflection, graphReasoner |
 | memory | P1 | 17 | uncertaintyGuard, embeddingService, mem, promptBuilder, context, shellAgent, anticipator, solutionAccumulator, selfOptimizer, unifiedMemory, chatOrchestrator, learningService, daemon, idleMind, sessionPersistence, agentLoop, failureAnalyzer |
 | llm | P1 | 16 | promptBuilder, reasoning, analyzer, skills, reflector, cloner, network, goalStack, anticipator, chatOrchestrator, selfModPipeline, daemon, nativeToolUse, sessionPersistence, multiFileRefactor, formalPlanner |
+| settings | P1 | 15 | model, eventStore, knowledgeGraph, worldState, workerPool, mcpClient, commandHandlers, healthServer, emotionalState, homeostasis, needsSystem, agentLoop, selfStatementLog, goalDriver, trustLevelSystem |
 | sandbox | P1 | 14 | sbx, skills, reflector, fileProcessor, shellAgent, mcpClient, pluginRegistry, selfModPipeline, commandHandlers, daemon, agentLoop, multiFileRefactor, htnPlanner, formalPlanner |
-| settings | P1 | 11 | model, worldState, mcpClient, commandHandlers, healthServer, emotionalState, homeostasis, needsSystem, agentLoop, goalDriver, trustLevelSystem |
 | model | P1 | 10 | llmCache, llm, context, shellAgent, idleMind, agentLoop, modelRouter, colonyOrchestrator, dreamCycle, selfNarrative |
 | prompts | P1 | 10 | reasoning, analyzer, skills, reflector, cloner, network, goalStack, selfModPipeline, daemon, idleMind |
 | tools | P2 | 9 | reasoning, mcpClient, pluginRegistry, mcpToolBridge, chatOrchestrator, selfModPipeline, nativeToolUse, agentLoop, formalPlanner |
@@ -52,7 +52,7 @@ Services: 155 | Bindings: 592
 
 | Service | Phase | Consumers | Lost Features |
 |---------|-------|-----------|---------------|
-| selfGate | P1 | 2 | goalStack.selfGate, chatOrchestrator.selfGate |
+| selfGate | P1 | 5 | goalStack.selfGate, chatOrchestrator.selfGate, daemon.selfGate, daemonController.selfGate, agentLoop.selfGate |
 | activeReferences | P1 | 2 | chatOrchestrator.activeRefs, dreamCycle.activeRefs |
 | genesisBackup | P1 | 1 | selfModPipeline._genesisBackup |
 | llmCache | P1 | 2 | homeostasisEffectors.llmCache, immuneSystem.llmCache |
@@ -131,7 +131,7 @@ Services: 155 | Bindings: 592
 | emotionalSteering | P10 | 4 | promptBuilder.emotionalSteering, formalPlanner._emotionalSteering, modelRouter._emotionalSteering, adaptiveStrategy.emotionalSteering |
 | localClassifier | P10 | 1 | intentRouter._localClassifier |
 | userModel | P10 | 3 | promptBuilder.userModel, disclosurePolicy.userModel, needsSystem.userModel |
-| trustLevelSystem | P11 | 8 | disclosurePolicy.trustLevelSystem, commandHandlers.trustLevelSystem, daemon.trustLevelSystem, idleMind._trustLevelSystem, bodySchema.trustLevelSystem, agentLoop.trustLevelSystem, earnedAutonomy.trustLevelSystem, effectorRegistry.trustLevel |
+| trustLevelSystem | P11 | 10 | tools._trustLevelSystem, disclosurePolicy.trustLevelSystem, shellAgent.trustLevelSystem, commandHandlers.trustLevelSystem, daemon.trustLevelSystem, idleMind._trustLevelSystem, bodySchema.trustLevelSystem, agentLoop.trustLevelSystem, earnedAutonomy.trustLevelSystem, effectorRegistry.trustLevel |
 | effectorRegistry | P11 | 1 | bodySchema.effectorRegistry |
 | selfSpawner | P11 | 1 | colonyOrchestrator.selfSpawner |
 | runtimeStatePort | P11 | 1 | promptBuilder.runtimeStatePort |

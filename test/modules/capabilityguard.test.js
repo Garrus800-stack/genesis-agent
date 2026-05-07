@@ -132,7 +132,7 @@ describe('CapabilityGuard — Grants', () => {
     assert(cg.hasGrant('trustedMod', 'fs:read'), 'should have grant after addGrant');
   });
 
-  test('addGrant rejects unknown scope', () => {
+  test('capability contract: addGrant rejects unknown scope', () => {
     const cg = new CapabilityGuard(ROOT, mockGuard(), createBus());
     let threw = false;
     try { cg.addGrant('mod', 'fs:teleport'); } catch (e) { threw = true; }
@@ -234,7 +234,7 @@ describe('CapabilityGuard — Grant Persistence', () => {
     assertEqual(loaded, 0);
   });
 
-  test('persisted grants do not override existing grants', async () => {
+  test('capability contract: persisted grants do not override existing grants', async () => {
     // AgentCore has 'fs:write:self' by default; persisted should not remove it
     const storage = mockStorage(ROOT);
     storage.readJSON = () => ({

@@ -164,7 +164,7 @@ class NeedsSystem {
     need.value = Math.max(0, need.value - (amount || need.satisfyAmount));
 
     if (oldValue - need.value > 0.05) {
-      this.bus.emit('needs:satisfied', {
+      this.bus.fire('needs:satisfied', {
         need: needName,
         amount: Math.round((oldValue - need.value) * 100) / 100,
         remaining: Math.round(need.value * 100) / 100,
@@ -296,7 +296,7 @@ class NeedsSystem {
     // Emit drive update if significant
     const drive = this.getTotalDrive();
     if (drive > 0.6) {
-      this.bus.emit('needs:high-drive', {
+      this.bus.fire('needs:high-drive', {
         need: this.getMostUrgent() || 'unknown',
         totalDrive: drive,
         mostUrgent: this.getMostUrgent(),

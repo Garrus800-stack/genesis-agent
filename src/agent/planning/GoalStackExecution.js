@@ -76,7 +76,7 @@ Respond with EXACTLY one word: YES or NO. Then briefly explain why.`;
   },
 
   async _stepCreateFile(step, goal) {
-    this.bus.emit('goal:create-file', { goalId: goal.id, path: step.detail || step.action || 'unknown', step, goal: goal.description }, { source: 'GoalStack' });
+    this.bus.fire('goal:create-file', { goalId: goal.id, path: step.detail || step.action || 'unknown', step, goal: goal.description }, { source: 'GoalStack' });
     return { success: true, output: this.lang.t('goal.file_requested', { detail: step.detail || step.action }) };
   },
 
@@ -156,7 +156,7 @@ Or respond with GIVE_UP if the goal is not achievable.`;
       goal.steps = [...goal.steps.slice(0, goal.currentStep), ...newSteps];
       goal.attempts = 0;
       this._save();
-      this.bus.emit('goal:replanned', { id: goal.id, newSteps: newSteps.length }, { source: 'GoalStack' });
+      this.bus.fire('goal:replanned', { id: goal.id, newSteps: newSteps.length }, { source: 'GoalStack' });
       return true;
     }
 

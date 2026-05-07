@@ -115,7 +115,7 @@ class ServiceRecovery {
       if (healthy) {
         this.stats.succeeded++;
         _log.info(`Recovery succeeded: ${service}`);
-        this.bus.emit('health:recovery', {
+        this.bus.fire('health:recovery', {
           service,
           strategy,
           reason,
@@ -129,7 +129,7 @@ class ServiceRecovery {
       const msg = err instanceof Error ? err.message : String(err);
       _log.warn(`Recovery failed: ${service} — ${msg}`);
 
-      this.bus.emit('health:recovery-failed', {
+      this.bus.fire('health:recovery-failed', {
         service,
         strategy,
         reason,
@@ -141,7 +141,7 @@ class ServiceRecovery {
       if (this._isExhausted(service)) {
         this.stats.exhausted++;
         _log.warn(`Recovery exhausted: ${service} — ${MAX_RETRIES} attempts in ${WINDOW_MS / 60_000}min window`);
-        this.bus.emit('health:recovery-exhausted', {
+        this.bus.fire('health:recovery-exhausted', {
           service,
           totalAttempts: MAX_RETRIES,
         }, { source: 'ServiceRecovery' });

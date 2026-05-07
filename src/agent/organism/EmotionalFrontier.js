@@ -140,7 +140,7 @@ class EmotionalFrontier {
       this._imprintCache = null;
 
       _log.info(`[EF] Imprint written: ${label} (${peaks.length} peaks, ${sustained.length} sustained, mood: ${dominantMood})`);
-      this.bus.emit('emotional-frontier:imprint-written', {
+      this.bus.fire('emotional-frontier:imprint-written', {
         sessionId, peaks: peaks.length, sustained: sustained.length, dominantMood,
       }, { source: 'EmotionalFrontier' });
 
@@ -343,7 +343,7 @@ class EmotionalFrontier {
     if (shifted > 0) {
       this._stats.imprintsRestored++;
       _log.info(`[EF] Boot restore complete: ${shifted} dimension(s) shifted from imprint`);
-      this.bus.emit('emotional-frontier:boot-restored', {
+      this.bus.fire('emotional-frontier:boot-restored', {
         shifted, imprintId: latest.session_id,
       }, { source: 'EmotionalFrontier' });
     }

@@ -126,7 +126,7 @@ const searchMethods = {
       const uid = u ? u.id : this.addNode('entity', 'user', { type: 'person' });
       this.addEdge(uid, pid, 'works-on', 0.8); learned++;
     }
-    if (learned > 0) this.bus.emit('knowledge:learned', { count: learned, source }, { source: 'KnowledgeGraph' });
+    if (learned > 0) this.bus.fire('knowledge:learned', { count: learned, source }, { source: 'KnowledgeGraph' });
     return learned;
   },
 

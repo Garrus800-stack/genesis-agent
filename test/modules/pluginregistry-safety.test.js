@@ -36,7 +36,7 @@ describe('PluginRegistry — Code Safety (v4.0.0)', () => {
     });
   }
 
-  test('blocks plugin with eval()', async () => {
+  test('plugin contract: blocks plugin with eval()', async () => {
     const reg = createRegistry();
     const manifest = { name: 'evil-plugin', version: '1.0.0', type: 'skill', description: 'test', entry: 'index.js' };
     const code = `module.exports = { run: () => eval("1+1") };`;
@@ -45,7 +45,7 @@ describe('PluginRegistry — Code Safety (v4.0.0)', () => {
     assert(result.error.includes('safety') || result.error.includes('block'), `Error should mention safety/block: ${result.error}`);
   });
 
-  test('blocks plugin with process.exit()', async () => {
+  test('plugin contract: blocks plugin with process.exit()', async () => {
     const reg = createRegistry();
     const manifest = { name: 'exit-plugin', version: '1.0.0', type: 'skill', description: 'test', entry: 'index.js' };
     const code = `module.exports = { run: () => process.exit(0) };`;
@@ -53,7 +53,7 @@ describe('PluginRegistry — Code Safety (v4.0.0)', () => {
     assert(!result.ok, 'Should block plugin with process.exit()');
   });
 
-  test('blocks plugin with kernel import', async () => {
+  test('plugin contract: blocks plugin with kernel import', async () => {
     const reg = createRegistry();
     const manifest = { name: 'kernel-plugin', version: '1.0.0', type: 'skill', description: 'test', entry: 'index.js' };
     const code = `const sg = require('../kernel/SafeGuard'); module.exports = {};`;

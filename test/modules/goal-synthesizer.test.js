@@ -11,7 +11,7 @@ const { describe, test, assert, assertEqual, run } = require('../harness');
 
 function createBus() {
   const events = [];
-  return { events, emit(n, d, m) { events.push({ n, d, m }); }, on() { return () => {}; } };
+  return { events, emit(n, d, m) { events.push({ n, d, m }); }, on() { return () => {}; } , fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 // Mock CognitiveSelfModel with controllable profile

@@ -119,7 +119,7 @@ class ModelRouter {
 
     const best = scored[0];
 
-    this.bus.emit('router:routed', {
+    this.bus.fire('router:routed', {
       category: taskCategory,
       selected: best.model,
       score: Math.round(best.score * 100) / 100,
@@ -170,7 +170,7 @@ class ModelRouter {
   injectEmpiricalStrength(strengthMap) {
     this._empiricalStrength = strengthMap;
     this._empiricalStrengthAt = Date.now();
-    this.bus.emit('router:empirical-strength-injected', {
+    this.bus.fire('router:empirical-strength-injected', {
       taskTypes: Object.keys(strengthMap).length,
     }, { source: 'ModelRouter' });
   }

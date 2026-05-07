@@ -97,7 +97,7 @@ class WebFetcher {
     this.requestCount++;
     const parsed = validation.parsed;
     if (!parsed) return { ok: false, status: 0, body: '', headers: {}, error: 'URL parse failed' };
-    this.bus.emit('web:fetch', { url: parsed.hostname + parsed.pathname }, { source: 'WebFetcher' });
+    this.bus.fire('web:fetch', { url: parsed.hostname + parsed.pathname }, { source: 'WebFetcher' });
 
     try {
       const result = await this._doFetch(parsed.href, timeout, maxSize, 0);

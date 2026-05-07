@@ -48,7 +48,7 @@ class ShellPlanner {
   async generate(task, context) {
     const { project, cwd, isWindows, permissionLevel } = context;
 
-    this.bus.emit('shell:planning', { task: task.slice(0, 100) }, { source: 'ShellPlanner' });
+    this.bus.fire('shell:planning', { task: task.slice(0, 100) }, { source: 'ShellPlanner' });
 
     const pastPatterns = this.memory?.recallPattern(task);
     const pastContext = pastPatterns

@@ -117,7 +117,7 @@ module.exports = {
       const validation = _validateSelfIdentity(identity);
       if (!validation.valid) {
         _log.warn(`[IDLE-MIND] self-define rejected: ${validation.violations.join(', ')}`);
-        idleMind.bus.emit('health:degradation', {
+        idleMind.bus.fire('health:degradation', {
           service: 'idleMind', level: 'info',
           reason: `self-define rejected: ${validation.violations.join(', ')}`,
         }, { source: 'IdleMind' });
@@ -138,7 +138,7 @@ module.exports = {
 
       idleMind.storage?.writeJSON('self-identity.json', identity);
       _log.info(`[IDLE-MIND] self-define: identity updated (revision ${revision}, ${identity.coreMemories?.length || 0} core memories preserved)`);
-      idleMind.bus.emit('idle:self-defined', { revision }, { source: 'IdleMind' });
+      idleMind.bus.fire('idle:self-defined', { revision }, { source: 'IdleMind' });
 
       return `Self-identity updated (revision ${revision}): ${text.slice(0, 100)}...`;
     } catch (err) {

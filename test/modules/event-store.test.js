@@ -4,7 +4,7 @@ const os = require('os'), path = require('path'), fs = require('fs');
 function make() {
   const d = path.join(os.tmpdir(), 'es-test-' + Date.now() + Math.random().toString(36).slice(2,5));
   fs.mkdirSync(d, { recursive: true });
-  return new EventStore(d, { emit(){}, on(){} }, null);
+  return new EventStore(d, { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){} }, null);
 }
 describe('EventStore', () => {
   test('append returns event with id', () => { const e = make().append('TEST', {}, 't'); if (!e || typeof e.id !== 'number') throw new Error('ID'); });

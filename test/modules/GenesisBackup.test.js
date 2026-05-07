@@ -136,7 +136,7 @@ describe('GenesisBackup', () => {
       let emittedEvent = null;
       const mockBus = {
         emit: (name, payload) => { emittedEvent = { name, payload }; },
-      };
+       fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
       const gb = new GenesisBackup({ genesisDir: fakeDir, rootDir, bus: mockBus });
       const result = await gb.backup('missing-source');
       assert(!result.ok, 'backup failed');

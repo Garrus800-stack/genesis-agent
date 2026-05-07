@@ -245,6 +245,50 @@ async function flush(cs) {
     cs.stop();
   });
 
+  // v7.6.3: CostStream-failover-listener wiring
+  await test('records model:failover-unavailable into failover tally', async () => {
+    const bus = new EventBus({ verbose: false });
+    const dir = freshDir();
+    const cs = new CostStream({ bus, storage: null, genesisDir: dir });
+    await cs.asyncLoad();
+
+    // Initial: no failover
+    let stats = cs.getStats();
+    assert(stats.failover.total === 0, `expected 0 initial failovers, got ${stats.failover.total}`);
+    assert(stats.failover.unavailable === 0, 'initial unavailable count should be 0');
+    assert(stats.failover.lastAt === null, 'initial lastAt should be null');
+
+    // Emit two failover events
+    bus.fire('model:failover-unavailable', { from: 'gpt-4', reason: 'rate-limit', error: 'HTTP 429' });
+    bus.fire('model:failover-unavailable', { from: 'gpt-4', reason: 'no-local-fallback', error: 'no-model-available' });
+    // No flush needed — failover doesn't go through the write queue
+    await new Promise(r => setImmediate(r));
+
+    stats = cs.getStats();
+    assert(stats.failover.total === 2, `expected 2 failovers, got ${stats.failover.total}`);
+    assert(stats.failover.unavailable === 2, 'all should count as unavailable');
+    assert(stats.failover.lastReason === 'no-local-fallback', 'lastReason should be the most recent');
+    assert(typeof stats.failover.lastAt === 'number' && stats.failover.lastAt > 0, 'lastAt should be set');
+
+    // No cost-row should be written for failovers (token tally unchanged)
+    assert(stats.goalsTracked === 0, 'failovers must not write cost rows');
+    cs.stop();
+  });
+
+  await test('failover listener cleaned up on stop', async () => {
+    const bus = new EventBus({ verbose: false });
+    const dir = freshDir();
+    const cs = new CostStream({ bus, storage: null, genesisDir: dir });
+    await cs.asyncLoad();
+
+    cs.stop();
+    // After stop, further events should not be recorded
+    bus.fire('model:failover-unavailable', { from: 'x', reason: 'late', error: 'late' });
+    await new Promise(r => setImmediate(r));
+    const stats = cs.getStats();
+    assert(stats.failover.total === 0, `events after stop must be ignored, got ${stats.failover.total}`);
+  });
+
   // ── Print summary ──
   console.log(`  ${passed} passed, ${failed} failed`);
   if (failed > 0) {

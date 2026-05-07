@@ -364,7 +364,7 @@ CONFIDENCE: [0.0-1.0]`;
           const result = { type: name, confidence: (cm ? Math.min(1.0, parseFloat(cm[1])) : 0.6) * 0.9, match: `llm:${name}` };
           this.llmCache.set(cacheKey, result);
           if (this.llmCache.size > this.cacheMaxSize) this.llmCache.delete(this.llmCache.keys().next().value);
-          this.bus.emit('intent:llm-classified', { message: message.slice(0, 80), intent: name }, { source: 'IntentRouter' });
+          this.bus.fire('intent:llm-classified', { message: message.slice(0, 80), intent: name }, { source: 'IntentRouter' });
           // Feed online learning pipeline
           this._learnFromLLMResult(message, name);
           return result;
@@ -428,7 +428,7 @@ CONFIDENCE: [0.0-1.0]`;
         this._trimLearnedPatterns();
 
         _log.info(`[INTENT] Online-Learning: +${added} keywords for "${intent}": ${newKeywords.join(', ')}`);
-        this.bus.emit('intent:learned', {
+        this.bus.fire('intent:learned', {
           intent, newKeywords, total: route.keywords.length,
         }, { source: 'IntentRouter' });
       }

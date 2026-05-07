@@ -9,7 +9,7 @@ const { CodeSafetyPort, CodeSafetyAdapter, MockCodeSafety } = require('../../src
 // ── Port interface ──────────────────────────────────────────
 
 describe('CodeSafetyPort (interface)', () => {
-  test('scanCode throws NotImplemented', () => {
+  test('code-safety contract: scanCode throws NotImplemented', () => {
     const port = new CodeSafetyPort();
     assertThrows(() => port.scanCode('x', 'f.js'), /not implemented/i);
   });
@@ -59,7 +59,7 @@ describe('CodeSafetyAdapter', () => {
     assertEqual(m.blocked, 0);
   });
 
-  test('increments blocked count on unsafe code', () => {
+  test('code-safety contract: increments blocked count on unsafe code', () => {
     const scanner = makeFakeScanner({ safe: false, severity: 'block', violations: [{ description: 'eval' }], blocked: ['eval'], warnings: [] });
     const adapter = new CodeSafetyAdapter(scanner);
 
@@ -103,13 +103,13 @@ describe('CodeSafetyAdapter.fromScanner()', () => {
     assertEqual(result.safe, true);
   });
 
-  test('blocks eval()', () => {
+  test('code-safety contract: blocks eval()', () => {
     const adapter = CodeSafetyAdapter.fromScanner(scanner);
     const result = adapter.scanCode('eval("dangerous")', 'evil.js');
     assertEqual(result.safe, false);
   });
 
-  test('throws when called without scanner', () => {
+  test('code-safety contract: throws when called without scanner', () => {
     try {
       CodeSafetyAdapter.fromScanner();
       throw new Error('Should have thrown');

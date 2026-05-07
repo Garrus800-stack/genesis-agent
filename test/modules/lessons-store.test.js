@@ -24,7 +24,7 @@ function makeBus() {
     },
     emitted,
     getEmitted(event) { return emitted.filter(e => e.event === event); },
-  };
+   fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 function makeTempDir() {

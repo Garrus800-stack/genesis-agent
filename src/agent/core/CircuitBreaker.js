@@ -185,7 +185,7 @@ class CircuitBreaker {
   async _handleOpen(args) {
     if (this.fallback) {
       this.stats.totalFallbacks++;
-      this.bus.emit('circuit:fallback', { name: this.name }, { source: 'CircuitBreaker' });
+      this.bus.fire('circuit:fallback', { name: this.name }, { source: 'CircuitBreaker' });
       return await this.fallback(...args);
     }
     throw new Error(`Circuit ${this.name} is OPEN. Service unavailable.`);
@@ -213,7 +213,7 @@ class CircuitBreaker {
       this.stats.stateChanges = this.stats.stateChanges.slice(-20);
     }
 
-    this.bus.emit('circuit:state-change', {
+    this.bus.fire('circuit:state-change', {
       name: this.name,
       from: oldState,
       to: newState,

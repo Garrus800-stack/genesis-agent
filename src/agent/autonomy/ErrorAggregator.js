@@ -21,7 +21,7 @@
 //
 // Architecture:
 //   EventBus (error events) → ErrorAggregator → trend analysis
-//   ErrorAggregator → bus.emit('error:trend') for UI/logging
+//   ErrorAggregator → bus.fire('error:trend') for UI/logging
 //   ErrorAggregator → getReport() for diagnostics
 // ============================================================
 
@@ -226,7 +226,7 @@ class ErrorAggregator {
 
     // Spike detection
     if (recentCount >= this.config.spikeThreshold) {
-      this.bus.emit('error:trend', {
+      this.bus.fire('error:trend', {
         category,
         type: 'spike',
         rate: recentCount,
@@ -241,7 +241,7 @@ class ErrorAggregator {
       const recent = history.slice(-this.config.risingThreshold);
       const isRising = recent.every((p, i) => i === 0 || p.rate > recent[i - 1].rate);
       if (isRising && recent[recent.length - 1].rate > 1) {
-        this.bus.emit('error:trend', {
+        this.bus.fire('error:trend', {
           category,
           type: 'rising',
           rates: recent.map(p => p.rate),

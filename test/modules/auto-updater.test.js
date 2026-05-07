@@ -61,7 +61,7 @@ describe('AutoUpdater', () => {
 
   test('emits update:available when newer version found', async () => {
     const events = [];
-    const bus = { emit: (n, d) => events.push({ n, d }), fire() {} };
+    const bus = { emit: (n, d) => events.push({ n, d }), fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
 
     // Mock the fetch to return a fake release
     const au = new AutoUpdater({ bus });
@@ -84,7 +84,7 @@ describe('AutoUpdater', () => {
 
   test('no event when already up to date', async () => {
     const events = [];
-    const bus = { emit: (n, d) => events.push({ n, d }), fire() {} };
+    const bus = { emit: (n, d) => events.push({ n, d }), fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const au = new AutoUpdater({ bus });
     au._currentVersion = '99.0.0';
     au._fetchLatestRelease = async () => ({ tag_name: 'v6.0.0', html_url: '', body: '' });
@@ -142,7 +142,7 @@ describe('AutoUpdater V7-4B bridge', () => {
 
   test('does NOT call deploymentManager when autoApply is false (default)', async () => {
     let deployCalled = false;
-    const bus = { emit() {}, fire() {} };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const au = new AutoUpdater({ bus });
     au._currentVersion = '1.0.0';
     au._deploymentManager = { deploy: async () => { deployCalled = true; return { id: 'x' }; } };
@@ -154,7 +154,7 @@ describe('AutoUpdater V7-4B bridge', () => {
 
   test('calls deploymentManager.deploy when autoApply is true and update available', async () => {
     let deployTarget = null, deployOpts = null;
-    const bus = { emit() {}, fire() {} };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const au = new AutoUpdater({ bus, config: { autoApply: true } });
     au._currentVersion = '1.0.0';
     au._deploymentManager = {
@@ -176,7 +176,7 @@ describe('AutoUpdater V7-4B bridge', () => {
 
   test('does NOT call deploymentManager when already up to date', async () => {
     let deployCalled = false;
-    const bus = { emit() {}, fire() {} };
+    const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const au = new AutoUpdater({ bus, config: { autoApply: true } });
     au._currentVersion = '99.0.0';
     au._deploymentManager = { deploy: async () => { deployCalled = true; return { id: 'x' }; } };

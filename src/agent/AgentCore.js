@@ -126,7 +126,7 @@ class AgentCore {
       // Position: AFTER telemetry recorded clean boot timings, BEFORE safety
       // degradation check which may alter world state. Listeners can run
       // parallel to the safety check since they're independent paths.
-      this._bus.emit('boot:complete', {
+      this._bus.fire('boot:complete', {
         durationMs: dt,
         serviceCount,
         timestamp: new Date().toISOString(),
@@ -136,7 +136,7 @@ class AgentCore {
       try {
         const codeSafety = this.container.tryResolve('codeSafety');
         if (codeSafety && !codeSafety.available) {
-          this._bus.emit('safety:degraded', {
+          this._bus.fire('safety:degraded', {
             module: 'CodeSafetyScanner',
             reason: 'acorn not installed — AST scanning disabled, self-modification blocked',
           }, { source: 'AgentCore' });

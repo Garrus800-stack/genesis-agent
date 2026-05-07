@@ -145,7 +145,7 @@ function createGenesisMock() {
     },
     setInvokeHandler(channel, fn) { invokeMock[channel] = fn; },
     listeners,
-  };
+   fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 

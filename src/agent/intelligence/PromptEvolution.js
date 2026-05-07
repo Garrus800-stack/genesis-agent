@@ -244,7 +244,7 @@ class PromptEvolution {
     this._experiments[sectionName] = experiment;
     this._save();
 
-    this.bus.emit('prompt-evolution:experiment-started', {
+    this.bus.fire('prompt-evolution:experiment-started', {
       section: sectionName,
       variantId,
       hypothesis: experiment.hypothesis,
@@ -299,7 +299,7 @@ class PromptEvolution {
     delete this._experiments[sectionName];
     this._save();
 
-    this.bus.emit('prompt-evolution:experiment-completed', {
+    this.bus.fire('prompt-evolution:experiment-completed', {
       section: sectionName,
       variantId: exp.variantId,
       decision,
@@ -310,7 +310,7 @@ class PromptEvolution {
 
     // v7.1.6: Emit promoted event for LessonsStore capture
     if (decision === 'promote') {
-      this.bus.emit('prompt-evolution:promoted', {
+      this.bus.fire('prompt-evolution:promoted', {
         section: sectionName,
         variantId: exp.variantId,
         improvement: exp.improvement,
@@ -373,7 +373,7 @@ class PromptEvolution {
       delete this._promotedVariants[sectionName];
       this._save();
       _log.info(`[PROMPT-EVO] Rolled back "${sectionName}" gen${old.generation}`);
-      this.bus.emit('prompt-evolution:rollback', { section: sectionName, generation: old.generation }, { source: 'PromptEvolution' });
+      this.bus.fire('prompt-evolution:rollback', { section: sectionName, generation: old.generation }, { source: 'PromptEvolution' });
       return true;
     }
     return false;

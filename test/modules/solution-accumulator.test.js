@@ -6,7 +6,7 @@ function make(opts = {}) {
   const kgNodes = [];
   const kgEdges = [];
   return new SolutionAccumulator({
-    bus: { emit() {}, on() {}, fire() {} },
+    bus: { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } },
     memory: null,
     knowledgeGraph: opts.kg === false ? null : {
       addNode(type, label, meta) { const n = { id: `${type}-${kgNodes.length}`, type, label, meta }; kgNodes.push(n); return n; },

@@ -149,7 +149,7 @@ describe('GraphReasoner — predictEffects', () => {
     g.addEdge(action, eff2, 'caused', 0.6);
 
     const { GraphReasoner } = require('../../src/agent/intelligence/GraphReasoner');
-    const reasoner = new GraphReasoner({ bus: { emit() {} }, knowledgeGraph: { graph: g } });
+    const reasoner = new GraphReasoner({ bus: { emit() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, knowledgeGraph: { graph: g } });
 
     const effects = reasoner.predictEffects('editFile(src/foo.js)');
     assert(effects.length >= 2, 'should find 2 effects');
@@ -160,7 +160,7 @@ describe('GraphReasoner — predictEffects', () => {
   test('returns empty for unknown action', () => {
     const g = new GraphStore();
     const { GraphReasoner } = require('../../src/agent/intelligence/GraphReasoner');
-    const reasoner = new GraphReasoner({ bus: { emit() {} }, knowledgeGraph: { graph: g } });
+    const reasoner = new GraphReasoner({ bus: { emit() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, knowledgeGraph: { graph: g } });
     assertEqual(reasoner.predictEffects('nonexistent').length, 0);
   });
 
@@ -173,7 +173,7 @@ describe('GraphReasoner — predictEffects', () => {
     g.addEdge(a, e2, 'caused', 0.1);
 
     const { GraphReasoner } = require('../../src/agent/intelligence/GraphReasoner');
-    const reasoner = new GraphReasoner({ bus: { emit() {} }, knowledgeGraph: { graph: g } });
+    const reasoner = new GraphReasoner({ bus: { emit() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, knowledgeGraph: { graph: g } });
     const effects = reasoner.predictEffects('runTest', { minConfidence: 0.5 });
     assertEqual(effects.length, 1);
   });
@@ -187,7 +187,7 @@ describe('GraphReasoner — causalChain', () => {
     g.addEdge(a, b, 'caused', 0.8);
 
     const { GraphReasoner } = require('../../src/agent/intelligence/GraphReasoner');
-    const reasoner = new GraphReasoner({ bus: { emit() {} }, knowledgeGraph: { graph: g } });
+    const reasoner = new GraphReasoner({ bus: { emit() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, knowledgeGraph: { graph: g } });
     const result = reasoner.causalChain('editFoo', 'testFail');
     assert(result.found, 'should find direct chain');
     assertEqual(result.depth, 1);
@@ -202,7 +202,7 @@ describe('GraphReasoner — causalChain', () => {
     g.addEdge(b, c, 'caused', 0.7);
 
     const { GraphReasoner } = require('../../src/agent/intelligence/GraphReasoner');
-    const reasoner = new GraphReasoner({ bus: { emit() {} }, knowledgeGraph: { graph: g } });
+    const reasoner = new GraphReasoner({ bus: { emit() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, knowledgeGraph: { graph: g } });
     const result = reasoner.causalChain('renameFunc', 'buildFail');
     assert(result.found, 'should find transitive chain');
     assertEqual(result.depth, 2);
@@ -215,7 +215,7 @@ describe('GraphReasoner — causalChain', () => {
     g.addNode('causal-effect', 'effectB');
 
     const { GraphReasoner } = require('../../src/agent/intelligence/GraphReasoner');
-    const reasoner = new GraphReasoner({ bus: { emit() {} }, knowledgeGraph: { graph: g } });
+    const reasoner = new GraphReasoner({ bus: { emit() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, knowledgeGraph: { graph: g } });
     const result = reasoner.causalChain('actionA', 'effectB');
     assert(!result.found, 'should not find chain');
   });
@@ -227,7 +227,7 @@ describe('GraphReasoner — causalChain', () => {
     g.addEdge(a, b, 'correlated_with', 0.4);
 
     const { GraphReasoner } = require('../../src/agent/intelligence/GraphReasoner');
-    const reasoner = new GraphReasoner({ bus: { emit() {} }, knowledgeGraph: { graph: g } });
+    const reasoner = new GraphReasoner({ bus: { emit() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, knowledgeGraph: { graph: g } });
     const result = reasoner.causalChain('editBar', 'maybeRelated');
     assert(!result.found, 'should not follow correlated_with');
   });
@@ -243,7 +243,7 @@ describe('GraphReasoner — causalChain', () => {
     }
 
     const { GraphReasoner } = require('../../src/agent/intelligence/GraphReasoner');
-    const reasoner = new GraphReasoner({ bus: { emit() {} }, knowledgeGraph: { graph: g } });
+    const reasoner = new GraphReasoner({ bus: { emit() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, knowledgeGraph: { graph: g } });
     const result = reasoner.causalChain('chain0', 'chain9', { maxDepth: 3 });
     assert(!result.found, 'should not find chain beyond maxDepth');
   });

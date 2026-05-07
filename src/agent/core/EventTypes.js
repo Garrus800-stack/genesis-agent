@@ -11,7 +11,7 @@
 //
 // Usage:
 //   const { EVENTS } = require('./EventTypes');
-//   bus.emit(EVENTS.AGENT_LOOP.STARTED, data);
+//   bus.fire(EVENTS.AGENT_LOOP.STARTED, data);
 //   bus.on(EVENTS.VERIFICATION.COMPLETE, handler);
 // ============================================================
 
@@ -167,6 +167,16 @@ const EVENTS = Object.freeze({
   INJECTION: Object.freeze({
     /** @payload {{ signals: Array<{kind: string, note: string}>, toolCount: number }} */
     BLOCKED: 'injection:blocked',
+    /**
+     * v7.6.3 — Tool-result content (from web/mcp/file:user) tripped the
+     * injection-gate scanner. Warning-only: tool-loop continues, but the
+     * suspect content is replaced with a [BLOCKED:...] placeholder before
+     * being passed to the synthesis LLM. The S1 finding in the v7.6.3
+     * erweiterte Analyse-report flagged this as the only injection-vector
+     * the existing gate did not cover.
+     * @payload {{ toolName: string, toolSource: string, signals: Array<{kind: string, note: string}>, score: number }}
+     */
+    TOOL_RESULT_FLAGGED: 'injection:tool-result-flagged',
   }),
 
   // ── Tool-call Verification (v7.3.5) ─────────────────────
@@ -185,8 +195,6 @@ const EVENTS = Object.freeze({
 
   // ── Self-Gate (v7.3.6 #2) — reflexivity check on self-actions ──
   SELF_GATE: Object.freeze({
-    /** @payload {{ actionType: string, signals: Array<{kind: string, note: string}>, triggerSource: string }} */
-    BLOCKED: 'self-gate:blocked',
     /** @payload {{ actionType: string, signals: Array<{kind: string, note: string}>, triggerSource: string }} */
     WARNED:  'self-gate:warned',
   }),
@@ -354,12 +362,6 @@ const EVENTS = Object.freeze({
   // ── FrontierWriter (generic) ────────────────────────────
   // v7.2.4: Dynamic events emitted by FrontierWriter instances.
   FRONTIER: Object.freeze({
-    /** @payload {{ sessionId: string, edgeType: string }} */
-    UNFINISHED_WORK_WRITTEN: 'frontier:unfinishedWork:written',
-    /** @payload {{ sessionId: string, edgeType: string }} */
-    SUSPICION_WRITTEN: 'frontier:suspicion:written',
-    /** @payload {{ sessionId: string, edgeType: string }} */
-    LESSON_WRITTEN: 'frontier:lessonTracking:written',
   }),
 
   // ── Episodic Memory ────────────────────────────────────
@@ -1109,6 +1111,18 @@ const EVENTS = Object.freeze({
     /** telemetry-only (EventStore/Dashboard) */
     RESOLVED: 'symbolic:resolved',
     FALLBACK: 'symbolic:fallback',
+  }),
+
+  EVENTSTORE: Object.freeze({
+    /**
+     * v7.6.3 — Telemetry for EventStore log-integrity issues.
+     * Pre-fix `_readLog` had a silent catch that dropped corrupted JSONL
+     * rows without observability. The L3 finding in the v7.6.3 erweiterte
+     * Analyse-report flagged this as a data-loss-without-warning class.
+     * Now: each malformed row fires this event with file/line/error/total
+     * so dashboards and audits can detect log-integrity drift.
+     */
+    CORRUPTED_ROW: 'eventstore:corrupted-row',
   }),
 
   EFFECTOR: Object.freeze({

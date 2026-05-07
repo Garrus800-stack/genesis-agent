@@ -194,7 +194,7 @@ class GoalSynthesizer {
       this._goalsGenerated++;
 
       _log.info(`[GOAL] Generated: "${result[0].title}" (priority: ${result[0].priority})`);
-      this.bus.emit('goal:synthesized', {
+      this.bus.fire('goal:synthesized', {
         title: result[0].title,
         weakness: result[0].weakness,
         priority: result[0].priority,
@@ -228,7 +228,7 @@ class GoalSynthesizer {
         this._paused = true;
         this._pauseUntilTasks = currentCount + 100;
         _log.warn(`[GOAL] Circuit breaker: pausing GoalSynthesizer until task count ${this._pauseUntilTasks}`);
-        this.bus.emit('goal:circuit-breaker', {
+        this.bus.fire('goal:circuit-breaker', {
           regressions: this._regressions,
           pauseUntil: this._pauseUntilTasks,
         }, { source: 'GoalSynthesizer' });

@@ -443,7 +443,7 @@ class ModelBridge {
             };
             this._routingStats.autoRouted++;
             this._routingStats.lastRouted = { ...routedSwitch, at: Date.now() };
-            this.bus.emit('model:auto-switched', routedSwitch, { source: 'ModelBridge' });
+            this.bus.fire('model:auto-switched', routedSwitch, { source: 'ModelBridge' });
           }
           // If model exists in router but not in availableModels, silently abandon
           // routing — fall through to activeModel/activeBackend.

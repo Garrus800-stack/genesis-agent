@@ -39,13 +39,16 @@ describe('v7.3.7 #1 — boot:complete event', () => {
     const agentCorePath = path.resolve(__dirname, '..', '..', 'src', 'agent', 'AgentCore.js');
     const src = fs.readFileSync(agentCorePath, 'utf8');
 
-    // Locate the three marker points
+    // Locate the three marker points. v7.6.3: bus.emit→bus.fire migration —
+    // accept either method name for the boot:complete call site.
     const telemetryIdx = src.indexOf("recordBoot(dt, serviceCount, 0, _phaseTimings)");
-    const bootCompleteIdx = src.indexOf("emit('boot:complete'");
+    const fireIdx = src.indexOf("fire('boot:complete'");
+    const emitIdx = src.indexOf("emit('boot:complete'");
+    const bootCompleteIdx = fireIdx > 0 ? fireIdx : emitIdx;
     const safetyIdx = src.indexOf("safety:degraded");
 
     assert.ok(telemetryIdx > 0, 'telemetry.recordBoot call must exist');
-    assert.ok(bootCompleteIdx > 0, 'boot:complete emit must exist in AgentCore');
+    assert.ok(bootCompleteIdx > 0, 'boot:complete emit/fire must exist in AgentCore');
     assert.ok(safetyIdx > 0, 'safety:degraded emit must exist (unchanged)');
 
     // Ordering invariant
@@ -63,9 +66,11 @@ describe('v7.3.7 #1 — boot:complete event', () => {
     const agentCorePath = path.resolve(__dirname, '..', '..', 'src', 'agent', 'AgentCore.js');
     const src = fs.readFileSync(agentCorePath, 'utf8');
 
-    // Extract the emit block
+    // v7.6.3: bus.emit→bus.fire migration — accept either method name
+    const fireIdx = src.indexOf("fire('boot:complete'");
     const emitIdx = src.indexOf("emit('boot:complete'");
-    const block = src.slice(emitIdx, emitIdx + 400);
+    const callIdx = fireIdx > 0 ? fireIdx : emitIdx;
+    const block = src.slice(callIdx, callIdx + 400);
 
     assert.ok(/durationMs:\s*dt/.test(block), 'payload must contain durationMs');
     assert.ok(/serviceCount/.test(block), 'payload must contain serviceCount');

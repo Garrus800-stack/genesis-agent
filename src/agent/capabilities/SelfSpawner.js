@@ -73,7 +73,7 @@ class SelfSpawner {
 
     this._stats.spawned++;
 
-    this.bus.emit('spawner:starting', {
+    this.bus.fire('spawner:starting', {
       taskId,
       description: task.description?.slice(0, 100),
     }, { source: 'SelfSpawner' });
@@ -145,10 +145,10 @@ class SelfSpawner {
           if (msg.type === 'result') {
             clearTimeout(timer);
             this._stats.completed++;
-            this.bus.emit('spawner:completed', { taskId, success: msg.success }, { source: 'SelfSpawner' });
+            this.bus.fire('spawner:completed', { taskId, success: msg.success }, { source: 'SelfSpawner' });
             done({ success: msg.success, result: msg.result, error: msg.error });
           } else if (msg.type === 'progress') {
-            this.bus.emit('spawner:progress', { taskId, ...msg.data }, { source: 'SelfSpawner' });
+            this.bus.fire('spawner:progress', { taskId, ...msg.data }, { source: 'SelfSpawner' });
           } else if (msg.type === 'llm-request') {
             // v7.5.7-fix Phase 2: worker delegates LLM call to parent so it
             // goes through ModelBridge (semaphore, cache, keep_alive).
@@ -205,7 +205,7 @@ class SelfSpawner {
         results.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message })
       )
       .catch(err => {
-        this.bus.emit('spawner:error', { error: err.message }, { source: 'SelfSpawner' });
+        this.bus.fire('spawner:error', { error: err.message }, { source: 'SelfSpawner' });
         return tasks.map(() => ({ success: false, error: err.message }));
       });
   }

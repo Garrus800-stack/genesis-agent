@@ -132,7 +132,7 @@ class DreamCycle {
     this._dreamCount++;
     this._stats.totalDreams++;
 
-    this.bus.emit('dream:started', {
+    this.bus.fire('dream:started', {
       dreamNumber: this._dreamCount,
       intensity,
     }, { source: 'DreamCycle' });
@@ -227,7 +227,7 @@ class DreamCycle {
       // immediately instead of waiting for passive SchemaStore retrieval.
       for (const insight of report.insights) {
         if (/** @type {*} */ (insight).confidence > 0.8 || insight.type === 'cross-schema') {
-          this.bus.emit('insight:actionable', {
+          this.bus.fire('insight:actionable', {
             source: 'DreamCycle',
             type: insight.type,
             description: insight.description,
@@ -308,7 +308,7 @@ class DreamCycle {
       _log.debug('[DREAM] cycle report entry failed (non-critical):', e.message);
     }
 
-    this.bus.emit('dream:complete', {
+    this.bus.fire('dream:complete', {
       dreamNumber: this._dreamCount,
       duration: report.durationMs,
       newSchemas: report.newSchemas.length,

@@ -196,7 +196,7 @@ class EarnedAutonomy {
       this._stats.promotions++;
       _log.info(`[EARNED] ✓ PROMOTED "${actionType}" — wilson_lower=${(wLower * 100).toFixed(1)}% (${successes}/${total})`);
 
-      this.bus.emit('autonomy:earned', {
+      this.bus.fire('autonomy:earned', {
         actionType,
         wilsonLower: Math.round(wLower * 100),
         samples: total,
@@ -228,7 +228,7 @@ class EarnedAutonomy {
       this._stats.revocations++;
       _log.warn(`[EARNED] ✗ REVOKED "${actionType}" — wilson_lower=${(wLower * 100).toFixed(1)}% below ${this._config.revocationThreshold * 100}%`);
 
-      this.bus.emit('autonomy:revoked', {
+      this.bus.fire('autonomy:revoked', {
         actionType,
         wilsonLower: Math.round(wLower * 100),
         samples: total,

@@ -248,7 +248,7 @@ function recordCoherenceCheck(bus, intentType, toolName, meta = {}) {
   if (!verdict.coherent && bus && typeof bus.emit === 'function') {
     try {
       for (const sig of verdict.signals) {
-        bus.emit('intent:tool-mismatch', {
+        bus.fire('intent:tool-mismatch', {
           ...sig,
           ...meta,
         }, { source: 'IntentToolCoherence' });

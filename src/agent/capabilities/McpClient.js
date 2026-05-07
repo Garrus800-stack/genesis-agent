@@ -361,7 +361,7 @@ class McpClient {
         };
         this._saveRecipes();
 
-        this.bus.emit('mcp:pattern-detected', { pattern, count, chain: recent }, { source: 'McpClient' });
+        this.bus.fire('mcp:pattern-detected', { pattern, count, chain: recent }, { source: 'McpClient' });
         _log.info(`[MCP] Pattern detected (${count}x): ${pattern}`);
       } else if (count > (this._recipes[pattern]?.count || 0)) {
         // Update count in existing recipe
@@ -482,7 +482,7 @@ class McpClient {
     for (const key of this._schemaCache.keys()) {
       if (key.startsWith(`${name}:`)) this._schemaCache.delete(key);
     }
-    this.bus.emit('mcp:server-removed', { name }, { source: 'McpClient' });
+    this.bus.fire('mcp:server-removed', { name }, { source: 'McpClient' });
     return true;
   }
 

@@ -14,7 +14,7 @@ const ROOT = createTestRoot('verifier');
 fs.mkdirSync(path.join(ROOT, 'src'), { recursive: true });
 
 function createEngine() {
-  return new VerificationEngine({ bus: { emit() {}, fire() {} }, rootDir: ROOT });
+  return new VerificationEngine({ bus: { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } }, rootDir: ROOT });
 }
 
 describe('VerificationEngine — constructor', () => {

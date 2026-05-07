@@ -126,7 +126,7 @@ class BackupManager {
       const archiveSize = fs.statSync(outPath).size;
       _log.info(`[BACKUP] Exported ${fileCount} files (${this._fmtSize(totalSize)}) → ${outPath} (${this._fmtSize(archiveSize)})`);
 
-      this.bus.emit('backup:exported', {
+      this.bus.fire('backup:exported', {
         path: outPath, files: fileCount,
         rawSize: totalSize, archiveSize,
       }, { source: 'BackupManager' });
@@ -212,7 +212,7 @@ class BackupManager {
 
       _log.info(`[BACKUP] Import complete — ${imported} files imported, ${skipped} skipped`);
 
-      this.bus.emit('backup:imported', {
+      this.bus.fire('backup:imported', {
         source: archivePath, imported, skipped,
         manifest,
       }, { source: 'BackupManager' });

@@ -111,7 +111,7 @@ class GoalPersistence {
     this._loaded = true;
     const unfinished = this._activeGoals.filter(g => GOAL_STATUSES.has(g.status));
 
-    this.bus.emit('goals:loaded', {
+    this.bus.fire('goals:loaded', {
       total: this._activeGoals.length,
       unfinished: unfinished.length,
       archived: this._archive.length,
@@ -168,7 +168,7 @@ class GoalPersistence {
         }
       }
 
-      this.bus.emit('goal:resumed', {
+      this.bus.fire('goal:resumed', {
         id: goal.id,
         description: goal.description,
         step: goal.currentStep,

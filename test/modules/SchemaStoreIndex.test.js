@@ -2,7 +2,7 @@ const { describe, test, assert, assertEqual, run } = require('../harness');
 const { SchemaStore } = require('../../src/agent/planning/SchemaStore');
 
 function makeSS() {
-  return new SchemaStore({ bus: { emit(){}, fire(){}, on(){} }, storage: null, config: {} });
+  return new SchemaStore({ bus: { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){} }, storage: null, config: {} });
 }
 function makeSchema(name, trigger, conf) {
   return { name, description: `Test ${name}`, trigger: trigger || name, successModifier: 0.5, confidence: conf || 0.7, sourcePattern: 'test', occurrences: 3 };

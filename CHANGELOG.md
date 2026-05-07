@@ -1,3 +1,407 @@
+## [7.6.3]
+
+**Drift cleanup, audit-contracts strict, CostStream failover wiring.**
+
+Four-track cleanup release. No new features, no behavior changes for end users.
+The catalog-vs-runtime drift accumulated over recent versions has been collapsed
+to its true minimum (one real abandoned handler, down from 55 reported); the
+audit-contracts script — previously a discovery tool — is now a strict CI gate
+with five new contract families covering the security-critical test surfaces it
+had been merely observing; the entire codebase migrated from `bus.emit` (async,
+returns Promise of handler results) to `bus.fire` (fire-and-forget) for the 446
+call sites that didn't actually use the Promise; and CostStream now records
+`model:failover-unavailable` events into a separate counter alongside its cost
+ledger, surfacing an operational signal that was previously emitted but
+unobserved.
+
+### Track 1 — Catalog drift cleanup
+
+The `audit-events.js` script reported 55 catalog entries as never emitted.
+This first triggered a wider sweep that turned out to be too aggressive: an
+initial 29-event deletion was reverted in part. The final state removes only
+the 4 entries that are actually dead, and extends the audit script to
+correctly recognise the 50 structural false-positives the static regex
+couldn't see through.
+
+**Removed (4 events):** `self-gate:blocked` (reserved for a future enforcement
+mode that the design commitment explicitly rules out — Self-Gate stays
+observational) and three `frontier:*:written` entries (`unfinishedWork`,
+`suspicion`, `lessonTracking`) that were declared but never wired to any
+publisher or subscriber.
+
+**Restored after the live boot run:** all 25 `store:*` entries that initially
+looked dead. They are emitted at runtime by `EventStore.append(type, ...)`
+which builds the final event name dynamically as `bus.fire(\`store:${type}\`, ...)`.
+The static grep-based pre-check could not see this, but the production boot
+log of `npm start` showed `[EVENT:DEV] Unknown event "store:SYSTEM_BOOT"` and
+similar warnings that exposed the regression. The catalog entries went back in
+verbatim from the v7.6.2 reference, with their original JSDoc comments intact.
+This regression class is now locked in by the new B1+B2 tests in
+`store-event-catalog.test.js` (see below).
+
+**Audit-script extensions** — these stay independent of the deletion question
+and are correct in their own right:
+
+- `EMIT_PATTERN` widened from `\.(?:emit|fire)\(...\)` to also match optional
+  chaining (`bus?.fire?.(...)`). Without this widening the script missed real
+  emit sites in `ModelBridgeAvailability.js` and reported them as dead.
+- New `REQUEST_PATTERN` scan for `bus.request('event', ...)` call sites.
+  Request/response events (`reasoning:solve`, `web:search`, `colony:run-request`)
+  use a different publish API than emit/fire, and a publisher set must include
+  request-emitters or they look abandoned.
+- New `isFalsePositiveCatalogNeverEmitted(event)` filter with four patterns:
+  AgentCoreWire `push()` bridge channels (`agent:loop-progress`,
+  `agent:status-update`, `agent:open-in-editor`), Settings dynamic-toggle
+  pipeline (`settings:*-toggled`, `settings:*-changed`), CapabilityGuard scope
+  alias namespace (`exec:*`, `fs:*`, `net:*`), and template-literal dynamic
+  emits (`bus.fire(\`store:${type}\`, ...)`).
+
+**Regression guard added** — `test/modules/store-event-catalog.test.js` was
+extended with two general-purpose checks that scan all of `src/agent/` for
+`eventStore.append('TYPE', ...)` call sites (with optional-chaining support)
+and assert that every TYPE has both an `EVENTS.STORE.TYPE` catalog entry AND a
+`'store:TYPE'` payload schema. These tests catch the exact regression class
+that was nearly shipped: a static-grep pass over `'store:TYPE'` strings cannot
+see template-literal emits, so any future cleanup of `store:*` catalog entries
+based on grep alone will now break the test before it ships. The test runs
+against the actual append callers, not against a hand-maintained list, so it
+follows refactors automatically.
+
+After all the above: catalog 454 → 450 entries, `catalogNeverEmitted` 55 → 1
+(the remaining one is `colony:run-request`, a real abandoned handler with no
+publisher in production code).
+
+`docs/EVENT-FLOW.md` lost the `self-gate:blocked` reference row to keep the doc
+honest — the design commitment is that Self-Gate stays observational.
+
+### Track 2 — audit-contracts strict-lift
+
+The `audit-contracts.js` script was a discovery tool: it surfaced security-
+relevant tests that should have been contract-protected (regression-locked via
+a `<prefix> contract: ` test-name marker) but weren't. 61 unprotected
+candidates across 15 test files were sitting in its output without anyone
+acting on them. They have all been protected, the existing prefix list grew
+7 → 12 (unique prefixes; the v7.6.2 stale-refs.json had a duplicate "shell-safety contract: " entry which is consolidated into one in v7.6.3), and the script now runs in `--strict` mode as a CI gate.
+
+**Five new contract prefixes added to `scripts/stale-refs.json`:**
+- `code-safety contract: ` (12 minimum) — CodeSafetyScanner + CodeSafetyPort
+  invariants. Covers AST-level pre-write defenses (eval, new Function,
+  child_process import, kernel-import block) and the fail-closed behavior when
+  acorn is unavailable.
+- `capability contract: ` (1 minimum) — CapabilityGuard scope-restriction
+  invariants. Covers token-validation against tampered scopes and audit-log
+  integrity.
+- `mcp-security contract: ` (6 minimum) — MCP server + client security
+  boundary. Covers token-validation, rate-limiting, plugin sandboxing, and
+  trust-tier enforcement before mounting external MCP tools.
+- `plugin contract: ` (1 minimum) — PluginRegistry safe-loading invariants.
+  Covers code-safety scan before mount, manifest validation, signature checks.
+- `selfmod contract: ` (6 minimum) — SelfModificationPipeline safety gates.
+  Covers the three pre-write gates (validateWrite, codeSafety.scanCode,
+  _verifyCode) and the carry-over patches for hash-lock and dark-rule
+  restoration.
+
+**61 tests renamed across 15 files** programmatically (one prefix per file,
+mapping in stale-refs.json notes). All renamed tests still pass.
+
+**CI integration:** `audit-contracts --strict` is added to `package.json` `ci` and `ci:full` scripts, between `audit-hash-lock-coverage` and `check-ratchet`. New unprotected security-relevant tests now break the build until they're either protected or explicitly excluded.
+
+### Track 3 — bus.emit → bus.fire migration
+
+The EventBus has had two publish APIs since v3.5: `emit()` (async, returns
+`Promise<results[]>`, lets the caller await handler returns) and `fire()`
+(fire-and-forget, errors logged via `console.warn` rather than silently
+swallowed when the Promise rejects). 446 call sites in the agent layer used
+`emit()` without awaiting it — losing both the async return AND the error
+logging that `fire()` provides.
+
+The migration scanned `src/agent/` for receiver-prefixed `.emit(` patterns
+(`this.bus.emit`, `this._bus.emit`, `bus.emit`, `idleMind.bus.emit`,
+`loop.bus.emit`) and rewrote each to `.fire(` — except where the line
+contained `await` or `.then` chaining (return-value semantics preserved) or
+matched a method-definition (`async emit(...)`, `emit() { ... }`). `process.emit`
+(Node EventEmitter) and `EventBus.js` itself were excluded.
+
+**Distribution:** 119 files touched, top contributors `cognitive/CognitiveEvents.js`
+(45), `organism/OrganismEvents.js` (31), `hexagonal/SelfModificationPipelineModify.js`
+(18), `autonomy/AutonomyEvents.js` (16), `planning/GoalStack.js` (16). The
+previously single `await this.emit(...)` in `EventBus.js` line 275 (inside
+`fire()` itself, where the Promise IS used to catch handler errors) was
+correctly preserved.
+
+**Test mock cascade:** the migration broke 213 tests whose mock buses had
+`emit` (often with event-recording side effects) but no `fire`. Two passes of
+mock-side fixes resolved these:
+1. Mock objects with `emit` and `on` but no `fire` got a forwarder
+   `fire(...args) { return this.emit ? this.emit(...args) : undefined; }`
+   inserted before the closing brace. Object-literal-parser based, brace-depth
+   balanced, applied to inline mocks AND `mockBus()`/`makeBus()` factories AND
+   `bus: { ... }` parameter objects across 60+ test files.
+2. Source-side default-bus stubs (`this.bus = bus || { emit() {} }`) in seven
+   files (NetworkSentinel, AdaptivePromptStrategy, CognitiveBudget,
+   PreservationInvariants, WakeUpRoutine, JournalWriter, PendingMomentsStore)
+   gained a no-op `fire()` companion so the fallback path works after migration.
+3. Two test files with shape-aware assertions (`events-coverage.test.js`
+   filtering by `type === 'emit'`, `v737-boot-complete-event.test.js` searching
+   for the literal `"emit('boot:complete'"` in source) were updated to accept
+   either `emit` or `fire`.
+
+After all fixes: 6639 tests passing, 0 failing. 0 remaining `bus.emit()` call
+sites in `src/agent/` outside `EventBus.js` itself.
+
+### Track 4 — CostStream failover-listener wiring
+
+`CostStream` already subscribed to `llm:call-complete` to record successful
+LLM calls into a per-goal cost ledger. `model:failover-unavailable` (emitted
+by `ModelBridgeAvailability` when no Plan B model is available after a primary
+failure) was a live event with no observer in the agent layer. Adding it to
+the cost ledger as a normal row would have polluted the ledger semantics — a
+failover means tokensIn/tokensOut = 0, the actual call never happened.
+
+The wiring records failovers into a separate `_failoverTally` counter on
+`CostStream`, exposed via `getStats().failover`:
+```js
+{ total, unavailable, lastAt, lastReason }
+```
+The cost ledger stays pure (only successful calls have rows); the operational
+signal is now queryable from dashboards / audits.
+
+The new listener is unsubscribed in `stop()` parallel to the existing
+`llm:call-complete` listener. Two new tests cover the counter increments and
+the cleanup.
+
+### Track 5 — Doc-drift cleanup + new `audit-doc-drift` CI gate
+
+After v7.6.3 was first declared finished, a docs/ inspection found that
+eight markdown files carried stale numeric claims (test counts ranging from
+6141 to 6213, "v7.5.6" / "v7.5.7" header tags despite being v7.6.3, hash-lock
+counts listing 7 files instead of 18, contract-prefix counts off by one due
+to a pre-existing duplicate in `stale-refs.json`, etc.). Most of these had
+drifted across multiple releases — there was no automated check, so the
+numbers slowly went out of sync without anyone noticing.
+
+Three corrective changes:
+
+- **All eight docs nachgezogen** to v7.6.3 reality. `EVENT-FLOW.md`,
+  `CAPABILITIES.md`, `COMMUNICATION.md`, `MCP-SERVER-SETUP.md`,
+  `SKILL-SECURITY.md`, `phase9-cognitive-architecture.md`, `GATE-INVENTORY.md`,
+  and `ARCHITECTURE-DEEP-DIVE.md` all now have current header tags and
+  current numeric claims (450 events, 450 schemas, 6650 tests Win baseline,
+  18 hash-locks, 12 unique contract prefixes).
+- **`docs/DEGRADATION-MATRIX.md` regenerated** via the existing
+  `scripts/degradation-matrix.js --md --out` (it had been 5 days stale —
+  155 services / 592 bindings vs live 605 bindings). The release-zip script
+  was extended to run this regeneration as Step 0 so future releases ship
+  with a fresh matrix automatically.
+- **`scripts/stale-refs.json` shell-safety duplicate consolidated.** Two
+  separate entries with identical prefix `shell-safety contract: ` (one from
+  v7.5.7 with `minCount: 3`, one from v7.6.0 audit with `minCount: 14`) were
+  merged into a single entry with `minCount: 17` and a unified note that
+  documents both invariant clusters. Unique prefix count 7 → 12 in v7.6.3
+  (was 7 unique + 1 duplicate = 8 entries previously).
+- **New `audit-doc-drift --strict` CI gate** added between
+  `audit-contracts --strict` and `check-ratchet`. It probes live values
+  (version, catalog size, schema count, hash-lock count, contract-prefix
+  count, source-module count, CI-gate count) and compares them against
+  numeric claims in `docs/*.md`. With `--strict`, any mismatch fails CI.
+  Catches the exact regression class that produced this very Track —
+  numbers that drift silently over releases. Skips `BUG-TAXONOMY.md` which
+  is explicitly historical.
+
+### Track 6 — Erweiterte Analyse-Bericht: 3 Bugs, 2 Security-Hardening, 4 Audit-Lücken
+
+After v7.6.3 ship, an extended-audit report ran complementary methods over
+the existing audit suite (cyclomatic/cognitive complexity, async/race-pattern
+scan, silent-catch detection, property-based-testing, electron-security
+inspection, injection-surface mapping, hotspot mining via CHANGELOG ×
+complexity). It surfaced three real bugs, one missing build-config file, two
+security asymmetries, and four systematic gaps in the audit suite — none of
+which the existing 33 audit-scripts caught because they cover structure and
+catalog drift, not behavioural-property classes.
+
+**Bugs A + B — `openPath` anaphora vs location-suffix collision**
+Pre-fix, `"öffne urlaub folder auf dem dokumente"` matched the doc-anaphora
+pattern (POSSESSIVE='dem' + 'dokumente' tail) and resolved to `<rootDir>/docs`
+instead of `~/Documents/urlaub`. Symmetric bug: `"zeig genesis-ordner auf
+dem desktop"` matched the genesis-anaphora and returned `<rootDir>`,
+swallowing the location-suffix. Both share a single fix: detect the pattern
+`auf|in|unter|on|im (dem|den|der|de|the) <known-alias>` and skip the
+anaphora-loop when present so the alias-resolver wins. Bug B also required a
+small extension to the alias `beforeRe` to recognise the hyphenated form
+`WORD-ordner` (e.g. `genesis-ordner`) as a subdir-name. 6 regression tests in
+`v763-openpath-anaphora-loc.test.js` cover both ends.
+
+**Bug C — `tsconfig.ci.json` was missing from the v7.6.3 ZIP**
+`package.json`'s `typecheck` and `ci:full` scripts both reference the file,
+but the v7.6.3 ZIP shipped without it — every `npm run typecheck` aborted
+with `error TS5058: file does not exist`. Reconstructed from project
+conventions (allowJs:true, checkJs:false, selective opt-in via 167 files
+with `// @ts-checked-v5.7` pragma + 201 with native `// @ts-check`,
+ambient typing via `types/*.d.ts`). Known issue documented in the file
+header: 27 residual TS errors across 6 files all stem from the
+`applySubscriptionHelper(this)` mixin pattern; follow-up is a JSDoc
+`@mixes` decl on `subscription-helper.js`.
+
+**S1 — Tool-Result-Injection-Scan (warning-only)**
+The injection-gate scanned only `userMessage`; tool-results from the open web
+(WebFetcher), MCP servers, and user-uploaded files were passed verbatim to
+the synthesis LLM. Fixed by adding `classifyToolSource(toolName, toolInput)`
+and `scanToolResult(content, source)` to `injection-gate.js`, plus a new
+hook in `ChatOrchestratorHelpers._processToolLoop` that runs after
+`executeToolCalls`. Sources classified as `web` / `mcp` / `file:user` /
+`unknown` get scanned; `file:internal` and `sandbox` are skipped (already
+trusted by hash-locks resp. sandbox isolation). Flagged content is replaced
+by `[BLOCKED: injection-signal in fetched content from <source>]` before
+reaching the synthesis prompt and `injection:tool-result-flagged` is fired
+once per offending result. Intentionally non-blocking — the tool-loop
+continues. This is an Input-Gate extension, not a Self-Gate change
+(Self-Gate stays observation-only by design). 16 tests in
+`v763-tool-result-injection-scan.test.js` cover the classifier + routing +
+wiring.
+
+**S2 — `agent:open-path` IPC handler now has a path-allowlist**
+Pre-fix `shell.openPath` opened any absolute path that existed —
+`/etc/passwd`, `~/.ssh/id_rsa`, `/root/secret.key`. The restrictor stack
+(contextIsolation + sandbox + IPC-whitelist) is intact, but this channel
+was whitelisted, so an LLM-crafted tool-call could pick a sensitive target.
+Risk was low (no exfiltration; OS only displays the file) but the asymmetry
+to the existing `_externalAllowedDomains` check on `openExternal` was a
+real finding. Fixed with `_pathAllowedRoots` covering rootDir + standard
+user folders + their German localized siblings (Dokumente / Schreibtisch /
+Bilder / Musik). 6 tests in `v763-openpath-allowlist.test.js`.
+
+**L3 — EventStore corruption telemetry**
+`EventStore._readLog` had a truly-silent catch around per-line `JSON.parse`
+that dropped corrupted JSONL rows with no observability. Fixed: counter
+(`this._corruptedRowsSkipped`) plus `eventstore:corrupted-row` event fired
+once per offending row with `{file, line, error, total}`. New EVENTSTORE
+event-namespace + payload schema. 5 tests in
+`v763-eventstore-corruption-telemetry.test.js`.
+
+**Three new CI audit-gates closing systematic audit-suite gaps**
+
+- `audit-listener-lifecycle.js` — checks every `bus.on()` in src/agent/
+  has a corresponding `.off()`/`.removeListener()` OR uses the unsub-pattern
+  (`this._unsub<X> = bus.on(...)` + later call) OR uses the
+  `applySubscriptionHelper(this)` mixin. Whitelists 7 legitimate static
+  boot-wires (AgentCoreWire, fan-out *Events.js files, manifest, EventBus
+  itself, subscription-helper). Currently identifies 10 modules with
+  potential leak risk (informational; not in `--strict` mode in CI yet —
+  iterative migration via existing CostStream-style unsub-pattern).
+- `audit-raw-settimeout.js` — symmetric to the existing
+  architectural-fitness `setInterval` audit. Flags raw fire-and-forget
+  `setTimeout(...)` calls (i.e. not assigned to a tracked field, not a
+  Promise.race timeout, not on the EXEMPT list of legitimate kernel/
+  HTTP-method-form sites). Baseline `12` at v7.6.3 ship; growth above
+  baseline fails the build in `--strict`.
+- `audit-class-wiring.js` — verifies every `R('Foo').Foo`-call in
+  `src/agent/manifest/phase*.js` resolves to an actual file `src/agent/**/
+  Foo.js` that exports `Foo` (named). Closes the typo class where a
+  manifest reference like `R('FooClas').FooClas` only fails at runtime
+  when the affected service is first resolved. Currently 150 R() calls /
+  147 distinct classes / 0 unresolved.
+
+All three new gates are wired into `npm run ci` and `npm run ci:full` in
+addition to the 11 existing audit-script gates.
+
+**14 CI audit-script gates total** (was 12 before this Track):
+architectural-fitness, audit-events --strict, validate-events,
+validate-channels, validate-service-wiring --strict,
+validate-intent-wiring --strict, audit-self-gate-coverage,
+audit-gate-stats-callers, audit-hash-lock-coverage,
+audit-contracts --strict, audit-doc-drift --strict,
+audit-raw-settimeout --strict, audit-class-wiring --strict,
+check-ratchet --skip-tests.
+
+### Pre-existing test bug fixed in passing
+
+`test/modules/store-event-catalog.test.js` test A3 was checking for an
+`eventStore.append('SELF_STATEMENT_CONTRADICTION')` call in `SelfStatementLog.js`,
+but that method was extracted into `SelfStatementClassifier.js` in v7.6.1. The
+test was failing silently because the test runner aggregator only surfaced
+top-level pass/fail counts. Path updated; test now points at the correct file.
+
+### Files
+
+- `src/agent/core/EventTypes.js` — net 4 entries removed (`self-gate:blocked`
+  and three `frontier:*:written`); the 25 `store:*` entries are unchanged
+  vs v7.6.2
+- `src/agent/core/EventPayloadSchemas.js` — net 4 schema entries removed
+  (matching the removals above)
+- `src/agent/foundation/CostStream.js` — failover counter, listener, getStats
+  field, stop() cleanup
+- `src/agent/` — 119 files touched by emit→fire migration (446 replacements)
+- `src/agent/{NetworkSentinel,AdaptivePromptStrategy,CognitiveBudget,
+  PreservationInvariants,WakeUpRoutine,JournalWriter,PendingMomentsStore}.js`
+  — default-bus stubs gained no-op `fire()`
+- `scripts/audit-events.js` — widened EMIT_PATTERN, new REQUEST_PATTERN,
+  isFalsePositiveCatalogNeverEmitted with 4 rules
+- `scripts/stale-refs.json` — 5 new contract prefixes plus shell-safety duplicate consolidation (7 unique → 12 unique)
+- `scripts/audit-contracts.js` — already had `--strict`, no changes needed
+- `package.json` — version 7.6.3, `ci` + `ci:full` add `audit-contracts --strict`
+- `test/modules/coststream.test.js` — 2 new failover tests
+- `test/modules/store-event-catalog.test.js` — A3 path fix
+- `test/modules/{events-coverage,v737-boot-complete-event}.test.js` — accept
+  fire-shaped calls
+- 60+ test files across `test/modules/` — mock-bus fire forwarders added
+- 15 test files — 61 contract-prefix renames
+- `docs/EVENT-FLOW.md` — `self-gate:blocked` row removed
+- `docs/banner.svg` — version 7.6.3, test count 6639
+- `tsconfig.ci.json` — **reconstructed** (was missing from v7.6.3 ZIP)
+- `src/agent/hexagonal/CommandHandlersShell.js` — Bug A+B fix
+  (hasLocationSuffix gate + hyphenated-noun support in alias `beforeRe`)
+- `src/agent/foundation/EventStore.js` — L3 corruption telemetry counter
+  + `eventstore:corrupted-row` fire
+- `src/agent/core/EventTypes.js` — new EVENTSTORE namespace, new
+  INJECTION.TOOL_RESULT_FLAGGED entry (catalog 450 → 452)
+- `src/agent/core/EventPayloadSchemas.js` — two matching schemas
+  (schemas 450 → 452)
+- `src/agent/core/injection-gate.js` — `classifyToolSource` +
+  `scanToolResult` exports
+- `src/agent/hexagonal/ChatOrchestratorHelpers.js` — tool-result-scan
+  hook in `_processToolLoop`
+- `main.js` — `_pathAllowedRoots` + isUnderAllowed check on
+  `agent:open-path`
+- `scripts/audit-listener-lifecycle.js` — new
+- `scripts/audit-raw-settimeout.js` — new (BASELINE = 12)
+- `scripts/audit-class-wiring.js` — new
+- `package.json` — three new audit scripts + ci/ci:full extension
+- `test/modules/v763-openpath-anaphora-loc.test.js` — 6 tests
+- `test/modules/v763-eventstore-corruption-telemetry.test.js` — 5 tests
+- `test/modules/v763-openpath-allowlist.test.js` — 6 tests
+- `test/modules/v763-tool-result-injection-scan.test.js` — 16 tests
+- `docs/{EVENT-FLOW,CAPABILITIES,COMMUNICATION,ARCHITECTURE-DEEP-DIVE}.md`
+  — catalog/schema counts updated 450 → 452, CI gates 12 → 14
+
+### Metrics
+
+- Tests: 6646 (Linux baseline) → 6650 (Win baseline). +4 net: 2 new CostStream
+  failover tests (§7.4), 2 new B1+B2 catalog drift guards in
+  `store-event-catalog.test.js`. Linux-side runs vary by ±1 around 6641 due to
+  one platform-specific test path; the Win run is the authoritative count.
+  Track 6 adds 33 new tests (6 + 5 + 6 + 16) for an updated baseline target
+  of ~6683 (Win) on next full run.
+- Architectural fitness: 127/130 unchanged
+- Module count: 321 unchanged
+- Service-wiring references: 919 unchanged (CostStream listener is internal)
+- Catalog: 454 → 450 events Track 1 → 452 events after Track 6 (+2:
+  `eventstore:corrupted-row`, `injection:tool-result-flagged`)
+- Schemas: matching 452/452 full parity
+- catalogNeverEmitted: 55 → 1 (`colony:run-request` real abandoned)
+- bus.emit call sites in src/agent: 446 → 0
+- contractPrefixes (unique): 7 → 12 (5 new + shell-safety duplicate consolidated)
+- Unprotected security-relevant tests: 61 → 0
+- Hash-lock coverage: 18 unchanged
+- Dark/weak PI rules: 0 unchanged
+- CI audit-script gates in `ci` script: 10 → 12 (Track 5: audit-contracts,
+  audit-doc-drift) → 14 (Track 6: audit-raw-settimeout, audit-class-wiring)
+- Listener-lifecycle audit: 18 modules with on>=2 — 8 clean, 7 whitelisted
+  static-boot-wires, 10 informational-baseline (non-strict)
+- Raw setTimeout sites: 12 fire-and-forget (baseline)
+- Class-wiring R() calls: 150 / 147 distinct / 0 unresolved
+
+---
+
 ## [7.6.2]
 
 **Track A continuation — Goal-Driver-Trio cleanup, no behavior change.**

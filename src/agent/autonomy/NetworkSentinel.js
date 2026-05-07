@@ -58,7 +58,7 @@ class NetworkSentinel {
    */
   /** @param {{ bus?: *, intervals?: *, config?: * }} [deps] */
   constructor({ bus, intervals, config } = {}) {
-    /** @type {*} */ this.bus = bus || { on() {}, emit() {} };
+    /** @type {*} */ this.bus = bus || { on() {}, emit() {} , fire() {}};
     this._intervals = intervals;
     this._config = { ...DEFAULTS, ...config };
 
@@ -220,7 +220,7 @@ class NetworkSentinel {
 
       _log.info(`[NET] Back online (was offline for ${Math.round(offlineDuration / 1000)}s)`);
 
-      this.bus.emit('network:status', {
+      this.bus.fire('network:status', {
         online: true,
         offlineDurationMs: offlineDuration,
         ollamaAvailable: this._ollamaAvailable,
@@ -252,13 +252,13 @@ class NetworkSentinel {
 
       _log.warn('[NET] Network offline detected');
 
-      this.bus.emit('network:status', {
+      this.bus.fire('network:status', {
         online: false,
         consecutiveFailures: this._consecutiveFailures,
         ollamaAvailable: this._ollamaAvailable,
       }, { source: 'NetworkSentinel' });
 
-      this.bus.emit('health:degradation', {
+      this.bus.fire('health:degradation', {
         service: 'NetworkSentinel',
         level: 'warning',
         reason: 'network-offline',
@@ -338,7 +338,7 @@ class NetworkSentinel {
 
       _log.info(`[NET] Failover: ${this._previousModel} (${this._previousBackend}) → ${best.name} (ollama)`);
 
-      this.bus.emit('network:failover', {
+      this.bus.fire('network:failover', {
         from: { model: this._previousModel, backend: this._previousBackend },
         to: { model: best.name, backend: 'ollama' },
         reason: 'network-offline',
@@ -366,7 +366,7 @@ class NetworkSentinel {
 
       _log.info(`[NET] Restored: ${mb.activeModel} (${mb.activeBackend}) ← was failover to ollama`);
 
-      this.bus.emit('network:restored', {
+      this.bus.fire('network:restored', {
         model: this._previousModel,
         backend: this._previousBackend,
       }, { source: 'NetworkSentinel' });
@@ -401,7 +401,7 @@ class NetworkSentinel {
 
     for (const m of this._mutationQueue) {
       try {
-        this.bus.emit(m.event, { ...m.data, _replayed: true }, { source: 'NetworkSentinel:queue' });
+        this.bus.fire(m.event, { ...m.data, _replayed: true }, { source: 'NetworkSentinel:queue' });
       } catch (err) {
         _log.error(`[NET] Queue replay failed for ${m.event}: ${err.message}`);
       }

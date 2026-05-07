@@ -187,6 +187,7 @@ describe('LessonsStore lesson:applied emission', () => {
     const events = [];
     const bus = {
       emit(event, data, opts) { events.push({ event, data, opts }); },
+      fire(event, data, opts) { events.push({ event, data, opts }); },
       on() { return () => {}; },
     };
     const store = new LessonsStore({ bus, storage: null });
@@ -221,6 +222,7 @@ describe('LessonsStore lesson:applied emission', () => {
     const events = [];
     const bus = {
       emit(event, data, opts) { events.push({ event, data, opts }); },
+      fire(event, data, opts) { events.push({ event, data, opts }); },
       on() { return () => {}; },
     };
     const store = new LessonsStore({ bus, storage: null });

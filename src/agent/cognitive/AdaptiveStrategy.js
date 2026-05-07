@@ -157,7 +157,7 @@ class AdaptiveStrategy {
     const diagnosis = this._applyDelegate.diagnose();
     if (!diagnosis) {
       _log.info('[ADAPT] No actionable findings — all metrics stable');
-      this.bus.emit('adaptation:cycle-complete', {
+      this.bus.fire('adaptation:cycle-complete', {
         outcome: 'no-action', cyclesRun: this.stats.cyclesRun,
       }, { source: 'AdaptiveStrategy' });
       return null;
@@ -232,7 +232,7 @@ class AdaptiveStrategy {
     };
 
     this.stats.proposed++;
-    this.bus.emit('adaptation:proposed', {
+    this.bus.fire('adaptation:proposed', {
       id, type: record.type, bias: record.bias,
       section: record.section, hypothesis: record.hypothesis,
     }, { source: 'AdaptiveStrategy' });
@@ -266,7 +266,7 @@ class AdaptiveStrategy {
     this._active.push(record);
     this._save();
 
-    this.bus.emit('adaptation:applied', {
+    this.bus.fire('adaptation:applied', {
       id, type: record.type, revertAvailable: true,
     }, { source: 'AdaptiveStrategy' });
 
@@ -290,7 +290,7 @@ class AdaptiveStrategy {
     if (!this.quickBenchmark.hasBudget()) {
       record.status = STATUS.APPLIED_UNVALIDATED;
       this.stats.validationDeferred++;
-      this.bus.emit('adaptation:validation-deferred', {
+      this.bus.fire('adaptation:validation-deferred', {
         id: record.id, reason: 'Insufficient LLM budget for validation',
       }, { source: 'AdaptiveStrategy' });
       _log.info('[ADAPT] Validation deferred — budget floor reached');
@@ -343,14 +343,14 @@ class AdaptiveStrategy {
     this._history.push(this._serializableRecord(record));
     this._save();
 
-    this.bus.emit('adaptation:validated', {
+    this.bus.fire('adaptation:validated', {
       id: record.id, type: record.type,
       baselineScore: record.baselineScore, postScore: record.postScore,
       delta: record.delta, decision: 'confirmed',
     }, { source: 'AdaptiveStrategy' });
 
     // Store lesson
-    this.bus.emit('lesson:learned', {
+    this.bus.fire('lesson:learned', {
       category: 'meta-adaptation',
       title: `${record.type} adaptation confirmed: ${record.bias || record.taskType || 'general'}`,
       content: `Applied ${record.type} for "${record.evidence}". ` +
@@ -379,12 +379,12 @@ class AdaptiveStrategy {
     this._history.push(this._serializableRecord(record));
     this._save();
 
-    this.bus.emit('adaptation:rolled-back', {
+    this.bus.fire('adaptation:rolled-back', {
       id: record.id, type: record.type, reason, lessonStored: true,
     }, { source: 'AdaptiveStrategy' });
 
     // Store lesson
-    this.bus.emit('lesson:learned', {
+    this.bus.fire('lesson:learned', {
       category: 'meta-adaptation',
       title: `${record.type} adaptation rolled back: ${record.bias || record.taskType || 'general'}`,
       content: `Applied ${record.type} for "${record.evidence}". ` +

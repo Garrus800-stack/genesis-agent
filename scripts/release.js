@@ -229,6 +229,30 @@ if (!changelog.includes(`[${newVersion}]`)) {
 
 console.log('');
 
+// ── Step 2.5: Regenerate generated docs ──────────────────
+// These are *generated* files, not hand-written.
+// Without this step they drift between releases.
+
+console.log('── Step 2.5: Regenerate Generated Docs ──\n');
+
+if (!DRY_RUN) {
+  try {
+    execSync('node scripts/degradation-matrix.js --md --out', {
+      cwd: ROOT,
+      encoding: 'utf-8',
+      stdio: 'pipe',
+      timeout: 30_000,
+    });
+    console.log('  ✅ docs/DEGRADATION-MATRIX.md');
+  } catch (err) {
+    console.log(`  ⚠  degradation-matrix regen failed: ${err.message}`);
+  }
+} else {
+  console.log('  ℹ  would regen docs/DEGRADATION-MATRIX.md (skipped in dry-run)');
+}
+
+console.log('');
+
 // ── Step 3: Summary + Commands ───────────────────────────
 
 console.log('── Step 3: Git Commands ──\n');

@@ -2,7 +2,7 @@ const { describe, test, run } = require('../harness');
 const { ErrorAggregator } = require('../../src/agent/autonomy/ErrorAggregator');
 function make(cfg) {
   const subs = [];
-  return new ErrorAggregator({ bus: { emit(){}, fire(){}, on(e,fn) { subs.push(fn); return () => {}; } }, config: { healthIntervalMs: 999999, ...cfg } });
+  return new ErrorAggregator({ bus: { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(e,fn) { subs.push(fn); return () => {}; } }, config: { healthIntervalMs: 999999, ...cfg } });
 }
 describe('ErrorAggregator', () => {
   test('record stores by category', () => { const a = make(); a.record('llm:timeout', { message: 'err1' }); a.record('llm:timeout', { message: 'err2' }); if (a.getReport().summary.totalErrors < 2) throw new Error('Should count'); });

@@ -76,7 +76,7 @@ describe('DisclosurePolicy — trust with TrustLevelSystem', () => {
 
 describe('DisclosurePolicy — social engineering probes', () => {
   test('records probe and increments count', () => {
-    const dp = new DisclosurePolicy({ bus: { fire() {} } });
+    const dp = new DisclosurePolicy({ bus: { fire(...args) { return this.emit ? this.emit(...args) : undefined; } } });
     assertEqual(dp._probeCount, 0);
     dp.recordProbe('compliment → ask for system prompt');
     assertEqual(dp._probeCount, 1);
@@ -85,13 +85,13 @@ describe('DisclosurePolicy — social engineering probes', () => {
   });
 
   test('truncates pattern to 200 chars', () => {
-    const dp = new DisclosurePolicy({ bus: { fire() {} } });
+    const dp = new DisclosurePolicy({ bus: { fire(...args) { return this.emit ? this.emit(...args) : undefined; } } });
     dp.recordProbe('x'.repeat(500));
     assertEqual(dp._probePatterns[0].pattern.length, 200);
   });
 
   test('keeps max 20 patterns', () => {
-    const dp = new DisclosurePolicy({ bus: { fire() {} } });
+    const dp = new DisclosurePolicy({ bus: { fire(...args) { return this.emit ? this.emit(...args) : undefined; } } });
     for (let i = 0; i < 30; i++) dp.recordProbe(`probe ${i}`);
     assertEqual(dp._probePatterns.length, 20);
     assertEqual(dp._probeCount, 30);
@@ -129,7 +129,7 @@ describe('DisclosurePolicy — buildPromptContext', () => {
   });
 
   test('includes probe warning when probes detected', () => {
-    const dp = new DisclosurePolicy({ bus: { fire() {} } });
+    const dp = new DisclosurePolicy({ bus: { fire(...args) { return this.emit ? this.emit(...args) : undefined; } } });
     dp.recordProbe('test');
     const ctx = dp.buildPromptContext();
     assert(ctx.includes('1 social engineering'), 'should warn about probes');
@@ -144,7 +144,7 @@ describe('DisclosurePolicy — buildPromptContext', () => {
 
 describe('DisclosurePolicy — getReport', () => {
   test('returns structured report', () => {
-    const dp = new DisclosurePolicy({ bus: { fire() {} } });
+    const dp = new DisclosurePolicy({ bus: { fire(...args) { return this.emit ? this.emit(...args) : undefined; } } });
     dp.recordProbe('test');
     const r = dp.getReport();
     assert(r.interlocutor, 'should have interlocutor');

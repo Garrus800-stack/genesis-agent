@@ -157,7 +157,7 @@ const commandHandlersGoals = {
     }
     const target = active[idx];
     this.goalStack.abandonGoal(target.id);
-    this.bus.emit('goal:abandoned', {
+    this.bus.fire('goal:abandoned', {
       id: target.id, description: target.description,
     }, { source: 'CommandHandlers' });
     return this.lang.t('goals.cancel_one_done', { description: target.description });
@@ -178,7 +178,7 @@ const commandHandlersGoals = {
       let count = 0;
       for (const g of active) {
         this.goalStack.abandonGoal(g.id);
-        this.bus.emit('goal:abandoned', {
+        this.bus.fire('goal:abandoned', {
           id: g.id, description: g.description,
         }, { source: 'CommandHandlers' });
         count++;

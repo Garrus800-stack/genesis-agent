@@ -148,7 +148,7 @@ class ExpectationEngine {
       timestamp: Date.now(),
     };
 
-    this.bus.emit('expectation:formed', {
+    this.bus.fire('expectation:formed', {
       actionType: expectation.actionType,
       successProb: expectation.successProb,
       confidence: expectation.confidence,
@@ -226,7 +226,7 @@ class ExpectationEngine {
     // Update calibration
     this._updateCalibration(expectation, outcome);
 
-    this.bus.emit('expectation:compared', signal, { source: 'ExpectationEngine' });
+    this.bus.fire('expectation:compared', signal, { source: 'ExpectationEngine' });
 
     // Periodic save
     if (this._stats.comparisons % 20 === 0) {
@@ -356,7 +356,7 @@ class ExpectationEngine {
 
     // Periodic calibration event
     if (this._calibration.totalPredictions % 50 === 0) {
-      this.bus.emit('expectation:calibrated', {
+      this.bus.fire('expectation:calibrated', {
         score: this._calibration.score,
         totalPredictions: this._calibration.totalPredictions,
         accuracy: this._calibration.correctPredictions / this._calibration.totalPredictions,

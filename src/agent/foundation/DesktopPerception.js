@@ -139,7 +139,7 @@ class DesktopPerception {
 
       this._watcher.on('change', (filePath) => {
         this.worldState.recordFileChange(filePath);
-        this.bus.emit('perception:file-changed', {
+        this.bus.fire('perception:file-changed', {
           path: path.relative(this.rootDir, filePath),
           event: 'change',
         }, { source: 'DesktopPerception' });
@@ -147,14 +147,14 @@ class DesktopPerception {
 
       this._watcher.on('add', (filePath) => {
         this.worldState.recordFileChange(filePath);
-        this.bus.emit('perception:file-added', {
+        this.bus.fire('perception:file-added', {
           path: path.relative(this.rootDir, filePath),
           event: 'add',
         }, { source: 'DesktopPerception' });
       });
 
       this._watcher.on('unlink', (filePath) => {
-        this.bus.emit('perception:file-removed', {
+        this.bus.fire('perception:file-removed', {
           path: path.relative(this.rootDir, filePath),
           event: 'unlink',
         }, { source: 'DesktopPerception' });
@@ -246,7 +246,7 @@ class DesktopPerception {
     const heapUsedPct = mem.heapUsed / mem.heapTotal;
 
     if (heapUsedPct > 0.85) {
-      this.bus.emit('perception:memory-pressure', {
+      this.bus.fire('perception:memory-pressure', {
         heapUsedPct: Math.round(heapUsedPct * 100),
         rss: Math.round(mem.rss / (1024 * 1024)),
       }, { source: 'DesktopPerception' });

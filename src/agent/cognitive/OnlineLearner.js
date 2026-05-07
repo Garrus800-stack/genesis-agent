@@ -207,7 +207,7 @@ class OnlineLearner {
 
       this._recordAdaptation(adaptation);
 
-      this.bus.emit('online-learning:streak-detected', {
+      this.bus.fire('online-learning:streak-detected', {
         actionType: type,
         consecutiveFailures: streak.count,
         suggestion: alternative,
@@ -256,7 +256,7 @@ class OnlineLearner {
 
     this._recordAdaptation(adaptation);
 
-    this.bus.emit('online-learning:escalation-needed', {
+    this.bus.fire('online-learning:escalation-needed', {
       actionType: outcome.actionType,
       currentModel: outcome.model,
       surprise: signal.totalSurprise,
@@ -327,7 +327,7 @@ class OnlineLearner {
     if (avgSurprise > this._config.escalationSurprise) {
       this._stats.calibrationAlerts++;
 
-      this.bus.emit('online-learning:calibration-drift', {
+      this.bus.fire('online-learning:calibration-drift', {
         avgSurprise,
         windowSize: recent.length,
         suggestion: 'Predictions are systematically off - consider resetting calibration baseline',
@@ -383,7 +383,7 @@ class OnlineLearner {
 
     this._stats.tempAdjustments++;
 
-    this.bus.emit('online-learning:temp-adjusted', {
+    this.bus.fire('online-learning:temp-adjusted', {
       actionType: outcome.actionType,
       model: outcome.model,
       oldTemp: currentTemp,
@@ -405,7 +405,7 @@ class OnlineLearner {
     // Track trend changes - if surprise trend shifts from 'stable' to 'increasing',
     // that means Genesis is entering unfamiliar territory
     if (data.trend === 'increasing' && this._lastTrend !== 'increasing') {
-      this.bus.emit('online-learning:novelty-shift', {
+      this.bus.fire('online-learning:novelty-shift', {
         trend: data.trend,
         avgSurprise: data.totalSurprise,
         suggestion: 'Entering unfamiliar territory - consider more conservative strategies',

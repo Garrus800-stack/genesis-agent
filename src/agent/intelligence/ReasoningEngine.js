@@ -53,7 +53,7 @@ class ReasoningEngine {
       try {
         const graphAnswer = this._graphReasoner.tryAnswer(task);
         if (graphAnswer && graphAnswer.answered) {
-          this.bus.emit('reasoning:started', {
+          this.bus.fire('reasoning:started', {
             task: task.slice(0, 100),
             complexity: { level: 'graph', strategy: 'deterministic' },
             strategy: graphAnswer.method,
@@ -73,7 +73,7 @@ class ReasoningEngine {
       try {
         const inferred = this._inferenceEngine.infer({ from: task.slice(0, 200), relation: 'caused' });
         if (inferred.length > 0 && inferred[0].confidence >= 0.7) {
-          this.bus.emit('reasoning:started', {
+          this.bus.fire('reasoning:started', {
             task: task.slice(0, 100),
             complexity: { level: 'inferred', strategy: 'deterministic-inferred' },
             strategy: 'inference-engine',
@@ -91,7 +91,7 @@ class ReasoningEngine {
     // Step 1: Classify complexity
     const complexity = await this._assessComplexity(task, context);
 
-    this.bus.emit('reasoning:started', {
+    this.bus.fire('reasoning:started', {
       task: task.slice(0, 100),
       complexity: complexity.level,
       strategy: complexity.strategy,
@@ -129,7 +129,7 @@ class ReasoningEngine {
       result = await this._evaluateAndRefine(task, result, context);
     }
 
-    this.bus.emit('reasoning:completed', {
+    this.bus.fire('reasoning:completed', {
       task: task.slice(0, 100),
       strategy: complexity.strategy,
       steps: result.reasoning?.steps?.length || 1,
@@ -287,7 +287,7 @@ Maximum ${this.config.maxReasoningSteps} steps.`;
     for (let i = 0; i < Math.min(subTasks.length, this.config.maxReasoningSteps); i++) {
       const subTask = subTasks[i];
 
-      this.bus.emit('reasoning:step', {
+      this.bus.fire('reasoning:step', {
         step: i + 1,
         total: subTasks.length,
         task: subTask.slice(0, 80),
@@ -458,7 +458,7 @@ Provide the improved answer:`;
         improvement,
       });
 
-      this.bus.emit('reasoning:refined', { cycle: cycle + 1, score, weakness }, { source: 'ReasoningEngine' });
+      this.bus.fire('reasoning:refined', { cycle: cycle + 1, score, weakness }, { source: 'ReasoningEngine' });
     }
 
     return result;

@@ -11,7 +11,7 @@ const os = require('os');
 const fs = require('fs');
 
 function mockBus() {
-  return { on: () => () => {}, emit() {}, fire() {} };
+  return { on: () => () => {}, emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
 }
 
 function tmpDir() {

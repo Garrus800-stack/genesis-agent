@@ -12,7 +12,7 @@ function mockBus() {
   return {
     emit(name, payload, meta) { events.push({ name, payload, meta }); },
     events,
-  };
+   fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 function fakeScanner(blockCount, { failClosed = true, kernelBlock = true } = {}) {
@@ -110,7 +110,7 @@ describe('PreservationInvariants — SAFETY_RULE_COUNT', () => {
     assert(!v, 'Increased should pass');
   });
 
-  test('blocks when rules decrease', () => {
+  test('preservation contract: blocks when rules decrease', () => {
     const bus = mockBus();
     const pi = new PreservationInvariants({ bus });
     const r = pi.check('src/agent/intelligence/CodeSafetyScanner.js', fakeScanner(13), fakeScanner(10));
@@ -142,7 +142,7 @@ describe('PreservationInvariants — SCANNER_FAIL_CLOSED', () => {
 // ── Pipeline Gates ───────────────────────────────────────────
 
 describe('PreservationInvariants — Pipeline Gates', () => {
-  test('VERIFICATION_GATE: blocks when verify calls reduced', () => {
+  test('preservation contract: VERIFICATION_GATE: blocks when verify calls reduced', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/hexagonal/SelfModificationPipeline.js',
       fakePipeline({ verifyCalls: 2 }), fakePipeline({ verifyCalls: 1 }));
@@ -157,14 +157,14 @@ describe('PreservationInvariants — Pipeline Gates', () => {
     assert(!v, 'Should pass');
   });
 
-  test('SAFETY_SCAN_GATE: blocks when scanCode calls reduced', () => {
+  test('preservation contract: SAFETY_SCAN_GATE: blocks when scanCode calls reduced', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/hexagonal/SelfModificationPipeline.js',
       fakePipeline({ scanCalls: 2 }), fakePipeline({ scanCalls: 0 }));
     assert(r.violations.some(v => v.invariant === 'SAFETY_SCAN_GATE'), 'Should block');
   });
 
-  test('SAFEGUARD_GATE: blocks when validateWrite calls reduced', () => {
+  test('preservation contract: SAFEGUARD_GATE: blocks when validateWrite calls reduced', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/hexagonal/SelfModificationPipeline.js',
       fakePipeline({ guardCalls: 2 }), fakePipeline({ guardCalls: 1 }));
@@ -175,7 +175,7 @@ describe('PreservationInvariants — Pipeline Gates', () => {
 // ── CIRCUIT_BREAKER_FLOOR ────────────────────────────────────
 
 describe('PreservationInvariants — CIRCUIT_BREAKER_FLOOR', () => {
-  test('blocks when threshold < 2', () => {
+  test('preservation contract: blocks when threshold < 2', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/hexagonal/SelfModificationPipeline.js',
       fakePipeline({ threshold: 3 }), fakePipeline({ threshold: 1 }));
@@ -194,7 +194,7 @@ describe('PreservationInvariants — CIRCUIT_BREAKER_FLOOR', () => {
 // ── SANDBOX_ISOLATION ────────────────────────────────────────
 
 describe('PreservationInvariants — SANDBOX_ISOLATION', () => {
-  test('blocks when freeze patterns reduced', () => {
+  test('preservation contract: blocks when freeze patterns reduced', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/foundation/Sandbox.js',
       fakeSandbox({ freezeCount: 3 }), fakeSandbox({ freezeCount: 1 }));
@@ -213,14 +213,14 @@ describe('PreservationInvariants — SANDBOX_ISOLATION', () => {
 // ── SHUTDOWN_SYNC_WRITES ─────────────────────────────────────
 
 describe('PreservationInvariants — SHUTDOWN_SYNC_WRITES', () => {
-  test('blocks when sync writes reduced', () => {
+  test('preservation contract: blocks when sync writes reduced', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/AgentCoreHealth.js',
       fakeAgentCoreHealth({ syncCount: 3 }), fakeAgentCoreHealth({ syncCount: 1 }));
     assert(r.violations.some(v => v.invariant === 'SHUTDOWN_SYNC_WRITES'), 'Should block');
   });
 
-  test('blocks when writeJSONDebounced in stop()', () => {
+  test('preservation contract: blocks when writeJSONDebounced in stop()', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/AgentCoreHealth.js',
       fakeAgentCoreHealth({ syncCount: 3 }), fakeAgentCoreHealth({ syncCount: 3, debounced: true }));
@@ -231,7 +231,7 @@ describe('PreservationInvariants — SHUTDOWN_SYNC_WRITES', () => {
 // ── EVENTBUS_DEDUP ───────────────────────────────────────────
 
 describe('PreservationInvariants — EVENTBUS_DEDUP', () => {
-  test('blocks when dedup removed', () => {
+  test('preservation contract: blocks when dedup removed', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/core/EventBus.js',
       fakeEventBus({ dedup: true }), fakeEventBus({ dedup: false }));
@@ -250,7 +250,7 @@ describe('PreservationInvariants — EVENTBUS_DEDUP', () => {
 // ── HASH_LOCK_LIST ───────────────────────────────────────────
 
 describe('PreservationInvariants — HASH_LOCK_LIST', () => {
-  test('blocks when lockCritical list shrinks', () => {
+  test('preservation contract: blocks when lockCritical list shrinks', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('main.js', fakeMainJs(['a.js', 'b.js', 'c.js']), fakeMainJs(['a.js', 'c.js']));
     assert(r.violations.some(v => v.invariant === 'HASH_LOCK_LIST'), 'Should block');
@@ -267,7 +267,7 @@ describe('PreservationInvariants — HASH_LOCK_LIST', () => {
 // ── KERNEL_IMPORT_BLOCK ──────────────────────────────────────
 
 describe('PreservationInvariants — KERNEL_IMPORT_BLOCK', () => {
-  test('blocks when kernel circumvention rule removed', () => {
+  test('preservation contract: blocks when kernel circumvention rule removed', () => {
     const pi = new PreservationInvariants();
     const r = pi.check('src/agent/intelligence/CodeSafetyScanner.js',
       fakeScanner(5, { kernelBlock: true }), fakeScanner(5, { kernelBlock: false }));

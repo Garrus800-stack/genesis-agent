@@ -190,7 +190,7 @@ Respond with JSON only (no markdown):
 
         this._save();
 
-        this.bus.emit('narrative:updated', {
+        this.bus.fire('narrative:updated', {
           version: this._narrative.version,
           strengths: this._narrative.strengths.length,
           weaknesses: this._narrative.weaknesses.length,
@@ -340,7 +340,7 @@ Respond with JSON only (no markdown):
 
     this._save();
 
-    this.bus.emit('narrative:updated', {
+    this.bus.fire('narrative:updated', {
       version: this._narrative.version,
       source: 'heuristic',
     }, { source: 'SelfNarrative' });

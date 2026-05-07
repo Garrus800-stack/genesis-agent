@@ -179,7 +179,7 @@ class UnifiedMemory {
     this._setCache(cacheKey, ranked);
 
     // Emit retrieval event for metrics
-    this.bus.emit('memory:unified-recall', {
+    this.bus.fire('memory:unified-recall', {
       query: query.slice(0, 100),
       resultCount: ranked.length,
       sources: [...new Set(ranked.map(r => r.source))],
@@ -257,7 +257,7 @@ class UnifiedMemory {
       this.kg.connect(source, 'knows', `${key}:${value}`);
     } catch (err) { /* KG is optional */ }
 
-    this.bus.emit('memory:fact-stored', { key, source }, { source: 'UnifiedMemory' });
+    this.bus.fire('memory:fact-stored', { key, source }, { source: 'UnifiedMemory' });
   }
 
   /**
@@ -374,7 +374,7 @@ class UnifiedMemory {
     }
 
     if (conflicts.length > 0) {
-      this.bus.emit('memory:conflicts-resolved', {
+      this.bus.fire('memory:conflicts-resolved', {
         topic,
         conflictCount: conflicts.length,
         resolutionCount: resolutions.length,
@@ -434,7 +434,7 @@ class UnifiedMemory {
     }
 
     if (promoted.length > 0) {
-      this.bus.emit('memory:consolidated', {
+      this.bus.fire('memory:consolidated', {
         promotedCount: promoted.length,
         topics: promoted.map(p => p.key),
       }, { source: 'UnifiedMemory' });

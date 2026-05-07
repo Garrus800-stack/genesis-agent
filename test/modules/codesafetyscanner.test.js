@@ -16,57 +16,57 @@ console.log('\n  📦 CodeSafetyScanner (AST-based)');
 
 // ── Direct patterns (should still be caught) ─────────────
 
-test('blocks eval()', () => {
+test('code-safety contract: blocks eval()', () => {
   const r = scanCodeSafety('eval("alert(1)")', 'test.js');
   assert(!r.safe, 'eval should be blocked');
   assert(r.blocked.some(b => b.description.includes('eval')));
 });
 
-test('blocks new Function()', () => {
+test('code-safety contract: blocks new Function()', () => {
   const r = scanCodeSafety('const fn = new Function("return 1");', 'test.js');
   assert(!r.safe);
   assert(r.blocked.some(b => b.description.includes('Function')));
 });
 
-test('blocks process.exit()', () => {
+test('code-safety contract: blocks process.exit()', () => {
   const r = scanCodeSafety('process.exit(1);', 'test.js');
   assert(!r.safe);
   assert(r.blocked.some(b => b.description.includes('process.exit')));
 });
 
-test('blocks kernel import', () => {
+test('code-safety contract: blocks kernel import', () => {
   const r = scanCodeSafety("const sg = require('../kernel/SafeGuard');", 'test.js');
   assert(!r.safe);
   assert(r.blocked.some(b => b.description.includes('kernel')));
 });
 
-test('blocks nodeIntegration:true', () => {
+test('code-safety contract: blocks nodeIntegration:true', () => {
   const r = scanCodeSafety('const opts = { nodeIntegration: true };', 'test.js');
   assert(!r.safe);
 });
 
-test('blocks contextIsolation:false', () => {
+test('code-safety contract: blocks contextIsolation:false', () => {
   const r = scanCodeSafety('const opts = { contextIsolation: false };', 'test.js');
   assert(!r.safe);
 });
 
-test('blocks webSecurity:false', () => {
+test('code-safety contract: blocks webSecurity:false', () => {
   const r = scanCodeSafety('const opts = { webSecurity: false };', 'test.js');
   assert(!r.safe);
 });
 
-test('blocks fs.writeFileSync to /etc/', () => {
+test('code-safety contract: blocks fs.writeFileSync to /etc/', () => {
   const r = scanCodeSafety("fs.writeFileSync('/etc/passwd', 'hacked');", 'test.js');
   assert(!r.safe);
 });
 
-test('blocks SafeGuard identifier reference', () => {
+test('code-safety contract: blocks SafeGuard identifier reference', () => {
   const r = scanCodeSafety('console.log(SafeGuard);', 'test.js');
   assert(!r.safe);
   assert(r.blocked.some(b => b.description.includes('kernel internals')));
 });
 
-test('blocks kernelHashes reference', () => {
+test('code-safety contract: blocks kernelHashes reference', () => {
   const r = scanCodeSafety('const h = kernelHashes;', 'test.js');
   assert(!r.safe);
 });

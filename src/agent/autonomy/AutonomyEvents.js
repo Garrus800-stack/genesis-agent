@@ -14,29 +14,29 @@ class AutonomyEvents {
   constructor(bus) { this._bus = bus; }
 
   // ── Health ──────────────────────────────────────────────
-  emitHealthStarted(data, meta)          { this._bus.emit(EVENTS.HEALTH.STARTED, data, meta); }
-  emitHealthTick(data, meta)             { this._bus.emit(EVENTS.HEALTH.TICK, data, meta); }
-  emitHealthMetric(data, meta)           { this._bus.emit(EVENTS.HEALTH.METRIC, data, meta); }
-  emitDegradation(data, meta)            { this._bus.emit(EVENTS.HEALTH.DEGRADATION, data, meta); }
+  emitHealthStarted(data, meta)          { this._bus.fire(EVENTS.HEALTH.STARTED, data, meta); }
+  emitHealthTick(data, meta)             { this._bus.fire(EVENTS.HEALTH.TICK, data, meta); }
+  emitHealthMetric(data, meta)           { this._bus.fire(EVENTS.HEALTH.METRIC, data, meta); }
+  emitDegradation(data, meta)            { this._bus.fire(EVENTS.HEALTH.DEGRADATION, data, meta); }
   onDegradation(handler, opts)           { return this._bus.on(EVENTS.HEALTH.DEGRADATION, handler, opts); }
-  emitMemoryLeak(data, meta)             { this._bus.emit(EVENTS.HEALTH.MEMORY_LEAK, data, meta); }
-  emitCircuitForcedOpen(data, meta)      { this._bus.emit(EVENTS.HEALTH.CIRCUIT_FORCED_OPEN, data, meta); }
-  emitRecovery(data, meta)               { this._bus.emit(EVENTS.HEALTH.RECOVERY, data, meta); }
-  emitRecoveryFailed(data, meta)         { this._bus.emit(EVENTS.HEALTH.RECOVERY_FAILED, data, meta); }
-  emitRecoveryExhausted(data, meta)      { this._bus.emit(EVENTS.HEALTH.RECOVERY_EXHAUSTED, data, meta); }
+  emitMemoryLeak(data, meta)             { this._bus.fire(EVENTS.HEALTH.MEMORY_LEAK, data, meta); }
+  emitCircuitForcedOpen(data, meta)      { this._bus.fire(EVENTS.HEALTH.CIRCUIT_FORCED_OPEN, data, meta); }
+  emitRecovery(data, meta)               { this._bus.fire(EVENTS.HEALTH.RECOVERY, data, meta); }
+  emitRecoveryFailed(data, meta)         { this._bus.fire(EVENTS.HEALTH.RECOVERY_FAILED, data, meta); }
+  emitRecoveryExhausted(data, meta)      { this._bus.fire(EVENTS.HEALTH.RECOVERY_EXHAUSTED, data, meta); }
 
   // ── Idle ────────────────────────────────────────────────
-  emitThinking(data, meta)               { this._bus.emit(EVENTS.IDLE.THINKING, data, meta); }
-  emitThoughtComplete(data, meta)        { this._bus.emit(EVENTS.IDLE.THOUGHT_COMPLETE, data, meta); }
-  emitConsolidateMemory(data, meta)      { this._bus.emit(EVENTS.IDLE.CONSOLIDATE_MEMORY, data, meta); }
+  emitThinking(data, meta)               { this._bus.fire(EVENTS.IDLE.THINKING, data, meta); }
+  emitThoughtComplete(data, meta)        { this._bus.fire(EVENTS.IDLE.THOUGHT_COMPLETE, data, meta); }
+  emitConsolidateMemory(data, meta)      { this._bus.fire(EVENTS.IDLE.CONSOLIDATE_MEMORY, data, meta); }
 
   // ── Network ─────────────────────────────────────────────
-  emitNetworkStatus(data, meta)          { this._bus.emit(EVENTS.NETWORK.STATUS, data, meta); }
-  emitNetworkFailover(data, meta)        { this._bus.emit(EVENTS.NETWORK.FAILOVER, data, meta); }
-  emitNetworkRestored(data, meta)        { this._bus.emit(EVENTS.NETWORK.RESTORED, data, meta); }
+  emitNetworkStatus(data, meta)          { this._bus.fire(EVENTS.NETWORK.STATUS, data, meta); }
+  emitNetworkFailover(data, meta)        { this._bus.fire(EVENTS.NETWORK.FAILOVER, data, meta); }
+  emitNetworkRestored(data, meta)        { this._bus.fire(EVENTS.NETWORK.RESTORED, data, meta); }
 
   // ── Error ───────────────────────────────────────────────
-  emitErrorTrend(data, meta)             { this._bus.emit('error:trend', data, meta); }
+  emitErrorTrend(data, meta)             { this._bus.fire('error:trend', data, meta); }
 
   // ── Cross-layer subscriptions ───────────────────────────
   onAgentLoopStepComplete(handler, opts) { return this._bus.on(EVENTS.AGENT_LOOP.STEP_COMPLETE, handler, opts); }

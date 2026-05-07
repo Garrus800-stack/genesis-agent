@@ -61,7 +61,7 @@ const { applySubscriptionHelper } = require('../core/subscription-helper');
 class AdaptivePromptStrategy {
   /** @param {{ bus?: *, config?: * }} [deps] */
   constructor({ bus, config } = {}) {
-    this.bus = bus || { emit() {}, on() { return () => {}; } };
+    this.bus = bus || { emit() {}, on() { return () => {}; } , fire() {}};
     this._provenance = null;
     this._storage = null;
 
@@ -222,7 +222,7 @@ class AdaptivePromptStrategy {
     // Emit event if recommendations changed
     const newRecs = JSON.stringify(this._recommendations);
     if (newRecs !== oldRecs) {
-      this.bus.emit('prompt:strategy-updated', {
+      this.bus.fire('prompt:strategy-updated', {
         intents: Object.keys(this._recommendations).length,
         recommendations: this._recommendations,
       }, { source: 'AdaptivePromptStrategy' });

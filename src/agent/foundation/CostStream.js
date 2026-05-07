@@ -58,6 +58,16 @@ class CostStream {
     // In-memory tally per goalId for fast queryCost (last 24h)
     // Goals beyond 24h fall back to disk read.
     this._goalTally = new Map();    // goalId → {tokensIn, tokensOut, calls, latencyMs}
+
+    // v7.6.3: Failover-event tally — listen to model:failover-unavailable
+    // (emitted by ModelBridgeAvailability when the chosen cloud model has no
+    // local Plan B). Recorded as a counter rather than a cost-row because the
+    // failed call has tokensIn=0/tokensOut=0; counting separately keeps cost
+    // ledger semantics clean while still surfacing the operational signal in
+    // dashboards and audits. The CostStream-failover-listener wiring was an
+    // open backlog item carried forward since v7.5.x.
+    this._failoverTally = { total: 0, unavailable: 0, lastAt: null, lastReason: null };
+    this._unsubFailover = null;
   }
 
   async asyncLoad() {
@@ -71,6 +81,13 @@ class CostStream {
     this._unsubBus = this.bus.on(
       'llm:call-complete',
       (data) => this._onCallComplete(data),
+      { source: 'CostStream' }
+    );
+
+    // v7.6.3: failover-unavailable listener — track operational signal
+    this._unsubFailover = this.bus.on(
+      'model:failover-unavailable',
+      (data) => this._onFailoverUnavailable(data),
       { source: 'CostStream' }
     );
 
@@ -273,11 +290,32 @@ class CostStream {
 
   // ── Stats ──────────────────────────────────────────────
 
+  // v7.6.3: failover handler — record into in-memory tally only.
+  // Payload schema (per EventPayloadSchemas): { from, reason, error }.
+  // No cost-row is written: a failover means tokensIn/Out=0, the actual
+  // call never happened. Surfacing as a counter keeps the cost ledger
+  // pure (only successful calls have rows) while still making the
+  // operational signal queryable from dashboards / audits.
+  _onFailoverUnavailable(data) {
+    if (this._stopped) return;
+    this._failoverTally.total++;
+    this._failoverTally.unavailable++;
+    this._failoverTally.lastAt = Date.now();
+    this._failoverTally.lastReason = data?.reason || 'unknown';
+  }
+
   getStats() {
     return {
       pendingWrites: this._writeQueue.length,
       goalsTracked: this._goalTally.size,
       retentionDays: RETENTION_DAYS,
+      // v7.6.3: failover signal exposed alongside cost stats
+      failover: {
+        total: this._failoverTally.total,
+        unavailable: this._failoverTally.unavailable,
+        lastAt: this._failoverTally.lastAt,
+        lastReason: this._failoverTally.lastReason,
+      },
     };
   }
 
@@ -285,6 +323,7 @@ class CostStream {
     if (this._stopped) return;
     this._stopped = true;
     try { if (this._unsubBus) this._unsubBus(); } catch (_e) { /* swallow */ }
+    try { if (this._unsubFailover) this._unsubFailover(); } catch (_e) { /* swallow */ }
     if (this._intervals && this._pruneIntervalId) {
       try { this._intervals.clear(this._pruneIntervalId); } catch (_e) { /* swallow */ }
     }

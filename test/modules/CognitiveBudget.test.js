@@ -2,7 +2,7 @@
 const { describe, test, assert, run } = require('../harness');
 const { CognitiveBudget } = require('../../src/agent/intelligence/CognitiveBudget');
 
-const mockBus = { on() {}, emit() {}, fire() {} };
+const mockBus = { on() {}, emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
 
 describe('CognitiveBudget', () => {
 

@@ -13,7 +13,7 @@ const { HTNPlanner } = require('../../src/agent/revolution/HTNPlanner');
 
 function newPlanner() {
   return new HTNPlanner({
-    bus: { emit() {}, fire() {} },
+    bus: { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } },
     sandbox: null,
     selfModel: null,
     guard: null,

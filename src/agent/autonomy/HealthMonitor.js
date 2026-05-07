@@ -79,7 +79,7 @@ class HealthMonitor {
       if (this._interval.unref) this._interval.unref();
     }
 
-    this.bus.emit('health:started', { intervalMs }, { source: 'HealthMonitor' });
+    this.bus.fire('health:started', { intervalMs }, { source: 'HealthMonitor' });
   }
 
 
@@ -133,7 +133,7 @@ class HealthMonitor {
    * Record an arbitrary metric for a service.
    */
   recordMetric(service, metric, value) {
-    this.bus.emit('health:metric', { service, metric, value }, { source: 'HealthMonitor' });
+    this.bus.fire('health:metric', { service, metric, value }, { source: 'HealthMonitor' });
   }
 
   /**
@@ -202,7 +202,7 @@ class HealthMonitor {
 
       // 2. Check for memory leak
       if (this._isMemoryLeakSuspected()) {
-        this.bus.emit('health:memory-leak', {
+        this.bus.fire('health:memory-leak', {
           heapUsedMB: this._getMemoryMB().heapUsed,
           trend: this._getMemoryTrend(),
         }, { source: 'HealthMonitor' });
@@ -225,7 +225,7 @@ class HealthMonitor {
           const durationMs = Date.now() - state.since;
           if (durationMs > 30000) { // 30s sustained
             this.cb._transition('OPEN');
-            this.bus.emit('health:circuit-forced-open', {
+            this.bus.fire('health:circuit-forced-open', {
               service, reason: state.reason, durationMs,
             }, { source: 'HealthMonitor' });
 
@@ -248,7 +248,7 @@ class HealthMonitor {
             const idleMs = Date.now() - (status.lastActivityAt || Date.now());
             this._escalateDegradation('goalDriver', 'degraded',
               `Driver unresponsive (idle ${Math.round(idleMs/1000)}s, queue ${status.queueDepth || 0})`);
-            this.bus.emit('driver:unresponsive', {
+            this.bus.fire('driver:unresponsive', {
               idleMs, queueDepth: status.queueDepth || 0,
             }, { source: 'HealthMonitor' });
           }
@@ -256,7 +256,7 @@ class HealthMonitor {
       } catch (_e) { /* probe is best-effort */ }
 
       // 7. Emit health tick
-      this.bus.emit('health:tick', {
+      this.bus.fire('health:tick', {
         status: this._overallStatus(),
         memory: this._getMemoryMB(),
       }, { source: 'HealthMonitor' });
@@ -382,7 +382,7 @@ class HealthMonitor {
         reason,
       });
 
-      this.bus.emit('health:degradation', { service, level, reason }, { source: 'HealthMonitor' });
+      this.bus.fire('health:degradation', { service, level, reason }, { source: 'HealthMonitor' });
       this.eventStore?.append('HEALTH_DEGRADATION', { service, level, reason }, 'HealthMonitor');
     }
   }

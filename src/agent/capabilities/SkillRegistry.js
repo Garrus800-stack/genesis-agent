@@ -144,7 +144,7 @@ class SkillRegistry {
         try { this.skillManager.loadSkills(); } catch (_e) { _log.warn(`[REGISTRY] SkillManager reload failed after install: ${_e.message}`); }
       }
 
-      this.bus.emit('skill:installed', { name, version: manifest.data.version, source });
+      this.bus.fire('skill:installed', { name, version: manifest.data.version, source });
       _log.info(`[REGISTRY] Installed ${name} v${manifest.data.version} (${Date.now() - startMs}ms)`);
 
       return {
@@ -181,7 +181,7 @@ class SkillRegistry {
         try { this.skillManager.loadSkills(); } catch (_e) { _log.warn(`[REGISTRY] SkillManager reload failed after uninstall: ${_e.message}`); }
       }
 
-      this.bus.emit('skill:uninstalled', { name });
+      this.bus.fire('skill:uninstalled', { name });
       _log.info(`[REGISTRY] Uninstalled ${name}`);
       return { success: true };
     } catch (err) {

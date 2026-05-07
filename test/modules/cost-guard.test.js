@@ -45,7 +45,7 @@ describe('CostGuard', () => {
 
   test('emits cost-warning at threshold', () => {
     const events = [];
-    const bus = { emit: (name, data) => events.push({ name, data }), fire() {} };
+    const bus = { emit: (name, data) => events.push({ name, data }), fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const cg = new CostGuard({ bus, config: { sessionTokenLimit: 10000, dailyTokenLimit: 100000, warnThreshold: 0.5 } });
     cg.checkBudget('code', 6000); // 60% > 50% threshold
     const warning = events.find(e => e.name === 'llm:cost-warning');
@@ -55,7 +55,7 @@ describe('CostGuard', () => {
 
   test('emits cost-cap-reached when blocked', () => {
     const events = [];
-    const bus = { emit: (name, data) => events.push({ name, data }), fire() {} };
+    const bus = { emit: (name, data) => events.push({ name, data }), fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const cg = new CostGuard({ bus, config: { sessionTokenLimit: 1000, dailyTokenLimit: 100000 } });
     cg.checkBudget('code', 1000);
     cg.checkBudget('idle', 100, { priority: 1 }); // triggers block
@@ -65,7 +65,7 @@ describe('CostGuard', () => {
 
   test('warns only once per scope', () => {
     const events = [];
-    const bus = { emit: (name, data) => events.push({ name, data }), fire() {} };
+    const bus = { emit: (name, data) => events.push({ name, data }), fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const cg = new CostGuard({ bus, config: { sessionTokenLimit: 10000, dailyTokenLimit: 100000, warnThreshold: 0.5 } });
     cg.checkBudget('code', 6000);
     cg.checkBudget('code', 1000);

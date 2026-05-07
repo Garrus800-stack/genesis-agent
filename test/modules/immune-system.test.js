@@ -1,6 +1,6 @@
 const { describe, test, run } = require('../harness');
 const { ImmuneSystem } = require('../../src/agent/organism/ImmuneSystem');
-function make() { return new ImmuneSystem({ bus: { emit(){}, fire(){}, on(){} }, storage: null, intervals: null }); }
+function make() { return new ImmuneSystem({ bus: { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){} }, storage: null, intervals: null }); }
 describe('ImmuneSystem', () => {
   test('constructs', () => { if (!make()) throw new Error('Fail'); });
   test('getReport returns object', () => { if (typeof make().getReport() !== 'object') throw new Error('Should return object'); });
@@ -14,7 +14,7 @@ const { assert, assertEqual } = require('../harness');
 
 
 function makeIS() {
-  const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+  const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
   return new ImmuneSystem({ bus });
 }
 

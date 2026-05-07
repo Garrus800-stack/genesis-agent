@@ -19,7 +19,7 @@ function makeBus() {
       for (const h of (listeners.get(event) || [])) h(data);
     },
     _count(event) { return (listeners.get(event) || []).length; },
-  };
+   fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 describe('subscription-helper', () => {

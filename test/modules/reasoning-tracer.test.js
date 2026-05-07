@@ -21,7 +21,7 @@ function makeBus() {
     },
     listeners,
     emitted,
-  };
+   fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 // ── Basic ────────────────────────────────────────────────────

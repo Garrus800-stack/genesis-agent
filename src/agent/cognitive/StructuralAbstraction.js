@@ -101,7 +101,7 @@ class StructuralAbstraction {
     entry.status = 'extracted';
     entry.pattern = pattern;
     _log.info(`[ABSTRACTION] Extracted pattern for ${lessonId}`);
-    this.bus.emit('abstraction:extracted', { lessonId, category: entry.category }, { source: 'StructuralAbstraction' });
+    this.bus.fire('abstraction:extracted', { lessonId, category: entry.category }, { source: 'StructuralAbstraction' });
   }
 
   /**
@@ -120,7 +120,7 @@ class StructuralAbstraction {
     if (reason === 'contradicts-existing') {
       entry.status = 'contradiction';
       _log.warn(`[ABSTRACTION] Contradiction for ${lessonId} — no retry`);
-      this.bus.emit('abstraction:contradiction', { lessonId, category: entry.category }, { source: 'StructuralAbstraction' });
+      this.bus.fire('abstraction:contradiction', { lessonId, category: entry.category }, { source: 'StructuralAbstraction' });
       return;
     }
 
@@ -129,7 +129,7 @@ class StructuralAbstraction {
     if (entry.retries >= maxRetries) {
       entry.status = 'obsolete';
       _log.warn(`[ABSTRACTION] ${lessonId} marked obsolete after ${entry.retries} failures (last: ${reason})`);
-      this.bus.emit('abstraction:obsolete', { lessonId, retries: entry.retries, lastReason: reason }, { source: 'StructuralAbstraction' });
+      this.bus.fire('abstraction:obsolete', { lessonId, retries: entry.retries, lastReason: reason }, { source: 'StructuralAbstraction' });
     } else {
       entry.status = 'pending'; // Re-queue for retry
       _log.info(`[ABSTRACTION] ${lessonId} failed (${reason}), retry ${entry.retries}/${maxRetries}`);

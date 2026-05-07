@@ -89,7 +89,7 @@ class WorkerPool {
     worker.on('error', (err) => this._handleWorkerError(workerId, err));
     worker.on('exit', (code) => this._handleWorkerExit(workerId, code));
 
-    this.bus.emit('worker:spawned', { workerId, total: this.workers.size }, { source: 'WorkerPool' });
+    this.bus.fire('worker:spawned', { workerId, total: this.workers.size }, { source: 'WorkerPool' });
     return entry;
   }
 
@@ -148,7 +148,7 @@ class WorkerPool {
   _handleWorkerError(workerId, err) {
     _log.error(`[WORKER:${workerId}] Error:`, err.message);
     // v4.12.5-fix: Emit worker:error (HealthMonitor listens for this)
-    this.bus.emit('worker:error', {
+    this.bus.fire('worker:error', {
       workerId, error: err.message, remaining: this.workers.size - 1,
     }, { source: 'WorkerPool' });
     // Reject all pending tasks for this worker

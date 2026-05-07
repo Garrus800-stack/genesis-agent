@@ -57,7 +57,7 @@ describe('MCP Security — API Key Auth', () => {
     assert(port > 0, 'Server should start');
   });
 
-  test('rejects unauthenticated POST', async () => {
+  test('mcp-security contract: rejects unauthenticated POST', async () => {
     const res = await post(port, jsonRpc('ping'));
     assertEqual(res.status, 401);
     assert(res.body.includes('Unauthorized'), 'Should say Unauthorized');
@@ -77,7 +77,7 @@ describe('MCP Security — API Key Auth', () => {
     assertEqual(res.status, 200);
   });
 
-  test('rejects wrong key', async () => {
+  test('mcp-security contract: rejects wrong key', async () => {
     const res = await post(port, jsonRpc('ping'), {
       'Authorization': 'Bearer wrong',
     });
@@ -198,7 +198,7 @@ describe('MCP Security — CORS', () => {
     assert(ao.includes('127.0.0.1'), `Expected 127.0.0.1, got: ${ao}`);
   });
 
-  test('blocks external origins', async () => {
+  test('mcp-security contract: blocks external origins', async () => {
     const res = await post(port, jsonRpc('ping'), { 'Origin': 'http://evil.example.com' });
     const ao = res.headers['access-control-allow-origin'] || '';
     assertEqual(ao, '');
@@ -266,7 +266,7 @@ describe('MCP Security — Body Size', () => {
     assertEqual(res.status, 200);
   });
 
-  test('rejects oversized request', async () => {
+  test('mcp-security contract: rejects oversized request', async () => {
     const huge = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping', data: 'x'.repeat(2000) });
     try {
       const res = await post(port, huge);

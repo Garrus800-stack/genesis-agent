@@ -10,12 +10,12 @@ const assert = require('node:assert/strict');
 describe('CognitiveEvents', () => {
   /** Minimal mock bus that records calls */
   function mockBus() {
-    const calls = { emit: [], on: [] };
+    const calls = { emit: [], fire: [], on: [] };
     return {
       emit(event, data, meta) { calls.emit.push({ event, data, meta }); },
       on(event, handler, opts) { calls.on.push({ event, handler, opts }); return () => {}; },
       calls,
-    };
+     fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
   }
 
   it('constructs with bus reference', () => {

@@ -64,7 +64,7 @@ const selfModificationPipelineModify = {
       if (allow === false) {
         this._gateStats.consciousnessBlocked++;
         _log.warn('[SELFMOD] Blocked: security.allowSelfModify=false in settings');
-        this.bus.emit('selfmod:settings-blocked', {
+        this.bus.fire('selfmod:settings-blocked', {
           message: message?.slice?.(0, 100) || '',
         }, { source: 'SelfModPipeline' });
         return `⛔ **Selbst-Modifikation blockiert** — in den Einstellungen deaktiviert.\n\nUm Self-Mod wieder zu erlauben: Settings → Selbst-Modifikation → Erlaubt.`;
@@ -88,7 +88,7 @@ const selfModificationPipelineModify = {
           this._gateStats.lastBlockedAt = /** @type {*} */ (Date.now());
           this._gateStats.lastCoherence = /** @type {*} */ (coherence);
           _log.warn(`[SELFMOD] Blocked: awareness coherence too low (${coherence.toFixed(2)})`);
-          this.bus.emit('selfmod:consciousness-blocked', {
+          this.bus.fire('selfmod:consciousness-blocked', {
             coherence: Math.round(coherence * 100) / 100,
           }, { source: 'SelfModPipeline' });
           return `⚠ **Self-modification deferred** — internal coherence is low (${(coherence * 100).toFixed(0)}%).\n\nGenesis is in a fragmented state. Self-modification is safer when coherence recovers above ${Math.round(THRESHOLDS.SELFMOD_COHERENCE_MIN * 100)}%. Try again shortly.`;
@@ -105,7 +105,7 @@ const selfModificationPipelineModify = {
     if (this._metabolism) this._metabolism.consume('selfModification');
 
     this._gateStats.passed++;
-    this.bus.emit('agent:status', { state: 'self-modifying' }, { source: 'SelfModPipeline' });
+    this.bus.fire('agent:status', { state: 'self-modifying' }, { source: 'SelfModPipeline' });
 
     // v7.2.3: Pre-self-mod backup. Snapshot .genesis/ before any writes.
     // If backup fails, we continue anyway — self-mod has its own safety gates
@@ -145,7 +145,7 @@ const selfModificationPipelineModify = {
       if (!allowedExt.includes(ext)) {
         this._gateStats.consciousnessBlocked = (this._gateStats.consciousnessBlocked || 0) + 1;
         _log.warn(`[SELFMOD] Language-guard: rejected target file with extension "${ext}"`);
-        this.bus.emit('selfmod:language-guard-blocked', {
+        this.bus.fire('selfmod:language-guard-blocked', {
           targetFile, ext, allowedExt,
         }, { source: 'SelfModPipeline' });
         return `⛔ **Language-Guard** — Self-modification operates only on JavaScript/TypeScript sources. Target "${targetFile}" has extension "${ext}". Allowed: ${allowedExt.join(', ')}.`;
@@ -182,19 +182,19 @@ const selfModificationPipelineModify = {
       const test = await this.sandbox.testPatch(targetFile, newCode);
       if (!test.success) {
         this._recordFailure(`AST test failed: ${targetFile}`);
-        this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+        this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
         return `ASTDiff test failed: ${test.error}\n\nChanges:\n${this.astDiff.describe(diffs)}`;
       }
 
       // FIX v3.5.0: Safety scan — reject dangerous patterns before writing
       const safety = /** @type {any} */ (this)._codeSafety.scanCode(newCode, targetFile);
       if (!safety.safe) {
-        this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+        this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
         this.eventStore?.append('CODE_SAFETY_BLOCK', {
           file: targetFile, method: 'ast-diff',
           blocked: safety.blocked.map(b => b.description),
         }, 'SelfModPipeline');
-        this.bus.emit('code:safety-blocked', { file: targetFile, issues: safety.blocked }, { source: 'SelfModPipeline' });
+        this.bus.fire('code:safety-blocked', { file: targetFile, issues: safety.blocked }, { source: 'SelfModPipeline' });
         this._recordFailure(`Safety block: ${targetFile}`);
         return `⛔ **Code Safety Block** — ${targetFile}\n\n${safety.blocked.map(b => `- **${b.description}** (${b.count}x)`).join('\n')}\n\nThe generated code contains patterns that could compromise system integrity. Modification rejected.`;
       }
@@ -210,7 +210,7 @@ const selfModificationPipelineModify = {
       const verification = this._verifyCode(targetFile, newCode);
       if (!verification.pass) {
         this._recordFailure(`Verification failed: ${targetFile}: ${verification.reason}`);
-        this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+        this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
         this.eventStore?.append('CODE_VERIFICATION_BLOCK', {
           file: targetFile, method: 'ast-diff', reason: verification.reason,
         }, 'SelfModPipeline');
@@ -220,7 +220,7 @@ const selfModificationPipelineModify = {
       const preservation = this._checkPreservation(targetFile, code, newCode);
       if (!preservation.pass) {
         this._recordFailure(`Preservation violation: ${targetFile}: ${preservation.reason}`);
-        this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+        this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
         this.eventStore?.append('PRESERVATION_BLOCK', {
           file: targetFile, method: 'ast-diff', reason: preservation.reason,
         }, 'SelfModPipeline');
@@ -238,7 +238,7 @@ const selfModificationPipelineModify = {
         file: targetFile, method: 'ast-diff', operations: diffs.length, success: true,
       }, 'SelfModPipeline');
       this._recordSuccess(targetFile);
-      this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+      this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
 
       return `${this.lang.t('selfmod.astdiff_applied')}\n\n${this.astDiff.describe(diffs)}${errors.length > 0 ? '\n\n' + this.lang.t('selfmod.warnings') + ': ' + errors.join(', ') : ''}`;
     } catch (err) {
@@ -254,7 +254,7 @@ const selfModificationPipelineModify = {
 
     const patches = this._extractPatches(result.answer);
     if (patches.length === 0) {
-      this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+      this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
       return result.answer;
     }
 
@@ -266,7 +266,7 @@ const selfModificationPipelineModify = {
 
     if (!tests.every(t => t.success)) {
       this._recordFailure(`Tests failed: ${tests.filter(t => !t.success).map(t => t.file).join(', ')}`);
-      this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+      this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
       this.eventStore?.append('CODE_MODIFIED', { files: patches.map(p => p.file), success: false }, 'SelfModPipeline');
       return `${this.lang.t('selfmod.tests_failed')}\n${tests.filter(t => !t.success).map(t => `- ${t.file}: ${t.error}`).join('\n')}`;
     }
@@ -280,12 +280,12 @@ const selfModificationPipelineModify = {
       allWarnings.push(...safety.warnings);
     }
     if (allBlocked.length > 0) {
-      this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+      this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
       this.eventStore?.append('CODE_SAFETY_BLOCK', {
         files: patches.map(p => p.file), method: 'full-file',
         blocked: allBlocked.map(b => b.description),
       }, 'SelfModPipeline');
-      this.bus.emit('code:safety-blocked', { files: patches.map(p => p.file), issues: allBlocked }, { source: 'SelfModPipeline' });
+      this.bus.fire('code:safety-blocked', { files: patches.map(p => p.file), issues: allBlocked }, { source: 'SelfModPipeline' });
       this._recordFailure(`Safety block: ${patches.map(p => p.file).join(', ')}`);
       return `⛔ **Code Safety Block**\n\n${allBlocked.map(b => `- **${b.description}** in \`${b.file}\` (${b.count}x)`).join('\n')}\n\nModification rejected.`;
     }
@@ -305,7 +305,7 @@ const selfModificationPipelineModify = {
     }
     if (verifyFailed.length > 0) {
       this._recordFailure(`Verification failed: ${verifyFailed.map(f => f.file).join(', ')}`);
-      this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+      this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
       this.eventStore?.append('CODE_VERIFICATION_BLOCK', {
         files: verifyFailed.map(f => f.file), method: 'full-file',
         reasons: verifyFailed.map(f => f.reason),
@@ -322,7 +322,7 @@ const selfModificationPipelineModify = {
     }
     if (preservationFailed.length > 0) {
       this._recordFailure(`Preservation violation: ${preservationFailed.map(f => f.file).join(', ')}`);
-      this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+      this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
       this.eventStore?.append('PRESERVATION_BLOCK', {
         files: preservationFailed.map(f => f.file), method: 'full-file',
         reasons: preservationFailed.map(f => f.reason),
@@ -347,7 +347,7 @@ const selfModificationPipelineModify = {
       files: patches.map(p => p.file), method: 'full-file', success: true,
     }, 'SelfModPipeline');
     this._recordSuccess(patches.map(p => p.file).join(', '));
-    this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+    this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
 
     return `${this.lang.t('selfmod.applied')}\n\n${result.answer}\n\n**${this.lang.t('selfmod.files')}:** ${patches.map(p => p.file).join(', ')}`;
   },
@@ -384,7 +384,7 @@ const selfModificationPipelineModify = {
           // `preview`-snippet is dropped — telemetry is enough, the
           // preview was log-only.
           const targetFile = m[1] || m[2];
-          this.bus.emit('selfmod:language-guard-blocked', {
+          this.bus.fire('selfmod:language-guard-blocked', {
             targetFile,
             ext: 'foreign-language',
             allowedExt: ['.js', '.mjs', '.cjs', '.ts'],

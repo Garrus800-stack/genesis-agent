@@ -28,7 +28,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
 const { FormalPlanner } = require('../../src/agent/revolution/FormalPlanner');
 
 // ── Mocks ─────────────────────────────────────────────────
-const mockBus = { emit: () => [] };
+const mockBus = { emit: () => [] , fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 const mockGuard = {
   isProtected: (p) => p.includes('kernel'),
   validateWrite: (p) => { if (p.includes('kernel')) throw new Error('blocked'); return true; },

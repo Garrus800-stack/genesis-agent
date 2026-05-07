@@ -34,7 +34,7 @@ function makeMockBus() {
   return {
     emit: (name, payload) => events.push({ name, payload }),
     events,
-  };
+   fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 let tempDir, bus, clock, store;

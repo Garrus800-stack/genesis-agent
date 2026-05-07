@@ -114,7 +114,7 @@ class WebPerception {
         this._updateWorldState(url, parsed);
       }
 
-      this.bus.emit('web:fetched', {
+      this.bus.fire('web:fetched', {
         url,
         title: parsed.title,
         textLength: parsed.text?.length || 0,

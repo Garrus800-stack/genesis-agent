@@ -178,7 +178,7 @@ class FileProcessor {
     });
 
     if (!result.error) {
-      this.bus.emit('file:executed', { path: filePath, language: info.language, sandboxed: true }, { source: 'FileProcessor' });
+      this.bus.fire('file:executed', { path: filePath, language: info.language, sandboxed: true }, { source: 'FileProcessor' });
     }
     return result;
   }
@@ -217,7 +217,7 @@ class FileProcessor {
     const destPath = path.join(this.uploadDir, safeName);
 
     fs.copyFileSync(sourcePath, destPath);
-    this.bus.emit('file:imported', { name: safeName, size: stat.size }, { source: 'FileProcessor' });
+    this.bus.fire('file:imported', { name: safeName, size: stat.size }, { source: 'FileProcessor' });
 
     return { path: destPath, name: safeName, size: stat.size };
   }

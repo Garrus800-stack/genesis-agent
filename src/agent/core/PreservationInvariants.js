@@ -266,7 +266,7 @@ class PreservationInvariants {
    * @param {{ bus?: object }} [options]
    */
   constructor(options = {}) {
-    this.bus = options.bus || { emit() {} };
+    this.bus = options.bus || { emit() {} , fire() {}};
     this._invariants = [...INVARIANTS];
   }
 
@@ -310,7 +310,7 @@ class PreservationInvariants {
     }
 
     if (violations.length > 0) {
-      this.bus.emit('preservation:violation', {
+      this.bus.fire('preservation:violation', {
         file: filePath,
         violations: violations.map(v => ({ invariant: v.invariant, detail: v.detail })),
       }, { source: 'PreservationInvariants' });

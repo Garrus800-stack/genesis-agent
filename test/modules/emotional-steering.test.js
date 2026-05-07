@@ -1,6 +1,6 @@
 const { describe, test, run } = require('../harness');
 const { EmotionalSteering, THRESHOLDS } = require('../../src/agent/organism/EmotionalSteering');
-function make() { return new EmotionalSteering({ bus: { emit(){}, on(){} }, emotionalState: { getDimension: () => 0.5 }, storage: null, config: {} }); }
+function make() { return new EmotionalSteering({ bus: { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){} }, emotionalState: { getDimension: () => 0.5 }, storage: null, config: {} }); }
 describe('EmotionalSteering', () => {
   test('THRESHOLDS exported', () => { if (typeof THRESHOLDS !== 'object') throw new Error('Missing'); });
   test('getSignals returns object', () => {

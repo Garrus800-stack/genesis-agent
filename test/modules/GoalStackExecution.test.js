@@ -10,7 +10,7 @@ function makeGS(modelResponse = 'think: Analyze the problem') {
   const events = [];
   return new GoalStack({
     lang: { t: (k, v) => v ? `${k}: ${JSON.stringify(v)}` : k },
-    bus: { emit(e, d, m) { events.push({ e, d }); }, fire() {}, on() {} },
+    bus: { emit(e, d, m) { events.push({ e, d }); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() {} },
     model: {
       chat: async () => modelResponse,
     },
@@ -97,7 +97,7 @@ describe('GoalStackExecution — _executeStep', () => {
   test('create-file step emits event and succeeds', async () => {
     const events = [];
     const gs = makeGS();
-    gs.bus = { emit(e, d, m) { events.push({ e, d }); }, fire() {}, on() {} };
+    gs.bus = { emit(e, d, m) { events.push({ e, d }); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() {} };
     const result = await gs._executeStep(
       { type: 'create-file', action: 'Create config', detail: 'config.json' },
       { description: 'Setup', currentStep: 0, steps: [{}], results: [] }
@@ -120,7 +120,7 @@ describe('GoalStackExecution — _replan', () => {
   test('replans with new steps on LLM response', async () => {
     const events = [];
     const gs = makeGS('think: Try different approach\ncode: Rewrite module');
-    gs.bus = { emit(e, d, m) { events.push({ e }); }, fire() {}, on() {} };
+    gs.bus = { emit(e, d, m) { events.push({ e }); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() {} };
     gs.storage = { writeJSONDebounced() {} };
     const goal = {
       id: 'g1', description: 'Fix it', maxAttempts: 3,

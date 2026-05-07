@@ -25,7 +25,7 @@ describe('McpServer — API key auth', () => {
     await server.stop();
   });
 
-  test('key configured → rejects without auth', async () => {
+  test('mcp-security contract: key configured → rejects without auth', async () => {
     const server = new McpServer({ tools: null, security: { apiKey: 'secret-123' } });
     const port = await server.start(0);
     const res = await jsonRpc(port, 'ping', {}, {});
@@ -51,7 +51,7 @@ describe('McpServer — API key auth', () => {
     await server.stop();
   });
 
-  test('key configured → rejects wrong key', async () => {
+  test('mcp-security contract: key configured → rejects wrong key', async () => {
     const server = new McpServer({ tools: null, security: { apiKey: 'secret-123' } });
     const port = await server.start(0);
     const res = await jsonRpc(port, 'ping', {}, { Authorization: 'Bearer wrong-key' });
@@ -83,7 +83,7 @@ describe('McpServer — rate limiting', () => {
     await server.stop();
   });
 
-  test('rejects requests over limit with 429', async () => {
+  test('mcp-security contract: rejects requests over limit with 429', async () => {
     const server = new McpServer({ tools: null, security: { rateLimitPerMin: 3 } });
     const port = await server.start(0);
     // First 3 should succeed
@@ -128,7 +128,7 @@ describe('McpServer — CORS', () => {
     await server.stop();
   });
 
-  test('default CORS blocks external origin', async () => {
+  test('mcp-security contract: default CORS blocks external origin', async () => {
     const server = new McpServer({ tools: null });
     const port = await server.start(0);
     const res = await jsonRpc(port, 'ping', {}, { Origin: 'http://evil.com' });

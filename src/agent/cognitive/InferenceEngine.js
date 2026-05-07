@@ -391,7 +391,7 @@ class InferenceEngine {
     }
 
     if (contradictions.length > 0) {
-      this.bus.emit('inference:contradictions-found', {
+      this.bus.fire('inference:contradictions-found', {
         count: contradictions.length,
       }, { source: 'InferenceEngine' });
     }

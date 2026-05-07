@@ -1,12 +1,12 @@
 const { describe, test, run } = require('../harness');
 const { MetaLearning } = require('../../src/agent/planning/MetaLearning');
-function make() { return new MetaLearning({ bus: { emit(){} }, storage: null, intervals: null }); }
+function make() { return new MetaLearning({ bus: { emit(){} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, storage: null, intervals: null }); }
 function outcome(o) { return { taskCategory: 'code-gen', model: 'x', promptStyle: 'free-text', temperature: 0.7, outputFormat: 'text', success: true, latencyMs: 2000, inputTokens: 500, outputTokens: 300, verificationResult: 'pass', retryCount: 0, ...o }; }
 describe('MetaLearning', () => {
   test('recordOutcome stores', () => { make().recordOutcome(outcome()); });
   test('recordOutcome emits event', () => {
     const events = [];
-    const ml = new MetaLearning({ bus: { emit: (n) => events.push(n) }, storage: null, intervals: null });
+    const ml = new MetaLearning({ bus: { emit: (n) => events.push(n) , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, storage: null, intervals: null });
     ml.recordOutcome(outcome());
     if (!events.includes('meta:outcome-recorded')) throw new Error('Missing event');
   });

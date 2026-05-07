@@ -1,6 +1,6 @@
 const { describe, test, run } = require('../harness');
 const { SchemaStore } = require('../../src/agent/planning/SchemaStore');
-function make() { return new SchemaStore({ bus: { emit(){} }, storage: { readJSON: ()=>null, writeJSON: ()=>{}, writeJSONAsync: ()=>Promise.resolve() }, config: {} }); }
+function make() { return new SchemaStore({ bus: { emit(){} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, storage: { readJSON: ()=>null, writeJSON: ()=>{}, writeJSONAsync: ()=>Promise.resolve() }, config: {} }); }
 describe('SchemaStore', () => {
   test('store returns id', () => {
     const ss = make();

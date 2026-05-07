@@ -148,7 +148,7 @@ class ReasoningTracer {
     }
     // FIX v7.4.1: Emit so TaskRecorder can incorporate reasoning
     // traces into task recordings. Was a dead listener since v5.5.0.
-    this.bus.emit('reasoning:trace-recorded', {
+    this.bus.fire('reasoning:trace-recorded', {
       type, summary, correlationId,
       goalId: detail?.goalId || null,
     }, { source: 'ReasoningTracer' });

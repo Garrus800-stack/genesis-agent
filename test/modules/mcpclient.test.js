@@ -14,7 +14,7 @@ const { McpClient } = require('../../src/agent/capabilities/McpClient');
 console.log('\n  🔌 McpClient Validation & Patterns');
 
 function createMockClient() {
-  const mockBus = { emit() {}, on() {}, off() {} };
+  const mockBus = { emit() {}, on() {}, off() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
   return new McpClient({
     bus: mockBus,
     settings: { get: () => [], set: () => {} },

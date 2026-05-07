@@ -172,13 +172,13 @@ class SelfModificationPipeline {
     this._frozenReason = null;
     this._consecutiveFailures = 0;
     _log.info('[SELF-MOD] Circuit breaker reset — self-modification re-enabled');
-    this.bus.emit('selfmod:circuit-reset', {}, { source: 'SelfModPipeline' });
+    this.bus.fire('selfmod:circuit-reset', {}, { source: 'SelfModPipeline' });
   }
 
   /** Record successful modification (resets counter). */
   _recordSuccess(file) {
     this._consecutiveFailures = 0;
-    this.bus.emit('selfmod:success', { file }, { source: 'SelfModPipeline' });
+    this.bus.fire('selfmod:success', { file }, { source: 'SelfModPipeline' });
   }
 
   /** Record failed modification. If threshold reached, freeze. */
@@ -186,7 +186,7 @@ class SelfModificationPipeline {
     this._consecutiveFailures++;
     const threshold = this._getCircuitBreakerThreshold();
     _log.warn(`[SELF-MOD] Failure #${this._consecutiveFailures}/${threshold}: ${reason}`);
-    this.bus.emit('selfmod:failure', {
+    this.bus.fire('selfmod:failure', {
       count: this._consecutiveFailures,
       reason,
     }, { source: 'SelfModPipeline' });
@@ -197,7 +197,7 @@ class SelfModificationPipeline {
       _log.error(`[SELF-MOD] ⛔ Circuit breaker TRIPPED — self-modification frozen`);
       _log.error(`[SELF-MOD]   Reason: ${this._frozenReason}`);
       _log.error(`[SELF-MOD]   To resume: user must run /self-repair-reset or approve in UI`);
-      this.bus.emit('selfmod:frozen', {
+      this.bus.fire('selfmod:frozen', {
         reason: this._frozenReason,
         failures: this._consecutiveFailures,
       }, { source: 'SelfModPipeline' });
@@ -287,7 +287,7 @@ class SelfModificationPipeline {
 
   // ── REFLECT (self-analysis with genuine LLM reasoning) ──
   async reflect(message) {
-    this.bus.emit('agent:status', { state: 'thinking', detail: 'Self-reflection...' }, { source: 'SelfModPipeline' });
+    this.bus.fire('agent:status', { state: 'thinking', detail: 'Self-reflection...' }, { source: 'SelfModPipeline' });
 
     // v7.2.0: Data-driven reflection from self-identity, KG, and Journal
     // instead of dumping the full module tree into the prompt.
@@ -329,10 +329,10 @@ Antworte ehrlich und spezifisch in der Sprache des Users. Keine Modullisten.`;
 
     try {
       const response = await this.model.chat(prompt, [], 'analysis');
-      this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+      this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
       return response;
     } catch (err) {
-      this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+      this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
       return `${this.lang.t('agent.error')}: ${err.message}`;
     }
   }
@@ -351,18 +351,18 @@ Antworte ehrlich und spezifisch in der Sprache des Users. Keine Modullisten.`;
         `Say "/self-repair-reset" to unfreeze.`;
     }
 
-    this.bus.emit('agent:status', { state: 'self-repairing' }, { source: 'SelfModPipeline' });
+    this.bus.fire('agent:status', { state: 'self-repairing' }, { source: 'SelfModPipeline' });
 
     const diag = await this.reflector.diagnose();
     if (diag.issues.length === 0) {
-      this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+      this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
       return this.lang.t('selfmod.all_intact');
     }
 
     const repairs = await this.reflector.repair(diag.issues);
     await this.selfModel.scan();
 
-    this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+    this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
     return `${this.lang.t('selfmod.repair')}:\n${repairs.map(r => `**${r.file}:** ${r.fixed ? '✅' : '⏳'} -- ${r.detail}`).join('\n')}`;
   }
 
@@ -379,7 +379,7 @@ Antworte ehrlich und spezifisch in der Sprache des Users. Keine Modullisten.`;
 
   // ── CREATE SKILL ─────────────────────────────────────────
   async createSkill(message) {
-    this.bus.emit('agent:status', { state: 'creating-skill' }, { source: 'SelfModPipeline' });
+    this.bus.fire('agent:status', { state: 'creating-skill' }, { source: 'SelfModPipeline' });
 
     const result = await this.skills.createSkill(message);
 
@@ -409,15 +409,15 @@ Antworte ehrlich und spezifisch in der Sprache des Users. Keine Modullisten.`;
       this.eventStore?.append('SKILL_CREATED', { name: result.match(/"([^"]+)"/)?.[1] || 'unknown' }, 'SelfModPipeline');
     }
 
-    this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+    this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
     return result;
   }
 
   // ── CLONE ────────────────────────────────────────────────
   async clone(message, history) {
-    this.bus.emit('agent:status', { state: 'cloning' }, { source: 'SelfModPipeline' });
+    this.bus.fire('agent:status', { state: 'cloning' }, { source: 'SelfModPipeline' });
     const result = await this.cloner.createClone({ improvements: message, conversation: history || [] });
-    this.bus.emit('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
+    this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });
     return result;
   }
 

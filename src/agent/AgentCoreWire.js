@@ -363,7 +363,7 @@ class AgentCoreWire {
       } catch (err) { _log.warn(`[GENESIS] runtime ${name}.stop() failed:`, err.message); }
     };
     const chatNotify = (msg) => {
-      try { bus.emit('chat:system-message', { text: msg }, { source: 'AgentCoreWire' }); }
+      try { bus.fire('chat:system-message', { text: msg }, { source: 'AgentCoreWire' }); }
       catch (_e) { /* never let chat-notify break a runtime toggle */ }
     };
 

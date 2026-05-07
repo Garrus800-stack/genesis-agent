@@ -136,7 +136,7 @@ class HomeostasisEffectors {
 
     this._stats.totalCacheCleared += cleared;
 
-    this.bus.emit('homeostasis:correction-applied', {
+    this.bus.fire('homeostasis:correction-applied', {
       type: 'prune-caches',
       cleared,
       memoryPressure: pressure,
@@ -177,7 +177,7 @@ class HomeostasisEffectors {
       _log.warn('[EFFECTORS] KG prune failed:', err.message);
     }
 
-    this.bus.emit('homeostasis:correction-applied', {
+    this.bus.fire('homeostasis:correction-applied', {
       type: 'prune-knowledge',
       nodeCount,
     }, { source: 'HomeostasisEffectors' });
@@ -216,7 +216,7 @@ class HomeostasisEffectors {
           this._contextPressureActive = false;
           _log.info(`[EFFECTORS] Context budget restored: ${reduced} → ${original} tokens`);
 
-          this.bus.emit('homeostasis:correction-lifted', {
+          this.bus.fire('homeostasis:correction-lifted', {
             type: 'reduce-context',
           }, { source: 'HomeostasisEffectors' });
         }, this._contextPressureDurationMs);
@@ -225,7 +225,7 @@ class HomeostasisEffectors {
       _log.warn('[EFFECTORS] Context reduction failed:', err.message);
     }
 
-    this.bus.emit('homeostasis:correction-applied', {
+    this.bus.fire('homeostasis:correction-applied', {
       type: 'reduce-context',
       latency,
     }, { source: 'HomeostasisEffectors' });
@@ -240,7 +240,7 @@ class HomeostasisEffectors {
     _log.info(`[EFFECTORS] Reducing load — circuit state: ${data?.circuit}`);
 
     // Emit a more specific event that AgentLoop can consume
-    this.bus.emit('homeostasis:simplified-mode', {
+    this.bus.fire('homeostasis:simplified-mode', {
       reason: 'circuit-breaker',
       recommendations: [
         'Avoid multi-step plans',
@@ -250,7 +250,7 @@ class HomeostasisEffectors {
       ],
     }, { source: 'HomeostasisEffectors' });
 
-    this.bus.emit('homeostasis:correction-applied', {
+    this.bus.fire('homeostasis:correction-applied', {
       type: 'reduce-load',
       circuit: data?.circuit,
     }, { source: 'HomeostasisEffectors' });

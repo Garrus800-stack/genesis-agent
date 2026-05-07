@@ -2,7 +2,7 @@
 const { describe, test, assert, run } = require('../harness');
 const { ExecutionProvenance } = require('../../src/agent/intelligence/ExecutionProvenance');
 
-const mockBus = { on() {}, emit() {}, fire() {} };
+const mockBus = { on() {}, emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
 
 describe('ExecutionProvenance', () => {
   test('beginTrace creates trace with input', () => {

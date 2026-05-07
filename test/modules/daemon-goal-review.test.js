@@ -19,7 +19,7 @@ function makeStubGoalStack() {
 }
 
 function makeDaemon({ goalStack } = {}) {
-  const bus = { emit() {}, fire() {} };
+  const bus = { emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
   const d = new AutonomousDaemon({
     bus,
     reflector: { diagnose: async () => ({ issues: [] }) },

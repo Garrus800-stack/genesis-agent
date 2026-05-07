@@ -246,7 +246,7 @@ class ImmuneSystem {
         this.emotionalState._adjust('satisfaction', +0.03);
       }
 
-      this.bus.emit('immune:intervention', {
+      this.bus.fire('immune:intervention', {
         signature: signatureId,
         remedy: signature.remedy,
         description: signature.description,
@@ -298,7 +298,7 @@ class ImmuneSystem {
     }
 
     // Emit prune request for KnowledgeGraph (HomeostasisEffectors will handle)
-    this.bus.emit('homeostasis:prune-caches', {
+    this.bus.fire('homeostasis:prune-caches', {
       memoryPressure: 95,
       source: 'ImmuneSystem',
     }, { source: 'ImmuneSystem' });
@@ -318,7 +318,7 @@ class ImmuneSystem {
       this._quarantined.set(worst[0], Date.now() + 300000); // 5 min quarantine
       _log.info(`[IMMUNE] Quarantined tool source: ${worst[0]} for 5 minutes`);
 
-      this.bus.emit('immune:quarantine', {
+      this.bus.fire('immune:quarantine', {
         source: worst[0],
         durationMs: 300000,
       }, { source: 'ImmuneSystem' });

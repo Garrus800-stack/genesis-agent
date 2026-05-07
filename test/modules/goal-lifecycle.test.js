@@ -19,7 +19,7 @@ function makeStack({ bus } = {}) {
   const events = [];
   const mockBus = bus || {
     emit: (name, payload) => events.push({ name, payload }),
-    fire: () => {},
+    fire: (name, payload) => events.push({ name, payload }),
     on: () => {},
   };
   // Stub storage

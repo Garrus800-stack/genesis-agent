@@ -51,12 +51,12 @@ class KnowledgeGraph {
       try {
         const pruned = this.graph.pruneNodes(this._maxNodes);
         if (pruned > 0) {
-          this.bus.emit('knowledge:nodes-pruned', { count: pruned, remaining: this.graph.nodes.size }, { source: 'KnowledgeGraph' });
+          this.bus.fire('knowledge:nodes-pruned', { count: pruned, remaining: this.graph.nodes.size }, { source: 'KnowledgeGraph' });
         }
       } catch (_e) { /* swallow — pruning is opportunistic */ }
     }
     this._save();
-    this.bus.emit('knowledge:node-added', { id, type, label }, { source: 'KnowledgeGraph' });
+    this.bus.fire('knowledge:node-added', { id, type, label }, { source: 'KnowledgeGraph' });
     return id;
   }
 

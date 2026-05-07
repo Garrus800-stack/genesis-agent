@@ -104,7 +104,7 @@ class Genome {
 
   start() {
     _log.info(`[GENOME] Active — generation ${this.generation}, lineage depth ${this.lineage.length}`);
-    this.bus.emit('genome:loaded', {
+    this.bus.fire('genome:loaded', {
       generation: this.generation,
       traits: { ...this.traits },
       lineageDepth: this.lineage.length,
@@ -179,7 +179,7 @@ class Genome {
     }
 
     _log.info(`[GENOME] Trait ${traitName}: ${before.toFixed(3)} → ${after.toFixed(3)} (${reason})`);
-    this.bus.emit('genome:trait-adjusted', {
+    this.bus.fire('genome:trait-adjusted', {
       trait: traitName, before, after, delta: capped, reason,
     }, { source: 'Genome' });
 
@@ -232,7 +232,7 @@ class Genome {
     };
 
     _log.info(`[GENOME] Reproduction: generation ${this.generation} → ${offspring.generation}, ${mutations.length} mutations`);
-    this.bus.emit('genome:reproduced', {
+    this.bus.fire('genome:reproduced', {
       parentHash: this.hash(),
       childGeneration: offspring.generation,
       mutations,

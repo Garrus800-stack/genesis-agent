@@ -40,7 +40,7 @@ describe('GateStats — basic recording', () => {
     assert.strictEqual(s.warn, 1);
   });
 
-  test('blockRate computed correctly', () => {
+  test('gate contract: blockRate computed correctly', () => {
     const g = new GateStats();
     for (let i = 0; i < 8; i++) g.recordGate('y', 'pass');
     for (let i = 0; i < 2; i++) g.recordGate('y', 'block');

@@ -127,7 +127,7 @@ class AgentCoreHealth {
     try {
       const integrity = this._core.guard.verifyIntegrity();
       if (!integrity.ok) {
-        this._bus.emit('agent:status', { state: 'error', detail: 'Kernel integrity check FAILED' }, { source: 'HealthCheck' });
+        this._bus.fire('agent:status', { state: 'error', detail: 'Kernel integrity check FAILED' }, { source: 'HealthCheck' });
         this._c.resolve('eventStore').append('HEALTH_ALERT', { type: 'kernel', detail: integrity }, 'HealthCheck');
       }
       const model = this._c.resolve('model');
@@ -135,10 +135,10 @@ class AgentCoreHealth {
         try {
           await model.detectAvailable();
           if (model.availableModels.filter(m => m.backend === 'ollama').length === 0) {
-            this._bus.emit('model:ollama-unavailable', { error: 'No Ollama models found' }, { source: 'HealthCheck' });
+            this._bus.fire('model:ollama-unavailable', { error: 'No Ollama models found' }, { source: 'HealthCheck' });
           }
         } catch (_e) {
-          this._bus.emit('model:ollama-unavailable', { error: 'Ollama unreachable' }, { source: 'HealthCheck' });
+          this._bus.fire('model:ollama-unavailable', { error: 'Ollama unreachable' }, { source: 'HealthCheck' });
         }
       }
       await this._checkDiskSpace();
@@ -159,7 +159,7 @@ class AgentCoreHealth {
         if (err) { resolve(); return; }
         const bytes = parseInt(String(stdout).trim()) || 0;
         if (bytes > LIMITS.DISK_WARN_BYTES) {
-          this._bus.emit('agent:status', {
+          this._bus.fire('agent:status', {
             state: 'warning',
             detail: `.genesis dir is ${Math.round(bytes / 1024 / 1024)}MB — consider cleanup`,
           }, { source: 'HealthCheck' });

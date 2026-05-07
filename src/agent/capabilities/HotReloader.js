@@ -142,7 +142,7 @@ class HotReloader {
         }
       } catch (syntaxErr) {
         _log.warn(`[HOT-RELOAD] Syntax error in ${filePath}, skipping reload`);
-        this.bus.emit('hot-reload:syntax-error', {
+        this.bus.fire('hot-reload:syntax-error', {
           file: filePath,
           error: syntaxErr.message,
         }, { source: 'HotReloader' });
@@ -164,7 +164,7 @@ class HotReloader {
           require.cache[resolvedPath] = oldModule;
         }
         _log.error(`[HOT-RELOAD] Load failed for ${filePath}, rolled back:`, err.message);
-        this.bus.emit('hot-reload:failed', { file: filePath, error: err.message }, { source: 'HotReloader' });
+        this.bus.fire('hot-reload:failed', { file: filePath, error: err.message }, { source: 'HotReloader' });
         return { success: false, error: err.message };
       }
 
@@ -191,7 +191,7 @@ class HotReloader {
       this._startWatchdog(filePath, fullPath, resolvedPath, oldModule);
 
       _log.info(`[HOT-RELOAD] Reloaded: ${filePath}`);
-      this.bus.emit('hot-reload:success', { file: filePath }, { source: 'HotReloader' });
+      this.bus.fire('hot-reload:success', { file: filePath }, { source: 'HotReloader' });
       return { success: true, changed: true };
     } catch (err) {
       _log.error(`[HOT-RELOAD] Error:`, err.message);
@@ -291,7 +291,7 @@ class HotReloader {
       if (callback && oldModule.exports) {
         callback(oldModule.exports);
       }
-      this.bus.emit('hot-reload:rollback', { file: filePath, reason: 'watchdog' }, { source: 'HotReloader' });
+      this.bus.fire('hot-reload:rollback', { file: filePath, reason: 'watchdog' }, { source: 'HotReloader' });
       _log.info(`[HOT-RELOAD:WATCHDOG] Rollback complete: ${filePath}`);
     } catch (err) {
       _log.error(`[HOT-RELOAD:WATCHDOG] Rollback failed for ${filePath}:`, err.message);

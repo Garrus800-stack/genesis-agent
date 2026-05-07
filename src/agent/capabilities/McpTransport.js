@@ -147,7 +147,7 @@ class McpServerConnection {
     this.status = 'connecting';
     this.error = null;
 
-    this.bus.emit('mcp:connecting', { name: this.name, url: this.url }, { source: 'McpTransport' });
+    this.bus.fire('mcp:connecting', { name: this.name, url: this.url }, { source: 'McpTransport' });
 
     try {
       if (this.transport === 'sse') {
@@ -159,7 +159,7 @@ class McpServerConnection {
     } catch (err) {
       this.status = 'error';
       this.error = err.message;
-      this.bus.emit('mcp:error', { name: this.name, error: err.message }, { source: 'McpTransport' });
+      this.bus.fire('mcp:error', { name: this.name, error: err.message }, { source: 'McpTransport' });
       throw err;
     }
   }
@@ -206,7 +206,7 @@ class McpServerConnection {
 
         res.on('end', () => {
           this.status = 'disconnected';
-          this.bus.emit('mcp:disconnected', { name: this.name }, { source: 'McpTransport' });
+          this.bus.fire('mcp:disconnected', { name: this.name }, { source: 'McpTransport' });
           this._maybeReconnect();
         });
 
@@ -255,7 +255,7 @@ class McpServerConnection {
     }
 
     if (event === 'notification' || data?.method) {
-      this.bus.emit('mcp:notification', {
+      this.bus.fire('mcp:notification', {
         name: this.name,
         method: data?.method || event,
         params: data?.params || data,
@@ -301,7 +301,7 @@ class McpServerConnection {
       const recentFailRate = this._healthStats.failures / Math.max(this._healthStats.totalRequests, 1);
       if (recentFailRate > 0.3 && this.status === 'ready') {
         this.status = 'degraded';
-        this.bus.emit('mcp:degraded', { name: this.name, failRate: recentFailRate }, { source: 'McpTransport' });
+        this.bus.fire('mcp:degraded', { name: this.name, failRate: recentFailRate }, { source: 'McpTransport' });
       }
       throw err;
     }
@@ -417,7 +417,7 @@ class McpServerConnection {
     // v5.2.0: Reset circuit breaker on successful connect
     this._circuitBreaker.reset();
 
-    this.bus.emit('mcp:connected', {
+    this.bus.fire('mcp:connected', {
       name: this.name, serverInfo: this.serverInfo, capabilities: this.capabilities,
     }, { source: 'McpTransport' });
 
@@ -432,7 +432,7 @@ class McpServerConnection {
         name: t.name, description: t.description || '',
         inputSchema: t.inputSchema || {}, server: this.name,
       }));
-      this.bus.emit('mcp:tools-discovered', { name: this.name, count: this.tools.length }, { source: 'McpTransport' });
+      this.bus.fire('mcp:tools-discovered', { name: this.name, count: this.tools.length }, { source: 'McpTransport' });
       return this.tools;
     } catch (err) {
       _log.warn(`[MCP] Tool discovery failed (${this.name}):`, err.message);

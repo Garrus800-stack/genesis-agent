@@ -114,7 +114,7 @@ class CostGuard {
       this._blockedCalls++;
       if (!this._sessionBlocked) {
         this._sessionBlocked = true;
-        this.bus.emit('llm:cost-cap-reached', {
+        this.bus.fire('llm:cost-cap-reached', {
           scope: 'session', used: this._sessionTokens,
           limit: this._sessionLimit, taskType,
         }, { source: 'CostGuard' });
@@ -129,7 +129,7 @@ class CostGuard {
       this._blockedCalls++;
       if (!this._dailyBlocked) {
         this._dailyBlocked = true;
-        this.bus.emit('llm:cost-cap-reached', {
+        this.bus.fire('llm:cost-cap-reached', {
           scope: 'daily', used: this._dailyTokens,
           limit: this._dailyLimit, taskType,
         }, { source: 'CostGuard' });
@@ -141,7 +141,7 @@ class CostGuard {
     // Warnings at threshold
     if (sessionPct >= this._warnThreshold && !this._sessionWarned) {
       this._sessionWarned = true;
-      this.bus.emit('llm:cost-warning', {
+      this.bus.fire('llm:cost-warning', {
         scope: 'session', pct: Math.round(sessionPct * 100),
         used: this._sessionTokens, limit: this._sessionLimit,
       }, { source: 'CostGuard' });
@@ -150,7 +150,7 @@ class CostGuard {
 
     if (dailyPct >= this._warnThreshold && !this._dailyWarned) {
       this._dailyWarned = true;
-      this.bus.emit('llm:cost-warning', {
+      this.bus.fire('llm:cost-warning', {
         scope: 'daily', pct: Math.round(dailyPct * 100),
         used: this._dailyTokens, limit: this._dailyLimit,
       }, { source: 'CostGuard' });

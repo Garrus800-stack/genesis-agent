@@ -68,7 +68,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   await test('#29 _adaptCommand translates wc -l to find /V /C ":"', () => {
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const lang = { t: (k, v) => k };
-    const bus = { emit() {}, on() {}, fire() {} };
+    const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const agent = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: '/tmp' });
     agent.isWindows = true;
     const adapted = agent._adaptCommand('ls | wc -l');
@@ -79,7 +79,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   await test('#29 _adaptCommand fixes broken find /C /V "" if LLM emits it', () => {
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const lang = { t: (k) => k };
-    const bus = { emit() {}, on() {}, fire() {} };
+    const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const agent = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: '/tmp' });
     agent.isWindows = true;
     const adapted1 = agent._adaptCommand('dir /b *.js | find /C /V ""');
@@ -91,7 +91,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   await test('#29 _adaptCommand non-Windows is pass-through', () => {
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const lang = { t: (k) => k };
-    const bus = { emit() {}, on() {}, fire() {} };
+    const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const agent = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: '/tmp' });
     agent.isWindows = false;
     const adapted = agent._adaptCommand('ls | wc -l');
@@ -127,7 +127,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   await test('LIVE ShellAgent.run executes and returns stdout', async () => {
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const lang = { t: (k) => k };
-    const bus = { emit() {}, on() {}, fire() {} };
+    const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const agent = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: process.cwd() });
     const result = await agent.run('ls', { tier: 'read', silent: true });
     assert(result.ok === true, `expected ok=true, got: ${JSON.stringify(result).slice(0,200)}`);
@@ -140,7 +140,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   await test('LIVE ShellAgent.run captures stderr on failed command', async () => {
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const lang = { t: (k) => k };
-    const bus = { emit() {}, on() {}, fire() {} };
+    const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const agent = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: process.cwd() });
     const result = await agent.run('this-binary-definitely-does-not-exist-xyz123', { tier: 'read', silent: true });
     assert(result.ok === false, `expected ok=false, got: ${JSON.stringify(result).slice(0,200)}`);
@@ -154,7 +154,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const { AgentLoopStepsDelegate } = require('../../src/agent/revolution/AgentLoopSteps');
     const lang = { t: (k) => k };
-    const bus = { emit() {}, on() {}, fire() {} };
+    const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
     const shell = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: process.cwd() });
 
     const fakeLoop = {

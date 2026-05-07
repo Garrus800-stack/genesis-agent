@@ -114,7 +114,7 @@ test('getReport returns complete structure', () => {
 
 
 function makeES(dims = {}) {
-  const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+  const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
   const es = new EmotionalState({ bus });
   // Override dimension values directly for deterministic tests
   for (const [k, v] of Object.entries(dims)) {

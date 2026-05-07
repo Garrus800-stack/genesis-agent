@@ -1,6 +1,6 @@
 const { describe, test, run } = require('../harness');
 const { BodySchema } = require('../../src/agent/organism/BodySchema');
-function make() { return new BodySchema({ bus: { emit(){}, on(){} }, storage: null, intervals: null }); }
+function make() { return new BodySchema({ bus: { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){} }, storage: null, intervals: null }); }
 describe('BodySchema', () => {
   test('constructs', () => { if (!make()) throw new Error('Fail'); });
   test('getCapabilities returns object', () => { if (typeof make().getCapabilities() !== 'object') throw new Error('Should return object'); });

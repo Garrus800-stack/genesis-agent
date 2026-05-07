@@ -1,6 +1,6 @@
 const { describe, test, run } = require('../harness');
 const { LocalClassifier } = require('../../src/agent/intelligence/LocalClassifier');
-function make() { return new LocalClassifier({ bus: { emit(){} }, storage: null, config: {} }); }
+function make() { return new LocalClassifier({ bus: { emit(){} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, storage: null, config: {} }); }
 describe('LocalClassifier', () => {
   test('classify returns null when untrained', () => { if (make().classify('build a REST API') !== null) throw new Error('Should be null'); });
   test('addSample stores data', () => { const lc = make(); lc.addSample('create a fn', 'code-gen'); lc.addSample('write code', 'code-gen'); });

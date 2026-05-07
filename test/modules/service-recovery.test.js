@@ -22,7 +22,7 @@ function mockBus() {
     _events: events,
     _handlers: handlers,
     _fire: (evt, data, meta) => handlers[evt]?.(data, meta),
-  };
+   fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 function mockContainer(services = {}) {

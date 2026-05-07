@@ -113,7 +113,7 @@ class MentalSimulator {
     const pruneThreshold = options.pruneThreshold || this._pruneThreshold;
     const forcedOutcomes = options.forcedOutcomes || {};
 
-    this.bus.emit('simulation:started', {
+    this.bus.fire('simulation:started', {
       planSteps: steps.length,
       maxBranches,
       maxDepth,
@@ -226,7 +226,7 @@ class MentalSimulator {
         node.children.push(failNode);
         nodeCount++;
 
-        this.bus.emit('simulation:branched', {
+        this.bus.fire('simulation:branched', {
           stepIndex: stepIdx,
           actionType,
           successProb: expectation.successProb,
@@ -267,7 +267,7 @@ class MentalSimulator {
       durationMs: Date.now() - startTime,
     };
 
-    this.bus.emit('simulation:complete', {
+    this.bus.fire('simulation:complete', {
       pathCount: paths.length,
       expectedValue,
       riskScore,

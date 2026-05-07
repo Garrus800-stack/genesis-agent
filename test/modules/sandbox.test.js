@@ -79,7 +79,7 @@ describe('Sandbox', () => {
     assert(result.error, 'should timeout');
   });
 
-  test('execute rejects non-JS languages', async () => {
+  test('sandbox contract: execute rejects non-JS languages', async () => {
     const sb = create();
     const result = await sb.execute('#!/usr/bin/python3\nprint("hello")');
     assert(result.error || result.output !== undefined, 'should handle gracefully');

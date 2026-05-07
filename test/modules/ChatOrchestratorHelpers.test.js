@@ -3,7 +3,7 @@ const { ChatOrchestrator } = require('../../src/agent/hexagonal/ChatOrchestrator
 
 function makeCO() {
   return new ChatOrchestrator({
-    lang: { t: k => k }, bus: { emit(){}, fire(){}, on(){} },
+    lang: { t: k => k }, bus: { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){} },
     intentRouter: { classify: () => ({ type: 'general', confidence: 0.9 }) },
     model: { chat: async () => 'response' },
     context: { build: () => ({ system: 'test', messages: [] }) },

@@ -284,7 +284,7 @@ class FitnessEvaluator {
     this.metabolism?.resetPeriod?.();
 
     // Broadcast
-    this.bus.emit('fitness:evaluated', result, { source: 'FitnessEvaluator' });
+    this.bus.fire('fitness:evaluated', result, { source: 'FitnessEvaluator' });
     this.bus.fire('peer:fitness-score', {
       genomeHash,
       score:      result.score,

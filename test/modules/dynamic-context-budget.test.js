@@ -6,7 +6,7 @@ const { describe, test, run } = require('../harness');
 const { DynamicContextBudget, DEFAULT_PROFILES } = require('../../src/agent/intelligence/DynamicContextBudget');
 
 function makeBudget(opts = {}) {
-  return new DynamicContextBudget({ bus: { emit() {} }, storage: null, ...opts });
+  return new DynamicContextBudget({ bus: { emit() {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, storage: null, ...opts });
 }
 
 describe('DynamicContextBudget', () => {

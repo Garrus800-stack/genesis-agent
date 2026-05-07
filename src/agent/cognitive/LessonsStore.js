@@ -211,7 +211,7 @@ class LessonsStore {
       this._evictLeastValuable();
     }
 
-    this.bus.emit('lessons:recorded', {
+    this.bus.fire('lessons:recorded', {
       id, category: entry.category, insight: entry.insight.slice(0, 100),
     }, { source: 'LessonsStore' });
 
@@ -272,7 +272,7 @@ class LessonsStore {
 
     // v7.1.6: Emit lesson:applied for each recalled lesson (frontier tracking)
     for (const r of results) {
-      this.bus.emit('lesson:applied', {
+      this.bus.fire('lesson:applied', {
         id: r.id, category: r.category, insight: r.insight,
       }, { source: 'LessonsStore' });
     }
@@ -325,13 +325,13 @@ class LessonsStore {
       lesson.useCount = (lesson.useCount || 0) + 1;
       lesson.lastUsed = Date.now();
       lesson.evidence.confidence = Math.min(lesson.evidence.confidence + boost, 0.99);
-      this.bus.emit('lesson:confirmed', {
+      this.bus.fire('lesson:confirmed', {
         id: lessonId, category: lesson.category, confirmed: lesson.confirmed,
       }, { source: 'LessonsStore' });
     } else {
       lesson.contradicted = (lesson.contradicted || 0) + 1;
       lesson.evidence.confidence = Math.max(lesson.evidence.confidence - penalty, 0.1);
-      this.bus.emit('lesson:contradicted', {
+      this.bus.fire('lesson:contradicted', {
         id: lessonId, category: lesson.category, contradicted: lesson.contradicted,
         insight: (lesson.insight || '').slice(0, 80),
       }, { source: 'LessonsStore' });

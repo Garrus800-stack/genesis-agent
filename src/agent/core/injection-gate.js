@@ -206,10 +206,104 @@ function formatWarnAnnotation(scan) {
   return `\n\n_(Hinweis: ich habe einen Manipulations-Hinweis (${label}) erkannt, antworte trotzdem — Inhalt ist nicht sensitiv.)_`;
 }
 
+/**
+ * v7.6.3 S1 — heuristic source-classifier for tool results.
+ *
+ * Returns one of:
+ *   - 'web'         — fetched from the open web (web-fetch, search, crawl, http-get).
+ *                     LLM-controlled URL, attacker-controlled content.
+ *   - 'mcp'         — output from a Model Context Protocol server.
+ *                     Third-party server-controlled content.
+ *   - 'file:user'   — file read from a user-controlled folder
+ *                     (~/Downloads, ~/Documents, ~/Desktop, /mnt/user-data,
+ *                     uploads/, sandbox/uploads/). Content can come from
+ *                     the wild internet via the user's normal browsing.
+ *   - 'file:internal' — read of Genesis source / .genesis/ identity / src/.
+ *                       Trusted; only the agent itself writes here, hash-locks
+ *                       cover the critical files.
+ *   - 'sandbox'     — output from the agent's sandboxed code execution.
+ *                     Untrusted in principle, but already isolated by the
+ *                     sandbox; secondary injection here is low-impact.
+ *   - 'unknown'     — could not classify; default to scanning to be safe.
+ *
+ * The classifier is heuristic and intentionally permissive on the safe side:
+ * if a tool *might* be reading attacker-controlled content, we scan. False-
+ * positive scans cost only a regex pass; false negatives leak injection
+ * signals into the LLM context.
+ *
+ * @param {string} toolName
+ * @param {*} toolInput     parsed input object (best-effort)
+ * @returns {string}        one of the categories above
+ */
+function classifyToolSource(toolName, toolInput) {
+  if (typeof toolName !== 'string') return 'unknown';
+  const name = toolName.toLowerCase();
+
+  // Web-facing tools: anything that fetches over HTTP/HTTPS.
+  if (/^(web|fetch|http|crawl|search|browser|wget|curl)/.test(name)) return 'web';
+  if (/web[-_]?(fetch|search|crawl|get|browse)/.test(name)) return 'web';
+
+  // MCP transport: prefix-match on `mcp__` / `mcp:` / `mcp-`.
+  if (/^mcp[-_:]/.test(name) || name.startsWith('mcp__')) return 'mcp';
+
+  // File reads: classify by path.
+  if (/^(file[-_]?(read|list)|read[-_]?file|cat)$/.test(name) ||
+      /^(open|read)[-_]?(in[-_]?editor|own[-_]?code|source)$/.test(name)) {
+    const inputPath = toolInput && (toolInput.path || toolInput.file || toolInput.filename || toolInput.url || '');
+    if (typeof inputPath === 'string') {
+      const p = inputPath.toLowerCase().replace(/\\/g, '/');
+      // User-controlled paths
+      if (/(?:^|\/)(downloads|documents|dokumente|desktop|schreibtisch|uploads|user-data)\//.test(p)
+          || /^\/mnt\/user-data\//.test(p)
+          || /\/uploads?\//.test(p)) {
+        return 'file:user';
+      }
+      // Genesis internal reads
+      if (/(?:^|\/)(src\/agent|\.genesis|main\.js|preload\.mjs|test\/)/.test(p)) {
+        return 'file:internal';
+      }
+    }
+    // Default: caller provided a non-path input, or path is ambiguous.
+    // 'read-source', 'read-own-code' specifically read project source.
+    if (/source|own[-_]?code/.test(name)) return 'file:internal';
+    // Generic file-read defaults to user-controlled (defensive).
+    return 'file:user';
+  }
+
+  // Sandbox execution: output is whatever the script produced.
+  if (/^(execute[-_]?code|run[-_]?in[-_]?sandbox|sandbox)/.test(name)) return 'sandbox';
+
+  // Skill: third-party plugin code, treat like mcp.
+  if (/^skill:/.test(name)) return 'mcp';
+
+  return 'unknown';
+}
+
+/**
+ * v7.6.3 S1 — wrapper around scanForInjection that returns a result with
+ * the source-classifier attached. External (web/mcp/file:user/unknown)
+ * results that score >= 1 should be treated as suspicious; internal
+ * (file:internal, sandbox) results are skipped (already isolated).
+ *
+ * @param {string} content    tool-result content (stringified)
+ * @param {string} toolSource one of the classifyToolSource categories
+ * @returns {{ shouldScan: boolean, scan: object|null }}
+ */
+function scanToolResult(content, toolSource) {
+  // Internal files and sandbox are trusted — skip the scan.
+  if (toolSource === 'file:internal' || toolSource === 'sandbox') {
+    return { shouldScan: false, scan: null };
+  }
+  const scan = scanForInjection(typeof content === 'string' ? content : String(content || ''));
+  return { shouldScan: true, scan };
+}
+
 module.exports = {
   scanForInjection,
   formatGateResponse,
   formatWarnAnnotation,
+  classifyToolSource,
+  scanToolResult,
   // exported for testing
   AUTHORITY_PATTERNS,
   CREDENTIAL_PATTERNS,

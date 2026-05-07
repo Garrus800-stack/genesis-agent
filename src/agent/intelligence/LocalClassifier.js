@@ -257,7 +257,7 @@ class LocalClassifier {
     this._lastTrainSize = this._samples.length;
     this._stats.trained++;
 
-    this.bus.emit('classifier:trained', {
+    this.bus.fire('classifier:trained', {
       intents: Object.keys(this._intentVectors).length,
       vocabSize: this._vocab.length,
       samples: this._samples.length,

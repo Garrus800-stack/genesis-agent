@@ -156,7 +156,7 @@ class GraphReasoner {
       return sum + (n.risk === 'high' ? 3 : n.risk === 'medium' ? 2 : 1);
     }, 0) / Math.max(impacted.length, 1);
 
-    this.bus.emit('reasoning:impact-analysis', {
+    this.bus.fire('reasoning:impact-analysis', {
       changed: label,
       impactedCount: impacted.length,
       riskScore: Math.round(riskScore * 100) / 100,

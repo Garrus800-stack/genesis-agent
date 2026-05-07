@@ -216,7 +216,7 @@ class ModelBridgeAdapter extends LLMPort {
       || (this._correlationContext && this._correlationContext.get?.('correlationId'))
       || null;
 
-    this.bus.emit('llm:call-complete', {
+    this.bus.fire('llm:call-complete', {
       taskType,
       model: this._bridge.activeModel,
       backend: this._bridge.activeBackend,
@@ -249,7 +249,7 @@ class ModelBridgeAdapter extends LLMPort {
           b && typeof b.used === 'number' && typeof b.budget === 'number' && b.used >= b.budget);
         if (exhausted) {
           this._hourlyBudget.reset();
-          this.bus.emit('llm:budget-auto-reset', {
+          this.bus.fire('llm:budget-auto-reset', {
             reason: `${Math.round(idleMs/1000)}s idle with exhausted budget`,
             triggeredBy: taskType,
           }, { source: 'LLMPort' });
@@ -261,7 +261,7 @@ class ModelBridgeAdapter extends LLMPort {
     // 1. Token bucket (burst control)
     if (!this._bucket.tryConsume()) {
       this._metrics.rateLimited++;
-      this.bus.emit('llm:rate-limited', {
+      this.bus.fire('llm:rate-limited', {
         bucket: 'burst', used: this._bucket.capacity,
         budget: this._bucket.capacity, caller: taskType,
       }, { source: 'LLMPort' });
@@ -273,7 +273,7 @@ class ModelBridgeAdapter extends LLMPort {
 
     if (!result.allowed) {
       this._metrics.rateLimited++;
-      this.bus.emit('llm:rate-limited', {
+      this.bus.fire('llm:rate-limited', {
         bucket: budgetKey, used: result.used,
         budget: result.budget, caller: taskType,
       }, { source: 'LLMPort' });
@@ -282,7 +282,7 @@ class ModelBridgeAdapter extends LLMPort {
 
     // Warn at 80% budget usage
     if (result.used > result.budget * 0.8) {
-      this.bus.emit('llm:budget-warning', {
+      this.bus.fire('llm:budget-warning', {
         bucket: budgetKey, used: result.used, budget: result.budget,
       }, { source: 'LLMPort' });
     }
@@ -306,7 +306,7 @@ class ModelBridgeAdapter extends LLMPort {
   resetBudget() {
     this._hourlyBudget.reset();
     this._bucket = new TokenBucket(RATE_LIMIT.BUCKET_CAPACITY, RATE_LIMIT.REFILL_PER_MINUTE);
-    this.bus.emit('llm:budget-manual-reset', {
+    this.bus.fire('llm:budget-manual-reset', {
       timestamp: new Date().toISOString(),
     }, { source: 'LLMPort' });
   }
@@ -342,7 +342,7 @@ class ModelBridgeAdapter extends LLMPort {
       return result;
     } catch (err) {
       this._metrics.errors++;
-      this.bus.emit('llm:call-error', {
+      this.bus.fire('llm:call-error', {
         taskType, backend: this._bridge.activeBackend, error: err.message,
       }, { source: 'LLMPort' });
       throw err;

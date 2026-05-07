@@ -47,7 +47,7 @@ const commandHandlersShell = {
     const result = await this.shell.run(cmd);
     // FIX v6.1.1: Emit outcome for learning systems (LessonsStore, SymbolicResolver)
     if (this.bus) {
-      this.bus.emit('shell:outcome', {
+      this.bus.fire('shell:outcome', {
         command: cmd, success: result.ok && !result.blocked,
         error: result.blocked ? 'blocked' : result.stderr?.slice(0, 200) || null,
         platform: process.platform,
@@ -126,16 +126,22 @@ const commandHandlersShell = {
       { pattern: new RegExp(`\\b${POSSESSIVE}\\s+genesis${FOLDER_NOUN}\\b`, 'i'),
         target: () => rootDir },
     ];
-    for (const { pattern, target } of anaphoraResolvers) {
-      if (pattern.test(message)) { targetPath = target(); break; }
+
+    // v7.6.3 Bug A+B: skip anaphora if location-suffix present (see v763 test).
+    const hasLocationSuffix = /\b(?:auf|in|unter|on|im)\s+(?:dem|den|der|de|the)\s+(?:desktop|schreibtisch|downloads?|dokumente|documents?|bilder|pictures?|musik|music|home)\b/i.test(message);
+    if (!hasLocationSuffix) {
+      for (const { pattern, target } of anaphoraResolvers) {
+        if (pattern.test(message)) { targetPath = target(); break; }
+      }
     }
 
     for (const [alias, resolved] of Object.entries(folderAliases)) {
       if (targetPath) break;  // anaphora-resolver already matched
       const escAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // v7.5.9 ZIP2 v3 (Bug 2): "X ordner auf dem desktop" — subfolder
-      // named BEFORE alias. Pre-fix only looked AFTER, lost the subfolder.
-      const beforeRe = new RegExp(`(?:öffne|oeffne|open|zeig(?:e)?(?:\\s+mir)?|show)?\\s*(?:den\\s+|das\\s+|die\\s+|the\\s+)?([\\w][\\w-]*)\\s+(?:ordner|folder|verzeichnis|dir)\\s+(?:auf|in|unter|on|im)\\s+(?:dem|den|der|de|the)\\s+${escAlias}\\b`, 'i');
+      // v7.5.9 ZIP2 v3 (Bug 2): "X ordner auf dem desktop" — subfolder named
+      // BEFORE alias. v7.6.3 Bug B follow-on: also accept hyphenated form
+      // "WORD-ordner" so "genesis-ordner auf dem desktop" extracts genesis.
+      const beforeRe = new RegExp(`(?:öffne|oeffne|open|zeig(?:e)?(?:\\s+mir)?|show)?\\s*(?:den\\s+|das\\s+|die\\s+|the\\s+)?([\\w][\\w-]*?)(?:-(?:ordner|folder|verzeichnis|dir|projekt|project)|\\s+(?:ordner|folder|verzeichnis|dir|projekt|project))\\s+(?:auf|in|unter|on|im)\\s+(?:dem|den|der|de|the)\\s+${escAlias}\\b`, 'i');
       const beforeMatch = message.match(beforeRe);
       if (beforeMatch && beforeMatch[1]) {
         targetPath = path.join(resolved, beforeMatch[1].trim());

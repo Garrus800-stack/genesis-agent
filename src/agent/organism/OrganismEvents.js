@@ -3,7 +3,7 @@
 //
 // Typed facade over EventBus for the Organism layer.
 // Modules call e.g. `this.events.emitMoodShift(data)` instead
-// of `this.bus.emit('emotion:shift', data)`.
+// of `this.bus.fire('emotion:shift', data)`.
 //
 // Benefits:
 //   - Event string typos become ReferenceErrors (caught immediately)
@@ -23,52 +23,52 @@ class OrganismEvents {
   constructor(bus) { this._bus = bus; }
 
   // ── Emotion ─────────────────────────────────────────────
-  emitMoodShift(data, meta)       { this._bus.emit(EVENTS.EMOTION.SHIFT, data, meta); }
+  emitMoodShift(data, meta)       { this._bus.fire(EVENTS.EMOTION.SHIFT, data, meta); }
   onMoodShift(handler, opts)      { return this._bus.on(EVENTS.EMOTION.SHIFT, handler, opts); }
-  emitWatchdogReset(data, meta)   { this._bus.emit(EVENTS.EMOTION.WATCHDOG_RESET, data, meta); }
-  emitWatchdogAlert(data, meta)   { this._bus.emit(EVENTS.EMOTION.WATCHDOG_ALERT, data, meta); }
+  emitWatchdogReset(data, meta)   { this._bus.fire(EVENTS.EMOTION.WATCHDOG_RESET, data, meta); }
+  emitWatchdogAlert(data, meta)   { this._bus.fire(EVENTS.EMOTION.WATCHDOG_ALERT, data, meta); }
 
   // ── Homeostasis ─────────────────────────────────────────
-  emitStateChange(data, meta)       { this._bus.emit(EVENTS.HOMEOSTASIS.STATE_CHANGE, data, meta); }
+  emitStateChange(data, meta)       { this._bus.fire(EVENTS.HOMEOSTASIS.STATE_CHANGE, data, meta); }
   onStateChange(handler, opts)      { return this._bus.on(EVENTS.HOMEOSTASIS.STATE_CHANGE, handler, opts); }
-  emitCritical(data, meta)          { this._bus.emit(EVENTS.HOMEOSTASIS.CRITICAL, data, meta); }
-  emitRecovering(data, meta)        { this._bus.emit(EVENTS.HOMEOSTASIS.RECOVERING, data, meta); }
-  emitPauseAutonomy(data, meta)     { this._bus.emit(EVENTS.HOMEOSTASIS.PAUSE_AUTONOMY, data, meta); }
-  emitThrottle(data, meta)          { this._bus.emit(EVENTS.HOMEOSTASIS.THROTTLE, data, meta); }
+  emitCritical(data, meta)          { this._bus.fire(EVENTS.HOMEOSTASIS.CRITICAL, data, meta); }
+  emitRecovering(data, meta)        { this._bus.fire(EVENTS.HOMEOSTASIS.RECOVERING, data, meta); }
+  emitPauseAutonomy(data, meta)     { this._bus.fire(EVENTS.HOMEOSTASIS.PAUSE_AUTONOMY, data, meta); }
+  emitThrottle(data, meta)          { this._bus.fire(EVENTS.HOMEOSTASIS.THROTTLE, data, meta); }
   onThrottle(handler, opts)         { return this._bus.on(EVENTS.HOMEOSTASIS.THROTTLE, handler, opts); }
-  emitReduceLoad(data, meta)        { this._bus.emit(EVENTS.HOMEOSTASIS.REDUCE_LOAD, data, meta); }
-  emitReduceContext(data, meta)     { this._bus.emit(EVENTS.HOMEOSTASIS.REDUCE_CONTEXT, data, meta); }
-  emitPruneCaches(data, meta)       { this._bus.emit(EVENTS.HOMEOSTASIS.PRUNE_CACHES, data, meta); }
-  emitPruneKnowledge(data, meta)    { this._bus.emit(EVENTS.HOMEOSTASIS.PRUNE_KNOWLEDGE, data, meta); }
+  emitReduceLoad(data, meta)        { this._bus.fire(EVENTS.HOMEOSTASIS.REDUCE_LOAD, data, meta); }
+  emitReduceContext(data, meta)     { this._bus.fire(EVENTS.HOMEOSTASIS.REDUCE_CONTEXT, data, meta); }
+  emitPruneCaches(data, meta)       { this._bus.fire(EVENTS.HOMEOSTASIS.PRUNE_CACHES, data, meta); }
+  emitPruneKnowledge(data, meta)    { this._bus.fire(EVENTS.HOMEOSTASIS.PRUNE_KNOWLEDGE, data, meta); }
   onPruneKnowledge(handler, opts)   { return this._bus.on(EVENTS.HOMEOSTASIS.PRUNE_KNOWLEDGE, handler, opts); }
-  emitCorrectionApplied(data, meta) { this._bus.emit(EVENTS.HOMEOSTASIS.CORRECTION_APPLIED, data, meta); }
-  emitCorrectionLifted(data, meta)  { this._bus.emit(EVENTS.HOMEOSTASIS.CORRECTION_LIFTED, data, meta); }
-  emitSimplifiedMode(data, meta)    { this._bus.emit(EVENTS.HOMEOSTASIS.SIMPLIFIED_MODE, data, meta); }
-  emitAllostasis(data, meta)        { this._bus.emit(EVENTS.HOMEOSTASIS.ALLOSTASIS, data, meta); }
+  emitCorrectionApplied(data, meta) { this._bus.fire(EVENTS.HOMEOSTASIS.CORRECTION_APPLIED, data, meta); }
+  emitCorrectionLifted(data, meta)  { this._bus.fire(EVENTS.HOMEOSTASIS.CORRECTION_LIFTED, data, meta); }
+  emitSimplifiedMode(data, meta)    { this._bus.fire(EVENTS.HOMEOSTASIS.SIMPLIFIED_MODE, data, meta); }
+  emitAllostasis(data, meta)        { this._bus.fire(EVENTS.HOMEOSTASIS.ALLOSTASIS, data, meta); }
 
   // ── Immune ──────────────────────────────────────────────
-  emitIntervention(data, meta)    { this._bus.emit(EVENTS.IMMUNE.INTERVENTION, data, meta); }
-  emitQuarantine(data, meta)      { this._bus.emit(EVENTS.IMMUNE.QUARANTINE, data, meta); }
+  emitIntervention(data, meta)    { this._bus.fire(EVENTS.IMMUNE.INTERVENTION, data, meta); }
+  emitQuarantine(data, meta)      { this._bus.fire(EVENTS.IMMUNE.QUARANTINE, data, meta); }
 
   // ── Metabolism ──────────────────────────────────────────
-  emitCost(data, meta)            { this._bus.emit(EVENTS.METABOLISM.COST, data, meta); }
-  emitConsumed(data, meta)        { this._bus.emit(EVENTS.METABOLISM_EXT.CONSUMED, data, meta); }
-  emitInsufficient(data, meta)    { this._bus.emit(EVENTS.METABOLISM_EXT.INSUFFICIENT, data, meta); }
-  emitEnergyStateChanged(data, meta) { this._bus.emit(EVENTS.METABOLISM_EXT.STATE_CHANGED, data, meta); }
+  emitCost(data, meta)            { this._bus.fire(EVENTS.METABOLISM.COST, data, meta); }
+  emitConsumed(data, meta)        { this._bus.fire(EVENTS.METABOLISM_EXT.CONSUMED, data, meta); }
+  emitInsufficient(data, meta)    { this._bus.fire(EVENTS.METABOLISM_EXT.INSUFFICIENT, data, meta); }
+  emitEnergyStateChanged(data, meta) { this._bus.fire(EVENTS.METABOLISM_EXT.STATE_CHANGED, data, meta); }
 
   // ── Needs ───────────────────────────────────────────────
-  emitHighDrive(data, meta)       { this._bus.emit(EVENTS.NEEDS.HIGH_DRIVE, data, meta); }
-  emitSatisfied(data, meta)       { this._bus.emit(EVENTS.NEEDS.SATISFIED, data, meta); }
+  emitHighDrive(data, meta)       { this._bus.fire(EVENTS.NEEDS.HIGH_DRIVE, data, meta); }
+  emitSatisfied(data, meta)       { this._bus.fire(EVENTS.NEEDS.SATISFIED, data, meta); }
 
   // ── Embodied Perception ─────────────────────────────────
-  emitPanelChanged(data, meta)      { this._bus.emit(EVENTS.EMBODIED.PANEL_CHANGED, data, meta); }
-  emitFocusChanged(data, meta)      { this._bus.emit(EVENTS.EMBODIED.FOCUS_CHANGED, data, meta); }
-  emitEngagementChanged(data, meta) { this._bus.emit(EVENTS.EMBODIED.ENGAGEMENT_CHANGED, data, meta); }
+  emitPanelChanged(data, meta)      { this._bus.fire(EVENTS.EMBODIED.PANEL_CHANGED, data, meta); }
+  emitFocusChanged(data, meta)      { this._bus.fire(EVENTS.EMBODIED.FOCUS_CHANGED, data, meta); }
+  emitEngagementChanged(data, meta) { this._bus.fire(EVENTS.EMBODIED.ENGAGEMENT_CHANGED, data, meta); }
 
   // ── Genome ──────────────────────────────────────────────
-  emitGenomeLoaded(data, meta)      { this._bus.emit(EVENTS.GENOME.LOADED, data, meta); }
-  emitTraitAdjusted(data, meta)     { this._bus.emit(EVENTS.GENOME.TRAIT_ADJUSTED, data, meta); }
-  emitReproduced(data, meta)        { this._bus.emit(EVENTS.GENOME.REPRODUCED, data, meta); }
+  emitGenomeLoaded(data, meta)      { this._bus.fire(EVENTS.GENOME.LOADED, data, meta); }
+  emitTraitAdjusted(data, meta)     { this._bus.fire(EVENTS.GENOME.TRAIT_ADJUSTED, data, meta); }
+  emitReproduced(data, meta)        { this._bus.fire(EVENTS.GENOME.REPRODUCED, data, meta); }
 
   // ── Cross-layer subscriptions (events FROM other layers) ──
   onChatCompleted(handler, opts)    { return this._bus.on('chat:completed', handler, opts); }

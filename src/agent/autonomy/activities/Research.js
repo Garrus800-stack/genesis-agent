@@ -178,7 +178,7 @@ async function _doResearchAsync(idleMind, topic) {
     }
   }
 
-  idleMind.bus.emit('knowledge:learned', {
+  idleMind.bus.fire('knowledge:learned', {
     source: 'research', topic: topic.label, url,
   }, { source: 'IdleMind' });
 

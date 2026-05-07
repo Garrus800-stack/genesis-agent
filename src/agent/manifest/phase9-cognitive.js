@@ -263,7 +263,7 @@ function phase9(ctx, R) {
         return (opts) => new CognitiveWorkspace({
           ...opts,
           onEvict: (key, slot) => {
-            bus.emit('workspace:slot-evicted', {
+            bus.fire('workspace:slot-evicted', {
               key,
               value: typeof slot.value === 'string' ? slot.value.slice(0, 500) : JSON.stringify(slot.value).slice(0, 500),
               salience: slot.salience,

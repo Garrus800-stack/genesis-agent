@@ -21,7 +21,7 @@ function mockBus() {
     emit(event, data, opts) { events.push({ event, data, opts }); },
     on() { return () => {}; },
     _events: events,
-  };
+   fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 }
 
 function mockStorage() {

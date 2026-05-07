@@ -21,7 +21,7 @@ function makePN(overrides = {}) {
   const pn = new PeerNetwork(selfModel, skills, {
     chat: async () => overrides.llmResponse || 'EQUAL. Both are fine.',
   }, {}, {
-    bus: { emit(e, d, m) { events.push({ e, d }); }, fire() {}, on() {} },
+    bus: { emit(e, d, m) { events.push({ e, d }); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() {} },
     guard: null,
   });
   pn._events = events;

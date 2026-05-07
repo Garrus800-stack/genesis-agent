@@ -51,6 +51,7 @@ const SCHEMAS = {
 
   // Injection Gate (v7.3.5)
   'injection:blocked': { signals: 'required', toolCount: 'required' },
+  'injection:tool-result-flagged': { toolName: 'required', toolSource: 'required', signals: 'required', score: 'required' },
 
   // Tool-call Verification (v7.3.5)
   'tool-call:unverified': { verdict: 'required', flagCount: 'required', categories: 'required' },
@@ -60,7 +61,6 @@ const SCHEMAS = {
   'read-source:soft-limit': { turnCount: 'required', softLimit: 'required', hardLimit: 'required', turnId: 'optional' },
 
   // Self-Gate (v7.3.6 #2)
-  'self-gate:blocked': { actionType: 'required', signals: 'required', triggerSource: 'required' },
   'self-gate:warned':  { actionType: 'required', signals: 'required', triggerSource: 'required' },
 
   // Self-Statement Log (v7.5.5)
@@ -137,9 +137,6 @@ const SCHEMAS = {
   'emotional-frontier:boot-restored':   { shifted: 'required', imprintId: 'required' },
 
   // FrontierWriter (generic) — v7.2.4
-  'frontier:unfinishedWork:written':    { sessionId: 'required', edgeType: 'required' },
-  'frontier:suspicion:written':         { sessionId: 'required', edgeType: 'required' },
-  'frontier:lessonTracking:written':    { sessionId: 'required', edgeType: 'required' },
 
   // Metabolism
   'metabolism:cost':        { cost: 'required', tokens: 'required' },
@@ -285,6 +282,9 @@ const SCHEMAS = {
   // Symbolic Resolution (v6.0.8)
   'symbolic:resolved': { level: 'required', stepType: 'required', confidence: 'required', source: 'required' },
   'symbolic:fallback': { reason: 'required', stepType: 'required' },
+
+  // EventStore corruption telemetry (v7.6.3 L3-fix)
+  'eventstore:corrupted-row': { file: 'required', line: 'required', error: 'required', total: 'required' },
 
   // Consciousness Gate (v6.0.8)
   'selfmod:consciousness-blocked': { coherence: 'required' },
@@ -714,7 +714,7 @@ const SCHEMAS = {
   'system:security-degraded': { reason: 'required', preloadMode: 'required', mitigation: 'required' },
 
   // ── v7.0.5: EventStore-forwarded events (store:TYPE) ────
-  // All emitted by EventStore.append() → bus.emit(`store:${type}`, event).
+  // All emitted by EventStore.append() → bus.fire(`store:${type}`, event).
   // The payload is the full event object: { id, type, payload, source, timestamp, isoTime, prevHash, hash }.
   'store:AGENT_LOOP_COMPLETE':  { id: 'required', type: 'required', payload: 'required' },
   'store:CHAT_MESSAGE':         { id: 'required', type: 'required', payload: 'required' },

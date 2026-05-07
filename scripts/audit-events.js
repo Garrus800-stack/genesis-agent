@@ -51,9 +51,25 @@ try {
 
 const emitters = new Map();   // event → [{ file, line }]
 const subscribers = new Map(); // event → [{ file, line }]
+const requestEmitters = new Map(); // v7.6.3: event → [{ file, line }] for bus.request(...) call sites
 
-const EMIT_PATTERN = /\.(?:emit|fire)\s*\(\s*['"`]([^'"`]+)['"`]/g;
-const SUB_PATTERN  = /\.on\s*\(\s*['"`]([^'"`]+)['"`]/g;
+// v7.6.3: Pattern widened to also match optional-chaining call sites:
+//   `bus.fire('e', ...)`           — base form
+//   `bus?.fire('e', ...)`          — OC before method name
+//   `bus.fire?.('e', ...)`         — OC before call paren
+//   `bus?.fire?.('e', ...)`        — OC both sides
+// Without this, the audit was missing real emit sites and reporting
+// catalog events as "dead" when they were emitted via optional chaining
+// (e.g. `model:cloud-without-fallback` in ModelBridgeAvailability.js).
+const EMIT_PATTERN = /(?:\.|\?\.)(?:emit|fire)(?:\?\.)?\s*\(\s*['"`]([^'"`]+)['"`]/g;
+const SUB_PATTERN  = /(?:\.|\?\.)on(?:\?\.)?\s*\(\s*['"`]([^'"`]+)['"`]/g;
+
+// v7.6.3: bus.request('event', ...) is the request/response counterpart of
+// emit/on. The handler-side uses bus.on() like a normal subscriber, but the
+// publish side uses bus.request() rather than bus.emit/fire. Without scanning
+// for this, request/response events show as "never emitted" even though they
+// are actively published (e.g. `reasoning:solve`, `web:search`).
+const REQUEST_PATTERN = /(?:\.|\?\.)request(?:\?\.)?\s*\(\s*['"`]([^'"`]+)['"`]/g;
 
 function scanFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf-8');
@@ -77,6 +93,14 @@ function scanFile(filePath) {
       const event = m[1];
       if (!subscribers.has(event)) subscribers.set(event, []);
       subscribers.get(event).push({ file: relPath, line: i + 1 });
+    }
+
+    // v7.6.3: scan bus.request() call sites — request/response publishers
+    REQUEST_PATTERN.lastIndex = 0;
+    while ((m = REQUEST_PATTERN.exec(line)) !== null) {
+      const event = m[1];
+      if (!requestEmitters.has(event)) requestEmitters.set(event, []);
+      requestEmitters.get(event).push({ file: relPath, line: i + 1 });
     }
   }
 }
@@ -198,6 +222,35 @@ function isFalsePositiveListener(event, locations) {
   return null;
 }
 
+// v7.6.3: parallel structure for catalogNeverEmitted false-positives.
+// The above isFalsePositiveListener handles "subscriber without emitter"
+// (where the event is real but the emitter lives outside the regex's reach).
+// This handler addresses the inverse: catalog entries that ARE emitted but
+// the emit happens via patterns the EMIT_PATTERN regex can't see — namely,
+// the AgentCoreWire push()-bridge, the Settings.set() dynamic-toggle pipeline,
+// the CapabilityGuard scope-alias namespace, and template-literal emits like
+// `bus.emit(\`store:${type}\`, ...)` from EventStore.append.
+function isFalsePositiveCatalogNeverEmitted(event) {
+  // FP_NE1: AgentCoreWire push() forwards renderer-bound events. The emit
+  // is `push('event:name', data)` (a wrapper around webContents.send), not
+  // bus.emit/fire. PUSH_CHANNELS is built once at startup from AgentCoreWire.js.
+  if (PUSH_CHANNELS.has(event)) return 'push-bridge';
+  // FP_NE2: Settings.set() emits dynamic event names from a TOGGLE_EVENT_KEYS
+  // map. The string concatenation inside settings.js can't be statically matched.
+  if (/^settings:.+-(?:toggled|changed)$/.test(event)) return 'settings-toggle';
+  // FP_NE3: capability-scope alias namespace. The EventTypes.EXEC / FS / NET
+  // sections list CapabilityGuard scopes (exec:sandbox, fs:write, net:external,
+  // etc.). They're catalog entries by design (audit-trail completeness), not
+  // events to emit at runtime. Confirmed by the section header
+  // "// ── Execution Audit (CapabilityGuard) ──────────────────".
+  if (/^(?:exec|fs|net):/.test(event)) return 'capability-scope';
+  // FP_NE4: dynamic emit patterns where the event name is built at runtime
+  // (bus.emit(`store:${type}`) etc.). The DYNAMIC_PATTERNS list is shared with
+  // the listener-without-emitter analysis below.
+  if (isDynamic(event)) return 'dynamic-emit';
+  return null;
+}
+
 // ── 3. Analyze ──────────────────────────────────────────────
 
 const emittedNotInCatalog = [];
@@ -246,7 +299,15 @@ for (const event of subscribers.keys()) {
 }
 
 for (const event of catalogEvents) {
-  if (!emitters.has(event)) catalogNeverEmitted.push(event);
+  // v7.6.3: union of emit-style and request-style publishers
+  const isEmitted = emitters.has(event) || requestEmitters.has(event);
+  if (!isEmitted) {
+    // v7.6.3: structural false-positive detection (push-bridge, settings-
+    // toggle pipeline, capability-scope alias namespace).
+    if (!isFalsePositiveCatalogNeverEmitted(event)) {
+      catalogNeverEmitted.push(event);
+    }
+  }
   if (!subscribers.has(event)) catalogNeverSubscribed.push(event);
 }
 

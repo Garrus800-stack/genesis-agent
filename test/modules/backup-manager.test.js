@@ -137,7 +137,7 @@ describe('BackupManager', () => {
     const dir = tmpDir();
     fs.writeFileSync(path.join(dir, 'settings.json'), '{}');
     const events = [];
-    const bus = { emit: (n, d) => events.push({ n, d }), fire() {} };
+    const bus = { emit: (n, d) => events.push({ n, d }), fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
 
     const bm = new BackupManager(dir, { bus });
     await bm.export(path.join(dir, 'ev-test.tar.gz'));

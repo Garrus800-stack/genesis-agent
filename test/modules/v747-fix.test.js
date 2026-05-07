@@ -47,7 +47,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     let captured = null;
     const fakeBus = {
       emit: (eventKey, payload) => { if (eventKey === 'settings:daemon-toggled') captured = payload; },
-    };
+     fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
     settings.setBus(fakeBus);
     settings.set('daemon.enabled', false);
     assert(captured, 'expected toggle event');
@@ -59,7 +59,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { Settings } = require('../../src/agent/foundation/Settings');
     const settings = new Settings(tmpDir, null);
     let captured = null;
-    const fakeBus = { emit: (k, p) => { if (k === 'settings:idlemind-toggled') captured = p; } };
+    const fakeBus = { emit: (k, p) => { if (k === 'settings:idlemind-toggled') captured = p; }, fire(...args) { return this.emit(...args); } };
     settings.setBus(fakeBus);
     settings.set('idleMind.enabled', false);
     assert(captured && captured.to === false, `event payload: ${JSON.stringify(captured)}`);
@@ -69,7 +69,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { Settings } = require('../../src/agent/foundation/Settings');
     const settings = new Settings(tmpDir, null);
     let captured = null;
-    const fakeBus = { emit: (k, p) => { if (k === 'settings:selfmod-toggled') captured = p; } };
+    const fakeBus = { emit: (k, p) => { if (k === 'settings:selfmod-toggled') captured = p; }, fire(...args) { return this.emit(...args); } };
     settings.setBus(fakeBus);
     settings.set('security.allowSelfModify', false);
     assert(captured && captured.to === false, `event payload: ${JSON.stringify(captured)}`);
@@ -79,7 +79,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { Settings } = require('../../src/agent/foundation/Settings');
     const settings = new Settings(tmpDir, null);
     let captured = null;
-    const fakeBus = { emit: (k, p) => { if (k === 'settings:trust-level-changed') captured = p; } };
+    const fakeBus = { emit: (k, p) => { if (k === 'settings:trust-level-changed') captured = p; }, fire(...args) { return this.emit(...args); } };
     settings.setBus(fakeBus);
     settings.set('trust.level', 2);
     assert(captured && captured.to === 2, `event payload: ${JSON.stringify(captured)}`);
@@ -90,7 +90,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const settings = new Settings(tmpDir, null);
     settings.set('daemon.enabled', true);  // already default
     let emitCount = 0;
-    const fakeBus = { emit: () => { emitCount++; } };
+    const fakeBus = { emit: () => { emitCount++; }, fire(...args) { return this.emit(...args); } };
     settings.setBus(fakeBus);
     settings.set('daemon.enabled', true);  // no-op
     assert(emitCount === 0, `expected no events for unchanged value, got ${emitCount}`);
@@ -100,7 +100,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { Settings } = require('../../src/agent/foundation/Settings');
     const settings = new Settings(tmpDir, null);
     let emitCount = 0;
-    const fakeBus = { emit: () => { emitCount++; } };
+    const fakeBus = { emit: () => { emitCount++; }, fire(...args) { return this.emit(...args); } };
     settings.setBus(fakeBus);
     settings.set('models.preferred', 'qwen3-coder');
     assert(emitCount === 0, `expected no events for non-toggle key, got ${emitCount}`);
@@ -142,7 +142,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   await test('#3 SelfModificationPipeline.modify() blocks when allowSelfModify=false', async () => {
     const { SelfModificationPipeline } = require('../../src/agent/hexagonal/SelfModificationPipeline');
     const pipeline = new SelfModificationPipeline({
-      bus: { emit: () => {} },
+      bus: { emit: () => {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }},
       lang: { t: (k) => k },
       selfModel: null, model: null, prompts: null, sandbox: null,
       reflector: null, skills: null, cloner: null, reasoning: null,
@@ -158,7 +158,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   await test('#3 SelfModificationPipeline.modify() does NOT block when allowSelfModify=true', async () => {
     const { SelfModificationPipeline } = require('../../src/agent/hexagonal/SelfModificationPipeline');
     const pipeline = new SelfModificationPipeline({
-      bus: { emit: () => {} },
+      bus: { emit: () => {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }},
       lang: { t: (k) => k },
       selfModel: null, model: null, prompts: null, sandbox: null,
       reflector: null, skills: null, cloner: null, reasoning: null,
@@ -180,7 +180,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   await test('#3 SelfModificationPipeline.modify() does NOT block when settings absent', async () => {
     const { SelfModificationPipeline } = require('../../src/agent/hexagonal/SelfModificationPipeline');
     const pipeline = new SelfModificationPipeline({
-      bus: { emit: () => {} },
+      bus: { emit: () => {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }},
       lang: { t: (k) => k },
       selfModel: null, model: null, prompts: null, sandbox: null,
       reflector: null, skills: null, cloner: null, reasoning: null,

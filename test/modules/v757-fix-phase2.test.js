@@ -262,7 +262,7 @@ test('SelfStatementLog: maxStatements stored on instance', () => {
   const { SelfStatementLog } = require(path.join(ROOT, 'src/agent/cognitive/SelfStatementLog'));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-ssl-'));
   const ssl = new SelfStatementLog({
-    bus: { on: () => {}, emit: () => {} },
+    bus: { on: () => {}, emit: () => {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }},
     storageDir: dir,
     maxStatements: 100,
   });
@@ -274,7 +274,7 @@ test('SelfStatementLog: maxStatements 0 means unlimited', () => {
   const { SelfStatementLog } = require(path.join(ROOT, 'src/agent/cognitive/SelfStatementLog'));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-ssl-'));
   const ssl = new SelfStatementLog({
-    bus: { on: () => {}, emit: () => {} },
+    bus: { on: () => {}, emit: () => {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }},
     storageDir: dir,
     maxStatements: 0,
   });

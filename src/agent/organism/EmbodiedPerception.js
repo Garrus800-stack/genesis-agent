@@ -122,21 +122,21 @@ class EmbodiedPerception {
 
     // Emit events on significant transitions
     if (prev.activePanel !== this._uiState.activePanel) {
-      this.bus.emit('embodied:panel-changed', {
+      this.bus.fire('embodied:panel-changed', {
         from: prev.activePanel,
         to: this._uiState.activePanel,
       }, { source: 'EmbodiedPerception' });
     }
 
     if (prev.windowFocused !== this._uiState.windowFocused) {
-      this.bus.emit('embodied:focus-changed', {
+      this.bus.fire('embodied:focus-changed', {
         focused: this._uiState.windowFocused,
       }, { source: 'EmbodiedPerception' });
     }
 
     const prevLevel = this._engagement.level;
     if (prevLevel !== this._engagement.level) {
-      this.bus.emit('embodied:engagement-changed', {
+      this.bus.fire('embodied:engagement-changed', {
         from: prevLevel,
         to: this._engagement.level,
       }, { source: 'EmbodiedPerception' });

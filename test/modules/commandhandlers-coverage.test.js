@@ -9,7 +9,7 @@ const { CommandHandlers } = require('../../src/agent/hexagonal/CommandHandlers')
 // ── Mock factory ─────────────────────────────────────────────
 
 function makeDeps(overrides = {}) {
-  const bus = { emitted: [], emit(ev, d, o) { this.emitted.push({ ev, d }); }, fire() {} };
+  const bus = { emitted: [], emit(ev, d, o) { this.emitted.push({ ev, d }); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
   bus._container = { resolve: () => null };
 
   return {

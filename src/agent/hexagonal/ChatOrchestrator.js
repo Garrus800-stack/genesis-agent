@@ -346,12 +346,12 @@ class ChatOrchestrator {
       const codeBlocks = _h._extractCodeBlocks(cleanResponse);
       if (codeBlocks.length > 0) {
         const primary = codeBlocks.sort((a, b) => b.content.length - a.content.length)[0];
-        this.bus.emit('editor:open', primary, { source: 'ChatOrchestrator' });
+        this.bus.fire('editor:open', primary, { source: 'ChatOrchestrator' });
       }
 
       // v7.5.6: emit reasoning trace (telemetry, ReasoningTracer subscribes)
       if (reasoningTrace) {
-        this.bus.emit('model:thinking-trace', {
+        this.bus.fire('model:thinking-trace', {
           text: reasoningTrace,
           modelName: this.model.activeModel || 'unknown',
         }, { source: 'ChatOrchestrator' });
@@ -494,7 +494,7 @@ class ChatOrchestrator {
                 && typeof this.tools.detectToolIntentWithoutCall === 'function'
                 && this.tools.detectToolIntentWithoutCall(response)) {
               _toolIntentReprompted = true;
-              this.bus.emit('tool-use:reprompt-needed', {
+              this.bus.fire('tool-use:reprompt-needed', {
                 round,
                 excerpt: response.slice(0, 200),
               }, { source: 'ChatOrchestrator' });
@@ -515,7 +515,7 @@ class ChatOrchestrator {
 
             // No tools (and no re-prompt warranted) → done.
             if (reasoningParts.length > 0) {
-              this.bus.emit('model:thinking-trace', {
+              this.bus.fire('model:thinking-trace', {
                 text: reasoningParts.join('\n---\n'),
                 modelName: this.model.activeModel || 'unknown',
               }, { source: 'ChatOrchestrator' });
@@ -573,7 +573,7 @@ class ChatOrchestrator {
 
         // Loop exhausted MAX_TOOL_ROUNDS — still emit any collected reasoning.
         if (reasoningParts.length > 0) {
-          this.bus.emit('model:thinking-trace', {
+          this.bus.fire('model:thinking-trace', {
             text: reasoningParts.join('\n---\n'),
             modelName: this.model.activeModel || 'unknown',
           }, { source: 'ChatOrchestrator' });

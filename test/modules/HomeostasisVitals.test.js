@@ -3,7 +3,7 @@ const { Homeostasis } = require('../../src/agent/organism/Homeostasis');
 
 function makeHO() {
   return new Homeostasis({
-    bus: { emit(){}, fire(){}, on(){} },
+    bus: { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){} },
     storage: null, intervals: null, emotionalState: null, config: {},
   });
 }

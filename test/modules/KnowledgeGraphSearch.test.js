@@ -9,7 +9,7 @@ const { KnowledgeGraph } = require('../../src/agent/foundation/KnowledgeGraph');
 function makeKG() {
   const events = [];
   const kg = new KnowledgeGraph({
-    bus: { emit(e, d, m) { events.push({ e, d, m }); }, fire() {}, on() {} },
+    bus: { emit(e, d, m) { events.push({ e, d, m }); }, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on() {} },
     storage: null,
   });
   kg._events = events;

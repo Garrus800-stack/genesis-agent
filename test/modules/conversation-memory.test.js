@@ -6,7 +6,7 @@ function make() {
   if (!ConversationMemory) return null;
   const d = path.join(os.tmpdir(), 'cm-test-' + Date.now());
   fs.mkdirSync(d, { recursive: true });
-  return new ConversationMemory(d, { emit(){}, on(){} }, { readJSON: ()=>null, writeJSON: ()=>{}, writeJSONDebounced: ()=>{} });
+  return new ConversationMemory(d, { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){} }, { readJSON: ()=>null, writeJSON: ()=>{}, writeJSONDebounced: ()=>{} });
 }
 describe('ConversationMemory', () => {
   test('module loads', () => { if (!ConversationMemory) throw new Error('Failed to load'); });

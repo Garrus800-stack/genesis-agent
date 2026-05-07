@@ -60,7 +60,7 @@ describe('SandboxVM Delegate', () => {
     fs.rmSync(TMP, { recursive: true, force: true });
   });
 
-  test('executeWithContext blocks dangerous globals', async () => {
+  test('sandbox contract: executeWithContext blocks dangerous globals', async () => {
     fs.mkdirSync(TMP, { recursive: true });
     const sandbox = new Sandbox(TMP);
     const result = await sandbox.executeWithContext(
@@ -90,7 +90,7 @@ describe('SandboxVM Delegate', () => {
     fs.rmSync(TMP, { recursive: true, force: true });
   });
 
-  test('executeWithContext blocks code via _codeSafety', async () => {
+  test('sandbox contract: executeWithContext blocks code via _codeSafety', async () => {
     fs.mkdirSync(TMP, { recursive: true });
     const sandbox = new Sandbox(TMP);
     // Mock code safety scanner that blocks everything

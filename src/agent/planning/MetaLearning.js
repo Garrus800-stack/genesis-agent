@@ -98,7 +98,7 @@ class MetaLearning {
       this._save();
     }
 
-    this.bus.emit('meta:outcome-recorded', {
+    this.bus.fire('meta:outcome-recorded', {
       category: record.taskCategory,
       model: record.model,
       success: record.success,
@@ -278,7 +278,7 @@ class MetaLearning {
         .sort((a, b) => b.successRate - a.successRate || a.avgLatency - b.avgLatency);
     }
 
-    this.bus.emit('meta:recommendations-updated', {
+    this.bus.fire('meta:recommendations-updated', {
       count: Object.keys(this._recommendations).length,
       modelRankings: Object.keys(this._modelRankings).length,
     }, { source: 'MetaLearning' });

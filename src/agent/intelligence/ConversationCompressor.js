@@ -127,7 +127,7 @@ class ConversationCompressor {
     }
 
     // ── Compression needed ──────────────────────────────
-    this.bus.emit('context:overflow-prevented', {
+    this.bus.fire('context:overflow-prevented', {
       totalTokens,
       budget: tokenBudget,
       messagesCompressed: older.length,
@@ -152,7 +152,7 @@ class ConversationCompressor {
     if (tokensSaved > 0) this.stats.tokensSaved += tokensSaved;
     this.stats.compressions++;
 
-    this.bus.emit('context:compressed', {
+    this.bus.fire('context:compressed', {
       originalTokens: olderTokens,
       compressedTokens: est(summary),
       messagesCompressed: older.length,

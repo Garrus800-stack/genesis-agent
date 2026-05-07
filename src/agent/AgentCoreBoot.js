@@ -210,7 +210,7 @@ class AgentCoreBoot {
         for (const m of integrity.mismatches) {
           _log.warn(`      → ${m.filename}${m.error ? ': ' + m.error : ' (hash mismatch)'}`);
         }
-        this._bus.emit('health:degradation', {
+        this._bus.fire('health:degradation', {
           service: 'storage', level: 'warning',
           reason: `${integrity.mismatches.length} file(s) failed integrity check`,
         }, { source: 'AgentCoreBoot' });
@@ -295,7 +295,7 @@ class AgentCoreBoot {
 
     if (degraded.length > 0) {
       _log.warn(`  [BOOT] ${degraded.length} non-essential service(s) degraded: ${degraded.join(', ')}`);
-      this._bus.emit('boot:degraded', { services: degraded, count: degraded.length }, { source: 'AgentCore' });
+      this._bus.fire('boot:degraded', { services: degraded, count: degraded.length }, { source: 'AgentCore' });
     }
 
     // Post-bootAll capability log
@@ -402,14 +402,14 @@ class AgentCoreBoot {
 
     // v7.2.1: Emit binding report for Dashboard and self-awareness modules
     if (bindResult.report) {
-      this._bus.emit('container:binding-report', bindResult.report, { source: 'AgentCoreBoot' });
+      this._bus.fire('container:binding-report', bindResult.report, { source: 'AgentCoreBoot' });
     }
 
     const verify = c.verifyLateBindings();
     _log.info(`  [WIRE] Verification: ${verify.verified}/${verify.total} bindings OK`);
     if (verify.missing.length > 0) {
       _log.error(`  [WIRE] ⚠ ${verify.missing.length} required bindings null — agent may malfunction`);
-      this._bus.emit('agent:status', {
+      this._bus.fire('agent:status', {
         state: 'warning',
         detail: `${verify.missing.length} late-binding(s) failed verification`,
       }, { source: 'AgentCore' });

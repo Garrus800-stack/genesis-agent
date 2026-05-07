@@ -12,7 +12,7 @@ const { SelfModificationPipeline } = require('../../src/agent/hexagonal/SelfModi
 function makePipeline(overrides = {}) {
   return new SelfModificationPipeline({
     lang: { t: (k) => k, detect: () => {}, current: 'en' },
-    bus: { emit: () => {} },
+    bus: { emit: () => {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }},
     selfModel: { readModule: () => '', commitSnapshot: async () => {}, scan: async () => {}, moduleCount: () => 0 },
     model: { chat: async () => '' },
     prompts: {},

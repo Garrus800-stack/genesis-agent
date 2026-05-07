@@ -200,14 +200,14 @@ class EmotionalSteering {
     // ── Emit state-change events ────────────────────────
     if (signals.modelEscalation && !prev.modelEscalation) {
       this._stats.modelEscalations++;
-      this.bus.emit('steering:model-escalation', {
+      this.bus.fire('steering:model-escalation', {
         frustration: d.frustration.value,
       }, { source: 'EmotionalSteering' });
     }
 
     if (signals.restMode && !prev.restMode) {
       this._stats.restModeActivations++;
-      this.bus.emit('steering:rest-mode', {
+      this.bus.fire('steering:rest-mode', {
         energy: d.energy.value,
       }, { source: 'EmotionalSteering' });
     }

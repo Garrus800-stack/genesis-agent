@@ -119,7 +119,7 @@ const discovery = {
       this.availableModels.push(...ollamaModels);
     } catch (err) {
       _log.info('[MODEL] Ollama not available');
-      this.bus.emit('model:ollama-unavailable', { error: err.message }, { source: 'ModelBridge' });
+      this.bus.fire('model:ollama-unavailable', { error: err.message }, { source: 'ModelBridge' });
     }
 
     // Add cloud models if configured
@@ -196,7 +196,7 @@ const discovery = {
       this.activeModel = chosen.name;
       this.activeBackend = chosen.backend;
     } else {
-      this.bus.emit('model:no-models', {}, { source: 'ModelBridge' });
+      this.bus.fire('model:no-models', {}, { source: 'ModelBridge' });
     }
 
     return this.availableModels;

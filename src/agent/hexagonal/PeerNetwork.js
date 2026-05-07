@@ -315,7 +315,7 @@ class PeerNetwork {
       if ((now - peer.health.lastSeen) > this.config.peerTTL) {
         this.peers.delete(id);
         this._sessionKeys.delete(id);
-        this.bus.emit('peer:evicted', { id, reason: 'stale' }, { source: 'PeerNetwork' });
+        this.bus.fire('peer:evicted', { id, reason: 'stale' }, { source: 'PeerNetwork' });
       }
     }
   }
@@ -330,7 +330,7 @@ class PeerNetwork {
       } catch (_e) { _log.debug("[catch] peer health check:", _e.message);
         peer.health.recordFailure();
         if (peer.health.failures >= 3) {
-          this.bus.emit('peer:unhealthy', { id, failures: peer.health.failures }, { source: 'PeerNetwork' });
+          this.bus.fire('peer:unhealthy', { id, failures: peer.health.failures }, { source: 'PeerNetwork' });
         }
       }
     }
@@ -384,7 +384,7 @@ class PeerNetwork {
         health,
       });
 
-      this.bus.emit('peer:discovered', { id: data.id, host, port, protocol: peerProtocol }, { source: 'PeerNetwork' });
+      this.bus.fire('peer:discovered', { id: data.id, host, port, protocol: peerProtocol }, { source: 'PeerNetwork' });
       return data;
     } catch (err) {
       if (!err.message.includes('ECONNREFUSED') && !err.message.includes('Timeout')) {
@@ -401,7 +401,7 @@ class PeerNetwork {
     peer.token = token;
     const salt = `${peerId}:${this.selfModel.getFullModel().identity}`;
     this._sessionKeys.set(peerId, deriveSessionKey(token, salt));
-    this.bus.emit('peer:trusted', { id: peerId }, { source: 'PeerNetwork' });
+    this.bus.fire('peer:trusted', { id: peerId }, { source: 'PeerNetwork' });
     return true;
   }
 

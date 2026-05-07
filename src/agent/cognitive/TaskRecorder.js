@@ -205,7 +205,7 @@ class TaskRecorder {
 
     this._active.delete(goalId);
 
-    this.bus.emit('replay:recording-complete', {
+    this.bus.fire('replay:recording-complete', {
       id: recording.id,
       goalId,
       steps: recording.steps.length,
@@ -469,7 +469,7 @@ class TaskRecorder {
     const t0 = Date.now();
 
     if (shouldEmit) {
-      this.bus.emit('replay:started', {
+      this.bus.fire('replay:started', {
         id: manifest.id,
         goalDescription: manifest.goalDescription,
         totalEvents: manifest.timeline.length,
@@ -488,7 +488,7 @@ class TaskRecorder {
       prevOffset = event.offset;
 
       if (shouldEmit) {
-        this.bus.emit('replay:event', {
+        this.bus.fire('replay:event', {
           recordingId: manifest.id,
           index: report.eventsReplayed,
           total: manifest.timeline.length,
@@ -504,7 +504,7 @@ class TaskRecorder {
     report.replayDurationMs = Date.now() - t0;
 
     if (shouldEmit) {
-      this.bus.emit('replay:completed', {
+      this.bus.fire('replay:completed', {
         id: manifest.id,
         eventsReplayed: report.eventsReplayed,
         replayDurationMs: report.replayDurationMs,

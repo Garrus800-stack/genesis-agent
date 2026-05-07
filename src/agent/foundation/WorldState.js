@@ -130,7 +130,7 @@ class WorldState {
     // Invalidate structure cache
     this.state.project.structure = null;
 
-    this.bus.emit('worldstate:file-changed', { path: entry.path }, { source: 'WorldState' });
+    this.bus.fire('worldstate:file-changed', { path: entry.path }, { source: 'WorldState' });
   }
 
   updateGitStatus(status) {

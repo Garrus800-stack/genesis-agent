@@ -89,7 +89,7 @@ const EXTREME_INDICATORS = [
 class CognitiveBudget {
   /** @param {{ bus?: *, config?: * }} [deps] */
   constructor({ bus, config } = {}) {
-    this.bus = bus || { emit() {} };
+    this.bus = bus || { emit() {} , fire() {}};
     const cfg = config || {};
     this._enabled = cfg.enabled !== false;
 

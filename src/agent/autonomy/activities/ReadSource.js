@@ -127,14 +127,14 @@ module.exports = {
     session.readModules.add(target.file);
 
     // Emit event for dashboard visibility
-    idleMind.bus.emit('idle:read-source', {
+    idleMind.bus.fire('idle:read-source', {
       module: target.file,
       reason: target.reason,
     }, { source: 'IdleMind' });
 
     // Budget-exhaustion signal
     if (session.readCount >= Math.min(SESSION_BUDGET_MAX, SESSION_BUDGET_MAX + session.bonus)) {
-      idleMind.bus.emit('idle:read-source-budget-exhausted', {
+      idleMind.bus.fire('idle:read-source-budget-exhausted', {
         cycleCount: idleMind._readSourceCycleCount,
         sessionCount: session.readCount,
       }, { source: 'IdleMind' });

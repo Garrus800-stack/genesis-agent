@@ -260,7 +260,7 @@ class Homeostasis {
         this.state = 'critical';
         this._recoveryStarted = Date.now();
         this._applyCorrections();
-        this.bus.emit('homeostasis:critical', {
+        this.bus.fire('homeostasis:critical', {
           vitals: this.getVitals(),
           warningCount, criticalCount,
         }, { source: 'Homeostasis' });
@@ -269,7 +269,7 @@ class Homeostasis {
       // Transition to recovery
       this.state = 'recovering';
       this._recoveryStarted = Date.now();
-      this.bus.emit('homeostasis:recovering', {}, { source: 'Homeostasis' });
+      this.bus.fire('homeostasis:recovering', {}, { source: 'Homeostasis' });
     } else if (this.state === 'recovering') {
       // Check if recovery period elapsed
       if (Date.now() - /** @type {number} */ (this._recoveryStarted) > this._recoveryDuration) {
@@ -284,7 +284,7 @@ class Homeostasis {
     }
 
     if (oldState !== this.state) {
-      this.bus.emit('homeostasis:state-change', {
+      this.bus.fire('homeostasis:state-change', {
         from: oldState, to: this.state,
       }, { source: 'Homeostasis' });
       this._save();

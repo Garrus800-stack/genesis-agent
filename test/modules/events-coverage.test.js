@@ -52,7 +52,7 @@ describe('CognitiveEvents — all emit methods', () => {
     ce.emitSimulationComplete(D, M);
     ce.emitSurpriseProcessed(D, M);
 
-    const emits = bus.calls.filter(c => c.type === 'emit');
+    const emits = bus.calls.filter(c => c.type === 'emit' || c.type === 'fire');
     assert(emits.length === 27, `Expected 27 emits, got ${emits.length}`);
   });
 
@@ -107,7 +107,7 @@ describe('AutonomyEvents — all methods', () => {
     ae.emitNetworkRestored(D, M);
     ae.emitErrorTrend(D, M);
 
-    const emits = bus.calls.filter(c => c.type === 'emit');
+    const emits = bus.calls.filter(c => c.type === 'emit' || c.type === 'fire');
     assert(emits.length >= 16, `Expected >=16 emits, got ${emits.length}`);
   });
 
@@ -151,7 +151,7 @@ describe('OrganismEvents — all methods', () => {
     oe.emitConsumed(D, M);
     oe.emitInsufficient(D, M);
 
-    const emits = bus.calls.filter(c => c.type === 'emit');
+    const emits = bus.calls.filter(c => c.type === 'emit' || c.type === 'fire');
     assert(emits.length >= 21, `Expected >=21 emits, got ${emits.length}`);
   });
 

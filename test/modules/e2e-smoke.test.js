@@ -298,7 +298,7 @@ describe('E2E — Telemetry Registration', () => {
     fs.mkdirSync(dir, { recursive: true });
     const storage = new StorageService(dir);
 
-    const tel = new BootTelemetry({ storage, bus: { on: () => {}, emit: () => {} }, enabled: true });
+    const tel = new BootTelemetry({ storage, bus: { on: () => {}, emit: () => {} , fire(...args) { return this.emit ? this.emit(...args) : undefined; }}, enabled: true });
     // asyncLoad() uses sync readJSON internally — safe to await in test
     await tel.asyncLoad();
     tel.recordBoot(500, 96, 0, [{ name: 'test', ms: 100 }]);

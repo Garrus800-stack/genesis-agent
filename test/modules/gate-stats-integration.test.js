@@ -51,7 +51,7 @@ describe('GateStats ↔ ChatOrchestrator integration', () => {
     assert.strictEqual(entry.block, 0);
   });
 
-  test('records injection-gate block on 2+ signal message', async () => {
+  test('gate contract: records injection-gate block on 2+ signal message', async () => {
     const stats = new GateStats();
     const co = new ChatOrchestrator(createMocks({
       gateStats: stats,
@@ -75,7 +75,7 @@ describe('GateStats ↔ ChatOrchestrator integration', () => {
     assert.strictEqual(entry.pass, 1);
   });
 
-  test('no-op when gateStats not injected (does not throw)', async () => {
+  test('gate contract: no-op when gateStats not injected (does not throw)', async () => {
     // No gateStats in mocks → this.gateStats is undefined
     const co = new ChatOrchestrator(createMocks({ gateStats: undefined }));
     // Should complete without throwing despite missing gateStats

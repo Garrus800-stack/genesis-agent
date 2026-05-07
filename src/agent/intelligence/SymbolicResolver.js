@@ -152,7 +152,7 @@ class SymbolicResolver {
 
           _log.info(`[SYMBOLIC] INFERRED "${stepType}" — ${inferred.length} inference(s) (rule: ${inferred[0].rule})`);
 
-          this.bus.emit('symbolic:resolved', {
+          this.bus.fire('symbolic:resolved', {
             level: LEVEL.INFERRED,
             stepType,
             confidence: Math.round(inferred[0].confidence * 100),
@@ -178,7 +178,7 @@ class SymbolicResolver {
 
     _log.info(`[SYMBOLIC] GUIDED "${stepType}" — ${bestSource?.insight?.slice(0, 60) || bestSource?.name || '?'} (conf=${(bestConf * 100).toFixed(0)}%)`);
 
-    this.bus.emit('symbolic:resolved', {
+    this.bus.fire('symbolic:resolved', {
       level: LEVEL.GUIDED,
       stepType,
       confidence: Math.round(bestConf * 100),
@@ -259,7 +259,7 @@ class SymbolicResolver {
 
     _log.info(`[SYMBOLIC] DIRECT "${stepType}" — ${lesson.insight?.slice(0, 60)} (uses=${lesson.useCount}, conf=${(lesson.confidence * 100).toFixed(0)}%)`);
 
-    this.bus.emit('symbolic:resolved', {
+    this.bus.fire('symbolic:resolved', {
       level: LEVEL.DIRECT,
       stepType,
       confidence: Math.round(lesson.confidence * 100),
@@ -309,7 +309,7 @@ class SymbolicResolver {
     this._stats.passes++;
 
     if (stepType) {
-      this.bus.emit('symbolic:fallback', {
+      this.bus.fire('symbolic:fallback', {
         reason,
         stepType,
       }, { source: 'SymbolicResolver' });

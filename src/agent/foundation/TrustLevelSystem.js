@@ -199,7 +199,7 @@ class TrustLevelSystem {
     this._level = level;
     await this._save();
 
-    this.bus.emit('trust:level-changed', { from: prev, to: level }, { source: 'TrustLevelSystem' });
+    this.bus.fire('trust:level-changed', { from: prev, to: level }, { source: 'TrustLevelSystem' });
     return { from: prev, to: level };
   }
 
@@ -243,7 +243,7 @@ class TrustLevelSystem {
     }
 
     if (suggestions.length > 0) {
-      this.bus.emit('trust:upgrades-available', {
+      this.bus.fire('trust:upgrades-available', {
         count: suggestions.length,
         actions: suggestions.map(s => s.actionType),
       }, { source: 'TrustLevelSystem' });
@@ -267,7 +267,7 @@ class TrustLevelSystem {
 
     await this._save();
 
-    this.bus.emit('trust:upgrade-accepted', {
+    this.bus.fire('trust:upgrade-accepted', {
       actionType,
       newLevel: this._level,
     }, { source: 'TrustLevelSystem' });

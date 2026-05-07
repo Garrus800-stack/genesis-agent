@@ -377,7 +377,7 @@ class Settings {
       const eventKey = TOGGLE_EVENT_KEYS[dotPath];
       if (eventKey) {
         try {
-          this._bus.emit(eventKey, { from: oldValue, to: value, key: dotPath }, { source: 'Settings' });
+          this._bus.fire(eventKey, { from: oldValue, to: value, key: dotPath }, { source: 'Settings' });
         } catch (_e) { /* never let event-emit break a save */ }
       }
     }
@@ -440,7 +440,7 @@ class Settings {
     // Emit toggle events after all writes are done
     if (this._bus) {
       for (const ev of eventQueue) {
-        try { this._bus.emit(ev.eventKey, ev.payload, { source: 'Settings' }); }
+        try { this._bus.fire(ev.eventKey, ev.payload, { source: 'Settings' }); }
         catch (_e) { /* never let event-emit break the batch */ }
       }
     }

@@ -124,7 +124,7 @@ class AutoUpdater {
       if (this._isNewer(latestVersion, this._currentVersion)) {
         _log.info(`[AUTO-UPDATE] New version available: v${latestVersion} (current: v${this._currentVersion})`);
 
-        this.bus.emit('update:available', {
+        this.bus.fire('update:available', {
           current: this._currentVersion,
           latest: latestVersion,
           url: release.html_url,

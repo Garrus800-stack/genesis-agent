@@ -84,7 +84,7 @@ class HTNPlanner {
       crossIssues,
     };
 
-    this.bus.emit('htn:plan-validated', summary, { source: 'HTNPlanner' });
+    this.bus.fire('htn:plan-validated', summary, { source: 'HTNPlanner' });
 
     return { ...summary, steps: results };
   }
@@ -287,7 +287,7 @@ class HTNPlanner {
       confidence: this._costHistory.sampleCount > 10 ? 'high' : 'low',
     };
 
-    this.bus.emit('htn:cost-estimated', {
+    this.bus.fire('htn:cost-estimated', {
       steps: steps.length,
       llmCalls: totalLLMCalls,
       tokens: totalTokens,
@@ -359,7 +359,7 @@ class HTNPlanner {
       summary: this._generateDryRunSummary(steps, validation, cost),
     };
 
-    this.bus.emit('htn:dry-run', {
+    this.bus.fire('htn:dry-run', {
       valid: report.valid,
       steps: steps.length,
       issues: validation.totalIssues,

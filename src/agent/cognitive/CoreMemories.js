@@ -187,7 +187,7 @@ class CoreMemories {
     this._logCandidate(candidateRecord);
 
     if (this.bus) {
-      this.bus.emit('core-memory:candidate', {
+      this.bus.fire('core-memory:candidate', {
         candidateId,
         signals: result.signals,
         signalCount: result.signalCount,
@@ -231,7 +231,7 @@ class CoreMemories {
     this._writeIdentity(identity);
 
     if (this.bus) {
-      this.bus.emit('core-memory:created', {
+      this.bus.fire('core-memory:created', {
         id,
         type,
         significance: memory.significance,
@@ -347,10 +347,10 @@ class CoreMemories {
     this._writeIdentity(identity);
 
     if (this.bus) {
-      this.bus.emit('core-memory:created', {
+      this.bus.fire('core-memory:created', {
         id, type, significance: 1.0, signals: ['user-marked'],
       }, { source: 'CoreMemories' });
-      this.bus.emit('core-memory:user-marked', {
+      this.bus.fire('core-memory:user-marked', {
         id, type,
       }, { source: 'CoreMemories' });
     }
@@ -376,7 +376,7 @@ class CoreMemories {
     if (this.bus) {
       const payload = { id: memoryId };
       if (userNote) payload.userNote = userNote.slice(0, 500);
-      this.bus.emit('core-memory:veto', payload, { source: 'CoreMemories' });
+      this.bus.fire('core-memory:veto', payload, { source: 'CoreMemories' });
     }
     return true;
   }
@@ -513,7 +513,7 @@ class CoreMemories {
     this._writeIdentity(identity);
 
     if (this.bus) {
-      this.bus.emit('core-memory:released', {
+      this.bus.fire('core-memory:released', {
         id: coreMemoryId,
         reason,
         releasedAt: cm.releaseTrail.releasedAt,

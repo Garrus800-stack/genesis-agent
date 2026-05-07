@@ -127,7 +127,7 @@ class EventStore {
     }
 
     // Forward to EventBus for real-time listeners
-    this.bus.emit(`store:${type}`, event, { source: 'EventStore' });
+    this.bus.fire(`store:${type}`, event, { source: 'EventStore' });
 
     return event;
   }
@@ -257,7 +257,7 @@ class EventStore {
       // Verify hash chain integrity
       if (event.prevHash !== hash) {
         _log.error(`[EVENT-STORE] Hash chain broken at event ${event.id}!`);
-        this.bus.emit('store:integrity-violation', { eventId: event.id }, { source: 'EventStore' });
+        this.bus.fire('store:integrity-violation', { eventId: event.id }, { source: 'EventStore' });
         break;
       }
 
@@ -403,9 +403,30 @@ class EventStore {
       const raw = this.storage
         ? this.storage.readText('events.jsonl', '')
         : (fs.existsSync(this.logFile) ? fs.readFileSync(this.logFile, 'utf-8') : '');
-      return raw.split('\n').filter(Boolean).map(line => {
-        try { return JSON.parse(line); } catch (err) { return null; }
+      // v7.6.3 L3 fix (silent-catch telemetry): pre-fix this catch block was
+      // truly silent — corruption rows in events.jsonl were dropped with no
+      // observability. Now we count them on this._corruptedRowsSkipped and
+      // fire `eventstore:corrupted-row` once per affected line so audits and
+      // dashboards can see when log integrity has degraded.
+      let corruptedThisRead = 0;
+      const parsed = raw.split('\n').filter(Boolean).map((line, idx) => {
+        try { return JSON.parse(line); }
+        catch (err) {
+          corruptedThisRead++;
+          this._corruptedRowsSkipped = (this._corruptedRowsSkipped || 0) + 1;
+          // Best-effort emit. NullBus.fire is a no-op so this is safe at boot.
+          try {
+            this.bus.fire('eventstore:corrupted-row', {
+              file: this.logFile,
+              line: idx,
+              error: err.message,
+              total: this._corruptedRowsSkipped,
+            }, { source: 'EventStore' });
+          } catch (_) { /* fire-and-forget telemetry must never crash _readLog */ }
+          return null;
+        }
       }).filter(Boolean);
+      return parsed;
     } catch (err) {
       _log.debug('[EVENTSTORE] Log read failed:', err.message);
       return [];

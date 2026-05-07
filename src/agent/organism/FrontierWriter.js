@@ -139,7 +139,7 @@ class FrontierWriter {
       this._invalidateCache();
 
       this._log.info(`[${this._name}] Written: ${label}`);
-      this.bus.emit(`frontier:${this._name}:written`, {
+      this.bus.fire(`frontier:${this._name}:written`, {
         sessionId, edgeType: this._edgeType,
       }, { source: `FrontierWriter:${this._name}` });
 
@@ -184,7 +184,7 @@ class FrontierWriter {
         }
 
         this._log.debug(`[${this._name}] Merged into: ${node.label}`);
-        this.bus.emit(`frontier:${this._name}:merged`, {
+        this.bus.fire(`frontier:${this._name}:merged`, {
           nodeLabel: node.label, edgeType: this._edgeType,
         }, { source: `FrontierWriter:${this._name}` });
 

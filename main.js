@@ -452,7 +452,15 @@ const CHANNELS = {
     return agent.writeOwnFile(filePath, content);
   },
 
-  // FIX v6.1.1: Open a file/folder in the system default application
+  // FIX v6.1.1: Open a file/folder in the system default application.
+  // v7.6.3 S2-fix: path-allowlist symmetric to _externalAllowedDomains.
+  // Pre-fix, agent:open-path opened any absolute path that existed —
+  // including ~/.ssh/id_rsa, /etc/passwd, /root/secret.key. The
+  // restrictor list (contextIsolation + sandbox + IPC-whitelist) is
+  // active, but this channel is whitelisted, and an LLM-crafted tool-call
+  // could pick a sensitive target. Risk is low (no exfiltration; OS only
+  // displays the file) but the asymmetry vs openExternal was a finding
+  // in the v7.6.3 erweiterte Analyse-report.
   'agent:open-path': async (event, filePath) => {
     if (!agent) return { error: 'Agent not booted' };
     const e = _validateStr(filePath, 'filePath');
@@ -468,6 +476,33 @@ const CHANNELS = {
     if (!path.isAbsolute(resolved)) {
       resolved = path.resolve(agent.rootDir, resolved);
     }
+
+    // v7.6.3 S2: path-allowlist. Allow only paths under known-safe roots.
+    // Symmetric to _externalAllowedDomains for openExternal.
+    const _pathAllowedRoots = [
+      agent.rootDir,
+      path.join(os.homedir(), 'Documents'),
+      path.join(os.homedir(), 'Dokumente'),  // German localized
+      path.join(os.homedir(), 'Downloads'),
+      path.join(os.homedir(), 'Desktop'),
+      path.join(os.homedir(), 'Schreibtisch'),  // German localized
+      path.join(os.homedir(), 'Pictures'),
+      path.join(os.homedir(), 'Bilder'),  // German localized
+      path.join(os.homedir(), 'Music'),
+      path.join(os.homedir(), 'Musik'),  // German localized
+      path.join(os.homedir(), 'Videos'),
+    ];
+    const resolvedAbs = path.resolve(resolved);
+    const isUnderAllowed = _pathAllowedRoots.some(root => {
+      const rootAbs = path.resolve(root) + path.sep;
+      const rootSelf = path.resolve(root);
+      return resolvedAbs.startsWith(rootAbs) || resolvedAbs === rootSelf;
+    });
+    if (!isUnderAllowed) {
+      console.warn(`[KERNEL] Blocked open-path — outside allowed roots: ${resolvedAbs}`);
+      return { error: `Path outside allowed roots: ${resolvedAbs}` };
+    }
+
     if (!fs.existsSync(resolved)) {
       return { error: `Path not found: ${resolved}` };
     }

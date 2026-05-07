@@ -212,7 +212,7 @@ describe('M-1x: McpClient has isolation method', () => {
     const os = require('os');
     const { McpClient } = require('../../src/agent/capabilities/McpClient');
     const client = new McpClient({
-      bus: { on() {}, emit() {}, fire() {} },
+      bus: { on() {}, emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } },
       settings: { getMcpServers: () => [] },
       toolRegistry: { register() {} },
       sandbox: { timeout: 5000, execute: async () => ({}) },

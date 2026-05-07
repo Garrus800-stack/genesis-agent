@@ -133,7 +133,7 @@ class SurpriseAccumulator {
 
     // ── 1. Emit amplified learning signal ────────────────
     if (multiplier > this._multipliers.low && this._canEmit()) {
-      this.bus.emit('surprise:amplified-learning', {
+      this.bus.fire('surprise:amplified-learning', {
         actionType: signal.actionType || 'unknown',
         model: signal.model || 'unknown',
         multiplier,
@@ -159,7 +159,7 @@ class SurpriseAccumulator {
 
     // ── 5. Emit processed signal ─────────────────────────
     if (this._canEmit()) {
-      this.bus.emit('surprise:processed', {
+      this.bus.fire('surprise:processed', {
         totalSurprise: signal.totalSurprise,
         valence: signal.valence,
         multiplier,
@@ -223,7 +223,7 @@ class SurpriseAccumulator {
   // ════════════════════════════════════════════════════════
 
   _triggerNoveltyReflection(signal) {
-    this.bus.emit('surprise:novel-event', {
+    this.bus.fire('surprise:novel-event', {
       summary: `Highly unexpected ${signal.valence} outcome ` +
                `for ${signal.actionType || 'action'} ` +
                `(surprise: ${signal.totalSurprise.toFixed(2)})`,

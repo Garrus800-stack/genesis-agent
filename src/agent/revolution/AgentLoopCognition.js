@@ -308,7 +308,7 @@ class AgentLoopCognitionDelegate {
 
     if (level !== 'FULL') {
       _log.warn(`[AGENT-LOOP] Cognitive level: ${level} — bound: [${coreBound.join(', ')}], missing: [${coreMissing.join(', ')}]`);
-      loop.bus.emit('agent:status', {
+      loop.bus.fire('agent:status', {
         state: 'warning',
         detail: `AgentLoop cognitive level: ${level} — missing: ${coreMissing.join(', ')}`,
       }, { source: 'AgentLoop' });

@@ -31,14 +31,14 @@ describe('PreservationInvariants — structure', () => {
 });
 
 describe('PreservationInvariants — SAFETY_RULE_COUNT', () => {
-  test('passes when block rules stay the same', () => {
+  test('preservation contract: passes when block rules stay the same', () => {
     const pi = new PreservationInvariants();
     const old = "severity: 'block'\nseverity: 'block'\nseverity: 'block'";
     const r = pi.check('CodeSafetyScanner.js', old, old);
     assert(r.safe, 'same count should pass');
   });
 
-  test('passes when block rules increase', () => {
+  test('preservation contract: passes when block rules increase', () => {
     const pi = new PreservationInvariants();
     const old = "severity: 'block'\nseverity: 'block'";
     const neu = "severity: 'block'\nseverity: 'block'\nseverity: 'block'";
@@ -46,7 +46,7 @@ describe('PreservationInvariants — SAFETY_RULE_COUNT', () => {
     assert(r.safe, 'more rules should pass');
   });
 
-  test('fails when block rules decrease', () => {
+  test('preservation contract: fails when block rules decrease', () => {
     const pi = new PreservationInvariants();
     const old = "severity: 'block'\nseverity: 'block'\nseverity: 'block'";
     const neu = "severity: 'block'";
@@ -57,14 +57,14 @@ describe('PreservationInvariants — SAFETY_RULE_COUNT', () => {
 });
 
 describe('PreservationInvariants — SCANNER_FAIL_CLOSED', () => {
-  test('passes when fail-closed preserved', () => {
+  test('preservation contract: passes when fail-closed preserved', () => {
     const pi = new PreservationInvariants();
     const code = "safe: false\nscanner unavailable";
     const r = pi.check('CodeSafetyScanner.js', code, code);
     assert(r.safe, 'unchanged fail-closed should pass');
   });
 
-  test('fails when fail-closed removed', () => {
+  test('preservation contract: fails when fail-closed removed', () => {
     const pi = new PreservationInvariants();
     const old = "safe: false\nscanner unavailable";
     const neu = "safe: true\nscanner ok";
@@ -195,7 +195,7 @@ describe('PreservationInvariants — fail-closed', () => {
 describe('PreservationInvariants — event emission', () => {
   test('emits preservation:violation on failure', () => {
     let emitted = null;
-    const pi = new PreservationInvariants({ bus: { emit: (e, d) => { emitted = { event: e, data: d }; } } });
+    const pi = new PreservationInvariants({ bus: { emit: (e, d) => { emitted = { event: e, data: d }; } , fire(...args) { return this.emit ? this.emit(...args) : undefined; }} });
     const old = "severity: 'block'\nseverity: 'block'\nseverity: 'block'";
     const neu = "severity: 'block'";
     pi.check('CodeSafetyScanner.js', old, neu);
@@ -205,7 +205,7 @@ describe('PreservationInvariants — event emission', () => {
 
   test('does not emit on success', () => {
     let emitted = false;
-    const pi = new PreservationInvariants({ bus: { emit: () => { emitted = true; } } });
+    const pi = new PreservationInvariants({ bus: { emit: () => { emitted = true; } , fire(...args) { return this.emit ? this.emit(...args) : undefined; }} });
     pi.check('CodeSafetyScanner.js', "severity: 'block'", "severity: 'block'");
     assert(!emitted, 'should not emit on success');
   });

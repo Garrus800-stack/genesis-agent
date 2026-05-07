@@ -11,7 +11,7 @@ const mockBus = {
   on: () => {},
   emit: () => {},
   off: () => {},
-};
+ fire(...args) { return this.emit ? this.emit(...args) : undefined; }};
 
 const mockStorage = {
   _data: {},

@@ -261,7 +261,7 @@ class GenesisBackup {
   _emitDegraded(reason) {
     if (!this.bus) return;
     try {
-      this.bus.emit('safety:degraded', {
+      this.bus.fire('safety:degraded', {
         service: 'genesisBackup',
         level: 'warning',
         reason,

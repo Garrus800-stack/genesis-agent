@@ -103,7 +103,7 @@ describe('ModuleRegistry — validate()', () => {
 
   test('reports missing deps as issues', () => {
     const { Container } = require('../../src/agent/core/Container');
-    const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const c = new Container(bus);
     const mr = new ModuleRegistry(c, bus);
     class J {}
@@ -116,7 +116,7 @@ describe('ModuleRegistry — validate()', () => {
 describe('ModuleRegistry — wireLateBindings()', () => {
   test('returns warnings for unknown binding target', () => {
     const { Container } = require('../../src/agent/core/Container');
-    const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const c = new Container(bus);
     const mr = new ModuleRegistry(c, bus);
     mr.lateBindings.push({ target: 'ghost', property: '_x', source: 'test' });
@@ -127,7 +127,7 @@ describe('ModuleRegistry — wireLateBindings()', () => {
 
   test('wires binding when both services exist', () => {
     const { Container } = require('../../src/agent/core/Container');
-    const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const c = new Container(bus);
     const target = { _src: null };
     const src = { value: 42 };
@@ -146,7 +146,7 @@ describe('ModuleRegistry — wireLateBindings()', () => {
 describe('ModuleRegistry — bootAll()', () => {
   test('boots modules with factory in phase order', async () => {
     const { Container } = require('../../src/agent/core/Container');
-    const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const c = new Container(bus);
     const mr = new ModuleRegistry(c, bus);
 
@@ -168,7 +168,7 @@ describe('ModuleRegistry — bootAll()', () => {
 
   test('boots module using class constructor when no factory', async () => {
     const { Container } = require('../../src/agent/core/Container');
-    const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const c = new Container(bus);
     const mr = new ModuleRegistry(c, bus);
 
@@ -183,7 +183,7 @@ describe('ModuleRegistry — bootAll()', () => {
 
   test('skips optional module when factory throws', async () => {
     const { Container } = require('../../src/agent/core/Container');
-    const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const c = new Container(bus);
     const mr = new ModuleRegistry(c, bus);
 
@@ -199,7 +199,7 @@ describe('ModuleRegistry — bootAll()', () => {
 
   test('throws on fatal non-optional module failure', async () => {
     const { Container } = require('../../src/agent/core/Container');
-    const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const c = new Container(bus);
     const mr = new ModuleRegistry(c, bus);
 
@@ -215,7 +215,7 @@ describe('ModuleRegistry — bootAll()', () => {
 
   test('non-singleton module not eagerly resolved', async () => {
     const { Container } = require('../../src/agent/core/Container');
-    const bus = { emit(){}, fire(){}, on(){ return ()=>{}; } };
+    const bus = { emit(){}, fire(...args) { return this.emit ? this.emit(...args) : undefined; }, on(){ return ()=>{}; } };
     const c = new Container(bus);
     const mr = new ModuleRegistry(c, bus);
 

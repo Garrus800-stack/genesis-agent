@@ -2,7 +2,7 @@
 const { describe, test, assert, run } = require('../harness');
 const { ValueStore } = require('../../src/agent/planning/ValueStore');
 
-const mockBus = { on() {}, emit() {}, fire() {} };
+const mockBus = { on() {}, emit() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
 
 function createStore(opts = {}) {
   return new ValueStore({ bus: mockBus, storage: null, ...opts });

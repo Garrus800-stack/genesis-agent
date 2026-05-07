@@ -213,7 +213,7 @@ class FailureTaxonomy {
       this._history = this._history.slice(-this._maxHistory);
     }
 
-    this.bus.emit('failure:classified', {
+    this.bus.fire('failure:classified', {
       category,
       strategy: result.strategy,
       confidence,

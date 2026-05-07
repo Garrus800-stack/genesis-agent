@@ -107,7 +107,7 @@ class EffectorRegistry {
     });
 
     this._stats.registered++;
-    this.bus.emit('effector:registered', { name: effector.name, risk: effector.risk }, { source: 'EffectorRegistry' });
+    this.bus.fire('effector:registered', { name: effector.name, risk: effector.risk }, { source: 'EffectorRegistry' });
   }
 
   /**
@@ -140,7 +140,7 @@ class EffectorRegistry {
         this._stats.blocked++;
         this._log(name, params, { blocked: true, reason: check.reason });
 
-        this.bus.emit('effector:blocked', {
+        this.bus.fire('effector:blocked', {
           name,
           reason: check.reason,
         }, { source: 'EffectorRegistry' });
@@ -160,7 +160,7 @@ class EffectorRegistry {
       if (!met) {
         this._stats.failures++;
 
-        this.bus.emit('effector:blocked', {
+        this.bus.fire('effector:blocked', {
           name,
           reason: `Precondition not met: ${precondition.description || precondition.message || precondition}`,
         }, { source: 'EffectorRegistry' });
@@ -188,7 +188,7 @@ class EffectorRegistry {
       this._stats.failures++;
       this._log(name, params, { error: err.message, durationMs: Date.now() - startMs });
 
-      this.bus.emit('effector:failed', {
+      this.bus.fire('effector:failed', {
         name,
         error: err.message,
       }, { source: 'EffectorRegistry' });
@@ -213,7 +213,7 @@ class EffectorRegistry {
     this._stats.successes++;
     this._log(name, params, { result, durationMs, verified });
 
-    this.bus.emit('effector:executed', {
+    this.bus.fire('effector:executed', {
       name,
       durationMs,
       verified,
@@ -327,7 +327,7 @@ class EffectorRegistry {
         } catch (_e) { _log.debug('[catch] not in Electron main process:', _e.message); }
 
         // Fallback: emit event for UI to handle
-        this.bus.emit('notification:show', { title, body }, { source: 'EffectorRegistry' });
+        this.bus.fire('notification:show', { title, body }, { source: 'EffectorRegistry' });
         return { sent: true, method: 'event' };
       },
     });
