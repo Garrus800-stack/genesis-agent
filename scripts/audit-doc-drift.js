@@ -265,9 +265,11 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '6709 passing',      label: 'badge: tests',
+        tests:      { live: '6799 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
+                      // v7.6.6: Win-baseline 6709 + 90 (39 new v766-* tests +
+                      // 51 from existing platform-conditional tests now active) = 6799.
                       compare: (got, exp) => got === exp },
         modules:    { live: SOURCE,              label: 'badge: modules' },
         events:     { live: CATALOG,             label: 'badge: events' },

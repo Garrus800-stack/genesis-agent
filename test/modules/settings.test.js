@@ -49,7 +49,12 @@ describe('Settings', () => {
     // Raw value should be encrypted
     const raw = s.data.models.anthropicApiKey;
     assert(typeof raw === 'string', 'should store as string');
-    assert(raw.startsWith('ENC:') || raw.startsWith('ENCv2:') || raw.startsWith('enc2:'), 'should be encrypted');
+    // v7.6.6: enc3: is the new default (installation-anchored), enc2: is the
+    // fallback when install-id is unavailable, ENC:/ENCv2:/enc:/enc2: cover
+    // legacy formats still in the wild.
+    assert(raw.startsWith('ENC:') || raw.startsWith('ENCv2:')
+        || raw.startsWith('enc:') || raw.startsWith('enc2:') || raw.startsWith('enc3:'),
+      'should be encrypted');
     // get() should decrypt transparently
     assertEqual(s.get('models.anthropicApiKey'), 'sk-ant-test-12345');
   });

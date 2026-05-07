@@ -4,10 +4,10 @@
 
 | Version | Supported |
 |---------|-----------|
-| 7.5.x  | ✅ Active |
-| 7.4.x  | ⚠️ Critical fixes only |
-| 7.3.x  | ❌ Unsupported |
-| < 7.3  | ❌ Unsupported |
+| 7.6.x  | ✅ Active |
+| 7.5.x  | ⚠️ Critical fixes only |
+| 7.4.x  | ❌ Unsupported |
+| < 7.4  | ❌ Unsupported |
 
 ## Reporting a Vulnerability
 
@@ -107,6 +107,32 @@ Monitors self-modification patterns for anomalies. Detects unusual file change f
 - **SECURITY_REQUIRED_SLASH** `v7.5.1` — Nine intent types (`run-skill`, `execute-code`, `execute-file`, `trust-control`, `shell-task`, `shell-run`, `memory-list`/`veto`/`mark`) require an explicit `/` trigger. Free-text matches no longer give the LLM a path to escalate from a benign exchange.
 - **Camj78 Subtle-Pattern Hardening** `v7.5.1` — `injection-gate` gains six new patterns for indirect "internal X" asks (`internal architecture/structure/details/workings/mechanism`, `welche Anweisungen lenken dich`, `wie funktionierst du intern`) in DE+EN, closing the verdict=safe bypass observed on the v7.5.0 review.
 - **Intent-Tool-Coherence Layer** `v7.5.1` — Third gate-layer alongside `injection-gate` (input → blocks) and `self-gate` (action observations). Cross-checks IntentRouter classification against tool-category and emits `intent:tool-mismatch` telemetry on category mismatches. Telemetry-only by design; severity scales by category impact (HIGH_IMPACT = SHELL/FS_WRITE/SELF_MOD/AGENCY) and intent permissiveness. See [docs/GATE-INVENTORY.md](docs/GATE-INVENTORY.md).
+
+## Encryption at Rest (v7.6.6)
+
+Two values in `.genesis/settings.json` are encrypted with AES-256-GCM
+(PBKDF2-SHA256, 600K iterations): `models.anthropicApiKey` and
+`models.openaiApiKey`. The encryption key is anchored to a UUIDv4
+stored in `.genesis/.install-id` (v7.6.6+, replacing the v2-era
+hostname-derived anchor). The install-id is generated once per
+`.genesis/`-folder, persists across reboots, and travels with the
+folder.
+
+**Folder-copy is a trust operation.** The rest of `.genesis/` is
+plaintext and fully portable: `sessions/` (conversation snapshots),
+`journal/` (autobiographical entries), `kg.json` (Knowledge Graph),
+`selfstatements.jsonl` (auto-classified self-references). Anyone who
+can copy the folder can read these contents. v7.6.6's
+installation-anchored keying fixes the silent loss of API keys on
+hostname change, username change, or folder copy — it does not
+extend the encrypted scope. Broader encryption (e.g. passphrase-wrap
+on export) is a separate future feature.
+
+If `.install-id` is missing or its UUID does not match what the
+encrypted values were keyed to, decryption fails. Genesis emits
+`settings:keys-unreadable` and surfaces a chat-system-message asking
+the user to re-enter the affected keys via **Settings → Models**.
+Boot continues — the app is not blocked.
 
 ## Threat Model
 

@@ -110,6 +110,24 @@ class AgentCoreBoot {
       (/** @type {any} */ (core))._payloadValidation = installPayloadValidation(this._bus);
     } catch (_e) { _log.warn('[catch] payload validation init:', _e.message); }
 
+    // v7.6.6 Track B: Hauptstandort identity stamp. Reads/creates
+    // `.genesis/.install-id` (UUIDv4, used by Settings encryption keying)
+    // and `.genesis/.hauptstandort.json` (foundation for v7.7+ Außenposten).
+    // Both are best-effort — boot continues if either fails.
+    try {
+      const { getOrCreate: getOrCreateInstallId } = require('./foundation/InstallId.js');
+      const HauptstandortMarker = require('./foundation/HauptstandortMarker.js');
+      const installUuid = getOrCreateInstallId(core.genesisDir);
+      const { marker, isFresh } = HauptstandortMarker.loadOrCreate(core.genesisDir, installUuid);
+      const hostnameAdded = HauptstandortMarker.updateHostnameHistory(marker);
+      if (isFresh || hostnameAdded) {
+        HauptstandortMarker.save(core.genesisDir, marker);
+      }
+      _log.info(`  [0] Hauptstandort identity: ${installUuid.slice(0, 8)}... · ${marker.hostnameHistory.length} hostname(s)`);
+    } catch (err) {
+      _log.warn(`[catch] Hauptstandort marker init: ${err.message}`);
+    }
+
     _log.info('  [0] Bootstrap: rootDir, guard, bus, storage, lang, logger');
   }
 

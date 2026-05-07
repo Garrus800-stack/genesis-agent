@@ -1295,6 +1295,14 @@ const EVENTS = Object.freeze({
     AUTO_ROUTE_TOGGLED:    'settings:auto-route-toggled',
     /** @payload {{ from: boolean, to: boolean, key: string }} */
     MCP_SERVE_TOGGLED:     'settings:mcp-serve-toggled',
+    /** v7.6.6: Fired during Settings.setBus() if any SENSITIVE_KEYS value
+     *  could not be decrypted with the active encryption key (typically
+     *  after `.install-id` rotation or restoration without re-key
+     *  migration). Non-blocking — Genesis boots without the affected
+     *  values; UI may surface a banner asking the user to re-enter via
+     *  /setkey. Cleared after fire so re-setBus() does not refire.
+     *  @payload {{ keys: string[] }} */
+    KEYS_UNREADABLE:       'settings:keys-unreadable',
   }),
 
   // ── Chat system messages (v7.4.7) ────────────────────

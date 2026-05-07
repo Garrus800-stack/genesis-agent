@@ -11,8 +11,17 @@ Less common fields are documented inline in the UI via per-field hints
 range.
 
 Settings persist in `.genesis/settings.json`. API keys and the peer
-discovery token are encrypted at rest with a per-install random salt
-in `.genesis/enc-salt`.
+discovery token are encrypted at rest with AES-256-GCM, anchored to a
+per-installation UUID stored in `.genesis/.install-id` (v7.6.6+) and
+salted via `.genesis/enc-salt`. The install-id is generated once per
+`.genesis/`-folder and survives hostname changes, username changes,
+and folder copies between machines — encrypted values stay readable
+as long as `.install-id` travels with the folder. If `.install-id` is
+missing or rotated, encrypted values become unreadable; Genesis will
+boot, log a warning (`settings:keys-unreadable` event), and surface a
+chat-system-message asking you to re-enter the affected keys via
+**Settings → Models**. See [SECURITY.md](../SECURITY.md) for the
+threat model around `.genesis/`-folder portability.
 
 ---
 
@@ -181,6 +190,8 @@ shows up here. Quiet log = vanilla install.
 |---|---|
 | `.genesis/settings.json` | All your settings (encrypted secrets) |
 | `.genesis/enc-salt` | Random salt for the secret encryption (per-install) |
+| `.genesis/.install-id` | Per-installation UUID (v7.6.6+) — encryption key anchor; survives hostname/username changes and folder copies |
+| `.genesis/.hauptstandort.json` | Hauptstandort identity stamp (v7.6.6+) — install-uuid, creation timestamp, hostname-history; foundation for v7.7+ Außenposten |
 | `.genesis/trust-level.json` | Trust level state (separate from `settings.json` for safety) |
 | `.genesis/settings.bak` | Last-known-good settings, written when `Save` succeeds |
 

@@ -1,6 +1,6 @@
 # Genesis Agent — Event Flow Architecture
 
-> v7.6.5 — Event flow documentation. 452 catalogued events, 452 payload schemas (full parity since v7.6.x — every catalog entry has a registered schema),
+> v7.6.6 — Event flow documentation. 453 catalogued events, 453 payload schemas (full parity since v7.6.x — every catalog entry has a registered schema),
 > all emit sites validated (0 mismatches). v7.6.3 dropped 4 dead entries (`self-gate:blocked`, three `frontier:*:written`); 25 `store:*` entries that were briefly removed as part of the same sweep are restored, with B1+B2 regression tests in `store-event-catalog.test.js` enforcing the link from every `eventStore.append('TYPE', ...)` call site to its catalog + schema entry. Active gates with bus events:
 > Injection-Gate (`injection:blocked`), Tool-Call-Verification (`tool-call:unverified`),
 > Self-Gate (`self-gate:warned`, telemetry-only by design), Source-Read (`read-source:called`,

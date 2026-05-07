@@ -1,3 +1,115 @@
+## [7.6.6]
+
+API-Keys überleben jetzt Hostname-Wechsel, `.genesis/`-Folder-Copy
+zwischen Rechnern und Username-Änderungen. Vorher anchored der
+Encryption-Key auf `os.hostname():username` (Settings.js Z.42) — drei
+real existierende Brokenness-Szenarien, in denen Keys silent verloren
+gingen. Jetzt anchored er auf eine UUIDv4 in `.genesis/.install-id`,
+die mit dem Folder wandert.
+
+Schließt außerdem zwei kleinere Backlog-Items: CostStream zählt jetzt
+`goal:dissonance-pushback` events analog zum v7.6.3 failover-counter,
+und das `.genesis/.hauptstandort.json` Marker-File wird als Foundation
+für die v7.7+ Hauptstandort/Außenposten-Architektur angelegt (in
+v7.6.6 noch ohne Verhalten, nur Datenstruktur reserviert).
+
+### Added
+
+- **`InstallId.js` Foundation-Modul.** `getOrCreate(genesisDir)`
+  lazy-creates `.install-id` mit UUIDv4, race-safe (`fs.writeFileSync`
+  flag `wx`), validiert UUID-Format on read, rotiert bei Korruption,
+  best-effort chmod 0600. Genutzt von Settings (encryption-key) und
+  HauptstandortMarker (identity stamp).
+
+- **`enc3:` Prefix in Settings.js.** Encryption nutzt jetzt
+  install-id-derived key statt hostname-derived. Legacy `enc:`/`enc2:`
+  Werte werden bei erstem v7.6.6-Boot bulk auf `enc3:` migriert
+  (`_migrateLegacyEncryption()` in `_load()`), mit
+  `settings.json.pre-v3-migration` Backup vor Rewrite. Idempotent —
+  zweiter Boot ist No-op.
+
+- **`settings:keys-unreadable` event + AgentCoreWire subscriber.**
+  Settings.setBus() fires this when SENSITIVE_KEYS were unreadable
+  during migration (e.g. after `.install-id` rotation). Payload
+  `{keys: string[]}`. AgentCoreWire registers a listener BEFORE
+  setBus() so the synchronous initial fire is captured, then re-fires
+  as `chat:system-message` with the affected key paths — the user
+  sees a system-message in chat asking to re-enter via Settings →
+  Models. Buffer cleared after fire; non-blocking, Genesis boots.
+
+- **`HauptstandortMarker.js` Foundation-Modul.**
+  `.genesis/.hauptstandort.json` mit
+  `{schemaVersion, installUuid, createdAt, role, parentInstallUuid, hostnameHistory[]}`.
+  In v7.6.6 ist `role` immer `'hauptstandort'` und `parentInstallUuid`
+  immer `null`; v7.7+ Außenposten setzen die Felder anders, ohne
+  Schema-Migration nötig. AgentCoreBoot Phase 0 lädt-oder-erstellt den
+  Marker, hängt aktuelle (host, user)-tuple an `hostnameHistory` an
+  wenn neu, atomic save (tmp+rename, chmod 0600). InstallUuid-Mismatch
+  wird geloggt aber nicht überschrieben (operator-investigable).
+
+- **`goal:dissonance-pushback` Listener in CostStream.** Counter-only
+  pattern analog zum v7.6.3 failover-listener — Pushback ist Signal
+  ohne Token-Cost, kein JSONL-row. `_dissonanceTally` mit
+  `{total, lastAt, lastScore, lastSource}`, exposed via `getStats()`,
+  cleanup in `stop()`. Closeout des v7.5.x backlog-items
+  "CostStream-Failover-Listener wiring" (extended auf dissonance).
+
+### Changed
+
+- **`Settings._deriveKey` ist jetzt instance-aware.** Module-level
+  `deriveKey(salt, iterations, machineId)` nimmt machineId als
+  Parameter (vorher hostname hardcoded). `encryptValue` und
+  `decryptValue` nehmen optional `installId`; ohne installId fallen
+  sie auf hostname-key zurück (Backward-Compat für Legacy-Werte).
+  Kein Verhaltens-Bruch für Bestandscode.
+
+- **`.genesis/enc-salt`** unverändert. v3 nutzt denselben Salt wie v2;
+  nur der machineId-Input zur PBKDF2 hat sich geändert.
+
+### AUDIT-BACKLOG
+
+- Eintrag "27 latente TS errors in 6 files" entfernt — war seit
+  v7.6.4 T5 strukturell resolved (`tsc --project tsconfig.ci.json
+  --noEmit` exit 0), hatte aber als stale entry überlebt.
+
+- Eintrag "`os.hostname():username:genesis-v2` storage-encryption key"
+  ist genau das, was Track A fixt.
+
+Section "Items still deferred after v7.6.5" damit leer und entfernt.
+
+### Documentation
+
+- `SECURITY.md`: Versions-Tabelle aktualisiert (7.5.x von Active auf
+  Critical-fixes-only; 7.6.x ist neu Active). Neuer Abschnitt
+  "Encryption at Rest (v7.6.6)" beschreibt was encrypted ist (zwei
+  API-Keys), was plaintext-portabel ist (sessions, journal, kg,
+  selfstatements), und was bei `.install-id`-Verlust passiert.
+- `docs/SETTINGS.md`: Header-Absatz und Files-Tabelle erweitert um
+  `.install-id` und `.hauptstandort.json`. Folder-Portabilität jetzt
+  erklärt; vorher nur `enc-salt` erwähnt.
+
+### Stats
+
+- +39 Tests verteilt über 4 neue Files (`v766-install-id` 10,
+  `v766-settings-key-migration` 11, `v766-hauptstandort-marker` 11,
+  `v766-coststream-dissonance` 7). Win-baseline 6709 → 6799 (siehe
+  README badge / banner).
+- Settings.js 605 → 819 LOC (joins existing File-Size-Guard WARN list
+  mit GoalStack 851 und AgentLoop 868; selbe threshold-tier, kein
+  fitness-score-regression).
+- Catalog/schemas 452 → 453 (settings:keys-unreadable), 100% parity.
+
+### Future
+
+- **v7.7.x:** `/migrate-identity export <passphrase>` slash für
+  Außenposten-Setup. v7.6.6 reicht folder-copy aus weil nur 2 values
+  encrypted sind; mit Außenposten kommt mehr encrypted state und
+  passphrase-wrapping wird nötig.
+- **v7.7.x:** Outpost-detection-logic auf Marker-Schema aufbauend.
+- **v7.7.x:** Self-Gate per-node configurability.
+
+---
+
 ## [7.6.5]
 
 **Raw-setTimeout phase 2 closeout, ModelBridge file-size split, and structural README-badge drift fix.**

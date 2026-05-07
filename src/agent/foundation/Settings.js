@@ -35,36 +35,76 @@ const ENC_PREFIX = 'enc:';
 // Old 'enc:' prefix = 10,000 iterations (read-compatible, auto-upgraded on next write).
 // New 'enc2:' prefix = 600,000 iterations (OWASP 2023 minimum for SHA-256).
 const ENC_PREFIX_V2 = 'enc2:';
+// v7.6.6 Track A: v3 prefix for installation-anchored keys.
+// machineId now derives from `.genesis/.install-id` (UUIDv4) instead of
+// `os.hostname():username`. Survives hostname changes, username changes,
+// and `.genesis/`-folder copy across machines. Iteration count unchanged
+// (600k OWASP 2023). Legacy v1/v2 values auto-migrate on first v7.6.6 boot.
+const ENC_PREFIX_V3 = 'enc3:';
 const PBKDF2_ITERATIONS_V1 = 10000;
 const PBKDF2_ITERATIONS_V2 = 600000;
 
-function deriveKey(salt, iterations = PBKDF2_ITERATIONS_V2) {
-  const machineId = `${os.hostname()}:${os.userInfo().username}:genesis-v2`;
+// v7.6.6: Legacy machine-id used by enc:/enc2: ciphertexts. Kept for
+// backward-compat decrypt path (read v1/v2 values written before v7.6.6).
+function legacyMachineId() {
+  return `${os.hostname()}:${os.userInfo().username}:genesis-v2`;
+}
+
+function deriveKey(salt, iterations, machineId) {
   return crypto.pbkdf2Sync(machineId, salt, iterations, 32, 'sha256');
 }
 
-function encryptValue(plaintext, salt) {
-  if (!plaintext || plaintext.startsWith(ENC_PREFIX_V2) || plaintext.startsWith(ENC_PREFIX)) return plaintext;
-  // FIX v4.10.0: Always encrypt with v2 (600k iterations)
-  const key = deriveKey(salt, PBKDF2_ITERATIONS_V2);
+function encryptValue(plaintext, salt, installId) {
+  if (!plaintext
+      || plaintext.startsWith(ENC_PREFIX_V3)
+      || plaintext.startsWith(ENC_PREFIX_V2)
+      || plaintext.startsWith(ENC_PREFIX)) {
+    return plaintext;
+  }
+  let prefix, machineId;
+  if (installId) {
+    // v7.6.6 default — installation-anchored
+    prefix = ENC_PREFIX_V3;
+    machineId = installId;
+  } else {
+    // Fallback when install-id unavailable (e.g. fs error). Still secure
+    // as long as caller is on the original machine; matches pre-v7.6.6
+    // behavior.
+    prefix = ENC_PREFIX_V2;
+    machineId = legacyMachineId();
+  }
+  const key = deriveKey(salt, PBKDF2_ITERATIONS_V2, machineId);
   const iv = crypto.randomBytes(12);
   const cipher = /** @type {*} */ (crypto.createCipheriv('aes-256-gcm', key, iv));
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
   const tag = cipher.getAuthTag().toString('hex');
-  return `${ENC_PREFIX_V2}${iv.toString('hex')}:${tag}:${encrypted}`;
+  return `${prefix}${iv.toString('hex')}:${tag}:${encrypted}`;
 }
 
-function decryptValue(ciphertext, salt) {
+function decryptValue(ciphertext, salt, installId) {
   if (!ciphertext) return ciphertext;
-  // FIX v4.10.0: Support both v1 (10k) and v2 (600k) prefixes for backward compat
-  let prefix, iterations;
-  if (ciphertext.startsWith(ENC_PREFIX_V2)) {
+  let prefix, iterations, machineId;
+  if (ciphertext.startsWith(ENC_PREFIX_V3)) {
+    if (!installId) {
+      // enc3 value present but no install-id available — caller (Settings
+      // instance) tracks this in _unreadableKeys so setBus() can fire
+      // settings:keys-unreadable. Return empty string for compat with
+      // pre-v7.6.6 callers that expect string return.
+      _log.warn('[SETTINGS] enc3 value present but install-id unavailable');
+      return '';
+    }
+    prefix = ENC_PREFIX_V3;
+    iterations = PBKDF2_ITERATIONS_V2;
+    machineId = installId;
+  } else if (ciphertext.startsWith(ENC_PREFIX_V2)) {
     prefix = ENC_PREFIX_V2;
     iterations = PBKDF2_ITERATIONS_V2;
+    machineId = legacyMachineId();
   } else if (ciphertext.startsWith(ENC_PREFIX)) {
     prefix = ENC_PREFIX;
     iterations = PBKDF2_ITERATIONS_V1;
+    machineId = legacyMachineId();
   } else {
     return ciphertext; // Not encrypted
   }
@@ -72,7 +112,7 @@ function decryptValue(ciphertext, salt) {
     const parts = ciphertext.slice(prefix.length).split(':');
     if (parts.length !== 3) return ciphertext;
     const [ivHex, tagHex, encHex] = parts;
-    const key = deriveKey(salt, iterations);
+    const key = deriveKey(salt, iterations, machineId);
     const decipher = /** @type {*} */ (crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivHex, 'hex')));
     decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
     let decrypted = decipher.update(encHex, 'hex', 'utf8');
@@ -87,11 +127,20 @@ function decryptValue(ciphertext, salt) {
 class Settings {
   constructor(storageDir, storage) {
     this.storage = storage || null;
+    this._storageDir = storageDir;
     this.filePath = path.join(storageDir, 'settings.json');
     // v7.4.7: Optional bus for emitting setting-change events.
     // Set later via setBus(). Used so that Daemon/IdleMind/SelfMod
     // toggles take effect at runtime, not just at next boot.
     this._bus = null;
+    // v7.6.6 Track A: installation-anchored encryption.
+    // Lazy-loaded on first crypto operation via _getInstallId().
+    // Sentinel '' = "tried, failed, fall back to legacy hostname-key".
+    this._installId = null;
+    // v7.6.6 Track A.4: SENSITIVE_KEYS that could not be decrypted during
+    // load/migration. Fired as settings:keys-unreadable from setBus()
+    // once the bus is available, then cleared.
+    this._unreadableKeys = [];
     // FIX v4.10.0 (M-4): Use a randomly generated salt persisted to disk.
     // Previously, salt was deterministic from storageDir path — an attacker
     // with local access could reconstruct the key without brute force.
@@ -342,15 +391,47 @@ class Settings {
   }
 
 
+  /**
+   * v7.6.6 Track A: Lazy-load the installation UUID from `.install-id`.
+   * Cached in this._installId. Sentinel '' on failure (fall back to
+   * legacy hostname-derived key for encrypt/decrypt). Returns null when
+   * the cached sentinel is empty so callers see a clean tri-state:
+   * UUID-string | null.
+   */
+  _getInstallId() {
+    if (this._installId !== null) {
+      return this._installId || null;
+    }
+    try {
+      const { getOrCreate } = require('./InstallId.js');
+      this._installId = getOrCreate(this._storageDir);
+    } catch (err) {
+      _log.warn(`[SETTINGS] InstallId unavailable, falling back to legacy machine-id: ${err.message}`);
+      this._installId = ''; // sentinel: tried, failed
+    }
+    return this._installId || null;
+  }
+
   /** @param {string} dotPath @param {*} value */
   /**
    * v7.4.7: Late-bind a bus so set() can emit toggle events for
    * Daemon/IdleMind/SelfMod runtime toggles. Called from AgentCoreWire
    * after Settings is resolved (Settings is in phase 0, bus also).
+   *
+   * v7.6.6 Track A.4: Also fires settings:keys-unreadable for any
+   * SENSITIVE_KEYS that failed to decrypt during load (e.g. after
+   * `.install-id` rotation). Buffer is cleared after fire so subsequent
+   * setBus() calls do not refire the same event.
    * @param {*} bus
    */
   setBus(bus) {
     this._bus = bus || null;
+    if (this._bus && this._unreadableKeys.length > 0) {
+      try {
+        this._bus.fire('settings:keys-unreadable', { keys: this._unreadableKeys.slice() }, { source: 'Settings' });
+      } catch (_e) { /* never let event-fire break setBus */ }
+      this._unreadableKeys = [];
+    }
   }
 
   set(dotPath, value) {
@@ -365,8 +446,11 @@ class Settings {
     // toggles — without this, AgentCoreWire's listener can't tell if
     // the value actually changed.
     const oldValue = obj[parts[parts.length - 1]];
-    if (SENSITIVE_KEYS.has(dotPath) && value && typeof value === 'string' && !value.startsWith(ENC_PREFIX) && !value.startsWith(ENC_PREFIX_V2)) {
-      obj[parts[parts.length - 1]] = encryptValue(value, this._encSalt);
+    if (SENSITIVE_KEYS.has(dotPath) && value && typeof value === 'string'
+        && !value.startsWith(ENC_PREFIX)
+        && !value.startsWith(ENC_PREFIX_V2)
+        && !value.startsWith(ENC_PREFIX_V3)) {
+      obj[parts[parts.length - 1]] = encryptValue(value, this._encSalt, this._getInstallId());
     } else {
       obj[parts[parts.length - 1]] = value;
     }
@@ -408,8 +492,11 @@ class Settings {
         obj = obj[parts[i]];
       }
       const oldValue = obj[parts[parts.length - 1]];
-      if (SENSITIVE_KEYS.has(dotPath) && value && typeof value === 'string' && !value.startsWith(ENC_PREFIX) && !value.startsWith(ENC_PREFIX_V2)) {
-        obj[parts[parts.length - 1]] = encryptValue(value, this._encSalt);
+      if (SENSITIVE_KEYS.has(dotPath) && value && typeof value === 'string'
+          && !value.startsWith(ENC_PREFIX)
+          && !value.startsWith(ENC_PREFIX_V2)
+          && !value.startsWith(ENC_PREFIX_V3)) {
+        obj[parts[parts.length - 1]] = encryptValue(value, this._encSalt, this._getInstallId());
       } else {
         obj[parts[parts.length - 1]] = value;
       }
@@ -452,8 +539,9 @@ class Settings {
     const parts = dotPath.split('.');
     /** @type {*} */ let val = this.data;
     for (const p of parts) { if (val == null) return undefined; val = val[p]; }
-    if (SENSITIVE_KEYS.has(dotPath) && typeof val === 'string' && (val.startsWith(ENC_PREFIX) || val.startsWith(ENC_PREFIX_V2))) {
-      return decryptValue(val, this._encSalt);
+    if (SENSITIVE_KEYS.has(dotPath) && typeof val === 'string'
+        && (val.startsWith(ENC_PREFIX) || val.startsWith(ENC_PREFIX_V2) || val.startsWith(ENC_PREFIX_V3))) {
+      return decryptValue(val, this._encSalt, this._getInstallId());
     }
     return val;
   }
@@ -518,11 +606,132 @@ class Settings {
       if (loaded) {
         this.data = this._deepMerge(this.data, loaded);
         this._migratePlaintextKeys();
+        // v7.6.6 Track A.3: Re-key legacy enc:/enc2: ciphertexts to enc3:
+        // (installation-anchored). Atomic, idempotent, partial-success-safe.
+        this._migrateLegacyEncryption();
+        // v7.6.6 Track A.4: Detect enc3: values that fail to decrypt
+        // (typically after .install-id rotation). Buffered for setBus()
+        // to fire as settings:keys-unreadable.
+        this._checkUnreadableV3Keys();
       }
     } catch (err) { _log.warn('[SETTINGS] Load failed, using defaults:', err.message); }
 
     // v5.9.0: Environment variable overrides (for headless/CI mode)
     this._applyEnvOverrides();
+  }
+
+  /**
+   * v7.6.6 Track A.3: Re-key any legacy `enc:`/`enc2:` ciphertext to
+   * `enc3:` using the installation-anchored key. Runs once on first
+   * v7.6.6 boot of an existing install; idempotent on subsequent boots.
+   *
+   * Properties:
+   *   - Pre-migration backup created before any rewrite
+   *     (`settings.json.pre-v3-migration`, only if not already present)
+   *   - Partial success accepted: keys whose legacy decrypt fails are
+   *     left as-is and tracked in `_unreadableKeys` for the boot-time
+   *     warning event
+   *   - No-op when no install-id is available (cannot create v3 ciphertexts)
+   *   - No-op when no legacy-prefix values are present
+   *   - Single _save() at end so failure mid-loop does not leave a
+   *     partially-written file (the in-memory state is the only thing
+   *     mutated until save)
+   */
+  _migrateLegacyEncryption() {
+    const installId = this._getInstallId();
+    if (!installId) return; // can't write v3, leave legacy as-is
+
+    // Detect any legacy-prefix value
+    let needsMigration = false;
+    for (const dotPath of SENSITIVE_KEYS) {
+      const parts = dotPath.split('.');
+      /** @type {*} */ let val = this.data;
+      for (const p of parts) { if (val) val = val[p]; }
+      if (typeof val === 'string'
+          && (val.startsWith(ENC_PREFIX_V2) || val.startsWith(ENC_PREFIX))
+          && !val.startsWith(ENC_PREFIX_V3)) {
+        needsMigration = true;
+        break;
+      }
+    }
+    if (!needsMigration) return;
+
+    this._writePreMigrationBackup();
+
+    let migratedCount = 0;
+    for (const dotPath of SENSITIVE_KEYS) {
+      const parts = dotPath.split('.');
+      /** @type {*} */ let obj = this.data;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!obj || !obj[parts[i]]) { obj = null; break; }
+        obj = obj[parts[i]];
+      }
+      if (!obj) continue;
+      const lastKey = parts[parts.length - 1];
+      const val = obj[lastKey];
+      if (typeof val !== 'string') continue;
+      if (val.startsWith(ENC_PREFIX_V3)) continue; // already v3
+      if (!val.startsWith(ENC_PREFIX_V2) && !val.startsWith(ENC_PREFIX)) continue;
+
+      // Decrypt with legacy key (installId=null forces hostname-derived)
+      const plaintext = decryptValue(val, this._encSalt, null);
+      if (plaintext && plaintext.length > 0) {
+        // Re-encrypt with v3 (installId-anchored)
+        obj[lastKey] = encryptValue(plaintext, this._encSalt, installId);
+        migratedCount++;
+      } else {
+        // Legacy-decrypt failed — leave value untouched, track for warning
+        if (!this._unreadableKeys.includes(dotPath)) {
+          this._unreadableKeys.push(dotPath);
+        }
+      }
+    }
+
+    if (migratedCount > 0) {
+      this._save();
+      _log.info(`[SETTINGS] Migrated ${migratedCount} value(s) to v3 keying (installation-anchored)`);
+    }
+  }
+
+  /**
+   * v7.6.6 Track A.4: After migration completes, check whether any
+   * existing `enc3:` values fail to decrypt with the current install-id.
+   * This catches the case where `.install-id` was rotated/restored from
+   * an unrelated source — the values are present but cryptographically
+   * unreadable and the user must re-enter them via /setkey or settings.
+   */
+  _checkUnreadableV3Keys() {
+    const installId = this._getInstallId();
+    if (!installId) return;
+    for (const dotPath of SENSITIVE_KEYS) {
+      if (this._unreadableKeys.includes(dotPath)) continue;
+      const parts = dotPath.split('.');
+      /** @type {*} */ let val = this.data;
+      for (const p of parts) { if (val) val = val[p]; }
+      if (typeof val !== 'string') continue;
+      if (!val.startsWith(ENC_PREFIX_V3)) continue;
+      const plaintext = decryptValue(val, this._encSalt, installId);
+      if (!plaintext || plaintext.length === 0) {
+        this._unreadableKeys.push(dotPath);
+      }
+    }
+  }
+
+  /**
+   * v7.6.6 Track A.3: Snapshot settings.json before re-keying. Created
+   * once on first migration; subsequent migrations skip if backup
+   * already exists (preserves the original pre-v7.6.6 state).
+   */
+  _writePreMigrationBackup() {
+    try {
+      const backupPath = path.join(this._storageDir, 'settings.json.pre-v3-migration');
+      if (fs.existsSync(backupPath)) return;
+      if (!fs.existsSync(this.filePath)) return;
+      fs.copyFileSync(this.filePath, backupPath);
+      _log.info(`[SETTINGS] Pre-v3-migration backup written: ${backupPath}`);
+    } catch (err) {
+      _log.warn(`[SETTINGS] Pre-migration backup failed (non-fatal): ${err.message}`);
+    }
   }
 
   /** @private */
@@ -550,16 +759,16 @@ class Settings {
       /** @type {*} */ let val = this.data;
       for (const p of parts) { if (val) val = val[p]; }
       if (val && typeof val === 'string' && val.length > 10) {
-        if (!val.startsWith(ENC_PREFIX) && !val.startsWith(ENC_PREFIX_V2)) {
-          // Plaintext → encrypt with v2
+        if (!val.startsWith(ENC_PREFIX) && !val.startsWith(ENC_PREFIX_V2) && !val.startsWith(ENC_PREFIX_V3)) {
+          // Plaintext → encrypt with v3 (or v2 fallback if no install-id)
           this.set(dotPath, val);
           migrated = true;
-        } else if (val.startsWith(ENC_PREFIX) && !val.startsWith(ENC_PREFIX_V2)) {
+        } else if (val.startsWith(ENC_PREFIX) && !val.startsWith(ENC_PREFIX_V2) && !val.startsWith(ENC_PREFIX_V3)) {
           // FIX v4.10.0 (S-4): Auto-upgrade v1 (10k iterations) → v2 (600k iterations).
-          // Decrypt with old iterations, re-encrypt with new.
-          const plaintext = decryptValue(val, this._encSalt);
+          // v7.6.6: now upgrades to v3 if install-id available, else v2.
+          const plaintext = decryptValue(val, this._encSalt, this._getInstallId());
           if (plaintext && plaintext.length > 0) {
-            this.set(dotPath, plaintext); // set() will encrypt with v2
+            this.set(dotPath, plaintext); // set() will encrypt with v3 (or v2)
             migrated = true;
           }
         }

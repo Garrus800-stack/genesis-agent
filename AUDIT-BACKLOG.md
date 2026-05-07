@@ -1,9 +1,87 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.6.5 · Last updated: v7.6.5 (Listener-lifecycle closeout — L1 backlog item from v7.6.3 closed at zero, audit lifted to --strict in CI)
+> Version: 7.6.6 · Last updated: v7.6.6 (Identity-Resilience: installation-anchored encryption, Hauptstandort marker foundation, CostStream-Dissonance-Listener; stale TS-error backlog entry retired)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.6.6
+
+### Identity-Resilience: installation-anchored encryption (Track A)
+
+The Settings encryption key for `models.anthropicApiKey` and
+`models.openaiApiKey` was anchored to
+`os.hostname():username:genesis-v2`. Any change to the host
+environment — hostname rename on the same machine, username change,
+or `.genesis/`-folder copy across machines — silently invalidated the
+encrypted values and forced the user to re-enter API keys without any
+boot-time signal that the keys were lost. Three real-world brokenness
+scenarios.
+
+**Fix.** New standalone helper `src/agent/foundation/InstallId.js`
+manages a UUIDv4 stored in `.genesis/.install-id`, race-safe via
+`fs.writeFileSync` with flag `wx`, format-validated on read with
+rotation on corruption, best-effort chmod 0600. Settings.js gains a
+new `enc3:` prefix that uses the install-id-derived key; bulk
+migration in `_load()` re-keys legacy `enc:`/`enc2:` values on first
+v7.6.6 boot, with pre-migration backup `settings.json.pre-v3-migration`
+written before any rewrite. Decrypt failures populate `_unreadableKeys`
+which `setBus()` fires as `settings:keys-unreadable` event — buffered
+and cleared after fire so re-setBus does not refire.
+
+The encryption key now follows the `.genesis/` folder rather than the
+host environment. Folder-copy = identity-portable.
+
+### Hauptstandort marker (Track B — foundation for v7.7+)
+
+New file `.genesis/.hauptstandort.json` stamps each `.genesis/` folder
+as the primary identity location. Schema reserves `role`
+(`'hauptstandort'` in v7.6.6, `'aussenposten'` in v7.7+) and
+`parentInstallUuid` (null for Hauptstandort, points at parent UUID for
+future Außenposten clones) so the v7.7+ Hauptstandort/Außenposten
+architecture can introduce proxy-roles without a schema migration.
+
+`hostnameHistory` is append-only, captures every (host, user) tuple
+this `.genesis/` has booted under. AgentCoreBoot Phase 0
+load-or-creates the marker after install-id, appends current host if
+new, saves atomically (tmp + rename, chmod 0600). Schema validation
+recreates on missing/`schemaVersion < 1`, preserves as-is on
+`schemaVersion > 1` (forward-compat). InstallUuid mismatch with
+`.install-id` is logged but the marker is left untouched
+(operator-investigable).
+
+### CostStream-Dissonance-Listener (Track C)
+
+The v7.5.x backlog item "CostStream-Failover-Listener wiring" listed
+`goal:dissonance-pushback` (emitted by GoalStack since v7.5.8 Phase 3b)
+as a candidate for cost-ledger integration. v7.6.3 already wired
+`model:failover-unavailable` as a counter (rationale in CostStream.js:
+*"counting separately keeps cost ledger semantics clean while still
+surfacing the operational signal in dashboards and audits"*). v7.6.6
+applies the same pattern to dissonance-pushback: `_dissonanceTally`
+counts events and captures `lastScore`/`lastSource`; `getStats()`
+exposes the block alongside `failover`; `stop()` cleans up the
+subscription.
+
+No JSONL row — pushback is a signal event without token cost, the
+cost ledger stays clean.
+
+### Stale TS-error backlog entry retired (Track D)
+
+The "Items still deferred after v7.6.5" section listed "27 latent TS
+errors in 6 files" as a carry-forward item. v7.6.4 T5 already resolved
+all 27 structurally (subscription-helper switched to idempotent
+override; mixin hosts declare typed stub methods that the helper
+replaces unconditionally at module load; late-binding properties
+explicitly initialised as null in their constructors with matching
+JSDoc `@type`; AutoUpdater opts type widened to admit `autoApply`
+outside DEFAULTS). `tsc --project tsconfig.ci.json --noEmit` exits 0
+since v7.6.4. The backlog entry was stale and has been removed.
+
+The "Items still deferred after v7.6.5" section is now empty (both
+entries were addressed in v7.6.6) and removed.
 
 ---
 
@@ -162,25 +240,6 @@ fixed without behavior change to the agent itself.
   ∈ safe|warn|block with safe→pass mapping), tool-call-verification
   is `pass | warn` (verified→pass, anything else→warn). Audit result:
   5 valid, 0 dynamic, 0 invalid (was 2 valid, 3 dynamic).
-
-### Items still deferred after v7.6.5
-
-These came up in the same external audit but are too large for an
-in-version fix and are carried forward:
-
-- **27 latent TS errors in 6 files** (AdaptivePromptStrategy,
-  ExecutionProvenance, AdaptiveStrategyApply, CausalAnnotation,
-  GoalSynthesizer, AutoUpdater) — all stem from the
-  `applySubscriptionHelper(this)` mixin pattern. Now visible in
-  `ci:full` after T1 fix. Resolution: add `@mixes` JSDoc decl on
-  `subscription-helper.js` so these files re-enter the typecheck scope
-  cleanly.
-- **`os.hostname():username:genesis-v2` storage-encryption key
-  (Settings.js:42)** — Hostname change = key loss = `.genesis/`
-  unreadable. Concrete migration path needed, e.g. asymmetric re-encrypt
-  on first boot on new machine triggered by a `/migrate-identity
-  <export-passphrase>` slash. Fits the Hauptstandort architecture
-  directly; should be designed before it bites.
 
 ---
 

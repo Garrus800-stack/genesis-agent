@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.6.5 — What Genesis can do, organized by category.
-> Scale: 6709 tests (Win baseline), 452 events with 452 payload schemas (full parity since v7.6.x), fitness 127/130, 168 DI services (155 manifest + 13 bootstrap), 323 modules (live `selfModel.moduleCount()`) across 12 boot phases.
+> v7.6.6 — What Genesis can do, organized by category.
+> Scale: 6709 tests (Win baseline), 453 events with 453 payload schemas (full parity since v7.6.x), fitness 127/130, 168 DI services (155 manifest + 13 bootstrap), 327 modules (live `selfModel.moduleCount()`) across 12 boot phases.
 > Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry-only by design),
 > Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard),
 > Reasoning-Block Filter (v7.5.6 — strips `<think>...</think>` from response and tool-call audit, re-emits as `model:thinking-trace`),
@@ -503,7 +503,7 @@ The v7 line is dominated by structural maturation: smaller, more honest, better-
 | **Identity-Leak-Fix** (v7.4.0) | LLM model name removed from `_identity()` block. Explicit "Du bist NICHT das zugrundeliegende Sprachmodell". 55-test regression lock against 23 branded names. |
 | **Anti-Hallucination Quoting** (v7.4.1) | PromptBuilder forces verbatim quoting of runtime values. Forbids fabricated log-lines, JSON, timestamps. Anti-tool-call directive prevents declarative metaphors from being interpreted as file-read calls. |
 | **IntentRouter Meta-State Patterns** (v7.4.1) | 13 alternations for "wie viel energie" / "welche ziele" / "how do you feel" route directly to runtime block instead of escalating to tasks. |
-| **Event-Schema 100%** (v7.4.1, full parity since v7.6.x) | 452/452 catalogued events have payload schemas. 0 mismatches. |
+| **Event-Schema 100%** (v7.4.1, full parity since v7.6.x) | 453/453 catalogued events have payload schemas. 0 mismatches. |
 | **AUDIT-BACKLOG drift closed** (v7.4.2) | Five releases of missing entries caught up. Principle 0.8: *AUDIT-BACKLOG is part of every release*. |
 | **CommandHandlers Domain-Split** (v7.4.2) | 846→under 700 LOC via 6 domain mixins (Code, Shell, Goals, Memory, System, Network). |
 | **Self-Gate explicit telemetry-only** (v7.4.2) | Self-Gate documented as observation-only by design (vs. Input-Gate which blocks). Symmetry with Injection-Gate is intentional, not a deficit. |

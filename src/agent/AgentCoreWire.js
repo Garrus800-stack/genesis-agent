@@ -316,6 +316,21 @@ class AgentCoreWire {
     // v7.4.7: Wire Settings → bus, then attach runtime toggle listeners.
     // Without setBus, set() emits nothing and these listeners never fire.
     if (settings && bus && typeof settings.setBus === 'function') {
+      // v7.6.6: Listen BEFORE setBus() so the keys-unreadable initial fire
+      // (which setBus() emits synchronously if migration/load left any
+      // SENSITIVE_KEYS unreadable) is captured. Other toggle listeners
+      // attach AFTER setBus because they only fire on user-initiated
+      // set() calls — those have no timing constraint.
+      bus.on('settings:keys-unreadable', (ev) => {
+        const keys = (ev && Array.isArray(ev.keys)) ? ev.keys : [];
+        if (keys.length === 0) return;
+        const list = keys.join(', ');
+        try {
+          bus.fire('chat:system-message', {
+            text: `⚠️ API-Keys konnten nicht entschlüsselt werden (${list}). Bitte über Settings → Models neu eingeben.`,
+          }, { source: 'AgentCoreWire' });
+        } catch (_e) { /* never let chat-notify break boot */ }
+      }, { source: 'AgentCoreWire' });
       settings.setBus(bus);
     }
     this._wireRuntimeToggleListeners(bus, c);

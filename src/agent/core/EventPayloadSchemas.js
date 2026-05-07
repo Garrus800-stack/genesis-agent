@@ -431,6 +431,8 @@ const SCHEMAS = {
   'settings:auto-resume-changed':      { from: 'required', to: 'required', key: 'required' },
   'settings:auto-route-toggled':       { from: 'required', to: 'required', key: 'required' },
   'settings:mcp-serve-toggled':        { from: 'required', to: 'required', key: 'required' },
+  // v7.6.6 Track A.4 — installation-anchored encryption key migration
+  'settings:keys-unreadable':          { keys: 'required' },
   // Chat system message (UI-bridge for runtime confirmations)
   'chat:system-message':               { text: 'required' },
   'agent-loop:blocked-on-subgoal':     { goalId: 'optional', stepIndex: 'optional', stepType: 'optional', subId: 'required' },

@@ -68,6 +68,15 @@ class CostStream {
     // open backlog item carried forward since v7.5.x.
     this._failoverTally = { total: 0, unavailable: 0, lastAt: null, lastReason: null };
     this._unsubFailover = null;
+
+    // v7.6.6 Track C: Dissonance-pushback tally — listen to
+    // goal:dissonance-pushback (emitted by GoalStack when a similar-but-
+    // not-identical goal is proposed; v7.5.8 Phase 3b). Same counter-only
+    // pattern as failover above — pushback is a signal event without
+    // associated token cost, so a JSONL row would dilute cost-ledger
+    // semantics. Counter feeds dashboards and audit-suite stats().
+    this._dissonanceTally = { total: 0, lastAt: null, lastScore: null, lastSource: null };
+    this._unsubDissonance = null;
   }
 
   async asyncLoad() {
@@ -88,6 +97,13 @@ class CostStream {
     this._unsubFailover = this.bus.on(
       'model:failover-unavailable',
       (data) => this._onFailoverUnavailable(data),
+      { source: 'CostStream' }
+    );
+
+    // v7.6.6 Track C: dissonance-pushback listener — counter-only
+    this._unsubDissonance = this.bus.on(
+      'goal:dissonance-pushback',
+      (data) => this._onDissonancePushback(data),
       { source: 'CostStream' }
     );
 
@@ -304,6 +320,20 @@ class CostStream {
     this._failoverTally.lastReason = data?.reason || 'unknown';
   }
 
+  // v7.6.6 Track C: dissonance-pushback handler — counter-only sibling
+  // of _onFailoverUnavailable. Tracks how often GoalStack flagged a
+  // capability-gate near-duplicate proposal so dashboards and audits can
+  // surface the rate of cognitive collisions without polluting the cost
+  // ledger (no token cost involved).
+  _onDissonancePushback(data) {
+    if (this._stopped) return;
+    this._dissonanceTally.total++;
+    this._dissonanceTally.lastAt = Date.now();
+    this._dissonanceTally.lastScore = typeof data?.dissonanceScore === 'number'
+      ? data.dissonanceScore : null;
+    this._dissonanceTally.lastSource = data?.source || null;
+  }
+
   getStats() {
     return {
       pendingWrites: this._writeQueue.length,
@@ -316,6 +346,13 @@ class CostStream {
         lastAt: this._failoverTally.lastAt,
         lastReason: this._failoverTally.lastReason,
       },
+      // v7.6.6 Track C: dissonance signal exposed alongside cost stats
+      dissonance: {
+        total: this._dissonanceTally.total,
+        lastAt: this._dissonanceTally.lastAt,
+        lastScore: this._dissonanceTally.lastScore,
+        lastSource: this._dissonanceTally.lastSource,
+      },
     };
   }
 
@@ -324,6 +361,8 @@ class CostStream {
     this._stopped = true;
     try { if (this._unsubBus) this._unsubBus(); } catch (_e) { /* swallow */ }
     try { if (this._unsubFailover) this._unsubFailover(); } catch (_e) { /* swallow */ }
+    // v7.6.6 Track C: dissonance subscription cleanup
+    try { if (this._unsubDissonance) this._unsubDissonance(); } catch (_e) { /* swallow */ }
     if (this._intervals && this._pruneIntervalId) {
       try { this._intervals.clear(this._pruneIntervalId); } catch (_e) { /* swallow */ }
     }
