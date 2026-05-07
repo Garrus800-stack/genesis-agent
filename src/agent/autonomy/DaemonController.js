@@ -81,6 +81,15 @@ class DaemonController extends DaemonControlPort {
       clients: ()  => this._methodClients(),
       update:  (p) => this._methodUpdate(p),  // v7.1.1: V7-4B/C — trigger update check
     };
+
+    // v7.6.5 (raw-settimeout phase 2): graceful-shutdown delay timer.
+    // _methodStop schedules a 200ms post-response SIGTERM so the success
+    // reply reaches the control-channel client before the process exits.
+    // Captured here so a second stop request (or test teardown) can cancel
+    // the pending exit. The callback nulls this._shutdownTimer BEFORE
+    // calling stop(), so stop()'s own clearTimeout(null) is a no-op.
+    /** @type {NodeJS.Timeout|null} */
+    this._shutdownTimer = null;
   }
 
   // ── Lifecycle ─────────────────────────────────────────────
@@ -120,6 +129,14 @@ class DaemonController extends DaemonControlPort {
 
   stop() {
     this._listening = false;
+
+    // v7.6.5 (raw-settimeout phase 2): cancel pending graceful-shutdown
+    // exit timer. Idempotent — _methodStop's callback nulls the field
+    // before calling stop(), so this clearTimeout on a null is a no-op.
+    if (this._shutdownTimer) {
+      try { clearTimeout(this._shutdownTimer); } catch (_e) { /* ok */ }
+      this._shutdownTimer = null;
+    }
 
     // Close all client connections
     for (const client of this._clients) {
@@ -311,8 +328,12 @@ class DaemonController extends DaemonControlPort {
     if (this.daemon) {
       this.daemon.stop();
     }
-    // Schedule process exit after response is sent
-    setTimeout(() => {
+    // Schedule process exit after response is sent.
+    // v7.6.5 (raw-settimeout phase 2): timer captured on this._shutdownTimer
+    // so stop() (or a duplicate stop request) can cancel the pending exit.
+    if (this._shutdownTimer) clearTimeout(this._shutdownTimer);
+    this._shutdownTimer = setTimeout(() => {
+      this._shutdownTimer = null;
       _log.info('Shutdown requested via control channel');
       this.stop();
       process.emit('SIGTERM');

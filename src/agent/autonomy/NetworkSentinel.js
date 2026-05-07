@@ -114,9 +114,15 @@ class NetworkSentinel {
       swallow(this._probe(), 'probe');
     });
 
-    // Initial probe (delayed to let boot settle)
+    // Initial probe (delayed to let boot settle).
+    // v7.6.5 (raw-settimeout phase 2): timer captured on this._initialProbeTimer
+    // so stop() can cancel a pending boot-settle probe before it fires against
+    // a torn-down sentinel. The handler also checks _running so it would no-op,
+    // but cancelling is faster and avoids the no-op log entry.
     const delay = Math.min(this._config.intervalMs, 10_000);
-    setTimeout(() => {
+    if (this._initialProbeTimer) clearTimeout(this._initialProbeTimer);
+    this._initialProbeTimer = setTimeout(() => {
+      this._initialProbeTimer = null;
       swallow(this._probe(), 'probe');
     }, delay);
 
@@ -135,6 +141,11 @@ class NetworkSentinel {
     if (this._probeTimer) {
       clearInterval(this._probeTimer);
       this._probeTimer = null;
+    }
+    // v7.6.5 (raw-settimeout phase 2): cancel pending boot-settle probe.
+    if (this._initialProbeTimer) {
+      try { clearTimeout(this._initialProbeTimer); } catch (_e) { /* ok */ }
+      this._initialProbeTimer = null;
     }
     this._unsubAll();
     _log.info('[NET] Sentinel stopped');

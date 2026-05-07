@@ -59,19 +59,30 @@ const c = {
 };
 
 // ── EXEMPT files: legitimate raw setTimeout ─────────────────────────
-// HTTP/network timeouts, kernel-pre-DI lifecycle, and similar.
+// HTTP/network timeouts, kernel-pre-DI lifecycle, boot-once schedulers
+// that fire exactly once during boot and have no later state to tear
+// down, and worker-internal timers that run inside a child-process
+// whose entire lifecycle is the parent process.
 const EXEMPT = new Set([
-  'capabilities/McpTransport.js',  // HTTP req.setTimeout + Promise-race
+  'capabilities/McpTransport.js',          // HTTP req.setTimeout + Promise-race
   'foundation/backends/OllamaBackend.js',  // req.setTimeout on http.request
   'foundation/backends/MockBackend.js',    // test-only fake-latency
+  // v7.6.5 (raw-settimeout phase 2 closeout): boot-once + worker-internal.
+  'AgentCore.js',                          // boot-once _pushStatus(readyPayload, 500ms) — fires once after boot, no field to track
+  'capabilities/AutoUpdater.js',           // boot-once checkForUpdate(10s) — fires once after boot, no migrate-target
+  'capabilities/_self-worker.js',          // worker-process internal, lifecycle is the worker process itself
 ]);
 
 // Baseline: known raw fire-and-forget setTimeouts at v7.6.3 ship time.
 // New offenders above this number fail the --strict check. Migration
 // happens iteratively as fields like _scanTimer get extended to all
-// callsites. The v7.6.3 erweiterte Analyse-report itemised these and
+// callsites. The v7.6.3 extended-analysis report itemised these and
 // they are safe-but-untracked — same defensive posture as the existing
-// architectural-fitness setInterval baseline.
+// architectural-fitness setInterval baseline. v7.6.5 closes phase 2:
+// HotReloader and SelfStatementLog migrated in v7.6.4 T3 (2 sites);
+// GoalDriver, GoalDriverFailurePolicy, DaemonController, NetworkSentinel
+// migrated in v7.6.5 (6 sites); AgentCore, AutoUpdater, _self-worker
+// added to EXEMPT (4 sites). Net: 12 → 0 non-exempt non-migrated.
 const BASELINE = 12;
 
 // ── Walk source tree ────────────────────────────────────────────────

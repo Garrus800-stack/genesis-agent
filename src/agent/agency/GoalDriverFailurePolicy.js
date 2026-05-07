@@ -89,9 +89,15 @@ const failurePolicyMixin = {
     if (_isRateLimit) {
       const pauseMs = 60_000;
       this._goalPausedUntil.set(goalId, _now + pauseMs);
-      setTimeout(() => {
+      // v7.6.5 (raw-settimeout phase 2): per-goalId on this._failurePauseTimers
+      // (initialised in GoalDriver constructor); stop() cancels all pending.
+      const _existing1 = this._failurePauseTimers.get(goalId);
+      if (_existing1) clearTimeout(_existing1);
+      const _t1 = setTimeout(() => {
+        this._failurePauseTimers.delete(goalId);
         if (this._running) this._scanAndMaybePursue();
       }, pauseMs + 100);
+      this._failurePauseTimers.set(goalId, _t1);
       _log.warn(`[DRIVER] pursuit of ${goalId} hit LLM rate limit — pausing this goal for ${Math.round(pauseMs/1000)}s`);
     } else if (_isUserRejection) {
       const entry = this._failureBurst.get(goalId) || { count: 0, firstAt: _now, kind: 'reject' };
@@ -107,9 +113,14 @@ const failurePolicyMixin = {
       // the 3-strike stall kicks in.
       const pauseMs = 1_000;
       this._goalPausedUntil.set(goalId, _now + pauseMs);
-      setTimeout(() => {
+      // v7.6.5 (raw-settimeout phase 2): tracked per-goalId.
+      const _existing2 = this._failurePauseTimers.get(goalId);
+      if (_existing2) clearTimeout(_existing2);
+      const _t2 = setTimeout(() => {
+        this._failurePauseTimers.delete(goalId);
         if (this._running) this._scanAndMaybePursue();
       }, pauseMs + 100);
+      this._failurePauseTimers.set(goalId, _t2);
       // v7.5.8 hotfix: stall on FIRST user-rejection, not after 3 strikes.
       // Live-Befund (Garrus-Win, 2026-05-03): a goal was re-picked 4×
       // after explicit user rejection because the threshold was 3 and
@@ -167,9 +178,14 @@ const failurePolicyMixin = {
       } else {
         const backoffMs = backoffSchedule[entry.count - 1];
         this._goalPausedUntil.set(goalId, _now + backoffMs);
-        setTimeout(() => {
+        // v7.6.5 (raw-settimeout phase 2): tracked per-goalId.
+        const _existing3 = this._failurePauseTimers.get(goalId);
+        if (_existing3) clearTimeout(_existing3);
+        const _t3 = setTimeout(() => {
+          this._failurePauseTimers.delete(goalId);
           if (this._running) this._scanAndMaybePursue();
         }, backoffMs + 100);
+        this._failurePauseTimers.set(goalId, _t3);
         _log.warn(`[DRIVER] pursuit of ${goalId} failed (${entry.count}/${backoffSchedule.length+1}) — backing off ${Math.round(backoffMs/1000)}s: ${(errMsg || '<empty>').slice(0, 80)}`);
       }
     }

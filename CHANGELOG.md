@@ -1,3 +1,140 @@
+## [7.6.5]
+
+**Raw-setTimeout phase 2 closeout, ModelBridge file-size split, and structural README-badge drift fix.**
+
+Two-track release. No new features, no behavior changes for end users.
+
+### Track 1 — Raw-setTimeout phase 2 closeout (audit baseline 12 → 0)
+
+The `audit-raw-settimeout.js` baseline carried 12 fire-and-forget sites
+since v7.6.3. v7.6.4 T3 closed 2 (HotReloader + SelfStatementLog).
+v7.6.5 closes the remaining 10 across 7 files: 6 sites in 4 files
+migrated to tracked timer fields with cleanup in `stop()`; 4 sites in
+3 files added to the audit `EXEMPT` set with documented rationale.
+
+**Migrated (6 sites in 4 files):**
+
+- `agency/GoalDriverFailurePolicy.js` (Z.92, 110, 170): all three
+  `_applyFailurePause` setTimeouts now captured per-`goalId` in
+  `this._failurePauseTimers: Map<string, NodeJS.Timeout>` (initialised
+  in `GoalDriver` constructor, since the mixin operates on `this`).
+  Pre-existing pending pause for the same goal is cleared before the
+  new one is scheduled. `GoalDriver.stop()` clears all entries.
+- `agency/GoalDriver.js` (Z.502): pursuit-safety 60s scan timer now
+  captured as `this._pursuitSafetyTimer`; cleared in `stop()`.
+- `autonomy/DaemonController.js` (Z.315): graceful-shutdown 200ms
+  delay before SIGTERM now captured as `this._shutdownTimer`. Callback
+  nulls the field BEFORE calling `this.stop()`, so `stop()`'s own
+  `clearTimeout` is a safe no-op (idempotency for double-stop).
+- `autonomy/NetworkSentinel.js` (Z.119): boot-settle initial-probe
+  delay now captured as `this._initialProbeTimer`; cleared in `stop()`.
+
+**EXEMPT (4 sites in 3 files):**
+
+- `AgentCore.js` (Z.155): boot-once `_pushStatus(readyPayload, 500ms)`
+  fires exactly once after boot — no later state to tear down.
+- `capabilities/AutoUpdater.js` (Z.87): boot-once `checkForUpdate(10s)`
+  — same boot-once pattern.
+- `capabilities/_self-worker.js` (Z.101, 165): worker-process internal
+  timers; lifecycle is the worker process itself.
+
+**Audit script extension:** `EXEMPT` set widened with the three files
+above and rationale comments. Baseline note documents phase 2 closure
+(12 → 0 non-exempt non-migrated). `audit-raw-settimeout --strict`
+remains the CI gate.
+
+### Track 2 — ModelBridge file-size split (701 → 646 LOC)
+
+Architectural-fitness File-Size-Guard (`>700 LOC` soft-warn) flagged
+three files at v7.6.4: `ModelBridge.js` (701), `GoalStack.js` (851),
+`AgentLoop.js` (868). v7.6.5 closes the smallest of the three —
+ModelBridge — by extracting the failover-helper cluster (3 methods,
+~58 LOC) into `ModelBridgeFailover.js` as a prototype mixin, identical
+pattern to the existing `ModelBridgeAvailability.js` (v7.5.6) and
+`ModelBridgeDiscovery.js`.
+
+**Methods extracted:**
+
+- `_findFallbackBackend(failedBackend, failedModelName?)` — fallback-chain
+  resolver with cross-backend escape (ollama → anthropic → openai)
+- `_classifyFailoverReason(err)` — structured failover-reason classifier
+  (subscription-required > rate-limit > timeout > connection-error >
+  auth > other). Subscription pattern checked first so Ollama Cloud
+  Pro-gates (which carry both 401 and subscription) get the 24h
+  subscription-TTL not the 1h auth-TTL.
+- `_emitFailoverUnavailable(failedBackend, err)` — fires
+  `model:failover-unavailable` event when fallback chain is exhausted.
+
+**Mount:** `Object.assign(ModelBridge.prototype, availability, discovery, failoverMixin)`
+at `ModelBridge.js` bottom. Pure structural extraction — runtime
+semantics unchanged.
+
+**New contract test:** `test/modules/v765-modelbridge-split.contract.test.js`
+(7 tests, 30 assertions) pins the mixin export shape, the
+`Object.assign` mount onto `ModelBridge.prototype`, identity-equality
+between prototype and mixin references, and `_classifyFailoverReason`
+semantics for all six documented categories incl. the subscription-vs-auth
+ordering invariant.
+
+**Result:** ModelBridge.js now 646 LOC. File-Size-Guard WARN list
+shrinks from 3 → 2 (GoalStack 851, AgentLoop 868 carried as deferred
+A2 backlog items). Fitness score stays 127/130 (the score is binary —
+7/10 if any WARN, 10/10 if zero — but the WARN list itself is shorter).
+
+### README badge drift — structural fix
+
+`README.md` shields.io badges had drifted across four versions: `version-7.6.0`
+(stale since v7.6.1), `tests-6607` (stale since v7.6.2), `modules-311` (stale
+since v7.6.0), `events-424` (stale since the v7.6.x catalog growth), and
+`TSC-config_ok` (stale since v7.6.4 T1+T5 made `tsc` exit cleanly).
+
+Fixed in v7.6.5 to:
+- `version-7.6.5`
+- `tests-6709 passing` (Win baseline; the new v765-modelbridge-split contract test contributes 7 sub-tests, with platform-conditional skips elsewhere netting +4 vs v7.6.4)
+- `modules-323` (322 + new ModelBridgeFailover.js)
+- `events-452`
+- `TSC-typecheck_ok` (with badge color `fbbf24` yellow → `4ade80` green to match the now-passing state)
+
+**Structural fix:** `audit-doc-drift.js` extended with a new section that
+parses every shields.io badge in `README.md`, URL-decodes labels and
+values, and pins them to live-getters or expected constants. Doc claim
+count 21 → 30. Future README badge drift would be caught at the same
+CI gate (`audit-doc-drift --strict`) that catches banner.svg / docs/*
+drift. The kind of multi-version staleness that occurred between v7.6.0
+and v7.6.4 cannot recur.
+
+### Documentation
+
+- `banner.svg` v7.6.4 → v7.6.5; module count 322 → 323; tests 6705 → 6709.
+- `tsconfig.ci.json` header v7.6.4 → v7.6.5.
+- `AUDIT-BACKLOG.md` Version+Last-updated header v7.6.4 → v7.6.5; "still
+  deferred after v7.6.4" → "still deferred after v7.6.5"; Resolved-in-v7.6.5
+  section added.
+- `docs/phase9-cognitive-architecture.md`, `docs/CAPABILITIES.md`,
+  `docs/EVENT-FLOW.md`, `docs/GATE-INVENTORY.md`, `docs/SKILL-SECURITY.md`,
+  `docs/MCP-SERVER-SETUP.md`, `docs/COMMUNICATION.md`, `docs/ARCHITECTURE-DEEP-DIVE.md`
+  — header version tags v7.6.4 → v7.6.5; numeric body claims (322/323
+  modules, 6650/6709 tests, "v7.6.3" → "v7.6.5") updated where the
+  reference is current-state, not historical.
+- `package.json` version 7.6.4 → 7.6.5.
+
+### Verification
+
+- Tests: 6709 passed Windows (verified live), 6694+ passed Linux
+  (linux-sandbox conditionally skipped on real Linux namespace),
+  0 failed both platforms.
+- `npm run typecheck` → exit 0 (T1+T5 closeout from v7.6.4 holds).
+- Architectural fitness 127/130 (98%); File-Size-Guard 7/10 with
+  2 WARNs carried (GoalStack 851, AgentLoop 868) as deferred A2 items.
+- CI audit gates 15/15 green; `audit-raw-settimeout --strict` 0 sites
+  with 6 exempt; `audit-doc-drift --strict` 0 drift across 30 claims
+  (21 prior + 9 new README badge claims).
+- Boot verified clean: 168 services, 323 foundation modules,
+  316/316 late-bindings, 21 critical files hash-protected,
+  GenesisBackup snapshot on shutdown.
+
+---
+
 ## [7.6.4]
 
 **Listener-lifecycle closeout. L1 backlog item from v7.6.3 closed at zero.**

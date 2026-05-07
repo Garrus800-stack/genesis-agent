@@ -1,9 +1,66 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.6.4 · Last updated: v7.6.4 (Listener-lifecycle closeout — L1 backlog item from v7.6.3 closed at zero, audit lifted to --strict in CI)
+> Version: 7.6.5 · Last updated: v7.6.5 (Listener-lifecycle closeout — L1 backlog item from v7.6.3 closed at zero, audit lifted to --strict in CI)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.6.5
+
+### Track 1 — Raw-setTimeout phase 2 (audit baseline 12 → 0)
+
+The remaining 10 fire-and-forget setTimeouts after v7.6.4 T3 (which
+closed HotReloader + SelfStatementLog) are now all resolved:
+
+**Migrated (6 sites in 4 files):**
+- `agency/GoalDriverFailurePolicy.js` (3 sites): `_applyFailurePause`
+  setTimeouts → `this._failurePauseTimers` Map keyed by goalId; cleared
+  in `GoalDriver.stop()`.
+- `agency/GoalDriver.js` (Z.502): pursuit-safety scan timer →
+  `this._pursuitSafetyTimer`; cleared in `stop()`.
+- `autonomy/DaemonController.js` (Z.315): graceful-shutdown delay →
+  `this._shutdownTimer`; idempotent cleanup in `stop()`.
+- `autonomy/NetworkSentinel.js` (Z.119): boot-settle initial probe →
+  `this._initialProbeTimer`; cleared in `stop()`.
+
+**EXEMPT (4 sites in 3 files), with documented rationale:**
+- `AgentCore.js` (Z.155): boot-once `_pushStatus` 500ms — no later state.
+- `capabilities/AutoUpdater.js` (Z.87): boot-once update check 10s.
+- `capabilities/_self-worker.js` (2 sites): worker-process internal.
+
+`audit-raw-settimeout.js` `EXEMPT` set widened with rationale comments;
+baseline note documents phase 2 closure (12 → 0 non-exempt non-migrated).
+`audit-raw-settimeout --strict` continues as the CI gate.
+
+### Track 2 — A2 ModelBridge file-size split (701 → 646 LOC)
+
+`ModelBridge.js` was 701 LOC (>700 fitness soft-warn). 3 failover-helper
+methods (~58 LOC) extracted to `src/agent/foundation/ModelBridgeFailover.js`
+as a prototype mixin. Methods: `_findFallbackBackend`,
+`_classifyFailoverReason`, `_emitFailoverUnavailable`. Mount via
+`Object.assign(ModelBridge.prototype, availability, discovery, failoverMixin)`.
+
+Pure structural extraction — runtime semantics unchanged. New contract
+test `v765-modelbridge-split.contract.test.js` (7 tests, 30 assertions)
+pins the export shape, prototype mount, and `_classifyFailoverReason`
+semantics incl. the subscription-vs-auth ordering invariant.
+
+File-Size-Guard WARN list shrinks from 3 → 2 (GoalStack 851, AgentLoop
+868 carried as deferred A2 items).
+
+### Structural fix — README badge drift
+
+`README.md` shields.io badges had drifted across four versions
+(version-7.6.0 stale since v7.6.1, tests-6607 since v7.6.2, modules-311
+since v7.6.0, events-424 across v7.6.x catalog growth, TSC-config_ok
+since v7.6.4 T5). Fixed to current values; `audit-doc-drift.js`
+extended to parse every shields.io badge in README.md and pin to
+live-getters or expected constants. Doc claim count 21 → 30. The
+multi-version staleness pattern cannot recur: any future README badge
+that drifts from a live-getter value will fail
+`audit-doc-drift --strict` in CI before the release ships.
 
 ---
 
@@ -106,7 +163,7 @@ fixed without behavior change to the agent itself.
   is `pass | warn` (verified→pass, anything else→warn). Audit result:
   5 valid, 0 dynamic, 0 invalid (was 2 valid, 3 dynamic).
 
-### Items still deferred after v7.6.4
+### Items still deferred after v7.6.5
 
 These came up in the same external audit but are too large for an
 in-version fix and are carried forward:

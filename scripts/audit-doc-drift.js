@@ -250,6 +250,65 @@ function runChecks() {
     }
   }
 
+  // ── README.md shields.io badges (v7.6.5) ──
+  // Pattern: img.shields.io/badge/<label>-<value>-<color>?style=...
+  // URL-decoded: %20→space, %2F→/, %25→%.
+  // Captures README badge drift structurally so the kind of multi-version
+  // staleness that occurred from v7.6.0 → v7.6.5 (version-7.6.0, tests-6607,
+  // modules-311, events-424, TSC-config_ok all stale) cannot recur.
+  {
+    let readme;
+    try { readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf-8'); }
+    catch { readme = null; }
+    if (readme) {
+      const badgeRe = /img\.shields\.io\/badge\/([^/-]+)-([^-]+)-/g;
+      const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
+      const badgeChecks = {
+        version:    { live: VERSION,             label: 'badge: version' },
+        tests:      { live: '6709 passing',      label: 'badge: tests',
+                      // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
+                      // Update this constant on each release that changes test count.
+                      compare: (got, exp) => got === exp },
+        modules:    { live: SOURCE,              label: 'badge: modules' },
+        events:     { live: CATALOG,             label: 'badge: events' },
+        TSC:        { live: 'typecheck_ok',      label: 'badge: TSC',
+                      compare: (got, exp) => got === exp },
+        schemas:    { live: '100%',              label: 'badge: schemas',
+                      compare: (got, exp) => got === exp },
+        services:   { live: 168,                 label: 'badge: services' },
+        phases:     { live: 12,                  label: 'badge: phases' },
+        capabilities: { live: '240+',            label: 'badge: capabilities',
+                        // "240+" wildcards: match if README shows N+ where N >= 240.
+                        compare: (got, _exp) => {
+                          const m = /^(\d+)\+?$/.exec(String(got));
+                          return m && parseInt(m[1], 10) >= 240;
+                        } },
+      };
+
+      let m;
+      while ((m = badgeRe.exec(readme)) !== null) {
+        const rawLabel = decode(m[1]);
+        const rawValue = decode(m[2]);
+        const spec = badgeChecks[rawLabel];
+        if (!spec) continue; // unmonitored badge (MCP, languages, electron, license, fitness)
+        const expected = spec.live;
+        const actualNum = /^\d+$/.test(rawValue) ? parseInt(rawValue, 10) : rawValue;
+        const ok = spec.compare
+          ? spec.compare(actualNum, expected)
+          : (actualNum === expected || actualNum === String(expected));
+        const r = {
+          doc: 'README.md',
+          label: spec.label,
+          expected,
+          actual: actualNum,
+          ok,
+        };
+        checked.push(r);
+        if (!ok) drifts.push(r);
+      }
+    }
+  }
+
   return { drifts, checked };
 }
 

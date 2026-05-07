@@ -100,6 +100,18 @@ class GoalDriver {
 
     /** @type {string|null} Pending UI-prompt goalId during 'ask'-flow */
     this._pendingResumePrompt = null;
+
+    // v7.6.5 (raw-settimeout phase 2): track fire-and-forget timers so
+    // stop() can cancel pending callbacks before they fire against a
+    // torn-down driver. Pre-fix the timers were closure-locals that
+    // survived stop() and only no-op'd because they checked this._running
+    // — clearing them at shutdown is faster and avoids a tiny window
+    // where _running flips back to true (during a fast stop+start) and
+    // a stale timer from the previous session triggers an unintended scan.
+    /** @type {Map<string, NodeJS.Timeout>} keyed by goalId — shared with FailurePolicy mixin */
+    this._failurePauseTimers = new Map();
+    /** @type {NodeJS.Timeout|null} */
+    this._pursuitSafetyTimer = null;
   }
 
   // ════════════════════════════════════════════════════════
@@ -149,6 +161,17 @@ class GoalDriver {
       try { clearTimeout(this._resumePromptTimer); }
       catch (_e) { /* ok */ }
       this._resumePromptTimer = null;
+    }
+    // v7.6.5 (raw-settimeout phase 2): clear pending failure-pause and
+    // pursuit-safety timers so their callbacks don't fire after stop().
+    for (const t of this._failurePauseTimers.values()) {
+      try { clearTimeout(t); } catch (_e) { /* ok */ }
+    }
+    this._failurePauseTimers.clear();
+    if (this._pursuitSafetyTimer) {
+      try { clearTimeout(this._pursuitSafetyTimer); }
+      catch (_e) { /* ok */ }
+      this._pursuitSafetyTimer = null;
     }
     for (const unsub of this._unsubs) {
       try { if (typeof unsub === 'function') unsub(); }
@@ -499,7 +522,10 @@ class GoalDriver {
         if (errMsg.startsWith('Agent loop already running')) {
           _log.debug(`[DRIVER] pursuit of ${goalId} bounced (already running) — keeping lock, scheduling safety scan`);
           keepLock = true;
-          setTimeout(() => {
+          // v7.6.5 (raw-settimeout phase 2): capture timer on this so stop() can clear it.
+          if (this._pursuitSafetyTimer) clearTimeout(this._pursuitSafetyTimer);
+          this._pursuitSafetyTimer = setTimeout(() => {
+            this._pursuitSafetyTimer = null;
             if (this._running && this._currentlyPursuing.has(goalId)
                 && this.agentLoop && !this.agentLoop.running) {
               _log.warn(`[DRIVER] safety scan: pursue not running but ${goalId} still locked — releasing`);

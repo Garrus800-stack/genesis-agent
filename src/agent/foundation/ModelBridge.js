@@ -519,77 +519,19 @@ class ModelBridge {
     return backend.stream(systemPrompt, messages, onChunk, abortSignal, temp, model, maxTokens);
   }
 
-  /**
-   * v5.1.0: Configurable fallback chain from settings.
-   * v7.5.6: Same-backend fallback enabled. Skip the specific failed model
-   * (not the entire backend) and any model marked unavailable. The cross-backend
-   * escape hatch (ollama→anthropic→openai) remains as a last resort when the
-   * chain is exhausted or empty.
-   *
-   * @param {string} failedBackend
-   * @param {string|null} [failedModelName] — exact name of the model that just
-   *   failed. When provided, that single model is skipped in the chain (instead
-   *   of the entire backend, which made the chain useless when all configured
-   *   fallbacks shared one backend with the primary).
-   */
-  _findFallbackBackend(failedBackend, failedModelName = null) {
-    const chain = this._settings?.get?.('models.fallbackChain') || [];
-    for (const modelName of chain) {
-      if (modelName === failedModelName) continue;
-      if (this.isMarkedUnavailable(modelName)) continue;
-      const model = this.availableModels.find(m => m.name === modelName);
-      if (model) {
-        this._fallbackModel = model;
-        return model.backend;
-      }
-    }
-    // Cross-backend escape: try other backends in priority order
-    const order = ['ollama', 'anthropic', 'openai'];
-    for (const b of order) {
-      if (b === failedBackend) continue;
-      if (b === 'ollama' && this.availableModels.some(m =>
-        m.backend === 'ollama' && !this.isMarkedUnavailable(m.name)
-      )) return b;
-      if (this.backends[b].isConfigured()) return b;
-    }
-    return null;
-  }
-
-  // v7.4.8: classify failover errors into structured categories so
-  // consumers (dashboard, CostStream later, MetaLearning) can aggregate
-  // without string-matching err.message themselves.
-  _classifyFailoverReason(err) {
-    const msg = (err?.message || '').toLowerCase();
-    // v7.5.7-fix: subscription checked before generic 401/403 'auth'
-    // — Ollama Cloud Pro-gates carry both. Without this, gated cloud
-    // models would get the 1h auth-TTL not the 24h subscription-TTL.
-    if (/subscription|requires.*upgrade|upgrade for access|ollama\.com\/upgrade/.test(msg)) return 'subscription-required';
-    if (/rate.?limit|429|too many/.test(msg)) return 'rate-limit';
-    if (/timeout|timed out|etimedout/.test(msg)) return 'timeout';
-    if (/econnrefused|enotfound|eai_again|network|socket hang up|fetch failed/.test(msg)) return 'connection-error';
-    if (/401|403|unauthor|invalid.*key|api.?key/.test(msg)) return 'auth';
-    return 'other';
-  }
-
   // ── v7.5.6: Model-availability tracking — extracted to mixin ─────
   // Methods mixed in: markUnavailable, isMarkedUnavailable,
   // clearUnavailable, _loadUnavailable, _persistUnavailable,
   // _isCloudModelName, _warnIfCloudWithoutFallback.
 
-  // v7.4.8: emitted when _findFallbackBackend returns null. Closes the
-  // observability gap — without this event, "Genesis tried to failover
-  // but had nothing to switch to" was invisible in EventStore.
-  _emitFailoverUnavailable(failedBackend, err) {
-    const chain = this._settings?.get?.('models.fallbackChain') || [];
-    const reason = chain.length === 0
-      ? 'no-chain-configured'
-      : 'all-other-backends-unavailable';
-    this.bus.fire('model:failover-unavailable', {
-      from: failedBackend,
-      reason,
-      error: err.message,
-    }, { source: 'ModelBridge' });
-  }
+  // ── v7.6.5 (A2 file-size-guard closeout): Failover helpers — extracted to mixin ─────
+  // Methods mixed in via failoverMixin (see ModelBridgeFailover.js):
+  //   _findFallbackBackend(failedBackend, failedModelName?)
+  //   _classifyFailoverReason(err)
+  //   _emitFailoverUnavailable(failedBackend, err)
+  // Pre-v7.6.5 these lived inline here as ~58 LOC; ModelBridge.js was
+  // 700 LOC (701 reported by File-Size-Guard due to trailing newline).
+  // Pure structural extraction, runtime semantics unchanged.
 
   _getModelForBackend(backend) {
     // v5.1.0: Use specific fallback model if set by _findFallbackBackend
@@ -693,8 +635,12 @@ class ModelBridge {
 // clearUnavailable, _loadUnavailable, _persistUnavailable). Same pattern as
 // CommandHandlers' helper-mixin composition. Keeps ModelBridge.js under the
 // architectural-fitness LOC limit.
+// v7.6.5: Mix in failover helpers (_findFallbackBackend, _classifyFailoverReason,
+// _emitFailoverUnavailable). Pure structural extraction for File-Size-Guard
+// closeout — runtime semantics unchanged. See ModelBridgeFailover.js.
 const { availability } = require('./ModelBridgeAvailability');
 const { discovery } = require('./ModelBridgeDiscovery');
-Object.assign(ModelBridge.prototype, availability, discovery);
+const { failoverMixin } = require('./ModelBridgeFailover');
+Object.assign(ModelBridge.prototype, availability, discovery, failoverMixin);
 
 module.exports = { ModelBridge };
