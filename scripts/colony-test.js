@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/colony-test.js (v5.9.2)
+// GENESIS — scripts/colony-test.js
 //
 // Integration test: spawns 2 headless Genesis instances on
 // different ports, connects them as peers, delegates a colony

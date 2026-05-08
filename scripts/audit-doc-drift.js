@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/audit-doc-drift.js (v7.6.4)
+// GENESIS — scripts/audit-doc-drift.js
 //
 // Detects documentation drift in docs/*.md by comparing claimed
 // numeric facts (test count, event count, schema count, hash-lock
@@ -283,10 +283,10 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '6867 passing',      label: 'badge: tests',
+        tests:      { live: '6905 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
-                      // v7.7.0: -52 (renderer.test.js -51 + agentloop-legacy
+                      // v7.7.1: +23 (v771-* contract tests). v7.7.0: -52 (renderer.test.js -51 + agentloop-legacy
                       //   lying test -1) +81 (v770-test-helpers contract +16,
                       //   ui-statusbar-module +13, ui-i18n-module +8, ui-chat-
                       //   module +19, ui-filetree-module +8, ui-settings-module
@@ -384,7 +384,7 @@ function runChecks() {
       // "<N> tests (Win baseline)" — pin to Win baseline (Linux is -1 because
       // of one Win-conditional test). Update this constant on each release
       // that changes test count.
-      const TESTS_WIN_BASELINE = 6867;
+      const TESTS_WIN_BASELINE = 6905;
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -416,6 +416,218 @@ function runChecks() {
         /\|\s*Fitness Score\s*\|\s*(\d+)\/130/, FITNESS);
       if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
     }
+  }
+
+
+  // ════════════════════════════════════════════════════════════
+  // v7.7.1 extensions — header stamps, table rows, inline stats,
+  // version tables, and self-referential drifts
+  // ════════════════════════════════════════════════════════════
+
+  const TESTS_WIN = 6905;
+  const TEST_FILES = 406;
+
+  // #1: ARCHITECTURE.md header version stamp
+  {
+    const src = loadDoc('ARCHITECTURE.md');
+    if (src) {
+      const r = check('ARCHITECTURE.md', src, 'header version stamp',
+        /^> Version: (\d+\.\d+\.\d+)/m, VERSION,
+        (m) => m[1]);
+      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+    }
+  }
+
+  // #2: ARCHITECTURE.md header — events / schemas pair
+  {
+    const src = loadDoc('ARCHITECTURE.md');
+    if (src) {
+      const rE = check('ARCHITECTURE.md', src, 'header catalogued events',
+        /\((\d+) catalogued events \/ \d+ schemas\)/, CATALOG);
+      if (rE) { checked.push(rE); if (!rE.ok) drifts.push(rE); }
+      const rS = check('ARCHITECTURE.md', src, 'header schemas',
+        /\(\d+ catalogued events \/ (\d+) schemas\)/, SCHEMAS);
+      if (rS) { checked.push(rS); if (!rS.ok) drifts.push(rS); }
+    }
+  }
+
+  // #3: ARCHITECTURE.md header — tests + fitness
+  {
+    const src = loadDoc('ARCHITECTURE.md');
+    if (src) {
+      const rT = check('ARCHITECTURE.md', src, 'header tests',
+        /^> (\d+) tests, fitness \d+\/130/m, TESTS_WIN);
+      if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
+      if (FITNESS != null) {
+        const rF = check('ARCHITECTURE.md', src, 'header fitness',
+          /^> \d+ tests, fitness (\d+)\/130/m, FITNESS);
+        if (rF) { checked.push(rF); if (!rF.ok) drifts.push(rF); }
+      }
+    }
+  }
+
+  // #4: ARCHITECTURE.md inline "Current stats: NNN catalogued events"
+  {
+    const src = loadDoc('ARCHITECTURE.md');
+    if (src) {
+      const r = check('ARCHITECTURE.md', src, 'Current stats events',
+        /\*\*Current stats:\*\* (\d+) catalogued events/, CATALOG);
+      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+    }
+  }
+
+  // #5–7: ARCHITECTURE-DEEP-DIVE.md Key-Numbers table
+  {
+    const src = loadDoc('ARCHITECTURE-DEEP-DIVE.md');
+    if (src) {
+      const rSM = check('ARCHITECTURE-DEEP-DIVE.md', src, 'Key Numbers Source Modules',
+        /\|\s*Source Modules\s*\|\s*(\d+)\s*JS files\s*\|/, SOURCE);
+      if (rSM) { checked.push(rSM); if (!rSM.ok) drifts.push(rSM); }
+
+      const rTF = check('ARCHITECTURE-DEEP-DIVE.md', src, 'Key Numbers Test Files',
+        /\|\s*Test Files \/ Tests\s*\|\s*(\d+)\s*\/\s*\d+\s*\(Win baseline\)\s*\|/, TEST_FILES);
+      if (rTF) { checked.push(rTF); if (!rTF.ok) drifts.push(rTF); }
+
+      const rTC = check('ARCHITECTURE-DEEP-DIVE.md', src, 'Key Numbers Test Count',
+        /\|\s*Test Files \/ Tests\s*\|\s*\d+\s*\/\s*(\d+)\s*\(Win baseline\)\s*\|/, TESTS_WIN);
+      if (rTC) { checked.push(rTC); if (!rTC.ok) drifts.push(rTC); }
+
+      const pj = require(path.join(ROOT, 'package.json'));
+      const prodDeps = Object.keys(pj.dependencies || {}).length;
+      const optDeps = Object.keys(pj.optionalDependencies || {}).length;
+      const devDeps = Object.keys(pj.devDependencies || {}).length;
+      const expectedDeps = `${prodDeps} production + ${optDeps} optional + ${devDeps} dev`;
+      const rD = check('ARCHITECTURE-DEEP-DIVE.md', src, 'Key Numbers npm Dependencies',
+        /\|\s*npm Dependencies\s*\|\s*([^|]+?)\s*\|/, expectedDeps,
+        (m) => m[1].trim());
+      if (rD) { checked.push(rD); if (!rD.ok) drifts.push(rD); }
+    }
+  }
+
+  // #5b: ARCHITECTURE-DEEP-DIVE.md src/ total comment
+  {
+    const src = loadDoc('ARCHITECTURE-DEEP-DIVE.md');
+    if (src) {
+      const r = check('ARCHITECTURE-DEEP-DIVE.md', src, 'src/ total modules',
+        /=\s*src\/ total\s+(\d+)\s*modules/, SOURCE);
+      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+    }
+  }
+
+  // #8: CAPABILITIES.md Z.259 test files row
+  {
+    const src = loadDoc('CAPABILITIES.md');
+    if (src) {
+      const rTF = check('CAPABILITIES.md', src, 'test files row',
+        /\|\s*\*\*(\d+) test files\*\*\s*\|\s*\d+\s*tests\s*\(Win baseline/, TEST_FILES);
+      if (rTF) { checked.push(rTF); if (!rTF.ok) drifts.push(rTF); }
+      const rTC = check('CAPABILITIES.md', src, 'test files row count',
+        /\|\s*\*\*\d+ test files\*\*\s*\|\s*(\d+)\s*tests\s*\(Win baseline/, TESTS_WIN);
+      if (rTC) { checked.push(rTC); if (!rTC.ok) drifts.push(rTC); }
+    }
+  }
+
+  // #9: COMMUNICATION.md baseline marker
+  {
+    const src = loadDoc('COMMUNICATION.md');
+    if (src) {
+      const r = check('COMMUNICATION.md', src, 'event types baseline',
+        /\*\*\d+ event types\*\* catalogued in `EventTypes\.js` \(v(\d+\.\d+\.\d+) baseline\)/,
+        VERSION,
+        (m) => m[1]);
+      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+    }
+  }
+
+  // #10: MCP-SERVER-SETUP.md header version
+  {
+    const src = loadDoc('MCP-SERVER-SETUP.md');
+    if (src) {
+      const r = check('MCP-SERVER-SETUP.md', src, 'header version',
+        /^> v(\d+\.\d+\.\d+) — Last verified/m, VERSION,
+        (m) => m[1]);
+      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+    }
+  }
+
+  // #11: AUDIT-BACKLOG.md header version (root-level doc, custom load)
+  {
+    let src;
+    try { src = fs.readFileSync(path.join(ROOT, 'AUDIT-BACKLOG.md'), 'utf-8'); }
+    catch { src = null; }
+    if (src) {
+      const r = check('AUDIT-BACKLOG.md', src, 'header version',
+        /^> Version: (\d+\.\d+\.\d+)/m, VERSION,
+        (m) => m[1]);
+      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+    }
+  }
+
+  // #12: SECURITY.md supported-versions table rotation
+  {
+    let src;
+    try { src = fs.readFileSync(path.join(ROOT, 'SECURITY.md'), 'utf-8'); }
+    catch { src = null; }
+    if (src) {
+      // Compute expected current major.minor from version
+      const [maj, min] = VERSION.split('.').map(Number);
+      const expectActive = `${maj}.${min}.x`;
+      const r = check('SECURITY.md', src, 'supported versions Active row',
+        /\|\s*(\d+\.\d+\.x)\s*\|\s*✅ Active\s*\|/, expectActive,
+        (m) => m[1]);
+      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+    }
+  }
+
+  // #13: README Node-version (paired with engines.node)
+  {
+    let src;
+    try { src = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf-8'); }
+    catch { src = null; }
+    if (src) {
+      const pj = require(path.join(ROOT, 'package.json'));
+      const enginesFloor = (pj.engines && pj.engines.node || '>=0').match(/(\d+)/);
+      const expectedFloor = enginesFloor ? parseInt(enginesFloor[1], 10) : 0;
+      const r = check('README.md', src, 'Node version requirement',
+        /Requires \*\*Node\.js (\d+)\+\*\*/, expectedFloor);
+      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+    }
+  }
+
+  // #14 (B8): script-header drift-anti-pattern
+  {
+    let scriptDir;
+    try {
+      scriptDir = fs.readdirSync(path.join(ROOT, 'scripts'))
+        .filter(f => f.endsWith('.js'));
+    } catch { scriptDir = []; }
+    let driftCount = 0;
+    const driftFiles = [];
+    for (const f of scriptDir) {
+      try {
+        const head = fs.readFileSync(path.join(ROOT, 'scripts', f), 'utf-8')
+          .split('\n').slice(0, 6).join('\n');
+        // match: // GENESIS — scripts/foo.js (vN.N.N…)
+        // diagnose-v741-d0.js is intentionally exempt (version is part of identity)
+        if (/diagnose-v\d+/.test(f)) continue;
+        if (/^\/\/\s*GENESIS\s*[—-]\s*[^()\n]+\s*\(v\d+\.\d+\.\d+/m.test(head)) {
+          driftCount++;
+          driftFiles.push(f);
+        }
+      } catch { /* ignore */ }
+    }
+    const r = {
+      doc: 'scripts/*.js',
+      label: 'header version stamps (drift-prone, should not be present)',
+      expected: 0,
+      actual: driftCount,
+      ok: driftCount === 0,
+    };
+    if (driftCount > 0) {
+      r.detail = `Files with stamps: ${driftFiles.join(', ')}`;
+    }
+    checked.push(r);
+    if (!r.ok) drifts.push(r);
   }
 
   return { drifts, checked };

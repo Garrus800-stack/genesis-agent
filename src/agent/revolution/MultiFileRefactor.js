@@ -28,7 +28,7 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('MultiFileRefactor');
 
 class MultiFileRefactor {
-  constructor({ bus, selfModel, model, sandbox, guard, eventStore, rootDir, astDiff }) {
+  constructor({ bus, selfModel, model, sandbox, guard, eventStore, rootDir, astDiff, settings }) {
     this.bus = bus || NullBus;
     this.selfModel = selfModel;
     this.model = model;
@@ -37,6 +37,10 @@ class MultiFileRefactor {
     this.eventStore = eventStore;
     this.rootDir = rootDir;
     this.astDiff = astDiff || null;
+    // v7.7.1-hotfix: settings injected for agency.gitAutoCommit gating.
+    // When null (e.g. unit tests instantiating MultiFileRefactor directly),
+    // autoCommit defaults to off — the safer default.
+    this._settings = settings || null;
 
     this._stats = { totalRefactors: 0, filesChanged: 0, rollbacks: 0 };
   }
@@ -53,7 +57,11 @@ class MultiFileRefactor {
    * @returns {Promise<object>} { success, changes, errors, committed }
    */
   async refactor(description, options = {}) {
-    const { dryRun = false, maxFiles = 10, autoCommit = true } = options;
+    // v7.7.1-hotfix: autoCommit default now derived from agency.gitAutoCommit
+    // (default off). Explicit `autoCommit: true` in options still works
+    // (backward-compat for existing callers).
+    const _settingsAutoCommit = this._settings?.get?.('agency.gitAutoCommit') === true;
+    const { dryRun = false, maxFiles = 10, autoCommit = _settingsAutoCommit } = options;
 
     this.bus.fire('refactor:started', { description }, { source: 'MultiFileRefactor' });
 

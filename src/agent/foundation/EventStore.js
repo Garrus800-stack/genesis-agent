@@ -49,6 +49,14 @@ class EventStore {
     this._batchFlushMs = 500;        // Flush interval
     this._batchFlushTimer = null;
     this._batchFlushPromise = null;  // Tracks in-flight flush
+    // v7.7.1-hotfix: retry counter for transient flush errors (EBUSY/EAGAIN/EPERM).
+    // On Windows, parallel readers like GenesisBackup can lock events.jsonl
+    // during their copy pass. Without retry, the batch was dropped silently
+    // (splice took it out of the buffer before append was attempted). Now:
+    // up to 3 retries; on retry exhaustion the batch is dropped with a clear
+    // error log naming the count of lost events.
+    this._flushRetries = 0;
+    this._maxFlushRetries = 3;
 
     // v7.5.7-fix Phase 2: rotation thresholds
     this._maxFileSizeMB = (typeof opts.maxFileSizeMB === 'number') ? opts.maxFileSizeMB : 50;
@@ -162,16 +170,45 @@ class EventStore {
     const lines = this._writeBatch.splice(0); // Take all buffered lines
     const payload = lines.join('\n') + '\n';
 
+    // v7.7.1-hotfix: classify errors as transient (retry-eligible) vs permanent.
+    // EBUSY: Windows file lock (e.g. GenesisBackup reading events.jsonl).
+    // EAGAIN: POSIX resource-temporarily-unavailable.
+    // EPERM: sometimes a Windows lock-side-effect, treat as transient.
+    const _isTransient = (err) => {
+      const code = err && err.code;
+      return code === 'EBUSY' || code === 'EAGAIN' || code === 'EPERM';
+    };
+
     try {
       if (this.storage) {
         this._batchFlushPromise = this.storage.appendTextAsync('events.jsonl', payload)
-          .catch(err => _log.error('[EVENT-STORE] Batch flush failed:', err.message))
+          .then(() => {
+            // Success — reset retry counter
+            this._flushRetries = 0;
+          })
+          .catch(err => {
+            if (_isTransient(err) && this._flushRetries < this._maxFlushRetries) {
+              // Restore lines to front of buffer; new appends keep going to back.
+              // concat is call-stack-safe for any batch size (vs spread/unshift).
+              this._writeBatch = lines.concat(this._writeBatch);
+              this._flushRetries++;
+              _log.warn(`[EVENT-STORE] Batch flush transient error (${err.code}), retry ${this._flushRetries}/${this._maxFlushRetries} scheduled (${lines.length} events buffered)`);
+              this._scheduleBatchFlush();
+            } else {
+              // Permanent error or retry exhausted — drop with explicit count.
+              const reason = _isTransient(err) ? 'retries exhausted' : err.code || 'unknown';
+              _log.error(`[EVENT-STORE] Batch flush failed (${lines.length} events lost, ${reason}):`, err.message);
+              this._flushRetries = 0;
+            }
+          })
           .finally(() => { this._batchFlushPromise = null; });
       } else {
         fs.appendFileSync(this.logFile, payload, 'utf-8');
+        this._flushRetries = 0;
       }
     } catch (err) {
-      _log.error('[EVENT-STORE] Batch flush failed:', err.message);
+      _log.error(`[EVENT-STORE] Batch flush failed (${lines.length} events lost):`, err.message);
+      this._flushRetries = 0;
     }
   }
 

@@ -47,6 +47,9 @@ const FIELD_REGISTRY = {
   'set-allow-peers':              { type: 'bool',     settingsPath: 'security.allowNetworkPeers',      resetSafe: true,  default: true },
   'set-allow-file-exec':          { type: 'bool',     settingsPath: 'security.allowFileExecution',     resetSafe: true,  default: true },
   'set-commit-on-shutdown':       { type: 'bool',     settingsPath: 'agency.commitSnapshotOnShutdown', resetSafe: true,  default: false },
+  // v7.7.1-hotfix: gate Genesis git-auto-operations behind opt-in.
+  'set-git-auto-init':            { type: 'bool',     settingsPath: 'agency.gitAutoInit',               resetSafe: true,  default: false },
+  'set-git-auto-commit':          { type: 'bool',     settingsPath: 'agency.gitAutoCommit',             resetSafe: true,  default: false },
 
   // ── Limits ────────────────────────────────────────────
   'set-max-concurrent':           { type: 'number',   settingsPath: 'models.maxConcurrent',            resetSafe: true,  default: 3,    min: 1,    max: 10 },

@@ -302,6 +302,22 @@
             </select>
             <span class="setting-hint" data-i18n="settings.commit_shutdown.hint">Default: aus (v7.5.7-fix Phase 3). Auf einem geteilten Repo: aus lassen, sonst landen Genesis-Files in deiner Git-History.</span>
           </div>
+          <div class="setting-group">
+            <label data-i18n="settings.agency.git_auto_init">Git-Repo automatisch initialisieren</label>
+            <select id="set-git-auto-init" class="setting-input">
+              <option value="false" data-i18n="settings.git_auto_init.off">Aus (Default) — kein "git init"</option>
+              <option value="true" data-i18n="settings.git_auto_init.on">An — "git init" wenn kein Repo vorhanden</option>
+            </select>
+            <span class="setting-hint" data-i18n="settings.git_auto_init.hint">Default: aus (v7.7.1-hotfix). Genesis erstellt kein .git-Verzeichnis ohne deine Zustimmung. Dein bestehendes Repo wird nie angefasst.</span>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="settings.agency.git_auto_commit">Git-Auto-Commit bei Selbst-Modifikation</label>
+            <select id="set-git-auto-commit" class="setting-input">
+              <option value="false" data-i18n="settings.git_auto_commit.off">Aus (Default) — keine automatischen Commits</option>
+              <option value="true" data-i18n="settings.git_auto_commit.on">An — Genesis committet vor/nach Selbst-Modifikationen</option>
+            </select>
+            <span class="setting-hint" data-i18n="settings.git_auto_commit.hint">Default: aus (v7.7.1-hotfix). SnapshotManager und GenesisBackup sind die aktiven Fallback-Layer und decken denselben Use Case ab, ohne deine Git-History anzufassen.</span>
+          </div>
           <div class="setting-group setting-divider">
             <label class="setting-section-label" data-i18n="settings.section.install">Software-Installation (v7.5.9 ZIP 5)</label>
           </div>

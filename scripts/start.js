@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/start.js (v7.2.9)
+// GENESIS — scripts/start.js
 //
 // Entry point for `npm start`. Sets the Windows console codepage
 // to UTF-8 (65001) BEFORE spawning Electron, so boot logs render

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/generate-event-types.js (v7.1.2)
+// GENESIS — scripts/generate-event-types.js
 //
 // Generates src/agent/core/EventPayloads.d.ts from the runtime
 // EventPayloadSchemas.js. Provides TypeScript-level type safety

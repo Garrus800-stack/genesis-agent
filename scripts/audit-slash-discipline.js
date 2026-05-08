@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/audit-slash-discipline.js (v7.5.7)
+// GENESIS — scripts/audit-slash-discipline.js
 //
 // Slash-discipline classifier. Categorizes every intent in
 // IntentPatterns.js by its match-style and security-required-slash

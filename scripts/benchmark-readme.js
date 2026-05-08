@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/benchmark-readme.js (v6.0.1)
+// GENESIS — scripts/benchmark-readme.js
 //
 // Reads benchmark results from .genesis/benchmark-latest.json
 // and writes a formatted markdown table into README.md.

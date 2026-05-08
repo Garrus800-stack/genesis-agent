@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/build-bundle.js (v3.7.0)
+// GENESIS — scripts/build-bundle.js
 //
 // Production bundler using esbuild. Creates optimized bundles
 // for faster startup and cleaner distribution.

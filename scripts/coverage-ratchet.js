@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/coverage-ratchet.js (v7.1.2)
+// GENESIS — scripts/coverage-ratchet.js
 //
 // Reads c8 coverage output (text format) and ratchets up
 // thresholds in package.json to (actual - buffer).

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/validate-channels.js (v4.10.0)
+// GENESIS — scripts/validate-channels.js
 //
 // CI script: validates that preload.mjs IPC channel whitelists
 // are in sync with the CHANNELS contract in main.js.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — fitness-trend.js (v5.3.0)
+// GENESIS — fitness-trend.js
 //
 // Saves architectural fitness scores per commit to detect drift.
 // Run after architectural-fitness.js in CI or manually.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — validate-intent-wiring.js (v7.4.1)
+// GENESIS — validate-intent-wiring.js
 //
 // CI guard against intent-type mismatches between IntentRouter
 // definitions, slash-commands, and ChatOrchestrator handler

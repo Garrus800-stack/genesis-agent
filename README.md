@@ -8,8 +8,8 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.7.0-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-6867%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.7.1-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-6905%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
@@ -195,7 +195,7 @@ npm start -- --skip-phase 7            # Custom — skip specific phases (6-13)
 
 Use `--minimal` to learn the architecture without cognitive overhead. Use `--cognitive` (default) for development and production.
 
-Requires **Node.js 20+** (tested on 20, 22) and **Git**. Ollama is optional if a cloud API is configured. On Windows, double-click `Genesis-Start.bat` instead.
+Requires **Node.js 22+** (tested on 22, 24) and **Git**. Ollama is optional if a cloud API is configured. On Windows, double-click `Genesis-Start.bat` instead.
 
 ### Headless / CLI Mode (v5.9.0)
 
@@ -529,7 +529,7 @@ npm run test:coverage # With coverage report (c8)
 npm run ci            # Full CI: tests + fitness + event audit + event validation + channels
 ```
 
-All tests run without external dependencies (no Ollama, no API keys, no internet). Tested on Node 20, 22. CI runs on Ubuntu + Windows via GitHub Actions.
+All tests run without external dependencies (no Ollama, no API keys, no internet). Tested on Node 22, 24. CI runs on Ubuntu + Windows via GitHub Actions.
 
 ### Code Metrics by Layer
 
@@ -554,12 +554,12 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 273 modules (src/) |
+| Source modules | 330 modules (src/) |
 | Lines of code | ~89k src + ~59k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 154 manifest + 13 bootstrap = 167 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 335 files, 5668 tests (coverage gates: 80/76/78, ratchet floor 5667) |
+| Test suites | 406 files, 6905 tests (coverage gates: 80/76/78, ratchet floor 6014) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 67 main ↔ 67 preload (rate-limited, all in sync) |
@@ -618,15 +618,7 @@ All persistence goes through `StorageService` (write-queued, atomic JSON writes)
 { "acorn": "^8.16.0", "chokidar": "^3.6.0", "tree-kill": "^1.2.2" }
 ```
 
-**Optional** (3 — try/catch guarded, degraded mode without):
-```json
-{ "cheerio": "^1.0.0", "puppeteer": "^22.0.0", "monaco-editor": "^0.44.0" }
-```
-
-**Dev** (6):
-```json
-{ "electron": "^39.0.0", "electron-builder": "^26.0.0", "typescript": "^5.5.0", "c8": "^9.1.0", "esbuild": "^0.24.2", "@types/node": "^22.0.0" }
-```
+**Optional / Dev** — see [package.json](./package.json) for exact versions and the runtime/build distinction. Optional packages (`cheerio`, `puppeteer`, `monaco-editor`) are loaded behind try/catch and degrade gracefully when absent.
 
 No LangChain. No LlamaIndex. Everything self-written.
 

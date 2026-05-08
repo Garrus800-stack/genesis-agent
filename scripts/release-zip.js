@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/release-zip.js (v7.0.1)
+// GENESIS — scripts/release-zip.js
 //
 // Builds a deterministic release archive. Ensures .genesis/,
 // node_modules/, and other runtime/dev artifacts are never

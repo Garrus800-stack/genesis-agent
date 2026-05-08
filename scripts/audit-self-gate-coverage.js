@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/audit-self-gate-coverage.js (v7.6.1 audit-closeout)
+// GENESIS — scripts/audit-self-gate-coverage.js
 //
 // Verifies that every actionType documented in self-gate.js's JSDoc
 // header has at least one selfGate.check({ actionType: ... }) call site

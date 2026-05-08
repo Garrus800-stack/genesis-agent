@@ -683,9 +683,11 @@ check('Inference Contradiction Detection', (r) => {
 });
 
 // ════════════════════════════════════════════════════════════
-// CHECK 13: File Size Guard (v7.1.2)
+// CHECK 13: File Size Guard (v7.1.2; v7.7.1 extended to src/ui)
 // Prevents files from growing past maintainability thresholds.
-// Warn >600 LOC, fail >800 LOC. Vendor files exempt.
+// Warn >700 LOC, fail >900 LOC. Vendor and pure-data files exempt.
+// Known-large modules with caps (cap-and-shrink pattern) are listed
+// in EXEMPT_CAPS; growth beyond cap fails, shrinkage is allowed.
 // ════════════════════════════════════════════════════════════
 
 check('File Size Guard', (r) => {
@@ -696,19 +698,35 @@ check('File Size Guard', (r) => {
     'EventTypes.js',    // Catalog file — grows with features, pure data
     'EventPayloadSchemas.js', // Schema catalog — same
     'Language.js',      // i18n strings — data, not logic
-    // v7.4.3: Container.js removed from exempt — Baustein B brought it
-    // to 581 LOC, well below the 700 warn threshold. No exception needed.
   ];
+  // v7.7.1: known-large modules with current LOC as hard cap. Growth
+  // beyond cap fails the check; shrinkage (e.g. via Mixin-Split) is
+  // allowed and the cap should be reduced or removed in the same edit.
+  const FILE_SIZE_CAPS = {
+    'settings.js': 1074,  // src/ui/modules — Mixin-Split candidate
+  };
 
-  const srcFiles = walkJs(path.join(SRC, 'agent'));
+  const srcFiles = [
+    ...walkJs(path.join(SRC, 'agent')),
+    ...walkJs(path.join(SRC, 'ui')),
+  ];
   const overWarn = [];
   const overFail = [];
+  const capViolations = [];
 
   for (const file of srcFiles) {
     const name = path.basename(file);
     if (EXEMPT.includes(name)) continue;
 
     const lines = readSafe(file).split('\n').length;
+
+    if (FILE_SIZE_CAPS[name] !== undefined) {
+      if (lines > FILE_SIZE_CAPS[name]) {
+        capViolations.push({ file: relPath(file), lines, cap: FILE_SIZE_CAPS[name] });
+      }
+      continue; // capped files don't trigger threshold logic
+    }
+
     if (lines > FAIL_THRESHOLD) {
       overFail.push({ file: relPath(file), lines });
     } else if (lines > WARN_THRESHOLD) {
@@ -716,11 +734,14 @@ check('File Size Guard', (r) => {
     }
   }
 
-  if (overFail.length > 0) {
+  if (overFail.length > 0 || capViolations.length > 0) {
     r.score = 0;
     r.status = 'fail';
     for (const f of overFail) {
       r.details.push(`FAIL: ${f.file} — ${f.lines} LOC (>${FAIL_THRESHOLD})`);
+    }
+    for (const f of capViolations) {
+      r.details.push(`FAIL: ${f.file} — ${f.lines} LOC (cap ${f.cap})`);
     }
   } else if (overWarn.length > 0) {
     r.score = 7;
@@ -730,11 +751,15 @@ check('File Size Guard', (r) => {
     }
   } else {
     r.score = 10;
-    r.details.push(`All ${srcFiles.length} source files under ${WARN_THRESHOLD} LOC.`);
+    r.details.push(`All ${srcFiles.length} source files under ${WARN_THRESHOLD} LOC (or within cap).`);
   }
 
-  if (overWarn.length > 0 || overFail.length > 0) {
+  if (overWarn.length > 0 || overFail.length > 0 || capViolations.length > 0) {
     r.details.push(`Exempt: ${EXEMPT.join(', ')}`);
+    if (Object.keys(FILE_SIZE_CAPS).length > 0) {
+      const caps = Object.entries(FILE_SIZE_CAPS).map(([k, v]) => `${k}@${v}`).join(', ');
+      r.details.push(`Capped: ${caps}`);
+    }
   }
 });
 

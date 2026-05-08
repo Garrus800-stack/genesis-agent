@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/migrate-episodes-to-layers.js (v7.3.7)
+// GENESIS — scripts/migrate-episodes-to-layers.js
 //
 // Adds the v7.3.7 layer-system fields to existing episodes in
 // .genesis/episodic-memory.json. Idempotent — episodes that

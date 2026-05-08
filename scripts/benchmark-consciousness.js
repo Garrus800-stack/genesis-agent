@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/benchmark-consciousness.js (v4.12.2)
+// GENESIS — scripts/benchmark-consciousness.js
 //
 // A/B Benchmark: Measures whether Phase 13 (Consciousness)
 // improves task quality, response coherence, and decision-making.

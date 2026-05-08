@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/audit-raw-settimeout.js (v7.6.3)
+// GENESIS — scripts/audit-raw-settimeout.js
 //
 // Counts raw setTimeout() calls under src/agent/ that are not
 // (a) part of a Promise.race timeout-pattern, (b) assigned to

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — check-ratchet.js (v7.3.5)
+// GENESIS — check-ratchet.js
 //
 // Ratchet enforcement. Reads scripts/ratchet.json for the floor
 // values (test count, fitness score, drift thresholds). Runs the

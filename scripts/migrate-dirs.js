@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — Directory Migration Script (v3.12.0)
+// GENESIS — Directory Migration Script
 //
 // Restructures src/agent/ from flat 84-file dir to layer subdirs.
 // Updates all require() paths automatically.

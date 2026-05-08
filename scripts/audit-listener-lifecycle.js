@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/audit-listener-lifecycle.js (v7.6.3)
+// GENESIS — scripts/audit-listener-lifecycle.js
 //
 // Verifies that every module subscribing 2+ listeners to the EventBus
 // has at least one listener-cleanup mechanism: either explicit `.off()`

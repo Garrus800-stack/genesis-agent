@@ -1,9 +1,215 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.7.0 · Last updated: v7.7.0 (UI dual-path elimination: legacy renderer.js + 930-LOC test deleted, modular path brought to feature parity with ten previously-divergent behaviors fixed including three production bugs, audit-doc-drift extended from 30 to 40 verified claims with live-fitness lookup.)
+> Version: 7.7.1 · Last updated: v7.7.1 (Drift sweep: audit-doc-drift extended from 40 to 53 verified claims, 30 stale script-header version stamps removed, file-size-guard extended to src/ui/, engines.node bumped from EoL Node 18 to Active LTS Node 22, README dependencies block replaced by package.json reference. No new behavior, no architecture change. See CHANGELOG.md for full details.)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+
+## Resolved in v7.7.1
+
+### Drift-cleanup wave (closes the v7.6.x → v7.7.0 staleness backlog)
+
+The v7.7.0 audit-doc-drift extension (40 → 50 claims) caught the
+*structural* drift sources but left blind spots in **header stamps**,
+**inline stats**, **version tables**, **key-numbers tables**, and
+**self-referential script headers**. v7.7.1 closes those.
+
+**13 doc drift sources patched** (and now under audit going forward):
+
+1. `ARCHITECTURE.md` Z.6 — header version stamp `7.6.1 → 7.7.1`
+2. `ARCHITECTURE.md` Z.6 — header `458/458 → 453/453` events/schemas
+3. `ARCHITECTURE.md` Z.9 — header `6606 tests, 127/130 → 6905, 130/130`
+4. `ARCHITECTURE.md` Z.510 — inline `Current stats: 424 → 453`
+5. `ARCHITECTURE.md` Z.395, Z.665, Z.760 — three `5668 tests` references
+   bumped to `6905`
+6. `docs/ARCHITECTURE-DEEP-DIVE.md` Key Numbers table — Source Modules
+   `322 → 330`, Test Files `384/6650 → 406/6905`, npm Dependencies
+   `3 prod + 3 opt + 6 dev → 3 prod + 1 opt + 9 dev`, src/ total
+   `306 modules → 330 modules`
+7. `docs/CAPABILITIES.md` Z.259 — test files row `384/6709 → 406/6905`
+8. `docs/COMMUNICATION.md` Z.43 — baseline marker `(v7.6.3 baseline)
+   → (v7.7.1 baseline)`
+9. `docs/MCP-SERVER-SETUP.md` Z.3 — header version `v7.7.0 → v7.7.1`
+10. `AUDIT-BACKLOG.md` Z.3 — header version stamp
+11. `SECURITY.md` supported-versions table — rotated by-one
+    (`7.7.x ✅`, `7.6.x ⚠`, `7.5.x ❌`)
+12. `README.md` Z.198 + Z.532 — Node version `20+ → 22+`
+13. `README.md` Z.557 + Z.562 — module count `273 → 330`, test-suite
+    line `335 files, 5668 tests → 406 files, 6905 tests`
+
+**30 stale script-header version stamps removed.** All `scripts/*.js`
+files (except `diagnose-v741-d0.js` whose version is part of identity)
+now use the standard form `// GENESIS — scripts/foo.js` without
+parenthesized version. Per-stamp upkeep was prohibitive — they sat
+between v3.12.0 (most stale) and v7.6.4 (least stale). Anti-drift
+check added in `audit-doc-drift.js` to prevent re-introduction.
+
+**File-Size-Guard scope extended.** `architectural-fitness.js`
+File Size Guard now walks both `src/agent/` and `src/ui/` (323 files
+instead of 306). New `FILE_SIZE_CAPS` constant (cap-and-shrink pattern,
+analogous to the existing `EXEMPT_CAPS` for method counts in the
+God Class check) caps `settings.js` at 1068 LOC as a known
+Mixin-Split candidate.
+
+**Engine baseline corrected.** `package.json:engines.node` `>=18.0.0`
+→ `>=22.0.0`. Node 18 reached EoL April 2025; Node 20 reached EoL
+April 2026. Listing EoL versions as supported was a security-relevant
+false claim. README and `test/index.js` declarations brought into
+alignment.
+
+**README dependencies block streamlined.** The hardcoded JSON snippet
+(`Optional (3) ... Dev (6):`) had drifted in *both directions* against
+`package.json` — electron/electron-builder were newer in README,
+puppeteer/monaco-editor newer in `package.json`. Replaced by a single
+paragraph + link to `package.json` to collapse the two pflege-stände.
+
+**File-Size-Guard comment drift fixed.** The block-header in
+`architectural-fitness.js` Z.687–688 had stated `Warn >600 LOC, fail
+>800 LOC` while the code used 700/900. Self-referential drift in
+the drift-checking auditor itself. Corrected.
+
+### Stats / fitness / audits at v7.7.1
+
+- 6871 tests (Linux baseline), 6905 (Win baseline) — +15 across
+  both for new v771-* contracts
+- Architectural fitness: **130/130** (unchanged but now reflects
+  Agent + UI source basis)
+- File Size Guard scope: 306 → 323 files
+- audit-doc-drift checks: 40 → **53**
+- CI gates: 15 (unchanged)
+- Min Node version (declared): 18.0.0 (EoL) → **22.0.0** (Active LTS)
+- Stale script-header stamps: 30 → **0** (anti-drift-check active)
+
+### Items still deferred (no Score-pressure)
+
+- **`src/ui/modules/settings.js` Mixin-Split (1068 LOC).** File is now
+  visible in File Size Guard and capped at current LOC. The split
+  itself is real refactor work — eigenes Plan-Thema mit
+  Vor-Lösch-Audit-Methode (vgl. v7.7.0).
+- **CLEANUP-PROTOCOL.md formalisierung des Vor-Lösch-Audits.** Eigene
+  Doku-Release.
+- **11 docs not yet covered by audit-doc-drift**: BENCHMARKING.md,
+  BUG-TAXONOMY.md, DEGRADATION-MATRIX.md, GATE-INVENTORY.md (header
+  abgedeckt seit v7.7.1), MCP-SERVER-SETUP.md (header abgedeckt seit
+  v7.7.1), ONTOGENESIS.md, QUICK-START.md, SETTINGS.md,
+  SKILL-SECURITY.md, TROUBLESHOOTING.md,
+  phase9-cognitive-architecture.md. Mechanical extension; defer to
+  audit-extension-scope release.
+- **Major-Bumps für `electron`, `electron-builder`, `puppeteer`,
+  `monaco-editor`, `mermaid`.** Major-Bumps können Breaking Changes
+  haben (Electron besonders); gehört in eigene Toolchain-Maintenance-
+  Release, nicht in Cleanup.
+- **`src/agent/hexagonal/CommandHandlersInstallDB.js` Z.108–109**
+  hardcoded Node v20.18.1 als Auto-Install-Target. Code-Änderung mit
+  Test-Implikation; eigene Release.
+- **8 events emitted without subscriber** (carry-forward from v7.6.7
+  baseline=8): goal:stalled, error:trend, lesson:learned,
+  narrative:updated, memory:consolidation-failed,
+  model:unavailable-cleared, reasoning:started, symbolic:resolved.
+  Pinned via ratchet; not regressions.
+- **ImpactForecast.fragilityDelta** — nie implementiert. Brand-new
+  feature, kein Cleanup.
+
+---
+
+### Resolved post-release (Hotfix in v7.7.1)
+
+**Auto git-init + auto-commit gated behind opt-in settings (default off).**
+Found during cross-platform verification of v7.7.1: Genesis was creating
+a `.git` directory + initial commit (with hardcoded `user.name=Genesis,
+email=genesis@local`) on every `npm install`/`npm test`/`npm start` in a
+fresh checkout — without any setting to control it. The
+`commitSnapshotOnShutdown` setting (default off since v7.5.7) only
+covered the shutdown-commit path; the `SelfModel.scan()` initial-init
+path was hardcoded.
+
+Three Genesis-internal git-mutation paths gated:
+
+1. **`SelfModel.scan()` Z.108-126** — `git init` + initial commit →
+   `agency.gitAutoInit` (default false)
+2. **`SelfModel.commitSnapshot()`** (called by `Reflector.js`,
+   `SelfModificationPipelineModify.js` pre/post code-change boundaries)
+   → `agency.gitAutoCommit` (default false), no-op when off
+3. **`SelfModel.rollback()`** (called by `DeploymentManager` for
+   auto-rollback) → `agency.gitAutoCommit`, throws with pointer to
+   `.genesis-backups/` as fallback when off
+
+Plus **`MultiFileRefactor.refactor()`**: `autoCommit` parameter default
+flipped from hardcoded `true` to settings-derived
+(`agency.gitAutoCommit`). Explicit `autoCommit: true` callers keep
+working (backward-compat).
+
+**State-preservation when both settings are off:** SnapshotManager
+(`.genesis/snapshots/_last_good_boot/`) and GenesisBackup
+(`.genesis-backups/<timestamp>/`) cover the same semantic use case via
+file-copy. They were always running as primary layers; the git path was
+a third redundant layer that ran without consent.
+
+**UI:** two new toggles in Settings → Agency block (directly under
+`commitSnapshotOnShutdown`). 8 new i18n strings (4 EN + 4 DE).
+
+**Test coverage:** `v771-git-auto-gating.contract.test.js`, 12 tests
+pinning Settings defaults, SelfModel gating points, AgentCoreBoot
+injection, MultiFileRefactor default-flip, UI bindings, i18n keys.
+
+**Side-fix:** `architectural-fitness.js` Z.759-760 had two stale
+`EXEMPT_CAPS` references that should have been renamed to
+`FILE_SIZE_CAPS` in the v7.7.1 main release (rename was done inside the
+check body but missed the output formatting). Caught during File-Size-
+Guard verification when `settings.js` grew by 6 LOC for the new UI
+bindings, triggering exactly the cap-violation code path that referenced
+the undefined name. Fixed; cap bumped 1068 → 1074.
+
+---
+
+### Resolved post-release (Hotfix 2 in v7.7.1) — EventStore data-loss race
+
+**EventStore._flushBatch() was silently dropping batches on transient
+write errors.** Found during v7.7.1 cross-platform verification — the
+log line `[ERROR] [EventStore] Batch flush failed: EBUSY` was visible
+on Windows but the consequence (event-batch silently lost) was not
+obvious from the log message alone.
+
+**Pre-existing bug** — present since at least v3.8.0 when batch-flush
+was introduced. Only manifested on Windows where exclusive file locks
+during `GenesisBackup._copyDir` overlap with EventStore's parallel
+`appendTextAsync('events.jsonl', ...)`.
+
+**Code path:** `EventStore.js` Z.151-176 — `splice(0)` removed buffered
+lines BEFORE the async append was attempted. The `.catch(err =>
+_log.error(...))` only logged the failure; lines were never restored
+to the buffer. Permanent silent data loss whenever the append failed.
+
+**Two-layer fix:**
+
+1. **EventStore retry on transient errors** (`EBUSY`/`EAGAIN`/`EPERM`):
+   - Lines restored to buffer front via `concat` (call-stack-safe)
+   - Up to 3 retries (`_maxFlushRetries = 3`)
+   - On exhaustion or permanent error: explicit `events lost` log
+   - Success path resets retry counter
+2. **GenesisBackup awaits EventStore quiescence:**
+   - Before `_copyDir`, `await this._eventStore.flushPending()`
+   - Best-effort, in try/catch (failure non-fatal)
+   - `phase1-foundation.js`: `genesisBackup` deps now include
+     `eventStore`; factory passes `eventStore: c.resolve('eventStore')`
+
+**Test coverage:** `v771-eventstore-race-fix.contract.test.js`, 11
+tests pinning retry classification, buffer restoration mechanism, retry
+limit, success-reset, hard-failure log, GenesisBackup flushPending
+order, manifest deps, factory wiring.
+
+**Why it stayed hidden so long:** Linux POSIX file semantics allow
+parallel reads + appends to succeed even during `cp -r`; the EBUSY
+only surfaces on Windows where file locks are exclusive. The Genesis
+test suite runs on Linux primarily; CI never saw the failure mode.
+
+**Why fixed now and not deferred:** Garrus' policy — no release with a
+known data-loss bug, regardless of how rare or obscure. Self-modifying
+agents that lose entries from their own event log are exactly the
+class of system where silent corruption compounds invisibly.
 
 ---
 

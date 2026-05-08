@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/benchmark-agent.js (v5.9.8 — V6-9)
+// GENESIS — scripts/benchmark-agent.js
 //
 // Standardized benchmarks to measure agent capability across
 // versions and backends. Runs a predefined task suite and

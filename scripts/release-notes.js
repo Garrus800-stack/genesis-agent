@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/release-notes.js (v5.9.2)
+// GENESIS — scripts/release-notes.js
 //
 // Extracts the latest version's changelog entry for use
 // as GitHub Release notes.

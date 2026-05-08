@@ -56,6 +56,11 @@ class GenesisBackup {
     this.rootDir = opts.rootDir;
     this.bus = opts.bus || null;
     this.maxBackups = opts.maxBackups || DEFAULT_MAX_BACKUPS;
+    // v7.7.1-hotfix: optional eventStore reference for pre-copy quiescence wait.
+    // Without it, GenesisBackup's _copyDir can race with EventStore's batch flush
+    // on Windows (EBUSY on events.jsonl). With it, we await flushPending before
+    // the copy starts, eliminating the most common race window.
+    this._eventStore = opts.eventStore || null;
 
     if (!this.genesisDir || !this.rootDir) {
       throw new Error('GenesisBackup requires genesisDir and rootDir');
@@ -185,6 +190,19 @@ class GenesisBackup {
     try {
       this._ensureBackupsDir(); // just in case it was deleted between calls
       await fsp.mkdir(targetDir, { recursive: true });
+
+      // v7.7.1-hotfix: wait for any pending EventStore batch flush before
+      // copying. Eliminates the Windows EBUSY race against events.jsonl.
+      // Best-effort — if flushPending fails or hangs, we proceed anyway
+      // (EventStore's own retry mechanism is the second-level safety net).
+      if (this._eventStore && typeof this._eventStore.flushPending === 'function') {
+        try {
+          await this._eventStore.flushPending();
+        } catch (err) {
+          _log.debug('[BACKUP] eventStore.flushPending() failed (non-fatal):', err.message);
+        }
+      }
+
       await this._copyDir(this.genesisDir, targetDir);
 
       this._stats.created++;

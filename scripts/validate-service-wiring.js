@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — validate-service-wiring.js (v7.4.1)
+// GENESIS — validate-service-wiring.js
 //
 // CI guard against service-name mismatches in the DI manifest.
 // Scans all phase files + AgentCoreBoot for registered service

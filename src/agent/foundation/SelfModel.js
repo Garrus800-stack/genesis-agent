@@ -45,6 +45,11 @@ class SelfModel {
     };
     this.gitAvailable = false;
 
+    // v7.7.1-hotfix: settings injected by AgentCoreBoot before scan().
+    // Used to gate git-mutation operations behind user-opt-in. When null
+    // (e.g. early boot, tests), all git-mutation paths default to off.
+    this._settings = null;
+
     // v7.3.0: Manifest metadata injected by AgentCoreBoot before scan().
     this._manifestMeta = null;
 
@@ -109,7 +114,12 @@ class SelfModel {
       await execFileAsync('git', ['--version'], _gitOpts(this.rootDir));
       this.gitAvailable = true;
 
-      if (!fs.existsSync(path.join(this.rootDir, '.git'))) {
+      // v7.7.1-hotfix: gate auto-init + initial commit behind setting.
+      // Default off — Genesis must not create a .git in the user's working
+      // directory without explicit consent. SnapshotManager + GenesisBackup
+      // cover state-preservation without git.
+      const gitAutoInit = this._settings?.get?.('agency.gitAutoInit') === true;
+      if (gitAutoInit && !fs.existsSync(path.join(this.rootDir, '.git'))) {
         await execFileAsync('git', ['init'], _gitOpts(this.rootDir));
         try {
           await execFileAsync('git', ['config', 'user.name'], _gitOpts(this.rootDir));
@@ -183,6 +193,14 @@ class SelfModel {
 
   async commitSnapshot(message) {
     if (!this.gitAvailable) return;
+    // v7.7.1-hotfix: gated behind agency.gitAutoCommit (default off).
+    // SnapshotManager (.genesis/snapshots/) and GenesisBackup (.genesis-backups/)
+    // are the active state-preservation layers when this is off — same
+    // semantic coverage via file-copy without touching git.
+    if (this._settings?.get?.('agency.gitAutoCommit') !== true) {
+      _log.debug('[SELF-MODEL] commitSnapshot skipped — agency.gitAutoCommit is disabled (fallback: SnapshotManager + GenesisBackup)');
+      return;
+    }
     try {
       await execFileAsync('git', ['add', '-A'], _gitOpts(this.rootDir));
       await execFileAsync('git', ['commit', '-m', String(message), '--allow-empty'], _gitOpts(this.rootDir));
@@ -198,6 +216,12 @@ class SelfModel {
 
   async rollback() {
     if (!this.gitAvailable) throw new Error('Git not available for rollback');
+    // v7.7.1-hotfix: gated behind agency.gitAutoCommit. When off, callers
+    // (DeploymentManager, Reflector recovery) should fall back to
+    // .genesis-backups/ for state restoration.
+    if (this._settings?.get?.('agency.gitAutoCommit') !== true) {
+      throw new Error('rollback unavailable — agency.gitAutoCommit is disabled (fallback: restore from .genesis-backups/)');
+    }
     await execFileAsync('git', ['revert', 'HEAD', '--no-edit'], _gitOpts(this.rootDir));
     await this.scan();
   }

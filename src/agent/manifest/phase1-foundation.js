@@ -53,9 +53,10 @@ function phase1(ctx, R) {
     // Triggers: boot-if-stale, pre-self-mod, pre-recovery, shutdown.
     // See docs/ONTOGENESIS.md for why .genesis/ identity matters.
     ['genesisBackup', {
-      phase: 1, deps: [], tags: ['foundation', 'safety', 'identity'],
-      factory: () => new (R('GenesisBackup').GenesisBackup)({
+      phase: 1, deps: ['eventStore'], tags: ['foundation', 'safety', 'identity'],
+      factory: (c) => new (R('GenesisBackup').GenesisBackup)({
         genesisDir, rootDir, bus,
+        eventStore: c.resolve('eventStore'),
       }),
     }],
 

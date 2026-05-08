@@ -89,11 +89,12 @@ function phase8(ctx, R) {
     }],
 
     ['multiFileRefactor', {
-      phase: 8, deps: ['selfModel', 'llm', 'sandbox', 'eventStore', 'astDiff'], tags: ['revolution'],
+      phase: 8, deps: ['selfModel', 'llm', 'sandbox', 'eventStore', 'astDiff', 'settings'], tags: ['revolution'],
       factory: (c) => new (R('MultiFileRefactor').MultiFileRefactor)({
         bus, selfModel: c.resolve('selfModel'), model: c.resolve('llm'),
         sandbox: c.resolve('sandbox'), guard, eventStore: c.resolve('eventStore'),
         rootDir, astDiff: c.resolve('astDiff'),
+        settings: c.resolve('settings'),
       }),
     }],
 

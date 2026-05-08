@@ -147,7 +147,15 @@ class Settings {
       // false now — only opt-in for users who want shutdown-state in git.
       // Code-change snapshots in Reflector/SelfModificationPipeline are
       // unaffected — those happen at actual modification boundaries.
-      agency: { autoResumeGoals: 'ask', negotiateBeforeAdd: false, autoRouteByTask: false, commitSnapshotOnShutdown: false },
+      // v7.7.1-hotfix: gitAutoInit + gitAutoCommit — both default off.
+      // Genesis used to run `git init` + initial commit on any fresh
+      // checkout (SelfModel.scan), and `git add+commit` at every code-change
+      // boundary (Reflector, SelfModificationPipeline). On user repos this
+      // pollutes history without consent. SnapshotManager (.genesis/snapshots/)
+      // and GenesisBackup (.genesis-backups/) are the active fallback layers
+      // and cover the same state-preservation use case via file-copy without
+      // touching git. Opt-in only.
+      agency: { autoResumeGoals: 'ask', negotiateBeforeAdd: false, autoRouteByTask: false, commitSnapshotOnShutdown: false, gitAutoInit: false, gitAutoCommit: false },
       mcp: { enabled: true, servers: [], serve: { enabled: false, port: 3580 } },
       // v7.5.7-fix Phase 3 Etappe 2: Health-Server defaults — was missing in
       // settings tree, only read by HealthServer service via .get(). UI now

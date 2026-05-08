@@ -2,7 +2,7 @@
 // ============================================================
 // GENESIS — Test Runner v2 (v7)
 // Runs both the legacy monolithic test suite AND new per-module
-// test files. Compatible with Node 18+ (uses node:test if available).
+// test files. Compatible with Node 22+ (node:test stable since 18.x).
 //
 // FIX v4.10.0 (M-2): Migrated from execSync to async execFile.
 // - No longer blocks the main thread during test execution

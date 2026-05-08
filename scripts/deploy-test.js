@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/deploy-test.js (v5.9.2)
+// GENESIS — scripts/deploy-test.js
 //
 // Integration test for DeploymentManager. Creates a mock
 // Node.js service, deploys changes via shell commands,

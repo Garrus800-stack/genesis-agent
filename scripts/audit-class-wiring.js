@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/audit-class-wiring.js (v7.6.3)
+// GENESIS — scripts/audit-class-wiring.js
 //
 // Verifies that every `R('FooClass').FooClass`-call in the
 // manifest files refers to an actual module file under

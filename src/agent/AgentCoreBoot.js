@@ -197,6 +197,15 @@ class AgentCoreBoot {
       _log.warn('[BOOT] SelfModel manifest meta injection skipped:', err.message);
     }
 
+    // v7.7.1-hotfix: inject settings into selfModel before scan() so that
+    // git-mutation operations (init, commit, rollback) can be gated behind
+    // agency.gitAutoInit / agency.gitAutoCommit (both default off).
+    try {
+      selfModel._settings = c.resolve('settings');
+    } catch (err) {
+      _log.warn('[BOOT] SelfModel settings injection skipped:', err.message);
+    }
+
     await selfModel.scan();
 
     // v7.3.1: Wire hot-reload cache invalidation. The readModuleAsync cache

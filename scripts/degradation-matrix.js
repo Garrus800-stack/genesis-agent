@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/degradation-matrix.js (v4.0.0)
+// GENESIS — scripts/degradation-matrix.js
 //
 // Generates a Graceful Degradation Matrix from ContainerManifest.
 // Answers: "If service X is missing, what breaks?"

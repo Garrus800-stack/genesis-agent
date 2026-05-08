@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/audit-hash-lock-coverage.js (v7.6.2 audit-closeout)
+// GENESIS — scripts/audit-hash-lock-coverage.js
 //
 // Verifies that every Genesis source file which performs the privileged
 // disk-write operations (validateWrite, _codeSafety.scanCode, _verifyCode,

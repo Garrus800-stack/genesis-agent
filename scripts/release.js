@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/release.js (v7.1.2)
+// GENESIS — scripts/release.js
 //
 // Automated release helper. Bumps version in all locations,
 // auto-updates README badges from live stats, validates CI

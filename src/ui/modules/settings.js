@@ -428,6 +428,8 @@ async function openSettings() {
     _setBool('#set-allow-peers', s?.security?.allowNetworkPeers ?? true);
     _setBool('#set-allow-file-exec', s?.security?.allowFileExecution ?? true);
     _setBool('#set-commit-on-shutdown', s?.agency?.commitSnapshotOnShutdown ?? false);
+    _setBool('#set-git-auto-init',       s?.agency?.gitAutoInit ?? false);
+    _setBool('#set-git-auto-commit',     s?.agency?.gitAutoCommit ?? false);
     // v7.5.9 ZIP6 — Install-pipeline toggles.
     _setBool('#set-install-allow-auto', s?.install?.allowAutoInstall ?? false);
     _setBool('#set-install-full-autonomy', s?.install?.fullAutonomy ?? false);
@@ -872,6 +874,10 @@ async function saveSettings() {
   if (fileExecEl) sets.push(['security.allowFileExecution', fileExecEl.value === 'true']);
   const commitEl = $('#set-commit-on-shutdown');
   if (commitEl) sets.push(['agency.commitSnapshotOnShutdown', commitEl.value === 'true']);
+  const gitInitEl = $('#set-git-auto-init');
+  if (gitInitEl) sets.push(['agency.gitAutoInit', gitInitEl.value === 'true']);
+  const gitCommitEl = $('#set-git-auto-commit');
+  if (gitCommitEl) sets.push(['agency.gitAutoCommit', gitCommitEl.value === 'true']);
   // v7.5.9 ZIP6 — Install-pipeline toggles.
   const installAutoEl = $('#set-install-allow-auto');
   if (installAutoEl) sets.push(['install.allowAutoInstall', installAutoEl.value === 'true']);

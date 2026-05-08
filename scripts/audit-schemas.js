@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — audit-schemas.js (v7.3.4)
+// GENESIS — audit-schemas.js
 //
 // Cross-references EventTypes catalog ↔ EventPayloadSchemas.
 // Reports two classes of drift:

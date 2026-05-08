@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/audit-contracts.js (v7.5.7)
+// GENESIS — scripts/audit-contracts.js
 //
 // Discovery-tool for stale-refs.json contracts. Scans test files for
 // security-relevant patterns and lists tests that LOOK like they should

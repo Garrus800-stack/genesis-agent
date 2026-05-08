@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/scan-schemas.js (v7.2.7)
+// GENESIS — scripts/scan-schemas.js
 //
 // Static schema validation: checks that every bus.emit/fire call
 // includes the required fields defined in EventPayloadSchemas.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — scripts/audit-gate-stats-callers.js (v7.6.2 audit-closeout)
+// GENESIS — scripts/audit-gate-stats-callers.js
 //
 // Verifies that every recordGate(name, verdict, ...) call site in
 // src/agent/ passes a valid verdict — either a string literal from

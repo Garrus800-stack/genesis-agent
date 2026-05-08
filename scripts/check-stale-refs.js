@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// GENESIS — check-stale-refs.js (v7.3.6)
+// GENESIS — check-stale-refs.js
 //
 // Two modes:
 //   (1) Symbol scan — greps known-deleted identifiers (e.g. renamed
