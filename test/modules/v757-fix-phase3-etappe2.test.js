@@ -14,6 +14,8 @@
 
 'use strict';
 
+const { readSettingsFamily } = require('../helpers/settings-source');
+
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -115,7 +117,7 @@ test('UI: old read-only mcp-servers-info removed from index.html', () => {
 // ── settings.js (UI module): load + save logic for new fields ──
 
 test('settings.js: load logic reads all new settings paths', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   const requiredPaths = [
     'llm?.costGuard?.enabled',
     'llm?.costGuard?.sessionTokenLimit',
@@ -144,7 +146,7 @@ test('settings.js: load logic reads all new settings paths', () => {
 });
 
 test('settings.js: save logic writes all new settings paths', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   const requiredKeys = [
     'llm.costGuard.enabled',
     'llm.costGuard.sessionTokenLimit',
@@ -175,7 +177,7 @@ test('settings.js: save logic writes all new settings paths', () => {
 });
 
 test('settings.js: MCP server list state machine (add/remove)', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   assert.ok(src.includes('_mcpServersState'), 'must have MCP state');
   assert.ok(src.includes('_renderMcpServers'), 'must have render function');
   assert.ok(src.includes('_wireMcpAddButton'), 'must have wire fn');

@@ -14,11 +14,13 @@
 // ============================================================
 
 const { t, loadI18n } = require('./modules/i18n');
-const { addMessage, startStreamingMessage, appendToStream, finishStream, sendMessage, stopGeneration, getStreamingState } = require('./modules/chat');
+const { addMessage, startStreamingMessage, appendToStream, finishStream, sendMessage, stopGeneration, getStreamingState, autoResize } = require('./modules/chat');
 const { initMonaco, setCurrentFile } = require('./modules/editor');
 const { updateStatus, refreshStatusI18n, showToast, showHealth, showSelfModel } = require('./modules/statusbar');
 const { loadFileTree } = require('./modules/filetree');
-const { openSettings, closeSettings, saveSettings, showGoalTree, undoLastChange, setupDragDrop, autoResize, refreshSettingsI18n } = require('./modules/settings');
+const { openSettings, closeSettings, saveSettings, refreshSettingsI18n } = require('./modules/settings');
+const { showGoalTree, undoLastChange } = require('./modules/goal-management');
+const { setupDragDrop } = require('./modules/drag-drop');
 const { setAgentReady } = require('./modules/agent-state');
 
 const $ = (sel) => document.querySelector(sel);

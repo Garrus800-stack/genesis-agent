@@ -1,3 +1,71 @@
+## [7.7.2]
+
+Cleanup release. Splits the 1073-LOC `src/ui/modules/settings.js`
+monolith into eight concern-specific modules — closing the
+`FILE_SIZE_CAPS.settings.js` cap that was added in v7.7.1 as a
+hold-the-line-until-split marker. The goal was zero behaviour change
+with maximally honest module boundaries.
+
+Settings split: `settings-state.js` (shared fallback + MCP state with
+explicit getter/setter API; replaces the implicit module-level
+`let _fallbackState` that was being mutated from three different
+clusters), `settings-fields.js` (generic field helpers — `_setNum`/
+`_setStr`/`_setBool`, decoration with default-hint + reset-button +
+range-validation), `settings-loadsave.js` (`openSettings` +
+`saveSettings` — the cross-cutting load/save logic, ~410 LOC, the
+biggest single module), `settings-json-editor.js` (JSON power-mode
+editor with sensitive-field masking), `settings-fallback-ui.js`
+(fallback chain UI — pure helpers `fbAdd`/`fbRemove`/`fbMove`/
+`fbIsCloud` are now directly importable, replacing the v7.5.7
+regex-source-parsing pattern in tests), `settings-mcp-ui.js` (MCP
+servers UI). The facade `settings.js` is now 64 LOC and only re-exports
+the public surface (`openSettings`, `closeSettings`, `saveSettings`,
+`refreshSettingsI18n`).
+
+Two non-settings concerns extracted out of `settings.js` into their
+own modules — they only lived there historically: `goal-management.js`
+(`showGoalTree` + `buildGoalNode` + `undoLastChange`; wired to
+`#btn-goals` and `#btn-undo` + `Ctrl+Z`, never were settings) and
+`drag-drop.js` (`setupDragDrop` — chat-panel file import). `chat.js`
+extended with `autoResize` (was a 1-liner inside settings.js, belongs
+to chat-input behaviour). `renderer-main.js` updated: 4 separate
+requires instead of 1, mirroring the new module boundaries.
+
+Surgical fixes: `src/ui/index.bundled.html` deleted (md5-identical to
+`index.html`, never loaded by `main.js`); `CommandHandlersInstallDB.js`
+nodejs auto-install URLs bumped from v20.18.1 to v22.22.2 to align
+with `engines.node` (v22.x is in Maintenance LTS until April 2027,
+v22.22.2 is the latest with security fixes for CVE-2025-55131 and
+CVE-2026-21637); `STATE_TO_CSS.resting` in `statusbar.js` corrected
+from `'booting'` (yellow/warning — semantic bug) to `'ready'` (green);
+`audit-doc-drift.js` extended with two new strict claims pinning
+`agency.gitAutoInit`/`gitAutoCommit` defaults at `false` (53 → 55
+checks), closing the v7.7.1 hotfix-1 deferred audit-pinning item.
+
+Test infrastructure: `test/helpers/settings-source.js` introduced to
+let legacy text-grep tests read the union of all settings-related
+modules. The `v757-fix-fallback-ui.test.js` regex-source-parsing
+factory pattern (which existed only because the helpers were trapped
+inside the monolithic file) refactored to a direct require — net
+simplification of ~25 LOC. New `v772-cleanup.contract.test.js` pins
+the post-split module layout, the four extracted modules, and the
+B1-B4 surgical fixes.
+
+Module count: `src/ui/modules/` grows from 8 to 16 (settings facade +
+6 settings-* sub-modules + goal-management + drag-drop + 7 unchanged
+modules). Total source modules: 330 → 338. Tests: ~6905 → ~6892
+(Linux baseline; net delta from new contract tests + 2 obsolete
+v7.7.1-baseline subtests removed in `v771-file-size-guard-ui` because
+their motivation — settings.js being capped — was structurally
+resolved). `FILE_SIZE_CAPS` is now `{}` — no large-module exemptions
+remain.
+
+Resolves AUDIT-BACKLOG items: settings.js Mixin-Split candidate (now:
+done via concern-split, not mixin), gitAutoInit/Commit audit-pinning
+(now: pinned), index.bundled.html as duplicate (now: removed),
+CommandHandlersInstallDB hardcoded Node v20.18.1 (now: aligned with
+engines.node).
+
 ## [7.7.1]
 
 Drift-cleanup release. Closes 13 documentation drift sources that the

@@ -17,6 +17,8 @@
 
 'use strict';
 
+const { readSettingsFamily } = require('../helpers/settings-source');
+
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -211,10 +213,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   });
 
   await test('#4 settings.js loads the 4 new settings keys', () => {
-    const src = fs.readFileSync(
-      path.join(__dirname, '..', '..', 'src', 'ui', 'modules', 'settings.js'),
-      'utf-8'
-    );
+    const src = readSettingsFamily();
     assert(/s\?\.trust\?\.level/.test(src), 'missing trust.level load');
     assert(/s\?\.agency\?\.autoResumeGoals/.test(src), 'missing agency.autoResumeGoals load');
     assert(/s\?\.mcp\?\.serve\?\.enabled/.test(src), 'missing mcp.serve.enabled load');
@@ -222,10 +221,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
   });
 
   await test('#4 settings.js saves the 4 new settings keys', () => {
-    const src = fs.readFileSync(
-      path.join(__dirname, '..', '..', 'src', 'ui', 'modules', 'settings.js'),
-      'utf-8'
-    );
+    const src = readSettingsFamily();
     assert(/'trust\.level'/.test(src), 'missing trust.level save');
     assert(/'agency\.autoResumeGoals'/.test(src), 'missing agency.autoResumeGoals save');
     assert(/'mcp\.serve\.enabled'/.test(src), 'missing mcp.serve.enabled save');

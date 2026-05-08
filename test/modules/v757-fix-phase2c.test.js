@@ -11,6 +11,8 @@
 
 'use strict';
 
+const { readSettingsFamily } = require('../helpers/settings-source');
+
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
@@ -86,7 +88,7 @@ test('UI bundled.html: same structure as index.html', () => {
 });
 
 test('UI JS: writes to real settings paths only', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   // Must write the real paths
   assert.ok(/'organism\.emotions\.decayIntervalMs'/.test(src),
     'must write to organism.emotions.decayIntervalMs');

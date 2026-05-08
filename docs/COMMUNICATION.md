@@ -1,6 +1,6 @@
 # Genesis Agent — Communication Architecture
 
-> v7.7.1 — How Genesis instances communicate with each other and the outside world.
+> v7.7.2 — How Genesis instances communicate with each other and the outside world.
 > Updated through v7.6.3: same-backend failover (LLM transport layer recovers from sticky errors without relying on cross-backend escape), reasoning-block filter on the model-out path, the carry-over `streamChat` MetaLearning fix, and the v7.6.3 CostStream failover-counter that surfaces `model:failover-unavailable` events alongside cost telemetry without polluting the cost ledger. Internal event bus migrated from `bus.emit` (async, returns Promise) to `bus.fire` (fire-and-forget with `console.warn` error logging) for 446 call sites in v7.6.3 — semantically equivalent for callers that didn't await but errors are now logged instead of silently swallowed.
 
 ---
@@ -40,7 +40,7 @@ EmotionalState ──emit('emotion:shift')──→ EventBus ──→ PromptBui
 
 Key properties:
 
-- **453 event types** catalogued in `EventTypes.js` (v7.7.1 baseline)
+- **453 event types** catalogued in `EventTypes.js` (v7.7.2 baseline)
 - **453 payload schemas** in `EventPayloadSchemas.js` — full parity since v7.6.x (every catalog entry has a registered schema); dev-mode validation throws on mismatch
 - **Ring buffer history** — last 500 events for debugging
 - **Source tracking** — every event carries `{ source: 'ModuleName' }` for audit

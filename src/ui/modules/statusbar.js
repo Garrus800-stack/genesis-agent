@@ -44,7 +44,11 @@ function updateStatus(status) {
     booting: 'booting',
     'health-tick': 'ready',
     insight: 'ready',
-    resting: 'booting',
+    // v7.7.2: resting was mapped to 'booting' (yellow/warning color),
+    // semantically odd — a resting daemon is OK, not warning. Now mapped
+    // to 'ready' (green). Legacy parity not preserved here because the
+    // old behaviour was a bug, not an intentional design choice.
+    resting: 'ready',
   };
   const cssClass = STATE_TO_CSS[status.state] || 'booting';
   badge.className = 'badge badge-' + cssClass;

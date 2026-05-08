@@ -19,6 +19,8 @@
 
 'use strict';
 
+const { readSettingsFamily } = require('../helpers/settings-source');
+
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
@@ -36,7 +38,7 @@ const ROOT = path.join(__dirname, '..', '..');
 // ── settings.js: re-render strategy ────────────────────────
 
 test('settings.js: _decorateField removes old default-hint before re-rendering', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   // Should have logic to remove existing .setting-default-hint
   assert.ok(src.includes("querySelector('.setting-default-hint')") ||
             src.includes('querySelectorAll(\'.setting-default-hint\')'),
@@ -69,7 +71,7 @@ test('settings.js: refreshSettingsI18n is exported', () => {
 // ── settings.js: i18n in dynamic strings ──────────────────
 
 test('settings.js: _renderMcpServers uses t() for empty-state', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   // Must call t('settings.mcp.empty') not literal 'Keine MCP-Server'
   assert.ok(!src.includes("textContent = 'Keine MCP-Server konfiguriert.'"),
     'hardcoded German empty-state must be removed');
@@ -78,7 +80,7 @@ test('settings.js: _renderMcpServers uses t() for empty-state', () => {
 });
 
 test('settings.js: Remove button uses t(ui.remove)', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   assert.ok(!src.includes("removeBtn.textContent = 'Entfernen'"),
     'hardcoded "Entfernen" must be removed');
   assert.ok(src.includes("removeBtn.textContent = t('ui.remove')") ||
@@ -87,14 +89,14 @@ test('settings.js: Remove button uses t(ui.remove)', () => {
 });
 
 test('settings.js: Add button is re-translated on each wire', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   // The new logic: btn.textContent = t('ui.add'); BEFORE the _wired check
   assert.ok(src.includes("btn.textContent = t('ui.add')"),
     'add button must be re-labeled with t()');
 });
 
 test('settings.js: MCP toasts use t()', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   assert.ok(!src.includes("'MCP-Server: Name fehlt'"),
     'hardcoded "Name fehlt" must be replaced');
   assert.ok(src.includes("t('settings.mcp.error_name_missing')"),
@@ -106,7 +108,7 @@ test('settings.js: MCP toasts use t()', () => {
 // ── settings.js: JSON-Editor status i18n ──────────────────
 
 test('settings.js: JSON-Editor status messages use t()', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   assert.ok(!src.includes("status.textContent = 'geladen'"),
     'hardcoded "geladen" must be replaced');
   assert.ok(!src.includes("status.textContent = 'JSON gültig'"),

@@ -702,9 +702,11 @@ check('File Size Guard', (r) => {
   // v7.7.1: known-large modules with current LOC as hard cap. Growth
   // beyond cap fails the check; shrinkage (e.g. via Mixin-Split) is
   // allowed and the cap should be reduced or removed in the same edit.
-  const FILE_SIZE_CAPS = {
-    'settings.js': 1074,  // src/ui/modules — Mixin-Split candidate
-  };
+  // v7.7.2: settings.js cap removed — split into 7 sub-modules
+  // (settings-state/-fields/-loadsave/-json-editor/-fallback-ui/-mcp-ui)
+  // plus 2 separate modules (goal-management, drag-drop). The facade
+  // settings.js is now 64 LOC, well under any threshold.
+  const FILE_SIZE_CAPS = {};
 
   const srcFiles = [
     ...walkJs(path.join(SRC, 'agent')),

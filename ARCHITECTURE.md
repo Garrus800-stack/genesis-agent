@@ -24,6 +24,30 @@
 > extracted to a mixin module, PromptBuilderSections awareness-cluster
 > extracted to its own file, byte-identical `_versionContext` dead code
 > removed. Three files dropped under the 700-LOC threshold.
+> v7.7.1 hardening pass: Node 22 LTS baseline, EventStore<->GenesisBackup
+> race condition fixed (retry on EBUSY/EAGAIN/EPERM with call-stack-safe
+> buffer restore), git auto-init/auto-commit gated behind explicit
+> opt-in settings (was implicit on first ShellAgent execution).
+> v7.7.2 cleanup pass: monolithic `settings.js` (1073 LOC) split into
+> seven concern-specific modules — `settings-state.js` (shared state
+> with explicit getter/setter API), `settings-fields.js` (generic field
+> helpers + decoration + validation), `settings-loadsave.js` (openSettings
+> + saveSettings, the cross-cutting load/save logic), `settings-json-editor.js`
+> (JSON power-mode editor), `settings-fallback-ui.js` (fallback chain UI
+> with directly-importable pure helpers — replaces the v7.5.7 regex-source-
+> parsing test pattern), `settings-mcp-ui.js` (MCP servers UI), and the
+> facade `settings.js` (now 64 LOC, only the public surface). Two
+> non-settings concerns extracted to their own modules: `goal-management.js`
+> (showGoalTree + undoLastChange — wired to `#btn-goals` + `#btn-undo`,
+> never were settings) and `drag-drop.js` (setupDragDrop — chat-panel
+> file import). `chat.js` extended with `autoResize` (chat-input helper).
+> Plus surgical fixes: `index.bundled.html` deleted (md5-identical to
+> `index.html`), `CommandHandlersInstallDB.nodejs` URLs aligned with the
+> v22 LTS baseline, `STATE_TO_CSS.resting` mapped to `'ready'` (was
+> `'booting'` — semantic bug), `audit-doc-drift` extended with two
+> `gitAutoInit`/`gitAutoCommit` default-pinning checks (53 → 55 strict
+> claims). FILE_SIZE_CAPS now empty — the only capped file (settings.js)
+> was structurally split.
 
 ---
 

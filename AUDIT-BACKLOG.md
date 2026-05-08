@@ -1,6 +1,6 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.7.1 · Last updated: v7.7.1 (Drift sweep: audit-doc-drift extended from 40 to 53 verified claims, 30 stale script-header version stamps removed, file-size-guard extended to src/ui/, engines.node bumped from EoL Node 18 to Active LTS Node 22, README dependencies block replaced by package.json reference. No new behavior, no architecture change. See CHANGELOG.md for full details.)
+> Version: 7.7.2 · Last updated: v7.7.2 (Cleanup release: settings.js 1073-LOC monolith split into 8 concern-specific modules, FILE_SIZE_CAPS now empty, audit-doc-drift gitAuto pinning, three small surgical fixes. Previous version: 7.7.1 (Drift sweep: audit-doc-drift extended from 40 to 53 verified claims, 30 stale script-header version stamps removed, file-size-guard extended to src/ui/, engines.node bumped from EoL Node 18 to Active LTS Node 22, README dependencies block replaced by package.json reference. No new behavior, no architecture change. See CHANGELOG.md for full details.)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
@@ -85,10 +85,10 @@ the drift-checking auditor itself. Corrected.
 
 ### Items still deferred (no Score-pressure)
 
-- **`src/ui/modules/settings.js` Mixin-Split (1068 LOC).** File is now
-  visible in File Size Guard and capped at current LOC. The split
-  itself is real refactor work — eigenes Plan-Thema mit
-  Vor-Lösch-Audit-Methode (vgl. v7.7.0).
+- **`src/ui/modules/settings.js` Mixin-Split (1068 LOC).** ✅ Resolved
+  in v7.7.2 — see above. Split was concern-based (not mixin-based) into
+  7 settings-* sub-modules + 2 separate non-settings modules. Facade
+  is 64 LOC.
 - **CLEANUP-PROTOCOL.md formalisierung des Vor-Lösch-Audits.** Eigene
   Doku-Release.
 - **11 docs not yet covered by audit-doc-drift**: BENCHMARKING.md,
@@ -103,8 +103,8 @@ the drift-checking auditor itself. Corrected.
   haben (Electron besonders); gehört in eigene Toolchain-Maintenance-
   Release, nicht in Cleanup.
 - **`src/agent/hexagonal/CommandHandlersInstallDB.js` Z.108–109**
-  hardcoded Node v20.18.1 als Auto-Install-Target. Code-Änderung mit
-  Test-Implikation; eigene Release.
+  hardcoded Node v20.18.1 als Auto-Install-Target. ✅ Resolved in
+  v7.7.2 — see above. Bumped to v22.22.2, aligned with engines.node.
 - **8 events emitted without subscriber** (carry-forward from v7.6.7
   baseline=8): goal:stalled, error:trend, lesson:learned,
   narrative:updated, memory:consolidation-failed,
@@ -290,12 +290,94 @@ of any abort behavior. Removed. Real abort coverage lives in
 
 ---
 
+## Resolved in v7.7.2
+
+### Settings.js Mixin-Split (1073 LOC → split into 8 modules)
+
+The v7.7.1 hold-the-line cap on `src/ui/modules/settings.js`
+(`FILE_SIZE_CAPS.settings.js = 1074`) is now structurally resolved:
+the file was split into seven concern-specific modules plus a thin
+facade. The split was concern-based (not mixin-based as initially
+considered) because `settings.js` is a function-module, not a class.
+
+**New modules under `src/ui/modules/`:**
+
+- `settings-state.js` — shared state with explicit getter/setter API
+  (replaces implicit module-level `let _fallbackState`)
+- `settings-fields.js` — generic field DOM helpers + decoration
+- `settings-loadsave.js` — `openSettings` + `saveSettings`
+- `settings-json-editor.js` — JSON power-mode editor
+- `settings-fallback-ui.js` — fallback chain UI; pure helpers now
+  directly importable, replacing the v7.5.7 regex-source-parsing
+  test pattern with a normal `require()`
+- `settings-mcp-ui.js` — MCP servers UI
+- `settings.js` — facade (64 LOC, only the public surface)
+
+**Two non-settings concerns extracted out of `settings.js`** —
+they only lived there historically:
+
+- `goal-management.js` — `showGoalTree`, `buildGoalNode`,
+  `undoLastChange` (wired to `#btn-goals` and `#btn-undo` +
+  `Ctrl+Z`, never were settings)
+- `drag-drop.js` — `setupDragDrop` (chat-panel file import)
+
+`chat.js` extended with `autoResize` (was a 1-liner inside
+`settings.js`, belongs to chat-input behaviour). `renderer-main.js`
+caller surface: 4 separate requires instead of 1, mirroring the new
+module boundaries.
+
+`FILE_SIZE_CAPS` is now `{}` — no large-module exemptions remain.
+
+### gitAutoInit/gitAutoCommit audit-pinning (v7.7.1 hotfix-1 follow-up)
+
+The v7.7.1 hotfix gated `git init` + initial commit + snapshot commit
+behind `agency.gitAutoInit` and `agency.gitAutoCommit` settings
+(both default `false`). v7.7.2 adds two `audit-doc-drift` checks
+that pin these defaults at `false` going forward. If anyone flips
+the default to `true`, the audit fails — explicit signal that
+user-repo git operations are now opt-out instead of opt-in, which
+is a behavioural regression.
+
+`audit-doc-drift` strict-claim count: 53 → 55.
+
+### CommandHandlersInstallDB nodejs target — Node v22 LTS
+
+`src/agent/hexagonal/CommandHandlersInstallDB.js` `nodejs` entry was
+hardcoded to v20.18.1. Aligned with `engines.node` (now `>=22.0.0`):
+URLs bumped to v22.22.2, label changed to "Node.js v22 LTS".
+
+v22.x is in Maintenance LTS until April 2027; v22.22.2 is the latest
+22.x with security fixes for CVE-2025-55131 and CVE-2026-21637.
+
+### index.bundled.html removed
+
+`src/ui/index.bundled.html` was md5-identical to `src/ui/index.html`
+and never loaded at runtime (`main.js` Z.228 loads `index.html`
+only). Deleted in v7.7.2.
+
+### statusbar STATE_TO_CSS.resting semantic fix
+
+`STATE_TO_CSS.resting` was mapped to `'booting'` (yellow/warning
+colour) — a resting daemon is OK, not warning. Now mapped to
+`'ready'` (green). Legacy parity not preserved here because the
+old behaviour was a bug, not an intentional design choice.
+
+### v7.7.1 baseline subtests retired
+
+Two subtests in `test/modules/v771-file-size-guard-ui.contract.test.js`
+were specifically pinning the v7.7.1 state (settings.js cap +
+"settings.js is the only currently-capped file"). Their motivation
+is structurally resolved by the v7.7.2 split, so they were removed
+rather than rewritten — the v7.7.2 state is pinned in
+`v772-cleanup.contract.test.js` instead, keeping the v7.7.1-* and
+v7.7.2-* eras separate in the test history.
+
+---
+
 ## Items still deferred (no Score-pressure)
 
-- **`index.bundled.html` cleanup.** The file is byte-identical to
-  `src/ui/index.html` and is not loaded at runtime (main.js Z.225
-  loads `index.html` only). Left in repo; separate cleanup-release
-  target. Verified during v7.7.0 audit but considered scope creep.
+- **`index.bundled.html` cleanup.** ✅ Resolved in v7.7.2 — see above.
+  File deleted, md5-identical to index.html and never loaded.
 
 - **CSS gap for non-mapped badge states.** v7.7.0 introduced
   STATE_TO_CSS to route 'thinking' → `badge-working` etc. — but

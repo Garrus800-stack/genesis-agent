@@ -17,28 +17,14 @@
 
 'use strict';
 
-// We can't trivially require the full settings.js here because it
-// imports './i18n' which depends on the renderer's i18n setup. Instead
-// we extract the pure helpers via a regex-based load — same approach
-// other UI-logic tests use (renderer.test.js).
-const fs = require('fs');
+// v7.7.2: pure helpers now live in settings-fallback-ui.js with explicit
+// exports — direct require replaces the v7.5.7 regex-source-parsing
+// hack that was needed when these helpers were trapped inside the
+// monolithic settings.js with no public surface.
 const path = require('path');
-const Module = require('module');
-
-let helpers;
-{
-  const SETTINGS_FILE = path.join(__dirname, '..', '..', 'src', 'ui', 'modules', 'settings.js');
-  const src = fs.readFileSync(SETTINGS_FILE, 'utf8');
-  // Eval the four pure-helper functions in isolation. They have zero
-  // dependencies on the rest of the file (don't reference $ or t or
-  // showToast), so this is safe.
-  const block = src.match(/\/\/ ── v7\.5\.7-fix: Pure logic helpers[\s\S]+?function fbIsCloud[\s\S]+?\}\s*\n/);
-  if (!block) throw new Error('could not locate fb-helpers block in settings.js');
-  // eslint-disable-next-line no-new-func
-  const factory = new Function(`${block[0]}\nreturn { fbAdd, fbRemove, fbMove, fbIsCloud };`);
-  helpers = factory();
-}
-const { fbAdd, fbRemove, fbMove, fbIsCloud } = helpers;
+const { fbAdd, fbRemove, fbMove, fbIsCloud } = require(
+  path.join(__dirname, '..', '..', 'src', 'ui', 'modules', 'settings-fallback-ui')
+);
 
 let passed = 0, failed = 0;
 const failures = [];

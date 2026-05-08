@@ -105,8 +105,11 @@ const _SOFTWARE_DB = {
     win32: { url: 'https://www.python.org/downloads/windows/', filename: null, label: 'Python', note: 'Wähle Version auf der python.org-Seite.' },
   },
   'nodejs': {
-    win32: { url: 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-x64.msi', filename: 'nodejs-v20.18.1.msi', label: 'Node.js v20 LTS' },
-    darwin: { url: 'https://nodejs.org/dist/v20.18.1/node-v20.18.1.pkg', filename: 'nodejs-v20.18.1.pkg', label: 'Node.js v20 LTS' },
+    // v7.7.2: bumped to v22 LTS aligned with engines.node (was v20.18.1).
+    // v22.x is in Maintenance LTS until April 2027; v22.22.2 is the latest
+    // 22.x with security-fixes (CVE-2025-55131, CVE-2026-21637).
+    win32: { url: 'https://nodejs.org/dist/v22.22.2/node-v22.22.2-x64.msi', filename: 'nodejs-v22.22.2.msi', label: 'Node.js v22 LTS' },
+    darwin: { url: 'https://nodejs.org/dist/v22.22.2/node-v22.22.2.pkg', filename: 'nodejs-v22.22.2.pkg', label: 'Node.js v22 LTS' },
   },
   'notepad++': {
     win32: { url: 'https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.7.1/npp.8.7.1.Installer.x64.exe', filename: 'notepad-plus-plus.exe', label: 'Notepad++' },

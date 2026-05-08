@@ -1,7 +1,7 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.7.1 — What Genesis can do, organized by category.
-> Scale: 6905 tests (Win baseline), 453 events with 453 payload schemas (full parity since v7.6.x), fitness 130/130, 168 DI services (155 manifest + 13 bootstrap), 330 modules (live `selfModel.moduleCount()`) across 12 boot phases.
+> v7.7.2 — What Genesis can do, organized by category.
+> Scale: 6907 tests (Win baseline), 453 events with 453 payload schemas (full parity since v7.6.x), fitness 130/130, 168 DI services (155 manifest + 13 bootstrap), 338 modules (live `selfModel.moduleCount()`) across 12 boot phases.
 > Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry-only by design),
 > Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard),
 > Reasoning-Block Filter (v7.5.6 — strips `<think>...</think>` from response and tool-call audit, re-emits as `model:thinking-trace`),
@@ -256,7 +256,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **406 test files** | 6905 tests (Win baseline, v7.7.1), coverage gates: 80% lines, 76% branches, 78% functions |
+| **406 test files** | 6907 tests (Win baseline, v7.7.2), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

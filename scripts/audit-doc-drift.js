@@ -283,7 +283,7 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '6905 passing',      label: 'badge: tests',
+        tests:      { live: '6907 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
                       // v7.7.1: +23 (v771-* contract tests). v7.7.0: -52 (renderer.test.js -51 + agentloop-legacy
@@ -384,7 +384,7 @@ function runChecks() {
       // "<N> tests (Win baseline)" — pin to Win baseline (Linux is -1 because
       // of one Win-conditional test). Update this constant on each release
       // that changes test count.
-      const TESTS_WIN_BASELINE = 6905;
+      const TESTS_WIN_BASELINE = 6907;
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -424,7 +424,7 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 6905;
+  const TESTS_WIN = 6907;
   const TEST_FILES = 406;
 
   // #1: ARCHITECTURE.md header version stamp
@@ -628,6 +628,50 @@ function runChecks() {
     }
     checked.push(r);
     if (!r.ok) drifts.push(r);
+  }
+
+  // #15 + #16 (v7.7.2): Settings.js — gitAutoInit + gitAutoCommit defaults.
+  // Pin that the v7.7.1 hotfix gating settings are still default-off.
+  // If someone flips the default to true, the audit fails — explicit
+  // signal that user-repo git operations are now opt-out instead of
+  // opt-in, which is a behavioural regression.
+  {
+    let src;
+    try { src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf-8'); }
+    catch { src = null; }
+    if (src) {
+      // Match agency block — captures the inline { ... } content
+      const agencyMatch = src.match(/agency:\s*\{([^}]*)\}/);
+      if (agencyMatch) {
+        const agencyBody = agencyMatch[1];
+        // gitAutoInit
+        {
+          const m = /gitAutoInit:\s*(true|false)/.exec(agencyBody);
+          const r = {
+            doc: 'src/agent/foundation/Settings.js',
+            label: 'agency.gitAutoInit default (must be false — v7.7.1 hotfix)',
+            expected: 'false',
+            actual: m ? m[1] : 'missing',
+            ok: !!m && m[1] === 'false',
+          };
+          checked.push(r);
+          if (!r.ok) drifts.push(r);
+        }
+        // gitAutoCommit
+        {
+          const m = /gitAutoCommit:\s*(true|false)/.exec(agencyBody);
+          const r = {
+            doc: 'src/agent/foundation/Settings.js',
+            label: 'agency.gitAutoCommit default (must be false — v7.7.1 hotfix)',
+            expected: 'false',
+            actual: m ? m[1] : 'missing',
+            ok: !!m && m[1] === 'false',
+          };
+          checked.push(r);
+          if (!r.ok) drifts.push(r);
+        }
+      }
+    }
   }
 
   return { drifts, checked };

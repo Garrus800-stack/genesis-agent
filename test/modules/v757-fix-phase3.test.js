@@ -19,6 +19,8 @@
 
 'use strict';
 
+const { readSettingsFamily } = require('../helpers/settings-source');
+
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -206,7 +208,7 @@ test('Bug 3c: main.js handles agent:set-settings-batch', () => {
 });
 
 test('Bug 3c: UI uses batch call (with fallback)', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   assert.ok(/agent:set-settings-batch/.test(src),
     'UI must call set-settings-batch');
   assert.ok(/falling back to per-setting/.test(src),

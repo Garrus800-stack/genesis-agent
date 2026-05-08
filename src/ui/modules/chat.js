@@ -414,8 +414,18 @@ function stopGeneration() {
 
 function getStreamingState() { return { isStreaming, streamingMessageEl }; }
 
+// v7.7.2: extracted from settings.js — auto-resize the chat textarea
+// to fit its content, capped at 150px. Wired in renderer-main.js
+// to the input event of #chat-input.
+function autoResize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 150) + 'px';
+}
+
 module.exports = {
   addMessage, startStreamingMessage, appendToStream, finishStream,
   sendMessage, stopGeneration, escapeHtml, renderMarkdown,
   getStreamingState, attachCodeButtons,
+  // v7.7.2:
+  autoResize,
 };

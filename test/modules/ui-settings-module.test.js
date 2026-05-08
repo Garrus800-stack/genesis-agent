@@ -44,11 +44,12 @@ function setup(undoResponse) {
   global.document = dom.doc;
   global.window = { genesis: genesis.mock };
   // OS-agnostic cache clear via require.resolve
-  for (const m of ['i18n', 'agent-state', 'statusbar', 'chat', 'settings', 'settings-defaults']) {
+  for (const m of ['i18n', 'agent-state', 'statusbar', 'chat', 'settings', 'settings-defaults', 'goal-management']) {
     try { delete require.cache[require.resolve(path.join(ROOT, 'src', 'ui', 'modules', m))]; } catch {}
   }
   return {
     settings: require(path.join(ROOT, 'src', 'ui', 'modules', 'settings')),
+    goalManagement: require(path.join(ROOT, 'src', 'ui', 'modules', 'goal-management')),
     agentState: require(path.join(ROOT, 'src', 'ui', 'modules', 'agent-state')),
     i18n: require(path.join(ROOT, 'src', 'ui', 'modules', 'i18n')),
     dom, genesis,
@@ -58,9 +59,9 @@ function setup(undoResponse) {
 (async () => {
 
 await test('A2: undoLastChange shows toast when agent not ready', async () => {
-  const { settings, agentState, dom, genesis } = setup({ ok: true, reverted: 'main.js' });
+  const { settings, goalManagement, agentState, dom, genesis } = setup({ ok: true, reverted: 'main.js' });
   agentState.setAgentReady(false);
-  await settings.undoLastChange();
+  await goalManagement.undoLastChange();
   // No IPC fired — guarded
   const undoCalls = genesis.calls.invoke.filter(c => c.channel === 'agent:undo');
   assert.strictEqual(undoCalls.length, 0, 'undo IPC must not fire when not ready');
@@ -70,10 +71,10 @@ await test('A2: undoLastChange shows toast when agent not ready', async () => {
 });
 
 await test('A3: undoLastChange success — toast uses {{detail}} not literal placeholder', async () => {
-  const { settings, agentState, dom, i18n } = setup({ ok: true, reverted: 'main.js change' });
+  const { settings, goalManagement, agentState, dom, i18n } = setup({ ok: true, reverted: 'main.js change' });
   await i18n.loadI18n();
   agentState.setAgentReady(true);
-  await settings.undoLastChange();
+  await goalManagement.undoLastChange();
   const container = dom.elements['toast-container'];
   // Find the success toast (skip any warning toasts)
   const successToast = Array.from(container.children).find(c => c.className.includes('toast-success'));
@@ -87,12 +88,12 @@ await test('A3: undoLastChange success — toast uses {{detail}} not literal pla
 });
 
 await test('A3 bonus: chat message inlines result.detail (no ui.undo_detail key call)', async () => {
-  const { settings, agentState, dom, i18n } = setup({
+  const { settings, goalManagement, agentState, dom, i18n } = setup({
     ok: true, reverted: 'main.js', detail: 'Replaced foo() with bar()',
   });
   await i18n.loadI18n();
   agentState.setAgentReady(true);
-  await settings.undoLastChange();
+  await goalManagement.undoLastChange();
   const chatContainer = dom.elements['chat-messages'];
   assert.ok(chatContainer.children.length >= 1, 'chat message added');
   const msg = chatContainer.children[chatContainer.children.length - 1];
@@ -106,10 +107,10 @@ await test('A3 bonus: chat message inlines result.detail (no ui.undo_detail key 
 });
 
 await test('A4: undoLastChange nothing-to-undo uses warning toast', async () => {
-  const { settings, agentState, dom, i18n } = setup({ ok: false });
+  const { settings, goalManagement, agentState, dom, i18n } = setup({ ok: false });
   await i18n.loadI18n();
   agentState.setAgentReady(true);
-  await settings.undoLastChange();
+  await goalManagement.undoLastChange();
   const container = dom.elements['toast-container'];
   const warningToast = Array.from(container.children).find(c => c.className.includes('toast-warning'));
   assert.ok(warningToast, 'warning toast for nothing-to-undo');
@@ -119,10 +120,10 @@ await test('A4: undoLastChange nothing-to-undo uses warning toast', async () => 
 });
 
 await test('A4: undo with explicit error from backend → warning (not error)', async () => {
-  const { settings, agentState, dom, i18n } = setup({ ok: false, error: 'No commits to undo' });
+  const { settings, goalManagement, agentState, dom, i18n } = setup({ ok: false, error: 'No commits to undo' });
   await i18n.loadI18n();
   agentState.setAgentReady(true);
-  await settings.undoLastChange();
+  await goalManagement.undoLastChange();
   const container = dom.elements['toast-container'];
   const warningToast = Array.from(container.children).find(c => c.className.includes('toast-warning'));
   assert.ok(warningToast, 'backend error message → warning toast');
@@ -138,10 +139,10 @@ await test('undo IPC throw → error toast (catch path stays error)', async () =
   genesis.setHandler('agent:undo', () => { throw new Error('IPC dead'); });
   global.document = dom.doc;
   global.window = { genesis: genesis.mock };
-  for (const m of ['i18n', 'agent-state', 'statusbar', 'chat', 'settings', 'settings-defaults']) {
+  for (const m of ['i18n', 'agent-state', 'statusbar', 'chat', 'settings', 'settings-defaults', 'goal-management']) {
     try { delete require.cache[require.resolve(path.join(ROOT, 'src', 'ui', 'modules', m))]; } catch {}
   }
-  const { undoLastChange } = require(path.join(ROOT, 'src', 'ui', 'modules', 'settings'));
+  const { undoLastChange } = require(path.join(ROOT, 'src', 'ui', 'modules', 'goal-management'));
   const { setAgentReady } = require(path.join(ROOT, 'src', 'ui', 'modules', 'agent-state'));
   const { loadI18n } = require(path.join(ROOT, 'src', 'ui', 'modules', 'i18n'));
   await loadI18n();

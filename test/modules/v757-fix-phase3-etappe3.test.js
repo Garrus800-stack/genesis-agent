@@ -13,6 +13,8 @@
 
 'use strict';
 
+const { readSettingsFamily } = require('../helpers/settings-source');
+
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -113,19 +115,19 @@ test('Settings._sanityClampOnLoad does not change valid values', () => {
 // ── settings.js (UI module): decorate + validate ───────────
 
 test('settings.js: imports settings-defaults', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   assert.ok(src.includes("require('./settings-defaults')"));
   assert.ok(src.includes('FIELD_REGISTRY'));
 });
 
 test('settings.js: _decorateAllFields called on open', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   assert.ok(src.includes('_decorateAllFields()'),
     'must call _decorateAllFields after openSettings');
 });
 
 test('settings.js: saveSettings validates before sending IPC', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   const saveStart = src.indexOf('async function saveSettings');
   const saveSlice = src.slice(saveStart, saveStart + 800);
   assert.ok(saveSlice.includes('_validateAllFields'),

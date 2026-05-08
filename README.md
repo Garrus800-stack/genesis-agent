@@ -8,12 +8,12 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.7.1-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-6905%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.7.2-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-6907%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-330-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/modules-338-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-168-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
@@ -554,12 +554,12 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 330 modules (src/) |
+| Source modules | 338 modules (src/) |
 | Lines of code | ~89k src + ~59k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 154 manifest + 13 bootstrap = 167 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 406 files, 6905 tests (coverage gates: 80/76/78, ratchet floor 6014) |
+| Test suites | 406 files, 6907 tests (coverage gates: 80/76/78, ratchet floor 6014) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 67 main ↔ 67 preload (rate-limited, all in sync) |

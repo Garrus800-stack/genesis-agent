@@ -13,6 +13,8 @@
 
 'use strict';
 
+const { readSettingsFamily } = require('../helpers/settings-source');
+
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
@@ -59,7 +61,7 @@ test('HTML: textarea + buttons present', () => {
 // ── settings.js: editor functions ──────────────────────────
 
 test('settings.js: _loadJsonEditor + _validateJsonEditor + _wireJsonEditorButtons', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   assert.ok(src.includes('_loadJsonEditor'), 'must have _loadJsonEditor');
   assert.ok(src.includes('_validateJsonEditor'), 'must have _validateJsonEditor');
   assert.ok(src.includes('_wireJsonEditorButtons'), 'must have _wireJsonEditorButtons');
@@ -67,7 +69,7 @@ test('settings.js: _loadJsonEditor + _validateJsonEditor + _wireJsonEditorButton
 });
 
 test('settings.js: SENSITIVE_PATHS for masking', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   assert.ok(src.includes("'models.anthropicApiKey'"), 'must list anthropic key');
   assert.ok(src.includes("'models.openaiApiKey'"), 'must list openai key');
   assert.ok(src.includes("'peer.discoveryToken'"), 'must list peer token');
@@ -75,13 +77,13 @@ test('settings.js: SENSITIVE_PATHS for masking', () => {
 });
 
 test('settings.js: opens load on settings open', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   assert.ok(src.includes('_wireJsonEditorButtons()'), 'must wire buttons on open');
   assert.ok(src.includes('_loadJsonEditor()'), 'must load editor on open');
 });
 
 test('settings.js: save integrates JSON-editor changes', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   // _collectJsonEditorChanges must be called inside saveSettings
   const saveStart = src.indexOf('async function saveSettings');
   const saveEnd = src.indexOf('async function ', saveStart + 1);
@@ -91,7 +93,7 @@ test('settings.js: save integrates JSON-editor changes', () => {
 });
 
 test('settings.js: invalid JSON aborts save (no half-save)', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/settings.js'), 'utf8');
+  const src = readSettingsFamily();
   // The save flow must include an abort path when JSON is invalid
   assert.ok(src.includes('jsonChanges === null') ||
             src.includes('jsonChanges == null'),
