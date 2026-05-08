@@ -1,9 +1,84 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.6.8 · Last updated: v7.6.8 (Cleanup release: GoalStack lifecycle mixin extraction, 8 frequently-emitted events fully resolved)
+> Version: 7.6.9 · Last updated: v7.6.9 (Cleanup release: AgentLoop pursue/_executeLoop mixin extraction — File-Size-Guard fully closed, architectural fitness 130/130)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.6.9
+
+### File-Size-Guard WARN — AgentLoop.js (Track A)
+
+AgentLoop.js was 867 LOC, triggering the File-Size-Guard WARN
+threshold (>700) since v7.6.4. Closed via mixin extraction analog to
+Settings v7.6.7, GoalStack v7.6.8, and ModelBridgeFailover v7.6.5:
+the pursuit sequence (pursue + _executeLoop) moved to new
+`src/agent/revolution/AgentLoopPursuit.js` (~687 LOC), mounted onto
+`AgentLoop.prototype` via `Object.assign`. AgentLoop.js drops to
+243 LOC.
+
+What moved into the mixin (2 methods):
+
+- `pursue(input, onProgress)` — top-level orchestration: input parsing,
+  goal-creation, isolation checks (Strict Cognitive Mode, Self-Gate
+  plan-start observation), Phase 1 PLAN, Phase 1b SIMULATE,
+  Phase 1c CONSCIOUSNESS, call _executeLoop, post-execute cleanup.
+- `_executeLoop(plan, onProgress)` — step-execution loop with
+  recovery/repair/reflect hooks, Colony-Escalation, resource-blocked
+  handling, REFLECT-on-progress every 3 steps, final verification.
+
+What stays in AgentLoop.js (243 LOC): constructor (with the 4 existing
+delegate wirings — planner, steps, cognition, recovery), control surface
+(`stop`, `approve`, `reject`, `getStatus`), `registerHandlers` for
+ChatOrchestrator integration.
+
+**Pattern note — mixin vs delegate.** AgentLoop.js historically uses the
+delegate-pattern (AgentLoopPlannerDelegate, AgentLoopStepsDelegate,
+AgentLoopCognitionDelegate, AgentLoopRecoveryDelegate) for isolated
+helper concerns. Mixin pattern is used here because pursue/_executeLoop
+are core orchestration methods with deep state-coupling: 23 distinct
+`this.X` reads in pursue, 19 in _executeLoop, including writes to
+`running`/`currentGoalId`/`executionLog`/`consecutiveErrors`/`stepCount`.
+Delegate-pattern would force ~50 verbose `this.agentLoop.X` references
+and risk subtle this-binding bugs in arrow callbacks. Mixin keeps the
+methods as class-methods on AgentLoop.prototype, only the source
+location changes.
+
+Pure structural extraction — runtime semantics unchanged. All 156
+existing AgentLoop-related tests (`AgentLoop`, `AgentLoopCognition`,
+`AgentLoopRecovery`, `agentloop-cognition`, `agentloop-coverage`,
+`agentloop-legacy`, `agentloop-planner`, `agentloop-steps`) green
+without modification. Two pre-existing tests (v750-fix D1/D2,
+v758-fix _emitFailure source-presence) updated to read the new file
+location instead of AgentLoop.js — same pattern as v7.6.2 update for
+`REJECTION_STALL_THRESHOLD` after GoalDriverFailurePolicy extraction.
+
+**File-Size-Guard fully closed.** AgentLoop.js drops out of the WARN
+list. No source files remain >700 LOC. Architectural fitness 127/130
+→ **130/130 (100%)** — File-Size-Guard score 7/10 → 10/10.
+
+---
+
+## Items still deferred after v7.6.9
+
+### File-Size-Guard
+
+**None.** All source files under 700 LOC. Future cleanup will be
+preventive — kept in mind during feature work.
+
+### Other low-priority items (no Score-pressure)
+
+- **ModelBridge `_prepareCallContext` extraction** — opportunity for
+  further structural cleanup, but ModelBridge is below WARN threshold
+  and not blocking any audit. Free to defer or skip.
+- **UI dual-path consolidation** — IPC vs direct-call dual paths in
+  the renderer accumulated across v7.0.x–v7.5.x (~567 LOC of
+  duplication). Worth a dedicated release; not blocking anything.
+- **Slash-Discipline extension** to all 9 `SECURITY_REQUIRED_SLASH`
+  intents (currently a subset). Improves the unified
+  "would I call this tool from this intent" check; not Score-relevant.
 
 ---
 
@@ -83,22 +158,6 @@ ratchet `BASELINE` in `v767-audit-events-scanner.contract.test.js`
 updated from 8 to 0. Any future regression that adds an orphan
 frequently-emitted event must be addressed (wire listener, or extend
 `RESERVED_TELEMETRY_ONLY` if intentional).
-
----
-
-## Items still deferred after v7.6.8
-
-### File-Size-Guard
-
-- `src/agent/revolution/AgentLoop.js` — 868 LOC (>700). Largest
-  remaining WARN file. Deferred to v7.6.9 as standalone cleanup —
-  AgentLoop is the most intricately verwobenste file in the project
-  (`pursue()` is 390 LOC, `_executeLoop()` is 240 LOC; existing
-  splits AgentLoopCognition/Planner/Recovery/Steps already absorbed
-  the cleanest boundaries). Bundling it with v7.6.8 would have
-  raised test-drift risk against 8 existing AgentLoop test files.
-  Once closed, File-Size-Guard score lifts 7/10 → 10/10 and overall
-  architectural fitness 127 → 130.
 
 ---
 

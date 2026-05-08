@@ -160,7 +160,9 @@ const ROOT = path.join(__dirname, '..', '..');
   // ──────────────────────────────────────────────────────────────
 
   await test('D1: AgentLoop legacy-string path no longer calls goalStack.addGoal', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoop.js'), 'utf-8');
+    // v7.6.9 Track A: pursue() was extracted from AgentLoop.js to
+    // AgentLoopPursuit.js (agentLoopPursuitMixin onto prototype).
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopPursuit.js'), 'utf-8');
     // The OLD pattern was:
     //   _registeredGoal = await this.goalStack.addGoal(
     //     goalDescription.slice(0, 200), 'user', 'high',
@@ -174,7 +176,8 @@ const ROOT = path.join(__dirname, '..', '..');
   });
 
   await test('D2: AgentLoop legacy-string path creates transient goal object', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoop.js'), 'utf-8');
+    // v7.6.9 Track A: pursue() was extracted from AgentLoop.js to AgentLoopPursuit.js.
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopPursuit.js'), 'utf-8');
     // Verify the new transient block exists with _transient marker.
     assert(/_transient:\s*true/.test(src),
       'AgentLoop must mark legacy-string goals with _transient: true');

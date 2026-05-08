@@ -1,3 +1,85 @@
+## [7.6.9]
+
+Cleanup release. AgentLoop pursuit sequence (pursue + _executeLoop)
+extracted into a dedicated mixin file, closing the last File-Size-Guard
+WARN entry and lifting architectural fitness to 130/130 (100%).
+No new features, no breaking changes, no runtime semantic changes.
+
+### Changed
+
+- **`AgentLoop.js` 867 → 243 LOC** via Mixin extraction. New module
+  `src/agent/revolution/AgentLoopPursuit.js` (~687 LOC) holds the
+  pursuit sequence: `pursue(input, onProgress)` (top-level
+  orchestration — input parsing, goal-creation, isolation checks,
+  Phase 1 PLAN, Phase 1b SIMULATE, Phase 1c CONSCIOUSNESS, call
+  `_executeLoop`, post-execute cleanup) and `_executeLoop(plan,
+  onProgress)` (step-execution loop with recovery/repair/reflect
+  hooks, Colony-Escalation, resource-blocked handling). Mounted via
+  `Object.assign(AgentLoop.prototype, agentLoopPursuitMixin)` —
+  same pattern as Settings v7.6.7, GoalStack v7.6.8,
+  ModelBridgeFailover v7.6.5. Pure structural extraction, runtime
+  semantics unchanged. AgentLoop.js drops out of File-Size-Guard
+  WARN list — **no source files remain >700 LOC**.
+
+  **Pattern note — mixin vs delegate.** AgentLoop.js historically
+  uses the delegate-pattern (AgentLoopPlannerDelegate,
+  AgentLoopStepsDelegate, AgentLoopCognitionDelegate,
+  AgentLoopRecoveryDelegate) for isolated helper concerns. Mixin
+  pattern was chosen here because pursue/_executeLoop are core
+  orchestration methods with deep state-coupling (23 distinct
+  `this.X` reads in pursue, 19 in _executeLoop, including writes
+  to `running`/`currentGoalId`/`executionLog`/`consecutiveErrors`/
+  `stepCount`). Delegate-pattern would force ~50 verbose
+  `this.agentLoop.X` references and risk subtle this-binding bugs
+  in arrow callbacks. Mixin keeps the methods as class-methods on
+  AgentLoop.prototype, only the source location changes. The 4
+  existing delegates remain delegates — bewusste Trennung between
+  isolated helper concerns (delegate) and core orchestration with
+  deep state-coupling (mixin).
+
+### Added
+
+- `src/agent/revolution/AgentLoopPursuit.js` (mixin module exporting
+  `agentLoopPursuitMixin` with exactly two prototype-mounted methods:
+  `pursue` and `_executeLoop`).
+- `test/modules/v769-agentloop-pursuit-split.contract.test.js`
+  (9 tests pinning the mixin export shape with exactly 2 keys, module
+  loads cleanly, prototype-mount, identity-equality between prototype
+  and mixin references for both methods, source-presence regression
+  check that AgentLoop.js does not redefine either method at class
+  level, mount-line presence regex, and File-Size-Guard threshold
+  guard at 700 LOC).
+
+### AUDIT-BACKLOG
+
+- **File-Size-Guard fully closed.** Score 7/10 → 10/10. AgentLoop.js
+  was the last WARN entry (>700 LOC); after split, no source files
+  remain over the threshold.
+- **Architectural fitness 127/130 → 130/130 (100%).** All 13 audit
+  pillars at 10/10.
+- All 156 existing AgentLoop-related tests (`AgentLoop`,
+  `AgentLoopCognition`, `AgentLoopRecovery`, `agentloop-cognition`,
+  `agentloop-coverage`, `agentloop-legacy`, `agentloop-planner`,
+  `agentloop-steps`) green without modification. Two pre-existing
+  source-presence tests (`v750-fix.test.js` D1/D2,
+  `v758-fix.test.js` `_emitFailure` source-presence) updated to read
+  the new file location — same pattern as v7.6.2's update of
+  `REJECTION_STALL_THRESHOLD` after GoalDriverFailurePolicy
+  extraction.
+
+### Stats
+
+- +9 net new tests (v769 AgentLoop pursuit split contract).
+- Linux baseline 6828 → ~6837. Windows baseline 6829 → ~6838.
+- Source modules 329 → 330 (+ AgentLoopPursuit.js).
+- File-Size-Guard score 7/10 → **10/10**.
+- Architectural fitness 127/130 → **130/130 (100%)**.
+- 17/17 ci:full audit gates green.
+- AgentLoop.js: 867 → 243 LOC. AgentLoopPursuit.js: 687 LOC (under
+  700 threshold).
+
+---
+
 ## [7.6.8]
 
 Cleanup release. Two tracks of architectural debt repayment with no

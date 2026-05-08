@@ -398,7 +398,10 @@ describe('v7.5.8 hotfix — Anaphora extended (Dativ + doc-folder)', () => {
 describe('v7.5.8 hotfix-2 — agent-loop:complete goalId fallback', () => {
 
   test('source-presence: _emitFailure synthesises goalId fallback', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoop.js'), 'utf8');
+    // v7.6.9 Track A: pursue() was extracted from AgentLoop.js to
+    // AgentLoopPursuit.js (agentLoopPursuitMixin onto prototype).
+    // The _emitFailure helper moved with the method.
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopPursuit.js'), 'utf8');
     const idx = src.indexOf('_emitFailure');
     const slice = src.slice(idx, idx + 1500);
     assert(/_emittedGoalId/.test(slice), '_emittedGoalId fallback variable missing');

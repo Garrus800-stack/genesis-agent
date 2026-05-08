@@ -12,7 +12,7 @@ range.
 
 Settings persist in `.genesis/settings.json`. API keys and the peer
 discovery token are encrypted at rest with AES-256-GCM, anchored to a
-per-installation UUID stored in `.genesis/.install-id` (v7.6.8+) and
+per-installation UUID stored in `.genesis/.install-id` (v7.6.9+) and
 salted via `.genesis/enc-salt`. The install-id is generated once per
 `.genesis/`-folder and survives hostname changes, username changes,
 and folder copies between machines — encrypted values stay readable
@@ -190,8 +190,8 @@ shows up here. Quiet log = vanilla install.
 |---|---|
 | `.genesis/settings.json` | All your settings (encrypted secrets) |
 | `.genesis/enc-salt` | Random salt for the secret encryption (per-install) |
-| `.genesis/.install-id` | Per-installation UUID (v7.6.8+) — encryption key anchor; survives hostname/username changes and folder copies |
-| `.genesis/.hauptstandort.json` | Hauptstandort identity stamp (v7.6.8+) — install-uuid, creation timestamp, hostname-history; foundation for v7.7+ Außenposten |
+| `.genesis/.install-id` | Per-installation UUID (v7.6.9+) — encryption key anchor; survives hostname/username changes and folder copies |
+| `.genesis/.hauptstandort.json` | Hauptstandort identity stamp (v7.6.9+) — install-uuid, creation timestamp, hostname-history; foundation for v7.7+ Außenposten |
 | `.genesis/trust-level.json` | Trust level state (separate from `settings.json` for safety) |
 | `.genesis/settings.bak` | Last-known-good settings, written when `Save` succeeds |
 
