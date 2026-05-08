@@ -110,8 +110,9 @@ async function build() {
   }
 
   // 3. Bundle renderer → dist/renderer.bundle.js (v3.8.0)
-  // Browser target — replaces the monolithic renderer.js with 6 modules.
-  // Monaco is loaded externally via CDN, not bundled.
+  // Browser target — entry is renderer-main.js + 6 modules.
+  // The legacy monolithic src/ui/renderer.js was retired in v7.6.0
+  // and deleted in v7.7.0. Monaco is loaded externally via CDN, not bundled.
   const rendererResult = await esbuild.build({
     entryPoints: [path.join(ROOT, 'src', 'ui', 'renderer-main.js')],
     outfile: path.join(DIST, 'renderer.bundle.js'),

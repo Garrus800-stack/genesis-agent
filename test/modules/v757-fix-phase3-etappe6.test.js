@@ -99,13 +99,16 @@ test('i18n.js: applyI18n handles data-i18n-html attribute', () => {
 });
 
 // v7.6.0: legacy `renderer.js: applyI18n handles data-i18n-html` test
-// removed when the dual-path was consolidated.
+// removed when the dual-path was consolidated. v7.7.0 deleted the
+// legacy file entirely.
 
 // ── HTML coverage ──────────────────────────────────────────
 
 test('All data-i18n* keys in HTML resolve in en + de', () => {
   const lang = require(path.join(ROOT, 'src/agent/core/Language.js'));
   // v7.6.0: dual-path consolidated, only one HTML file remains.
+  // (v7.7.0: index.bundled.html is identical to index.html and unused
+  // — left in repo as a future cleanup target.)
   for (const f of ['src/ui/index.html']) {
     const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
     const matches = [...html.matchAll(/data-i18n(?:-html|-placeholder)?="([^"]+)"/g)].map(m => m[1]);

@@ -106,6 +106,23 @@ function getCIGateCount() {
   return matches.length;
 }
 
+function getLiveFitness() {
+  // v7.7.0: subprocess-call to architectural-fitness.js, parse "Score: NNN/130"
+  // from stdout. Returns null on any failure (subprocess error, parse fail) so
+  // that a broken fitness check doesn't break doc-drift altogether — drift
+  // checks that depend on FITNESS will skip silently when null.
+  try {
+    const { execSync } = require('child_process');
+    const out = execSync('node scripts/architectural-fitness.js', {
+      cwd: ROOT, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const m = /Score:\s*(\d+)\s*\/\s*130/.exec(out);
+    return m ? parseInt(m[1], 10) : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
 // ── Drift checks per doc ─────────────────────────────────
 
 function check(docName, content, label, regex, expected, actualExtractor = (m) => parseInt(m[1].replace(/,/g, ''), 10)) {
@@ -130,6 +147,7 @@ function runChecks() {
   const PREFIXES = getContractPrefixCount();
   const SOURCE = getSourceModuleCount();
   const CI_GATES = getCIGateCount();
+  const FITNESS = getLiveFitness();   // v7.7.0: may be null if subprocess fails
 
   const drifts = [];
   const checked = [];
@@ -265,13 +283,23 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '6837 passing',      label: 'badge: tests',
+        tests:      { live: '6867 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
-                      // v7.6.9: +9 tests (v769 AgentLoop pursuit split contract,
-                      // includes 1 LOC threshold guard test).
-                      // Linux 6828 → 6837 expected, Win 6829 → 6838 expected
-                      // (badge pinned to Win-baseline, audit allows +1 conditional drift).
+                      // v7.7.0: -52 (renderer.test.js -51 + agentloop-legacy
+                      //   lying test -1) +81 (v770-test-helpers contract +16,
+                      //   ui-statusbar-module +13, ui-i18n-module +8, ui-chat-
+                      //   module +19, ui-filetree-module +8, ui-settings-module
+                      //   +7, ui-renderer-main +10) = +29 net.
+                      // Linux actual: 6856. Win actual: 6867 (~11 Win-conditional
+                      // test in v759-linux-open early-returns on non-Win, but
+                      // the test() call itself counts as 'passed' on both
+                      // platforms — the +1 difference comes from elsewhere).
+                      // Badge pinned to Win-baseline; audit is strict.
+                      // Note: pre-v7.7.0 README badge claimed 6837 but actual
+                      // Win count then was ~6828 — the badge was already drifted
+                      // by ~9 tests through several releases. v7.7.0 audit
+                      // hardening (above) makes such drift visible going forward.
                       compare: (got, exp) => got === exp },
         modules:    { live: SOURCE,              label: 'badge: modules' },
         events:     { live: CATALOG,             label: 'badge: events' },
@@ -287,6 +315,13 @@ function runChecks() {
                           const m = /^(\d+)\+?$/.exec(String(got));
                           return m && parseInt(m[1], 10) >= 240;
                         } },
+        // v7.7.0: fitness badge re-monitored. Was previously skipped; sat
+        // stale at 127/130 across v7.6.5 → v7.6.9 because nothing audited it.
+        // Skip silently if FITNESS is null (architectural-fitness.js subprocess
+        // failed); only flag drift when we have a confirmed live value.
+        fitness:    { live: FITNESS != null ? `${FITNESS}/130` : null,
+                      label: 'badge: fitness',
+                      compare: (got, exp) => exp != null && got === exp },
       };
 
       let m;
@@ -294,7 +329,7 @@ function runChecks() {
         const rawLabel = decode(m[1]);
         const rawValue = decode(m[2]);
         const spec = badgeChecks[rawLabel];
-        if (!spec) continue; // unmonitored badge (MCP, languages, electron, license, fitness)
+        if (!spec) continue; // unmonitored badge (MCP, languages, electron, license)
         const expected = spec.live;
         const actualNum = /^\d+$/.test(rawValue) ? parseInt(rawValue, 10) : rawValue;
         const ok = spec.compare
@@ -310,6 +345,76 @@ function runChecks() {
         checked.push(r);
         if (!ok) drifts.push(r);
       }
+
+      // ── README.md tabular + paragraph checks (v7.7.0 hardening) ──
+      // Closes the v7.6.5 → v7.6.9 staleness pattern where five separate
+      // documented numbers (fitness 127/130, CI gates 7, event types 458,
+      // hash-locked 16, etc.) sat stale across five releases because
+      // nothing audited them. These checks now make those drifts visible.
+
+      // README "| Architectural fitness | N/130 — ..." table cell
+      if (FITNESS != null) {
+        const r = check('README.md', readme, 'fitness table',
+          /\|\s*Architectural fitness\s*\|\s*(\d+)\/130\b/, FITNESS);
+        if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+      }
+
+      // README "| CI gates | N (...)" table cell
+      const rGates = check('README.md', readme, 'CI gates (table)',
+        /\|\s*CI gates\s*\|\s*(\d+)\s*\(/, CI_GATES);
+      if (rGates) { checked.push(rGates); if (!rGates.ok) drifts.push(rGates); }
+
+      // README infrastructure paragraph: "EventBus (N event types..."
+      const rEvents = check('README.md', readme, 'event types (paragraph)',
+        /EventBus \((\d+)\s+event types/, CATALOG);
+      if (rEvents) { checked.push(rEvents); if (!rEvents.ok) drifts.push(rEvents); }
+
+      // README infrastructure paragraph: "N hash-locked files"
+      const rLocks = check('README.md', readme, 'hash-locked files (paragraph)',
+        /(\d+)\s+hash-locked files/, HASH_LOCKS);
+      if (rLocks) { checked.push(rLocks); if (!rLocks.ok) drifts.push(rLocks); }
+    }
+  }
+
+  // ── CAPABILITIES.md scale-line + ARCHITECTURE Fitness Score (v7.7.0) ──
+  // Closes the same v7.6.5 → v7.6.9 staleness pattern in the secondary docs.
+  {
+    const src = loadDoc('CAPABILITIES.md');
+    if (src) {
+      // "<N> tests (Win baseline)" — pin to Win baseline (Linux is -1 because
+      // of one Win-conditional test). Update this constant on each release
+      // that changes test count.
+      const TESTS_WIN_BASELINE = 6867;
+      const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
+        /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
+      if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
+
+      // "<N> modules (live `selfModel.moduleCount()`)"
+      const rM = check('CAPABILITIES.md', src, 'modules (scale-line)',
+        /(\d+)\s+modules \(live/, SOURCE);
+      if (rM) { checked.push(rM); if (!rM.ok) drifts.push(rM); }
+
+      // "fitness N/130"
+      if (FITNESS != null) {
+        const rF = check('CAPABILITIES.md', src, 'fitness (scale-line)',
+          /fitness\s+(\d+)\/130/, FITNESS);
+        if (rF) { checked.push(rF); if (!rF.ok) drifts.push(rF); }
+      }
+
+      // "<N> CI audit gates"
+      const rG = check('CAPABILITIES.md', src, 'CI audit gates (scale-line)',
+        /(\d+)\s+CI audit gates/, CI_GATES);
+      if (rG) { checked.push(rG); if (!rG.ok) drifts.push(rG); }
+    }
+  }
+
+  // ── ARCHITECTURE-DEEP-DIVE.md Fitness Score table (v7.7.0) ──
+  {
+    const src = loadDoc('ARCHITECTURE-DEEP-DIVE.md');
+    if (src && FITNESS != null) {
+      const r = check('ARCHITECTURE-DEEP-DIVE.md', src, 'Fitness Score (table)',
+        /\|\s*Fitness Score\s*\|\s*(\d+)\/130/, FITNESS);
+      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
     }
   }
 
@@ -338,6 +443,8 @@ console.log(`    hash-locks:     ${getHashLockCount()}`);
 console.log(`    contractPrefix: ${getContractPrefixCount()}`);
 console.log(`    source modules: ${getSourceModuleCount()}`);
 console.log(`    CI gates:       ${getCIGateCount()}`);
+const _liveFitness = getLiveFitness();
+console.log(`    fitness:        ${_liveFitness != null ? _liveFitness + '/130' : 'unknown'}`);
 console.log('');
 
 if (result.drifts.length === 0) {

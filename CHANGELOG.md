@@ -1,3 +1,224 @@
+## [7.7.0]
+
+UI dual-path elimination + modular feature parity. The cleanup that
+began in v7.6.0 (when the bundled renderer became the loaded UI path)
+but never finished — the legacy monolithic `src/ui/renderer.js` plus
+its 930-LOC test sat as blueprint references for nine releases — is
+now finished. In the process of preparing the deletion, a behavior
+audit between the legacy and modular paths surfaced ten divergences.
+Three were production bugs in the live (modular) path; seven were
+features the modular path had quietly dropped. All ten resolved
+before the legacy was deleted.
+
+Net effect: 1500 LOC of dead code removed, three production bugs
+fixed in the live UI path, seven feature regressions repaired, and
+the UI maintenance surface reduced to one codepath.
+
+### Fixed (modular-path bugs that shipped silently since v7.6.0)
+
+- **i18n interpolation broken in modular path.** `src/ui/modules/i18n.js`
+  used `{var}` single-replace, but every live lang-string in
+  `src/agent/core/Language.js` (Z.83+) uses `{{var}}` with
+  multiple-occurrence semantics. Result: every interpolated translation
+  rendered the literal placeholder (e.g. `Saved: {{file}}`). Switched
+  to `new RegExp('{{${k}}}', 'g')`. The two single-brace lang-strings
+  (`'settings.mcp.error_exists': 'MCP server "{name}"...'`) use a manual
+  `.replace('{name}', name)` at `settings.js:596` that is independent
+  of `t()`'s regex — unaffected by this fix.
+
+- **`sendMessage` silent loss before agent ready.** Legacy `renderer.js`
+  Z.265 guarded with `if (!boot.ready) toast.show(t('ui.still_starting'))`.
+  The modular `chat.sendMessage()` had no guard — user input typed
+  during the boot window (~1-3s between DOMContentLoaded and
+  agent:ready) was echoed into chat then silently dropped because the
+  IPC send fired into a not-yet-listening backend. Added shared agent-
+  ready signal via new module `src/ui/modules/agent-state.js` plus six
+  more guards (settings.openSettings, settings.showGoalTree,
+  settings.undoLastChange, settings.dragdrop, statusbar.showHealth,
+  statusbar.showSelfModel) — all places where legacy renderer.js had
+  the same gating.
+
+- **`undoLastChange` rendered placeholder literal.** Two related bugs:
+  - The success toast called `t('ui.undo_success', { commit: result.reverted })`
+    but the lang-string is `'Change reverted: {{detail}}'` — variable
+    name mismatch (`commit` vs `detail`) plus pre-fix interpolation
+    regex meant the user saw `{{detail}}` literal after every undo.
+    Fixed to `t('ui.undo_success', { detail: result.reverted })`.
+  - The chat message called `t('ui.undo_detail', { detail: result.detail })`,
+    but the lang-key `ui.undo_detail` does not exist in Language.js —
+    `t()` returned the key name itself, leaving chat with the literal
+    text "↩ ui.undo_detail" after every undo. Inlined `result.detail`
+    directly (matches legacy renderer.js Z.414 pattern).
+
+### Added (modular feature parity)
+
+- **`updateStatus` STATE_TO_CSS mapping.** The modular `updateStatus`
+  was setting `badge-${state}` for every state — but the stylesheet
+  only has CSS rules for badge-ready/working/error/booting. States
+  like 'thinking', 'self-modifying', 'creating-skill', etc. had no
+  visual styling (rendered as default `.badge`). Mapping restores
+  legacy behavior: working-type states pulse, warnings show error
+  color, unknown states fall back to badge-booting. Bug existed
+  unobserved since v7.6.0.
+
+- **`insight` and `resting` states now visible.** Production fires both
+  via AgentCoreWire (idle:proactive-insight → insight; steering:rest-mode
+  → resting). Previously the modular labels-mapping had no entry for
+  either, so the badge showed the raw state name. Added 💡 Insight and
+  😴 Resting labels.
+
+- **Warning state surfaces toast + badge.** Silent warnings were easy
+  to miss with only the colored badge. Now `updateStatus({state: 'warning'})`
+  additionally fires a warning toast (with status.detail or fallback
+  label). 11+ event sources in AgentCoreWire fire warning state
+  (model:ollama-unavailable, goal:stalled, failure:classified,
+  effector:blocked, health:memory-leak, etc.).
+
+- **`showToast` stack limit ≤5.** Without this, long sessions with
+  many warnings accumulated DOM nodes indefinitely. Memory-leak fix.
+
+- **`undoLastChange` 'nothing to undo' uses warning toast.** Benign
+  no-op state, not an error. Previously rendered red.
+
+- **Markdown headings** (`# H1` → `<h2>`, `##` → `<h3>`, `###` → `<h4>`)
+  in `chat.renderMarkdown`. LLM responses with markdown headings now
+  render as proper HTML headings rather than literal text.
+
+- **File-tree icon hierarchy.** `🔒` protected (hash-locked core)
+  → `◈` Genesis-internal module → `📄` regular file. The previous
+  `📁 / 📄` branch was effectively dead because `SelfModel.getFileTree()`
+  returns no `isDir` field — every entry rendered as `📄`. Same icon
+  hierarchy as legacy `renderer.js` used (renderer.test.js Z.749-750
+  pinned this). Reduced to 3 icons (no 📁) since the data is flat.
+
+- **Status badge stays a compact state label.** Detail (model name,
+  thinking-step text) goes to the `title` tooltip — NOT to badge text.
+  This is a deliberate divergence from legacy: a v7.7.0 pre-release
+  attempt put the active model name in the badge text and produced a
+  cluttered topbar with the model name appearing both in the badge
+  and the model-select dropdown to its right. The dropdown is now
+  the canonical model display; the badge is the canonical state
+  display. Detail surfaces on hover via tooltip + (for warning) toast.
+
+### Removed
+
+- **`src/ui/renderer.js`** — deleted (-566 LOC). Was the monolithic
+  single-file UI from before v7.6.0's modular split. Stopped being
+  loaded at runtime in v7.6.0 (replaced by `dist/renderer.bundle.js`
+  built from `renderer-main.js` + 6 modules) but the file remained
+  on disk as a blueprint for nine releases.
+
+- **`test/modules/renderer.test.js`** — deleted (-930 LOC, 51 tests).
+  Used a 250-LOC custom DOM shim + window.genesis IPC mock to evaluate
+  legacy renderer.js inside a vm sandbox. Tests rebuilt against the
+  modular source as 6 per-module test files (81 new tests total —
+  see Added below).
+
+- **HTML fallback comments** referencing legacy renderer.js in
+  `src/ui/index.html` and `src/ui/index.bundled.html` — stale since
+  the file stopped being loaded. (Note: `index.bundled.html` is
+  identical to `index.html` and unused at runtime; kept for now,
+  separate cleanup-release target.)
+
+- **Lying test in `agentloop-legacy.test.js`** ('abort flag prevents
+  execution'). Called `loop.pursueGoal()` — a method that does not
+  exist on AgentLoop (real method: `pursue()` from
+  AgentLoopPursuit.js mixin). The TypeError was swallowed by a
+  try/catch, leaving only `loop.running === false` which is the
+  default initial state. Vacuous. Real abort coverage lives in
+  `agentloop-coverage.test.js:64` ('sets running to false and
+  aborted to true').
+
+### Added (test infrastructure)
+
+- **`test/helpers/dom-shim.js`** + **`test/helpers/genesis-mock.js`**
+  — extracted from the deleted renderer.test.js. The DOM shim has
+  browser-parity textContent → innerHTML escape (so chat.escapeHtml
+  works correctly), `className`↔`classList` sync setter (so
+  `el.className = 'a b'` updates `classList` consistently), lazy
+  element creation on `querySelector('#id')` miss (so tests don't
+  have to enumerate all referenced IDs), and `options` array on
+  elements (mirrors `<select>.options`).
+
+- **6 new per-module test files** covering every behavior the deleted
+  monolith covered, plus the v7.7.0 parity behaviors:
+  - `test/modules/ui-statusbar-module.test.js` (13 tests, A5/A6/A7)
+  - `test/modules/ui-i18n-module.test.js` (8 tests, A1)
+  - `test/modules/ui-chat-module.test.js` (19 tests, A2/A8)
+  - `test/modules/ui-filetree-module.test.js` (8 tests, A9)
+  - `test/modules/ui-settings-module.test.js` (7 tests, A2/A3/A4)
+  - `test/modules/ui-renderer-main.test.js` (10 tests — IPC listener
+    source-presence + window globals + setAgentReady sync)
+
+- **`test/modules/v770-test-helpers.contract.test.js`** (16 tests) —
+  pins helper export shape so per-module tests break loud if helpers
+  regress.
+
+### Added (audit hardening)
+
+- **`audit-doc-drift` extended with 10 new checks + live fitness lookup.**
+  Across v7.6.5 → v7.6.9, five separate documented numbers (fitness
+  127/130, README CI gates count, README event types, README hash-lock
+  count, CAPABILITIES.md tests/modules/fitness/CI count) sat stale
+  through five releases because nothing audited them. New checks:
+  - `getLiveFitness()` helper (subprocess to `architectural-fitness.js`,
+    parses `Score: NNN/130` from stdout)
+  - README badge: `fitness-N%2F130` (newly monitored)
+  - README table: `Architectural fitness | N/130`
+  - README table: `CI gates | N (...)`
+  - README paragraph: `EventBus (N event types`
+  - README paragraph: `N hash-locked files`
+  - ARCHITECTURE-DEEP-DIVE.md table: `Fitness Score | N/130`
+  - CAPABILITIES.md scale: `N tests (Win baseline)`
+  - CAPABILITIES.md scale: `N modules (live`
+  - CAPABILITIES.md scale: `fitness N/130`
+  - CAPABILITIES.md scale: `N CI audit gates`
+
+  Total `audit-doc-drift --strict` now verifies 40 claims (was 30).
+
+### Changed
+
+- **README badge updates**: fitness 127/130 → 130/130, tests 6837 → 6867,
+  events 458 → 453 (paragraph), hash-locked files 16 → 21 (paragraph),
+  CI gates 7 → 15 (table; full list of audit scripts).
+- **`docs/CAPABILITIES.md` scale-line**: tests 6709 → 6867, modules
+  327 → 330, fitness 127/130 → 130/130, CI audit gates 12 → 15.
+- **`docs/ARCHITECTURE-DEEP-DIVE.md`**: header v7.6.9 → v7.7.0;
+  Z.10 stale `327 modules`/`6829 tests`/`v7.6.9` → `330 modules`/
+  `6867 tests`/`v7.7.0`; Z.29 Fitness Score 127/130 → 130/130.
+- **`docs/banner.svg`**: version v7.6.9 → v7.7.0, tests 6837 → 6867.
+- **6 docs/* version-line bumps**: phase9-cognitive-architecture.md,
+  EVENT-FLOW.md, GATE-INVENTORY.md, SKILL-SECURITY.md,
+  MCP-SERVER-SETUP.md, COMMUNICATION.md (NOT SETTINGS.md — its
+  `v7.6.9+` markers are historical install-id introduction
+  references that should stay).
+- 8 stale `// v7.6.0: ... was deleted/dual-path consolidated` comments
+  in test/source files updated to reflect that the deletion actually
+  happened in v7.7.0 (v7.6.0 only switched the live codepath).
+- `main.js` Z.213-220 + `ARCHITECTURE.md` Z.15-17 historical comments
+  corrected with the same v7.6.0/v7.7.0 distinction.
+
+### Stats
+
+- Source modules: 330 (renderer.js -1, agent-state.js +1; net 0)
+- Tests Win: 6867 (-52 deleted +81 added = +29 net)
+- Tests Linux: 6856 (-1 conditional Win-only test)
+- LOC removed: ~1500 (renderer.js 566 + renderer.test.js 930)
+- LOC added: ~1100 (helpers ~250, 6 new ui-*-module tests ~600,
+  v770-test-helpers contract ~150, audit-doc-drift extensions ~100,
+  agent-state.js + parity fixes ~100)
+- Architectural fitness: 130/130 (unchanged — but now actually
+  reflected in README badge, ARCHITECTURE-DEEP-DIVE table, and
+  CAPABILITIES scale-line, all live-tracked by audit-doc-drift).
+- File-Size-Guard: 10/10 (unchanged)
+- audit-doc-drift checks: 40 (was 30)
+- Note: pre-v7.7.0 README badge claimed 6837 tests but actual Win
+  count was ~6828 — the badge was already drifted by ~9 tests
+  through several releases. The new audit-doc-drift checks added in
+  this release would have caught it; going forward the gap stays
+  visible.
+
+
 ## [7.6.9]
 
 Cleanup release. AgentLoop pursuit sequence (pursue + _executeLoop)

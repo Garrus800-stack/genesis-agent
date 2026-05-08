@@ -19,6 +19,7 @@ const { initMonaco, setCurrentFile } = require('./modules/editor');
 const { updateStatus, refreshStatusI18n, showToast, showHealth, showSelfModel } = require('./modules/statusbar');
 const { loadFileTree } = require('./modules/filetree');
 const { openSettings, closeSettings, saveSettings, showGoalTree, undoLastChange, setupDragDrop, autoResize, refreshSettingsI18n } = require('./modules/settings');
+const { setAgentReady } = require('./modules/agent-state');
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -65,6 +66,7 @@ async function loadModels() {
 // ── Boot Ready ─────────────────────────────────────────
 async function onAgentReady(status) {
   agentReady = true;
+  setAgentReady(true);  // v7.7.0: also signal shared module so chat/settings/statusbar guards see ready state
   console.debug('[UI] Genesis ready');
   await loadI18n();
   loadModels();

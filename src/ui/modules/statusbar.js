@@ -4,6 +4,7 @@
 // ============================================================
 
 const { t } = require('./i18n');
+const { isAgentReady } = require('./agent-state');
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -25,17 +26,57 @@ function updateStatus(status) {
     badge.removeAttribute('data-i18n');
   }
   _lastStatus = status;
-  badge.className = 'badge badge-' + (status.state || 'ready');
+  // v7.7.0 (A7): legacy state→CSS mapping. Without this, the modular
+  // path was setting `badge-${state}` for every state — but the
+  // stylesheet only has CSS rules for badge-ready/working/error/booting.
+  // States like 'thinking', 'self-modifying', 'creating-skill', etc.
+  // had no visual styling (default fallback). Mapping restores legacy
+  // behavior: working-type states pulse, warnings show error color.
+  const STATE_TO_CSS = {
+    ready: 'ready',
+    thinking: 'working',
+    'self-modifying': 'working',
+    'self-repairing': 'working',
+    'creating-skill': 'working',
+    cloning: 'working',
+    error: 'error',
+    warning: 'error',           // legacy parity — warnings use error class
+    booting: 'booting',
+    'health-tick': 'ready',
+    insight: 'ready',
+    resting: 'booting',
+  };
+  const cssClass = STATE_TO_CSS[status.state] || 'booting';
+  badge.className = 'badge badge-' + cssClass;
   const labels = {
     ready: t('ui.ready'), thinking: t('ui.thinking'),
     error: t('ui.error'), warning: t('ui.warning'),
     booting: t('ui.booting'), 'self-modifying': t('ui.self_modifying'),
     'self-repairing': '🔧 Repairing', 'creating-skill': '🛠 Creating Skill',
     cloning: '🧬 Cloning', 'health-tick': null,
+    // v7.7.0: insight + resting are real production states fired by
+    // AgentCoreWire (idle:proactive-insight → insight; steering:rest-mode
+    // → resting). Previously they showed the raw state name as the badge
+    // label — now they get proper icons + text.
+    insight: '💡 Insight', resting: '😴 Resting',
   };
+  // The badge shows the compact state label. v7.7.0: kept deliberately
+  // minimal — the model name lives in the model-select dropdown to the
+  // right of the badge, and detail text goes to the tooltip + (for
+  // warning) toast. Putting the model name or detail directly into the
+  // badge text clutters the topbar (regression observed during a v7.7.0
+  // pre-release attempt).
   const label = labels[status.state];
   if (label) badge.textContent = label;
   if (status.detail) badge.title = status.detail;
+  // v7.7.0 (A6): warning state additionally surfaces a toast. Without
+  // this, warnings only set a colored badge — easy to miss if the user
+  // wasn't looking at the topbar. 11+ event sources fire warning state
+  // (model:ollama-unavailable, goal:stalled, failure:classified,
+  // effector:blocked, health:memory-leak, etc.).
+  if (status.state === 'warning') {
+    showToast(status.detail || labels.warning || 'Warning', 'warning');
+  }
 }
 
 /**
@@ -75,11 +116,23 @@ function showToast(message, type = 'info') {
   toast.className = `toast toast-${type}`;
   toast.textContent = message;
   container.appendChild(toast);
+  // v7.7.0 (A5): stack limit ≤5. Without this, long sessions with many
+  // warnings accumulated DOM nodes indefinitely (memory leak). Removing
+  // the oldest is a no-op if the setTimeout below still fires later
+  // (operates on detached node — silent).
+  while (container.children.length > 5) {
+    container.removeChild(container.firstChild);
+  }
   setTimeout(() => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
 async function showHealth() {
   const { addMessage } = require('./chat');
+  // v7.7.0: not-ready guard — agent:get-health IPC needs backend ready.
+  if (!isAgentReady()) {
+    showToast(t('ui.still_starting'), 'warning');
+    return;
+  }
   try {
     const h = await window.genesis.invoke('agent:get-health');
     const lines = [
@@ -100,6 +153,11 @@ async function showHealth() {
 
 async function showSelfModel() {
   const { addMessage } = require('./chat');
+  // v7.7.0: not-ready guard — agent:get-self-model IPC needs backend ready.
+  if (!isAgentReady()) {
+    showToast(t('ui.still_starting'), 'warning');
+    return;
+  }
   try {
     const sm = await window.genesis.invoke('agent:get-self-model');
     const lines = [

@@ -210,11 +210,14 @@ app.whenReady().then(async () => {
   });
 
   // v7.6.0: UI dual-path consolidated. The bundled renderer (esbuild
-  // output) is the only supported UI path. The legacy monolithic
-  // renderer.js + index.html were removed — every UI bug-fix used to
-  // need to be applied in two places, and tests were prefixed with
-  // "legacy: same fix applied" to keep them in sync. Now there is one
-  // source of truth: src/ui/modules/*.js → dist/renderer.bundle.js.
+  // output) became the only loaded UI path. The legacy monolithic
+  // src/ui/renderer.js stopped being loaded but the file remained on
+  // disk for nine releases as a blueprint reference.
+  //
+  // v7.7.0: legacy renderer.js + the test that loaded it (renderer.
+  // test.js) were finally deleted. UI behavior coverage migrated to
+  // 6 per-module test files (test/modules/ui-*-module.test.js) plus
+  // the existing security-focused ui-bundle-modules.test.js.
   //
   // The bundle is built by scripts/build-bundle.js, which runs
   // automatically as a postinstall step (see package.json). If

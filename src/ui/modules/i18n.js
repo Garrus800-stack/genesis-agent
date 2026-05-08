@@ -10,8 +10,12 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 function t(key, vars = {}) {
   let str = _strings[key] || key;
+  // v7.7.0: production lang-strings (Language.js Z.83+) use {{var}} syntax
+  // with multiple-occurrence semantics. The previous {var}/single-replace
+  // implementation silently broke ALL placeholder interpolation in the
+  // modular path — strings like 'Saved: {{file}}' rendered literally.
   for (const [k, v] of Object.entries(vars)) {
-    str = str.replace(`{${k}}`, v);
+    str = str.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
   }
   return str;
 }

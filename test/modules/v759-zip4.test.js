@@ -267,9 +267,10 @@ describe('v7.5.9 ZIP4 Phase 8 — CommandHandlers wiring', () => {
 describe('v7.5.9 ZIP4 Phase 11 — chat.js mermaid branch', () => {
 
   // src/ui/modules/chat.js is the bundle entry (via renderer-main.js →
-  // esbuild → dist/renderer.bundle.js). v7.6.0 consolidated the dual-
-  // path UI — the former monolithic src/ui/renderer.js was deleted, so
-  // this is now the only renderer source.
+  // esbuild → dist/renderer.bundle.js). v7.6.0 consolidated the
+  // dual-path UI by routing all loads through the bundle; v7.7.0
+  // deleted the now-unloaded src/ui/renderer.js file itself, so
+  // chat.js is the canonical renderer source.
   const chat = fs.readFileSync(path.join(ROOT, 'src/ui/modules/chat.js'), 'utf8');
 
   test('chat.js captures fenced-block lang', () => {

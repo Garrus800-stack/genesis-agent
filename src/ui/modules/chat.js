@@ -3,7 +3,10 @@
 // Chat messages, streaming, markdown rendering, send/stop.
 // ============================================================
 
-// i18n: t() not currently used — re-add when chat messages are localized
+// v7.7.0: i18n re-added — needed for not-ready toast in sendMessage.
+const { t } = require('./i18n');
+const { isAgentReady } = require('./agent-state');
+const { showToast } = require('./statusbar');
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -69,6 +72,13 @@ function renderMarkdown(text) {
   safe = escapeHtml(safe);
   // 3. Apply markdown transforms on safe text
   safe = safe
+    // v7.7.0 (A8): heading transforms. Order matters — process ### first
+    // so it's not eaten by ## or # patterns. Mapping (offset by 1 from
+    // markdown level): # → h2, ## → h3, ### → h4. Same as legacy
+    // renderer.js Z.134-136. Reserves h1 for page-level semantic.
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/^- (.+)$/gm, '<li>$1</li>')
@@ -381,6 +391,15 @@ async function sendMessage() {
   const input = $('#chat-input');
   const msg = input.value.trim();
   if (!msg || isStreaming) return;
+  // v7.7.0: not-ready guard. Without this, user input typed during the
+  // boot window (~1-3s between DOMContentLoaded and agent:ready) was
+  // silently dropped — the IPC send would fire but the backend wasn't
+  // listening yet, so the message vanished. Legacy renderer.js had the
+  // equivalent guard via Genesis.UI.boot.ready.
+  if (!isAgentReady()) {
+    showToast(t('ui.still_starting'), 'warning');
+    return;
+  }
   input.value = '';
   input.style.height = 'auto';
   addMessage('user', escapeHtml(msg));

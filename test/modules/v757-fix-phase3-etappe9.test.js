@@ -53,7 +53,8 @@ test('editor.js: localPath converted to absolute URL', () => {
 });
 
 // v7.6.0: legacy `renderer.js (legacy): same fix applied` test removed
-// when the dual-path was consolidated. Only the bundled path remains.
+// when the dual-path was consolidated. v7.7.0 deleted the legacy file
+// + its test entirely. Only the bundled path remains.
 
 test('Monaco worker URL: relative resolution would have failed', () => {
   // Sanity: confirm the bug we fixed actually existed. If you naively

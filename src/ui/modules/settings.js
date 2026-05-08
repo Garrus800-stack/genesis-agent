@@ -6,6 +6,7 @@
 const { t } = require('./i18n');
 const { addMessage } = require('./chat');
 const { showToast } = require('./statusbar');
+const { isAgentReady } = require('./agent-state');
 // v7.5.7-fix Phase 3 Etappe 3: central registry for defaults + ranges
 const { FIELD_REGISTRY, getFieldDefault, buildDefaultHint, validateField } = require('./settings-defaults');
 
@@ -328,6 +329,12 @@ function _wireSettingsTabs() {
 }
 
 async function openSettings() {
+  // v7.7.0: not-ready guard — agent:get-settings IPC would hang or
+  // error if backend isn't listening. Same behavior as legacy.
+  if (!isAgentReady()) {
+    showToast(t('ui.still_starting'), 'warning');
+    return;
+  }
   // v7.5.7-fix: reset loaded-flag so a failed agent:list-models call
   // (e.g. ollama unreachable) doesn't leave _fallbackState in a stale
   // "loaded" state where saveSettings would persist the empty chain.
@@ -935,6 +942,11 @@ async function saveSettings() {
 }
 
 async function showGoalTree() {
+  // v7.7.0: not-ready guard — agent:get-goal-tree IPC needs backend ready.
+  if (!isAgentReady()) {
+    showToast(t('ui.still_starting'), 'warning');
+    return;
+  }
   try {
     const goals = await window.genesis.invoke('agent:get-goal-tree');
     const container = $('#goal-tree');
@@ -964,15 +976,31 @@ function buildGoalNode(goal, depth) {
 }
 
 async function undoLastChange() {
+  // v7.7.0 (A2): not-ready guard — undo IPC needs backend ready.
+  if (!isAgentReady()) {
+    showToast(t('ui.still_starting'), 'warning');
+    return;
+  }
   try {
     const result = await window.genesis.invoke('agent:undo');
     if (result.ok) {
-      showToast(t('ui.undo_success', { commit: result.reverted }), 'success');
-      addMessage('agent', `↩ ${t('ui.undo_detail', { detail: result.detail })}`, 'undo');
+      // v7.7.0 (A3): variable name now matches the lang-string
+      // 'Change reverted: {{detail}}' — was {commit:...} which mismatched
+      // and (after the i18n {{var}} regex fix) would have left the
+      // placeholder literal in the toast.
+      showToast(t('ui.undo_success', { detail: result.reverted }), 'success');
+      // v7.7.0 (A3 bonus): the lang-key 'ui.undo_detail' does not exist
+      // in Language.js — the t() call returned the key itself, leaving
+      // chat with the literal text "↩ ui.undo_detail" after every undo.
+      // Inline result.detail directly (matches legacy renderer.js Z.414).
+      addMessage('agent', `↩ ${result.detail || ''}`, 'undo');
     } else {
-      showToast(result.error || t('ui.undo_failed'), 'error');
+      // v7.7.0 (A4): nothing-to-undo is a benign no-op, not a failure —
+      // surface as warning, not error. Real exceptions still go through
+      // the catch below as 'error'.
+      showToast(result.error || t('ui.undo_nothing'), 'warning');
     }
-  } catch (err) { showToast(t('ui.undo_failed'), 'error'); }
+  } catch (err) { showToast(t('ui.undo_failed', { error: err.message }), 'error'); }
 }
 
 function setupDragDrop() {
@@ -984,6 +1012,11 @@ function setupDragDrop() {
   chatPanel.addEventListener('drop', async (e) => {
     e.preventDefault();
     chatPanel.classList.remove('drag-over');
+    // v7.7.0: not-ready guard — agent:import-file IPC needs backend ready.
+    if (!isAgentReady()) {
+      showToast(t('ui.still_starting'), 'warning');
+      return;
+    }
     const files = e.dataTransfer?.files;
     if (!files || files.length === 0) return;
     for (const file of files) {

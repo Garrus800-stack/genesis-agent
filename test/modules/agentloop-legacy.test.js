@@ -132,19 +132,13 @@ test('stop() works when not running', () => {
   assert(loop.running === false);
 });
 
-test('abort flag prevents execution', async () => {
-  const deps = createMockDeps();
-  const loop = new AgentLoop(deps);
-  loop._aborted = true;
-  // pursueGoal should exit early
-  const progress = [];
-  try {
-    await loop.pursueGoal('test goal', (update) => progress.push(update));
-  } catch (err) {
-    // Expected — aborted
-  }
-  assert(loop.running === false);
-});
+// v7.7.0: removed lying test 'abort flag prevents execution'. The test
+// called loop.pursueGoal() — a method that does not exist on AgentLoop
+// (the real method is pursue()). The TypeError was swallowed by a
+// try/catch, leaving only the assertion `loop.running === false` which
+// is the default initial state regardless of any abort behavior. Real
+// abort coverage lives in agentloop-coverage.test.js:64
+// ('sets running to false and aborted to true').
 
 test('registerHandlers attaches to chatOrchestrator', () => {
   const deps = createMockDeps();

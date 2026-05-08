@@ -5,6 +5,7 @@
 // eval the monolithic src/ui/renderer.js inside a vm sandbox.
 // v7.6.0 consolidated the dual-path UI: only the bundled
 // renderer remains (src/ui/modules/*.js → dist/renderer.bundle.js).
+// v7.7.0 deleted both renderer.js and renderer.test.js outright.
 //
 // This test focuses on the security-critical surface that the
 // old test covered:

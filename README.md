@@ -8,9 +8,9 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.6.9-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-6837%20passing-4ade80?style=flat-square" alt="Tests">
-  <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
+  <img src="https://img.shields.io/badge/version-7.7.0-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-6867%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
   <img src="https://img.shields.io/badge/modules-330-e0e0e8?style=flat-square" alt="Modules">
@@ -85,7 +85,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (7 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). Emotional-cognitive bridge: EmotionalSteering signals flow into AdaptiveStrategy (v7.1.7). Internal A/B benchmark on a single model (kimi-k2.5:cloud, 12 tasks): +16pp to +33pp task success with Organism active vs. disabled. The v6.0.4 run had CPU-only baseline timeouts that likely inflated the upper delta — treat the lower bound as the conservative reading. Not yet replicated across models. See [BENCHMARKING.md](docs/BENCHMARKING.md).
 
-**Infrastructure** — 12-phase DI boot, EventBus (458 event types validated by CI ratchet with 0 schema mismatches), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 semantic safety rules), 16 hash-locked files, DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
+**Infrastructure** — 12-phase DI boot, EventBus (453 event types validated by CI ratchet with 0 schema mismatches), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 semantic safety rules), 21 hash-locked files, DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
 
 **Self-Perception** — Introspection accuracy: verified facts from ArchitectureReflection, SelfModel, CognitiveSelfModel injected into prompt during self-reflect queries — prevents hallucinated metrics. Lesson confirmation loop: recalled lessons correlated with task outcomes (confirmed/contradicted). Research quality gate: Jaccard+specificity scoring before KG write. Frontier-driven GoalSynthesizer: unfinished work, anomalies, and contradicted lessons generate autonomous goals (v7.1.7).
 
@@ -573,9 +573,9 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Safety layers | 10 (kernel lock → hash-lock → AST scan → capability tokens → IPC whitelist → CSP → sandbox → worker isolation → circuit breaker → immune system) + DisclosurePolicy (trust-based information sovereignty) |
 | Trust levels | 4 (supervised → full autonomy) with EarnedAutonomy gate |
 | Languages | EN primary (+ DE, FR, ES via i18n) |
-| Architectural fitness | 127/130 — 0 cross-layer violations, 0 orphans, 0 phantoms; warnings on 4 files >700 LOC |
+| Architectural fitness | 130/130 — 0 cross-layer violations, 0 orphans, 0 phantoms, 0 files >700 LOC |
 | TypeScript | TSC clean — 0 errors in agent source (checkJs + strictNullChecks) |
-| CI gates | 7 (tests + fitness + event audit + event validation + channel sync + schema scan + ratchet) |
+| CI gates | 15 (architectural-fitness + audit-events + validate-events + validate-channels + validate-service-wiring + validate-intent-wiring + audit-self-gate-coverage + audit-gate-stats-callers + audit-hash-lock-coverage + audit-contracts + audit-doc-drift + audit-raw-settimeout + audit-class-wiring + audit-listener-lifecycle + check-ratchet) |
 
 ---
 

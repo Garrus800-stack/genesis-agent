@@ -1,11 +1,11 @@
 # Genesis Agent — Capabilities Overview
 
-> v7.6.9 — What Genesis can do, organized by category.
-> Scale: 6709 tests (Win baseline), 453 events with 453 payload schemas (full parity since v7.6.x), fitness 127/130, 168 DI services (155 manifest + 13 bootstrap), 327 modules (live `selfModel.moduleCount()`) across 12 boot phases.
+> v7.7.0 — What Genesis can do, organized by category.
+> Scale: 6867 tests (Win baseline), 453 events with 453 payload schemas (full parity since v7.6.x), fitness 130/130, 168 DI services (155 manifest + 13 bootstrap), 330 modules (live `selfModel.moduleCount()`) across 12 boot phases.
 > Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry-only by design),
 > Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard),
 > Reasoning-Block Filter (v7.5.6 — strips `<think>...</think>` from response and tool-call audit, re-emits as `model:thinking-trace`),
-> Runtime-State Quoting (v7.4.1 directive + anti-tool-call). 12 CI audit gates (v7.6.3 added `audit-contracts --strict` and `audit-doc-drift --strict`; the contracts gate enforces 12 contract-prefix families covering 112 regression-locked security tests; the doc-drift gate compares numeric claims in docs/*.md against live values; see GATE-INVENTORY.md).
+> Runtime-State Quoting (v7.4.1 directive + anti-tool-call). 15 CI audit gates (v7.6.3 added `audit-contracts --strict` and `audit-doc-drift --strict`; the contracts gate enforces 12 contract-prefix families covering 112 regression-locked security tests; the doc-drift gate compares numeric claims in docs/*.md against live values; see GATE-INVENTORY.md).
 > Synchronous source-read in chat with per-turn + session budget (`read-source:called`, `read-source:soft-limit`).
 > Model-Availability TTL marker (v7.5.6) — sticky failures (auth/rate-limit/timeout) lock the model for 1h/5min/10min, persisted across restarts in `.genesis/model-unavailable.json`. Manual override via `/model-reset [name]`.
 > Same-backend failover (v7.5.6) — `_findFallbackBackend()` skips only the failed model name, not the whole backend, so an Ollama-only fallback chain works. CostStream tracks failover-unavailable events as a separate counter (v7.6.3) so the cost ledger stays clean.

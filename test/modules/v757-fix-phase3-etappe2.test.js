@@ -105,7 +105,7 @@ test('UI: all new field IDs present in index.html', () => {
 });
 
 // v7.6.0: dual-path consolidated — duplicate "synced" check no longer
-// applies, only one HTML file remains.
+// applies; v7.7.0 deleted the legacy renderer.js + its test.
 
 test('UI: old read-only mcp-servers-info removed from index.html', () => {
   const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');

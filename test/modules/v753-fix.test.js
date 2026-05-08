@@ -29,9 +29,10 @@ const fs = require('fs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const RENDERER_MAIN = path.join(ROOT, 'src/ui/renderer-main.js');
-// v7.6.0: dual-path consolidated. The legacy `renderer.js` was removed
-// along with its B-section tests. Only renderer-main.js (the bundle
-// entry) remains.
+// v7.6.0: dual-path consolidated. The legacy `renderer.js` stopped
+// being loaded along with its B-section tests. v7.7.0 deleted both
+// the file and its test. Only renderer-main.js (the bundle entry)
+// remains.
 
 describe('v7.5.3/A · waitForBridge in renderer-main.js (bundled entry)', () => {
 

@@ -12,9 +12,12 @@
 > v7.5.9 added Plan-Cards (visual rendering for multi-step LLM responses) and a
 > Linux-readiness pass (~ expansion, sudo non-interactive, German folder
 > fallback, expanded apt/dnf/snap aliases).
-> v7.6.0 consolidated the UI dual-path: the legacy monolithic
-> `renderer.js` was deleted, the bundled renderer is now the only
-> codepath. ~40% reduction in UI maintenance surface.
+> v7.6.0 consolidated the UI dual-path: the bundled renderer (built
+> from `src/ui/modules/*.js` via esbuild) became the only loaded UI
+> codepath. ~40% reduction in UI maintenance surface. The legacy
+> monolithic `src/ui/renderer.js` was retired but its file remained
+> on disk as a blueprint reference; v7.7.0 finally deleted both the
+> file and its test (renderer.test.js).
 > v7.6.1 cleanup pass: ModelBridge chat()/streamChat() routing extracted
 > to a shared `_prepareCallContext()` helper (eliminates structural
 > drift between the two paths), SelfStatementLog classifier methods

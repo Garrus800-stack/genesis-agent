@@ -1,9 +1,132 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.6.9 · Last updated: v7.6.9 (Cleanup release: AgentLoop pursue/_executeLoop mixin extraction — File-Size-Guard fully closed, architectural fitness 130/130)
+> Version: 7.7.0 · Last updated: v7.7.0 (UI dual-path elimination: legacy renderer.js + 930-LOC test deleted, modular path brought to feature parity with ten previously-divergent behaviors fixed including three production bugs, audit-doc-drift extended from 30 to 40 verified claims with live-fitness lookup.)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.7.0
+
+### UI dual-path elimination + modular feature parity
+
+The cleanup begun in v7.6.0 — when `dist/renderer.bundle.js` (built from
+`renderer-main.js` + 6 modules) became the loaded UI codepath — was
+never finished. The legacy monolithic `src/ui/renderer.js` and its
+930-LOC test sat as blueprint references for nine releases.
+
+A behavior audit between the legacy code and the modular path before
+deletion surfaced **ten divergences**, including three production bugs
+the modular path had quietly carried since v7.6.0:
+
+1. **i18n interpolation broken** — modular used `{var}`/single-replace,
+   but every live lang-string in `Language.js` uses `{{var}}` with
+   multiple-occurrence semantics. Every interpolated translation
+   rendered the literal placeholder.
+2. **`sendMessage` silent loss before agent ready** — user messages
+   typed during boot were echoed into chat then silently dropped (no
+   guard, IPC fired into a not-yet-listening backend). Six other
+   handlers (settings.openSettings, settings.showGoalTree,
+   settings.undoLastChange, settings.dragdrop, statusbar.showHealth,
+   statusbar.showSelfModel) had the same gap.
+3. **`undoLastChange` placeholder literal** — variable name mismatch
+   (`commit` vs `detail`) plus broken `t()` regex meant the user saw
+   `{{detail}}` literal in every undo toast. Plus: the chat-message
+   call referenced lang-key `ui.undo_detail` which doesn't exist in
+   Language.js, so chat showed literal "↩ ui.undo_detail".
+
+Plus seven feature regressions resolved (status-badge state→CSS
+mapping for legacy parity, insight + resting state visibility,
+warning-toast surface, toast stack limit, markdown headings,
+file-tree icon hierarchy, undo-toast type for nothing-to-undo).
+
+All ten fixed before the legacy was deleted.
+
+**Files removed**: `src/ui/renderer.js` (566 LOC) +
+`test/modules/renderer.test.js` (930 LOC) + HTML fallback comments in
+both `index.html` files. 8 stale `// v7.6.0: was deleted` comments in
+test/source files updated to reflect that the deletion actually
+happened in v7.7.0. main.js and ARCHITECTURE.md historical comments
+corrected.
+
+**Files added**: `src/ui/modules/agent-state.js` (~25 LOC, shared
+ready signal), `test/helpers/dom-shim.js` + `test/helpers/genesis-mock.js`
+(extracted from the deleted test), 6 new per-module test files
+(`ui-statusbar-module`, `ui-i18n-module`, `ui-chat-module`,
+`ui-filetree-module`, `ui-settings-module`, `ui-renderer-main`),
+plus `v770-test-helpers.contract.test.js` for helper export-shape
+pinning. Total 81 new tests (replacing the 51 deleted, net +30).
+
+### Doc-drift hardening (closes v7.6.5 → v7.6.9 staleness pattern)
+
+Across five releases (v7.6.5 through v7.6.9) several documented
+numbers sat stale because nothing audited them: fitness badge 127/130,
+README table CI gates 7 (actual 15), README paragraph event types 458
+(actual 453), README paragraph hash-locked files 16 (actual 21),
+CAPABILITIES.md tests 6709 / modules 327 / fitness 127/130 / CI gates 12.
+
+`scripts/audit-doc-drift.js` extended with `getLiveFitness()` helper
+(subprocess to `architectural-fitness.js`, parses `Score: NNN/130`)
+plus 10 new check rules covering all of the above stale claims plus
+the corresponding ARCHITECTURE-DEEP-DIVE Fitness Score table cell.
+
+`audit-doc-drift --strict` now verifies 40 claims (was 30).
+
+### Lying-test removed (agentloop-legacy 'abort flag prevents execution')
+
+The test called `loop.pursueGoal()` — a method that does not exist on
+AgentLoop (real method: `pursue()` from AgentLoopPursuit.js mixin).
+The TypeError was swallowed by a try/catch, leaving only the assertion
+`loop.running === false` which is the default initial state regardless
+of any abort behavior. Removed. Real abort coverage lives in
+`agentloop-coverage.test.js:64`.
+
+---
+
+## Items still deferred (no Score-pressure)
+
+- **`index.bundled.html` cleanup.** The file is byte-identical to
+  `src/ui/index.html` and is not loaded at runtime (main.js Z.225
+  loads `index.html` only). Left in repo; separate cleanup-release
+  target. Verified during v7.7.0 audit but considered scope creep.
+
+- **CSS gap for non-mapped badge states.** v7.7.0 introduced
+  STATE_TO_CSS to route 'thinking' → `badge-working` etc. — but
+  the styles.css only defines `.badge-booting/ready/working/error`.
+  States that map to `badge-booting` (insight, resting) get the
+  yellow "booting" color which is semantically odd. Future work:
+  add dedicated CSS rules for these states with appropriate colors.
+
+- **Slash-Discipline 9 SECURITY_REQUIRED_SLASH extension.** The
+  current Slash-Discipline contract covers 4 of the 9 SECURITY_REQUIRED_SLASH
+  intents. Extending coverage to all 9 is real security-design work
+  (deciding intent-by-intent whether the LLM/classifier post-guard is
+  sufficient, or whether the slash-only constraint should be hard).
+  Deserves its own focused release.
+
+- **Slash-Discipline coverage inventory in GATE-INVENTORY.md.** The
+  v7.6.2 carry-forward asked for documentation of which intents are
+  pure-slash-only vs. still keyword-regex. Not Score-relevant; defer.
+
+- **8 events emitted without subscriber** (goal:stalled, error:trend,
+  lesson:learned, narrative:updated, memory:consolidation-failed,
+  model:unavailable-cleared, reasoning:started, symbolic:resolved).
+  Pinned via ratchet baseline = 8 in v767-audit-events-scanner.contract.
+  Not regressions — already present pre-v7.6.7 but partially hidden by
+  scanner blind spots. Future regressions adding a 9th will fail until
+  either a subscriber is wired or the baseline is bumped intentionally.
+
+- **ImpactForecast.fragilityDelta** — never implemented. The class
+  itself does not exist in `src/`; this would be brand-new feature
+  work, not a cleanup.
+
+- **11 docs not yet covered by audit-doc-drift**: BENCHMARKING.md,
+  BUG-TAXONOMY.md, DEGRADATION-MATRIX.md, GATE-INVENTORY.md,
+  MCP-SERVER-SETUP.md, ONTOGENESIS.md, QUICK-START.md, SETTINGS.md,
+  SKILL-SECURITY.md, TROUBLESHOOTING.md,
+  phase9-cognitive-architecture.md. Adding these is mechanical work;
+  defer to v7.7.1 or whichever release has audit-extension scope.
 
 ---
 
