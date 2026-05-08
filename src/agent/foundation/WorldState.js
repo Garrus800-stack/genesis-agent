@@ -227,6 +227,13 @@ class WorldState {
 
   /** @private Recursive diff helper */
   _diffObj(a, b, prefix, changes) {
+    // v7.6.7: snapshot-level `timestamp` is metadata about WHEN the snapshot
+    // was taken, not part of the world-state. Two `snapshot()` calls a few
+    // ms apart with identical state would otherwise produce a spurious
+    // 'change' entry — observed as a flaky failure of the
+    // 'diff returns empty for no changes' test on slower Linux runs.
+    if (prefix === 'timestamp') return;
+
     if (a === b) return;
     if (a == null || b == null || typeof a !== typeof b) {
       if (a !== b) changes.push({ field: prefix || 'root', type: a == null ? 'add' : b == null ? 'remove' : 'change', before: a, after: b });

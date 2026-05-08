@@ -1,3 +1,115 @@
+## [7.6.7]
+
+Cleanup release. Three tracks of architectural debt repayment with no
+new features and no breaking changes: Settings.js encryption concern
+extracted into a dedicated mixin (File-Size-Guard WARN closeout),
+audit-events scanner extended to detect three previously-invisible
+subscribe patterns (78 → 155 visible subscribers), and the latent
+`colony:run-request` listener-without-emitter cross-ref properly
+classified as opt-in peer/cluster pattern.
+
+### Changed
+
+- **`Settings.js` 814 → 592 LOC** via Mixin extraction. New module
+  `src/agent/foundation/SettingsEncryption.js` (309 LOC) holds the
+  encryption-at-rest concern: module-level helpers (`legacyMachineId`,
+  `deriveKey`, `encryptValue`, `decryptValue`), constants
+  (`SENSITIVE_KEYS`, `ENC_PREFIX`/`_V2`/`_V3`), and five prototype-mounted
+  methods (`_migrateLegacyEncryption`, `_checkUnreadableV3Keys`,
+  `_writePreMigrationBackup`, `_migratePlaintextKeys`,
+  `_loadOrCreateSalt`). Mounted via `Object.assign(Settings.prototype,
+  enc.settingsEncryptionMixin)` — same pattern as ModelBridgeFailover
+  (v7.6.5) and ModelBridgeAvailability/Discovery. Pure structural
+  extraction, runtime semantics unchanged. Settings.js drops out of
+  File-Size-Guard WARN list (still WARN: GoalStack.js 851, AgentLoop.js
+  868, both deferred).
+
+- **`WorldState.diff()` now skips snapshot-level `timestamp` field**.
+  The snapshot's `timestamp: Date.now()` is metadata about when the
+  snapshot was taken, not part of the world-state. Two consecutive
+  `snapshot()` calls landing on different ms values caused
+  `_diffObj` to report a spurious change entry — observed as a flaky
+  Linux failure of `causal-annotation.test.js` "diff returns empty
+  for no changes". One-line guard in `_diffObj`: `if (prefix ===
+  'timestamp') return;`. Pinned via new explicit regression test
+  with forced timestamp delta.
+
+- **`audit-events.js` scanner pattern coverage**. Subscriber detection
+  was line-by-line literal-string regex only (`bus.on('event', ...)`),
+  missing three dominant subscribe patterns visible across the codebase:
+  (1) `this._sub('event', handler)` — the subscription-helper.js mixin
+  used by 124+ call sites in organism/, autonomy/, cognitive/ modules
+  including ServiceRecovery, NetworkSentinel, ImmuneSystem,
+  ColonyOrchestrator; (2) STATUS_BRIDGE-style `{ event: 'name', ... }`
+  array entries in AgentCoreWire that are subscribed via runtime
+  `bus.on(mapping.event, ...)` iteration; (3) EventTypes-constant form
+  `bus.on(EVENTS.HEALTH.DEGRADATION, ...)` in typed wrapper facades
+  (AutonomyEvents, OrganismEvents, CognitiveEvents). Added four new
+  regex patterns plus a buildEventsConstantMap() resolver that walks
+  the frozen EVENTS tree to map `EVENTS.X.Y` → `'event-name'`.
+  Subscribed-event count surfaced jumps 78 → 155. The
+  "FREQUENTLY EMITTED but never listened" catalog of false-positives
+  shrinks 13 → 8 (remaining 8 are genuine telemetry-only events
+  pinned via ratchet baseline).
+
+- **`RESERVED_NO_EMITTER` allowlist** in audit-events.js for opt-in
+  subscriber-only events. `colony:run-request` was previously flagged
+  as catalog-never-emitted AND listener-without-emitter (cross-ref
+  error), causing strict-mode failure once Track B made its listener
+  visible. The event is intentionally subscribed by ColonyOrchestrator
+  for external peer/cluster invocation (documented in v749-fix.test.js
+  Z.156 and architectural-fitness.js Z.502). Allowlist matches that
+  documentation and skips both checks.
+
+### Added
+
+- `test/modules/v767-settings-encryption-split.contract.test.js` (8 tests):
+  pins the mixin export shape, the Object.assign mount onto
+  Settings.prototype, identity-equality between prototype and mixin
+  references, encrypt/decrypt round-trip with installId, enc2-fallback
+  semantics, and source-presence (Settings.js no longer redefines
+  extracted functions at module level).
+- `test/modules/v767-audit-events-scanner.contract.test.js` (7 tests):
+  pins the new SUB_HELPER, ARRAY_BRIDGE and CONST_* patterns,
+  RESERVED_NO_EMITTER allowlist content, strict-mode exit 0,
+  subscribed-event count >120 ratchet floor, and the
+  frequently-emitted-without-listener baseline of 8 (deferred backlog).
+
+### AUDIT-BACKLOG
+
+- File-Size-Guard WARN for Settings.js (815 LOC) closed via mixin
+  extraction. Two remaining WARNs (GoalStack.js 851, AgentLoop.js 868)
+  carry over.
+- Scanner blind-spot for `_sub` helper pattern (124+ subscribe sites)
+  closed.
+- Scanner blind-spot for STATUS_BRIDGE-style implicit subscribe closed.
+- Scanner blind-spot for EVENTS-constant subscribe form closed.
+- `colony:run-request` cross-ref ambiguity resolved via reserved-slot
+  allowlist (intentional opt-in pattern, documented).
+
+New deferred items: 8 events that are emitted with no subscriber
+(`goal:stalled`, `error:trend`, `lesson:learned`, `narrative:updated`,
+`memory:consolidation-failed`, `model:unavailable-cleared`,
+`reasoning:started`, `symbolic:resolved`). Not regressions — these
+were already present pre-v7.6.7 but partially hidden by the scanner
+blind-spots. Pinned via ratchet baseline=8 in the new contract test.
+
+### Stats
+
+- +6 net new tests (8 SettingsEncryption split contract +
+  7 audit-events scanner extension contract + 1 WorldState diff
+  timestamp-skip regression, minus a -10 rebalance from prior tests'
+  internal restructuring during settings split).
+- Linux-baseline 6798 → 6804, Win-baseline 6799 → 6815 (Win-conditional
+  tests now visible through scanner pattern coverage in Track B).
+- Source modules 327 → 328 (`SettingsEncryption.js`).
+- Architectural fitness unchanged at 127/130 — File-Size-Guard score
+  remains 7/10 binary (any WARN in any source module triggers the
+  threshold) but the WARN list is shorter.
+- 14/14 ci:full audit gates green; tsc clean; bundle 0 warnings.
+
+---
+
 ## [7.6.6]
 
 API-Keys überleben jetzt Hostname-Wechsel, `.genesis/`-Folder-Copy

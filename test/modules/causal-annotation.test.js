@@ -81,6 +81,24 @@ describe('WorldState — snapshot and diff', () => {
     assertEqual(delta.changes.length, 0);
   });
 
+  test('diff ignores snapshot-level timestamp (v7.6.7 flaky-proof)', () => {
+    // Snapshot timestamps are metadata about when the snapshot was taken,
+    // not part of the world-state. This test pins the exclusion explicitly:
+    // even when timestamps differ by a forced amount, diff must report 0
+    // changes. Prevents the flaky failure observed on slower Linux runs
+    // where two consecutive snapshot() calls landed on different ms values.
+    const { WorldState } = require('../../src/agent/foundation/WorldState');
+    const ws = new WorldState({ bus: createMockBus(), rootDir: '/tmp/test' });
+
+    const before = ws.snapshot();
+    const after = { ...ws.snapshot(), timestamp: before.timestamp + 5000 };
+
+    const delta = ws.diff(before, after);
+    assertEqual(delta.changes.length, 0);
+    assert(!delta.changes.some(c => c.field === 'timestamp'),
+      'timestamp must never appear as a change in diff output');
+  });
+
   test('diff detects circuit state change', () => {
     const { WorldState } = require('../../src/agent/foundation/WorldState');
     const ws = new WorldState({ bus: createMockBus(), rootDir: '/tmp/test' });

@@ -64,12 +64,70 @@ const requestEmitters = new Map(); // v7.6.3: event → [{ file, line }] for bus
 const EMIT_PATTERN = /(?:\.|\?\.)(?:emit|fire)(?:\?\.)?\s*\(\s*['"`]([^'"`]+)['"`]/g;
 const SUB_PATTERN  = /(?:\.|\?\.)on(?:\?\.)?\s*\(\s*['"`]([^'"`]+)['"`]/g;
 
+// v7.6.7 Track B: subscription-helper pattern (subscription-helper.js mixin).
+// `_sub('event', handler, opts)` is used by 124+ call sites across organism/,
+// autonomy/, cognitive/ etc. — more sites than direct `bus.on(...)`. Without
+// this pattern, the scanner reports active listeners (ServiceRecovery,
+// NetworkSentinel, ImmuneSystem, ColonyOrchestrator etc.) as NEVER SUBSCRIBED.
+// Matches:
+//   `this._sub('e', ...)` / `this._sub?.('e', ...)` / `obj._sub('e', ...)`
+//   plus alias-only form `_sub('e', ...)` if it ever appears at module scope.
+const SUB_HELPER_PATTERN = /(?:\.|\?\.|\b)_sub(?:\?\.)?\s*\(\s*['"`]([^'"`]+)['"`]/g;
+
+// v7.6.7 Track B: array-literal status-bridge pattern. AgentCoreWire's
+// STATUS_BRIDGE iterates `[{ event: 'name', ... }, ...]` then subscribes via
+// `bus.on(mapping.event, ...)` in a loop. The bus.on call uses a runtime
+// variable, so SUB_PATTERN cannot resolve it. Detect the literal event name
+// in the array entry instead — every `{ event: 'literal', ` qualifies as an
+// implicit subscribe site. Same pattern shows up in mapping arrays elsewhere.
+// False-positive risk is low (the `event:` key is a strong signal of intent)
+// but consider this an upper-bound estimate for subscriber coverage.
+const ARRAY_BRIDGE_PATTERN = /\{\s*event\s*:\s*['"`]([^'"`]+)['"`]/g;
+
 // v7.6.3: bus.request('event', ...) is the request/response counterpart of
 // emit/on. The handler-side uses bus.on() like a normal subscriber, but the
 // publish side uses bus.request() rather than bus.emit/fire. Without scanning
 // for this, request/response events show as "never emitted" even though they
 // are actively published (e.g. `reasoning:solve`, `web:search`).
 const REQUEST_PATTERN = /(?:\.|\?\.)request(?:\?\.)?\s*\(\s*['"`]([^'"`]+)['"`]/g;
+
+// v7.6.7 Track B: EventTypes-constant subscribe pattern. Wrapper facades
+// (AutonomyEvents.js, OrganismEvents.js, CognitiveEvents.js) subscribe via
+// `bus.on(EVENTS.HEALTH.DEGRADATION, ...)`. The scanner is regex-based and
+// cannot evaluate property access — instead we build a path→eventName map
+// from EventTypes.js once, then resolve constant references in a second
+// regex scan. Same approach for emit-side (`bus.fire(EVENTS.X.Y, ...)`).
+const CONST_EMIT_PATTERN = /(?:\.|\?\.)(?:emit|fire)(?:\?\.)?\s*\(\s*(EVENTS\.[A-Z_][A-Z0-9_.]*)/g;
+const CONST_SUB_PATTERN  = /(?:\.|\?\.)on(?:\?\.)?\s*\(\s*(EVENTS\.[A-Z_][A-Z0-9_.]*)/g;
+const CONST_SUB_HELPER_PATTERN = /(?:\.|\?\.|\b)_sub(?:\?\.)?\s*\(\s*(EVENTS\.[A-Z_][A-Z0-9_.]*)/g;
+const CONST_REQUEST_PATTERN = /(?:\.|\?\.)request(?:\?\.)?\s*\(\s*(EVENTS\.[A-Z_][A-Z0-9_.]*)/g;
+
+// Build EVENTS-constant resolution map once at startup. Iterates the frozen
+// EVENTS tree from EventTypes.js and emits 'EVENTS.A.B' → 'event-name' pairs
+// for every leaf string value. Used in scanFile() to resolve constant-style
+// subscribe/emit call sites.
+function buildEventsConstantMap() {
+  const map = new Map();
+  try {
+    const { EVENTS } = require(path.join(SRC_DIR, 'agent', 'core', 'EventTypes'));
+    function walk(obj, prefix) {
+      for (const key of Object.keys(obj)) {
+        const v = obj[key];
+        const pathStr = prefix + key;
+        if (typeof v === 'string') {
+          map.set('EVENTS.' + pathStr, v);
+        } else if (v && typeof v === 'object') {
+          walk(v, pathStr + '.');
+        }
+      }
+    }
+    walk(EVENTS, '');
+  } catch (err) {
+    // Map stays empty — scanner falls back to literal-string detection only.
+  }
+  return map;
+}
+const CONST_MAP = buildEventsConstantMap();
 
 function scanFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf-8');
@@ -95,10 +153,62 @@ function scanFile(filePath) {
       subscribers.get(event).push({ file: relPath, line: i + 1 });
     }
 
+    // v7.6.7 Track B: subscription-helper `_sub('event', ...)` form
+    SUB_HELPER_PATTERN.lastIndex = 0;
+    while ((m = SUB_HELPER_PATTERN.exec(line)) !== null) {
+      const event = m[1];
+      if (!subscribers.has(event)) subscribers.set(event, []);
+      subscribers.get(event).push({ file: relPath, line: i + 1 });
+    }
+
+    // v7.6.7 Track B: array-literal STATUS_BRIDGE-style implicit subscribe
+    ARRAY_BRIDGE_PATTERN.lastIndex = 0;
+    while ((m = ARRAY_BRIDGE_PATTERN.exec(line)) !== null) {
+      const event = m[1];
+      if (!subscribers.has(event)) subscribers.set(event, []);
+      subscribers.get(event).push({ file: relPath, line: i + 1 });
+    }
+
     // v7.6.3: scan bus.request() call sites — request/response publishers
     REQUEST_PATTERN.lastIndex = 0;
     while ((m = REQUEST_PATTERN.exec(line)) !== null) {
       const event = m[1];
+      if (!requestEmitters.has(event)) requestEmitters.set(event, []);
+      requestEmitters.get(event).push({ file: relPath, line: i + 1 });
+    }
+
+    // v7.6.7 Track B: EventTypes-constant resolution. Each pattern matches
+    // a constant reference (e.g. EVENTS.HEALTH.DEGRADATION); CONST_MAP
+    // resolves it to the literal event-name string. Skips silently if the
+    // constant is unknown (defensive against typos / partial matches).
+    CONST_EMIT_PATTERN.lastIndex = 0;
+    while ((m = CONST_EMIT_PATTERN.exec(line)) !== null) {
+      const event = CONST_MAP.get(m[1]);
+      if (!event) continue;
+      if (!emitters.has(event)) emitters.set(event, []);
+      emitters.get(event).push({ file: relPath, line: i + 1 });
+    }
+
+    CONST_SUB_PATTERN.lastIndex = 0;
+    while ((m = CONST_SUB_PATTERN.exec(line)) !== null) {
+      const event = CONST_MAP.get(m[1]);
+      if (!event) continue;
+      if (!subscribers.has(event)) subscribers.set(event, []);
+      subscribers.get(event).push({ file: relPath, line: i + 1 });
+    }
+
+    CONST_SUB_HELPER_PATTERN.lastIndex = 0;
+    while ((m = CONST_SUB_HELPER_PATTERN.exec(line)) !== null) {
+      const event = CONST_MAP.get(m[1]);
+      if (!event) continue;
+      if (!subscribers.has(event)) subscribers.set(event, []);
+      subscribers.get(event).push({ file: relPath, line: i + 1 });
+    }
+
+    CONST_REQUEST_PATTERN.lastIndex = 0;
+    while ((m = CONST_REQUEST_PATTERN.exec(line)) !== null) {
+      const event = CONST_MAP.get(m[1]);
+      if (!event) continue;
       if (!requestEmitters.has(event)) requestEmitters.set(event, []);
       requestEmitters.get(event).push({ file: relPath, line: i + 1 });
     }
@@ -263,6 +373,19 @@ const catalogNeverSubscribed = [];
 const listenersWithoutEmitters = [];
 const frequentEmittersWithoutListeners = [];
 
+// v7.6.7 Track B: Subscribers that are intentionally registered for events
+// whose emitter lives outside `src/` reach (e.g. peer/cluster external
+// triggers, opt-in colony work-distribution). Without this allowlist the
+// listener-without-emitter cross-ref would produce strict-failure for known-
+// reserved patterns. Pinned-via-test in v749-fix.test.js Z.156 ("opt-in
+// feature") and listed in architectural-fitness.js Z.502 deploy/colony slot.
+const RESERVED_NO_EMITTER = new Set([
+  // ColonyOrchestrator subscribes for external peer/cluster invocation;
+  // emit happens via IPC from spawned worker processes in v7.7+ Außenposten
+  // operation, not from `src/` code paths.
+  'colony:run-request',
+]);
+
 // Dynamic event patterns that won't have static matches
 const DYNAMIC_PATTERNS = [
   /^store:/, // EventStore emits store:${type} dynamically
@@ -290,6 +413,8 @@ for (const event of subscribers.keys()) {
   }
   // H-3: Listener without emitter?
   if (!emitters.has(event) && !isDynamic(event) && !EXCLUDED_EVENTS.has(event)) {
+    // v7.6.7 Track B: skip events explicitly reserved for external/opt-in emit
+    if (RESERVED_NO_EMITTER.has(event)) continue;
     // v7.5.1: structural false-positive detection
     const fpClass = isFalsePositiveListener(event, subscribers.get(event));
     if (!fpClass) {
@@ -302,9 +427,12 @@ for (const event of catalogEvents) {
   // v7.6.3: union of emit-style and request-style publishers
   const isEmitted = emitters.has(event) || requestEmitters.has(event);
   if (!isEmitted) {
-    // v7.6.3: structural false-positive detection (push-bridge, settings-
-    // toggle pipeline, capability-scope alias namespace).
-    if (!isFalsePositiveCatalogNeverEmitted(event)) {
+    // v7.6.7 Track B: opt-in subscribers (peer/cluster external-emit)
+    if (RESERVED_NO_EMITTER.has(event)) {
+      // skip — listener-only by design, emitter is external
+    } else if (!isFalsePositiveCatalogNeverEmitted(event)) {
+      // v7.6.3: structural false-positive detection (push-bridge, settings-
+      // toggle pipeline, capability-scope alias namespace).
       catalogNeverEmitted.push(event);
     }
   }

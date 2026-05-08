@@ -1,9 +1,98 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.6.6 · Last updated: v7.6.6 (Identity-Resilience: installation-anchored encryption, Hauptstandort marker foundation, CostStream-Dissonance-Listener; stale TS-error backlog entry retired)
+> Version: 7.6.7 · Last updated: v7.6.7 (Cleanup release: Settings encryption mixin extraction, audit-events scanner pattern coverage, colony:run-request reserved-slot)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.6.7
+
+### File-Size-Guard WARN — Settings.js (Track A)
+
+Settings.js had grown to 815 LOC after v7.6.6 (Track A added install-id
+anchored migration logic), triggering the File-Size-Guard WARN
+threshold (>700). Closed via mixin extraction analog to ModelBridge's
+v7.6.5 split: encryption-at-rest concern moved to new
+`src/agent/foundation/SettingsEncryption.js` (309 LOC), mounted onto
+`Settings.prototype` via `Object.assign`. Settings.js drops to 592 LOC.
+
+Same Object.assign pattern as ModelBridgeAvailability (v7.5.6),
+ModelBridgeDiscovery (v7.5.6), ModelBridgeFailover (v7.6.5).
+Pure structural extraction — runtime semantics unchanged, all
+existing migration tests unmodified.
+
+Two File-Size-Guard WARN entries remain deferred: GoalStack.js
+(851 LOC) and AgentLoop.js (868 LOC). Both carry over from v7.6.4
+backlog and are flagged for future cleanup releases.
+
+### audit-events scanner pattern coverage (Track B)
+
+The scanner used line-by-line regex against literal-string
+`bus.on('event', ...)` calls only, missing three subscribe patterns
+that are dominant in actual code:
+
+- **`_sub` helper pattern** — `subscription-helper.js` is mixed into
+  124+ call sites (more than direct `bus.on`). Modules using this
+  pattern (ServiceRecovery, NetworkSentinel, ImmuneSystem, BodySchema,
+  NeedsSystem, ColonyOrchestrator, ReasoningTracer, etc.) appeared as
+  NEVER-SUBSCRIBED to the scanner.
+- **STATUS_BRIDGE array iteration** — AgentCoreWire iterates
+  `[{ event: 'name', ... }, ...]` arrays then calls
+  `bus.on(mapping.event, ...)` in a loop. Subscriber lookup against
+  a runtime variable invisible to regex.
+- **EventTypes-constant form** — typed wrapper facades
+  (AutonomyEvents, OrganismEvents, CognitiveEvents) subscribe via
+  `bus.on(EVENTS.HEALTH.DEGRADATION, ...)`. The constant reference
+  cannot be evaluated by regex; resolution requires walking the
+  frozen EVENTS tree from EventTypes.js.
+
+Closed by adding `SUB_HELPER_PATTERN`, `ARRAY_BRIDGE_PATTERN`, plus
+four `CONST_*_PATTERN` patterns and a `buildEventsConstantMap()`
+resolver. Subscribed-event count visible to scanner: 78 → 155.
+
+### colony:run-request reserved-slot (Track B follow-on)
+
+After the scanner became aware of ColonyOrchestrator's `_sub`
+subscribe, `colony:run-request` flipped from "catalog-never-emitted
+informational" to "listener-without-emitter cross-ref error" — which
+strict-mode counts as failure. Investigation confirmed the event is
+intentionally subscriber-only by design (documented in
+v749-fix.test.js Z.156 "opt-in feature" and listed in
+architectural-fitness.js Z.502 deploy/colony allowlist): emit happens
+externally via IPC from spawned worker processes in v7.7+ Außenposten
+operation, not from `src/` code paths.
+
+Resolution: new `RESERVED_NO_EMITTER` allowlist in audit-events.js
+matching the documentation. Skips both catalog-never-emitted check
+and listener-without-emitter cross-ref for the entry.
+
+---
+
+## Items still deferred after v7.6.7
+
+### File-Size-Guard
+
+- `src/agent/planning/GoalStack.js` — 851 LOC (>700). Carry-over from
+  v7.6.4 — natural split candidates: persistence vs. stack-logic vs.
+  lifecycle. No active pressure point; deferred until next cleanup.
+- `src/agent/revolution/AgentLoop.js` — 868 LOC (>700). Carry-over
+  from v7.6.4 — likely splits along planning/cognition/recovery
+  boundaries. Largest of the three remaining WARN files; deferred.
+
+### Frequently-emitted-without-subscriber backlog (v7.6.7-baseline=8)
+
+After Track B revealed the true scanner picture, eight events remain
+emitted with no subscriber — neither backend nor UI/Dashboard:
+`goal:stalled`, `error:trend`, `lesson:learned`, `narrative:updated`,
+`memory:consolidation-failed`, `model:unavailable-cleared`,
+`reasoning:started`, `symbolic:resolved`. Not regressions — they were
+already present pre-v7.6.7 but partially hidden by the scanner blind
+spots. Pinned via ratchet `BASELINE = 8` in
+`v767-audit-events-scanner.contract.test.js`. Future regressions that
+add a 9th will fail the test until either a subscriber is wired (e.g.
+Dashboard listener) or the baseline is bumped intentionally.
 
 ---
 
