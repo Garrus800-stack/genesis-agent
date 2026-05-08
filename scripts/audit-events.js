@@ -386,6 +386,18 @@ const RESERVED_NO_EMITTER = new Set([
   'colony:run-request',
 ]);
 
+// v7.6.8 Track B: Events emitted as structured traces for diagnostics or
+// downstream observers (UI streaming, .genesis/sessions/* journal). No
+// backend listener expected — these are intentional fire-and-trace events,
+// not code-debt. Excluded from the "frequently emitted but never listened"
+// finding so the report shows real findings only.
+const RESERVED_TELEMETRY_ONLY = new Set([
+  'lesson:learned',          // AdaptiveStrategy state telemetry
+  'narrative:updated',       // SelfNarrative output, journaled to .genesis/
+  'reasoning:started',       // ReasoningEngine trace start (chatty)
+  'symbolic:resolved',       // SymbolicResolver per-resolution trace
+]);
+
 // Dynamic event patterns that won't have static matches
 const DYNAMIC_PATTERNS = [
   /^store:/, // EventStore emits store:${type} dynamically
@@ -436,12 +448,18 @@ for (const event of catalogEvents) {
       catalogNeverEmitted.push(event);
     }
   }
-  if (!subscribers.has(event)) catalogNeverSubscribed.push(event);
+  if (!subscribers.has(event)) {
+    // v7.6.8: telemetry-only events are explicit fire-and-trace,
+    // not "unhandled" — exclude from the catalog-never-subscribed report.
+    if (RESERVED_TELEMETRY_ONLY.has(event)) continue;
+    catalogNeverSubscribed.push(event);
+  }
 }
 
 // H-3: Frequently emitted without any listener (>3 call sites = likely intentional)
 for (const [event, locations] of emitters) {
   if (EXCLUDED_EVENTS.has(event) || isDynamic(event)) continue;
+  if (RESERVED_TELEMETRY_ONLY.has(event)) continue;  // v7.6.8: explicit telemetry-only
   if (locations.length >= 3 && !subscribers.has(event)) {
     frequentEmittersWithoutListeners.push({ event, count: locations.length });
   }

@@ -178,9 +178,16 @@ class AgentCoreWire {
       { event: 'reasoning:step',            state: 'thinking', detail: (d) => `${d.step}/${d.total}` },
       { event: 'model:ollama-unavailable',  state: 'warning',  detail: () => 'Ollama not reachable — start with: ollama serve' },
       { event: 'model:no-models',           state: 'warning',  detail: () => 'No models — pull one with: ollama pull <model>' },
+      // v7.6.8: Pair to model:ollama-unavailable — surface recovery in UI
+      { event: 'model:unavailable-cleared', state: 'ready',    detail: (d) => `Model recovered: ${d.modelName || d.model || 'unknown'}` },
 
       // ── Agency ──────────────────────────────────────
       { event: 'goal:resumed',              state: 'ready',    detail: (d) => `Goal resumed: ${d.description?.slice(0, 50)}` },
+      // v7.6.8: Surface stalled goals (auto-detected by reviewGoals or marked
+      // explicitly via markStalled) so the user sees them instead of the
+      // backend silently keeping them in the list.
+      { event: 'goal:stalled',              state: 'warning',
+        detail: (d) => `Goal stalled: ${(d.description || d.id || '').slice(0, 50)} — ${d.reason || 'no-progress'}` },
       { event: 'failure:classified',        state: 'warning',  detail: (d) => `${d.category}: ${d.strategy}` },
       { event: 'steering:rest-mode',        state: 'resting',  detail: () => 'Low energy — rest mode active' },
       { event: 'steering:model-escalation', state: 'thinking', detail: () => 'High frustration — trying different approach' },

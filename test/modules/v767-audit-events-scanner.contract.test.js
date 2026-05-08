@@ -95,23 +95,25 @@ describe('v7.6.7 audit-events scanner extensions', () => {
       `scanner extensions may have regressed`);
   });
 
-  test('frequently-emitted-without-listener stays at-or-below v7.6.7 baseline', () => {
-    // Ratchet-style baseline. After v7.6.7 Track B scanner extensions, the
-    // remaining findings are 8 events that are emitted as telemetry but have
-    // no subscriber (neither backend nor UI/dashboard). They are deferred
-    // for v7.6.8+ — either wire dashboard listeners or document them as
-    // telemetry-only events. This test fails if the count regresses upward,
-    // which would indicate either a new orphan emit or a scanner pattern
-    // regression.
-    const BASELINE = 8;
+  test('frequently-emitted-without-listener stays at-or-below v7.6.8 baseline (zero)', () => {
+    // Ratchet-style baseline. v7.6.7 left 8 events emitted without listener
+    // (deferred backlog). v7.6.8 closed all 8: 4 wired (goal:stalled +
+    // model:unavailable-cleared via STATUS_BRIDGE; error:trend +
+    // memory:consolidation-failed via ImmuneSystem subscriptions); 4
+    // explicitly tagged telemetry-only via RESERVED_TELEMETRY_ONLY
+    // (lesson:learned, narrative:updated, reasoning:started,
+    // symbolic:resolved). New baseline = 0. Any future regression that
+    // adds an orphan emit must be addressed (wire listener, or extend
+    // RESERVED_TELEMETRY_ONLY if intentional fire-and-trace).
+    const BASELINE = 0;
     const result = runScanner();
     assert.strictEqual(result.status, 0, 'scanner must run successfully');
     const entryRe = /^\s+"[^"]+"\s*\(\d+\s+emit\s+sites?\)/gm;
     const entries = (result.stdout || '').match(entryRe) || [];
     assert(entries.length <= BASELINE,
       `frequently-emitted-but-never-listened count ${entries.length} exceeds ` +
-      `v7.6.7 baseline ${BASELINE} — either subscribe via _sub/bus.on, or update ` +
-      `the baseline if intentional. Current entries: ${entries.join(', ')}`);
+      `v7.6.8 baseline ${BASELINE} — either subscribe via _sub/bus.on, or add ` +
+      `to RESERVED_TELEMETRY_ONLY if intentional. Current entries: ${entries.join(', ')}`);
   });
 });
 

@@ -380,6 +380,28 @@ class ImmuneSystem {
     this._sub('homeostasis:critical', () => {
       this._scanForPatterns();
     }, { source: 'ImmuneSystem', priority: -10 });
+
+    // v7.6.8: Error-trend feed from ErrorAggregator. Same collector as
+    // chat:error — a trend is just another health signal that should
+    // contribute to the immune sliding window.
+    this._sub('error:trend', (data) => {
+      this._errorWindow.push({
+        ts: Date.now(),
+        message: `error-trend: ${data?.category || 'unknown'}`,
+        source: data?.source || 'aggregator',
+      });
+    }, { source: 'ImmuneSystem', priority: -12 });
+
+    // v7.6.8: Memory-consolidation failures are health signals — the
+    // memory subsystem couldn't consolidate, which can cascade into
+    // recall errors. Feeds the sliding window like chat:error.
+    this._sub('memory:consolidation-failed', (data) => {
+      this._errorWindow.push({
+        ts: Date.now(),
+        message: `memory-consolidation-failed: ${data?.reason || 'unknown'}`,
+        source: data?.source || 'memory',
+      });
+    }, { source: 'ImmuneSystem', priority: -12 });
   }
 
   // ════════════════════════════════════════════════════════════

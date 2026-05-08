@@ -1,3 +1,98 @@
+## [7.6.8]
+
+Cleanup release. Two tracks of architectural debt repayment with no
+new features and no breaking changes: GoalStack.js lifecycle/hierarchy
+concern extracted into a dedicated mixin (File-Size-Guard WARN closeout),
+and the v7.6.7 backlog of 8 frequently-emitted-without-listener events
+fully closed (4 wired, 4 explicitly tagged telemetry-only).
+
+### Changed
+
+- **`GoalStack.js` 850 → ~538 LOC** via Mixin extraction. New module
+  `src/agent/planning/GoalStackLifecycle.js` (~350 LOC) holds the
+  lifecycle and hierarchy concern: 14 prototype-mounted methods covering
+  status transitions (`pauseGoal`, `resumeGoal`, `completeGoal`,
+  `abandonGoal`, `markStalled`, `markObsolete`), block/unblock
+  (`blockOnSubgoal`, `blockOnResources`, `unblockOnResource`), bulk
+  auto-review (`reviewGoals`), tree queries (`getSubGoals`,
+  `getGoalTree`), and the dependency-unblock chain
+  (`_unblockDependents`, `_checkParentCompletion`). Plus module-level
+  helper `isTerminal(status)` (mirrors `GoalStack._isTerminal` static —
+  duplicated to avoid circular require). Mounted via
+  `Object.assign(GoalStack.prototype, lifecycle.goalStackLifecycleMixin)`
+  alongside the existing `execution` and `goalStackPending` mixins —
+  same pattern as Settings v7.6.7 / ModelBridgeFailover v7.6.5. Pure
+  structural extraction, runtime semantics unchanged, all existing
+  tests unmodified. GoalStack.js drops out of File-Size-Guard WARN
+  list (still WARN: AgentLoop.js 868, deferred to v7.6.9).
+
+- **8 frequently-emitted-without-listener events resolved** (closes
+  v7.6.7 deferred backlog). Four wired:
+  - `goal:stalled` and `model:unavailable-cleared` added to
+    `AgentCoreWire.STATUS_BRIDGE` (Agency and Core sections
+    respectively) — UI now surfaces stalled goals and model-recovery
+    events.
+  - `error:trend` and `memory:consolidation-failed` subscribed by
+    ImmuneSystem alongside the existing `chat:error` /
+    `health:degradation` collectors — both feed the immune sliding
+    window for pattern detection. Counter-only handlers analog to
+    CostStream-dissonance v7.6.6 Track C; no new
+    `homeostasis:critical` emissions.
+  Four explicitly tagged telemetry-only via new
+  `RESERVED_TELEMETRY_ONLY` allowlist in `audit-events.js`:
+  `lesson:learned`, `narrative:updated`, `reasoning:started`,
+  `symbolic:resolved`. These are intentional fire-and-trace events
+  for `.genesis/sessions/` journal and trace observers — no backend
+  listener expected. The allowlist excludes them from both the
+  "frequently emitted" finding and the "catalog never subscribed"
+  report so the scanner shows real findings only.
+
+### Added
+
+- `src/agent/planning/GoalStackLifecycle.js` (mixin + helper).
+- `test/modules/v768-goalstack-split.contract.test.js` (8 tests
+  pinning the mixin export shape, prototype mount, identity-equality,
+  end-to-end completeGoal with parent-completion chain and
+  unblockDependents, source-presence regression check, and
+  this-binding from extracted methods).
+- `test/modules/v768-events-listeners.contract.test.js` (6 tests
+  pinning the two STATUS_BRIDGE entries, the two ImmuneSystem
+  subscriptions, the `RESERVED_TELEMETRY_ONLY` allowlist content,
+  and an end-to-end scanner check that the FREQUENTLY EMITTED
+  section is absent from output).
+
+### AUDIT-BACKLOG
+
+- File-Size-Guard WARN for GoalStack.js (850 LOC) closed via mixin
+  extraction. One remaining WARN (AgentLoop.js 868 LOC) carries over
+  to v7.6.9.
+- v7.6.7 frequently-emitted-without-listener backlog of 8 events
+  fully closed: 4 wired (STATUS_BRIDGE + ImmuneSystem), 4 explicitly
+  telemetry-only (allowlist).
+- ratchet baseline in `v767-audit-events-scanner.contract.test.js`
+  updated from 8 to 0. Future regressions adding orphan emits must
+  be addressed (wire listener, or extend `RESERVED_TELEMETRY_ONLY`
+  if intentional).
+
+### Stats
+
+- +14 net new tests (8 GoalStack split contract + 6 events listener
+  wiring contract).
+- Linux-baseline 6804 → 6818, Win-baseline 6815 → 6829 (Win-conditional
+  tests visible through scanner pattern coverage from v7.6.7 Track B).
+- Source modules 328 → 329 (`GoalStackLifecycle.js`).
+- Architectural fitness unchanged at 127/130 — File-Size-Guard score
+  remains 7/10 binary (AgentLoop.js 868 LOC blocks the binary jump
+  to 10/10) but WARN list shrinks 2 → 1 file.
+- Subscribed events visible to scanner: 155 → 159 (+4 ImmuneSystem
+  and STATUS_BRIDGE wirings).
+- frequently-emitted-without-listener count: 8 → 0.
+- 14/14 ci:full audit gates green; `audit-events --strict` exit 0
+  with full pattern coverage and both `RESERVED_NO_EMITTER` and
+  `RESERVED_TELEMETRY_ONLY` allowlists.
+
+---
+
 ## [7.6.7]
 
 Cleanup release. Three tracks of architectural debt repayment with no

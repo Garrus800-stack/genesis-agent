@@ -265,13 +265,13 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '6815 passing',      label: 'badge: tests',
+        tests:      { live: '6829 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
-                      // v7.6.7: +5 tests (8 SettingsEncryption split contract +
-                      // 7 audit-events scanner extension contract minus 10 rebalance)
-                      // Linux 6804, Win 6815 (Win-conditional tests now visible
-                      // through scanner pattern coverage extensions in Track B).
+                      // v7.6.8: +14 tests (8 GoalStack split contract +
+                      // 6 events listener wiring contract).
+                      // Linux 6818, Win 6829 (Win-conditional tests visible
+                      // through scanner pattern coverage from v7.6.7 Track B).
                       compare: (got, exp) => got === exp },
         modules:    { live: SOURCE,              label: 'badge: modules' },
         events:     { live: CATALOG,             label: 'badge: events' },

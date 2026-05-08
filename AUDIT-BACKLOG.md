@@ -1,9 +1,104 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.6.7 · Last updated: v7.6.7 (Cleanup release: Settings encryption mixin extraction, audit-events scanner pattern coverage, colony:run-request reserved-slot)
+> Version: 7.6.8 · Last updated: v7.6.8 (Cleanup release: GoalStack lifecycle mixin extraction, 8 frequently-emitted events fully resolved)
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Resolved in v7.6.8
+
+### File-Size-Guard WARN — GoalStack.js (Track A)
+
+GoalStack.js was 850 LOC, triggering the File-Size-Guard WARN
+threshold (>700) since v7.6.4. Closed via mixin extraction analog to
+Settings v7.6.7 (and ModelBridge v7.6.5): lifecycle and hierarchy
+concern moved to new `src/agent/planning/GoalStackLifecycle.js`
+(~350 LOC), mounted onto `GoalStack.prototype` via `Object.assign`.
+
+What moved into the mixin (14 methods): `pauseGoal`, `resumeGoal`,
+`completeGoal`, `abandonGoal`, `markStalled`, `markObsolete`,
+`blockOnSubgoal`, `blockOnResources`, `unblockOnResource`,
+`reviewGoals`, `getSubGoals`, `getGoalTree`, `_unblockDependents`,
+`_checkParentCompletion`. Plus module-level helper `isTerminal()`
+(mirrors `GoalStack._isTerminal` static — duplicated to avoid
+circular require).
+
+What stays in GoalStack.js (538 LOC): constructor, `addGoal`-flow
+(Gate, Capability, observe, recordLesson), `addSubGoal`,
+`executeNextStep`, getters (`getActiveGoals`, `getAll`, `_getTopGoal`,
+`getRuntimeSnapshot`, `getProgress`), `_save`, `_prioritize`,
+`_isTerminal` static.
+
+Pure structural extraction — runtime semantics unchanged. All 69
+existing GoalStack-related tests (`goalstack`, `goal-lifecycle`,
+`GoalStackExecution`, `GoalStackPending`, `goal-persistence`,
+`goaldriver`) unmodified and green.
+
+GoalStack.js drops out of File-Size-Guard WARN list. One WARN file
+remains: AgentLoop.js (868 LOC), deferred to v7.6.9.
+
+### 8 frequently-emitted events fully resolved (Track B)
+
+The v7.6.7 backlog of 8 events emitted without a subscriber is now
+entirely closed.
+
+**4 wired:**
+
+- `goal:stalled` (5 emit sites in GoalStack and GoalDriverFailurePolicy)
+  → `STATUS_BRIDGE` entry in AgentCoreWire (Agency section), state
+  `warning`, detail `"Goal stalled: <description> — <reason>"`. UI
+  now surfaces stalled goals instead of the backend silently
+  carrying them.
+- `model:unavailable-cleared` (3 emit sites in
+  ModelBridgeAvailability) → `STATUS_BRIDGE` entry (Core section,
+  next to `model:ollama-unavailable`), state `ready`, detail
+  `"Model recovered: <name>"`.
+- `error:trend` (4 emit sites via AutonomyEvents/ErrorAggregator)
+  → ImmuneSystem `_sub` alongside existing `chat:error`. Counter-only
+  handler that pushes to `_errorWindow` for pattern detection.
+- `memory:consolidation-failed` (3 emit sites in MemoryConsolidator
+  and DreamCyclePhases) → ImmuneSystem `_sub`. Counter-only handler;
+  consolidation failures are health signals that contribute to the
+  immune sliding window.
+
+Both ImmuneSystem subscriptions are counter-only (analog to the
+CostStream-dissonance pattern from v7.6.6 Track C); no new
+`homeostasis:critical` emission, no scope creep.
+
+**4 explicitly telemetry-only:**
+
+`lesson:learned`, `narrative:updated`, `reasoning:started`,
+`symbolic:resolved` — added to new `RESERVED_TELEMETRY_ONLY`
+allowlist in `scripts/audit-events.js` (analog to v7.6.7's
+`RESERVED_NO_EMITTER` for opt-in subscribe). These are intentional
+fire-and-trace events: AdaptiveStrategy state telemetry, SelfNarrative
+journaled output, ReasoningEngine and SymbolicResolver per-step
+traces. The allowlist excludes them from both the FREQUENTLY EMITTED
+finding and the "catalog never subscribed" informational report so
+the scanner shows real findings only.
+
+ratchet `BASELINE` in `v767-audit-events-scanner.contract.test.js`
+updated from 8 to 0. Any future regression that adds an orphan
+frequently-emitted event must be addressed (wire listener, or extend
+`RESERVED_TELEMETRY_ONLY` if intentional).
+
+---
+
+## Items still deferred after v7.6.8
+
+### File-Size-Guard
+
+- `src/agent/revolution/AgentLoop.js` — 868 LOC (>700). Largest
+  remaining WARN file. Deferred to v7.6.9 as standalone cleanup —
+  AgentLoop is the most intricately verwobenste file in the project
+  (`pursue()` is 390 LOC, `_executeLoop()` is 240 LOC; existing
+  splits AgentLoopCognition/Planner/Recovery/Steps already absorbed
+  the cleanest boundaries). Bundling it with v7.6.8 would have
+  raised test-drift risk against 8 existing AgentLoop test files.
+  Once closed, File-Size-Guard score lifts 7/10 → 10/10 and overall
+  architectural fitness 127 → 130.
 
 ---
 
