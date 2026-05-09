@@ -1,6 +1,6 @@
 {
   "name": "genesis-agent",
-  "version": "7.7.5",
+  "version": "7.7.6",
   "description": "A self-aware, self-verifying, self-evolving cognitive AI agent. Works with any LLM backend \u2014 Anthropic Claude, OpenAI, or local models via Ollama. It reads its own source code. It fixes its own bugs. It builds its own features. It thinks while you're away. It feels the consequences of its actions. It pursues goals autonomously. It verifies its own output programmatically. It learns what works for its specific model.",
   "main": "main.js",
   "scripts": {
@@ -126,11 +126,11 @@
     "@types/node": "^22.0.0",
     "c8": "^9.1.0",
     "electron": "^42.0.0",
-    "electron-builder": "^25.1.8",
-    "esbuild": "^0.24.2",
+    "electron-builder": "^26.8.2",
+    "esbuild": "^0.28.0",
     "mermaid": "^10.9.1",
     "monaco-editor": "^0.55.0",
-    "puppeteer": "^23.0.0",
+    "puppeteer": "^24.15.0",
     "typescript": "^5.5.0"
   },
   "optionalDependencies": {

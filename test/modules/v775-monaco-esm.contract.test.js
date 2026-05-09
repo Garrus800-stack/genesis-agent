@@ -42,10 +42,18 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf-8');
 
 // ── A. package.json ────────────────────────────────
 
-test('A1: package.json version is 7.7.5', () => {
-  const pkg = JSON.parse(read('package.json'));
-  assert.strictEqual(pkg.version, '7.7.5');
-});
+// A1 subtest below was retired in v7.7.6 — version-pin became obsolete
+// once v7.7.6 shipped. The current version is pinned by
+// `test/modules/v776-toolchain-refresh.contract.test.js` A1 instead.
+//
+// Same retirement pattern as v7.7.5 retiring v7.7.4's A1 (single-version
+// pins are stage-marker tests, not invariants — they retire automatically
+// when the next release ships).
+//
+// test('A1: package.json version is 7.7.5', () => {
+//   const pkg = JSON.parse(read('package.json'));
+//   assert.strictEqual(pkg.version, '7.7.5');
+// });
 
 // ── B. editor.js — AMD out, ESM in ─────────────────
 

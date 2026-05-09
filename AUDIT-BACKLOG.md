@@ -1,12 +1,85 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.7.5 · Audit findings, monitor items, and resolution status.
+> Version: 7.7.6 · Audit findings, monitor items, and resolution status.
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
+
+## Resolved in v7.7.6
+
+### Build-toolchain refresh — npm audit clears the build-pipeline chain
+
+After v7.7.5 closed the Monaco AMD → ESM migration the remaining audit
+findings clustered in three older-major dev-dependencies. v7.7.6 raises
+them all to current stable in a single focused release.
+
+**Three dev-dependency bumps** (all in `package.json`, no code changes):
+
+1. `electron-builder ^25.1.8 → ^26.8.2`
+
+   Transitive chain that gets cleaned up by this single bump:
+   - **Vulnerabilities removed** (HIGH severity): tar@6 (Path traversal +
+     symlink overwrite), @tootallnate/once (ReDoS), app-builder-lib chain,
+     dmg-builder chain, electron-builder-squirrel-windows chain, node-gyp,
+     @electron/rebuild, make-fetch-happen, http-proxy-agent, cacache
+   - **Deprecation notices removed**: uuid@9.0.1 (no longer supported),
+     npmlog@6.0.2, gauge@4.0.4, are-we-there-yet@3.0.1, rimraf@3.0.2,
+     glob@7.2.3 + @8.1.0 + @10.5.0, @npmcli/move-file@2.0.1, inflight@1.0.6
+
+2. `esbuild ^0.24.2 → ^0.28.0`
+
+   - **Vulnerability removed** (moderate severity): esbuild < 0.25 advisory
+   - API-compatibility verified: build-bundle.js uses only the stable
+     `esbuild.build()` and `esbuild.context()` surface that has been
+     unchanged since 0.17. No removed `startService` calls, no deprecated
+     `incremental: true` flag, no old `watch: { ... }` pattern. Pinned
+     against re-introduction by `v776-toolchain-refresh.contract` C1
+
+3. `puppeteer ^23.0.0 → ^24.15.0`
+
+   - **Deprecation notice removed**: "< 24.15.0 is no longer supported"
+   - **Transitive deprecation removed**: whatwg-encoding@3.1.1
+   - Risk profile: defensive usage in `src/agent/capabilities/WebPerception.js`
+     wraps the require in try/catch and falls back to lightweight HTTP-fetch
+     mode if puppeteer is unavailable or misbehaves. Even subtle behavioural
+     changes in 24.x cannot break Genesis runtime — they would only silently
+     reduce web-perception capability
+
+**No changes** in `src/`, `scripts/`, `main.js`, `preload.js`. Pure
+`package.json` refresh.
+
+**Expected after-state on user machine:**
+
+- `npm install` deprecation notices: **13 → 0**
+- `npm audit` vulnerabilities: **14 (2 low, 3 moderate, 9 high) → ~1**
+- The single remaining vulnerability is the monaco-editor-bundled
+  `dompurify`, which is not self-fixable. It requires monaco upstream
+  to release a build with an updated bundle. Tracked under deferred
+  monitor items below
+
+**Test coverage:**
+
+`test/modules/v776-toolchain-refresh.contract.test.js` — 6 subtests:
+- A1 package.json version 7.7.6
+- B1 electron-builder major ≥ 26
+- B2 esbuild minor ≥ 0.28
+- B3 puppeteer ≥ 24.15
+- C1 build-bundle.js esbuild-API surface stable-only (no removed/deprecated calls)
+- D1 audit-doc-drift baseline still ≥ 53 claims (no regression)
+
+**Out of scope:**
+
+- electron stays on `^42.0.0` (current stable)
+- monaco-editor stays on `^0.55.0` (current stable)
+- mermaid, typescript, c8, @types/node — no audit findings, no churn
+- `npm run build` (electron-builder dist-pipeline) — not on the release
+  test path. Win/Linux dist should work; macOS dmg-builder path requires
+  verification by macOS users (release machine has no Mac)
+
+---
 
 ## Resolved in v7.7.1
 
@@ -605,12 +678,10 @@ v7.7.2-* eras separate in the test history.
   isn't a real fix. Track upstream and re-pin when monaco ships a
   patched dompurify.
 
-- **Electron-builder toolchain bumps.** `electron-builder`,
-  `dmg-builder`, `electron-builder-squirrel-windows`, `tar`,
-  `esbuild`, `@tootallnate/once` all have pending major bumps with
-  their own breaking changes. All are dev-only (build pipeline), not
-  in the runtime path. Can be done in a follow-up "build chain
-  refresh" release without urgency.
+- **Electron-builder toolchain bumps.** ✅ Resolved in v7.7.6 — see above.
+  electron-builder ^25 → ^26.8.2, esbuild ^0.24 → ^0.28, puppeteer ^23 → ^24.15.
+  All three transitive chains cleaned, npm audit dropped from 14 to ~1
+  (only monaco-bundled dompurify remains, not self-fixable).
 
 - **11 docs not yet covered by audit-doc-drift.** ✅ Resolved in v7.7.3
   — see below. 8 docs got semantic pins (BENCHMARKING, MCP-SERVER-SETUP,

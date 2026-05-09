@@ -1,4 +1,76 @@
-## [7.7.5]
+## [7.7.6]
+
+Build-toolchain refresh. v7.7.5 closed the Monaco AMD → ESM migration but
+the build-pipeline dev-dependencies (electron-builder, esbuild, puppeteer)
+remained on older majors carrying the bulk of the npm-audit findings (9 HIGH
++ 1 moderate from the electron-builder transitive chain plus the esbuild
+moderate) and most of the npm-deprecation messages on every install. v7.7.6
+raises all three to current stable. No code changes anywhere — purely
+package.json. The dev-toolchain refresh dissolves the audit-noise without
+touching runtime semantics.
+
+### What's in scope
+
+Three dev-dependency bumps in `package.json`:
+
+- `electron-builder ^25.1.8 → ^26.8.2` — drops the 9 HIGH advisories from
+  the transitive chain (tar@6, @tootallnate/once, app-builder-lib chain,
+  dmg-builder, electron-builder-squirrel-windows, node-gyp, @electron/rebuild,
+  make-fetch-happen, http-proxy-agent, cacache) and clears the matching
+  deprecation notices (uuid@9, npmlog@6, gauge@4, are-we-there-yet@3,
+  rimraf@3, glob@7/8/10, @npmcli/move-file@2, inflight@1)
+- `esbuild ^0.24.2 → ^0.28.0` — drops the esbuild moderate advisory.
+  build-bundle.js uses only the stable `esbuild.build()` / `esbuild.context()`
+  API surface (no removed `startService`, no deprecated `incremental`/`watch`
+  flags), so the major-bump is API-compatible
+- `puppeteer ^23.0.0 → ^24.15.0` — drops the "< 24.15.0 is no longer
+  supported" deprecation notice and clears whatwg-encoding@3. puppeteer is
+  only used defensively in `WebPerception.js` (`try { require('puppeteer') }
+  catch { lightweight mode }`), so even if 24.x had subtle behavioural
+  changes Genesis would silently fall back to the HTTP-fetch path
+
+### What's NOT in scope (kept stable)
+
+- electron stays on `^42.0.0` (already current stable, 43 is nightly)
+- monaco-editor stays on `^0.55.0` (current stable, no audit findings beyond
+  the bundled dompurify which is not self-fixable)
+- mermaid, typescript, c8, @types/node — no audit findings, no deprecations
+- No changes in `src/`, `scripts/`, `main.js`, `preload.js` — pure package.json
+
+### Tests
+
+`test/modules/v776-toolchain-refresh.contract.test.js` (new, 6 subtests):
+
+- A1 — package.json version is 7.7.6
+- B1 — electron-builder major ≥ 26
+- B2 — esbuild minor ≥ 0.28
+- B3 — puppeteer ≥ 24.15
+- C1 — build-bundle.js uses only stable esbuild API (no removed/deprecated
+  calls — guards against future refactors that would re-introduce them)
+- D1 — audit-doc-drift baseline ≥ 53 strict-checked claims still passes
+
+### Expected on-machine
+
+`npm install` should drop from 13 deprecation notices to 0 (electron-builder
+chain + puppeteer). `npm audit` should drop from 14 vulnerabilities (2 low,
+3 moderate, 9 high) to roughly 1 — the only remaining advisory is the
+monaco-bundled `dompurify`, which is not self-fixable (depends on monaco
+upstream releasing an updated bundle).
+
+`npm run build` (electron-builder dist-build) was tested neither on the
+release machine nor on macOS. Win/Linux dist paths should work — the macOS
+`dmg-builder` path requires verification by macOS users. The release machine
+does not actively use `npm run build`; it is kept functional for downstream
+consumers cloning from GitHub.
+
+### Tested on
+
+Two platforms — see release notes for exact `npm install` + `npm test ci:full`
++ `npm start` + `npm audit` outputs.
+
+---
+
+
 
 Monaco AMD → ESM migration. Pre-v7.7.5, Monaco was loaded via a CDN
 `<script>` tag (cdnjs.cloudflare.com) using its AMD loader — a
