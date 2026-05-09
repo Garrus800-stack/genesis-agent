@@ -1,4 +1,120 @@
-## [7.7.6]
+## [7.7.7]
+
+Audit cleanup release. After v7.7.6 closed the build-toolchain refresh, a
+full codebase audit (28 categories, 904 files) surfaced two doc-drift
+clusters and four low-severity code findings. This release addresses the
+doc-drift in full and the two LOW code findings (B1 + B3); the two INFO
+findings (B2 Node-installer URL, C1 Mermaid DOMPurify) and the deferred
+items (Slash-Discipline coverage extension, mermaid v11 toolchain) carry
+forward as separate focused releases.
+
+### What's in scope
+
+**Doc fixes (A1–A2):**
+
+- `docs/GATE-INVENTORY.md` Z.13 — claimed "9 SECURITY_REQUIRED_SLASH (v7.5.1)";
+  the actual Set in `IntentPatterns.js` has held 12 since v7.5.9 (the v7.5.5
+  `self-recall` and v7.5.9 `install-software` + `open-software` additions
+  weren't reflected in the doc). Now correctly says "12 SECURITY_REQUIRED_SLASH (v7.5.9)"
+- `AUDIT-BACKLOG.md` — three follow-on stale references in the deferred
+  Slash-Discipline-extension entry ("4 of the 9", "all 9", "all 9
+  SECURITY_REQUIRED_SLASH") all updated to reflect the actual Set size
+
+**Test-stats refresh (A4 — 8 sites total):**
+
+The CAPABILITIES + ARCHITECTURE-DEEP-DIVE + README + banner.svg held a
+shared baseline pinned to v7.7.2 (413 files / 6917 tests). Updated all
+sites to v7.7.6's baseline (post-toolchain-refresh: 418 files / 6943 Win
+/ 6942 Linux). Sites updated:
+
+- `docs/CAPABILITIES.md` Z.9 (Linux baseline) + Z.260 (test-files row)
+- `docs/ARCHITECTURE-DEEP-DIVE.md` Z.17 (Key Numbers)
+- `docs/banner.svg` Z.141 (version + tests)
+- `README.md` Z.12 (badge) + Z.450 (test suites table)
+
+**audit-doc-drift hardening (A3 + A5):**
+
+- New PIN #26: `SECURITY_REQUIRED_SLASH` count vs `IntentPatterns.js` Set
+  — claimed count in `GATE-INVENTORY.md` is now compared against the live
+  Set size at audit-time. Closes the gap that let v7.5.5 + v7.5.9 additions
+  drift the doc silently
+- `TEST_FILES` constant (was a literal `= 413`) is now dynamic — counted
+  via `fs.readdirSync` walk of `test/` at audit-time. Closes a drift-blind
+  tautology where the doc literal matched the constant literal and any
+  added/removed test file would slip through
+- `TESTS_WIN` and `TESTS_WIN_BASELINE` constants bumped 6917 → 6943 (these
+  remain manual — counting them dynamically would mean running the full
+  test suite at audit-time, not practical for a static drift check)
+- Tests-badge string in README-badge check pinned to "6943 passing"
+
+**Code hardening (B1 + B3):**
+
+- `EffectorRegistry.js` Z.374 — headless-fallback for `shell.openExternal`
+  was using `exec(cmd)` with string-interpolated URL. Even with the
+  upstream allowlist + URL-parsing in place, the string-interpolation
+  pattern was the only `exec(cmd)` in the codebase that wasn't `execFile`
+  with array-args. Now uses `execFile('cmd', ['/c', 'start', '', url])` on
+  Windows / `execFile('open', [url])` on darwin / `execFile('xdg-open', [url])`
+  on linux — pattern consistent with ToolRegistry, ShellAgent,
+  MultiFileRefactor, AgentLoopSteps, SkillRegistry, SelfSpawner
+- `AgentLoopSteps.js` Z.360 — shell-arg-parser regex
+  `(?:[^\s"']+|"[^"]*"|'[^']*')+` has a quantified group around an
+  alternation that could backtrack quadratically on pathological inputs.
+  Added a length-guard `if (command.length > 2000) return early` before
+  the match. Real-world risk was already very low (input is LLM-generated,
+  output goes to `execFile` not shell, AGENT_LOOP timeout would unstick),
+  but the guard is 1 LOC and the audit flagged it
+
+### What's NOT in scope (deferred, see AUDIT-BACKLOG)
+
+- **B2** CommandHandlersInstallDB Node v22.22.2 — hardcoded URL would
+  drift on each Node v22.x patch release. Audit's three fix-options (dynamic
+  fetch / latest-symlink / hardcoded bumps) all have tradeoffs. Deferred
+  to its own focused Node-LTS-strategy release that can also evaluate
+  v22 → v24 LTS migration
+- **C1** chat.js Mermaid DOMPurify — defense-in-depth wrapper for the
+  `diagramEl.innerHTML = svg` after `mermaid.render()`. The audit suggested
+  using monaco's bundled dompurify, but that bundle holds the same XSS
+  advisories that are tracked as v7.7.4 carry-forward. Cleaner: bring
+  dompurify in as a direct runtime dep, but that's a deliberate scope
+  decision deserving its own release
+- **B4** CLEANUP-PROTOCOL.md formalisation — pure doc release, can ride
+  with any future release
+- Pre-existing items unchanged: monaco-bundled dompurify (not self-fixable),
+  Slash-Discipline coverage extension (own security release), splitter UI
+  fix (separate UI release), mermaid v11 (toolchain release)
+
+### Tests
+
+`test/modules/v777-audit-extension.contract.test.js` — new, 9 subtests:
+
+- A1 — package.json version 7.7.7
+- A2 — GATE-INVENTORY claims "12 SECURITY_REQUIRED_SLASH" (and not "9")
+- A3 — AUDIT-BACKLOG slash-discipline entry uses 12 (and not 9)
+- A4 — docs claim "418 test files" + "6943 tests"
+- A5a — audit-doc-drift `TEST_FILES` is dynamic (no literal `= 413`)
+- A5b — audit-doc-drift `TESTS_WIN` and `TESTS_WIN_BASELINE` === 6943
+- B1 — EffectorRegistry uses `execFile` (no `exec(string)` in headless-fallback)
+- B3 — AgentLoopSteps has length-guard before regex match
+- D1 — audit-doc-drift produces ≥ 55 checked doc claims (was 54, +1 for
+  new SECURITY_REQUIRED_SLASH PIN)
+
+Retired (stage-marker pins, obsolete with v7.7.7 ship):
+
+- `v776-toolchain-refresh.contract` A1 (version-pin on 7.7.6) — same retirement
+  pattern as v7.7.6 retired v7.7.5's A1
+- `v773-cleanup.contract` A2 (TESTS_WIN_BASELINE / TESTS_WIN / TEST_FILES = 6917 / 6917 / 413)
+  — all three pinned constants became obsolete; A2 is a single test that
+  asserts all three at once, retired as a whole
+
+### Tested on
+
+Two platforms — see release notes for exact `npm install` + `npm test ci:full`
++ `npm audit` + `npm start` outputs.
+
+---
+
+
 
 Build-toolchain refresh. v7.7.5 closed the Monaco AMD → ESM migration but
 the build-pipeline dev-dependencies (electron-builder, esbuild, puppeteer)

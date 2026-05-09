@@ -10,7 +10,7 @@
 | 2 | `tool-call-verification`  | `ChatOrchestratorHelpers._processToolLoop`      | verified→pass, _→warn      | detective             |
 | 3 | `self-gate`               | `core/self-gate.js`                             | pass / warn (never block)  | telemetry-only by design |
 | 4 | `intent-tool-coherence`   | `core/intent-tool-coherence.js` (v7.5.1)        | coherent / mismatch (low\|noteworthy\|high) | telemetry-only by design |
-| 5 | `slash-discipline`        | 14 Slash-Handlers + 9 SECURITY_REQUIRED_SLASH (v7.5.1) | pass / block               | preventive            |
+| 5 | `slash-discipline`        | 14 Slash-Handlers + 12 SECURITY_REQUIRED_SLASH (v7.5.9) | pass / block               | preventive            |
 | 6 | `self-mod:circuit-breaker`| `SelfModificationPipelineModify`                | pass / block               | blocking              |
 | 7 | `self-mod:consciousness`  | `SelfModificationPipelineModify`                | pass / block (when coherence < 0.4) | **structurally inert** with `NullAwareness` default (`getCoherence()` → 1.0) |
 | 8 | `self-mod:energy`         | `SelfModificationPipelineModify`                | pass / block               | blocking              |

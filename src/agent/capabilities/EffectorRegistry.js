@@ -370,10 +370,21 @@ class EffectorRegistry {
           const { shell } = require('electron');
           await shell.openExternal(url);
         } catch (_e) {
-          // Headless: fallback to child_process
-          const { exec } = require('child_process');
-          const cmd = process.platform === 'win32' ? `start "" "${url}"` : process.platform === 'darwin' ? `open "${url}"` : `xdg-open "${url}"`;
-          exec(cmd);
+          // Headless: fallback to child_process.
+          // v7.7.7: switched from exec(string) to execFile(bin, [args]) to
+          // eliminate string-interpolation in the headless-fallback path.
+          // URL is already allowlist-checked + new URL()-normalised by the
+          // time we reach here, but execFile with array-args is the safer
+          // pattern (no shell involvement) consistent with the rest of the
+          // codebase (ToolRegistry, ShellAgent, MultiFileRefactor, etc).
+          const { execFile } = require('child_process');
+          if (process.platform === 'win32') {
+            execFile('cmd', ['/c', 'start', '', url]);
+          } else if (process.platform === 'darwin') {
+            execFile('open', [url]);
+          } else {
+            execFile('xdg-open', [url]);
+          }
         }
         return { opened: true, url };
       },

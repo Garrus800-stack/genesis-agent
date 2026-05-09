@@ -1,12 +1,132 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.7.6 · Audit findings, monitor items, and resolution status.
+> Version: 7.7.7 · Audit findings, monitor items, and resolution status.
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
+
+## Resolved in v7.7.7
+
+### Audit cleanup — doc-drift fixes + audit-doc-drift extension + 2 code hardenings
+
+The v7.7.6 full-codebase audit (28 categories, 904 files, manual
+verification) surfaced eight findings. v7.7.7 closes the four where the
+fix was small and the risk-vs-reward favoured shipping now. The other
+four are deferred with their own scope (see "Deferred from v7.7.6 audit"
+section below).
+
+**Doc-drift bugs fixed (slipped past audit-doc-drift's existing pins):**
+
+1. `docs/GATE-INVENTORY.md` Z.13 — claimed "9 SECURITY_REQUIRED_SLASH
+   (v7.5.1)" while the live `Set` in `IntentPatterns.js` had grown to 12
+   (v7.5.5 added `self-recall`; v7.5.9 added `install-software` and
+   `open-software`). Updated to "12 SECURITY_REQUIRED_SLASH (v7.5.9)".
+   Sister-claim in this file: `AUDIT-BACKLOG.md` had three references
+   to "9" in the slash-discipline deferred-item block; all updated to
+   "12"
+2. `docs/CAPABILITIES.md` + `docs/ARCHITECTURE-DEEP-DIVE.md` +
+   `README.md` + `docs/banner.svg` — test-file count was "413" /
+   tests-count "6917"; live values are 418 / 6943 (v7.7.6 baseline).
+   All five doc surfaces updated to match live values
+
+**audit-doc-drift extension:**
+
+3. New check #26: pins the SECURITY_REQUIRED_SLASH count claimed in
+   `GATE-INVENTORY.md` against the actual `Set` size in
+   `src/agent/intelligence/IntentPatterns.js`. Prevents the same drift
+   from recurring silently. Baseline is now 55 strict-checked claims
+   (was 54)
+4. `TEST_FILES` constant converted from a literal `= 413` to dynamic
+   counting via `fs.readdirSync` walking `test/`. The pre-v7.7.7 setup
+   was a drift-blind tautology: if the doc and the constant happened to
+   agree on the same wrong number, the check passed. Now the constant
+   is computed at run time, so any addition or removal of a
+   `*.test.js` file is caught the next time `audit-doc-drift` runs.
+   `TESTS_WIN` and `TESTS_WIN_BASELINE` (and the badge-string
+   "6917 passing") all bumped to 6943
+
+**Code hardenings (both LOW severity, both from v7.7.6 audit):**
+
+5. `EffectorRegistry.js` headless-`shell.openExternal` fallback —
+   `exec(cmd)` with template-string-interpolated URL replaced by
+   `execFile(bin, [url])` array-args. URL was already allowlist-filtered
+   so risk was very low; the change brings the pattern in line with the
+   rest of the codebase (where `execFile` with array-args is the
+   universal pattern)
+6. `AgentLoopSteps.js` shell-arg parser — `MAX_COMMAND_LEN = 2000`
+   length-cap added before the regex match. Removes the theoretical
+   quadratic-backtracking surface entirely (realistic risk was
+   negligible: LLM-generated input, `execFile` output, surrounding
+   timeout, but the cap costs only 3 LOC)
+
+**Test coverage:**
+
+`test/modules/v777-audit-extension.contract.test.js` — 9 subtests:
+
+- A1 package.json version 7.7.7
+- A2 GATE-INVENTORY says "12 SECURITY_REQUIRED_SLASH"
+- A3 AUDIT-BACKLOG says "12", not "9"
+- A4 docs say "418 test files" and "6943 tests"
+- A5a audit-doc-drift TEST_FILES is dynamic (no literal)
+- A5b audit-doc-drift TESTS_WIN === 6943
+- B1 EffectorRegistry no longer has `exec(string)` pattern
+- B3 AgentLoopSteps has length-guard before regex
+- D1 audit-doc-drift baseline ≥ 55 strict-checked claims
+
+**Retired:**
+
+- `v776-toolchain-refresh.contract` A1 (single-version pin on 7.7.6) —
+  obsolete with v7.7.7 ship
+- `v773-cleanup.contract` A2 (TESTS_WIN_BASELINE/TESTS_WIN/TEST_FILES
+  pinned to 6917/6917/413) — obsolete after baseline bump and dynamic
+  TEST_FILES conversion
+
+---
+
+## Deferred from v7.7.6 audit
+
+The v7.7.6 full-codebase audit surfaced eight findings. v7.7.7 closed
+six (F1+F2 doc drift, A3+A5 drift-blind audit-pin extension, F3 EffectorRegistry,
+F4 AgentLoopSteps). The remaining items are deferred to focused follow-up
+releases where each gets its own scope and risk evaluation:
+
+- **F5 / C1 — Mermaid SVG `innerHTML` without DOMPurify**. Defense-in-
+  depth fix in `src/ui/modules/chat.js` Z.340. Cannot reuse the
+  monaco-bundled DOMPurify (which carries the unfixable XSS advisories);
+  needs a runtime `dompurify` dependency decision. Will be its own
+  defense-in-depth release
+- **F6 / B2 — Hardcoded Node v22.22.2 in
+  `CommandHandlersInstallDB.js`**. Not currently stale (v22.22.2 is
+  latest v22 LTS as of v7.7.7), but the hardcoded pattern will drift by
+  every Node maintenance release. Needs an LTS strategy decision: dynamic
+  fetch from `nodejs.org/dist/index.json` with fallback / `latest-v22.x`
+  symlink / re-evaluate v22 → v24 Active LTS bump. Will be its own
+  Node-LTS-strategy release
+- **B4 — `CLEANUP-PROTOCOL.md` formalization**. Pre-existing
+  documentation TODO from earlier audits; not from v7.7.6
+- **F8 / D1+D2 — Slash-Discipline coverage extension**. The current
+  Slash-Discipline contract covers 4 of the 12 SECURITY_REQUIRED_SLASH
+  intents. Extending coverage to all 12 is real security-design work
+  (deciding intent-by-intent whether the LLM/classifier post-guard is
+  sufficient, or whether the slash-only constraint should be hard).
+  Deserves its own focused release
+- **mermaid ^10.9.1 → v11 evaluation**. No CVE; one major behind
+  current. Eigene Toolchain-Maintenance-Release wie electron-builder /
+  monaco / esbuild
+
+**Pre-existing (carried from v7.7.4+):**
+
+- **monaco-editor's bundled DOMPurify** (2 moderate XSS, formerly 8).
+  Not self-fixable; depends on monaco upstream releasing an updated
+  bundle. `npm audit fix --force` would downgrade monaco to 0.53 to
+  "fix" it, which is not a real fix
+- **Sidebar splitter not draggable**. Pre-existing UI issue, unrelated
+  to audit. Eigene UI-Release oder v7.7.8
+
+---
 
 ## Resolved in v7.7.6
 
@@ -647,9 +767,9 @@ v7.7.2-* eras separate in the test history.
   classes (`.badge-thinking`, `.badge-insight`, `.badge-resting`) with
   semantically appropriate colors.
 
-- **Slash-Discipline 9 SECURITY_REQUIRED_SLASH extension.** The
-  current Slash-Discipline contract covers 4 of the 9 SECURITY_REQUIRED_SLASH
-  intents. Extending coverage to all 9 is real security-design work
+- **Slash-Discipline 12 SECURITY_REQUIRED_SLASH extension.** The
+  current Slash-Discipline contract covers 4 of the 12 SECURITY_REQUIRED_SLASH
+  intents. Extending coverage to all 12 is real security-design work
   (deciding intent-by-intent whether the LLM/classifier post-guard is
   sufficient, or whether the slash-only constraint should be hard).
   Deserves its own focused release.

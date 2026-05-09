@@ -41,15 +41,25 @@ test('A1: audit-doc-drift header-version check is pattern-only (not exact)', () 
     `expected ≥4 (pattern) labels, got ${patternLabelCount}`);
 });
 
-test('A2: audit-doc-drift baselines match live values (6917 / 413)', () => {
-  const auditSrc = read('scripts/audit-doc-drift.js');
-  assert.ok(/TESTS_WIN_BASELINE\s*=\s*6917/.test(auditSrc),
-    'TESTS_WIN_BASELINE should be 6917');
-  assert.ok(/TESTS_WIN\s*=\s*6917/.test(auditSrc),
-    'TESTS_WIN should be 6917');
-  assert.ok(/TEST_FILES\s*=\s*413/.test(auditSrc),
-    'TEST_FILES should be 413');
-});
+// A2 subtest below was retired in v7.7.7 — all three pinned constants
+// became obsolete:
+//
+//   TESTS_WIN_BASELINE: 6917 → 6943 (post-v7.7.6 baseline)
+//   TESTS_WIN:          6917 → 6943
+//   TEST_FILES:         413 (literal) → dynamic (fs-based count at audit-time)
+//
+// The TEST_FILES change is structural: it closes the drift-blind tautology
+// where the constant matched the doc only because both were pinned to the
+// same number, and any added test file silently bypassed the audit. With
+// dynamic counting the audit detects test-file additions/removals on its
+// own.
+//
+// Stage-marker pins like these retire automatically when the next
+// release ships (same pattern as v7.7.6 retiring v7.7.5's A1).
+//
+// test('A2: audit-doc-drift baselines match live values (6917 / 413)', () => {
+//   ...
+// });
 
 // ── B. 8 newly-pinned docs ──────────────────────────────
 

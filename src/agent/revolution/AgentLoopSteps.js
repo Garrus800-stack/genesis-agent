@@ -356,7 +356,16 @@ class AgentLoopStepsDelegate {
     const { promisify } = require('util');
     const execFileAsync = promisify(execFile);
     try {
-      // Split command into bin + args for shell-free execution
+      // Split command into bin + args for shell-free execution.
+      // v7.7.7: length-guard before regex match — the regex
+      // `(?:[^\s"']+|"[^"]*"|'[^']*')+` has a quantified group around an
+      // alternation that could backtrack quadratically on pathological
+      // inputs (long unquoted strings without whitespace). Real risk is
+      // very low (input is LLM-generated, execFile not shell, AGENT_LOOP
+      // timeout would unstick it), but the guard is 1 LOC.
+      if (command.length > 2000) {
+        return { output: '', error: 'command too long', command };
+      }
       const parts = command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [command];
       const bin = parts[0];
       const args = parts.slice(1).map(a => a.replace(/^["']|["']$/g, ''));

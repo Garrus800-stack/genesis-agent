@@ -52,10 +52,16 @@ function parseRange(range) {
 
 // ── A1: package.json version is 7.7.6 ────────────────────────
 
-track('A1: package.json version is 7.7.6', () => {
-  assert.strictEqual(pkg.version, '7.7.6',
-    `package.json version must be 7.7.6, got ${pkg.version}`);
-});
+// A1 subtest below was retired in v7.7.7 — version-pin became obsolete
+// once v7.7.7 shipped. Current version is pinned by
+// `test/modules/v777-audit-extension.contract.test.js` A1 instead.
+//
+// Same retirement pattern as v7.7.6 retiring v7.7.5's A1 (single-version
+// pins are stage-marker tests, not invariants).
+//
+// track('A1: package.json version is 7.7.6', () => {
+//   assert.strictEqual(pkg.version, '7.7.6');
+// });
 
 // ── B1: electron-builder major ≥ 26 ──────────────────────────
 

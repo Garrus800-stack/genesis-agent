@@ -290,7 +290,7 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '6917 passing',      label: 'badge: tests',
+        tests:      { live: '6943 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
                       // v7.7.1: +23 (v771-* contract tests). v7.7.0: -52 (renderer.test.js -51 + agentloop-legacy
@@ -391,7 +391,7 @@ function runChecks() {
       // "<N> tests (Win baseline)" — pin to Win baseline (Linux is -1 because
       // of one Win-conditional test). Update this constant on each release
       // that changes test count.
-      const TESTS_WIN_BASELINE = 6917;
+      const TESTS_WIN_BASELINE = 6943;
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -431,8 +431,24 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 6917;
-  const TEST_FILES = 413;
+  const TESTS_WIN = 6943;
+  // v7.7.7: TEST_FILES is now dynamic — counts *.test.js under test/ at audit-time.
+  // This closes the drift-blind tautology where the constant was pinned and the
+  // doc was pinned to the same constant — drift would never be detected. With
+  // dynamic counting, any test-file added/removed without a doc update is now
+  // surfaced by audit-doc-drift --strict.
+  const TEST_FILES = (function countTestFiles() {
+    let count = 0;
+    const walk = (dir) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) walk(full);
+        else if (e.name.endsWith('.test.js')) count++;
+      }
+    };
+    walk(path.join(ROOT, 'test'));
+    return count;
+  })();
 
   // #1: ARCHITECTURE.md header version stamp
   // v7.7.3: Pattern-only — see top-level pattern check rationale.
@@ -1054,6 +1070,48 @@ function runChecks() {
         };
         checked.push(r);
         if (!r.ok) drifts.push(r);
+      }
+    }
+  }
+
+  // #26: GATE-INVENTORY.md — claimed SECURITY_REQUIRED_SLASH count matches
+  // the live Set in IntentPatterns.js (v7.7.7 — added because audit found
+  // GATE-INVENTORY claimed "9" while the Set held 12)
+  {
+    const src = loadDoc('GATE-INVENTORY.md');
+    if (src) {
+      // Doc claim: "<N> SECURITY_REQUIRED_SLASH"
+      const claimMatch = /(\d+)\s+SECURITY_REQUIRED_SLASH/.exec(src);
+      if (claimMatch) {
+        // Live count: parse the Set in IntentPatterns.js
+        let liveCount = null;
+        try {
+          const intentSrc = fs.readFileSync(
+            path.join(ROOT, 'src/agent/intelligence/IntentPatterns.js'),
+            'utf-8'
+          );
+          // Extract the Set body
+          const setMatch = /const\s+SECURITY_REQUIRED_SLASH\s*=\s*new\s+Set\(\[([\s\S]*?)\]\)/.exec(intentSrc);
+          if (setMatch) {
+            // Count quoted string entries (single or double quotes)
+            const entries = setMatch[1].match(/['"][a-z0-9-]+['"]/gi) || [];
+            liveCount = entries.length;
+          }
+        } catch { /* file missing or unreadable */ }
+
+        if (liveCount !== null) {
+          const claimed = parseInt(claimMatch[1], 10);
+          const ok = claimed === liveCount;
+          const r = {
+            doc: 'GATE-INVENTORY.md',
+            label: 'SECURITY_REQUIRED_SLASH count vs IntentPatterns.js Set',
+            expected: liveCount,
+            actual: claimed,
+            ok,
+          };
+          checked.push(r);
+          if (!r.ok) drifts.push(r);
+        }
       }
     }
   }
