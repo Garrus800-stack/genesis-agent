@@ -16,16 +16,16 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' https://cdnjs.cloudflare.com blob:;
-    worker-src 'self' blob:;
-    style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
-    font-src 'self' data: https://cdnjs.cloudflare.com;
+    script-src 'self';
+    worker-src 'self';
+    style-src 'self' 'unsafe-inline';
+    font-src 'self' data:;
     img-src 'self' data: blob:;
-    connect-src 'self' https://cdnjs.cloudflare.com http://127.0.0.1:*;
+    connect-src 'self' http://127.0.0.1:*;
   ">
   <title>Genesis</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.min.css">
+  <link rel="stylesheet" href="../../dist/monaco/monaco.bundle.css">
 </head>
 <body>
   <header id="topbar">
@@ -585,7 +585,7 @@
     The loader itself uses eval for worker creation, which is allowed
     via blob: in worker-src. Main-thread code stays eval-free.
   -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+  <script src="../../dist/monaco/monaco.bundle.js"></script>
 
   <script src="components/ArchitectureGraph.js"></script>
   <script src="renderers/OrganismRenderers.js"></script>
@@ -601,15 +601,14 @@
     normal CSP path. The local copy is placed in dist/ by
     scripts/build-bundle.js.
 
-    Monaco's vs/loader.min.js (loaded above) defines window.define
-    with define.amd=true. Mermaid is UMD; if it sees define.amd it
-    registers via AMD instead of as window.mermaid. We park define
-    around the mermaid script tag (external scripts because CSP
-    forbids inline) so it takes the global path.
+    Pre-v7.7.5: Monaco's AMD loader (loader.min.js) set window.define
+    with define.amd=true, which caused mermaid's UMD wrapper to register
+    via AMD instead of as window.mermaid. The amd-bypass-pre/post.js
+    scripts parked window.define around the mermaid tag.
+    Since v7.7.5: Monaco is loaded as ESM (no AMD loader), define is
+    never set globally, mermaid's UMD path works directly.
   -->
-  <script src="../../dist/amd-bypass-pre.js"></script>
   <script src="../../dist/mermaid.min.js"></script>
-  <script src="../../dist/amd-bypass-post.js"></script>
   <!--
     v4.13.0: Bundled renderer — esbuild output eliminates all CJS require().
     Enables sandbox:true without ESM preload.

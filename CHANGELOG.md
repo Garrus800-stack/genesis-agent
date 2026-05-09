@@ -1,3 +1,150 @@
+## [7.7.5]
+
+Monaco AMD → ESM migration. Pre-v7.7.5, Monaco was loaded via a CDN
+`<script>` tag (cdnjs.cloudflare.com) using its AMD loader — a
+deprecated module system from the pre-bundler era. v7.7.5 moves
+Monaco to a local ESM bundle, eliminating the CDN dependency
+entirely and tightening the Content Security Policy in four
+directives at once.
+
+This release also fixes a long-standing version-drift in
+`src/ui/index.html` where two `<script>` and `<link>` tags were
+hardcoded to monaco-editor 0.44.0 while `package.json` had been at
+0.52 (v7.7.3) and 0.55 (v7.7.4). The drift only affected the CDN
+fallback path — but it was real, and `audit-doc-drift` had no pin
+for it. With the migration the question dissolves: there is no CDN
+path anymore.
+
+### What's in scope
+
+`scripts/build-bundle.js`:
+
+- New section "4. Monaco bundle" between renderer (3) and mermaid copy
+- Existence-check: skips Monaco build if `node_modules/monaco-editor/esm/`
+  is missing (fresh CI without `npm install` is still possible)
+- Main bundle: `dist/monaco/monaco.bundle.js` (esbuild, IIFE, `globalName: 'monaco'`)
+  with `loader: { '.css': 'css', '.ttf': 'file', '.svg': 'file' }` —
+  produces sibling `monaco.bundle.css` plus hashed asset files
+  (codicon TTF). Output via `outdir`/`entryNames`/`assetNames`
+- Worker bundles: `dist/monaco/{editor,ts,json,html,css}.worker.js`
+  (esbuild, IIFE, CSS/TTF loaders set to `empty` — workers don't
+  need DOM assets)
+- Removed: the `writeFileSync` calls that generated
+  `dist/amd-bypass-pre.js` and `dist/amd-bypass-post.js`
+- Removed: `'monaco-editor'` from the agent/preload bundle's
+  `external` list (was a no-op cleanup; agent never imported Monaco)
+
+`src/ui/modules/editor.js` (full rewrite of `initMonaco`, ~50 LOC):
+
+- Removed: the AMD `require.config({ paths: { vs: ... } })` /
+  `require(['vs/editor/editor.main'], cb)` pattern
+- Removed: CDN fallback path (`monaco-editor/0.55.1/min/vs`)
+- Removed: the `localPathRel`/`localPath` URL-resolution dance for
+  worker file paths (was needed because Monaco's AMD loader resolved
+  worker URLs from a `blob:` context — see v7.5.7-fix Phase 3 Etappe 9)
+- Added: `self.MonacoEnvironment = { getWorker(_, label) { ... } }`
+  with a language → worker filename map. ts.worker handles both
+  TypeScript and plain JavaScript (autocomplete + diagnostics);
+  json/html/css/scss/less/handlebars/razor map to their dedicated
+  workers; everything else falls back to `editor.worker`
+- Added: defensive guard when `window.monaco` is `undefined`
+  (logs warning instead of crashing — happens if `npm install` was
+  skipped or `dist/monaco/monaco.bundle.js` is missing)
+
+`src/ui/index.html`:
+
+- CSP `<meta>`: removed `https://cdnjs.cloudflare.com` from
+  `script-src`, `style-src`, `font-src`, `connect-src`. Removed
+  `blob:` from `script-src` and `worker-src`. Same tightening
+  reflected in `main.js` HTTP-header CSP (below)
+- Replaced CDN Monaco CSS link
+  (`https://cdnjs.cloudflare.com/.../monaco-editor/0.44.0/.../editor.main.min.css`)
+  with local `../../dist/monaco/monaco.bundle.css`
+- Replaced CDN Monaco loader script
+  (`https://cdnjs.cloudflare.com/.../monaco-editor/0.44.0/.../loader.min.js`)
+  with local `../../dist/monaco/monaco.bundle.js`. Order matters:
+  the Monaco bundle must load BEFORE `dist/renderer.bundle.js`,
+  because `renderer-main.js` accesses `window.monaco` directly
+- Removed the `<script src="dist/amd-bypass-pre.js">` /
+  `<script src="dist/amd-bypass-post.js">` wrapper around the
+  mermaid script tag. With Monaco no longer setting `define.amd`
+  globally, mermaid's UMD wrapper takes the `window.mermaid` path
+  directly. The historical context for the bypass is preserved as
+  a comment block
+
+`main.js` (HTTP-header CSP, ~Z.190 onward):
+
+- `script-src 'self' https://cdnjs.cloudflare.com blob:` → `'self'`
+- `worker-src 'self' blob:` → `'self'`
+- `style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com` → `'self' 'unsafe-inline'`
+- `font-src 'self' https://cdnjs.cloudflare.com data:` → `'self' data:`
+- `connect-src 'self' https://cdnjs.cloudflare.com http://127.0.0.1:*` → `'self' http://127.0.0.1:*`
+- Comment block rewritten to reflect the v7.7.5 architecture
+
+### Tests
+
+- `test/modules/v775-monaco-esm.contract.test.js` — new, 12 subtests
+  pinning the migration end-to-end:
+  - A1 package.json version 7.7.5
+  - B1/B2 editor.js (AMD out, MonacoEnvironment in)
+  - C1/C2/C3 index.html (no cdnjs, no amd-bypass, local bundle linked)
+  - D1/D2/D3 build-bundle.js (no amd-bypass writeFileSync, monaco bundle step, 5 worker bundles)
+  - E1/E2 main.js CSP (no cdnjs, no blob:)
+  - F1 audit-doc-drift baseline unchanged
+- `test/modules/v774-deps-upgrade.contract.test.js`:
+  - A1 retired (was: version 7.7.4; superseded by v775 A1) — same
+    pattern as v7.7.4 retiring v7.7.3's E1
+  - B1 retired (was: monaco CDN fallback path is not stuck at 0.44;
+    superseded by v775 C1 — there is no CDN path anymore)
+- `audit-doc-drift` remains at 54 strict claims
+- Architectural fitness: 130/130
+
+The full `npm test ci:full` validation runs on the consumer side
+because the test surface includes `e2e-electron` and `headless-boot`,
+both of which need the Monaco bundle present (`postinstall` builds it
+from `node_modules/monaco-editor/esm/`).
+
+### Migration foci (verify on first install + boot)
+
+1. **First-install cost.** `npm install` now runs 6 esbuild builds
+   for Monaco (1 main + 5 workers). Adds ~20-30s to postinstall.
+   Disk footprint of `dist/monaco/` is ~10 MB. The ZIP itself is
+   unchanged (~3 MB) because `dist/` was already excluded.
+
+2. **CSP is now strict.** No external origins. Any third-party
+   script reference in HTML or runtime fetch will now be blocked.
+   If the boot test reports CSP violations in the browser console,
+   that's something genuinely new pulling from outside `'self'` —
+   investigate before relaxing the policy.
+
+3. **Worker URL resolution.** `editor.js` now constructs workers via
+   `new Worker(new URL('../../dist/monaco/<lang>.worker.js', window.location.href))`.
+   In Electron renderer, `window.location.href` is
+   `file:///.../src/ui/index.html`, so the relative path resolves
+   to `file:///.../dist/monaco/<lang>.worker.js`. Should work, but
+   if Workers fail to construct (Editor freezes on large files,
+   no autocomplete) check the console for `Failed to construct
+   'Worker'` errors.
+
+4. **Mermaid regression check.** The amd-bypass wrapper is gone.
+   Verify a Mermaid diagram still renders in the chat (any prompt
+   that produces one). If `window.mermaid` is undefined post-load,
+   something else is setting `define.amd` — should not happen, but
+   worth a single test.
+
+### Known not-fixed (deferred)
+
+- **monaco-editor's bundled dompurify** (8 moderate XSS advisories,
+  carried over from v7.7.4). Cannot be fixed by Genesis — monaco-
+  upstream needs to update its bundled dompurify.
+- **Electron-builder toolchain bumps** (`electron-builder`,
+  `dmg-builder`, `electron-builder-squirrel-windows`, `tar`,
+  `esbuild`, `@tootallnate/once`). Dev-only, build-pipeline-only.
+  Will be the focus of the next release in this v7.7.x infrastructure
+  series.
+
+---
+
 ## [7.7.4]
 
 Dependency security upgrade. Genesis was on `electron@33.4.11` — nine

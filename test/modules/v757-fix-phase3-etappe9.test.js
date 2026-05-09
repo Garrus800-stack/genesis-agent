@@ -38,19 +38,26 @@ const ROOT = path.join(__dirname, '..', '..');
 
 // ── Bug 1: Monaco worker URL is absolute ──────────────────
 
-test('editor.js: localPath converted to absolute URL', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/editor.js'), 'utf8');
-  // Must contain the URL conversion idiom
-  assert.ok(/new URL\([^)]*window\.location\.href/.test(src),
-    'editor.js must convert relative path to absolute via new URL(...)');
-  // Must NOT pass the bare '../../node_modules/...' string straight
-  // into require.config({ paths: { vs: ... } })
-  const cfgMatch = src.match(/require\.config\(\{ paths: \{ vs: ([^}]+)\}/);
-  assert.ok(cfgMatch, 'must call require.config with paths.vs');
-  const arg = cfgMatch[1].trim();
-  assert.notStrictEqual(arg, "'../../node_modules/monaco-editor/min/vs'",
-    'paths.vs must not be the raw relative string');
-});
+// The 'editor.js: localPath converted to absolute URL' test below was
+// retired in v7.7.5 — the Monaco AMD → ESM migration removed
+// `require.config({ paths: { vs: ... } })` entirely. editor.js now uses
+// `MonacoEnvironment.getWorker(_, label) → new Worker(URL)` instead.
+//
+// The historical bug this test pinned (Monaco's blob:-context worker
+// trying to resolve relative paths) cannot recur in v7.7.5+ because:
+//   - Workers are no longer created from a blob: bootstrap
+//   - Worker URLs are constructed in the renderer context (not in a
+//     blob: worker), where `new URL('../../dist/...', window.location.href)`
+//     resolves to a real file:// path
+//
+// Equivalent v7.7.5 anti-pattern pin is in
+// `test/modules/v775-monaco-esm.contract.test.js` subtest B1
+// (editor.js has no AMD loader pattern — no require.config).
+//
+// Same retirement pattern as the three CSP-blob: tests in
+// v757-fix-phase3-etappe8.test.js (also retired in v7.7.5).
+//
+// test('editor.js: localPath converted to absolute URL', () => { ... });
 
 // v7.6.0: legacy `renderer.js (legacy): same fix applied` test removed
 // when the dual-path was consolidated. v7.7.0 deleted the legacy file

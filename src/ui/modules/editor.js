@@ -11,51 +11,47 @@ let monacoEditor = null;
 let currentFile = null;
 
 function initMonaco() {
-  // v7.5.7-fix Phase 3 Etappe 9: Monaco's worker uses `paths.vs` to resolve
-  // worker files via importScripts(). When `paths.vs` is a RELATIVE URL
-  // ('../../node_modules/...'), the AMD loader keeps it relative — but the
-  // worker runs in a `blob:` context where relative URLs cannot be resolved
-  // back to file paths. The worker then crashes with:
-  //   "Failed to execute 'importScripts': The URL '../../node_modules/.../tsWorker.js' is invalid."
-  // Fix: resolve to an ABSOLUTE URL against the document base before
-  // handing it to Monaco. This way the worker bootstrap (which lives at
-  // a blob: URL with no useful base) still has a fully-qualified file://
-  // (or https://) URL to importScripts().
-  const localPathRel = '../../node_modules/monaco-editor/min/vs';
-  let localPath;
-  try {
-    // window.location.href in Electron renderer = file:///.../index.bundled.html
-    localPath = new URL(localPathRel, window.location.href).href;
-  } catch (_e) {
-    localPath = localPathRel; // fallback shouldn't be hit, but stay safe
-  }
-  const cdnPath = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.55.1/min/vs';
-
-  function bootstrapMonaco() {
-    monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
-      value: '// Genesis Agent\n// Select a file from the file tree to begin editing.\n',
-      language: 'javascript',
-      theme: 'vs-dark',
-      minimap: { enabled: false },
-      fontSize: 13,
-      wordWrap: 'on',
-      automaticLayout: true,
-      tabSize: 2,
-      scrollBeyondLastLine: false,
-    });
-    monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveCurrentFile);
-    console.debug('[UI] Monaco Editor ready (path: ' + localPath + ')');
+  // v7.7.5: AMD → ESM migration. Monaco is now loaded via dist/monaco/monaco.bundle.js
+  // (script tag in index.html), which sets window.monaco via esbuild's globalName.
+  // No loader.js, no require.config(), no CDN fallback. Workers are separate
+  // pre-built IIFE bundles in dist/monaco/<lang>.worker.js, lazy-loaded by Monaco
+  // when the editor encounters that language. The ts.worker handles both
+  // TypeScript and plain JavaScript (autocomplete + diagnostics).
+  /* global monaco:false */
+  if (typeof monaco === 'undefined') {
+    console.warn('[UI] Monaco not loaded — dist/monaco/monaco.bundle.js missing? (run npm install)');
+    return;
   }
 
-  /* global require:false, monaco:false */
-  if (typeof require === 'function' && typeof require.config === 'function') {
-    require.config({ paths: { vs: localPath } });
-    require(['vs/editor/editor.main'], bootstrapMonaco, function () {
-      console.debug('[UI] Local Monaco not found, trying CDN...');
-      require.config({ paths: { vs: cdnPath } });
-      require(['vs/editor/editor.main'], bootstrapMonaco);
-    });
-  }
+  // Worker setup MUST happen before monaco.editor.create().
+  // Map Monaco's language label → worker filename.
+  const workerMap = {
+    json: 'json',
+    css: 'css', scss: 'css', less: 'css',
+    html: 'html', handlebars: 'html', razor: 'html',
+    typescript: 'ts', javascript: 'ts',
+  };
+  self.MonacoEnvironment = {
+    getWorker(_workerId, label) {
+      const file = (workerMap[label] || 'editor') + '.worker.js';
+      const url = new URL(`../../dist/monaco/${file}`, window.location.href);
+      return new Worker(url.href);
+    },
+  };
+
+  monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+    value: '// Genesis Agent\n// Select a file from the file tree to begin editing.\n',
+    language: 'javascript',
+    theme: 'vs-dark',
+    minimap: { enabled: false },
+    fontSize: 13,
+    wordWrap: 'on',
+    automaticLayout: true,
+    tabSize: 2,
+    scrollBeyondLastLine: false,
+  });
+  monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveCurrentFile);
+  console.debug('[UI] Monaco Editor ready (local ESM bundle)');
 }
 
 async function openFile(filePath) {

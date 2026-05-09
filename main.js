@@ -181,22 +181,23 @@ app.whenReady().then(async () => {
   // Even though LLM output is sanitized (esc(), safeHref(), HTML-tag stripping),
   // CSP blocks execution of any injected script that slips through.
   // 'unsafe-inline' for style is required by Monaco Editor's dynamic theming.
-  // v7.5.7-fix Phase 3 Etappe 8: Monaco creates web workers via blob: URLs
-  // (its preferred mode — falls back to main-thread workers otherwise,
-  // causing UI freezes). The HTML <meta> CSP already permitted this; the
-  // HTTP-header CSP from main.js was stricter and blocked it. Aligned them:
-  //   - script-src: + blob: (Monaco worker bootstrap is blob-loaded)
-  //   - worker-src: 'self' blob: (explicit so workers don't fall back to script-src)
+  // v7.7.5: Monaco AMD → ESM migration. Monaco is now loaded from local
+  // dist/monaco/monaco.bundle.js (set as window.monaco via globalName) and
+  // workers are local IIFE bundles in dist/monaco/<lang>.worker.js, loaded
+  // via `new Worker(URL)`. This eliminates the cdnjs dependency entirely
+  // (was: script-src/style-src/font-src/connect-src all needed cdnjs) and
+  // the blob:-based worker bootstrap (was: needed for Monaco's AMD loader's
+  // own worker creation; ESM workers load directly from 'self').
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           "default-src 'self';" +
-          " script-src 'self' https://cdnjs.cloudflare.com blob:;" +  // Monaco CDN + workers
-          " worker-src 'self' blob:;" +  // Monaco web workers (avoid main-thread fallback)
-          " style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;" +  // Monaco CSS
-          " font-src 'self' https://cdnjs.cloudflare.com data:;" +  // Monaco 0.55+ codicons embedded as data: TTF
+          " script-src 'self';" +
+          " worker-src 'self';" +              // local ESM worker bundles
+          " style-src 'self' 'unsafe-inline';" +  // Monaco's dynamic theming needs 'unsafe-inline'
+          " font-src 'self' data:;" +          // Monaco codicons (some inlined as data: TTF)
           " img-src 'self' data:;" +
           // FIX v4.10.0: Explicit Ollama + cloud API whitelist instead of open connect-src.
           // Renderer itself doesn't call Ollama (main process does), but CSP should

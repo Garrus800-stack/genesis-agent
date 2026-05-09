@@ -1,6 +1,6 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.7.4 · Audit findings, monitor items, and resolution status.
+> Version: 7.7.5 · Audit findings, monitor items, and resolution status.
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
@@ -290,6 +290,50 @@ of any abort behavior. Removed. Real abort coverage lives in
 
 ---
 
+## Resolved in v7.7.5
+
+### Monaco AMD → ESM migration
+
+Monaco was loaded via CDN `<script>` tag using its AMD loader since
+the Genesis-UI's earliest releases. AMD is a deprecated module system
+from the pre-bundler era; Monaco's own roadmap has marked it as
+deprecated. v7.7.5 migrates to a local ESM bundle built by esbuild
+during `npm install` (postinstall). The CDN dependency is removed
+entirely.
+
+The migration touches 7 files: `scripts/build-bundle.js` (new
+section 4 builds Monaco main bundle + 5 worker bundles),
+`src/ui/modules/editor.js` (full rewrite of `initMonaco`,
+MonacoEnvironment.getWorker setup), `src/ui/index.html` (CDN refs out,
+local bundle in), `main.js` (CSP tightened in 4 directives),
+`test/modules/v775-monaco-esm.contract.test.js` (new, 12 subtests),
+plus retirement of two obsolete pins in `v774-deps-upgrade.contract`
+and the standard version-stamp updates (banner, README, COMMUNICATION).
+
+Side-effects of the migration:
+
+- `amd-bypass-pre.js`/`amd-bypass-post.js` no longer generated. They
+  existed solely because Monaco's AMD loader set `define.amd = true`,
+  which made mermaid's UMD wrapper register via `define()` instead of
+  `window.mermaid`. Without Monaco's AMD loader, `define` is never
+  set globally, mermaid's UMD path works directly.
+- `cdnjs.cloudflare.com` removed from CSP in 4 directives
+  (script-src, style-src, font-src, connect-src).
+- `blob:` removed from CSP in 2 directives (script-src, worker-src)
+  — Monaco's blob:-based worker bootstrap was an AMD-loader artifact;
+  ESM workers load directly from `'self'`.
+
+### Index.html version-drift fixed
+
+A long-standing drift in `src/ui/index.html` had two CDN references
+hardcoded to `monaco-editor/0.44.0` while `package.json` had moved to
+0.52 (v7.7.3) and then 0.55 (v7.7.4). The drift was real but only
+affected the CDN fallback path, and `audit-doc-drift` had no pin for
+it. The migration to a local bundle dissolves the question — there is
+no CDN path anymore.
+
+---
+
 ## Resolved in v7.7.4
 
 ### Electron 33 → 42 security upgrade
@@ -553,13 +597,6 @@ v7.7.2-* eras separate in the test history.
 - **ImpactForecast.fragilityDelta** — never implemented. The class
   itself does not exist in `src/`; this would be brand-new feature
   work, not a cleanup.
-
-- **Monaco AMD → ESM loader migration.** `src/ui/modules/editor.js`
-  uses `require.config({ paths: { vs: ... } })` — Monaco's deprecated
-  AMD loader pattern. Still works on 0.55, but on a deprecation
-  timer. ESM migration touches the loader, the worker bootstrap
-  (currently blob-URL based), and the build-bundle config. Big enough
-  to deserve a focused release.
 
 - **monaco-editor's bundled dompurify (8 XSS advisories, moderate).**
   Came in with the v7.7.4 monaco bump. Cannot be fixed by Genesis;

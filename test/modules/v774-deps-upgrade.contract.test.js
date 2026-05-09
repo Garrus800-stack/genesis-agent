@@ -32,10 +32,12 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf-8');
 
 // ── A. package.json bumps ──────────────────────────────
 
-test('A1: package.json version is 7.7.4', () => {
-  const pkg = JSON.parse(read('package.json'));
-  assert.strictEqual(pkg.version, '7.7.4');
-});
+// A1 was: package.json version is 7.7.4 (v7.7.4 release pin). Retired
+// in v7.7.5 — that release bumps the version to 7.7.5. The current
+// version is pinned in `test/modules/v775-monaco-esm.contract.test.js`
+// subtest A1. Same retirement pattern as v7.7.4 retiring v7.7.3's E1
+// (which retired v7.7.2's B3) — keeps the v7.7.x-by-x eras separate
+// in the test history.
 
 test('A2: electron dep range targets v42 or newer (EOL escape from v33)', () => {
   const pkg = JSON.parse(read('package.json'));
@@ -62,20 +64,12 @@ test('A3: monaco-editor dep range targets 0.55 or newer (was 0.52)', () => {
 
 // ── B. Code-level drift fixes ─────────────────────────
 
-test('B1: monaco CDN fallback path is not stuck at 0.44 (versions-drift fix)', () => {
-  const editorJs = read('src/ui/modules/editor.js');
-  // The pre-v7.7.4 path was hardcoded `monaco-editor/0.44.0/min/vs`
-  // while node_modules had 0.52. v7.7.4 aligns with the npm version.
-  assert.ok(!/monaco-editor\/0\.44\.0/.test(editorJs),
-    'monaco CDN path must not be stuck at 0.44.0');
-  // And must reference a non-trivial version
-  const cdnMatch = /monaco-editor\/(\d+)\.(\d+)\.(\d+)/.exec(editorJs);
-  assert.ok(cdnMatch, 'monaco CDN path must include a version');
-  const major = parseInt(cdnMatch[1], 10);
-  const minor = parseInt(cdnMatch[2], 10);
-  assert.ok(major > 0 || (major === 0 && minor >= 55),
-    `monaco CDN path must target ≥ 0.55, got ${cdnMatch[0]}`);
-});
+// B1 was: monaco CDN fallback path is not stuck at 0.44 (versions-drift fix).
+// Retired in v7.7.5 — that release migrates Monaco from CDN to local ESM
+// bundle. There is no CDN fallback path anymore (no cdnjs anywhere). The
+// equivalent v7.7.5 pin is in `v775-monaco-esm.contract.test.js` subtest C1
+// (no cdnjs.cloudflare.com refs in index.html). Same retirement pattern as
+// v7.7.4 retiring v7.7.3's E1 — keeps the v7.7.x-by-x eras separate.
 
 test('B2: HTTP-header CSP allows data: in font-src (Monaco 0.55+ codicons)', () => {
   // Monaco 0.55+ embeds codicon glyphs as data: TTF URIs. Pre-v7.7.4

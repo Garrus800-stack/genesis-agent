@@ -96,42 +96,25 @@ test('statusbar functional: status survives language change', () => {
 
 // ── Bug 2: CSP for Monaco workers ─────────────────────────
 
-test('main.js CSP allows blob: in script-src', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
-  // Find the CSP setHeaders block
-  const m = src.match(/'Content-Security-Policy'[\s\S]{0,1500}?\]/);
-  assert.ok(m, 'Content-Security-Policy header must be set in main.js');
-  const csp = m[0];
-  assert.ok(/script-src[^;]*blob:/.test(csp),
-    'script-src must include blob: (Monaco worker bootstrap)');
-});
-
-test('main.js CSP has explicit worker-src', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
-  const m = src.match(/'Content-Security-Policy'[\s\S]{0,1500}?\]/);
-  assert.ok(m);
-  const csp = m[0];
-  assert.ok(/worker-src[^;]*'self'[^;]*blob:/.test(csp),
-    "worker-src must include 'self' and blob:");
-});
-
-test('HTML <meta> CSP and main.js CSP are aligned', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
-  const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
-  // Both must allow blob: in script-src (the laxer of the two becomes
-  // the effective policy when both are present, but we want them the
-  // same so we don't fight the tighter one)
-  const htmlMatch = html.match(/Content-Security-Policy[\s\S]*?content="([^"]+)"/);
-  assert.ok(htmlMatch, 'HTML meta CSP must exist');
-  const htmlCsp = htmlMatch[1];
-  assert.ok(/script-src[^;]*blob:/.test(htmlCsp), 'HTML script-src must allow blob:');
-  assert.ok(/worker-src[^;]*blob:/.test(htmlCsp), 'HTML worker-src must allow blob:');
-  // Main process header CSP also has these now
-  const mainMatch = main.match(/'Content-Security-Policy'[\s\S]{0,1500}?\]/);
-  const mainCsp = mainMatch[0];
-  assert.ok(/script-src[^;]*blob:/.test(mainCsp), 'main.js script-src must allow blob:');
-  assert.ok(/worker-src[^;]*blob:/.test(mainCsp), 'main.js worker-src must allow blob:');
-});
+// The three CSP-blob: tests below were retired in v7.7.5 — the Monaco
+// AMD → ESM migration eliminated the blob:-based worker bootstrap.
+// Workers are now local IIFE bundles in dist/monaco/<lang>.worker.js,
+// loaded directly from 'self'. CSP no longer needs `blob:` in
+// script-src or worker-src.
+//
+// Equivalent v7.7.5 anti-pattern pins are in
+// `test/modules/v775-monaco-esm.contract.test.js`:
+//   E1: main.js CSP has no cdnjs.cloudflare.com
+//   E2: main.js CSP has no blob: in script-src or worker-src
+// (E2 is the inverse of what these three retired tests asserted.)
+//
+// Same retirement pattern as v7.7.5 retiring v7.7.4's A1/B1 — keep the
+// historical Monaco-AMD-era pins frozen in the test history without
+// breaking present-day runs.
+//
+// test('main.js CSP allows blob: in script-src', () => { ... });
+// test('main.js CSP has explicit worker-src', () => { ... });
+// test('HTML <meta> CSP and main.js CSP are aligned', () => { ... });
 
 // ── Done ───────────────────────────────────────────────────
 

@@ -74,7 +74,6 @@ async function build() {
       'electron',
       'chokidar',
       'tree-kill',
-      'monaco-editor',
       // Node built-ins
       'fs', 'path', 'crypto', 'http', 'https', 'dgram', 'child_process',
       'os', 'util', 'url', 'vm', 'net', 'dns', 'stream', 'events',
@@ -112,7 +111,9 @@ async function build() {
   // 3. Bundle renderer → dist/renderer.bundle.js (v3.8.0)
   // Browser target — entry is renderer-main.js + 6 modules.
   // The legacy monolithic src/ui/renderer.js was retired in v7.6.0
-  // and deleted in v7.7.0. Monaco is loaded externally via CDN, not bundled.
+  // and deleted in v7.7.0. v7.7.5: Monaco moved from CDN to local ESM
+  // bundle (see step 4 below); renderer-main.js still accesses Monaco
+  // as window.monaco (provided by step-4 bundle's globalName).
   const rendererResult = await esbuild.build({
     entryPoints: [path.join(ROOT, 'src', 'ui', 'renderer-main.js')],
     outfile: path.join(DIST, 'renderer.bundle.js'),
@@ -123,7 +124,6 @@ async function build() {
     minify: !isWatch,
     sourcemap: isWatch ? 'inline' : false,
     logLevel: 'info',
-    // Monaco is loaded via CDN script tag, not bundled
     define: {
       'process.env.NODE_ENV': isWatch ? '"development"' : '"production"',
     },
@@ -154,18 +154,82 @@ async function build() {
     console.warn('[BUILD] mermaid copy failed:', err.message);
   }
 
-  // AMD-bypass scripts. Monaco's AMD loader sets define.amd which makes
-  // mermaid's UMD wrapper register via define() instead of as
-  // window.mermaid. We park define around the mermaid script tag.
-  // Must be EXTERNAL .js files because the CSP forbids inline scripts.
-  fs.writeFileSync(
-    path.join(DIST, 'amd-bypass-pre.js'),
-    'window.__amdDefineBackup=window.define;window.define=undefined;'
-  );
-  fs.writeFileSync(
-    path.join(DIST, 'amd-bypass-post.js'),
-    'window.define=window.__amdDefineBackup;delete window.__amdDefineBackup;'
-  );
+  // 4. Bundle Monaco editor (v7.7.5: AMD → ESM migration)
+  // Monaco was previously loaded via CDN <script> tag using its AMD loader.
+  // Now bundled locally as ESM. cdnjs dependency is removed entirely
+  // (script-src/style-src/font-src/connect-src in CSP are now stricter).
+  // Output layout in dist/monaco/:
+  //   monaco.bundle.js      — main API, exposes window.monaco (globalName)
+  //   monaco.bundle.css     — styles, asset-paths point to codicon-*.ttf
+  //   codicon-*.ttf         — icon font (esbuild file-loader, hashed name)
+  //   editor.worker.js      — base editor worker
+  //   ts.worker.js          — TypeScript/JavaScript language service
+  //   json.worker.js        — JSON validation
+  //   html.worker.js        — HTML language service
+  //   css.worker.js         — CSS language service
+  // The amd-bypass-pre/post.js scripts (used pre-v7.7.5 to hide Monaco's
+  // AMD `define` from mermaid's UMD wrapper) are no longer generated —
+  // without Monaco's AMD loader, `define` is never set globally.
+  const MONACO_DIST = path.join(DIST, 'monaco');
+  const monacoEsmRoot = path.join(ROOT, 'node_modules', 'monaco-editor', 'esm', 'vs');
+  if (!fs.existsSync(monacoEsmRoot)) {
+    console.log('[BUILD] monaco-editor not in node_modules — skipping Monaco bundle (run npm install)');
+  } else {
+    if (!fs.existsSync(MONACO_DIST)) fs.mkdirSync(MONACO_DIST, { recursive: true });
+
+    const monacoCommon = {
+      platform: 'browser',
+      target: 'chrome120',
+      bundle: true,
+      minify: !isWatch,
+      sourcemap: isWatch ? 'inline' : false,
+      logLevel: 'info',
+    };
+
+    // Main Monaco bundle — exposes window.monaco for editor.js + renderer-main.js
+    const monacoMain = await esbuild.build({
+      ...monacoCommon,
+      entryPoints: [path.join(monacoEsmRoot, 'editor', 'editor.main.js')],
+      outdir: MONACO_DIST,
+      entryNames: 'monaco.bundle',
+      assetNames: '[name]-[hash]',
+      format: 'iife',
+      globalName: 'monaco',
+      loader: { '.css': 'css', '.ttf': 'file', '.svg': 'file' },
+      metafile: true,
+      plugins: ciPlugin,
+    });
+
+    if (monacoMain.metafile) {
+      for (const [file, info] of Object.entries(monacoMain.metafile.outputs)) {
+        const sizeKB = Math.round(info.bytes / 1024);
+        console.log(`  ${file}: ${sizeKB}KB`);
+      }
+    }
+
+    // Worker bundles — each language has its own worker, lazy-loaded
+    // by Monaco's MonacoEnvironment.getWorker (set up in editor.js).
+    // CSS/TTF imports inside workers are dropped (no DOM in worker context).
+    const workers = [
+      { entry: 'editor/editor.worker.js', out: 'editor.worker.js' },
+      { entry: 'language/typescript/ts.worker.js', out: 'ts.worker.js' },
+      { entry: 'language/json/json.worker.js', out: 'json.worker.js' },
+      { entry: 'language/html/html.worker.js', out: 'html.worker.js' },
+      { entry: 'language/css/css.worker.js', out: 'css.worker.js' },
+    ];
+    for (const w of workers) {
+      await esbuild.build({
+        ...monacoCommon,
+        entryPoints: [path.join(monacoEsmRoot, w.entry)],
+        outfile: path.join(MONACO_DIST, w.out),
+        format: 'iife',
+        loader: { '.css': 'empty', '.ttf': 'empty', '.svg': 'empty' },
+        plugins: ciPlugin,
+      });
+      const sizeKB = Math.round(fs.statSync(path.join(MONACO_DIST, w.out)).size / 1024);
+      console.log(`  dist/monaco/${w.out}: ${sizeKB}KB`);
+    }
+  }
 
   if (isWatch) {
     console.log('[BUILD] Watching for changes...');
