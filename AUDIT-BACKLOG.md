@@ -1,6 +1,6 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.7.3 · Audit findings, monitor items, and resolution status.
+> Version: 7.7.4 · Audit findings, monitor items, and resolution status.
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
@@ -290,6 +290,54 @@ of any abort behavior. Removed. Real abort coverage lives in
 
 ---
 
+## Resolved in v7.7.4
+
+### Electron 33 → 42 security upgrade
+
+Genesis was nine majors behind current stable Electron and roughly
+two years past Electron's "latest 3 stable majors" support window.
+The 18 high-severity advisories surfaced by `npm audit` are gone.
+`package.json` bumped to `electron: ^42.0.0`. `package-lock.json`
+removed so a fresh `npm install` resolves clean against current
+registry.
+
+Honest framing: the npm-audit count went from 14 to 14 — the runtime
+RCE-class is gone, but a new moderate-severity surface came in via
+monaco-editor 0.55's bundled dompurify (8 XSS advisories, monaco-
+upstream issue, see deferred items below). The win is in the
+**shape** of the remaining surface, not in the count.
+
+Migration foci documented in CHANGELOG (BrowserWindow defaults,
+postinstall→first-run binary download in v42, macOS UNNotification
+code-signing). Genesis main.js was already aligned with v42-era
+defaults, so the structural changes turned out to be no-ops. The one
+runtime issue that surfaced was the CSP font-src drift below.
+
+### monaco-editor 0.52.2 → 0.55.1
+
+Coupled with the Electron bump because the UI editor lives next to
+the renderer. Small minor delta, low risk on the Genesis-code side.
+
+### monaco CDN fallback drift fixed
+
+`src/ui/modules/editor.js` had a hardcoded CDN fallback path
+`monaco-editor/0.44.0/min/vs` while the npm package was at 0.52.
+Two distinct Monaco versions could load at runtime depending on
+whether the local copy resolved. CDN path aligned with installed
+version (0.55.1).
+
+### CSP font-src drift fixed (Monaco 0.55+ codicons)
+
+The HTTP-header CSP in `main.js` had `font-src 'self' cdnjs` only —
+strict enough to block Monaco 0.55+ codicon glyphs, which now ship
+as embedded `data:font/ttf;base64,...` URIs. The HTML-meta CSP
+already permitted `data:`, the HTTP-header CSP didn't. Boot test
+caught it via browser CSP-violation report. `font-src` aligned to
+permit `data:`. Same drift pattern as v7.5.7's fix for Monaco's
+blob: worker URLs (worker-src). Pinned by v774 contract subtest B2.
+
+---
+
 ## Resolved in v7.7.3
 
 ### audit-doc-drift: header-version exact-match → pattern-only
@@ -505,6 +553,27 @@ v7.7.2-* eras separate in the test history.
 - **ImpactForecast.fragilityDelta** — never implemented. The class
   itself does not exist in `src/`; this would be brand-new feature
   work, not a cleanup.
+
+- **Monaco AMD → ESM loader migration.** `src/ui/modules/editor.js`
+  uses `require.config({ paths: { vs: ... } })` — Monaco's deprecated
+  AMD loader pattern. Still works on 0.55, but on a deprecation
+  timer. ESM migration touches the loader, the worker bootstrap
+  (currently blob-URL based), and the build-bundle config. Big enough
+  to deserve a focused release.
+
+- **monaco-editor's bundled dompurify (8 XSS advisories, moderate).**
+  Came in with the v7.7.4 monaco bump. Cannot be fixed by Genesis;
+  monaco-upstream needs to update its bundled dompurify. `npm audit
+  fix --force` would downgrade monaco to 0.53 to "fix" it, which
+  isn't a real fix. Track upstream and re-pin when monaco ships a
+  patched dompurify.
+
+- **Electron-builder toolchain bumps.** `electron-builder`,
+  `dmg-builder`, `electron-builder-squirrel-windows`, `tar`,
+  `esbuild`, `@tootallnate/once` all have pending major bumps with
+  their own breaking changes. All are dev-only (build pipeline), not
+  in the runtime path. Can be done in a follow-up "build chain
+  refresh" release without urgency.
 
 - **11 docs not yet covered by audit-doc-drift.** ✅ Resolved in v7.7.3
   — see below. 8 docs got semantic pins (BENCHMARKING, MCP-SERVER-SETUP,

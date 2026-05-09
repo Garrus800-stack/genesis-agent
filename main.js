@@ -196,7 +196,7 @@ app.whenReady().then(async () => {
           " script-src 'self' https://cdnjs.cloudflare.com blob:;" +  // Monaco CDN + workers
           " worker-src 'self' blob:;" +  // Monaco web workers (avoid main-thread fallback)
           " style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;" +  // Monaco CSS
-          " font-src 'self' https://cdnjs.cloudflare.com;" +
+          " font-src 'self' https://cdnjs.cloudflare.com data:;" +  // Monaco 0.55+ codicons embedded as data: TTF
           " img-src 'self' data:;" +
           // FIX v4.10.0: Explicit Ollama + cloud API whitelist instead of open connect-src.
           // Renderer itself doesn't call Ollama (main process does), but CSP should

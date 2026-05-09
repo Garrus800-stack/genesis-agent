@@ -9,7 +9,7 @@
 //   B. 8 newly-pinned docs in audit-doc-drift scope
 //   C. CSS dedicated badge classes for thinking/insight/resting
 //   D. SKILL-SECURITY.md fs-drift fix
-//   E. package.json bumped to 7.7.3
+//   E. Version bump (retired in v7.7.4 — see comment near former E1)
 //   F. Sandbox.allowedModules contains fs (anchor for SKILL-SEC pin)
 // ============================================================
 
@@ -130,11 +130,11 @@ test('D2: SKILL-SECURITY.md documents fs as path-restricted', () => {
 
 // ── E. Version bump ────────────────────────────────────
 
-test('E1: package.json version is 7.7.3', () => {
-  const pkg = JSON.parse(read('package.json'));
-  assert.strictEqual(pkg.version, '7.7.3',
-    'package.json version should be 7.7.3');
-});
+// E1 was: package.json version is 7.7.3 (v7.7.3 release pin). Retired
+// in v7.7.4 — that release bumps the version to 7.7.4. The current
+// version is pinned in `test/modules/v774-deps-upgrade.contract.test.js`
+// subtest A1. Same pattern as v7.7.3 retiring v7.7.2's B3 — keeps the
+// v7.7.x-by-x eras separate in the test history.
 
 // ── F. Sandbox anchor (the pin's reference target) ────
 

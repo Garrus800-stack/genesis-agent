@@ -29,7 +29,7 @@ function initMonaco() {
   } catch (_e) {
     localPath = localPathRel; // fallback shouldn't be hit, but stay safe
   }
-  const cdnPath = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs';
+  const cdnPath = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.55.1/min/vs';
 
   function bootstrapMonaco() {
     monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
