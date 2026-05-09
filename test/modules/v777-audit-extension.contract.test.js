@@ -37,10 +37,16 @@ function track(name, fn) {
 
 // ── A1: package.json version is 7.7.7 ────────────────────────
 
-track('A1: package.json version is 7.7.7', () => {
-  assert.strictEqual(pkg.version, '7.7.7',
-    `package.json version must be 7.7.7, got ${pkg.version}`);
-});
+// A1 subtest below was retired in v7.7.8 — version-pin became obsolete
+// once v7.7.8 shipped. Current version is pinned by
+// `test/modules/v778-goal-awareness.contract.test.js` A1 instead.
+//
+// Same retirement pattern as v7.7.7 retired v7.7.6's A1 (single-version
+// pins are stage-marker tests, not invariants).
+//
+// track('A1: package.json version is 7.7.7', () => {
+//   assert.strictEqual(pkg.version, '7.7.7');
+// });
 
 // ── A2: GATE-INVENTORY says 12 SECURITY_REQUIRED_SLASH ───────
 
@@ -64,16 +70,14 @@ track('A3: AUDIT-BACKLOG.md slash-discipline entry uses 12 (not 9)', () => {
 
 // ── A4: docs claim updated test-stats baseline ──────────────
 
-track('A4: docs claim 418 test files / 6943 tests (post-v7.7.7 stats)', () => {
-  const cap = read('docs/CAPABILITIES.md');
-  assert.ok(/418 test files/.test(cap),
-    'CAPABILITIES.md should claim "418 test files"');
-  assert.ok(/6943 tests/.test(cap),
-    'CAPABILITIES.md should claim "6943 tests"');
-  const adv = read('docs/ARCHITECTURE-DEEP-DIVE.md');
-  assert.ok(/418 \/ 6943/.test(adv),
-    'ARCHITECTURE-DEEP-DIVE.md should claim "418 / 6943"');
-});
+// A4 subtest below was retired in v7.7.8 — test-files count of 418 became
+// obsolete once v7.7.8 added v778-goal-awareness.contract.test.js (count is
+// now 419). Tests-count 6943 also moves with each release. Same retirement
+// pattern as A1: stage-marker pins go inactive when the next release ships.
+//
+// track('A4: docs claim 418 test files / 6943 tests (post-v7.7.7 stats)', () => {
+//   ...
+// });
 
 // ── A5a: TEST_FILES is dynamic in audit-doc-drift ───────────
 

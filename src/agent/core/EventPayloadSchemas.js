@@ -163,6 +163,12 @@ const SCHEMAS = {
   // v7.6.0: emitted from SelfModificationPipelineModify when target file
   // extension is not in the language-allow-list. Audit §3.2.
   'selfmod:language-guard-blocked': { targetFile: 'required', ext: 'required', allowedExt: 'required' },
+  // v7.7.8: emitted from SelfModificationPipelineModify when the
+  // trigger-sanity-check refuses self-mod because origin was casual chat.
+  'selfmod:trigger-sanity-blocked': { intentClass: 'required', originText: 'optional', message: 'optional' },
+  // v7.7.8: emitted from AgentLoopPursuitReflection after a goal-failure
+  // is classified into one of five categories.
+  'agent:goal-failed-classified': { goalId: 'optional', goalDescription: 'optional', errorMessage: 'required', classification: 'required', stepsExecuted: 'optional' },
 
   // Daemon
   'daemon:skill-created':    { skill: 'required', reason: 'required' },

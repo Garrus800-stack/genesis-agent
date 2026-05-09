@@ -50,8 +50,50 @@ function _atomicWriteFileSync(filePath, content, encoding = 'utf-8') {
 
 const selfModificationPipelineModify = {
 
-  async modify(message) {
+  async modify(message, originContext = null) {
     this._gateStats.totalAttempts++;
+
+    // v7.7.8: Trigger-sanity-check — refuse self-modification when the
+    // origin is a casual-conversation classification. The Live-Session
+    // 2026-05-09 showed Genesis building a 15-step plan including
+    // self-modify out of "das kannst du machen :-)". Pipeline.modify()
+    // is currently only reached via /self-modify slash command, but
+    // defense-in-depth: if any future path (programmatic, plan-step,
+    // etc.) reaches here with a casual-chat origin, refuse and report
+    // transparently. Genesis-internal triggers (IdleMind, MetaCognitive)
+    // pass originContext=null and proceed normally.
+    if (originContext && typeof originContext === 'object') {
+      const intentClass = originContext.intentClass;
+      const isCasualOrigin = typeof intentClass === 'string' &&
+        intentClass.startsWith('conversational-');
+      const isExplicit = originContext.viaSlashCommand === true;
+
+      if (isCasualOrigin && !isExplicit) {
+        this._gateStats.consciousnessBlocked++;
+        const blockReason =
+          `origin was casual conversation (${intentClass}), not an explicit self-modification request`;
+        _log.warn(`[SELFMOD] Blocked: ${blockReason}`);
+        this.bus.fire('selfmod:trigger-sanity-blocked', {
+          intentClass,
+          originText: typeof originContext.description === 'string'
+            ? originContext.description.slice(0, 120) : null,
+          message: typeof message === 'string' ? message.slice(0, 100) : '',
+        }, { source: 'SelfModPipeline' });
+        // v7.7.8: Self-close the origin goal as obsolete with transparent
+        // reason — partner-not-tool stance: Genesis reports openly why
+        // it stopped a path, doesn't just silently abandon.
+        if (originContext.goalId && this._parent?.goalStack?.markObsolete) {
+          try {
+            this._parent.goalStack.markObsolete(originContext.goalId,
+              'self-modification refused: trigger was casual conversation');
+          } catch (_e) { /* goalStack optional */ }
+        }
+        return `🛑 **Self-Modifikation abgelehnt** — ${blockReason}.\n\n` +
+          `Genesis modifiziert sich nicht aus beiläufiger Konversation. Für ` +
+          `eine bewusste Anweisung: \`/self-modify <beschreibung>\` ` +
+          `oder \`/refactor <beschreibung>\`.`;
+      }
+    }
 
     // v7.4.7: First gate — `security.allowSelfModify` setting.
     // The user can switch this off in Settings to fully block all

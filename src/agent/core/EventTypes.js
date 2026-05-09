@@ -108,6 +108,9 @@ const EVENTS = Object.freeze({
     OPEN_IN_EDITOR:       'agent:open-in-editor',
     /** @payload {{ state: string, model?: string, memory?: object }} — IPC push to renderer */
     STATUS_UPDATE:        'agent:status-update',
+    /** v7.7.8: emitted by AgentLoopPursuitReflection when a goal pursuit fails and the failure has been classified into one of five categories (structural / execution / external / user-action / unclassified). Telemetry-only — Genesis writes a corresponding self-statement to selfStatementLog and a Lesson if the classification is stable; the bus event is for downstream consumers (dashboard widget, audit log, future cross-session learning). */
+    /** @payload {{ goalId: string|null, goalDescription: string|null, errorMessage: string, classification: 'structural'|'execution'|'external'|'user-action'|'unclassified', stepsExecuted: number }} */
+    GOAL_FAILED_CLASSIFIED: 'agent:goal-failed-classified',
   }),
 
   // ── Safety ─────────────────────────────────────────────
@@ -242,6 +245,9 @@ const EVENTS = Object.freeze({
     /** v7.5.9 ZIP3 Phase 4c: emitted when language-guard rejects a target file (extension not in selfModify.allowedExtensions) or a generated patch (foreign-language shebang/shell-decl). Two payload shapes: target-file-rejection has {targetFile, ext, allowedExt}; patch-rejection has {file, reason, preview}. */
     /** @payload {{ targetFile?: string, ext?: string, allowedExt?: string[], file?: string, reason?: string, preview?: string }} */
     LANGUAGE_GUARD_BLOCKED: 'selfmod:language-guard-blocked',
+    /** v7.7.8: emitted when the trigger-sanity-check refuses self-modification because the origin context was a casual conversation (intentClass starts with 'conversational-' and viaSlashCommand !== true). Telemetry-only — no backend listener; the block-result is reported to the user via the modify() return value, the bus event is for downstream telemetry consumers (UI dashboard, audit logs, .genesis/sessions journal). */
+    /** @payload {{ intentClass: string, originText: string|null, message: string }} */
+    TRIGGER_SANITY_BLOCKED: 'selfmod:trigger-sanity-blocked',
   }),
 
   // ── Cognitive Monitor ──────────────────────────────────

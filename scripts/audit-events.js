@@ -396,6 +396,13 @@ const RESERVED_TELEMETRY_ONLY = new Set([
   'narrative:updated',       // SelfNarrative output, journaled to .genesis/
   'reasoning:started',       // ReasoningEngine trace start (chatty)
   'symbolic:resolved',       // SymbolicResolver per-resolution trace
+  // v7.7.8 telemetry-only events — fire-and-trace by design, no backend listener.
+  // The block-result is reported to the user via the function return value
+  // (modify() returns a string), the journal entry happens via selfStatementLog,
+  // the bus events are intentional for dashboard / audit / cross-session-learning
+  // consumers to subscribe later without forcing a backend handler today.
+  'selfmod:trigger-sanity-blocked',
+  'agent:goal-failed-classified',
 ]);
 
 // Dynamic event patterns that won't have static matches

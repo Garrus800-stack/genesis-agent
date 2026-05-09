@@ -110,6 +110,41 @@ class IntentRouter {
       return { type: 'general', confidence: 0.95, stage: 'conversational-reaction' };
     }
 
+    // v7.7.8: Permission-closing — user grants open-ended permission at
+    // the end of a conversation ("mach was du willst :-)" / "sounds good,
+    // you can do that"). Not a goal — Genesis decides what to do
+    // (idle-mind, journal, reflect). Detected by combination of markers:
+    // smileys, optional-permission verbs, open-ended-redirects,
+    // acknowledgment-continuations. >=2 markers + length<200 + no
+    // action verb = closing. Single markers fall through (e.g. "klingt
+    // gut" alone is not enough — could precede a real goal).
+    const closingMarkers = [
+      // Universal — emoji-as-closing-sigil
+      /[:;]-?[)D]/,
+      // Open-ended-redirects (DE)
+      /\b(etwas\s+ganz\s+anderes|etwas\s+anderes|oder\s+(so|was\s+anderes))\b/i,
+      // Open-ended-redirects (EN)
+      /\b(something\s+(completely\s+)?different|anything\s+else|or\s+something|or\s+whatever)\b/i,
+      // Optional-permission (DE)
+      /\b(kannst\s+du\s+machen|magst\s+du|wenn\s+du\s+(willst|magst|lust\s+hast))\b/i,
+      // Optional-permission (EN)
+      /\b(you\s+(can|could)\s+do\s+that|if\s+you\s+(want|like|feel\s+like)|feel\s+free|go\s+for\s+it)\b/i,
+      // Acknowledgment-continuations (DE)
+      /\b(das\s+klingt\s+gut|klingt\s+gut|alles\s+gut|passt\s+schon|gerne|in\s+ruhe)\b/i,
+      // Acknowledgment-continuations (EN)
+      /\b(sounds\s+good|sounds\s+great|that'?s\s+(fine|good|great)|all\s+good|take\s+your\s+time)\b/i,
+    ];
+    // Action-verb check (extended for v7.7.8 — see hasActionVerb below).
+    // Actionable phrasings veto closing-classification even with multiple
+    // markers, e.g. "sounds good, refactor X :-)" is a real goal.
+    const closingActionVerb = /\b(refactor|integrier|integrate|update|migrier|migrate|weiter\s+(machen|arbeiten)|continue\s+with|keep\s+(going|working))\b/i;
+    const closingMatchCount = closingMarkers.filter(p => p.test(trimmed)).length;
+    if (closingMatchCount >= 2 && trimmed.length < 200 &&
+        !closingActionVerb.test(trimmed) &&
+        !/\b(erstell|baue|fix|deploy|starte|führe\s+aus|run\s|execute|compile|push|commit)/i.test(trimmed)) {
+      return { type: 'general', confidence: 0.9, stage: 'conversational-permission-closing' };
+    }
+
     // Meta-curiosity about Genesis itself — checked BEFORE question-word
     // because phrases like "was hat sich geändert" start with "was" but
     // are more specifically meta-curiosity.

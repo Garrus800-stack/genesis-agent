@@ -3,36 +3,24 @@
 // ============================================================
 // GENESIS — AgentLoopPursuit.js (v7.6.9)
 //
-// Mixin extraction of pursue() and _executeLoop() from
-// AgentLoop.js. Holds the pursuit sequence: input parsing,
-// goal-creation, isolation checks, Phase 1 PLAN, Phase 1b
-// SIMULATE, Phase 1c CONSCIOUSNESS, Phase 2 EXECUTE LOOP,
-// post-execute cleanup.
+// Mixin extraction of pursue() and _executeLoop() from AgentLoop.js.
+// Holds the pursuit sequence: input parsing, goal-creation, isolation
+// checks, Phase 1 PLAN, Phase 1b SIMULATE, Phase 1c CONSCIOUSNESS,
+// Phase 2 EXECUTE LOOP, post-execute cleanup.
 //
-// Mounted onto AgentLoop.prototype via:
-//   Object.assign(AgentLoop.prototype, agentLoopPursuitMixin)
-//
-// Pattern note — mixin vs delegate
-// ─────────────────────────────────
-// AgentLoop.js historically uses the delegate-pattern
-// (AgentLoopPlannerDelegate, AgentLoopStepsDelegate,
-// AgentLoopCognitionDelegate, AgentLoopRecoveryDelegate) for
-// isolated helper concerns. Mixin pattern is used here because
-// pursue/_executeLoop are core orchestration methods with deep
-// state-coupling to the AgentLoop instance: 23 distinct this.X
-// reads in pursue, 19 in _executeLoop, including writes to
-// running/currentGoalId/executionLog/consecutiveErrors/
-// stepCount/_currentPlan/_workspace/_aborted. Delegate-pattern
-// would require ~50 verbose this.agentLoop.X references and
-// risks subtle this-binding bugs in arrow callbacks. Mixin
-// keeps them as class-methods on AgentLoop.prototype, only the
-// source location changes — same approach as Settings v7.6.7,
-// GoalStack v7.6.8, ModelBridgeFailover v7.6.5.
+// Mounted onto AgentLoop.prototype via Object.assign with the mixin.
+// Mixin (not delegate) chosen because pursue/_executeLoop are core
+// orchestration with deep state-coupling (~40 this.X reads + writes
+// to running/currentGoalId/executionLog/stepCount/_currentPlan/etc).
+// Same approach as Settings v7.6.7, GoalStack v7.6.8, ModelBridgeFailover
+// v7.6.5. Plan-failure reflection extracted to AgentLoopPursuitReflection
+// in v7.7.8 to keep this file under the 700-LOC fitness limit.
 // ============================================================
 
 const { TIMEOUTS, LIMITS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
 const { CorrelationContext } = require('../core/CorrelationContext');
+const { reflectOnFailure } = require('./AgentLoopPursuitReflection');
 const { CancellationToken } = require('../core/CancellationToken');
 const { NullWorkspace } = require('../ports/WorkspacePort');
 
@@ -139,6 +127,19 @@ const agentLoopPursuitMixin = {
           toolsUsed: [],
         }, { source: 'AgentLoop' });
       } catch (_e) { /* never let emit break the return path */ }
+      // v7.7.8: Plan-failure-reflection — see AgentLoopPursuitReflection.js
+      // for rationale. Single call, all wrapped in try/catch internally so
+      // a reflection error never breaks the failure-return.
+      reflectOnFailure({
+        bus: this.bus,
+        lessonsStore: this.lessonsStore,
+        selfStatementLog: this.selfStatementLog,
+      }, {
+        goalId: this.currentGoalId,
+        goalDescription: typeof goalDescription === 'string' ? goalDescription : null,
+        errorMessage: errorMessage || '',
+        stepsExecuted: this.stepCount,
+      });
     };
 
     // v5.2.0: Structured cancellation token for this goal.

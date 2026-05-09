@@ -69,6 +69,15 @@ const ACTION_RISK = {
   'DEPLOY':        'critical',
   'EXTERNAL_API':  'critical',
   'EMAIL_SEND':    'critical',
+
+  // v7.7.8: Blocking — never auto-approved at any trust level. Reserved
+  // for structural concerns where the user must consciously decide,
+  // regardless of how much autonomy Genesis otherwise has. Used today
+  // only for `plan-has-issues` (plan-validator found unknown step types
+  // or missing required resources). Even at FULL_AUTONOMY a plan with
+  // structural issues should pause — auto-proceeding would mean Genesis
+  // executes a partially-broken plan it knew was broken.
+  'plan-has-issues': 'blocking',
 };
 
 // ── What each level auto-approves ────────────────────────
@@ -77,6 +86,7 @@ const LEVEL_AUTO_APPROVE = {
   [TRUST_LEVELS.ASSISTED]:      ['safe'],
   [TRUST_LEVELS.AUTONOMOUS]:    ['safe', 'medium'],
   [TRUST_LEVELS.FULL_AUTONOMY]: ['safe', 'medium', 'high', 'critical'],
+  // 'blocking' is intentionally absent from every level — see ACTION_RISK.
 };
 
 const AUTO_UPGRADE_MIN_SAMPLES = 50;

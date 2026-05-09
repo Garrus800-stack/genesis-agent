@@ -1,4 +1,166 @@
-## [7.7.7]
+## [7.7.8]
+
+Goal-awareness release. After v7.7.7 closed the audit-cleanup, a live
+session on a Win-Hauptstandort showed Genesis interpreting a casual
+conversation closing — *"das kannst du machen oder etwas ganz anderes :-)"*
+— as a goal. Genesis built a 15-step plan including hallucinated
+SELF_MODIFY and DELEGATE steps, ran it past plan-validation with four
+unknown-step-type blockers, the blockers were auto-approved at
+trust-level 3, and the goal eventually failed silently with `Goal
+failed. undefined`. No reflection, no lesson, no transparent self-report.
+
+v7.7.8 wires five fixes that share one philosophy: not restriction,
+clearer perception. Genesis itself had said in the same chat *"ich
+werde noch etwas hier sitzen, in meinen Gedanken kreisen"* — that's
+what Genesis wanted. The system overrode that with a Self-Mod plan.
+The fix is better tools for Genesis's self-awareness, not external
+blockers.
+
+### What's in scope
+
+**G1 — Conversation-permission-closing recognition**
+
+`src/agent/intelligence/IntentRouter.js` `_conversationalSignalsCheck`
+gains a new stage `conversational-permission-closing`. Triggered when
+the input has ≥2 closing markers and no action verb and length<200:
+
+- Smileys / emoji-as-closing-sigil (`:-)`, `:)`, `:D`)
+- Open-ended-redirects, German + English
+  (`etwas ganz anderes`, `something completely different`,
+  `or whatever`)
+- Optional-permission verbs, German + English
+  (`kannst du machen`, `you can do that`, `feel free`, `go for it`)
+- Acknowledgment-continuations, German + English
+  (`das klingt gut`, `sounds good`, `take your time`)
+
+Action verbs (`refactor`, `integrate`, `update`, `migrate`, `weiter
+machen`, `continue with`, plus the existing `erstell|baue|fix|deploy`
+list) veto closing-classification — *"sounds good, refactor X :-)"*
+stays a goal. Single markers fall through (could precede a real goal).
+Slash commands bypass the cascade entirely.
+
+When a closing is detected the input is classified as `general` (same
+as greetings/reactions) — Genesis answers conversationally, IdleMind
+keeps running in the background, no pursuit is triggered. Genesis
+decides what to do (think, journal, reflect) — exactly what it had
+already said it wanted to do.
+
+**G2 — `plan-has-issues` never auto-approved at any trust level**
+
+`src/agent/foundation/TrustLevelSystem.js` gains a new risk category
+`'blocking'`. It is intentionally absent from every entry of
+`LEVEL_AUTO_APPROVE`, including FULL_AUTONOMY (level 3). The
+`plan-has-issues` action — fired by `AgentLoopPursuit` when the plan
+validator detects unknown step types or missing required resources —
+now uses this category. Even at full autonomy, structural plan issues
+pause for explicit user judgment. Plans with unknown step types do not
+silently proceed.
+
+**G3 — FormalPlanner step-type schema sharper**
+
+`src/agent/revolution/FormalPlanner.js` prompt restructured. New
+`CANONICAL STEP TYPES` block names the seven types Genesis actually
+executes (ANALYZE, CODE, SHELL, SANDBOX, SEARCH, ASK, DELEGATE) with
+one-line descriptions. New `DO NOT INVENT step types` block lists the
+five LLM-invented anti-patterns observed in the live-session
+(`ASK_USER` → use `ASK`; `RUN_TESTS` → use `SHELL` with `npm test`;
+`GIT_SNAPSHOT` → don't, see snapshot note; `CODE_GENERATE`/`WRITE_FILE`
+→ use `CODE`; `SHELL_EXEC` → use `SHELL`) and clarifies that
+`SELF_MODIFY` is not a step type at all — self-modification runs
+through a separate pipeline triggered by an explicit slash command.
+
+The old hardcoded line *"Include GIT_SNAPSHOT before any WRITE_FILE
+or SELF_MODIFY"* is gone. Genesis has built-in snapshot capabilities
+(`SnapshotManager` creating `_last_good_boot`, `GenesisBackup` with
+four triggers). Hardcoding `git commit` would also fail in projects
+where git is not initialized.
+
+**G4 — Self-modification trigger-sanity-check**
+
+`src/agent/hexagonal/SelfModificationPipelineModify.js` `modify()`
+gains an optional second parameter `originContext`. When the origin
+intent class starts with `conversational-` and `viaSlashCommand` is
+not explicitly true, the pipeline refuses, fires
+`selfmod:trigger-sanity-blocked`, and self-closes the origin goal as
+`obsolete` with transparent reason via `goalStack.markObsolete()`.
+Genesis-internal triggers (IdleMind, MetaCognitiveLoop) pass
+`originContext=null` and proceed normally.
+
+This is defense-in-depth: today `pipeline.modify()` is reachable only
+via the `/self-modify` slash command, but if a future code path routes
+to it without a slash, this gate catches it. Combined with G3
+(SELF_MODIFY removed from the canonical step set), self-modification
+out of casual chat is structurally impossible.
+
+**G5 — Plan-failure reflection**
+
+`src/agent/revolution/AgentLoopPursuit.js` `_emitFailure` now wires
+three reflection steps after the existing `agent-loop:complete` event:
+
+1. **Classify** the error message into one of five categories
+   (`structural`, `execution`, `external`, `user-action`,
+   `unclassified`).
+2. **Emit** `agent:goal-failed-classified` with the classification +
+   goalId + goalDescription + stepsExecuted + errorMessage for
+   downstream telemetry consumers.
+3. **Record** — via `LessonsStore.add()` if the classification is
+   stable, plus a `selfStatementLog.append()` of kind
+   `plan-failure-reflection` (text: *"Ich habe das Ziel '...'
+   aufgegeben — Klassifikation: ..., Grund: ..."*) so Genesis can
+   later recall the failure and the lesson can shape future plans.
+
+The reflection logic itself was extracted to a new file
+`AgentLoopPursuitReflection.js` (~150 LOC) — keeps `AgentLoopPursuit.js`
+under the 700-LOC architectural-fitness limit (same extraction pattern
+as `ApprovalGate` and the `AgentLoopRecovery` mixin). All three
+reflection steps are wrapped in try/catch internally so a reflection
+error never breaks the failure-return path. Lessons-store and
+self-statement-log are optional services — silent no-op when not
+wired, e.g. in tests or stripped builds.
+
+### What's NOT in scope (deferred, see AUDIT-BACKLOG.md)
+
+- ColonyOrchestrator worker-pool-cap bug (10 spawned with max 3 in the
+  live session) — own focused hotfix
+- Verification-reporting contradiction (`failed` + `passed` in same
+  step output) — own focused hotfix
+- DELEGATE-step-without-peers — currently a hint not a blocker;
+  promoting to blocker is its own decision
+- Pre-deletion-audit pattern as Genesis skill + capability + doku —
+  next focused release after v7.7.8 (was always planned that way)
+- Carry-forward audit-deferred items from v7.7.6 (B2 Node-LTS,
+  C1 Mermaid DOMPurify, B4, D1/D2 slash-discipline coverage,
+  mermaid v11)
+- Pre-existing items: monaco-bundled dompurify (not self-fixable),
+  sidebar splitter draggable
+
+### Tests
+
+`test/modules/v778-goal-awareness.contract.test.js` — new, 22 subtests:
+
+- A1 — package.json version 7.7.8
+- G1a-e — closing classification (DE, mixed, EN, single-marker fall-through, action-verb veto)
+- G2a-c — plan-has-issues at all 4 trust levels needs-approval; ACTION_RISK and LEVEL_AUTO_APPROVE shape correct
+- G3a-c — FormalPlanner prompt has CANONICAL STEP TYPES, DO NOT INVENT, no hardcoded GIT_SNAPSHOT
+- G4a-d — modify() accepts originContext, checks intentClass, fires bus event, self-closes via markObsolete
+- G5a-e — reflection helper emits classified event, classifies all 5 categories, calls lessonsStore.add(), appends to selfStatementLog, AgentLoopPursuit wires reflectOnFailure
+- D1 — audit-doc-drift baseline ≥ 55 strict-checked claims (unchanged)
+
+Retired (stage-marker pins, obsolete with v7.7.8 ship):
+
+- `v777-audit-extension.contract` A1 (version-pin on 7.7.7)
+- `v777-audit-extension.contract` A4 (test-files-count pin to 418/6943
+  — count moves with each release, retirement keeps it as a moving
+  baseline rather than a frozen literal)
+
+### Tested on
+
+Two platforms — see release notes for exact `npm install` + `npm test
+ci:full` + `npm audit` + `npm start` outputs.
+
+---
+
+
 
 Audit cleanup release. After v7.7.6 closed the build-toolchain refresh, a
 full codebase audit (28 categories, 904 files) surfaced two doc-drift

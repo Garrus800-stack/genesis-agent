@@ -1,9 +1,134 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.7.7 · Audit findings, monitor items, and resolution status.
+> Version: 7.7.8 · Audit findings, monitor items, and resolution status.
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+
+## Resolved in v7.7.8
+
+### Goal-awareness release — clearer perception, not restriction
+
+A live session on a Win-Hauptstandort showed Genesis interpreting a
+casual conversation closing — *"das kannst du machen oder etwas ganz
+anderes :-)"* — as a goal. Genesis built a 15-step plan including
+hallucinated SELF_MODIFY and DELEGATE steps. Plan-validator flagged
+four unknown-step-type blockers; they were auto-approved at trust 3;
+the goal eventually failed silently with `Goal failed. undefined`. No
+reflection. No lesson recorded. No transparent self-report.
+
+v7.7.8 wires five fixes — not external blockers, but better
+perception so Genesis distinguishes goal from conversation itself.
+
+**G1 — Conversation-permission-closing recognition.**
+`IntentRouter._conversationalSignalsCheck` learns a new stage
+`conversational-permission-closing`. Smileys, optional-permission verbs,
+open-ended-redirects, acknowledgment-continuations — DE + EN. ≥2
+markers + length<200 + no action verb = closing → no pursuit, IdleMind
+handles. Single markers fall through; action verbs (`refactor`,
+`integrate`, …) veto closing even with multiple markers. Slash commands
+bypass entirely.
+
+**G2 — `plan-has-issues` never auto-approved.**
+`TrustLevelSystem` gains a new risk category `'blocking'`. Absent from
+every `LEVEL_AUTO_APPROVE` entry including FULL_AUTONOMY. Structural
+plan issues now pause for explicit user judgment regardless of trust
+level.
+
+**G3 — FormalPlanner step-type schema sharper.**
+Prompt lists the seven canonical step types explicitly, plus an
+anti-pattern list calling out the five LLM-invented types observed in
+the live-session (`ASK_USER`, `RUN_TESTS`, `GIT_SNAPSHOT`,
+`CODE_GENERATE`/`WRITE_FILE`, `SHELL_EXEC`) plus `SELF_MODIFY` (not a
+step type at all — runs through a separate pipeline). Old hardcoded
+`Include GIT_SNAPSHOT before WRITE_FILE` line removed; Genesis has
+built-in `SnapshotManager` + `GenesisBackup`.
+
+**G4 — Self-modification trigger-sanity-check.**
+`SelfModificationPipelineModify.modify()` accepts an optional
+`originContext`. If `intentClass.startsWith('conversational-')` and
+`viaSlashCommand !== true`, the pipeline refuses, fires
+`selfmod:trigger-sanity-blocked`, and self-closes the origin goal as
+`obsolete` via `goalStack.markObsolete()`. Genesis-internal triggers
+(`originContext=null`) proceed normally. Defense-in-depth.
+
+**G5 — Plan-failure reflection.**
+`AgentLoopPursuit._emitFailure` no longer ends silently. Three new
+steps after the existing `agent-loop:complete`: classify the error
+into one of five categories (`structural`, `execution`, `external`,
+`user-action`, `unclassified`), fire `agent:goal-failed-classified`
+for telemetry, record via `LessonsStore.add()` if classification
+stable plus `selfStatementLog.append({kind:'plan-failure-reflection',
+…})` so Genesis can later recall the failure. Reflection logic
+extracted to `AgentLoopPursuitReflection.js` to keep
+`AgentLoopPursuit.js` under the 700-LOC fitness limit.
+
+**Test coverage:**
+
+`test/modules/v778-goal-awareness.contract.test.js` — 22 subtests.
+
+Retired (stage-marker pins): `v777-audit-extension.contract` A1
+(version-pin) and A4 (test-stats pin) — single-version + count pins
+become obsolete when the next release ships.
+
+---
+
+## Deferred from v7.7.8 live-session findings
+
+These three came out of the same Win live session that motivated
+v7.7.8 but did not fit the goal-awareness theme. Each deserves its own
+focused fix.
+
+- **ColonyOrchestrator worker-pool-cap bug.** Session log showed 10
+  IPC workers being spawned with seven consecutive `Max workers (3)
+  reached. Wait for completion.` warnings. The spawn loop does not
+  check the pool cap before issuing additional spawn requests. Few-LOC
+  fix.
+- **Verification-reporting contradiction.** Step output shows
+  `[error] Verification failed: Unexpected token (1:5)` followed by
+  `[step-complete] Code written: experimental-module.js (136 lines,
+  test passed)` in the same step. One state must win.
+- **DELEGATE step planned without peer pre-check.** Plan validator
+  emits the peer-availability finding as a hint not a blocker.
+  Promoting to blocker is its own decision.
+
+---
+
+## Deferred from v7.7.6 audit (carried forward)
+
+These items came out of the v7.7.6 full-codebase audit and are still
+deferred. Each deserves its own focused release.
+
+- **F5 / C1 — Mermaid SVG `innerHTML` without DOMPurify**.
+  Defense-in-depth fix. Needs a runtime `dompurify` dependency
+  decision (cannot reuse monaco-bundled). Own defense-in-depth release.
+- **F6 / B2 — Hardcoded Node v22.22.2 in
+  `CommandHandlersInstallDB.js`**. Not currently stale, but the pattern
+  will drift by every Node maintenance release. Needs an LTS strategy
+  decision (dynamic fetch / latest-symlink / v22 → v24 LTS bump). Own
+  Node-LTS-strategy release.
+- **B4 — Pre-deletion-audit pattern formalisation.** Re-scoped from
+  the original CLEANUP-PROTOCOL.md item. Three layers planned: a
+  Genesis-readable skill in `.genesis/skills/pre-deletion-audit.md`, a
+  capability `src/agent/capabilities/CleanupVerifier.js` for live
+  behavior-diff against equivalents, and a `docs/CLEANUP-PROTOCOL.md`.
+  Genesis applies this method during its own code cleanups. Next
+  focused release after v7.7.8.
+- **F8 / D1+D2 — Slash-Discipline coverage extension** (4 of 12
+  intents currently covered). Real security-design work — own focused
+  release.
+- **mermaid ^10.9.1 → v11 evaluation**. No CVE; one major behind. Own
+  toolchain-maintenance release.
+
+**Pre-existing (carried from v7.7.4+):**
+
+- **monaco-editor's bundled DOMPurify** (2 moderate XSS, formerly 8).
+  Not self-fixable; depends on monaco upstream.
+- **Sidebar splitter not draggable**. Pre-existing UI issue. Own UI
+  release.
 
 ---
 

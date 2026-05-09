@@ -304,6 +304,25 @@ YOUR CAPABILITIES: ${capabilities.join(', ')}
 RECENTLY MODIFIED FILES: ${recentFiles}
 ${context.memory ? `MEMORY CONTEXT: ${context.memory.buildContext?.(goalDescription) || ''}` : ''}
 
+CANONICAL STEP TYPES (use ONLY these — others will be rejected):
+- ANALYZE: read, parse, understand existing code or context
+- CODE: write or modify code (file path required)
+- SHELL: run an OS-level command (git, npm, build, test)
+- SANDBOX: run code in isolation for verification
+- SEARCH: search files, web, or knowledge graph
+- ASK: request user clarification or input
+- DELEGATE: hand off to a peer agent (requires reachable peers)
+
+DO NOT INVENT step types. Common mistakes to avoid:
+- "ASK_USER" → use "ASK"
+- "RUN_TESTS" → use "SHELL" with command "npm test"
+- "GIT_SNAPSHOT" / "GIT_COMMIT" → see snapshot note below; do not add explicit git steps
+- "CODE_GENERATE" / "WRITE_FILE" → use "CODE"
+- "SHELL_EXEC" → use "SHELL"
+- "SELF_MODIFY" is NOT a step type. Self-modification runs through a
+  separate pipeline triggered explicitly by the user (slash command).
+  Do not include it in plans.
+
 Respond with JSON only:
 {
   "title": "Short goal title",
@@ -320,12 +339,17 @@ Respond with JSON only:
 }
 
 Rules:
-- Each step must have a type from AVAILABLE ACTION TYPES
+- Each step must have a type from CANONICAL STEP TYPES above
 - Keep steps atomic — one action per step
-- Include GIT_SNAPSHOT before any WRITE_FILE or SELF_MODIFY
-- Include RUN_TESTS after code changes
+- Snapshots: Genesis has built-in snapshot capabilities (SnapshotManager
+  + GenesisBackup) that fire automatically before risky operations. Do
+  NOT add explicit "GIT_SNAPSHOT" or "git commit" steps to plans —
+  they would duplicate built-in safety and fail when git is not
+  initialized in the project.
+- Include a SHELL step running "npm test" after CODE steps when the
+  project has tests (covered by package.json scripts)
 - Maximum 15 steps
-- Use ANALYZE before CODE_GENERATE to understand existing code
+- Use ANALYZE before CODE to understand existing code
 - For SHELL steps, use commands appropriate for ${osName} (see ENVIRONMENT above)
 - For file operations, use paths relative to or absolute under rootDir`;
 
