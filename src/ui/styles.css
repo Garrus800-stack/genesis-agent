@@ -75,6 +75,12 @@ body {
 .badge-ready { background: var(--success); color: #000; }
 .badge-working { background: var(--accent); color: #fff; animation: pulse 1.5s infinite; }
 .badge-error { background: var(--error); color: #fff; }
+/* v7.7.3: dedicated colors for thinking / insight / resting states.
+   Previously these mapped onto badge-working/badge-ready, making
+   semantically distinct states visually identical. */
+.badge-thinking { background: #4c8bf5; color: #fff; animation: pulse 2.5s infinite; }
+.badge-insight { background: #fbbf24; color: #000; animation: pulse 2s infinite; }
+.badge-resting { background: #5a6378; color: var(--text-primary); }
 
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 

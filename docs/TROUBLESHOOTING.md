@@ -12,10 +12,10 @@ Common issues and their solutions. If your problem isn't listed here, [open an i
 
 **Fix:** Genesis has only 3 production + 3 optional dependencies — none require native compilation. Check:
 ```bash
-node --version    # Must be ≥ 18.0.0
+node --version    # Must be ≥ 22.0.0 (Active LTS)
 npm --version     # Should be ≥ 9
 ```
-If using Node 22+, try: `npm install --ignore-scripts`
+If `node-gyp` errors persist, try: `npm install --ignore-scripts`
 
 ### Electron fails to start on Linux (GPU errors)
 
@@ -108,7 +108,7 @@ v737-active-refs-port... ❌ Error: node: bad option: --test-force-exit
 
 **Fix:** Install Node 22 — see [QUICK-START.md](QUICK-START.md#debian--ubuntu--mint) for both NodeSource and nvm options.
 
-After Node 22, expect 5868–5870 passed and 0–1 failed (the one allowed failure is `linux-sandbox unshare`, see next entry).
+After Node 22, expect ~6900 passed and 0–1 failed (the one allowed failure is `linux-sandbox unshare`, see next entry).
 
 ### Linux: "linux-sandbox unshare" test fails
 
@@ -547,7 +547,7 @@ Marking is conservative — a candidate is just a suggestion, not a directive. M
 
 ---
 
-## v7.5.9 Linux quirks
+## Linux: Genesis-specific quirks
 
 ### `/install <pkg>` says "✅ installiert" but `/open <pkg>` doesn't find it
 

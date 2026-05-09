@@ -10,7 +10,7 @@
 //   B. Small surgical fixes:
 //       B1. index.bundled.html removed
 //       B2. CommandHandlersInstallDB Node v22 LTS
-//       B3. statusbar STATE_TO_CSS.resting → 'ready'
+//       B3. (retired in v7.7.3 — see comment near former B3 location)
 //       B4. FILE_SIZE_CAPS now empty (post-split state)
 //   C. audit-doc-drift gitAuto pinning
 //   D. Caller-surface stability (renderer-main.js still works)
@@ -190,15 +190,13 @@ test('B2: CommandHandlersInstallDB nodejs entry uses Node v22 LTS', () => {
     'old v20.18.1 URL must be removed (dist/v20.18.1)');
 });
 
-test('B3: statusbar STATE_TO_CSS.resting maps to "ready" (semantic fix)', () => {
-  const src = fs.readFileSync(path.join(MOD, 'statusbar.js'), 'utf-8');
-  // Find the STATE_TO_CSS object
-  const block = src.match(/STATE_TO_CSS\s*=\s*\{[\s\S]*?\};/) || src.match(/const\s+STATE_TO_CSS\s*=\s*\{[\s\S]*?\}/);
-  assert.ok(block, 'STATE_TO_CSS object must exist');
-  // resting must map to 'ready' (was 'booting' in v7.7.1)
-  assert.match(block[0], /resting:\s*['"]ready['"]/,
-    'STATE_TO_CSS.resting must map to "ready" (was "booting" — semantic bug)');
-});
+// B3 was: STATE_TO_CSS.resting maps to 'ready' (v7.7.2 semantic fix from
+// 'booting'). Retired in v7.7.3 — that release introduced a dedicated
+// `.badge-resting` class with its own muted-grey color, so resting now
+// maps to 'resting' instead of 'ready'. The new behaviour is pinned in
+// `test/modules/v773-cleanup.contract.test.js` subtest C2. Same pattern
+// as v7.7.2 retiring the v7.7.1 file-size baseline subtests — keeps the
+// v7.7.x-by-x eras separate in the test history.
 
 test('B4: FILE_SIZE_CAPS is empty in architectural-fitness.js (post-split state)', () => {
   const src = fs.readFileSync(path.join(ROOT, 'scripts/architectural-fitness.js'), 'utf-8');

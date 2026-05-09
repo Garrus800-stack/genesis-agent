@@ -70,11 +70,11 @@ test('A7: ready → badge-ready', () => {
     `expected badge-ready, got ${dom.elements['status-badge'].className}`);
 });
 
-test('A7: thinking → badge-working (NOT badge-thinking — legacy parity)', () => {
+test('A7: thinking → badge-thinking (v7.7.3: dedicated class, was badge-working pre-v7.7.3)', () => {
   const { statusbar, dom } = setup();
   statusbar.updateStatus({ state: 'thinking' });
-  assert.ok(dom.elements['status-badge'].className.includes('badge-working'),
-    `expected badge-working, got ${dom.elements['status-badge'].className}`);
+  assert.ok(dom.elements['status-badge'].className.includes('badge-thinking'),
+    `expected badge-thinking, got ${dom.elements['status-badge'].className}`);
 });
 
 test('A7: self-modifying → badge-working', () => {

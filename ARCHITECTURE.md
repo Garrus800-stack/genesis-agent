@@ -1,53 +1,7 @@
-# Genesis Agent — Architecture Guide
+# Architecture Guide
 
-> Everything you need to understand how Genesis works, why it's built this way,
-> and how to add to it without breaking things.
->
-> Version: 7.7.1 · Last verified: 0 schema mismatches (453 catalogued events / 453 schemas),
-> 0 orphan / missing, 0 stale references, all event-validation checks green
-> (fitness, ratchet, and full test-suite numbers from the v7.6.1 baseline:
-> 6905 tests, fitness 130/130, audit-events:strict exit 0, audit-slash-discipline:strict exit 0).
-> v7.5.1 added an `intent-tool-coherence` cross-validator as a third gate-layer
-> alongside `injection-gate` and `self-gate` — see [docs/GATE-INVENTORY.md](docs/GATE-INVENTORY.md).
-> v7.5.9 added Plan-Cards (visual rendering for multi-step LLM responses) and a
-> Linux-readiness pass (~ expansion, sudo non-interactive, German folder
-> fallback, expanded apt/dnf/snap aliases).
-> v7.6.0 consolidated the UI dual-path: the bundled renderer (built
-> from `src/ui/modules/*.js` via esbuild) became the only loaded UI
-> codepath. ~40% reduction in UI maintenance surface. The legacy
-> monolithic `src/ui/renderer.js` was retired but its file remained
-> on disk as a blueprint reference; v7.7.0 finally deleted both the
-> file and its test (renderer.test.js).
-> v7.6.1 cleanup pass: ModelBridge chat()/streamChat() routing extracted
-> to a shared `_prepareCallContext()` helper (eliminates structural
-> drift between the two paths), SelfStatementLog classifier methods
-> extracted to a mixin module, PromptBuilderSections awareness-cluster
-> extracted to its own file, byte-identical `_versionContext` dead code
-> removed. Three files dropped under the 700-LOC threshold.
-> v7.7.1 hardening pass: Node 22 LTS baseline, EventStore<->GenesisBackup
-> race condition fixed (retry on EBUSY/EAGAIN/EPERM with call-stack-safe
-> buffer restore), git auto-init/auto-commit gated behind explicit
-> opt-in settings (was implicit on first ShellAgent execution).
-> v7.7.2 cleanup pass: monolithic `settings.js` (1073 LOC) split into
-> seven concern-specific modules — `settings-state.js` (shared state
-> with explicit getter/setter API), `settings-fields.js` (generic field
-> helpers + decoration + validation), `settings-loadsave.js` (openSettings
-> + saveSettings, the cross-cutting load/save logic), `settings-json-editor.js`
-> (JSON power-mode editor), `settings-fallback-ui.js` (fallback chain UI
-> with directly-importable pure helpers — replaces the v7.5.7 regex-source-
-> parsing test pattern), `settings-mcp-ui.js` (MCP servers UI), and the
-> facade `settings.js` (now 64 LOC, only the public surface). Two
-> non-settings concerns extracted to their own modules: `goal-management.js`
-> (showGoalTree + undoLastChange — wired to `#btn-goals` + `#btn-undo`,
-> never were settings) and `drag-drop.js` (setupDragDrop — chat-panel
-> file import). `chat.js` extended with `autoResize` (chat-input helper).
-> Plus surgical fixes: `index.bundled.html` deleted (md5-identical to
-> `index.html`), `CommandHandlersInstallDB.nodejs` URLs aligned with the
-> v22 LTS baseline, `STATE_TO_CSS.resting` mapped to `'ready'` (was
-> `'booting'` — semantic bug), `audit-doc-drift` extended with two
-> `gitAutoInit`/`gitAutoCommit` default-pinning checks (53 → 55 strict
-> claims). FILE_SIZE_CAPS now empty — the only capped file (settings.js)
-> was structurally split.
+> Everything you need to understand how Genesis works, why it's built this way, and how to add to it without breaking things.
+> For current stats see [docs/CAPABILITIES.md](docs/CAPABILITIES.md). For version history see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -833,9 +787,9 @@ Genesis has only 3 production dependencies (`acorn`, `chokidar`, `tree-kill`). T
 
 ---
 
-## 13. MemoryDecay System (v7.3.7)
+## 13. MemoryDecay System
 
-Introduced in v7.3.7 "Setting Up Home". Turns Episodic Memory from a flat
+Turns Episodic Memory from a flat
 ring buffer (hard-capped at 500) into a three-layer decay pipeline where
 episodes thin over time without being deleted.
 
@@ -1030,12 +984,9 @@ v7.3.7 made three design principles explicit so future work doesn't drift:
 
 ---
 
-## 14. RuntimeStatePort — Runtime-State Honesty (v7.4.0)
+## 14. RuntimeStatePort — Runtime-State Honesty
 
-Introduced in v7.4.0 "In the Now". Fixes the class of questions where Genesis
-would fabulate about his own running services. Before v7.4.0, asking "what
-are your settings" or "how do you feel" produced plausible invented
-answers because the PromptBuilder had no access to live service state.
+Fixes the class of questions where Genesis would fabulate about his own running services. Before this fix, asking "what are your settings" or "how do you feel" produced plausible invented answers because the PromptBuilder had no access to live service state.
 
 ### 14.1 The problem
 
@@ -1140,7 +1091,7 @@ identity block, the tests turn red immediately.
 
 ---
 
-## Principles (v7.3.7 – v7.4.0)
+## Principles
 
 1. **State on the object** (v7.3.7). Services carry their own state;
    callers do not pass it in.

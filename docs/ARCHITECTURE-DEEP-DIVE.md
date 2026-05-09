@@ -1,13 +1,12 @@
-# Genesis Agent — Architecture Deep-Dive
+# Architecture Deep Dive
 
-> Comprehensive technical analysis of Genesis Agent. Some sections may reference earlier version numbers where the underlying architecture is unchanged.
-> Last updated for v7.7.2: 12 boot phases, 168 services (155 manifest + 13 bootstrap), 338 source files, 6907 tests (Win baseline), 250+ capabilities, 21 hash-locked files (drift-checked by `audit-hash-lock-coverage.js` since v7.6.2; widened in v7.6.4 to cover PluginRegistry, SkillManager, PeerNetworkExchange — the three 2-of-3-gate files that act as the only defense against unscanned third-party code from plugins, skills, and peer exchange), 11 PreservationInvariants rules, five active runtime gates (Injection blocking, Self-Gate telemetry-only, Tool-Call-Verification detective, Slash-Discipline preventive, Reasoning-Block Filter strip-and-emit) plus 15 CI audit gates (full inventory in GATE-INVENTORY.md), synchronous source-read with per-turn budget, `failFastMs` semantics on CircuitBreaker (v7.4.3 — LLM circuit opted out, MCP circuit keeps 15s fail-fast), Model-Availability TTL marker with persistence (v7.5.6 — auth/rate-limit/timeout-aware lockout), Activity-claim confabulation detection on SelfStatementLog (v7.5.7 — present-progressive activity-claims cross-checked against goalStack snapshot), CostStream failover-counter (v7.6.3 — `model:failover-unavailable` events tracked separately from cost rows). CI ratchet locked at the v7.6.0 baseline (6014 floor, fitness 124 floor). 12 contract prefixes guard core safety boundaries (gate, injection-gate, preservation, self-gate, sandbox, shell-safety, self-statement, code-safety, capability, mcp-security, plugin, selfmod) — verified by `audit-contracts --strict` since v7.6.4.
+> Comprehensive technical analysis of Genesis. For current stats see [CAPABILITIES.md](CAPABILITIES.md). For version history see [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 
 ## 1. System Overview
 
-Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises **338 JS source modules** across **~106,000 LOC** of production code, supported by **406 test files / 6907 tests** (Win baseline, v7.7.2) with coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), **automatic offline failover** (NetworkSentinel, v6.0.5), and **same-backend failover with TTL-marked unavailability** (v7.5.6 — recovers from sticky model errors like 403/429/timeout without per-tick retry storms).
+Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built as an Electron desktop application with multi-backend LLM support (Anthropic Claude, OpenAI-compatible, local via Ollama). The codebase comprises hundreds of JS source modules with extensive test coverage (live stats in [CAPABILITIES.md](CAPABILITIES.md)) and coverage gates enforced in CI. It is the first AI agent framework with **closed-loop self-improvement** (CognitiveSelfModel → AdaptiveStrategy, v6.0.2), **proportional intelligence** (CognitiveBudget → ExecutionProvenance → AdaptivePromptStrategy, v6.0.4), **automatic offline failover** (NetworkSentinel, v6.0.5), and **same-backend failover with TTL-marked unavailability** (v7.5.6 — recovers from sticky model errors like 403/429/timeout without per-tick retry storms).
 
 ### Key Numbers
 
@@ -15,7 +14,7 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
 | Source Modules | 338 JS files |
-| Test Files / Tests | 406 / 6907 (Win baseline) |
+| Test Files / Tests | 413 / 6917 (Win baseline) |
 | DI Services | 168 (155 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |

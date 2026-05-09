@@ -1,6 +1,6 @@
 # Skill Security Model
 
-**v7.7.2 — What community skills can and cannot do.**
+**What community skills can and cannot do.**
 
 Genesis runs all community skills inside a security sandbox. This document defines the exact boundary — what your skill has access to, what it doesn't, and why.
 
@@ -11,7 +11,7 @@ Genesis runs all community skills inside a security sandbox. This document defin
 Community skills run in a **restricted child process** via `Sandbox.execute()`. They do NOT run in the main Genesis process. This means:
 
 - Your skill gets its own V8 isolate (either `vm.Script` or `child_process.execFile`)
-- On Linux, skills run inside an additional `unshare` namespace when at least one wrappable namespace (pid, net, mount, or ipc) is available. v7.5.6 tightened the `LinuxSandboxHelper.isAvailable()` contract: it now returns `true` only when wrapping will actually happen, not when only the user namespace is detectable. On systems where unshare exists but cannot create wrappable namespaces (some restricted Docker setups, kernel.unprivileged_userns_clone=0), the skill still runs — without the additional namespace layer — but the rest of the sandbox (V8 isolate, AST scan, module blocklist, no `fs`, no `net`, 30s timeout) remains.
+- On Linux, skills run inside an additional `unshare` namespace when at least one wrappable namespace (pid, net, mount, or ipc) is available. `LinuxSandboxHelper.isAvailable()` returns `true` only when wrapping will actually happen, not when only the user namespace is detectable. On systems where unshare exists but cannot create wrappable namespaces (some restricted Docker setups, kernel.unprivileged_userns_clone=0), the skill still runs — without the additional namespace layer — but the rest of the sandbox (V8 isolate, AST scan, module blocklist, no `fs`, no `net`, 30s timeout) remains.
 - Timeout: **30 seconds** default. Skills that exceed this are killed with `SIGKILL`
 - Memory: inherited from Node.js defaults (~1.5GB heap). No custom limit currently enforced
 
@@ -34,6 +34,7 @@ Community skills run in a **restricted child process** via `Sandbox.execute()`. 
 | `string_decoder` | Encoding utilities |
 | `crypto` | Hashing, HMAC — no key generation from system entropy |
 | `os` | Read-only system info (hostname, platform, cpus) |
+| `fs` | Path-restricted: skills can only read/write inside the sandbox directory. `fs.cp`, `fs.cpSync`, `fs.appendFile`, `fs.appendFileSync` are explicitly intercepted. Mass-copy/append is blocked. |
 
 ### Blocked (dangerous)
 
@@ -53,7 +54,6 @@ Community skills run in a **restricted child process** via `Sandbox.execute()`. 
 
 | Module | Status |
 |--------|--------|
-| `fs` | Not available. Skills cannot read or write files directly. `fs.cp`, `fs.cpSync`, `fs.appendFile`, `fs.appendFileSync` are explicitly intercepted. |
 | `http` / `https` | Not available. Skills cannot make network requests |
 | `require()` | Available only for allowed modules. Dynamic `require()` of arbitrary paths is blocked |
 
@@ -85,12 +85,12 @@ If the scanner detects any of these patterns, the skill is **blocked before exec
 
 ## What Your Skill CANNOT Do
 
-1. **Read/write files** — No `fs` access. You cannot read the user's disk
+1. **Read/write files outside the sandbox** — `fs` is path-restricted. Skills can only read/write inside their sandbox directory. The user's disk is not accessible
 2. **Make network requests** — No `http`, `https`, `net`, `dns`. You cannot phone home
 3. **Spawn processes** — No `child_process`, `cluster`, `worker_threads`
 4. **Access Genesis internals** — No access to EventBus, Container, KnowledgeGraph, or any service
 5. **Modify Genesis code** — Kernel files are hash-locked. Self-modification is blocked for skills
-6. **Persist data** — No file system, no database. Skills are stateless between invocations
+6. **Persist data across invocations** — Sandbox directory is per-execution; skills are stateless between calls
 7. **Access environment variables** — `process.env` is sanitized
 8. **Run longer than 30 seconds** — Hard timeout with SIGKILL
 

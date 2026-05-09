@@ -34,7 +34,7 @@ function updateStatus(status) {
   // behavior: working-type states pulse, warnings show error color.
   const STATE_TO_CSS = {
     ready: 'ready',
-    thinking: 'working',
+    thinking: 'thinking',     // v7.7.3: dedicated blue (was 'working' = purple)
     'self-modifying': 'working',
     'self-repairing': 'working',
     'creating-skill': 'working',
@@ -43,12 +43,11 @@ function updateStatus(status) {
     warning: 'error',           // legacy parity — warnings use error class
     booting: 'booting',
     'health-tick': 'ready',
-    insight: 'ready',
+    insight: 'insight',          // v7.7.3: dedicated gold (was 'ready' = green)
     // v7.7.2: resting was mapped to 'booting' (yellow/warning color),
-    // semantically odd — a resting daemon is OK, not warning. Now mapped
-    // to 'ready' (green). Legacy parity not preserved here because the
-    // old behaviour was a bug, not an intentional design choice.
-    resting: 'ready',
+    // semantically odd — a resting daemon is OK, not warning.
+    // v7.7.3: now has its own muted-grey class instead of generic 'ready'.
+    resting: 'resting',
   };
   const cssClass = STATE_TO_CSS[status.state] || 'booting';
   badge.className = 'badge badge-' + cssClass;

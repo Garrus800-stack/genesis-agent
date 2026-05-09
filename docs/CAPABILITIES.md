@@ -1,15 +1,16 @@
-# Genesis Agent — Capabilities Overview
+# Capabilities Overview
 
-> v7.7.2 — What Genesis can do, organized by category.
-> Scale: 6907 tests (Win baseline), 453 events with 453 payload schemas (full parity since v7.6.x), fitness 130/130, 168 DI services (155 manifest + 13 bootstrap), 338 modules (live `selfModel.moduleCount()`) across 12 boot phases.
-> Active gates: Injection-Gate (3-signal, blocking), Self-Gate (reflexivity + topic-mismatch, telemetry-only by design),
-> Tool-Call-Verification (detective), Slash-Discipline (13 slash-only handlers, LLM/classifier post-guard),
-> Reasoning-Block Filter (v7.5.6 — strips `<think>...</think>` from response and tool-call audit, re-emits as `model:thinking-trace`),
-> Runtime-State Quoting (v7.4.1 directive + anti-tool-call). 15 CI audit gates (v7.6.3 added `audit-contracts --strict` and `audit-doc-drift --strict`; the contracts gate enforces 12 contract-prefix families covering 112 regression-locked security tests; the doc-drift gate compares numeric claims in docs/*.md against live values; see GATE-INVENTORY.md).
-> Synchronous source-read in chat with per-turn + session budget (`read-source:called`, `read-source:soft-limit`).
-> Model-Availability TTL marker (v7.5.6) — sticky failures (auth/rate-limit/timeout) lock the model for 1h/5min/10min, persisted across restarts in `.genesis/model-unavailable.json`. Manual override via `/model-reset [name]`.
-> Same-backend failover (v7.5.6) — `_findFallbackBackend()` skips only the failed model name, not the whole backend, so an Ollama-only fallback chain works. CostStream tracks failover-unavailable events as a separate counter (v7.6.3) so the cost ledger stays clean.
-> AwarenessPort coherence gate is structurally inert until a real Awareness implementation lands — default `NullAwareness.getCoherence()` returns 1.0, threshold is 0.4.
+> What Genesis can do, organized by category.
+
+## Scale
+
+- 338 source modules across 12 boot phases
+- 168 DI services (155 manifest + 13 bootstrap)
+- 6917 tests on Windows / 6916 on Linux (passing, 0 failures)
+- 453 events with 453 payload schemas (full parity)
+- Architectural fitness: 130/130
+- 15 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
+
 
 ---
 
@@ -180,7 +181,7 @@ Supporting systems:
 
 ---
 
-## 7. Awareness Port (v7.0.0)
+## 7. Awareness Port
 
 **Replaces:** Phase 13 (Consciousness Layer, 14 modules, 6198 LOC) — removed in v7.0.0.
 
@@ -256,7 +257,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **406 test files** | 6907 tests (Win baseline, v7.7.2), coverage gates: 80% lines, 76% branches, 78% functions |
+| **413 test files** | 6917 tests (Win baseline, v7.7.2), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |
@@ -323,7 +324,7 @@ Genesis can detect and recover from its own failures:
 
 ---
 
-## 15. Cognitive Self-Awareness (v5.9.8)
+## 15. Cognitive Self-Awareness
 
 Genesis is the first AI agent framework with **empirical cognitive self-awareness** — it measures its own performance and adjusts behavior based on data, not assumptions.
 
@@ -345,7 +346,7 @@ Current task (refactoring): confidence=low, risks: Low success rate 62% (confide
 
 ---
 
-## 16. Context Window Management (v5.9.7–v5.9.8)
+## 16. Context Window Management
 
 Automatic context budget tracking and compression to prevent token overflow.
 
@@ -358,7 +359,7 @@ Automatic context budget tracking and compression to prevent token overflow.
 
 ---
 
-## 17. Community Skill Ecosystem (v5.9.8)
+## 17. Community Skill Ecosystem
 
 Third-party skills can be installed, updated, and managed from external sources.
 
@@ -381,7 +382,7 @@ genesis uninstall genesis-skill-docker
 
 ---
 
-## 18. Agent Benchmarking (v5.9.8)
+## 18. Agent Benchmarking
 
 Standardized, reproducible benchmarks to measure agent capability across versions and backends.
 
@@ -394,7 +395,7 @@ Standardized, reproducible benchmarks to measure agent capability across version
 
 ---
 
-## 19. Closed-Loop Self-Improvement (v6.0.2)
+## 19. Closed-Loop Self-Improvement
 
 Autonomous self-correction: Genesis detects its own weaknesses and acts to fix them, with empirical validation and automatic rollback.
 
@@ -411,7 +412,7 @@ No competing framework (LangChain, CrewAI, AutoGen, Devin) has this. They may lo
 
 ---
 
-## 20. Security Audit Hardening (v6.0.3)
+## 20. Security Audit Hardening
 
 Full security audit of all IPC handlers, sandbox isolation, and shell execution.
 
@@ -424,7 +425,7 @@ Full security audit of all IPC handlers, sandbox isolation, and shell execution.
 
 ---
 
-## 21. Proportional Intelligence (v6.0.4)
+## 21. Proportional Intelligence
 
 Not every request needs the full cognitive pipeline. Genesis now scales effort to complexity.
 
@@ -440,7 +441,7 @@ Not every request needs the full cognitive pipeline. Genesis now scales effort t
 
 ---
 
-## 22. Offline-First & Consolidation (v6.0.5)
+## 22. Offline-First & Consolidation
 
 Network resilience, intelligence pipeline validation, and codebase consolidation.
 
@@ -458,69 +459,3 @@ Network resilience, intelligence pipeline validation, and codebase consolidation
 | **Coverage push** | Function coverage 69.6% → 80.0% (+10.4pp over v6.0.5). 355 new tests in v7.0.0. Ratchet 75/70/70 → 81/76/80. |
 
 ---
-
-## 23. v7 Series Highlights
-
-The v7 line is dominated by structural maturation: smaller, more honest, better-instrumented, with explicit principles guiding what does and does not ship per release.
-
-### v7.0 — Awareness consolidation
-| Feature | What it does |
-|---|---|
-| **AwarenessPort + NullAwareness** | Phase 13 (Consciousness, 14 modules, 6198 LOC) replaced by a 112-LOC interface. Default `NullAwareness` returns constant coherence 1.0 — by-design inert until a real implementation lands. |
-
-### v7.1 — Frontier-driven autonomy
-| Feature | What it does |
-|---|---|
-| **EmotionalFrontier** | Captures unresolved emotional moments. Surfaces them as candidate goals. |
-| **GoalSynthesizer** | Frontier-driven: unfinished work, anomalies, and contradicted lessons generate autonomous goals. |
-| **EmotionalSteering → AdaptiveStrategy** | Emotional dimensions translated into concrete strategy modifiers (escalate model on frustration, shorten plans on low energy). |
-| **Schema CI-Gate (S-9)** | All event payloads validated against declared schemas at boot — catches contract violations without running the offending path. |
-| **Contract Validator (S-2)** | Late-binding `expects: ['method1', 'method2']` checked at wire time. Missing methods fail fast instead of throwing on first call. |
-
-### v7.2 — Ontogenesis & memory layering
-| Feature | What it does |
-|---|---|
-| **GenesisBackup** | `.genesis/` snapshotted to `.genesis-backups/` before self-mod writes, on graceful shutdown, daily stale-check, and on boot recovery. Last 5 snapshots rotated. |
-| **Idle-Dream Event Bridge** (v7.2.5) | DreamCycle responds to memory pressure and idle gates. Dream intensity scales with KG growth. |
-| **LLM as idle knowledge source** (v7.2.8) | IdleMind can use the LLM to fill knowledge gaps, with token-budgeted, value-gated queries. |
-
-### v7.3 — Honesty & memory decay
-| Feature | What it does |
-|---|---|
-| **Three-layer memory decay** (v7.3.7) | Episodes start at Layer 1 (Detail), consolidated to Layer 2 (Schema), then to Layer 3 (Feeling — topic + emotional arc + single-sentence essence). Replaces ring-buffer truncation. |
-| **JournalWriter** (v7.3.7) | Three visibilities (private/shared/public), monthly rotation, crash-robust JSONL. |
-| **Pin-and-Reflect** (v7.3.7) | `mark-moment` tool + DreamCycle Phase 1.5 (KEEP / ELEVATE / LET_FADE). |
-| **Goal-Lifecycle Auto-Transitions** (v7.3.7) | GoalStack auto-completes (all steps done), auto-fails (attempts exhausted), auto-stalls (72h inactive). |
-| **Synchronous Source-Read** (v7.3.8) | ChatOrchestrator can read CHANGELOG.md and package.json synchronously per turn. mtime-cached, per-turn + session budget. |
-| **LLM-Failure-Honesty** (v7.3.8) | Typed error classifier, system-message format German `⚠ Modell nicht verfügbar` ("model not available"), not pushed to history. Principle 0.4: *Honest non-knowing*. |
-| **DreamCycle / ChatOrchestrator splits** (v7.3.9) | 854→482 LOC and 719→582 LOC via Prototype-Delegation. Principle 0.5: *Structural hygiene is its own release*. |
-| **Central GateStats** (v7.3.6) | All gate verdicts (`pass`/`block`/`warn`) recorded centrally. Sampling for hot-path gates. Dead gates and disproportionate blockers become visible. |
-
-### v7.4 — Honesty in self-reporting
-| Feature | What it does |
-|---|---|
-| **RuntimeStatePort** (v7.4.0) | 8 services implement `getRuntimeSnapshot()`. Settings, EmotionalState, NeedsSystem, Metabolism, AutonomousDaemon, IdleMind, GoalStack, PeerNetwork. |
-| **Identity-Leak-Fix** (v7.4.0) | LLM model name removed from `_identity()` block. Explicit "Du bist NICHT das zugrundeliegende Sprachmodell". 55-test regression lock against 23 branded names. |
-| **Anti-Hallucination Quoting** (v7.4.1) | PromptBuilder forces verbatim quoting of runtime values. Forbids fabricated log-lines, JSON, timestamps. Anti-tool-call directive prevents declarative metaphors from being interpreted as file-read calls. |
-| **IntentRouter Meta-State Patterns** (v7.4.1) | 13 alternations for "wie viel energie" / "welche ziele" / "how do you feel" route directly to runtime block instead of escalating to tasks. |
-| **Event-Schema 100%** (v7.4.1, full parity since v7.6.x) | 453/453 catalogued events have payload schemas. 0 mismatches. |
-| **AUDIT-BACKLOG drift closed** (v7.4.2) | Five releases of missing entries caught up. Principle 0.8: *AUDIT-BACKLOG is part of every release*. |
-| **CommandHandlers Domain-Split** (v7.4.2) | 846→under 700 LOC via 6 domain mixins (Code, Shell, Goals, Memory, System, Network). |
-| **Self-Gate explicit telemetry-only** (v7.4.2) | Self-Gate documented as observation-only by design (vs. Input-Gate which blocks). Symmetry with Injection-Gate is intentional, not a deficit. |
-| **failFastMs semantics** (v7.4.3) | `CircuitBreaker.timeoutMs` renamed to `failFastMs` with `null|0` opt-out. LLM circuit opted out (HTTP layer is single ceiling). MCP keeps `failFastMs: 15000` for real fail-fast. Removes the duplicate-`Promise.race` orphan-request bug. |
-| **Container / IntentRouter / SelfModificationPipeline splits** (v7.4.3) | Three of four >700-LOC files brought under threshold. PromptBuilderSections deferred to v7.6+ (re-org bundled with BeliefStore release). |
-
-### v7.5 — Stability, observability, and the carry-over sweep
-| Feature | What it does |
-|---|---|
-| **Path-traversal hardening** (v7.5.1) | `file-read` and `file-list` tools default-deny outside `rootDir` via shared `_resolveProjectPath()`. In-project blacklist for `.env*`, `*.pem`, `*.key`. Closes the v5.1.0-era "default-allow + curated block-list" gap that left `/etc/passwd`, `/proc/*` readable. |
-| **Auto Model-Routing** (v7.5.2) | `ModelBridge.chat()` queries `ModelRouter` by `taskType` and switches internally. User no longer needs to manually swap models before stepping away. Settings-bound chat path remains. |
-| **Linux preload tier fix** (v7.5.3) | Linux excluded from Tier 1 (ESM preload) — Electron 33–39 sandboxed renderer cannot load ESM preload on Linux. Falls through to Tier 2 (Bundled CJS), same path Windows uses since v4.13.1. |
-| **Shell extraction** (v7.5.4) | `ShellAgent` plan-generation moved to `ShellPlanner`, safety to `ShellSafety`, OS-translation to `ShellOSAdapter`. Brings ShellAgent under 700 LOC. |
-| **Self-Statement Log** (v7.5.5) | Captures Genesis's own first-person responses, classifies into structural / emotional / promise / uncertain claims. Persists daily to JSONL. Fires `selfstatement:contradiction` when a structural self-claim is made without verified-data backing. Closes the loop on confabulation observed in v7.5.1 live tests. |
-| **Race-window resolved** (v7.5.5) | `_lastIntrospectionPopulated` correlated by message-hash via `_pendingFlags` Map (60s TTL). DaemonController-IPC and User-Chat parallel turns can no longer clobber each other's introspection-flag. |
-| **Same-backend failover** (v7.5.6) | `_findFallbackBackend(failedBackend, failedModelName)` skips only the failed model name. `models.fallbackChain` now works on Ollama-only setups. Cross-backend escape preserved as last resort. |
-| **Model-availability TTL marker** (v7.5.6) | Auth/rate-limit/timeout failures lock the model for 1h/5min/10min. Persisted across restarts in `.genesis/model-unavailable.json` (atomic write, corrupt-JSON resilient). Boot-time selection skips marked models. `/model-reset [name]` for manual recovery. Closes the "9h endless retry on 403" live-bug from v7.5.5. |
-| **Reasoning-block filter** (v7.5.6) | `<think>...</think>` blocks stripped from chat output, tool-call audit, and tool-loop synthesis. Phantom tool calls inside reasoning cannot reach the executor. Reasoning preserved as `model:thinking-trace` events. |
-| **DE/EN pattern parity** (v7.5.6) | SelfStatementLog's bilingual extraction patterns refactored to module-level `LANG_PATTERNS` with load-time parity assertion. Performance bonus: regex literals compiled once, not on every call. |
-| **Carry-over bug sweep** (v7.5.6) | `_recordMetaOutcome` now uses the actually-called model (not `this.activeModel`); `streamChat()` records to MetaLearning at all (was missing); `LinuxSandboxHelper.isAvailable()` contract tightened. Pre-v7.1.9 stabilization caught the dominant "concurrent edit drift" bugs; v7.5.6 turns the same lens on long-lived latent defects that no test exercised. |

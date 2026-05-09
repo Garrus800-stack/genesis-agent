@@ -8,8 +8,8 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.7.2-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-6907%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.7.3-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-6917%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
@@ -107,137 +107,27 @@ This boots Genesis headless, shows system health, architecture reflection, MCP s
 
 ## Quick start
 
-> **New to Genesis?** Read the [Quick Start Guide](docs/QUICK-START.md) — it walks you through your first conversation, your first goal, and self-modification in under 5 minutes.
+> **Full walkthrough:** [docs/QUICK-START.md](docs/QUICK-START.md) — Windows + Linux step-by-step, model requirements, boot profiles, CLI mode, control channel.
 
-**Option A — Cloud API (recommended for best results):**
-
+**Cloud (Anthropic / OpenAI):**
 ```bash
 git clone https://github.com/Garrus800-stack/genesis-agent.git
-cd genesis-agent
-npm install
-npm start
+cd genesis-agent && npm install && npm start
 ```
-Then open Settings → paste your **Anthropic API key** or **OpenAI API key**. Genesis auto-detects and selects the best available model. For a full reference of every settings field with defaults and validation rules, see [docs/SETTINGS.md](./docs/SETTINGS.md).
+Then Settings → paste your **Anthropic API key** or **OpenAI API key**. Genesis auto-selects the best model.
 
-**Option B — Local with Ollama (fully offline, private):**
-
+**Local (Ollama, fully offline):**
 ```bash
-ollama pull qwen2.5:7b   # or gemma2:9b, deepseek-coder:6.7b, llama3:8b, etc.
+ollama pull qwen2.5:7b   # ≥7B parameters needed
 ollama serve
 
 git clone https://github.com/Garrus800-stack/genesis-agent.git
-cd genesis-agent
-npm install
-npm start
+cd genesis-agent && npm install && npm start
 ```
 
-Genesis automatically selects the best available model using Smart Ranking (35 tiers, score 0-100). No manual configuration needed — but see model requirements below.
+**Hybrid:** run both — Genesis uses cloud for complex reasoning, auto-failovers to local when the network drops.
 
-#### Model requirements
-
-Genesis is an autonomous-agent system, not a simple chat wrapper. It maintains persona, parses tool calls, follows multi-step plans, and produces structured self-reports. **The model has to be capable enough.**
-
-| Tier | Recommended | Notes |
-|------|-------------|-------|
-| **Minimum** | qwen2.5:7b · llama3.1:8b · mistral-nemo:12b | ~5 GB+, works for German/English chat |
-| **Better** | qwen2.5:14b · llama3.1:70b · gemma2:9b | larger context, more coherent multi-turn |
-| **Cloud** | claude-sonnet-4 · gpt-4 · qwen3:235b-cloud | best-in-class for complex reasoning |
-
-**Models that do NOT work for Genesis** (will produce gibberish, persona loss, or repetition loops):
-- Anything under ~5 GB (1B/1.5B/3B parameters): `tinyllama`, `phi-mini`, `gemma2:2b`, `qwen2.5:3b`, `deepseek-r1:1.5b`
-- DeepSeek-R1-distill family (`deepseek-r1:1.5b`, `deepseek-r1:7b`): the `<think>...</think>` reasoning format is not parsed by the current pipeline — output looks broken
-- Models without German training if you primarily chat in German (use `mistral-nemo` or `qwen2.5` for solid German)
-
-If Genesis answers with hallucinated words ("fehlentzündungen"), persona confusion ("du bist..." instead of "ich bin..."), or sentence repetition loops — the model is too small. Switch to the **Minimum** tier above.
-
-**Pin a specific model** so auto-routing doesn't downgrade:
-```bash
-# In CLI REPL:
-/model qwen2.5:7b                   # Switch + save permanently
-
-# Or via settings (~/.genesis/settings.json):
-{ "models": { "preferred": "qwen2.5:7b" } }
-```
-
-**Option C — Hybrid (best of both):**
-
-Run Ollama locally AND configure a cloud API key. Genesis uses cloud for complex reasoning tasks and auto-failovers to local when cloud is unavailable. NetworkSentinel (v6.0.5) monitors connectivity every 30s and switches automatically — no manual intervention needed.
-
-### Model selection
-
-Genesis picks the best model automatically, but you stay in control:
-
-```bash
-# In the CLI REPL:
-/models                              # Show all models ranked by capability
-/model qwen2.5:7b                   # Switch + save permanently
-
-# Via CLI flag (per session):
-node cli.js --backend ollama:kimi-k2.5:cloud
-
-# Via settings file (permanent):
-# ~/.genesis/settings.json
-# { "models": { "preferred": "kimi-k2.5:cloud" } }
-```
-
-Priority: Your choice → Cloud API → Smart Ranking → First available.
-
-### Boot profiles
-
-Genesis boots 12 phases (~168 services). The former Consciousness Layer (Phase 13) was replaced by a lightweight AwarenessPort in v7.0.0.
-
-```bash
-npm start                              # Cognitive — default (~168 services)
-# Phase 13 (Consciousness) removed in v7.0.0 — replaced by AwarenessPort
-npm start -- --minimal                 # Minimal — core agent loop only (~50 services)
-npm start -- --skip-phase 7            # Custom — skip specific phases (6-13)
-```
-
-Use `--minimal` to learn the architecture without cognitive overhead. Use `--cognitive` (default) for development and production.
-
-Requires **Node.js 22+** (tested on 22, 24) and **Git**. Ollama is optional if a cloud API is configured. On Windows, double-click `Genesis-Start.bat` instead.
-
-### Headless / CLI Mode (v5.9.0)
-
-Run Genesis without Electron — as a terminal chat, MCP server daemon, or in CI pipelines:
-
-```bash
-node cli.js                    # Interactive REPL chat
-node cli.js --serve            # MCP server daemon (no UI, runs until Ctrl+C)
-node cli.js --serve --port 4000  # Custom port
-node cli.js --minimal          # Minimal boot (~50 services)
-```
-
-Or via npm:
-
-```bash
-npm run cli                    # REPL chat
-npm run cli:serve              # MCP daemon
-```
-
-REPL commands: `/health`, `/goals`, `/status`, `/quit`. Environment: `GENESIS_API_KEY`, `GENESIS_OPENAI_KEY`.
-
-### External Control Channel (V7-4A)
-
-Control a running Genesis instance from another terminal, a script, or a CI pipeline — without booting a second instance:
-
-```bash
-# Genesis runs in the background
-node cli.js --serve
-
-# From another terminal:
-node cli.js ctl ping                        # Is Genesis reachable?
-node cli.js ctl status                      # Daemon status, memory, PID
-node cli.js ctl goal "Write tests for X"    # Push a goal to the agent loop
-node cli.js ctl check health                # Run a daemon check immediately
-node cli.js ctl config                      # Show daemon config
-node cli.js ctl config autoOptimize true    # Change config at runtime
-node cli.js ctl stop                        # Graceful shutdown
-```
-
-Transport: Unix Socket (`/tmp/genesis-agent.sock`) on Linux/macOS, Named Pipe (`\\.\pipe\genesis-agent`) on Windows. Override via `$GENESIS_SOCKET` or `settings.daemon.socketPath`. Disable via `settings.daemon.controlEnabled = false`.
-
-> **For IDE integration (VSCode, Cursor, Claude Desktop)**, see [MCP-SERVER-SETUP.md](docs/MCP-SERVER-SETUP.md).
+Requires **Node.js 22+** and **Git**. On Windows, double-click `Genesis-Start.bat`.
 
 ### Supported backends
 
@@ -248,8 +138,6 @@ Transport: Unix Socket (`/tmp/genesis-agent.sock`) on Linux/macOS, Named Pipe (`
 | **Ollama** (local) | Any model Ollama supports (gemma2, qwen2.5, deepseek, llama, mistral, ...) | Auto-detected on `127.0.0.1:11434` |
 
 Genesis automatically selects the best model: user-preferred → cloud → local. Override via Settings → `models.preferred`.
-
----
 
 ## Architecture
 
@@ -559,7 +447,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 154 manifest + 13 bootstrap = 167 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 406 files, 6907 tests (coverage gates: 80/76/78, ratchet floor 6014) |
+| Test suites | 413 files, 6917 tests (coverage gates: 80/76/78, ratchet floor 6014) |
 | Dependencies | 3 production + 3 optional + 6 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 67 main ↔ 67 preload (rate-limited, all in sync) |

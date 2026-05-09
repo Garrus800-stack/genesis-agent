@@ -1,4 +1,4 @@
-# Genesis — Quick Start Guide
+# Quick Start Guide
 
 This guide gets Genesis running on your machine, whether you use Windows or Debian/Ubuntu. It's written for people who don't build software every day — you just copy and run the commands.
 

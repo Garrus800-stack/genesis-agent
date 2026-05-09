@@ -172,8 +172,12 @@ function runChecks() {
   }
 
   // ── docs/*.md header version tags ──
-  // Any doc whose first 10 lines contain a `vX.Y.Z` tag should match VERSION.
-  // Historical references in body are NOT checked.
+  // v7.7.3: Pattern-only check, not exact match. Header version tags are
+  // semantic ("last verified for vX.Y.Z"), not auto-bumped on every release.
+  // Forcing exact match created bulk-bump commits at every release that
+  // hid real content changes in `git log -- docs/X.md`. Now we just verify
+  // the tag is a well-formed semver pattern; humans bump it when the doc
+  // is actually re-verified.
   for (const file of fs.readdirSync(DOCS_DIR)) {
     if (!file.endsWith('.md')) continue;
     const src = loadDoc(file);
@@ -183,8 +187,11 @@ function runChecks() {
     if (/historical reference/i.test(head)) continue;
     const m = /v(\d+\.\d+\.\d+)/.exec(head);
     if (m) {
-      const ok = m[1] === VERSION;
-      const r = { doc: file, label: 'header-version-tag', expected: VERSION, actual: m[1], ok };
+      // Check: tag is well-formed semver pattern (always true if regex matched).
+      // The presence check itself is the guarantee — random text like "v7.x.x"
+      // or "vX.Y.Z" would fail the regex and not be checked.
+      const ok = /^\d+\.\d+\.\d+$/.test(m[1]);
+      const r = { doc: file, label: 'header-version-tag (pattern)', expected: 'X.Y.Z', actual: m[1], ok };
       checked.push(r);
       if (!ok) drifts.push(r);
     }
@@ -283,7 +290,7 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '6907 passing',      label: 'badge: tests',
+        tests:      { live: '6917 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
                       // v7.7.1: +23 (v771-* contract tests). v7.7.0: -52 (renderer.test.js -51 + agentloop-legacy
@@ -384,7 +391,7 @@ function runChecks() {
       // "<N> tests (Win baseline)" — pin to Win baseline (Linux is -1 because
       // of one Win-conditional test). Update this constant on each release
       // that changes test count.
-      const TESTS_WIN_BASELINE = 6907;
+      const TESTS_WIN_BASELINE = 6917;
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -424,17 +431,21 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 6907;
-  const TEST_FILES = 406;
+  const TESTS_WIN = 6917;
+  const TEST_FILES = 413;
 
   // #1: ARCHITECTURE.md header version stamp
+  // v7.7.3: Pattern-only — see top-level pattern check rationale.
   {
     const src = loadDoc('ARCHITECTURE.md');
     if (src) {
-      const r = check('ARCHITECTURE.md', src, 'header version stamp',
-        /^> Version: (\d+\.\d+\.\d+)/m, VERSION,
-        (m) => m[1]);
-      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+      const m = /^> Version: (\d+\.\d+\.\d+)/m.exec(src);
+      if (m) {
+        const ok = /^\d+\.\d+\.\d+$/.test(m[1]);
+        const r = { doc: 'ARCHITECTURE.md', label: 'header version stamp (pattern)', expected: 'X.Y.Z', actual: m[1], ok };
+        checked.push(r);
+        if (!ok) drifts.push(r);
+      }
     }
   }
 
@@ -543,10 +554,13 @@ function runChecks() {
   {
     const src = loadDoc('MCP-SERVER-SETUP.md');
     if (src) {
-      const r = check('MCP-SERVER-SETUP.md', src, 'header version',
-        /^> v(\d+\.\d+\.\d+) — Last verified/m, VERSION,
-        (m) => m[1]);
-      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+      const m = /^> v(\d+\.\d+\.\d+) — Last verified/m.exec(src);
+      if (m) {
+        const ok = /^\d+\.\d+\.\d+$/.test(m[1]);
+        const r = { doc: 'MCP-SERVER-SETUP.md', label: 'header version (pattern)', expected: 'X.Y.Z', actual: m[1], ok };
+        checked.push(r);
+        if (!ok) drifts.push(r);
+      }
     }
   }
 
@@ -556,10 +570,13 @@ function runChecks() {
     try { src = fs.readFileSync(path.join(ROOT, 'AUDIT-BACKLOG.md'), 'utf-8'); }
     catch { src = null; }
     if (src) {
-      const r = check('AUDIT-BACKLOG.md', src, 'header version',
-        /^> Version: (\d+\.\d+\.\d+)/m, VERSION,
-        (m) => m[1]);
-      if (r) { checked.push(r); if (!r.ok) drifts.push(r); }
+      const m = /^> Version: (\d+\.\d+\.\d+)/m.exec(src);
+      if (m) {
+        const ok = /^\d+\.\d+\.\d+$/.test(m[1]);
+        const r = { doc: 'AUDIT-BACKLOG.md', label: 'header version (pattern)', expected: 'X.Y.Z', actual: m[1], ok };
+        checked.push(r);
+        if (!ok) drifts.push(r);
+      }
     }
   }
 
@@ -671,6 +688,412 @@ function runChecks() {
           if (!r.ok) drifts.push(r);
         }
       }
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // v7.7.3 — Doc-coverage extension: 8 docs newly in scope
+  // (BENCHMARKING, MCP-SERVER-SETUP, QUICK-START, SETTINGS, SKILL-SECURITY,
+  //  TROUBLESHOOTING, phase9-cognitive-architecture, GATE-INVENTORY)
+  // Each pin verifies a doc-claim against live code reality, not
+  // version-tag matching.
+  // ──────────────────────────────────────────────────────────────────
+
+  // #17: phase9-cognitive-architecture.md — Module 1-6 files exist
+  {
+    const src = loadDoc('phase9-cognitive-architecture.md');
+    if (src) {
+      const expectedModules = [
+        ['ExpectationEngine',   'src/agent/cognitive/ExpectationEngine.js'],
+        ['MentalSimulator',     'src/agent/cognitive/MentalSimulator.js'],
+        ['SurpriseAccumulator', 'src/agent/cognitive/SurpriseAccumulator.js'],
+        ['DreamCycle',          'src/agent/cognitive/DreamCycle.js'],
+        ['SchemaStore',         'src/agent/planning/SchemaStore.js'],
+        ['SelfNarrative',       'src/agent/cognitive/SelfNarrative.js'],
+      ];
+      for (const [name, relPath] of expectedModules) {
+        const docMentions = new RegExp(`## Module \\d+: ${name}`).test(src);
+        if (!docMentions) continue;  // doc doesn't pin this module
+        const fileExists = fs.existsSync(path.join(ROOT, relPath));
+        const r = {
+          doc: 'phase9-cognitive-architecture.md',
+          label: `Module file exists: ${name}`,
+          expected: relPath,
+          actual: fileExists ? relPath : 'MISSING',
+          ok: fileExists,
+        };
+        checked.push(r);
+        if (!r.ok) drifts.push(r);
+      }
+    }
+  }
+
+  // #18: BENCHMARKING.md — referenced npm scripts exist in package.json
+  {
+    const src = loadDoc('BENCHMARKING.md');
+    if (src) {
+      let pkg = null;
+      try {
+        pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+      } catch { /* ignore */ }
+      if (pkg && pkg.scripts) {
+        // Extract `npm run X` and `npm test` references from doc
+        const referenced = new Set();
+        const reNpmRun = /`npm run ([a-z:][a-z:-]*)`/g;
+        let m;
+        while ((m = reNpmRun.exec(src)) !== null) referenced.add(m[1]);
+        // Filter out shell-arg variants like "benchmark:agent --quick"
+        const liveScripts = new Set(Object.keys(pkg.scripts));
+        const missing = [...referenced].filter(s => !liveScripts.has(s));
+        const r = {
+          doc: 'BENCHMARKING.md',
+          label: 'referenced npm scripts exist',
+          expected: 0,
+          actual: missing.length,
+          ok: missing.length === 0,
+        };
+        if (missing.length > 0) r.detail = `Missing: ${missing.join(', ')}`;
+        checked.push(r);
+        if (!r.ok) drifts.push(r);
+      }
+    }
+  }
+
+  // #19: QUICK-START.md — Node.js version requirement matches package.json engines
+  {
+    const src = loadDoc('QUICK-START.md');
+    if (src) {
+      let pkg = null;
+      try {
+        pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+      } catch { /* ignore */ }
+      if (pkg && pkg.engines && pkg.engines.node) {
+        // package.json engine.node like ">=22.0.0" — extract major
+        const engineMatch = /(\d+)\.\d+\.\d+/.exec(pkg.engines.node);
+        if (engineMatch) {
+          const engineMajor = parseInt(engineMatch[1], 10);
+          // Doc says e.g. "Node.js 22" or "Node.js ≥ 22.0.0"
+          const docMatch = /Node\.js\s*(?:≥\s*|>=\s*)?(\d+)/.exec(src);
+          if (docMatch) {
+            const docMajor = parseInt(docMatch[1], 10);
+            const ok = docMajor === engineMajor;
+            const r = {
+              doc: 'QUICK-START.md',
+              label: 'Node.js version matches engines.node',
+              expected: `Node.js ${engineMajor}`,
+              actual: `Node.js ${docMajor}`,
+              ok,
+            };
+            checked.push(r);
+            if (!ok) drifts.push(r);
+          }
+        }
+      }
+    }
+  }
+
+  // #20: SETTINGS.md — setting keys mentioned in doc exist somewhere in src/
+  // Two valid locations: (a) FIELD_REGISTRY in settings-defaults.js, or
+  // (b) live `settings.get('X.Y.Z')` calls anywhere in src/ — settings can
+  // exist as runtime-only without a UI form field.
+  {
+    const src = loadDoc('SETTINGS.md');
+    if (src) {
+      const liveKeys = new Set();
+      // (a) FIELD_REGISTRY paths
+      try {
+        const registrySrc = fs.readFileSync(
+          path.join(ROOT, 'src/ui/modules/settings-defaults.js'),
+          'utf-8'
+        );
+        const rePath = /settingsPath:\s*'([^']+)'/g;
+        let m;
+        while ((m = rePath.exec(registrySrc)) !== null) liveKeys.add(m[1]);
+      } catch { /* ignore */ }
+      // (b) Setting key strings appearing anywhere in src/ — covers
+      // `settings.get('X.Y.Z')`, `settings?.get?.('X.Y.Z')`,
+      // and `['X.Y.Z', value]` style writes in settings-loadsave.js
+      const walk = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const p = path.join(dir, entry.name);
+          if (entry.isDirectory()) walk(p);
+          else if (entry.name.endsWith('.js')) {
+            try {
+              const text = fs.readFileSync(p, 'utf-8');
+              // Match any quoted string that looks like a settings path
+              // (lowercase.start.dot.path)
+              const re = /['"]([a-z][a-zA-Z]*\.[a-zA-Z0-9_.]+)['"]/g;
+              let mm;
+              while ((mm = re.exec(text)) !== null) {
+                const candidate = mm[1];
+                // Filter out non-setting-like patterns (file paths, classnames)
+                if (!candidate.includes('/') && !candidate.includes('\\') &&
+                    !/[A-Z]/.test(candidate.split('.')[0])) {
+                  liveKeys.add(candidate);
+                }
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      };
+      try { walk(path.join(ROOT, 'src')); } catch { /* ignore */ }
+      // Doc-mentioned keys (Setting key: `X.Y.Z` pattern)
+      const docKeys = new Set();
+      const reSettingKey = /Setting key:\s*`([a-z][a-zA-Z]*\.[a-zA-Z0-9_.]+)`/g;
+      let m;
+      while ((m = reSettingKey.exec(src)) !== null) docKeys.add(m[1]);
+      const missing = [...docKeys].filter(k => !liveKeys.has(k));
+      const r = {
+        doc: 'SETTINGS.md',
+        label: 'mentioned setting keys exist in registry or settings.get() calls',
+        expected: 0,
+        actual: missing.length,
+        ok: missing.length === 0,
+      };
+      if (missing.length > 0) r.detail = `Missing: ${missing.join(', ')}`;
+      checked.push(r);
+      if (!r.ok) drifts.push(r);
+    }
+  }
+
+  // #21: SKILL-SECURITY.md — Allowed module list matches Sandbox.allowedModules
+  // (this is the pin that catches the v6.1.1 'fs' drift)
+  {
+    const src = loadDoc('SKILL-SECURITY.md');
+    if (src) {
+      let sandboxSrc = null;
+      try {
+        sandboxSrc = fs.readFileSync(
+          path.join(ROOT, 'src/agent/foundation/Sandbox.js'),
+          'utf-8'
+        );
+      } catch { /* ignore */ }
+      if (sandboxSrc) {
+        // Extract allowedModules array literal
+        const allowedMatch = /this\.allowedModules\s*=\s*new Set\(\[([\s\S]*?)\]\)/.exec(sandboxSrc);
+        const liveAllowed = new Set();
+        if (allowedMatch) {
+          const reMod = /'([a-z_]+)'/g;
+          let mm;
+          while ((mm = reMod.exec(allowedMatch[1])) !== null) liveAllowed.add(mm[1]);
+        }
+        // Extract Allowed-section module names from doc
+        const allowedSection = /### Allowed[\s\S]*?### Blocked/.exec(src);
+        const docAllowed = new Set();
+        if (allowedSection) {
+          const reMod = /^\|\s*`([a-z_]+)`\s*\|/gm;
+          let mm;
+          while ((mm = reMod.exec(allowedSection[0])) !== null) docAllowed.add(mm[1]);
+        }
+        // Symmetric difference: doc says X but code doesn't, or vice versa
+        const docOnly = [...docAllowed].filter(k => !liveAllowed.has(k));
+        const codeOnly = [...liveAllowed].filter(k => !docAllowed.has(k));
+        const ok = docOnly.length === 0 && codeOnly.length === 0;
+        const r = {
+          doc: 'SKILL-SECURITY.md',
+          label: 'Allowed module list matches Sandbox.allowedModules',
+          expected: 'docs == code',
+          actual: ok ? 'matched' : `doc-only: [${docOnly.join(',')}], code-only: [${codeOnly.join(',')}]`,
+          ok,
+        };
+        checked.push(r);
+        if (!r.ok) drifts.push(r);
+      }
+    }
+  }
+
+  // #22: MCP-SERVER-SETUP.md — referenced settings keys exist in registry or src
+  {
+    const src = loadDoc('MCP-SERVER-SETUP.md');
+    if (src) {
+      const liveKeys = new Set();
+      // (a) FIELD_REGISTRY paths
+      try {
+        const registrySrc = fs.readFileSync(
+          path.join(ROOT, 'src/ui/modules/settings-defaults.js'),
+          'utf-8'
+        );
+        const rePath = /settingsPath:\s*'([^']+)'/g;
+        let m;
+        while ((m = rePath.exec(registrySrc)) !== null) liveKeys.add(m[1]);
+      } catch { /* ignore */ }
+      // (b) Any quoted string in src/ that looks like a setting path —
+      // covers settings.get('mcp.X.Y'), config['mcp.X.Y'], etc.
+      const walkSrc = (dir) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const p = path.join(dir, entry.name);
+          if (entry.isDirectory()) walkSrc(p);
+          else if (entry.name.endsWith('.js')) {
+            try {
+              const text = fs.readFileSync(p, 'utf-8');
+              const re = /['"]([a-z][a-zA-Z]*\.[a-zA-Z0-9_.]+)['"]/g;
+              let mm;
+              while ((mm = re.exec(text)) !== null) {
+                const k = mm[1];
+                if (!k.includes('/') && !k.includes('\\') &&
+                    !/[A-Z]/.test(k.split('.')[0])) {
+                  liveKeys.add(k);
+                }
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      };
+      try { walkSrc(path.join(ROOT, 'src')); } catch { /* ignore */ }
+      // Find every "mcp": { … } block, derive nested dotted keys
+      const docKeys = new Set();
+      const mcpBlockRe = /"mcp":\s*\{[\s\S]*?\n\s*\}/g;
+      let mb;
+      while ((mb = mcpBlockRe.exec(src)) !== null) {
+        const block = mb[0];
+        const lines = block.split('\n');
+        const stack = [];
+        for (const line of lines) {
+          const keyMatch = /"([a-zA-Z][a-zA-Z0-9_]*)":/.exec(line);
+          if (keyMatch) {
+            if (line.includes('{')) {
+              stack.push(keyMatch[1]);
+            } else if (line.match(/:\s*(?:"[^"]*"|true|false|null|\d+)/)) {
+              docKeys.add([...stack, keyMatch[1]].join('.'));
+            }
+          }
+          if (line.includes('}') && !line.includes('{')) {
+            stack.pop();
+          }
+        }
+      }
+      // Match: doc-key exists in liveKeys, OR a parent prefix of doc-key
+      // does (e.g. doc references mcp.servers.genesis.url, code reads
+      // mcp.servers as a whole and indexes by server-name dynamically)
+      const matchesLive = (k) => {
+        if (liveKeys.has(k)) return true;
+        const parts = k.split('.');
+        for (let i = parts.length - 1; i >= 1; i--) {
+          if (liveKeys.has(parts.slice(0, i).join('.'))) return true;
+        }
+        return false;
+      };
+      const missing = [...docKeys].filter(k => !matchesLive(k));
+      const r = {
+        doc: 'MCP-SERVER-SETUP.md',
+        label: `referenced mcp.* setting keys exist (${docKeys.size} keys checked)`,
+        expected: 0,
+        actual: missing.length,
+        ok: missing.length === 0,
+      };
+      if (missing.length > 0) r.detail = `Missing: ${missing.join(', ')}`;
+      checked.push(r);
+      if (!r.ok) drifts.push(r);
+    }
+  }
+
+  // #23: TROUBLESHOOTING.md — referenced file paths exist on disk
+  {
+    const src = loadDoc('TROUBLESHOOTING.md');
+    if (src) {
+      // Extract `src/X` and `scripts/X` paths from backticks
+      // Skip dist/ — built artifact, only present after npm install
+      const reInRepo = /`((?:src|scripts)\/[a-zA-Z0-9_./-]+)`/g;
+      const docPaths = new Set();
+      let m;
+      while ((m = reInRepo.exec(src)) !== null) docPaths.add(m[1]);
+      const missing = [];
+      for (const p of docPaths) {
+        // Skip wildcards/templates
+        if (p.includes('*') || p.includes('$')) continue;
+        if (!fs.existsSync(path.join(ROOT, p))) missing.push(p);
+      }
+      const r = {
+        doc: 'TROUBLESHOOTING.md',
+        label: 'referenced in-repo file paths exist',
+        expected: 0,
+        actual: missing.length,
+        ok: missing.length === 0,
+      };
+      if (missing.length > 0) r.detail = `Missing: ${missing.join(', ')}`;
+      checked.push(r);
+      if (!r.ok) drifts.push(r);
+    }
+  }
+
+  // #24: GATE-INVENTORY.md — claimed instrumented-gate count matches table rows
+  {
+    const src = loadDoc('GATE-INVENTORY.md');
+    if (src) {
+      // Count actual gate-table rows under "## Instrumented" section
+      const instrumented = /## Instrumented[\s\S]*?(?=\n## )/.exec(src);
+      let rowCount = 0;
+      if (instrumented) {
+        const reRow = /^\|\s*\d+\s*\|\s*`/gm;
+        let mm;
+        while ((mm = reRow.exec(instrumented[0])) !== null) rowCount++;
+      }
+      // Doc may make a textual claim "9 instrumented gates" — extract if present
+      const claimMatch = /(\d+)\s+instrumented gates?/i.exec(src);
+      if (claimMatch) {
+        const claimed = parseInt(claimMatch[1], 10);
+        const ok = claimed === rowCount;
+        const r = {
+          doc: 'GATE-INVENTORY.md',
+          label: 'claimed instrumented-gate count matches table rows',
+          expected: rowCount,
+          actual: claimed,
+          ok,
+        };
+        checked.push(r);
+        if (!r.ok) drifts.push(r);
+      } else {
+        // No textual claim — just verify the table is non-empty
+        const ok = rowCount > 0;
+        const r = {
+          doc: 'GATE-INVENTORY.md',
+          label: 'instrumented-gate table is non-empty',
+          expected: '>0',
+          actual: rowCount,
+          ok,
+        };
+        checked.push(r);
+        if (!r.ok) drifts.push(r);
+      }
+    }
+  }
+
+  // #25: GATE-INVENTORY.md — referenced source files in Location column exist
+  {
+    const src = loadDoc('GATE-INVENTORY.md');
+    if (src) {
+      // Extract paths like `core/self-gate.js`, `ChatOrchestratorHelpers._processToolLoop`
+      // from the Location column (table cells with backticks)
+      const reLoc = /`([a-z][a-zA-Z0-9_/.-]+\.js)`/g;
+      const docPaths = new Set();
+      let m;
+      while ((m = reLoc.exec(src)) !== null) docPaths.add(m[1]);
+      const missing = [];
+      for (const p of docPaths) {
+        // Resolve as relative to several common src/ subdirs
+        const candidates = [
+          path.join(ROOT, p),
+          path.join(ROOT, 'src', p),
+          path.join(ROOT, 'src/agent', p),
+          path.join(ROOT, 'src/agent/core', p),
+          path.join(ROOT, 'src/agent/foundation', p),
+          path.join(ROOT, 'src/agent/cognitive', p),
+          path.join(ROOT, 'src/agent/intelligence', p),
+          path.join(ROOT, 'scripts', p),
+        ];
+        const found = candidates.some(c => fs.existsSync(c));
+        if (!found) missing.push(p);
+      }
+      const r = {
+        doc: 'GATE-INVENTORY.md',
+        label: 'referenced source files in Location column exist',
+        expected: 0,
+        actual: missing.length,
+        ok: missing.length === 0,
+      };
+      if (missing.length > 0) r.detail = `Missing: ${missing.join(', ')}`;
+      checked.push(r);
+      if (!r.ok) drifts.push(r);
     }
   }
 

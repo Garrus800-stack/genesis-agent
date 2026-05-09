@@ -18,7 +18,7 @@ Thank you for your interest in contributing to Genesis! This guide covers everyt
 
 ### Prerequisites
 
-- **Node.js** ≥ 18.0.0 (tested on 18, 20, 22)
+- **Node.js** ≥ 22.0.0 (Active LTS)
 - **Ollama** running locally (for LLM features)
 - **Git** for version control
 
