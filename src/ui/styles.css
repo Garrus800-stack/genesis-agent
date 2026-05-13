@@ -249,6 +249,20 @@ body {
 .user-message .message-name { color: var(--accent); text-align: right; }
 .agent-message .message-name { color: var(--text-secondary); }
 
+/* v7.7.9 Phase 2: ProactiveSelfExpression — self-initiated messages
+   from Genesis (he wrote on his own, not in response to a user prompt).
+   Subtle dot before the name, low-contrast on purpose. The full reason
+   (kind, score, sourceRef) sits in the title attribute as a tooltip. */
+.message.self-initiated .message-name::before {
+  content: '· ';
+  color: var(--text-tertiary, rgba(128, 128, 128, 0.6));
+  margin-right: 2px;
+  font-weight: normal;
+}
+.message.self-initiated .message-icon {
+  cursor: help;
+}
+
 /* Code blocks */
 .message-content pre {
   background: var(--bg-surface); border: 1px solid var(--border);

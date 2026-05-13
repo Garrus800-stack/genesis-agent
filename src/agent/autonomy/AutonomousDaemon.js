@@ -432,16 +432,20 @@ class AutonomousDaemon {
   /** Check for commonly desired capabilities not yet available */
   _checkDesiredCapabilities() {
     const currentCaps = this.selfModel.getCapabilities();
+    // v7.7.9 Phase 1c: each gap now carries its expected skill name —
+    // the same name the check() looks for. _attemptSkillBuilds passes
+    // this to createSkill so the loaded skill lands under that name and
+    // the gap stops re-detecting next cycle.
     const DESIRED = [
-      { name: 'web-access', check: () => currentCaps.includes('web-access') || this.skills?.loadedSkills?.has('web-search') },
-      { name: 'file-management', check: () => currentCaps.includes('file-management') || this.skills?.loadedSkills?.has('file-manager') },
-      { name: 'scheduling', check: () => this.skills?.loadedSkills?.has('scheduler') },
-      { name: 'data-visualization', check: () => this.skills?.loadedSkills?.has('chart-gen') },
+      { name: 'web-access',         skill: 'web-search',  check: () => currentCaps.includes('web-access')      || this.skills?.loadedSkills?.has('web-search') },
+      { name: 'file-management',    skill: 'file-manager', check: () => currentCaps.includes('file-management') || this.skills?.loadedSkills?.has('file-manager') },
+      { name: 'scheduling',         skill: 'scheduler',   check: () => this.skills?.loadedSkills?.has('scheduler') },
+      { name: 'data-visualization', skill: 'chart-gen',   check: () => this.skills?.loadedSkills?.has('chart-gen') },
     ];
 
     return DESIRED
       .filter(d => !d.check())
-      .map(d => ({ id: `gap:${d.name}`, topic: d.name, type: 'missing-capability' }));
+      .map(d => ({ id: `gap:${d.name}`, topic: d.name, expectedSkill: d.skill, type: 'missing-capability' }));
   }
 
   /** Attempt to build skills for detected capability gaps */
@@ -461,7 +465,12 @@ class AutonomousDaemon {
         const description = gap.request
           ? `The user asked: "${gap.request}". Create a skill that handles this. Use only allowed sandbox modules (path, fs, os, crypto, util).`
           : `Create a skill named "${gap.topic}" that provides the "${gap.topic}" capability. Keep it simple and robust.`;
-        const result = await this.skills.createSkill(description);
+        // v7.7.9 Phase 1c: pass desiredName so the skill lands under the
+        // exact name the gap-detector looks for. Without this, the LLM
+        // picks names freely and gap-detection re-fires every cycle.
+        const result = await this.skills.createSkill(description, {
+          desiredName: gap.expectedSkill || null,
+        });
         if (result.includes('✅')) {
           built++;
           this.bus.fire('daemon:skill-created', { skill: gap.topic, reason: 'capability-gap' }, { source: 'AutonomousDaemon' });

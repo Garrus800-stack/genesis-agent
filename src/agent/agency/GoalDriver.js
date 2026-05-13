@@ -308,15 +308,21 @@ class GoalDriver {
     const goalId = data?.goalId;
     if (goalId && data?.success === false) {
       // Extract error from summary (set by AgentLoop._emitFailure
-      // as "Failed: <e>") or from data.error / data.detail.
-      // Empty error → handled by generic-backoff branch.
+      // as "Failed: <e>") or from data.error / data.detail / bare summary.
+      // v7.7.9 (post-burnin): verification-fail path emits summary WITHOUT
+      // "Failed: " prefix (see AgentLoopPursuit._finalSummary). Treat any
+      // non-empty summary as the error if no explicit error field exists,
+      // otherwise we end up with empty errMsg → '<empty>' in the log.
       let errMsg = '';
       if (typeof data.summary === 'string' && data.summary.startsWith('Failed: ')) {
         errMsg = data.summary.slice('Failed: '.length);
-      } else if (typeof data.error === 'string') {
+      } else if (typeof data.error === 'string' && data.error) {
         errMsg = data.error;
-      } else if (typeof data.detail === 'string') {
+      } else if (typeof data.detail === 'string' && data.detail) {
         errMsg = data.detail;
+      } else if (typeof data.summary === 'string' && data.summary.trim()) {
+        // Bare summary fallback — verification-fail path lands here.
+        errMsg = data.summary;
       }
       const goal = this.goalStack.goals?.find(g => g.id === goalId);
       // Fire-and-forget — _applyFailurePause awaits internally for

@@ -93,6 +93,9 @@ class IdleMind {
     // v7.2.0: LessonsStore — for self-define activity
     this.lessonsStore = null;
 
+    // v7.7.9: InnerSpeech — first-person thought channel (late-bound, optional)
+    this.innerSpeech = null;
+
     // v7.1.6: Research state
     this._pendingResearch = null;
     this._networkCheckCache = undefined;
@@ -107,6 +110,8 @@ class IdleMind {
     this.idleThreshold = INTERVALS.IDLE_THRESHOLD;
     this.thinkInterval = INTERVALS.IDLE_THINK_CYCLE;
     this.thoughtCount = 0;
+    // v7.7.9 Phase 3b: insight-only counter for novelty decay.
+    this.insightThoughtCount = 0;
 
     // Thought journal
     this.journalPath = path.join(storageDir, 'journal.jsonl');
@@ -154,6 +159,35 @@ class IdleMind {
       this._intervals.register('idlemind-think', tickFn, this.thinkInterval);
     } else {
       this.intervalHandle = setInterval(tickFn, this.thinkInterval);
+    }
+
+    // v7.7.9 (post-burnin P7): listen to PSE's plan-failure-reflection so
+    // the activity-picker can cool down goal-generation when a similar
+    // pursuit just failed. The map tracks { tokenSet → expiresAt } and
+    // is consulted by activities/Plan.js before addGoal.
+    this._recentlyFailedGoalTokens = this._recentlyFailedGoalTokens || [];
+    if (this.bus && typeof this.bus.on === 'function') {
+      const unsubPSE = this.bus.on('agent:self-message', (data) => {
+        try {
+          if (!data || data.kind !== 'plan-failure-reflection') return;
+          const desc = data.sourceRef?.goalDescription || data.payload?.goalDescription || '';
+          if (!desc) return;
+          const tokens = desc.toLowerCase()
+            .replace(/[^a-z0-9äöüß]+/g, ' ')
+            .split(/\s+/)
+            .filter(t => t.length >= 4);
+          this._recentlyFailedGoalTokens.push({
+            tokens: new Set(tokens),
+            expiresAt: Date.now() + 60 * 60 * 1000, // 1h cooldown
+          });
+          // prune expired
+          const now = Date.now();
+          this._recentlyFailedGoalTokens = this._recentlyFailedGoalTokens
+            .filter(e => e.expiresAt > now)
+            .slice(-20);
+        } catch (_e) { /* best-effort */ }
+      }, { source: 'IdleMind' });
+      this._unsubs.push(unsubPSE);
     }
 
     _log.info('[IDLE-MIND] Active — autonomous thinking enabled');
@@ -559,6 +593,63 @@ class IdleMind {
     if (this.eventStore) {
       this.eventStore.append('IDLE_THOUGHT', { activity, summary: content.slice(0, 200) }, 'IdleMind');
     }
+
+    // v7.7.9: Additive emit through InnerSpeech for first-person thought channel.
+    // Existing journal.jsonl + IDLE_THOUGHT writes above are unchanged. This is
+    // a parallel emission for ProactiveSelfExpression and other consumers that
+    // care about first-person thoughts in Genesis's voice. emit() never throws
+    // and never blocks — Genesis is never gated against thinking.
+    if (this.innerSpeech && typeof this.innerSpeech.emit === 'function') {
+      try {
+        // v7.7.9 Phase 3: heuristic significance for idle-thoughts. The PSE
+        // pipeline applies per-kind floors (idle-thought sigFloor 0.70,
+        // novFloor 0.65) — without these heuristics every idle-thought
+        // would pass the kind gate and the per-kind floor would never
+        // fire. Activity-based heuristic:
+        //   - insight activities (reflect/explore/tidy/plan/ideate) →
+        //     significance based on content length + activity weight
+        //   - other activities → fixed baseline (won't pass 0.70 floor)
+        // Novelty: rough proxy — first thought in cycle = 0.8,
+        // decaying as thoughtCount grows in the same idle window.
+        const INSIGHT_ACTIVITIES = new Set(['reflect', 'explore', 'tidy', 'plan', 'ideate']);
+        const isInsight = INSIGHT_ACTIVITIES.has(activity);
+        const contentLen = typeof content === 'string' ? content.length : 0;
+        const lenBoost = Math.min(0.3, contentLen / 800);  // up to +0.3 for 240+ chars
+        const significance = isInsight ? Math.min(0.95, 0.55 + lenBoost) : 0.40;
+        // v7.7.9: novelty decays per insight-thought (not per tick).
+        if (isInsight) this.insightThoughtCount = (this.insightThoughtCount || 0) + 1;
+        const noveltyCount = isInsight ? (this.insightThoughtCount || 1) : 1;
+        const novelty = Math.max(0.30, 0.85 - 0.05 * Math.max(0, noveltyCount - 1));
+
+        this.innerSpeech.emit(content, 'idle-thought', {
+          sourceModule: 'IdleMind',
+          contextRefs: { activity, thoughtNumber: this.thoughtCount },
+          emotionalSnapshot: this._snapshotEmotion(),
+          significance,
+          novelty,
+        });
+      } catch (_e) { /* never let inner-speech failure break idle cycle */ }
+    }
+  }
+
+  /**
+   * v7.7.9: Capture current emotional skalars for inner-speech context.
+   * Returns null if emotionalState is unavailable or throws.
+   * Used by _journal() to attach emotionalSnapshot to InnerSpeech thoughts —
+   * lets Genesis later see WHICH MOOD he was in when a thought arose.
+   */
+  _snapshotEmotion() {
+    if (!this.emotionalState || typeof this.emotionalState.getState !== 'function') return null;
+    try {
+      const s = this.emotionalState.getState();
+      if (!s || typeof s !== 'object') return null;
+      return {
+        curiosity: typeof s.curiosity === 'number' ? s.curiosity : null,
+        satisfaction: typeof s.satisfaction === 'number' ? s.satisfaction : null,
+        frustration: typeof s.frustration === 'number' ? s.frustration : null,
+        energy: typeof s.energy === 'number' ? s.energy : null,
+      };
+    } catch (_e) { return null; }
   }
 
   /**

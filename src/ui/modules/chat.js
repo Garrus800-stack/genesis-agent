@@ -156,18 +156,38 @@ function renderMarkdownWithEditorButtons(text) {
   return html;
 }
 
-function addMessage(role, content, intent) {
+function addMessage(role, content, intent, meta = {}) {
   const container = $('#chat-messages');
   const msg = document.createElement('div');
   // FIX v5.1.0: Align class names with styles.css — was chat-message/msg-icon/msg-body
-  msg.className = `message ${role}-message`;
+  // v7.7.9 Phase 2: self-initiated messages get an extra class so styles.css
+  // can render the small dot-marker; tooltip names the kind, score, and
+  // a short reference so the user can tell at-a-glance why Genesis spoke up.
+  let classes = `message ${role}-message`;
+  let titleAttr = '';
+  if (meta && meta.initiatedBy === 'self') {
+    classes += ' self-initiated';
+    const sm = meta.selfMeta || {};
+    const kind = sm.kind || '?';
+    const score = typeof sm.score === 'number' ? sm.score.toFixed(2) : '?';
+    let ref = '';
+    if (sm.sourceRef && typeof sm.sourceRef === 'object') {
+      const r = sm.sourceRef;
+      if (r.goalDescription) ref = ` · ref: ${String(r.goalDescription).slice(0, 60)}`;
+      else if (r.goalId)     ref = ` · ref: ${r.goalId}`;
+      else if (r.activity)   ref = ` · ref: ${r.activity}`;
+    }
+    const tip = `Genesis von sich aus · kind: ${kind} · score: ${score}${ref}`;
+    titleAttr = ` title="${escapeHtml(tip)}"`;
+  }
+  msg.className = classes;
   const icon = role === 'user' ? '▸' : 'G';
   const name = role === 'user' ? 'You' : 'Genesis';
   const intentTag = intent && intent !== 'general' && intent !== 'stream' && intent !== 'error'
     ? `<span class="intent-tag">${escapeHtml(intent)}</span>` : '';
-  msg.innerHTML = `<div class="message-icon">${icon}</div>
+  msg.innerHTML = `<div class="message-icon"${titleAttr}>${icon}</div>
     <div class="message-content">
-      <div class="message-name">${name} ${intentTag}</div>
+      <div class="message-name"${titleAttr}>${name} ${intentTag}</div>
       ${renderMarkdownWithEditorButtons(content)}
     </div>`;
   container.appendChild(msg);

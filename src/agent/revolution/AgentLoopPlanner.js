@@ -24,6 +24,59 @@ const { createLogger } = require('../core/Logger');
 const { buildPlannerStepTypeList, normalizeStepType } = require('./step-types');
 const _log = createLogger('AgentLoopPlanner');
 
+// v7.7.9 (post-Phase-3c.4): when planning, prefer modules whose file
+// path or class names actually overlap with the goal description.
+// Pre-fix: every plan got the first 20 modules by manifest order,
+// which made the LLM invent paths like 'src/core/goal-stack.js' for a
+// goal mentioning stalled goals (real path: 'src/agent/planning/
+// GoalStack.js' + 'src/agent/cognitive/StalledGoalWatchdog.js').
+// Goal-tokens drawn from the description hit the actual file names
+// most of the time; when fewer than 5 modules match we still fall
+// back to the first 20 by manifest order so a generic goal ("clean
+// up the code") never starves the prompt of context.
+const _MAX_RELEVANT_MODULES = 30;
+const _MIN_RELEVANT_MODULES = 5;
+const _STOPWORDS = new Set([
+  'the','and','for','with','from','into','that','this','your','about','some','any','all',
+  'der','die','das','und','von','mit','für','aus','der','dem','den','ist','wie','was','wo','wer','warum','wann','soll','will','muss','dass','nicht','auch','nach','wenn','bei','auf','vor','zur','zum','beim','wieder',
+]);
+
+function _goalTokens(goal) {
+  if (typeof goal !== 'string') return [];
+  return goal.toLowerCase()
+    .replace(/[^a-z0-9äöüß\s]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length >= 3 && !_STOPWORDS.has(t));
+}
+
+function _moduleMatches(mod, tokens) {
+  const file = (mod.file || '').toLowerCase();
+  const classes = (mod.classes || []).map(c => String(c).toLowerCase());
+  for (const t of tokens) {
+    if (file.includes(t)) return true;
+    for (const c of classes) {
+      if (c.includes(t)) return true;
+    }
+  }
+  return false;
+}
+
+function pickRelevantModules(allModules, goalDescription) {
+  if (!Array.isArray(allModules) || allModules.length === 0) return [];
+  const tokens = _goalTokens(goalDescription);
+  if (tokens.length === 0) return allModules.slice(0, LIMITS.PROMPT_MODULE_SLICE);
+  const matches = allModules.filter(m => _moduleMatches(m, tokens));
+  if (matches.length >= _MIN_RELEVANT_MODULES) {
+    return matches.slice(0, _MAX_RELEVANT_MODULES);
+  }
+  // Not enough goal-relevant matches — combine matches with first-N
+  // manifest entries so the LLM still sees real paths but also a
+  // baseline of high-level project modules.
+  const seen = new Set(matches.map(m => m.file));
+  const fillers = allModules.filter(m => !seen.has(m.file)).slice(0, LIMITS.PROMPT_MODULE_SLICE);
+  return [...matches, ...fillers].slice(0, _MAX_RELEVANT_MODULES);
+}
+
 class AgentLoopPlannerDelegate {
   /**
    * @param {import('./AgentLoop').AgentLoop} loop - Parent AgentLoop instance
@@ -61,10 +114,36 @@ class AgentLoopPlannerDelegate {
   async _llmPlanGoal(goalDescription) {
     const loop = this.loop;
 
-    // Build context for planning
-    const modules = loop.selfModel?.getModuleSummary()?.slice(0, LIMITS.PROMPT_MODULE_SLICE) || [];
+    // v7.7.9 (post-Phase-3c.4): pick goal-relevant modules instead of
+    // the first 20 by manifest order — see pickRelevantModules header
+    // comment for live-bug rationale.
+    const allModules = loop.selfModel?.getModuleSummary() || [];
+    const modules = pickRelevantModules(allModules, goalDescription);
     const capabilities = loop.selfModel?.getCapabilities() || [];
     const toolNames = loop.tools?.listTools()?.map(t => t.name || t).slice(0, LIMITS.PROMPT_TOOL_SLICE) || [];
+
+    // v7.7.9 (post-burnin P1): consult obstacle-resolution lessons before
+    // generating a plan. The planner had no awareness of past failures
+    // → kept halucinating the same paths. Pull top-5 token-overlap
+    // matches and inject as PAST FAILURES TO AVOID section.
+    let pastFailuresHint = '';
+    try {
+      const lessonsStore = loop.lessonsStore || loop._lessonsStore;
+      if (lessonsStore && typeof lessonsStore.recall === 'function') {
+        const lessons = lessonsStore.recall('obstacle-resolution', { query: goalDescription }, 5) || [];
+        if (lessons.length > 0) {
+          const lines = lessons.slice(0, 5).map(l => `  - ${(l.insight || '').slice(0, 160)}`);
+          pastFailuresHint = `\n\nPAST FAILURES TO AVOID (lessons from previous attempts on similar goals):\n${lines.join('\n')}\nDo NOT repeat these mistakes. Reference REAL files only, no invented paths.`;
+        }
+      }
+    } catch (_e) { /* best-effort */ }
+
+    // v7.7.9 (post-Phase-3c.4): expose actual file paths to the planner
+    // so the LLM stops inventing paths. List is bounded by
+    // pickRelevantModules above.
+    const modulePathList = modules.length > 0
+      ? modules.map(m => `- ${m.file}${m.classes?.length ? ` (${m.classes.slice(0, 2).join(', ')})` : ''}`).join('\n')
+      : '(no module manifest available)';
 
     // v3.5.0: Inject WorldState context if available
     const wsContext = loop.worldState
@@ -116,7 +195,10 @@ YOUR CAPABILITIES:
 - Search the web for documentation
 - Use ${toolNames.length} registered tools
 
-YOUR MODULES: ${modules.length} modules across core, foundation, intelligence, capabilities, planning, cognitive, organism, revolution, hexagonal, autonomy
+YOUR MODULES: ${allModules.length} modules across core, foundation, intelligence, capabilities, planning, cognitive, organism, revolution, hexagonal, autonomy.
+
+GOAL-RELEVANT MODULE PATHS (use these EXACT paths when referring to files — do not invent new ones):
+${modulePathList}${pastFailuresHint}
 
 Create a plan with concrete, executable steps. Each step must be ONE of:
 ${stepTypeList}
@@ -213,4 +295,6 @@ Keep it to 3-8 steps. Be specific. Each step must be independently verifiable.`;
 }
 
 // v3.8.0: Export delegate class. Legacy bare-function exports removed.
-module.exports = { AgentLoopPlannerDelegate };
+// v7.7.9 (post-Phase-3c.4): pickRelevantModules exported for unit tests
+// that exercise the goal-matching filter independently.
+module.exports = { AgentLoopPlannerDelegate, pickRelevantModules };

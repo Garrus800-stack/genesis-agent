@@ -16,6 +16,7 @@
 const { TIMEOUTS, THRESHOLDS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
 const { normalizeStepType, getStepRequirements } = require('./step-types');
+const { _filterImplausibleFilePaths } = require('./PathPlausibility');
 const path = require('path');
 const fs = require('fs');
 const _log = createLogger('AgentLoopSteps');
@@ -91,6 +92,26 @@ class AgentLoopStepsDelegate {
       if (normalizedType && normalizedType !== step.type) {
         _log.debug(`[STEPS] Normalized step type "${step.type}" → "${normalizedType}"`);
         step.type = normalizedType;
+      } else if (!normalizedType) {
+        // v7.7.9 (post-Phase-3b): defensive fallback for steps that arrive
+        // with missing/unknown type. Pre-fix shape: a step with type=undefined
+        // (LLM produced JSON without the `type` field, or an upstream path
+        // bypassed AgentLoopPlanner's normalisation loop) fell through Z. 92's
+        // truthy-check and hit the switch default with "Unknown step type:
+        // undefined". Live-Befund 2026-05-12 burn-in: 6/9 steps in
+        // "Automated Error Lesson Generation" showed this exact symptom,
+        // and the goal was still marked completed by GoalDriver despite
+        // zero substantive execution. Fallback: rewrite to ANALYZE (same
+        // strategy AgentLoopPlanner Z. 158 uses) so the step at least gets
+        // read-only treatment instead of silently no-oping into a fake
+        // success-summary. The description is annotated so the fallback is
+        // visible in logs and self-statements.
+        const _origType = (typeof step.type === 'string' && step.type)
+          ? step.type
+          : '<missing>';
+        _log.warn(`[STEPS] Step had unknown/missing type "${_origType}" — falling back to ANALYZE`);
+        step.description = `[was ${_origType}] ${step.description || ''}`.trim();
+        step.type = 'ANALYZE';
       }
 
       // v7.4.5 Baustein C: Pre-existence check.
@@ -98,6 +119,16 @@ class AgentLoopStepsDelegate {
       // ResourceRegistry. If anything is missing, return a special
       // "blocked" result so AgentLoop can park the goal until the
       // resource(s) come back, instead of failing the step.
+      //
+      // v7.7.9 Phase 3 (bug-3 fix): Before blocking, run a pathPlausibility
+      // check on any missing file:-resources. The LLM-step-generator can
+      // hallucinate paths that will never exist (live-Befund 2026-05-10:
+      // "logs\self-statement.log" — neither inside the project nor created
+      // anywhere). Blocking on those resources parks the goal forever and
+      // bypasses the failure-reflection path entirely (PSE pipeline never
+      // sees them). We catch implausible paths here and convert them to
+      // a normal step failure instead, which routes through the standard
+      // reflection mechanism.
       const resourceRegistry = loop.resourceRegistry || loop._resourceRegistry;
       if (resourceRegistry && resourceRegistry.requireAll) {
         try {
@@ -105,6 +136,23 @@ class AgentLoopStepsDelegate {
           if (required.length > 0) {
             const check = resourceRegistry.requireAll(required);
             if (!check.ok) {
+              // v7.7.9 Phase 3: path-plausibility filter on missing file:-tokens.
+              // If ALL missing tokens are file:-tokens AND none is plausible,
+              // fail the step instead of blocking. If at least one missing
+              // resource is plausible (or non-file:), keep the block — those
+              // are legitimate waits.
+              const implausiblePaths = _filterImplausibleFilePaths(
+                check.missing, loop.rootDir || process.cwd()
+              );
+              if (implausiblePaths.length > 0 &&
+                  implausiblePaths.length === check.missing.length) {
+                _log.info(`[STEPS] step failed — implausible paths: ${implausiblePaths.join(', ')}`);
+                return {
+                  output: null,
+                  error: `Plausibility check failed for: ${implausiblePaths.join(', ')} (path does not exist and parent directory not within project scope)`,
+                  durationMs: Date.now() - start,
+                };
+              }
               _log.info(`[STEPS] step blocked — missing resources: ${check.missing.join(', ')}`);
               return {
                 output: null,
@@ -144,7 +192,21 @@ class AgentLoopStepsDelegate {
           stepResult = { ...(await this._stepDelegate(step, enrichedContext, onProgress)), durationMs: Date.now() - start };
           break;
         default:
-          stepResult = { output: `Unknown step type: ${step.type}`, error: null, durationMs: Date.now() - start };
+          // v7.7.9 (post-Phase-3b): defense-in-depth. With the pre-switch
+          // normalisation above this branch should be unreachable, but if
+          // a step somehow arrives with an unknown type that the normaliser
+          // ALSO declines (shouldn't happen because we fall back to ANALYZE),
+          // mark it as an actual error so it doesn't count as success in
+          // verification/summary stats. Pre-fix: error=null caused the
+          // post-execution summary to count "Unknown step type" outputs as
+          // success, inflating the success rate (live: "9 steps: 0
+          // verified, 7 ambiguous, 2 errors. Success rate: 78%" with all
+          // executed steps actually being no-ops).
+          stepResult = {
+            output: '',
+            error: `Unknown step type: ${step.type} (post-normalisation; this should not happen)`,
+            durationMs: Date.now() - start,
+          };
       }
     } catch (err) {
       stepResult = { output: '', error: err.message, durationMs: Date.now() - start };

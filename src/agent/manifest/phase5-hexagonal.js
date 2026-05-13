@@ -136,6 +136,9 @@ function phase5(ctx, R) {
         // v7.5.9 ZIP4 Phase 8: P5→P1 for /architecture diagram —
         // needs selfModel.getFullModel() + _manifestMeta to render.
         { prop: 'selfModel', service: 'selfModel', optional: true },
+        // v7.7.9 Phase 2: P5→P9 for /quiet, /proactive-status slash commands.
+        { prop: 'proactiveSelfExpression', service: 'proactiveSelfExpression', optional: true,
+          impact: '/quiet and /proactive-status return "service not available"' },
       ],
       factory: (c) => {
         const { lang } = R('Language');

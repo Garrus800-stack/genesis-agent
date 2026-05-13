@@ -45,11 +45,20 @@ function track(name, fn) {
 }
 
 // ── A1: package.json version is 7.7.8 ────────────────────────
+//
+// A1 subtest below was retired in v7.7.9 — version-pin became obsolete
+// once v7.7.9 shipped. Current version is pinned by
+// v779-* contract tests instead. The remaining subtests in this file
+// (G1-G5 fix surfaces) stay live as regression guards for the v7.7.8
+// goal-awareness fixes.
+//
+// Same retirement pattern as v7.7.8 retired v7.7.7's A1 (single-version
+// pins age out by their nature — what they once asserted is no longer true).
 
-track('A1: package.json version is 7.7.8', () => {
-  assert.strictEqual(pkg.version, '7.7.8',
-    `package.json version must be 7.7.8, got ${pkg.version}`);
-});
+// track('A1: package.json version is 7.7.8', () => {
+//   assert.strictEqual(pkg.version, '7.7.8',
+//     `package.json version must be 7.7.8, got ${pkg.version}`);
+// });
 
 // ── G1: Conversation-closing-recognition ─────────────────────
 
@@ -212,20 +221,30 @@ track('G5b: reflection helper classifies failures by category', () => {
   assert.strictEqual(classifyFailure('something weird happened'), 'unclassified');
 });
 
-track('G5c: reflection helper stores lesson via lessonsStore.add()', () => {
+track('G5c: reflection helper stores lesson via lessonsStore.record()', () => {
+  // v7.7.9 (post-Phase-3c.2): test updated. Originally asserted
+  // lessonsStore.add() — but that method does not exist on
+  // LessonsStore (the real API is record()). The test was
+  // codifying the bug it was meant to guard. After Phase 3c.2
+  // recordReflection writes via record() with the canonical
+  // schema and category 'obstacle-resolution'.
   const src = read('src/agent/revolution/AgentLoopPursuitReflection.js');
-  assert.ok(/lessonsStore\.add/.test(src),
-    'reflection helper must consult lessonsStore.add() for stable patterns');
-  // Verify lessonsStore.add is actually called for stable classifications
-  let addedLesson = null;
-  const stubLessonsStore = { add: (l) => { addedLesson = l; } };
+  assert.ok(/lessonsStore\.record\s*\(/.test(src),
+    'reflection helper must call lessonsStore.record() (real API on LessonsStore)');
+  // Verify lessonsStore.record is actually called for stable classifications
+  let recordedLesson = null;
+  const stubLessonsStore = { record: (l) => { recordedLesson = l; } };
   const { recordReflection } = require(path.join(ROOT, 'src/agent/revolution/AgentLoopPursuitReflection'));
   recordReflection({ lessonsStore: stubLessonsStore, selfStatementLog: null }, {
     goalDescription: 'test goal', errorMessage: 'no peers available',
     classification: 'structural',
   });
-  assert.ok(addedLesson, 'lessonsStore.add must be called for stable classification');
-  assert.strictEqual(addedLesson.classification, 'structural');
+  assert.ok(recordedLesson, 'lessonsStore.record must be called for stable classification');
+  assert.strictEqual(recordedLesson.category, 'obstacle-resolution',
+    'category must be obstacle-resolution (matches AgentLoopRecovery recall)');
+  assert.ok(recordedLesson.insight, 'lesson must carry a non-empty insight');
+  assert.ok(recordedLesson.source === 'plan-failure-reflection',
+    'source must identify the producer');
 });
 
 track('G5d: reflection helper appends to selfStatementLog with reflection text', () => {
@@ -236,12 +255,15 @@ track('G5d: reflection helper appends to selfStatementLog with reflection text',
     'self-statement must use kind "plan-failure-reflection"');
 });
 
-track('G5e: AgentLoopPursuit wires reflectOnFailure into _emitFailure', () => {
+track('G5e: AgentLoopPursuit wires reflection helper into _emitFailure', () => {
   const src = read('src/agent/revolution/AgentLoopPursuit.js');
   assert.ok(/require\(['"]\.\/AgentLoopPursuitReflection['"]\)/.test(src),
     'pursuit must require the reflection helper');
-  assert.ok(/reflectOnFailure\(/.test(src),
-    'pursuit must call reflectOnFailure() in failure path');
+  // v7.7.9 (post-Phase-3c.4): all reflection sites use reflectIfNeeded
+  // which dedups internally via the _reflected flag. The legacy
+  // reflectOnFailure export is still available for direct callers.
+  assert.ok(/reflectIfNeeded\(|reflectOnFailure\(/.test(src),
+    'pursuit must call a reflection helper in failure path');
 });
 
 // ── D1: audit-doc-drift baseline ──────────────────────────────

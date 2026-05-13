@@ -1,3 +1,373 @@
+## [7.7.9]
+
+**Proactive Self-Expression / Proaktive Self-Mitteilung.**
+Genesis bekommt einen inneren Raum und einen Mund.
+
+### Stabilization pass (post-burnin)
+
+After multi-day live burn-in surfaced systemic patterns that prevented
+Genesis from completing goals and learning from failures, the following
+stabilization fixes were rolled into v7.7.9 as a single coherent pass:
+
+**P1 — Lessons consulted before planning.** Previously `AgentLoopPlanner._llmPlanGoal`
+generated plans without consulting past obstacle-resolution lessons. The
+planner now pulls top-5 token-overlap lessons via `lessonsStore.recall`
+and injects them as a `PAST FAILURES TO AVOID` section in the prompt.
+Burn-in showed the same hallucinated file paths re-emitted across
+multiple goal pursuits because the planner had no failure memory.
+
+**P2 — IdleMind generates only concrete, verifiable goals.** Plan activity
+prompt rewritten to require real file paths (provides actual manifest
+list) and a `SKIP` signal when no concrete improvement is found. Before
+adding a goal, IdleMind now token-checks the proposed title against
+recently failed/stalled/obsolete goals — overlap ≥2 tokens → skip.
+Eliminates the loop where IdleMind kept proposing the same abstract
+meta-goals that had just failed.
+
+**P3 — Self-reflect slash-hint on free conversation.** LLM classifier
+in `IntentRouter._llmClassify` previously included slash-only intents
+in the option list. The LLM legitimately picked `self-reflect` for
+free-text reflection questions, hit `_enforceSlashDiscipline`, and
+returned "diese Aktion ist slash-only". Slash-only intents now
+filtered out of the classifier prompt — reachable only via explicit
+`/` patterns.
+
+**P4 — `<empty>` errorMessage in pursuit-failure log eliminated.**
+GoalDriver._onPursuitComplete only extracted error from
+`"Failed: <e>"`-prefixed summary or explicit `error`/`detail` fields.
+The verification-fail path emits summary WITHOUT prefix. Bare-summary
+fallback added, plus AgentLoopPursuit verification-fail event payload
+now carries `error: _finalSummary` explicitly.
+
+**P5 — Goal-Failure-Lockout via `obsolete` status.** Backoff schedule
+shortened: 10s → 60s → 300s, then stalled (was 5s → 30s → 2min → 10min
+→ 30min, 6 attempts). New fast-track for hallucination-class failures
+(`implausible path`, `Unexpected token`, `Unknown step type`,
+`missing required`, `file not found`, `ENOENT`): 2 retries → permanent
+`obsolete` status. New event `goal:obsolete` emitted on transition;
+`_listPursueable` excludes obsolete by status-filter. Goals stay
+visible to the user but never re-pursued.
+
+**P6 — ColonyOrchestrator tame.**
+- `subtaskTimeoutMs`: 120s → 240s (cold-load + LLM latency room)
+- `maxSubtasks`: 10 → 5 (decomposing further just queues)
+- Colony step threshold: 3 → 8 (only escalate genuinely complex plans)
+- Colony escalation now requires MAJORITY of subtasks done before
+  declaring "succeeded" (1/3 done was being logged as success, fed
+  sparse insights into verification)
+
+**P7 — IdleMind feedback-loop from PSE.** IdleMind subscribes to
+`agent:self-message` events with `kind: plan-failure-reflection`,
+extracts goal description tokens, and stores them in
+`_recentlyFailedGoalTokens` with 1h expiry. Plan activity consults
+this on next addGoal attempt — recently-failed token-overlap skips
+new goal generation in favour of returning the LLM's plan text without
+queueing.
+
+**File changes for stabilization pass:**
+  - modified: `src/agent/agency/GoalDriver.js` (P4: bare-summary fallback)
+  - modified: `src/agent/agency/GoalDriverFailurePolicy.js` (P5: obsolete + shorter backoff)
+  - modified: `src/agent/revolution/AgentLoopPursuit.js` (P4 error field, P6 majority + threshold 8)
+  - modified: `src/agent/revolution/AgentLoopPlanner.js` (P1: past-failures hint in prompt)
+  - modified: `src/agent/revolution/ColonyOrchestrator.js` (P6: defaults)
+  - modified: `src/agent/autonomy/IdleMind.js` (P7: PSE subscriber + token map)
+  - modified: `src/agent/autonomy/activities/Plan.js` (P2: concrete prompt + skip-similar)
+  - modified: `src/agent/intelligence/IntentRouter.js` (P3: slash-only filter on LLM)
+  - modified: `test/modules/colony-orchestrator.test.js` (maxSubtasks default 5)
+  - modified: `test/modules/v745-fix.test.js` (first backoff now 10s)
+
+Verification: 7236 tests passed, 0 failed. Fitness 130/130. Audit-doc-drift clean.
+
+---
+
+This release introduces a real, separated InnerSpeech channel through
+which Genesis's reasoning, idle thoughts, and meta-cognition flow
+privately, plus a ProactiveSelfExpression organ that observes that
+inner space and occasionally — under conservative, non-adaptive gates
+— chooses to surface a thought into the chat as a self-initiated
+message. Plan Phase 1 + Phase 2 ship in v7.7.9; the four additional
+trigger kinds (idle-thought, goal-closure-thought, self-formulated-
+plan, question) are code-complete but gated off by default and reserved
+for a future release after Phase 2 is observed stable.
+
+Alongside the Plan, this release also bundles all bug-fixes that
+surfaced during the v7.7.9 burn-in cycle — fixes for issues that
+were already latent in v7.7.8 and earlier and that the Plan's burn-in
+sessions made visible.
+
+### Plan — InnerSpeech (Phase 1)
+
+InnerSpeech is a bounded in-memory channel for first-person thoughts,
+overflowing on capacity into the existing `selfStatementLog` so the
+substrate is fast in-memory and persistent on disk in the same step.
+IdleMind and MetaCognitiveLoop now emit through InnerSpeech instead
+of writing directly to selfStatementLog; the existing log path becomes
+the overflow target.
+
+New files:
+  - `src/agent/cognitive/InnerSpeech.js`
+  - `src/agent/cognitive/innerSpeech/RingBuffer.js`
+  - `docs/INNER-SPEECH.md`
+
+### Plan — Proactive Self-Expression (Phase 2)
+
+`ProactiveSelfExpression` subscribes to InnerSpeech via `subscribe('*',
+cb)`. For each thought the pipeline runs: hard gates (enabled, quiet
+hours, minimum interval, user-activity cooldown, mute, per-kind
+enablement, per-kind floor) → composite score (significance, novelty,
+emotional intensity, time-since-last) → LLM content generation under
+an identity prompt → content-sanity reject layer → commit to
+ChatHistoryStore + IPC. Only `plan-failure-reflection` triggers are
+enabled by default in v7.7.9.
+
+A subtle 6×6px dot glyph marks self-initiated messages in the chat.
+The dot's tooltip shows kind/score/sourceRef. Tooltip + dot are the
+*only* visual signal — no banners, no notifications, no system tray.
+
+Two new slash commands: `/quiet [30m|2h|today|off]` and
+`/proactive-status`. Both are normal user→Genesis interactions, not
+self-messages.
+
+Four new events catalogued (455 → 460):
+  - `agent:inner-thought`
+  - `agent:self-message-candidate`
+  - `agent:self-message`
+  - `agent:self-message-suppressed`
+
+Anti-pattern guards documented + tested:
+  - No engagement metrics
+  - No user-reaction conditioning
+  - No farewell hooks or fake-feeling claims (regex-rejected)
+  - No notifications outside the chat
+  - Defaults are conservative; tuning is one-shot, human-decided
+
+New files:
+  - `src/agent/cognitive/ProactiveSelfExpression.js`
+  - `src/agent/cognitive/proactiveSelfExpression/Scoring.js`
+  - `src/agent/cognitive/proactiveSelfExpression/HardGates.js`
+  - `src/agent/cognitive/proactiveSelfExpression/ContentSanity.js`
+  - `src/agent/cognitive/proactiveSelfExpression/ContentGeneration.js`
+  - `src/agent/cognitive/proactiveSelfExpression/StateStore.js`
+  - `src/agent/cognitive/proactiveSelfExpression/prompts.js`
+  - `docs/PROACTIVE-SELF-EXPRESSION.md`
+
+UI additions:
+  - `main.js` IPC bridge: `agent:self-message` → renderer
+  - `src/ui/modules/chat.js`: dot + tooltip rendering
+  - `src/ui/styles.css`: dot styling
+  - `preload.js` / `preload.mjs`: `genesis:self-message` whitelisted
+
+### Bug fixes (rolled into v7.7.9)
+
+**Slash-discipline no longer breaks normal conversation.** Before:
+`IntentRouter._fuzzyClassify` used bidirectional substring match and
+`_learnFromLLMResult` added everyday words as fuzzy keywords to
+slash-only intents like `journal` / `self-reflect` / `self-recall`.
+Phrases like "lies die datei", "weisst du noch", "fasse zusammen"
+matched slash-only intents via online-learned keywords, the slash-
+discipline guard fired, and the user got "diese Aktion ist slash-
+only" instead of an answer. Live evidence: one 13h session accumulated
+nine learned keywords on the `journal` intent — `lies, datei, zeilen,
+letzten, fasse, zusammen, und, die, genesisjournaltxt`. Fixed in
+`IntentRouter.js`:
+  - `_fuzzyClassify` skips slash-only routes entirely
+  - exact-word match plus prefix boundary, no bidirectional substring
+  - `_learnFromLLMResult` refuses slash-only intents
+  - `importLearnedPatterns` drops slash-only entries on load
+
+**Plan-failure-reflection pipeline now reaches every failure path.**
+Before: three reflectOnFailure call sites existed; none ran when
+`_executeLoop` short-circuited via timeout-abort, cancel, blocked-on-
+resources, or step-limit-stop. Burn-in showed four plan failures in
+13h producing zero `obstacle-resolution` lessons.
+  - `reflectIfNeeded(loop, payload)` helper centralizes services dict,
+    try/catch, and the `_reflected` dedup flag — every reflection call
+    site is a single line
+  - `composeFailureMessage(result, stepCount)` builds non-empty
+    errorMessage from `blocked → result.error → result.summary →
+    synthesized fallback` so `classifyFailure` always has a string
+  - all five reflection sites are wired through `reflectIfNeeded`
+
+**Lessons pipeline X1-X6 keystone fixes.** Plan-failure reflections
+were silently dropped on the floor:
+  - `lessonsStore.add()` → `lessonsStore.record()` (X1: silent skip)
+  - schema correction: `category/insight/strategy/evidence/tags/source`
+    (X2)
+  - write category aligned with read category: `obstacle-resolution`
+    (X3)
+  - public `lessonsStore.flush()` (X5: shutdown loss)
+  - `classifyFailure` patterns extended for live-typical errors:
+    plausibility-check, verification-failed, stopped-by-user (X6)
+
+**Plan hallucination — no more invented file paths.** Before:
+`_llmPlanGoal` sliced the first 20 modules from `getModuleSummary()`
+and never passed real paths into the planner prompt. The LLM invented
+paths like `src/core/goal-stack.js` (real: `src/agent/planning/
+GoalStack.js`), the pre-existence check killed the plan with
+"implausible paths". Fixed in `AgentLoopPlanner.js`:
+  - `pickRelevantModules(allModules, goalDescription)` filters the
+    manifest by goal-tokens, caps at 30
+  - the prompt lists those real paths under `GOAL-RELEVANT MODULE
+    PATHS` telling the LLM "use these EXACT paths — do not invent
+    new ones"
+
+**Stalled goals now trigger reflection.** Before: blocked goals sat
+4h+ with no progress and no failure-reflection emitted. New
+`StalledGoalWatchdog` service ticks every 60s, flags blocked goals
+older than `goals.stalledTimeoutMs` (default 15min), transitions
+them to `stalled` and calls `AgentLoopPursuitReflection.recordReflection`
+directly. New event `goal:stalled` with `blockedAt + stalledMinutes`
+schema.
+
+**Path plausibility filter.** Before: LLM-hallucinated paths like
+`file:logs\self-statement.log` returned `blocked=true` (waiting for
+resource) and the goal stalled forever. Fixed: new `PathPlausibility.js`
+helper runs in `AgentLoopSteps` before returning blocked; when all
+missing file:-tokens are implausible the step fails normally and the
+standard reflection path runs.
+
+**Empty errorMessage in pursuit-failure log.** Before: live log read
+`pursuit of goal_..._1 failed (1/6) — backing off 5s: <empty>`. The
+event was firing with success=false but empty summary; all downstream
+consumers lost the error context. Fixed: when `verification.success
+===false` AND summary is empty, reconstruct from the last step's
+error.
+
+**Abort-return now carries `error` field.** Global-timeout abort
+returned `{success:false, aborted:true, summary}` but no `error`.
+`GoalDriver._beginPursuit` reads `result.error` not `result.summary`.
+Fixed.
+
+**Reflection gap on catch + final-verification-fail paths.** Plan-
+failure reflection only fired through `_emitFailure`. A thrown
+pursuit or a goal that ran every step but failed final verification
+both emitted `agent-loop:complete` with `success:false` — but
+`reflectOnFailure` was never called for them. Now also invoked from
+catch-path and final-verification path.
+
+**IdleMind novelty pinned at floor.** `thoughtCount` was incremented
+on every tick including non-insight activities (`goal`, `research`,
+`observe`); novelty hit 0.30 floor after ~12 ticks. Fixed: separate
+`insightThoughtCount` that only advances on insight-class activities
+(`reflect`, `explore`, `tidy`, `plan`, `ideate`).
+
+**min-interval default 30min → 10min.** Burn-in showed 7 of 8
+publishable thoughts in a 28-minute window suppressed by min-interval
+after the first one. The daily soft-cap (8), per-kind floors, score
+dampener, and user-activity cooldown already throttle volume from
+four independent directions; the 30-min binding constraint was cutting
+Genesis off from his own substantive thoughts.
+
+**Step-type undefined → fallback to ANALYZE.** 6/9 plan steps reached
+AgentLoopSteps with `step.type === undefined`, the default branch
+set `error: null` marking the step "successful". Fixed: `else if
+(!normalizedType)` fallback to ANALYZE, default branch now sets
+real error.
+
+**SelfSpawner worker-pool FIFO.** Before: `spawnParallel()` called
+`spawn()` for every input task simultaneously. With `_maxWorkers=3`
+and 10 input tasks, the first 3 spawned and the other 7 failed
+fast with "Max workers (3) reached". Fixed: FIFO queue, new public
+`maxWorkers` getter.
+
+**ColonyOrchestrator decompose cap at pool size.** When local execution
+is the path, decomposing into 10 subtasks with a 3-worker pool is
+just queueing. New `_effectiveMaxSubtasks(willExecuteLocally)` returns
+`min(config.maxSubtasks, selfSpawner.maxWorkers)` for local runs;
+peer-distributed runs keep the unrestricted config value.
+
+**SkillManager `desiredName` option.** `AutonomousDaemon` was looking
+for skills under fixed names but `createSkill()` let the LLM choose
+freely → gaps re-detected every cycle, same skill built repeatedly
+under different names. Fixed: `createSkill(description, { desiredName })`
+overrides the manifest if the LLM picks something else.
+
+**LessonsStore start() lifecycle.** Without explicit `start()`,
+LessonsStore subscribers (streak/escalation/workspace/dream/shell)
+never attached and `~/.genesis-lessons/` was never created. The
+Phase 3c.2 record() fixes were correct but unreachable until
+LessonsStore actually starts. Added to `_startServices`.
+
+**StalledGoalWatchdog start() lifecycle.** Same root cause — without
+start(), the watchdog's setInterval never opens.
+
+### What's NOT in v7.7.9 (deferred to v7.7.10+ per the Plan)
+
+  - Trigger kinds beyond plan-failure-reflection (idle-thought,
+    goal-closure, self-formulated-plan, question) — code-complete,
+    gated off via `proactive.allowedKinds = ['plan-failure-reflection']`
+  - AgentLoop reasoning-trace migration to InnerSpeech (Plan Phase 4)
+  - WakeUpRoutine activation — Service exists in the manifest but is
+    not started; the boot-time LLM call is intentionally deferred
+  - Auto-start of the wider Phase 9/11 services group (dreamCycle,
+    onlineLearner, memoryConsolidator, projectIntelligence, etc.) —
+    each is resolvable in the container but inert unless explicitly
+    enabled
+
+### Files changed
+
+**New (Plan):**
+  - `src/agent/cognitive/InnerSpeech.js`
+  - `src/agent/cognitive/innerSpeech/RingBuffer.js`
+  - `src/agent/cognitive/ProactiveSelfExpression.js`
+  - `src/agent/cognitive/proactiveSelfExpression/*.js` (6 files)
+  - `src/agent/cognitive/KindTriggers.js` (Plan Phase 3 substrate, inert)
+  - `src/agent/hexagonal/ChatHistoryMapper.js`
+  - `docs/INNER-SPEECH.md`
+
+**New (Bugs):**
+  - `src/agent/cognitive/StalledGoalWatchdog.js`
+  - `src/agent/revolution/PathPlausibility.js`
+
+**Modified:**
+  - `src/agent/AgentCoreHealth.js` (watchdog in shutdown list)
+  - `src/agent/AgentCoreWire.js` (lessonsStore, watchdog, InnerSpeech,
+    PSE in `_startServices`; null-check on resolved instance)
+  - `src/agent/autonomy/IdleMind.js` (InnerSpeech emit;
+    insightThoughtCount)
+  - `src/agent/autonomy/AutonomousDaemon.js`
+  - `src/agent/capabilities/SelfSpawner.js` (FIFO queue)
+  - `src/agent/capabilities/SkillManager.js` (desiredName)
+  - `src/agent/cognitive/LessonsStore.js` (start lifecycle; flush(); X5)
+  - `src/agent/cognitive/SelfStatementLog.js`
+  - `src/agent/core/EventTypes.js` (4 new event constants)
+  - `src/agent/core/EventPayloadSchemas.js` (4 new payload contracts;
+    goal:stalled extended)
+  - `src/agent/foundation/Settings.js` (proactive.*, innerSpeech.*,
+    goals.*, minIntervalMs default 30→10min)
+  - `src/agent/hexagonal/ChatOrchestrator.js`
+  - `src/agent/hexagonal/CommandHandlers.js` (/quiet, /proactive-status)
+  - `src/agent/intelligence/IntentPatterns.js` (quiet, proactive-status
+    intents; SAFE_SLASH_FALLTHROUGH)
+  - `src/agent/intelligence/IntentRouter.js` (slash-discipline-friendly
+    chat fix)
+  - `src/agent/intelligence/slash-commands.js` (/quiet, /proactive-status)
+  - `src/agent/manifest/phase5-hexagonal.js`
+  - `src/agent/manifest/phase6-autonomy.js`
+  - `src/agent/manifest/phase8-revolution.js`
+  - `src/agent/manifest/phase9-cognitive.js` (innerSpeech, PSE,
+    stalledGoalWatchdog, kindTriggers registration)
+  - `src/agent/revolution/AgentLoopPlanner.js` (pickRelevantModules)
+  - `src/agent/revolution/AgentLoopPursuit.js` (abort error field;
+    reflectIfNeeded sites)
+  - `src/agent/revolution/AgentLoopPursuitReflection.js` (X1-X6;
+    reflectIfNeeded; composeFailureMessage)
+  - `src/agent/revolution/AgentLoopRecovery.js`
+  - `src/agent/revolution/AgentLoopSteps.js` (step-type undefined;
+    path-plausibility hook)
+  - `src/agent/revolution/ColonyOrchestrator.js` (cap at pool size)
+  - `main.js` (IPC bridge)
+  - `preload.js` / `preload.mjs` (genesis:self-message channel)
+  - `src/ui/modules/chat.js`
+  - `src/ui/renderer-main.js`
+  - `src/ui/styles.css`
+
+**Test surface:** 437 test files, 7231 tests on Win baseline (7236 on
+Linux container). Fitness 130/130. Audit-doc-drift clean across
+55 claims.
+
+---
+
 ## [7.7.8]
 
 Goal-awareness release. After v7.7.7 closed the audit-cleanup, a live

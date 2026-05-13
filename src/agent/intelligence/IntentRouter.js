@@ -8,7 +8,12 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
-const { INTENT_DEFINITIONS, enforceSlashDiscipline: _enforceSlashDiscipline } = require('./IntentPatterns');
+const {
+  INTENT_DEFINITIONS,
+  SLASH_ONLY_INTENTS,
+  SECURITY_REQUIRED_SLASH,
+  enforceSlashDiscipline: _enforceSlashDiscipline,
+} = require('./IntentPatterns');
 const _log = createLogger('IntentRouter');
 
 // v7.4.3 Baustein C: INTENT_DEFINITIONS, SLASH_ONLY_INTENTS and the
@@ -317,10 +322,26 @@ class IntentRouter {
 
     for (const route of this.routes) {
       if (route.keywords.length === 0) continue;
+      // v7.7.9 (post-Phase-3c.4): slash-only intents must not match via
+      // fuzzy keywords on free-text. Without this gate, online-learning
+      // poisons routes like 'journal' / 'self-reflect' / 'self-recall'
+      // with everyday words ('lies', 'datei', 'zeilen', 'weisst', etc.)
+      // — and the user can no longer hold a normal conversation that
+      // mentions any of those words without hitting the slash-discipline
+      // guard. Slash-only intents stay reachable through their explicit
+      // regex patterns (e.g. /\/journal\b/), which run in _patternClassify
+      // before this method.
+      if (SLASH_ONLY_INTENTS.has(route.name) || SECURITY_REQUIRED_SLASH.has(route.name)) continue;
       let hits = 0;
       for (const kw of route.keywords) {
         if (words.includes(kw)) { hits += 1.0; continue; }
-        if (words.some(w => w.includes(kw) || kw.includes(w))) { hits += 0.7; continue; }
+        // v7.7.9 (post-Phase-3c.4): bidirectional substring match
+        // (`w.includes(kw) || kw.includes(w)`) was too aggressive — any
+        // file path or compound word that contained a keyword as a
+        // substring triggered. Tightened to exact-word match plus prefix
+        // boundary, so 'genesis-journal.txt' no longer matches keyword
+        // 'journal'.
+        if (kw.length > 3 && words.some(w => w === kw)) { hits += 0.7; continue; }
         if (kw.length > 4 && words.some(w => this._isSimilar(w, kw))) { hits += 0.5; }
       }
       const score = (hits / route.keywords.length) * (route.priority / 20);
@@ -339,15 +360,25 @@ class IntentRouter {
     const cacheKey = message.toLowerCase().trim().slice(0, 200);
     if (this.llmCache.has(cacheKey)) return this.llmCache.get(cacheKey);
 
-    const intentList = this.routes.map(r => r.name).join(', ');
+    // v7.7.9 (post-Phase-3c.5): exclude slash-only intents from the LLM
+    // classification options. Otherwise the LLM legitimately picks
+    // self-reflect / self-modify / self-inspect for free-text messages
+    // about reflection or change, the message hits _enforceSlashDiscipline,
+    // and the user sees "diese Aktion ist slash-only" instead of an answer.
+    // Slash-only intents are reachable only through their explicit `/` patterns
+    // in _regexClassify — the LLM doesn't need them as options.
+    const intentList = this.routes
+      .filter(r => !SLASH_ONLY_INTENTS.has(r.name) && !SECURITY_REQUIRED_SLASH.has(r.name))
+      .map(r => r.name)
+      .join(', ');
     const prompt = `Classify the following user message into EXACTLY ONE of these categories:
 ${intentList}, general
 
 IMPORTANT RULES:
-- "general" = any question, explanation, or CODE GENERATION request (write a function, create a class, etc.)
+- "general" = any question, conversation, reflection, opinion, or CODE GENERATION request (write a function, create a class, etc.)
 - "create-skill" = ONLY when user explicitly asks to create a GENESIS SKILL/PLUGIN, not general code
-- "self-modify" = ONLY when user asks Genesis to modify ITS OWN code
 - "execute-code" = ONLY when user provides code to RUN, not to WRITE
+- When unsure, prefer "general"
 
 MESSAGE: "${message.slice(0, 500)}"
 
@@ -415,8 +446,16 @@ CONFIDENCE: [0.0-1.0]`;
    * Learn from LLM classification results. After N messages for the
    * same intent, extract common keywords and add them to the route's
    * fuzzy keywords — so next time, regex/fuzzy can handle it without LLM.
+   *
+   * v7.7.9 (post-Phase-3c.4): slash-only intents are excluded from
+   * keyword learning. They are reachable only through explicit slash
+   * patterns; growing their fuzzy keyword list with everyday words
+   * ('lies', 'datei', 'zeilen', 'weisst', etc.) makes normal
+   * conversation impossible — every sentence containing those words
+   * would then trigger the slash-discipline guard.
    */
   _learnFromLLMResult(message, intent) {
+    if (SLASH_ONLY_INTENTS.has(intent) || SECURITY_REQUIRED_SLASH.has(intent)) return;
     this._llmFallbackLog.push({ message, intent, ts: Date.now() });
     if (this._llmFallbackLog.length > 200) this._llmFallbackLog = this._llmFallbackLog.slice(-100);
 
@@ -483,6 +522,10 @@ CONFIDENCE: [0.0-1.0]`;
   importLearnedPatterns(data) {
     if (!data || typeof data !== 'object') return;
     for (const [intent, keywords] of Object.entries(data)) {
+      // v7.7.9 (post-Phase-3c.4): slash-only intents do not import
+      // learned keywords. If a previous session poisoned the on-disk
+      // patterns file with everyday words, those are dropped on load.
+      if (SLASH_ONLY_INTENTS.has(intent) || SECURITY_REQUIRED_SLASH.has(intent)) continue;
       const route = this.routes.find(r => r.name === intent);
       if (route && Array.isArray(keywords)) {
         const existingKw = new Set(route.keywords);

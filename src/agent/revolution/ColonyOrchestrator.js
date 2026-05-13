@@ -34,8 +34,15 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('ColonyOrchestrator');
 
 const COLONY_DEFAULTS = {
-  maxSubtasks:     10,
-  subtaskTimeoutMs: 120_000,   // 2 min per subtask
+  maxSubtasks:     5,           // v7.7.9 (post-burnin P6): was 10. Decomposing
+                                // into many subtasks just queues them when
+                                // workers are CPU-bound; 5 is plenty.
+  subtaskTimeoutMs: 240_000,    // v7.7.9 (post-burnin P6): was 120s. With a
+                                // cold-loaded local model (29GB DeepSeek on
+                                // CPU) the first LLM call takes 30-60s alone,
+                                // plus prompt processing. 4 min gives real
+                                // headroom; killing healthy workers at 2 min
+                                // was the dominant failure mode in burn-in.
   maxRetries:       2,
   requireConsensus: true,      // Require vote before merging code changes
   minVotes:         1,         // Minimum votes for consensus (1 = any peer)
@@ -197,17 +204,47 @@ class ColonyOrchestrator {
   // ── Goal Decomposition ────────────────────────────────────
 
   /**
+   * v7.7.9 Phase 1c: effective subtask cap. Returns the configured
+   * `maxSubtasks` unless a local SelfSpawner is wired AND its worker pool
+   * is smaller — in that case, the pool size is the real ceiling, since
+   * a 10-subtask decompose with a 3-worker pool is just queueing, not
+   * parallelism. Capping at decompose time keeps the LLM prompt honest
+   * ("Maximum N subtasks") and avoids producing tasks that would only
+   * sit in a queue.
+   *
+   * Peer execution is unbounded by the local pool, so when peers are
+   * available the original config.maxSubtasks applies.
+   *
+   * @param {boolean} willExecuteLocally
+   * @returns {number}
+   */
+  _effectiveMaxSubtasks(willExecuteLocally) {
+    const configured = this.config.maxSubtasks;
+    if (!willExecuteLocally) return configured;
+    const poolSize = this.selfSpawner?.maxWorkers;
+    if (typeof poolSize !== 'number' || poolSize <= 0) return configured;
+    return Math.min(configured, poolSize);
+  }
+
+  /**
    * Use LLM to decompose a goal into independent subtasks.
    * @param {string} goal
    * @param {{ files?: string[], context?: string }} options
    * @returns {Promise<Subtask[]>}
    */
   async _decompose(goal, options) {
+    // v7.7.9 Phase 1c: cap at the effective ceiling. We can determine
+    // willExecuteLocally up-front by checking peer availability — same
+    // check that execute() makes a few lines later. This lets the LLM
+    // prompt be honest about the maximum.
+    const willExecuteLocally = this._getAvailablePeers().length === 0;
+    const effectiveMax = this._effectiveMaxSubtasks(willExecuteLocally);
+
     const prompt = [
       'You are a task decomposition engine for a software agent colony.',
       'Break the following goal into independent, parallelizable subtasks.',
       'Each subtask should be completable by a single agent without coordination.',
-      `Maximum ${this.config.maxSubtasks} subtasks.`,
+      `Maximum ${effectiveMax} subtasks.`,
       '',
       `Goal: ${goal}`,
       options.context ? `Context: ${options.context}` : '',
@@ -240,7 +277,7 @@ class ColonyOrchestrator {
 
       if (!Array.isArray(tasks)) throw new Error('LLM returned non-array');
 
-      return tasks.slice(0, this.config.maxSubtasks).map((t, i) => ({
+      return tasks.slice(0, effectiveMax).map((t, i) => ({
         id: `${this._uid()}-${i}`,
         description: t.description || `Subtask ${i + 1}`,
         assignedTo: null,

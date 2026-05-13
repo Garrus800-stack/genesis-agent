@@ -482,10 +482,69 @@ If no adjustment needed: { "adjust": false }`;
       : '';
     const workspaceHint = this.loop._workspace.buildContext(5);
 
+    // v7.7.9 (post-Phase-3c.2): Knowledge / lessons hints.
+    // Before this fix, the step prompt carried no information from
+    // Genesis' own research, study, exploration, or past failure
+    // reflections. Plan-failure-reflection and IdleMind-insight
+    // mirrors now both write into LessonsStore, and the KG already
+    // holds research/insight/idea/learning nodes from autonomous
+    // activities — but the prompt fed to model.chat() saw none of
+    // it. The two helpers below pull a top-N digest into context.
+    // Both are best-effort and never throw; if either service is
+    // unbound or recall returns empty, the original prompt shape is
+    // unchanged.
+    const lessonsHint = this._buildLessonsHint(step);
+    const knowledgeHint = this._buildKnowledgeHint(step);
+
     return `You are Genesis, executing step ${stepIndex + 1}/${allSteps.length} of an autonomous plan.
-${recentResults ? '\nRecent results:\n' + recentResults : ''}${consciousnessHint}${valueHint}${workspaceHint ? '\n' + workspaceHint : ''}
+${recentResults ? '\nRecent results:\n' + recentResults : ''}${consciousnessHint}${valueHint}${workspaceHint ? '\n' + workspaceHint : ''}${lessonsHint}${knowledgeHint}
 Current step: ${step.type} — ${step.description}
 ${step.target ? 'Target: ' + step.target : ''}`;
+  }
+
+  /**
+   * Best-effort lessons digest for the current step. Pulls up to 3
+   * obstacle-resolution lessons filtered by step description.
+   */
+  _buildLessonsHint(step) {
+    try {
+      const lessonsStore = this.loop.lessonsStore || this.loop._lessonsStore;
+      if (!lessonsStore || typeof lessonsStore.recall !== 'function') return '';
+
+      const query = (step.description || '').slice(0, 80);
+      const obstacleLessons = lessonsStore.recall('obstacle-resolution', { query, tags: [step.type] }, 3) || [];
+      if (obstacleLessons.length === 0) return '';
+
+      const lines = obstacleLessons.slice(0, 3).map(l => {
+        const cat = l.category || 'lesson';
+        const insight = (l.insight || '').slice(0, 140);
+        return `  - [${cat}] ${insight}`;
+      });
+      return `\nRELEVANT LESSONS (from past pursuits):\n${lines.join('\n')}`;
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  /**
+   * Best-effort knowledge digest for the current step. Searches the
+   * KG by step description and surfaces the top 3 hits' labels and
+   * abbreviated properties. Keyword-based even when embeddings are
+   * available — buildContext keeps it lightweight.
+   */
+  _buildKnowledgeHint(step) {
+    try {
+      const kg = this.loop.kg || this.loop._kg || this.loop.knowledgeGraph;
+      if (!kg || typeof kg.buildContext !== 'function') return '';
+
+      const query = (step.description || '').slice(0, 80);
+      if (!query) return '';
+      const block = kg.buildContext(query, 250);
+      if (!block) return '';
+      return `\n${block}`;
+    } catch (_e) {
+      return '';
+    }
   }
 }
 

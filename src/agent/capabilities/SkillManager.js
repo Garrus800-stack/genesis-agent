@@ -95,15 +95,38 @@ class SkillManager {
     });
   }
 
-  /** Create a new skill from a natural language description */
-  async createSkill(description) {
+  /**
+   * Create a new skill from a natural language description.
+   *
+   * @param {string} description — natural-language spec of the skill
+   * @param {object} [opts]
+   * @param {string} [opts.desiredName] — v7.7.9 Phase 1c: when callers
+   *   (e.g. AutonomousDaemon's capability-gap detector) need the loaded
+   *   skill to land under a specific name so a later `check()` can find
+   *   it, pass desiredName. The LLM is told to use that name; if the
+   *   manifest the LLM produces uses a different name, we override it.
+   *   Without this, the LLM picks names freely and the gap-detector
+   *   keeps re-detecting the same gaps every cycle because it can't
+   *   find the skill it just created.
+   * @returns {Promise<string>} status message
+   */
+  async createSkill(description, opts = {}) {
+    const desiredName = typeof opts.desiredName === 'string' && opts.desiredName.trim()
+      ? opts.desiredName.trim()
+      : null;
+
     const existingSkills = this.listSkills()
       .map(s => `${s.name}: ${s.description}`)
       .join('\n') || 'Keine';
 
-    // Step 1: Generate skill code via LLM
+    // Step 1: Generate skill code via LLM. If a desiredName was provided,
+    // append a strong directive so the LLM produces a manifest using it.
+    const augmentedDescription = desiredName
+      ? `${description}\n\nIMPORTANT: the skill manifest's "name" field MUST be exactly "${desiredName}".`
+      : description;
+
     const prompt = this.prompts.build('create-skill', {
-      description,
+      description: augmentedDescription,
       existingSkills,
     });
 
@@ -118,9 +141,11 @@ class SkillManager {
       codeMatch = response.match(/```\w*\n([\s\S]+?)```/);
     }
 
-    // If we have code but no manifest, generate a manifest from the description
+    // If we have code but no manifest, generate a manifest from the description.
+    // v7.7.9 Phase 1c: if a desiredName was provided, use that as the canonical
+    // name instead of the awkward auto-derived one.
     if (codeMatch && !manifestMatch) {
-      const autoName = description.toLowerCase()
+      const autoName = desiredName || description.toLowerCase()
         .replace(/[^a-z0-9\s]/g, '').trim()
         .split(/\s+/).slice(0, 3).join('-') || 'custom-skill';
       manifestMatch = [null, JSON.stringify({
@@ -140,6 +165,13 @@ class SkillManager {
       manifest = JSON.parse(manifestMatch[1]);
     } catch (err) {
       return '❌ Invalid manifest JSON from model.';
+    }
+
+    // v7.7.9 Phase 1c: if desiredName was provided and the LLM still chose a
+    // different name, override it. This is the contract callers rely on —
+    // the loaded skill must be findable under desiredName afterwards.
+    if (desiredName && manifest.name !== desiredName) {
+      manifest.name = desiredName;
     }
 
     const skillCode = codeMatch[1].trim();

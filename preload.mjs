@@ -109,6 +109,11 @@ const ALLOWED_RECEIVE = [
   // goal:discarded / driver:unresponsive — were removed in v7.5.1 because
   // they had no UI consumer; they remain backend-only telemetry on the bus)
   'ui:resume-prompt',
+  // v7.7.9 Phase 2: ProactiveSelfExpression bridges self-initiated chat
+  // messages from ChatOrchestrator over this channel. Payload mirrors
+  // the chat:self-message-appended bus event (role, content, timestamp,
+  // initiatedBy, selfMeta).
+  'genesis:self-message',
 ];
 
 contextBridge.exposeInMainWorld('genesis', {

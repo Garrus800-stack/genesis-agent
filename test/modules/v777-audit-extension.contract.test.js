@@ -93,14 +93,20 @@ track('A5a: audit-doc-drift TEST_FILES is dynamic (no literal `= 413`)', () => {
 });
 
 // ── A5b: TESTS_WIN constants bumped to 6943 ─────────────────
+//
+// A5b retired in v7.7.9 — the TESTS_WIN constant moved from 6943 to
+// 6996 when v7.7.9 added 26 InnerSpeech tests. This was a single-version
+// pin that aged out by the next release that changed test counts.
+// Replacement: the dynamic TEST_FILES counter in audit-doc-drift.js
+// (added in v7.7.7) plus the matching docs serve the regression role.
 
-track('A5b: audit-doc-drift TESTS_WIN === 6943', () => {
-  const src = read('scripts/audit-doc-drift.js');
-  assert.ok(/TESTS_WIN\s*=\s*6943/.test(src),
-    'TESTS_WIN should be 6943');
-  assert.ok(/TESTS_WIN_BASELINE\s*=\s*6943/.test(src),
-    'TESTS_WIN_BASELINE should be 6943');
-});
+// track('A5b: audit-doc-drift TESTS_WIN === 6943', () => {
+//   const src = read('scripts/audit-doc-drift.js');
+//   assert.ok(/TESTS_WIN\s*=\s*6943/.test(src),
+//     'TESTS_WIN should be 6943');
+//   assert.ok(/TESTS_WIN_BASELINE\s*=\s*6943/.test(src),
+//     'TESTS_WIN_BASELINE should be 6943');
+// });
 
 // ── B1: EffectorRegistry uses execFile (not exec-with-string) ─
 

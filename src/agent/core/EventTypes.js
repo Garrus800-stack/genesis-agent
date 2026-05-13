@@ -111,6 +111,18 @@ const EVENTS = Object.freeze({
     /** v7.7.8: emitted by AgentLoopPursuitReflection when a goal pursuit fails and the failure has been classified into one of five categories (structural / execution / external / user-action / unclassified). Telemetry-only — Genesis writes a corresponding self-statement to selfStatementLog and a Lesson if the classification is stable; the bus event is for downstream consumers (dashboard widget, audit log, future cross-session learning). */
     /** @payload {{ goalId: string|null, goalDescription: string|null, errorMessage: string, classification: 'structural'|'execution'|'external'|'user-action'|'unclassified', stepsExecuted: number }} */
     GOAL_FAILED_CLASSIFIED: 'agent:goal-failed-classified',
+    /** v7.7.9: telemetry mirror of an InnerSpeech.emit(). Payload is metadata only — full thought text lives in the InnerSpeech ring buffer and selfStatementLog overflow. RESERVED_TELEMETRY_ONLY (no UI consumer; substrate observability for ProactiveSelfExpression and future consumers). */
+    /** @payload {{ thoughtId: string, kind: string, sourceModule: string, significance: number|null, novelty: number|null, textLength: number, timestamp: number }} */
+    INNER_THOUGHT: 'agent:inner-thought',
+    /** v7.7.9 Phase 2: a thought from InnerSpeech reached PSE's scoring stage and either passed or failed the threshold check. Telemetry-only — used for /proactive-status visibility and future tuning. RESERVED_TELEMETRY_ONLY. */
+    /** @payload {{ thoughtId: string, kind: string, score: number, threshold: number, passed: boolean }} */
+    SELF_MESSAGE_CANDIDATE: 'agent:self-message-candidate',
+    /** v7.7.9 Phase 2: a self-initiated chat message was successfully appended to the chat history. Real product event — the UI receives this via main.js IPC bridge to render the dot-marked message. */
+    /** @payload {{ thoughtId: string, kind: string, score: number, textLength: number, timestamp: number }} */
+    SELF_MESSAGE: 'agent:self-message',
+    /** v7.7.9 Phase 2: a candidate self-message was suppressed at some pipeline stage (gates / threshold / sanity / append failure). Telemetry-only — visible in /proactive-status suppression log. RESERVED_TELEMETRY_ONLY. */
+    /** @payload {{ thoughtId: string|null, kind: string, reason: string, detail: string|null, hadGeneratedText: boolean, timestamp: number }} */
+    SELF_MESSAGE_SUPPRESSED: 'agent:self-message-suppressed',
   }),
 
   // ── Safety ─────────────────────────────────────────────
@@ -158,6 +170,9 @@ const EVENTS = Object.freeze({
     RETRY:       'chat:retry',
     /** v7.3.8: Hard LLM-backend failure (403, 500, timeout, etc.) */
     LLM_FAILURE: 'chat:llm-failure',
+    /** v7.7.9 Phase 2: a self-initiated assistant message was appended to history (proactive, not in response to user). Used by main.js to forward to the renderer over IPC for dot-marked rendering. */
+    /** @payload {{ role: 'assistant', content: string, timestamp: number, initiatedBy: 'self', selfMeta: { kind: string, score: number|null, sourceRef: object|null, thoughtId: string|null } }} */
+    SELF_MESSAGE_APPENDED: 'chat:self-message-appended',
   }),
 
   // ── Install (v7.5.9 ZIP8) ──────────────────────────────

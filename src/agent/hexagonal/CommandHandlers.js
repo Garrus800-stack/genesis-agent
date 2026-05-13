@@ -58,6 +58,7 @@ class CommandHandlers {
     /** @type {*} */ this.skillManager = null; // late-bound v5.9.1
     /** @type {*} */ this.selfStatementLog = null; // late-bound v7.5.5
     /** @type {*} */ this.modelBridge = null; // late-bound v7.5.6 — for /model-reset
+    /** @type {*} */ this.proactiveSelfExpression = null; // late-bound v7.7.9 Phase 2 — for /quiet, /proactive-status
   }
 
   /** Register all handlers with the orchestrator */
@@ -91,6 +92,9 @@ class CommandHandlers {
     orchestrator.registerHandler('self-recall', (msg) => this.selfRecall(msg));
     // v7.5.6: Model availability marker reset
     orchestrator.registerHandler('model-reset', (msg) => this.modelReset(msg));
+    // v7.7.9 Phase 2: ProactiveSelfExpression user controls.
+    orchestrator.registerHandler('quiet',           (msg) => this.quietControl(msg));
+    orchestrator.registerHandler('proactive-status', () => this.proactiveStatus());
     // v7.5.9 ZIP3 Phase 4a: Software-installation handler
     orchestrator.registerHandler('install-software', (msg) => this.installSoftware(msg));
     // v7.5.9 ZIP4 Phase 8: Architecture-diagram (deterministic mermaid)
@@ -168,6 +172,35 @@ class CommandHandlers {
     return modelName
       ? `Unavailable-marker cleared for ${modelName}.`
       : 'All unavailable-markers cleared.';
+  }
+
+  // v7.7.9 Phase 2: ProactiveSelfExpression user controls.
+  //
+  // /quiet [duration]
+  //   off / 0 / unmute   → clear mute
+  //   today              → quiet until end of local day
+  //   30m / 2h / 90s     → relative duration
+  //   (empty)            → 60 minutes default
+  //
+  // Hard mute. No soft-decay. No adaptive learning from this signal.
+  // The user controls when Genesis can speak proactively; PSE never
+  // re-derives this from user reactions.
+  async quietControl(msg) {
+    if (!this.proactiveSelfExpression || typeof this.proactiveSelfExpression.setMute !== 'function') {
+      return 'Proactive self-expression service is not available in this build.';
+    }
+    const m = String(msg || '').match(/\/(?:quiet|silence)(?:\s+(.+))?/i);
+    const arg = (m?.[1] || '').trim();
+    return this.proactiveSelfExpression.setMute(arg);
+  }
+
+  // /proactive-status — debug output for Garrus. Surfaces the
+  // suppression log so attempted-but-blocked candidates are visible.
+  async proactiveStatus() {
+    if (!this.proactiveSelfExpression || typeof this.proactiveSelfExpression.getStatus !== 'function') {
+      return 'Proactive self-expression service is not available in this build.';
+    }
+    return this.proactiveSelfExpression.getStatus();
   }
 }
 

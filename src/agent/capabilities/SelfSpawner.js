@@ -53,6 +53,11 @@ class SelfSpawner {
     };
   }
 
+  /** v7.7.9 Phase 1c: public read-only accessor for the worker concurrency
+   *  ceiling. ColonyOrchestrator (and any other consumer) reads this to
+   *  align its decompose-cap with the real worker pool size. */
+  get maxWorkers() { return this._maxWorkers; }
+
   // ════════════════════════════════════════════════════════
   // PUBLIC API
   // ════════════════════════════════════════════════════════
@@ -194,20 +199,56 @@ class SelfSpawner {
   }
 
   /**
-   * Spawn multiple workers in parallel and collect results.
-   * @param {Array} tasks - [{ description, type, context }]
-   * @returns {Promise<Array>} results
+   * Spawn multiple workers in parallel with a real worker-pool semantics.
+   *
+   * Earlier versions called spawn() for every task simultaneously, which
+   * caused tasks beyond _maxWorkers to fail-fast with "Max workers reached"
+   * errors instead of being queued. The result was 7 redundant warnings per
+   * 10-task colony run on a max-3-workers setup, with 7 subtasks lost.
+   *
+   * v7.7.9 Phase 1c: real pool. Up to _maxWorkers run at once, the rest
+   * queue FIFO. When a worker completes, the next queued task starts.
+   * No task is rejected; the result array preserves input order so callers
+   * can map results 1:1 to their original tasks.
+   *
+   * @param {Array} tasks - [{ description, type, context, timeoutMs }]
+   * @returns {Promise<Array>} results in input-order — each is { success, result?, error? }
    */
   async spawnParallel(tasks) {
-    const promises = tasks.map(task => this.spawn(task));
-    return Promise.allSettled(promises)
-      .then(results =>
-        results.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message })
-      )
-      .catch(err => {
-        this.bus.fire('spawner:error', { error: err.message }, { source: 'SelfSpawner' });
-        return tasks.map(() => ({ success: false, error: err.message }));
-      });
+    if (!Array.isArray(tasks) || tasks.length === 0) return [];
+
+    const results = new Array(tasks.length);
+    let nextIndex = 0;
+    const inFlight = new Set();
+
+    // Worker-pool helper: pick the next task off the queue and run it,
+    // recursively starting another when this one finishes.
+    const runOne = async () => {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const myIndex = nextIndex++;
+        if (myIndex >= tasks.length) return; // queue drained
+        try {
+          const r = await this.spawn(tasks[myIndex]);
+          results[myIndex] = r;
+        } catch (err) {
+          results[myIndex] = { success: false, error: err?.message || String(err) };
+        }
+      }
+    };
+
+    // Start at most _maxWorkers concurrent workers.
+    const concurrency = Math.min(this._maxWorkers, tasks.length);
+    for (let i = 0; i < concurrency; i++) {
+      const p = runOne();
+      inFlight.add(p);
+      p.finally(() => inFlight.delete(p));
+    }
+
+    // Wait for all worker-runners to drain the queue.
+    await Promise.all(Array.from(inFlight));
+
+    return results;
   }
 
   /**

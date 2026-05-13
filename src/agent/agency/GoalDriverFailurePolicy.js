@@ -157,22 +157,35 @@ const failurePolicyMixin = {
       }
       entry.count++;
       this._failureBurst.set(goalId, entry);
-      const backoffSchedule = [5_000, 30_000, 120_000, 600_000, 1_800_000];
-      if (entry.count > backoffSchedule.length) {
-        _log.warn(`[DRIVER] goal ${goalId} failed ${entry.count}× — marking as stalled`);
+
+      // v7.7.9 (post-burnin P5): detect plan-hallucination failures —
+      // implausible paths, unknown step types, "Unexpected token" in
+      // verification. These never resolve by retry; the LLM keeps
+      // emitting the same plan. Fast-track to obsolete after 2 hits.
+      const _isHallucination = /implausible path|unknown step type|Unexpected token|missing required|file not found|ENOENT/i.test(errMsg || '');
+      const _failureCap = _isHallucination ? 2 : 3;
+      const backoffSchedule = _isHallucination
+        ? [10_000, 60_000]                                  // hallucination — 2 quick retries then obsolete
+        : [10_000, 60_000, 300_000];                        // generic — 3 retries
+      const _terminalStatus = _isHallucination ? 'obsolete' : 'stalled';
+
+      if (entry.count > _failureCap) {
+        _log.warn(`[DRIVER] goal ${goalId} failed ${entry.count}× (${_terminalStatus}) — reason: ${(errMsg || '<empty>').slice(0, 80)}`);
         try {
           if (typeof this.goalStack.setStatus === 'function') {
-            this.goalStack.setStatus(goalId, 'stalled');
+            this.goalStack.setStatus(goalId, _terminalStatus);
           } else if (typeof this.goalStack.updateGoal === 'function') {
-            await this.goalStack.updateGoal(goalId, { status: 'stalled' });
+            await this.goalStack.updateGoal(goalId, { status: _terminalStatus });
           }
-          this.bus.fire('goal:stalled', {
+          // Fire stalled OR obsolete event accordingly.
+          const _evtName = _terminalStatus === 'obsolete' ? 'goal:obsolete' : 'goal:stalled';
+          this.bus.fire(_evtName, {
             id: goalId,
-            description: goal?.description,
+            description: goal?.description || '(no description)',
             reason: `${entry.count} consecutive failures: ${(errMsg || '<empty>').slice(0, 100)}`,
           }, { source: 'GoalDriver' });
         } catch (e) {
-          _log.warn('[DRIVER] failed to mark goal stalled:', e.message);
+          _log.warn('[DRIVER] failed to mark goal ' + _terminalStatus + ':', e.message);
         }
         this._failureBurst.delete(goalId);
       } else {
@@ -186,7 +199,7 @@ const failurePolicyMixin = {
           if (this._running) this._scanAndMaybePursue();
         }, backoffMs + 100);
         this._failurePauseTimers.set(goalId, _t3);
-        _log.warn(`[DRIVER] pursuit of ${goalId} failed (${entry.count}/${backoffSchedule.length+1}) — backing off ${Math.round(backoffMs/1000)}s: ${(errMsg || '<empty>').slice(0, 80)}`);
+        _log.warn(`[DRIVER] pursuit of ${goalId} failed (${entry.count}/${_failureCap + 1}) — backing off ${Math.round(backoffMs/1000)}s: ${(errMsg || '<empty>').slice(0, 80)}`);
       }
     }
   },

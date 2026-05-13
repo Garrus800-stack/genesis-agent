@@ -1,41 +1,8 @@
 // @ts-checked-v5.6
-// ============================================================
-// GENESIS - LessonsStore.js (v5.3.0 - SA-P7)
-//
-// Cross-project persistent learning.
-//
-// PROBLEM: Genesis learns within a project session - MetaLearning
-// tracks success rates, OnlineLearner reacts in real-time,
-// PromptEvolution A/B tests prompts. But when Genesis switches
-// to a new project, all of this is lost. It starts from zero
-// every time.
-//
-// SOLUTION: A global lessons database stored in the user's home
-// directory (~/.genesis-lessons/), not in the project's .genesis/.
-// Lessons are distilled insights captured from significant events:
-//   - High-surprise successes ("this unusual approach worked")
-//   - Resolved failure streaks ("switching to X fixed it")
-//   - Calibration corrections ("model Y overestimates on Z tasks")
-//   - Promoted prompt variants ("step-by-step beats free-text for code")
-//
-// Each lesson has:
-//   - category (code-gen, analysis, refactor, debug, etc.)
-//   - insight (human-readable description)
-//   - strategy (the approach that worked/failed)
-//   - evidence (surprise score, success rate, sample size)
-//   - tags (model, language, project type, action type)
-//   - useCount + lastUsed (frequently recalled = more valuable)
-//
-// Integration:
-//   - OnlineLearner → auto-captures on streak resolution + escalation
-//   - PromptBuilder → injects relevant lessons into LLM context
-//   - AgentLoop → queries lessons before goal planning
-//   - DreamCycle → consolidation hook creates lessons from patterns
-//
-// Not stored here: raw MetaLearning records (too granular),
-// conversation history (project-specific), episodic memory
-// (project-specific). Only distilled, reusable insights.
-// ============================================================
+// GENESIS — LessonsStore.js
+// Cross-project persistent learning in ~/.genesis-lessons/. Lessons:
+// category, insight, strategy, evidence, tags, useCount, lastUsed.
+// Subscribers: OnlineLearner, PromptBuilder, AgentLoop, DreamCycle.
 
 'use strict';
 
@@ -71,13 +38,7 @@ class LessonsStore {
     /** @type {Array<{id: string, insight: string, strategy: object, evidence: {confidence: number, [k:string]: any}, category: string, source: string, useCount: number, lastUsed: number, [k:string]: any}>} */
     this._lessons = [];
     this._dirty = false;
-
-    this._stats = {
-      lessonsCreated: 0,
-      lessonsRecalled: 0,
-      lessonsDecayed: 0,
-      autoCaptures: 0,
-    };
+    this._stats = { lessonsCreated: 0, lessonsRecalled: 0, lessonsDecayed: 0, autoCaptures: 0 };
   }
 
   // ════════════════════════════════════════════════════════
@@ -371,21 +332,11 @@ class LessonsStore {
   _captureStreakLesson(data) {
     if (!data?.suggestion) return;
     this._stats.autoCaptures++;
-
     this.record({
       category: data.actionType || 'general',
       insight: `After ${data.consecutiveFailures} failures on ${data.actionType}, switching to "${data.suggestion.promptStyle}" at temperature ${data.suggestion.temperature?.toFixed(2)} resolved the issue`,
-      strategy: {
-        promptStyle: data.suggestion.promptStyle,
-        temperature: data.suggestion.temperature,
-        trigger: 'failure-streak',
-      },
-      evidence: {
-        surprise: 0.6,
-        successRate: 0,
-        sampleSize: data.consecutiveFailures,
-        confidence: 0.5,
-      },
+      strategy: { promptStyle: data.suggestion.promptStyle, temperature: data.suggestion.temperature, trigger: 'failure-streak' },
+      evidence: { surprise: 0.6, successRate: 0, sampleSize: data.consecutiveFailures, confidence: 0.5 },
       tags: [data.actionType, 'streak-recovery'],
       source: 'streak',
     });
@@ -394,18 +345,11 @@ class LessonsStore {
   _captureEscalationLesson(data) {
     if (!data?.actionType) return;
     this._stats.autoCaptures++;
-
     this.record({
       category: data.actionType,
       insight: `Model "${data.currentModel}" insufficient for ${data.actionType} tasks - high surprise (${data.surprise?.toFixed(2)}) indicates capability gap`,
-      strategy: {
-        model: data.currentModel,
-        trigger: 'escalation',
-      },
-      evidence: {
-        surprise: data.surprise || 0.7,
-        confidence: 0.6,
-      },
+      strategy: { model: data.currentModel, trigger: 'escalation' },
+      evidence: { surprise: data.surprise || 0.7, confidence: 0.6 },
       tags: [data.actionType, data.currentModel, 'model-limit'],
       source: 'escalation',
     });
@@ -414,21 +358,12 @@ class LessonsStore {
   _captureTempLesson(data) {
     if (!data?.actionType) return;
     this._stats.autoCaptures++;
-
     const direction = data.newTemp > data.oldTemp ? 'raised' : 'lowered';
     this.record({
       category: data.actionType,
       insight: `Temperature ${direction} from ${data.oldTemp?.toFixed(2)} to ${data.newTemp?.toFixed(2)} for ${data.actionType} (success rate: ${Math.round((data.successRate || 0) * 100)}%)`,
-      strategy: {
-        temperature: data.newTemp,
-        previousTemp: data.oldTemp,
-        model: data.model,
-      },
-      evidence: {
-        successRate: data.successRate || 0,
-        sampleSize: data.windowSize || 10,
-        confidence: 0.4,
-      },
+      strategy: { temperature: data.newTemp, previousTemp: data.oldTemp, model: data.model },
+      evidence: { successRate: data.successRate || 0, sampleSize: data.windowSize || 10, confidence: 0.4 },
       tags: [data.actionType, data.model, 'temperature'],
       source: 'temp-tuning',
     });
@@ -436,19 +371,13 @@ class LessonsStore {
 
   _captureWorkspaceLesson(data) {
     if (!data?.items || data.items.length === 0) return;
-
-    // Only capture the top item by salience
     const top = data.items[0];
     if (top.salience < 0.6) return;
-
     this._stats.autoCaptures++;
     this.record({
       category: 'goal-execution',
       insight: `Key insight during goal "${data.goalId}": ${typeof top.value === 'string' ? top.value.slice(0, 150) : JSON.stringify(top.value).slice(0, 150)}`,
-      evidence: {
-        surprise: top.salience,
-        confidence: Math.min(top.salience, 0.7),
-      },
+      evidence: { surprise: top.salience, confidence: Math.min(top.salience, 0.7) },
       tags: ['workspace', top.key],
       source: 'workspace-consolidation',
     });
@@ -594,6 +523,17 @@ class LessonsStore {
     } catch (err) {
       _log.warn('[LESSONS] Save error:', err.message);
     }
+  }
+
+  /**
+   * Public flush — forces a save to disk. v7.7.9 (post-Phase-3c):
+   * NetworkSentinel called `.flush?.()` but the method didn't exist;
+   * silent skip meant a shutdown could lose up-to-5 pending writes
+   * (periodic save fires every 5 creates). Idempotent.
+   */
+  async flush() {
+    if (this._dirty) this._save();
+    return true;
   }
 
   // ════════════════════════════════════════════════════════

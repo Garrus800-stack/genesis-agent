@@ -14,6 +14,7 @@ const { safeJsonParse, atomicWriteFileSync } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
 const { createToolCallStreamFilter } = require('../core/tool-call-stream-filter');
 const { createThinkingBlockStreamFilter, stripThinkingBlocks } = require('../core/thinking-block-stream-filter');
+const { mapHistoryForPersistence, buildSelfMessageEntry } = require('./ChatHistoryMapper');
 const _log = createLogger('ChatOrchestrator');
 
 class ChatOrchestrator {
@@ -402,6 +403,23 @@ class ChatOrchestrator {
     this._saveHistorySync();
   }
 
+  /**
+   * v7.7.9 Phase 2: append a self-initiated message from Genesis (proactive).
+   * Construction extracted to ChatHistoryMapper.buildSelfMessageEntry.
+   *
+   * @param {{ text: string, kind: string, score: number,
+   *           sourceRef?: object, thoughtId?: string }} msg
+   */
+  appendSelfMessage(msg) {
+    const entry = buildSelfMessageEntry(msg);
+    if (!entry) return;
+    this.history.push(entry);
+    this._saveHistory();
+    try {
+      this.bus.fire('chat:self-message-appended', entry, { source: 'ChatOrchestrator' });
+    } catch (_e) { /* bus failure must not break self-message append */ }
+  }
+
   getHistory() { return this.history; }
 
   // ── Private ──────────────────────────────────────────────
@@ -444,16 +462,9 @@ class ChatOrchestrator {
           systemPrompt, toolPrompt: this.nativeToolUse ? '' : this.tools.generateToolPrompt(),
         });
 
-      // v3.5.0: ModelRouter auto-switching — DISABLED in v4.10.0.
-      // The ModelRouter was silently switching the active model for every chat
-      // message (e.g. from Claude back to gemma2:9b), then switching back after.
-      // This caused:
-      //   1. User selects a cloud model → ModelRouter overrides it with local model
-      //   2. Response quality drops because chat goes to wrong model
-      //   3. Model dropdown appears to "jump back" to the local model
-      // The user's manual model selection via the UI dropdown must be respected.
-      // ModelRouter is still available for AgentLoop tasks where auto-routing
-      // makes sense (code-gen, planning, etc.) but NOT for direct user chat.
+      // v3.5.0/v4.10.0: ModelRouter auto-switching is intentionally
+      // OFF for direct user chat — the user's UI model selection wins.
+      // ModelRouter still drives task-routing in AgentLoop.
 
       try {
         // FIX v3.5.0: Use NativeToolUse when available (was registered but never connected).
@@ -607,43 +618,29 @@ class ChatOrchestrator {
 
   _saveHistory() {
     try {
-      const toSave = this.history.slice(-this.maxPersisted).map(m => ({
-        role: m.role,
-        content: m.content.slice(0, 2000),
-      }));
-      if (this.storage) {
-        this.storage.writeJSONDebounced(this._historyFile, toSave, 1000);
-        return;
-      }
-      if (!this._historyPath) return;
-      const dir = path.dirname(this._historyPath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const { atomicWriteFile } = require('../core/utils');
-      atomicWriteFile(this._historyPath, JSON.stringify(toSave, null, 2), 'utf-8')
-        .catch(err => _log.debug('[CHAT] History save failed:', err.message));
-    } catch (err) {
-      _log.debug('[CHAT] History save failed:', err.message);
-    }
+      const toSave = mapHistoryForPersistence(this.history, this.maxPersisted);
+      if (this.storage) return this.storage.writeJSONDebounced(this._historyFile, toSave, 1000);
+      this._writeHistoryToDisk(toSave, false);
+    } catch (err) { _log.debug('[CHAT] History save failed:', err.message); }
   }
 
   _saveHistorySync() {
     try {
-      const toSave = this.history.slice(-this.maxPersisted).map(m => ({
-        role: m.role,
-        content: m.content.slice(0, 2000),
-      }));
-      if (this.storage) {
-        this.storage.writeJSON(this._historyFile, toSave);
-        return;
-      }
-      if (!this._historyPath) return;
-      const dir = path.dirname(this._historyPath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      // FIX v7.4.1: atomic write — prevents half-written history on crash
-      atomicWriteFileSync(this._historyPath, JSON.stringify(toSave, null, 2));
-    } catch (err) {
-      _log.debug('[CHAT] History sync save failed:', err.message);
-    }
+      const toSave = mapHistoryForPersistence(this.history, this.maxPersisted);
+      if (this.storage) return this.storage.writeJSON(this._historyFile, toSave);
+      this._writeHistoryToDisk(toSave, true);
+    } catch (err) { _log.debug('[CHAT] History sync save failed:', err.message); }
+  }
+
+  _writeHistoryToDisk(toSave, sync) {
+    if (!this._historyPath) return;
+    const dir = path.dirname(this._historyPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const json = JSON.stringify(toSave, null, 2);
+    if (sync) { atomicWriteFileSync(this._historyPath, json); return; }
+    const { atomicWriteFile } = require('../core/utils');
+    atomicWriteFile(this._historyPath, json, 'utf-8')
+      .catch(err => _log.debug('[CHAT] History save failed:', err.message));
   }
 
   /**

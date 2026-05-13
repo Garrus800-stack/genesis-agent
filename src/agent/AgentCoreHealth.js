@@ -364,6 +364,18 @@ class AgentCoreHealth {
       // four _wireEvents subscriptions (chat:completed, knowledge:learned,
       // memory:fact-stored, idle:thought-complete).
       'vectorMemory',
+      // v7.7.9 Phase 2: ProactiveSelfExpression — stop() unsubscribes from
+      // InnerSpeech so no late-arriving thoughts get processed after the
+      // chat orchestrator has already been torn down.
+      'proactiveSelfExpression',
+      // v7.7.9 Phase 3: StalledGoalWatchdog — clears its setInterval so
+      // the process can exit cleanly. Without stop(), the tick handle
+      // would keep the event loop alive past shutdown.
+      'stalledGoalWatchdog',
+      // v7.7.9 Phase 3: KindTriggers — unsubscribes from goal:completed
+      // and planner:complete so no late-arriving events get translated
+      // into InnerSpeech thoughts after shutdown began.
+      'kindTriggers',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

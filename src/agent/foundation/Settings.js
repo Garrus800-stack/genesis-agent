@@ -95,6 +95,58 @@ class Settings {
       knowledgeGraph: { maxNodes: 5000 },
       selfStatementLog: { maxStatements: 5000 },
       episodicMemory: { maxEpisodes: 500 },
+      // v7.7.9: InnerSpeech ring capacity. ~200 thoughts ≈ 200KB memory.
+      // Older thoughts overflow to selfStatementLog, so this is purely the
+      // hot-path window.
+      innerSpeech: { capacity: 200 },
+      // v7.7.9 Phase 2: ProactiveSelfExpression. Conservative defaults —
+      // the user opts INTO higher frequency, not out of it. Phase 2
+      // enables only the 'plan-failure-reflection' kind; other kinds
+      // remain code-complete but gated off until Phase 3.
+      //
+      // No engagement-metric defaults exist anywhere here. By design.
+      proactive: {
+        enabled: true,
+        minIntervalMs: 10 * 60 * 1000,            // 10 min between any two self-messages (v7.7.9 Phase 3b — Phase 3 burn-in showed 30 min suppressed 7/8 publishable thoughts in 28 min while the daily soft-cap (8) + per-kind floors + score dampener still throttle volume; 10 min keeps the minimum-gap function without choking the channel)
+        userActivityCooldownMs: 10 * 60 * 1000,   // 10 minutes after user spoke
+        baseThreshold: 0.55,                       // score must reach this to publish
+        maxChars: 600,                             // sanity-check rejects longer
+        dailyVolumeSoftCap: 8,                     // hard stop at 2× this
+        quietHours: { start: '22:00', end: '07:00' },
+        // v7.7.9 Phase 3: Full trigger-set open. All 5 kinds now active.
+        // Conservative per-kind floors below ensure no single kind floods.
+        // v7.7.9 ships Plan Phase 2 only — only plan-failure-reflection
+        // is enabled by default. The other four kinds are code-complete
+        // but gated off: per the Plan, idle-thought, goal-closure,
+        // self-formulated-plan and question are Phase 3 territory, to
+        // be enabled after Phase 2 is observed stable in real use.
+        // Users can re-enable individual kinds via settings if they
+        // want to opt into Phase 3 behaviour early.
+        allowedKinds: [
+          'plan-failure-reflection',
+        ],
+        // Per-kind significance floors. Each kind has a different floor
+        // for surfacing. plan-failure-reflection stays at 0.50 (the
+        // Phase 2 default). idle-thought needs 0.70 + nov 0.65 — most
+        // frequent trigger source, must be substantial to publish.
+        // question needs 0.75 — the most invasive kind.
+        perKindFloors: {
+          'plan-failure-reflection': { sigFloor: 0.50 },
+          'idle-thought':            { sigFloor: 0.70, novFloor: 0.65 },
+          'goal-closure-thought':    { sigFloor: 0.55 },
+          'self-formulated-plan':    { sigFloor: 0.65 },
+          'question':                { sigFloor: 0.75 },
+        },
+      },
+      // v7.7.9 Phase 3: Goal-lifecycle stalled-detection. The watchdog
+      // converts hopelessly-blocked goals (e.g. blocked on a hallucinated
+      // file path that will never exist) into proper failure-reflections.
+      // Without it, such goals sat in the 'blocked' state forever and
+      // the PSE pipeline never saw them.
+      goals: {
+        stalledTimeoutMs: 15 * 60 * 1000,         // 15 min blocked before stall-flag
+        stalledWatchdogTickMs: 60 * 1000,         // scan once per minute
+      },
       ui: { language: 'de', editorFontSize: 13, chatFontSize: 13 },
       security: { allowSelfModify: true, allowNetworkPeers: true, allowFileExecution: true },
       // v7.5.9 ZIP3 Phase 4a + ZIP5 Phase 4d: Software-installation defaults.
@@ -284,6 +336,24 @@ class Settings {
     clamp('knowledgeGraph.maxNodes',              0, 1000000);
     clamp('selfStatementLog.maxStatements',       0, 1000000);
     clamp('episodicMemory.maxEpisodes',           0, 1000000);
+    // v7.7.9: InnerSpeech capacity bounded so badly-edited settings don't
+    // allocate enormous arrays. 1..10000 covers reasonable use cases.
+    clamp('innerSpeech.capacity',                 1, 10000);
+    // v7.7.9 Phase 2: PSE numeric clamps. Bounded so badly-edited settings
+    // can't disable the boundary altogether. minIntervalMs ≥ 30s prevents
+    // accidental flooding; baseThreshold ∈ [0,1] is a score; maxChars
+    // bounded so PSE can't push novella-length messages.
+    clamp('proactive.minIntervalMs',              30 * 1000, 24 * 60 * 60 * 1000);
+    clamp('proactive.userActivityCooldownMs',     0,         24 * 60 * 60 * 1000);
+    clamp('proactive.baseThreshold',              0,         1);
+    clamp('proactive.maxChars',                   50,        4000);
+    clamp('proactive.dailyVolumeSoftCap',         0,         100);
+    // v7.7.9 Phase 3: StalledGoalWatchdog timeouts. timeoutMs ≥ 60s
+    // prevents accidental over-aggressive stall-flagging. tickMs ≥ 5s
+    // prevents busy-loop scans, ≤ 10 min prevents drift on long-running
+    // sessions.
+    clamp('goals.stalledTimeoutMs',               60 * 1000, 24 * 60 * 60 * 1000);
+    clamp('goals.stalledWatchdogTickMs',          5 * 1000,  10 * 60 * 1000);
     clamp('llm.costGuard.sessionTokenLimit',      1000, 100000000);
     clamp('llm.costGuard.dailyTokenLimit',        1000, 1000000000);
     clamp('llm.costGuard.warnThreshold',          0.5, 0.99);

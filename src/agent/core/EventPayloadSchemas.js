@@ -169,6 +169,19 @@ const SCHEMAS = {
   // v7.7.8: emitted from AgentLoopPursuitReflection after a goal-failure
   // is classified into one of five categories.
   'agent:goal-failed-classified': { goalId: 'optional', goalDescription: 'optional', errorMessage: 'required', classification: 'required', stepsExecuted: 'optional' },
+  // v7.7.9: telemetry mirror of every InnerSpeech.emit(). Payload is metadata
+  // only — full thought text lives in the ring buffer and selfStatementLog
+  // overflow. Reserved telemetry-only.
+  'agent:inner-thought': { thoughtId: 'required', kind: 'required', sourceModule: 'required', significance: 'optional', novelty: 'optional', textLength: 'required', timestamp: 'required' },
+  // v7.7.9 Phase 2: ProactiveSelfExpression telemetry. All three are
+  // RESERVED_TELEMETRY_ONLY; only agent:self-message has a UI consumer
+  // (the IPC bridge to the renderer for dot-marked rendering).
+  'agent:self-message-candidate':   { thoughtId: 'required', kind: 'required', score: 'required', threshold: 'required', passed: 'required' },
+  'agent:self-message':             { thoughtId: 'required', kind: 'required', score: 'required', textLength: 'required', timestamp: 'required' },
+  'agent:self-message-suppressed':  { thoughtId: 'optional', kind: 'required', reason: 'required', detail: 'optional', hadGeneratedText: 'optional', timestamp: 'required' },
+  // v7.7.9 Phase 2: ChatOrchestrator fires this after appendSelfMessage().
+  // main.js bridges to the renderer; see preload.js ALLOWED_RECEIVE.
+  'chat:self-message-appended':     { role: 'required', content: 'required', timestamp: 'required', initiatedBy: 'required', selfMeta: 'optional' },
 
   // Daemon
   'daemon:skill-created':    { skill: 'required', reason: 'required' },
@@ -397,7 +410,7 @@ const SCHEMAS = {
   'goal:unblocked':         { goalId: 'optional' },
   'goal:step-start':        { goalId: 'required', stepIndex: 'required' },
   'goal:create-file':       { goalId: 'required', path: 'required' },
-  'goal:stalled':           { id: 'required', description: 'required', reason: 'required' },
+  'goal:stalled':           { id: 'required', description: 'optional', reason: 'required', blockedAt: 'optional', stalledMinutes: 'optional' },
   'goal:obsolete':          { id: 'required', description: 'required', reason: 'required' },
   // v7.4.5: GoalDriver events
   'goal:driver-pickup':     { goalId: 'required', priority: 'required', source: 'required' },

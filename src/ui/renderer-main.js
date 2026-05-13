@@ -307,6 +307,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // v7.7.9 Phase 2: ProactiveSelfExpression appended a self-initiated
+  // message to chat history. Render with self-initiated styling (small
+  // dot before the timestamp + tooltip naming the kind/score/sourceRef).
+  // No notification, no popup — Genesis's own messages enter the chat
+  // alongside everything else, just visually marked so the user can
+  // tell a self-initiated message from a reply at a glance.
+  window.genesis.on('genesis:self-message', (msg) => {
+    if (!msg || typeof msg.content !== 'string' || msg.content.length === 0) return;
+    try {
+      addMessage('agent', msg.content, undefined, {
+        initiatedBy: 'self',
+        selfMeta: msg.selfMeta || null,
+        timestamp: msg.timestamp || Date.now(),
+      });
+    } catch (err) {
+      console.warn('[UI] Failed to render self-message:', err.message);
+    }
+  });
+
   window.genesis.on('agent:open-in-editor', (data) => {
     if (!data || !data.content) return;
     const editorPanel = $('#editor-panel');

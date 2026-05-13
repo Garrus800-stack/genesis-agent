@@ -15,8 +15,7 @@ function phase9(ctx, R) {
   const { bus, intervals } = ctx;
 
   return [
-    // ── CognitiveHealthTracker — must be FIRST in Phase 9 ──
-    // All other Phase 9 services can use it for resilience.
+    // CognitiveHealthTracker — FIRST in Phase 9; other services use it for resilience.
     ['cognitiveHealthTracker', {
       phase: 9,
       deps: ['storage', 'eventStore'],
@@ -60,10 +59,9 @@ function phase9(ctx, R) {
       }),
     }],
 
-    // v7.3.7: Storage layer for the memory-as-habitat features.
-    // JournalWriter — append-only stream with 3 visibilities (private/shared/public).
-    // PendingMomentsStore — pinned moments awaiting DreamCycle review.
-    // Both registered before ContextCollector so its lateBindings find them.
+    // v7.3.7: Storage layer for memory-as-habitat. JournalWriter = append-only
+    // stream (3 visibilities); PendingMomentsStore = pinned moments awaiting
+    // DreamCycle review. Both before ContextCollector so its late-bindings find them.
     ['journalWriter', {
       phase: 9,
       deps: ['storage'],
@@ -84,9 +82,8 @@ function phase9(ctx, R) {
       }),
     }],
 
-    // v7.3.7: ContextCollector — geteilt von WakeUpRoutine, IdleMind,
-    // DreamCycle Phase 1. Zero-Dep-Constructor; alle Quellen als
-    // optional Late-Bindings → kein DI-Zyklus möglich.
+    // v7.3.7: ContextCollector — shared by WakeUp/IdleMind/DreamCycle.
+    // Zero-dep constructor; all sources as optional late-bindings.
     ['contextCollector', {
       phase: 9,
       deps: [],
@@ -172,14 +169,12 @@ function phase9(ctx, R) {
       }),
     }],
 
-    // v7.5.5: SelfStatementLog — captures Genesis's own statements,
-    // classifies them, and detects structural claims without _introspectionContext
-    // data backing. See ARCHITECTURE.md → Self-Audit cluster.
-    // v7.5.7: Optional goalStack lateBinding for activity-claim snapshots —
-    // when Genesis claims "ich beschäftige mich mit X" the snapshot of
-    // active goals at chat-completed time decides whether it's a soft
-    // confabulation. Optional because phase4 → phase9 wiring is reliable
-    // but the feature degrades gracefully if goalStack is missing.
+    // v7.5.5: SelfStatementLog — captures Genesis's own statements and
+    // detects structural claims without _introspectionContext backing.
+    // v7.5.7: Optional goalStack late-binding for activity-claim snapshots
+    // — when Genesis claims "ich beschäftige mich mit X" the active-goal
+    // snapshot decides whether it's a soft confabulation. Degrades
+    // gracefully if goalStack missing.
     ['selfStatementLog', {
       phase: 9,
       deps: ['storage', 'eventStore', 'settings'],
@@ -200,7 +195,101 @@ function phase9(ctx, R) {
       },
     }],
 
-    // v5.2.0: PromptEvolution — A/B testing for prompt template sections
+    // v7.7.9 Phase 2: InnerSpeech — first-person thought channel.
+    // Bounded in-memory ring buffer with Genesis's own thoughts. Async
+    // multi-subscriber delivery; persistent overflow to selfStatementLog.
+    // Boundary: thoughts FOR HIMSELF → InnerSpeech, FOR USER → ChatHistory,
+    // structured events → EventBus. Self-Gate-Asymmetry: emit() never throws.
+    ['innerSpeech', {
+      phase: 9,
+      deps: [],
+      tags: ['cognitive', 'self', 'self-expression'],
+      lateBindings: [
+        { prop: '_selfStatementLog', service: 'selfStatementLog', optional: true,
+          expects: ['append'],
+          impact: 'No persistent overflow when ring fills; thoughts dropped silently' },
+      ],
+      factory: (c) => {
+        const settings = c.tryResolve ? c.tryResolve('settings') : null;
+        const capacity = settings?.get?.('innerSpeech.capacity') ?? 200;
+        return new (R('InnerSpeech').InnerSpeech)({ bus, capacity });
+      },
+    }],
+
+    // v7.7.9 Phase 2: ProactiveSelfExpression — subscribes to InnerSpeech
+    // and decides if/when to publish a self-initiated chat message.
+    // Pipeline: HardGates → Score → ContentGeneration → ContentSanity →
+    // ChatOrchestrator.appendSelfMessage().
+    //
+    // No engagement metrics, no farewell hooks, no fake emotion, no
+    // adaptive learning from user reactions. Genesis writes from
+    // internal state, not to please. CI guard enforces this at file-
+    // content level (see test/modules/v779-anti-pattern-guard.contract).
+    //
+    // Phase 2 enables only the 'plan-failure-reflection' kind by
+    // default. Other kinds remain code-complete but gated off until
+    // Phase 3 / Phase 4.
+    ['proactiveSelfExpression', {
+      phase: 9, deps: ['innerSpeech'], tags: ['cognitive', 'self', 'self-expression', 'proactive'],
+      lateBindings: [
+        { prop: 'modelBridge', service: 'model', optional: false,
+          impact: 'PSE cannot generate self-message text; pipeline suppresses with "generation-error"' },
+        { prop: 'emotionalState', service: 'emotionalState', optional: true,
+          impact: 'Emotional skalars unavailable for state block; generation continues' },
+        { prop: 'settings', service: 'settings', optional: true,
+          impact: 'Falls back to PSE built-in defaults' },
+        { prop: 'chatOrchestrator', service: 'chatOrchestrator', optional: false,
+          impact: 'No way to publish self-messages; suppresses with "chat-orchestrator-unavailable"' },
+      ],
+      factory: (c) => {
+        const storageDir = ctx.rootDir ? require('path').join(ctx.rootDir, '.genesis') : null;
+        return new (R('ProactiveSelfExpression').ProactiveSelfExpression)({
+          bus, innerSpeech: c.resolve('innerSpeech'), storageDir,
+          eventStore: c.tryResolve ? c.tryResolve('eventStore') : null,
+          storage: c.tryResolve ? c.tryResolve('storage') : null,
+        });
+      },
+    }],
+
+    // v7.7.9 Phase 3: StalledGoalWatchdog — bridges resource-blocked
+    // goals back into the failure-reflection pathway. Without this,
+    // hopelessly-blocked goals (hallucinated paths) sit forever and
+    // PSE never sees them. Ticks once per minute, flags blocked
+    // goals older than goals.stalledTimeoutMs, transitions to
+    // 'stalled', emits synthetic plan-failure-reflection.
+    ['stalledGoalWatchdog', {
+      phase: 9,
+      deps: [],
+      tags: ['cognitive', 'goals', 'lifecycle'],
+      lateBindings: [
+        { prop: 'innerSpeech', service: 'innerSpeech', optional: true,
+          impact: 'No plan-failure-reflection emitted for stalled goals; status transition still happens' },
+        { prop: 'selfStatementLog', service: 'selfStatementLog', optional: true,
+          impact: 'Stalled reflection not appended to log; InnerSpeech path still fires' },
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true,
+          impact: 'No lesson learned from stalled goals' },
+      ],
+      factory: (c) => new (R('StalledGoalWatchdog').StalledGoalWatchdog)({
+        bus,
+        goalStack: c.tryResolve ? c.tryResolve('goalStack') : null,
+        settings: c.tryResolve ? c.tryResolve('settings') : null,
+        eventStore: c.tryResolve ? c.tryResolve('eventStore') : null,
+        intervals: ctx.intervals || null,
+      }),
+    }],
+
+    // v7.7.9 Phase 3: KindTriggers — translates goal:completed and
+    // planner:complete events into InnerSpeech thoughts. idle-thought
+    // comes from IdleMind, plan-failure-reflection from AgentLoopPursuit.
+    ['kindTriggers', {
+      phase: 9, deps: [], tags: ['cognitive', 'self-expression', 'triggers'],
+      lateBindings: [
+        { prop: 'innerSpeech', service: 'innerSpeech', optional: true,
+          impact: 'No goal-closure or self-formulated-plan thoughts' },
+      ],
+      factory: (c) => new (R('KindTriggers').KindTriggers)({ bus }),
+    }],
+
     ['promptEvolution', {
       phase: 9, deps: ['storage', 'metaLearning'], tags: ['cognitive', 'learning'],
       lateBindings: [
@@ -232,13 +321,11 @@ function phase9(ctx, R) {
     // v5.3.0 (SA-P7): LessonsStore — cross-project persistent learning
     ['lessonsStore', {
       phase: 9, deps: ['bus'], tags: ['cognitive', 'learning', 'persistent'],
-      // v7.0.9 Phase 3: PatternMatcher for structural lesson retrieval
+      // late-bindings: PatternMatcher (structural retrieval, v7.0.9)
       lateBindings: [
         { prop: '_patternMatcher', service: 'patternMatcher', optional: true },
       ],
-      factory: () => new (R('LessonsStore').LessonsStore)({
-        bus,
-      }),
+      factory: () => new (R('LessonsStore').LessonsStore)({ bus }),
     }],
 
     // v5.5.0: ReasoningTracer — collects causal reasoning traces for Dashboard

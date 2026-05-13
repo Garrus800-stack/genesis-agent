@@ -403,6 +403,19 @@ const RESERVED_TELEMETRY_ONLY = new Set([
   // consumers to subscribe later without forcing a backend handler today.
   'selfmod:trigger-sanity-blocked',
   'agent:goal-failed-classified',
+  // v7.7.9 telemetry — mirror of InnerSpeech emissions. Subscriber will be
+  // ProactiveSelfExpression (Phase 2), but the bus event itself remains
+  // telemetry-only — full thought text is in the ring buffer + selfStatementLog,
+  // not in this payload.
+  'agent:inner-thought',
+  // v7.7.9 Phase 2 telemetry — ProactiveSelfExpression bus traces.
+  // agent:self-message has a real UI consumer (chat:self-message-appended
+  // bridge handles renderer integration), so it is NOT in this set —
+  // it's a real product event. The candidate/suppressed pair is for
+  // observability via /proactive-status and future tuning, not a
+  // backend handler.
+  'agent:self-message-candidate',
+  'agent:self-message-suppressed',
 ]);
 
 // Dynamic event patterns that won't have static matches

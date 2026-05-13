@@ -79,7 +79,7 @@ describe('ColonyOrchestrator — Construction', () => {
   test('creates with defaults', () => {
     const co = createOrchestrator();
     assertEqual(co.META.id, 'colonyOrchestrator');
-    assertEqual(co.config.maxSubtasks, 10);
+    assertEqual(co.config.maxSubtasks, 5);
     assertEqual(co.config.requireConsensus, true);
   });
 

@@ -75,6 +75,19 @@ function phase8(ctx, R) {
         // Closes the symmetry gap where 'plan-start' was a documented
         // actionType in self-gate.js but had no call site.
         { prop: 'selfGate', service: 'selfGate', optional: true },
+        // v7.7.8: AgentLoopPursuit mixin needs selfStatementLog for the
+        // plan-failure-reflection write. Earlier releases relied on the
+        // value being undefined — `if (selfStatementLog && typeof ...)`
+        // guards already in place — but late-binding it correctly closes
+        // the loop so reflections actually land in the log.
+        { prop: 'selfStatementLog', service: 'selfStatementLog', optional: true,
+          impact: 'Plan-failure reflections never written to selfStatementLog' },
+        // v7.7.9 Phase 2: AgentLoopPursuit also forwards plan-failure
+        // reflections to InnerSpeech so PSE can decide whether to surface
+        // them as a self-message. Without this binding, PSE never sees
+        // plan-failure thoughts and the Phase 2 trigger is dead.
+        { prop: 'innerSpeech', service: 'innerSpeech', optional: true,
+          impact: 'PSE plan-failure-reflection trigger inactive; only Phase-2 user-visible behaviour' },
       ],
       factory: (c) => new (R('AgentLoop').AgentLoop)({
         bus, model: c.resolve('llm'), goalStack: c.resolve('goalStack'),

@@ -169,6 +169,59 @@ class SelfStatementLog {
 
   // ── Lifecycle ────────────────────────────────────────
 
+  /**
+   * v7.7.9 Phase 2 (Phase 1b followup): direct-write public API.
+   *
+   * Use cases:
+   *   - InnerSpeech overflow: when the ring buffer evicts a thought,
+   *     it gets persisted here so nothing is lost permanently.
+   *   - AgentLoopPursuitReflection: plan-failure reflections write
+   *     here so /recall can surface them later.
+   *   - Future PSE adapters that want to persist what Genesis said
+   *     to himself before any external publishing decision.
+   *
+   * Distinct from _captureResponse() — this path takes a single
+   * already-shaped statement and skips extraction/classification.
+   * Caller supplies kind directly; defaults to type='unknown'.
+   *
+   * @param {{ text: string, kind?: string, classification?: string,
+   *           thoughtId?: string, ts?: number|string,
+   *           sourceModule?: string, [extra: string]: * }} entry
+   * @returns {boolean} — true when written (or queued); false when invalid
+   */
+  append(entry) {
+    if (!entry || typeof entry !== 'object') return false;
+    if (typeof entry.text !== 'string' || entry.text.length === 0) return false;
+    const now = Date.now();
+    const ts = typeof entry.ts === 'string'
+      ? entry.ts
+      : new Date(typeof entry.ts === 'number' ? entry.ts : now).toISOString();
+    const record = {
+      ts,
+      text: entry.text.slice(0, 500),
+      type: entry.kind || entry.classification || 'unknown',
+      confidence: typeof entry.confidence === 'number' ? entry.confidence : null,
+      intent: entry.intent || entry.sourceModule || 'append',
+      // Optional metadata — kept on the record so downstream tooling
+      // (recall, audit) can inspect it. Doesn't affect classification.
+      thoughtId: entry.thoughtId || null,
+      sourceModule: entry.sourceModule || null,
+      // Activity-claim heuristics are skipped on direct appends — the
+      // caller already knows the intent of the statement.
+      activityClaim: false,
+      activeGoalCount: null,
+      // introspectionPopulated is irrelevant for direct appends
+      // (caller is supplying the text, not introspecting Genesis's
+      // own response). Set to null so downstream auditors can tell
+      // a direct append from a captured response.
+      introspectionPopulated: null,
+      userMessageHash: null,
+    };
+    this._writeQueue.push(record);
+    this._scheduleFlush();
+    return true;
+  }
+
   wireTriggers(bus) {
     if (this._wired) return;
     const busRef = bus || this.bus;

@@ -1,26 +1,19 @@
 'use strict';
 
 // ============================================================
-// GENESIS — AgentLoopPursuit.js (v7.6.9)
-//
+// GENESIS — AgentLoopPursuit.js
 // Mixin extraction of pursue() and _executeLoop() from AgentLoop.js.
 // Holds the pursuit sequence: input parsing, goal-creation, isolation
 // checks, Phase 1 PLAN, Phase 1b SIMULATE, Phase 1c CONSCIOUSNESS,
-// Phase 2 EXECUTE LOOP, post-execute cleanup.
-//
-// Mounted onto AgentLoop.prototype via Object.assign with the mixin.
-// Mixin (not delegate) chosen because pursue/_executeLoop are core
-// orchestration with deep state-coupling (~40 this.X reads + writes
-// to running/currentGoalId/executionLog/stepCount/_currentPlan/etc).
-// Same approach as Settings v7.6.7, GoalStack v7.6.8, ModelBridgeFailover
-// v7.6.5. Plan-failure reflection extracted to AgentLoopPursuitReflection
-// in v7.7.8 to keep this file under the 700-LOC fitness limit.
+// Phase 2 EXECUTE LOOP, post-execute cleanup. Mixin (not delegate) due
+// to deep state-coupling. Plan-failure reflection extracted to
+// AgentLoopPursuitReflection (v7.7.8). Stays under 700 LOC.
 // ============================================================
 
 const { TIMEOUTS, LIMITS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
 const { CorrelationContext } = require('../core/CorrelationContext');
-const { reflectOnFailure } = require('./AgentLoopPursuitReflection');
+const { reflectIfNeeded, composeFailureMessage } = require('./AgentLoopPursuitReflection');
 const { CancellationToken } = require('../core/CancellationToken');
 const { NullWorkspace } = require('../ports/WorkspacePort');
 
@@ -91,32 +84,17 @@ const agentLoopPursuitMixin = {
 
     this.running = true;
     this._aborted = false;
+    this._reflected = false;  // v7.7.9 (post-Phase-3c.4) dedup for reflectIfNeeded
     this.stepCount = 0;
     this.consecutiveErrors = 0;
     this.executionLog = [];
 
-    // v7.4.5.fix: shared early-return helper. Every non-throw failure
-    // path in pursue() must emit agent-loop:complete so observers
-    // (especially GoalDriver._onPursuitComplete) clean up the
-    // _currentlyPursuing lock symmetrically with the happy path.
-    // Without this, an early-return failure leaves the goal locked
-    // forever — exact symptom seen with "User rejected plan with
-    // blockers" → next pickup bounces with "already running" because
-    // running=false has not yet propagated → driver hold lock for
-    // an in-flight pursue that already returned. The fix is to
-    // emit the completion event from every return path.
+    // v7.4.5.fix: shared early-return helper — emit agent-loop:complete
+    // from every failure return so GoalDriver releases _currentlyPursuing.
     const _emitFailure = (errorMessage) => {
       try {
-        // v7.5.8 hotfix: at this point this.currentGoalId may still be null
-        // (set on Z. ~386 via _registeredGoal.id), so we synthesise a stable
-        // fallback so the schema-required goalId field is never missing.
-        // Live-Befund (Garrus-Win, 2026-05-03): runtime warning
-        //   "agent-loop:complete missing required field goalId. Source: AgentLoop"
-        // appeared when the early-return path fired before goal-registration.
-        const _emittedGoalId = this.currentGoalId
-          || (typeof goalDescription === 'string'
-                ? `loop_early_${Date.now()}`
-                : `loop_early_${Date.now()}`);
+        // v7.5.8: synthesise stable goalId when currentGoalId not yet set.
+        const _emittedGoalId = this.currentGoalId || `loop_early_${Date.now()}`;
         this.bus.fire('agent-loop:complete', {
           goalId: _emittedGoalId,
           success: false,
@@ -127,14 +105,9 @@ const agentLoopPursuitMixin = {
           toolsUsed: [],
         }, { source: 'AgentLoop' });
       } catch (_e) { /* never let emit break the return path */ }
-      // v7.7.8: Plan-failure-reflection — see AgentLoopPursuitReflection.js
-      // for rationale. Single call, all wrapped in try/catch internally so
-      // a reflection error never breaks the failure-return.
-      reflectOnFailure({
-        bus: this.bus,
-        lessonsStore: this.lessonsStore,
-        selfStatementLog: this.selfStatementLog,
-      }, {
+      // v7.7.8 / v7.7.9 (post-Phase-3c.4): plan-failure-reflection via
+      // reflectIfNeeded — see helper for dedup contract.
+      reflectIfNeeded(this, {
         goalId: this.currentGoalId,
         goalDescription: typeof goalDescription === 'string' ? goalDescription : null,
         errorMessage: errorMessage || '',
@@ -177,6 +150,15 @@ const agentLoopPursuitMixin = {
           reason: `Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms)`,
           stepsCompleted: this.stepCount,
         }, { source: 'AgentLoop' });
+        // v7.7.9 (post-Phase-3c.4): reflectIfNeeded covers the timeout
+        // path; see AgentLoopPursuitReflection.reflectIfNeeded for the
+        // dedup contract.
+        reflectIfNeeded(this, {
+          goalId: this.currentGoalId,
+          goalDescription: typeof goalDescription === 'string' ? goalDescription : null,
+          errorMessage: `Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms) reached after ${this.stepCount} steps`,
+          stepsExecuted: this.stepCount,
+        });
       }
     }, TIMEOUTS.AGENT_LOOP_GLOBAL);
     const _clearGlobalTimeout = () => clearTimeout(globalTimeout);
@@ -252,7 +234,9 @@ const agentLoopPursuitMixin = {
       // ── Colony Escalation Gate (v7.0.3 — C1) ─────────────
       // If the plan is complex or HTN validation had issues,
       // delegate to ColonyOrchestrator for parallel analysis.
-      const _COLONY_STEP_THRESHOLD = 3;
+      // v7.7.9 (P6): threshold 3→8 — most plans 4-7 steps, escalating
+      // at >3 spawned IPC workers for nearly every goal.
+      const _COLONY_STEP_THRESHOLD = 8;
       if (this._colonyOrchestrator && plan.steps.length > _COLONY_STEP_THRESHOLD) {
         try {
           _log.info(`[AGENT-LOOP] Colony escalation: ${plan.steps.length} steps > threshold ${_COLONY_STEP_THRESHOLD}`);
@@ -266,16 +250,22 @@ const agentLoopPursuitMixin = {
           );
 
           if (hasRealResults && colonyRun.status === 'done') {
-            /** @type {*} */ (plan).colonyInsights = colonyRun.subtasks
-              .filter(s => s.status === 'done' && s.result)
-              .map(s => s.result);
-            _log.info(`[AGENT-LOOP] Colony escalation succeeded — ${/** @type {*} */ (plan).colonyInsights.length} insights merged`);
-            this.bus.fire('agentloop:colony-escalated', {
-              runId: colonyRun.id,
-              reason: 'complexity',
-              subtasks: colonyRun.subtasks.length,
-              insights: /** @type {*} */ (plan).colonyInsights.length,
-            }, { source: 'AgentLoop' });
+            const _doneSubtasks = colonyRun.subtasks.filter(s => s.status === 'done' && s.result);
+            const _totalSubtasks = colonyRun.subtasks.length;
+            // v7.7.9 (P6): require MAJORITY done. 1/3 was logged as success.
+            const _majorityOk = _totalSubtasks > 0 && _doneSubtasks.length >= Math.ceil(_totalSubtasks / 2);
+            if (_majorityOk) {
+              /** @type {*} */ (plan).colonyInsights = _doneSubtasks.map(s => s.result);
+              _log.info(`[AGENT-LOOP] Colony escalation succeeded — ${_doneSubtasks.length}/${_totalSubtasks} subtasks done, ${/** @type {*} */ (plan).colonyInsights.length} insights merged`);
+              this.bus.fire('agentloop:colony-escalated', {
+                runId: colonyRun.id,
+                reason: 'complexity',
+                subtasks: _totalSubtasks,
+                insights: /** @type {*} */ (plan).colonyInsights.length,
+              }, { source: 'AgentLoop' });
+            } else {
+              _log.warn(`[AGENT-LOOP] Colony escalation partial — only ${_doneSubtasks.length}/${_totalSubtasks} subtasks done, treating as escalation-failed (not merging)`);
+            }
           } else {
             _log.debug('[AGENT-LOOP] Colony returned passthrough — using local plan');
           }
@@ -284,26 +274,8 @@ const agentLoopPursuitMixin = {
         }
       }
 
-      // v7.4.5: If we received a Goal object from GoalDriver, it's already
-      // in the stack — reuse it. Otherwise (legacy string path) we now
-      // run TRANSIENT — no automatic stack entry.
-      //
-      // v7.5.0 background: Before, the legacy string path silently called
-      // goalStack.addGoal() with source='user' and priority='high'. That
-      // turned every conversational message that ended up in pursue()
-      // (e.g. via LLM-misclassification as 'agent-goal') into a persistent
-      // stack goal. The goal would then be picked up forever by GoalDriver,
-      // even though the user never asked for it to be tracked. Live-bug
-      // in v7.4.9: a question containing "Welcher der drei Punkte..." was
-      // routed via classifyAsync → LLM → 'agent-goal' → pursue(string),
-      // which silently registered it as a high-priority user goal that
-      // re-pursued every minute for 16+ minutes.
-      //
-      // Fix: legacy string path stays ephemeral. Pursuit still runs (so
-      // explicit /agent <task> via that path still works), but no stack
-      // persistence. If a caller wants persistence, they should go through
-      // GoalDriver / goalStack.addGoal explicitly first, then pass the
-      // Goal object to pursue.
+      // v7.4.5: GoalDriver path reuses stack entry; legacy string path
+      // is TRANSIENT (was: every misclassified message → persistent goal).
       let _registeredGoal;
       if (_presetGoal) {
         _registeredGoal = _presetGoal;
@@ -337,9 +309,8 @@ const agentLoopPursuitMixin = {
         stepCount: plan.steps.length,
       }, { source: 'AgentLoop' });
 
-      // FIX v5.0.0: Append to EventStore so FitnessEvaluator can count goals started.
-      // Previously only AGENT_LOOP_COMPLETE was appended; without STARTED the
-      // taskCompletion metric had no denominator and always defaulted to 0.5.
+      // FIX v5.0.0: Append to EventStore so FitnessEvaluator can count goals
+      // started (taskCompletion needs a denominator).
       this.eventStore?.append('AGENT_LOOP_STARTED', {
         goalId: this.currentGoalId,
         title: plan.title,
@@ -350,24 +321,20 @@ const agentLoopPursuitMixin = {
       // ── Phase 1b: SIMULATE (Phase 9 cognitive hook) ────
       const cogResult = await this.cognition.preExecute(plan);
       if (!cogResult.proceed) {
-        // FIX v6.1.1: Simulation is advisory, not a hard gate.
-        // Genesis should TRY and learn from failure, not refuse to act.
+        // FIX v6.1.1: Simulation is advisory, not a hard gate —
+        // Genesis should TRY and learn from failure.
         _log.warn(`[AGENT-LOOP] Simulation flagged risk: ${cogResult.reason} (score: ${cogResult.riskScore}) — proceeding anyway`);
         onProgress({ phase: 'simulation-warning', detail: `Risk flagged: ${cogResult.reason} — proceeding`, risk: cogResult.riskScore });
       }
 
-      // ── Phase 1c: CONSCIOUSNESS CHECK (v4.12.4) ────────
-      // If consciousness has concerns, inject them into plan
-      // context so the LLM sees them during execution.
+      // ── Phase 1c: CONSCIOUSNESS CHECK (v4.12.4) — inject concerns/values
+      // into plan context so the LLM sees them during execution.
       if (cogResult.consciousnessConcerns?.length > 0) {
         plan._consciousnessContext = cogResult.consciousnessConcerns.join(' ');
         onProgress({ phase: 'consciousness', detail: plan._consciousnessContext });
       }
-      if (cogResult.valueContext) {
-        plan._valueContext = cogResult.valueContext;
-      }
+      if (cogResult.valueContext) plan._valueContext = cogResult.valueContext;
       if (cogResult.consciousnessWarning) {
-        // Paused by ethical conflict — log prominently
         _log.info(`[AGENT] Consciousness pause: ${cogResult.consciousnessWarning}`);
         onProgress({ phase: 'consciousness-pause', detail: cogResult.consciousnessWarning });
       }
@@ -388,6 +355,18 @@ const agentLoopPursuitMixin = {
         steps: this.stepCount,
         errors: this.executionLog.filter(l => l.error).length,
       }, 'AgentLoop');
+
+      // v7.7.9 (post-Phase-3c.4): plan-failure-reflection on early-return
+      // paths (timeout-abort, blocked-on-resources, step-limit-stop).
+      // reflectIfNeeded dedups via _reflected — see helper for contract.
+      if (!result.success) {
+        reflectIfNeeded(this, {
+          goalId: completedGoalId,
+          goalDescription: typeof goalDescription === 'string' ? goalDescription : (plan.title || null),
+          errorMessage: composeFailureMessage(result, this.stepCount),
+          stepsExecuted: this.stepCount,
+        });
+      }
 
       // v5.2.0 (SA-P6): Consolidate working memory before clearing.
       // High-salience items are emitted for DreamCycle pickup.
@@ -415,11 +394,8 @@ const agentLoopPursuitMixin = {
       onProgress({ phase: 'error', detail: err.message });
       // v7.4.5.fix: emit agent-loop:complete also on error-path so
       // GoalDriver._onPursuitComplete cleans up _currentlyPursuing
-      // symmetrically with the happy path. Without this, a thrown
-      // pursuit kept the goal stuck "in pursuit" forever, blocking
-      // every later scan. The GoalDriver._beginPursuit also has a
-      // defensive cleanup, but emitting the event here is the
-      // architecturally clean fix — observers stay consistent.
+      // symmetrically. Without it, a thrown pursuit kept the goal
+      // locked forever.
       try {
         this.bus.fire('agent-loop:complete', {
           goalId: failedGoalId,
@@ -431,6 +407,13 @@ const agentLoopPursuitMixin = {
           toolsUsed: [],
         }, { source: 'AgentLoop' });
       } catch (_e) { /* never let event emission break the error path */ }
+      // v7.7.9 Phase 3b/c4: catch-path reflection via reflectIfNeeded.
+      reflectIfNeeded(this, {
+        goalId: failedGoalId,
+        goalDescription: typeof goalDescription === 'string' ? goalDescription : null,
+        errorMessage: err.message || '',
+        stepsExecuted: this.stepCount,
+      });
       return { success: false, error: err.message, steps: this.executionLog, goalId: failedGoalId };
     }
     }); // end of CorrelationContext.run
@@ -448,7 +431,11 @@ const agentLoopPursuitMixin = {
     for (let i = 0; i < steps.length; i++) {
       // v5.2.0: Structured cancellation check (replaces raw _aborted flag check)
       if (this._cancelToken?.isCancelled || this._aborted) {
-        return { success: false, aborted: true, summary: this._cancelToken?.reason || 'Stopped by user', steps: this.executionLog };
+        // v7.7.9 Phase 3b (bug-1a): include `error` field so GoalDriver
+        // resolve-side (which reads result.error, not result.summary)
+        // sees the actual abort reason instead of '<empty>'.
+        const _reason = this._cancelToken?.reason || 'Stopped by user';
+        return { success: false, aborted: true, summary: _reason, error: _reason, steps: this.executionLog };
       }
 
       if (this.stepCount >= this.maxStepsPerGoal) {
@@ -664,19 +651,42 @@ const agentLoopPursuitMixin = {
       detail: verification.summary,
     });
 
+    // v7.7.9: non-empty summary fallback (was '<empty>').
+    let _finalSummary = verification.summary;
+    if (!verification.success && (!_finalSummary || _finalSummary.trim() === '')) {
+      const lastErr = [...allResults].reverse().find(r => r && r.error);
+      const msg = lastErr && typeof lastErr.error === 'string' ? lastErr.error.slice(0, 120) : '';
+      const errCnt = allResults.filter(r => r && r.error).length;
+      _finalSummary = msg
+        ? `Goal verification failed after ${this.stepCount} steps. Last error: ${msg}`
+        : `Goal verification failed after ${this.stepCount} steps with ${errCnt} step error(s) — no explicit error message captured.`;
+    }
+
     this.bus.fire('agent-loop:complete', {
       goalId: this.currentGoalId,
       success: verification.success,
       steps: this.stepCount,
       title: plan.title,
-      summary: verification.summary,
+      summary: _finalSummary,
+      // v7.7.9 (P4): explicit error field — GoalDriver sees non-empty errMsg.
+      error: verification.success ? null : _finalSummary,
       verificationMethod: verification.verificationMethod,
       toolsUsed: [...new Set(this.executionLog.map(l => l.type).filter(Boolean))],
     }, { source: 'AgentLoop' });
 
+    // v7.7.9 Phase 3b/c4: verification-fail reflection via reflectIfNeeded.
+    if (!verification.success) {
+      reflectIfNeeded(this, {
+        goalId: this.currentGoalId,
+        goalDescription: plan.title || null,
+        errorMessage: _finalSummary || '',
+        stepsExecuted: this.stepCount,
+      });
+    }
+
     return {
       success: verification.success,
-      summary: verification.summary,
+      summary: _finalSummary,
       steps: this.executionLog,
       verification,
     };

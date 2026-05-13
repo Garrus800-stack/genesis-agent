@@ -40,21 +40,25 @@ test('shell-task patterns are merged (no duplicates)', () => {
 
 test('_learnFromLLMResult accumulates fallback data', () => {
   const r = new IntentRouter();
+  // v7.7.9 (post-Phase-3c.4): use a non-slash-only intent. Slash-only
+  // intents are now excluded from keyword learning by design.
   // Simulate 5 LLM fallbacks for same intent
   for (let i = 0; i < 5; i++) {
-    r._learnFromLLMResult(`analysiere die performance von modul ${i}`, 'analyze-code');
+    r._learnFromLLMResult(`suche im web nach modul ${i}`, 'web-lookup');
   }
   assert(r._llmFallbackLog.length === 5, 'Logged 5 fallbacks');
 });
 
 test('learns new keywords after threshold', () => {
   const r = new IntentRouter();
-  const route = r.routes.find(rt => rt.name === 'analyze-code');
+  // v7.7.9 (post-Phase-3c.4): use a non-slash-only intent (web-lookup
+  // is free-text routable).
+  const route = r.routes.find(rt => rt.name === 'web-lookup');
   const kwBefore = route.keywords.length;
 
   // Simulate 5 messages with common word "performance"
   for (let i = 0; i < 5; i++) {
-    r._learnFromLLMResult(`pruefe die performance des systems teil ${i}`, 'analyze-code');
+    r._learnFromLLMResult(`pruefe die performance des systems teil ${i}`, 'web-lookup');
   }
 
   const kwAfter = route.keywords.length;

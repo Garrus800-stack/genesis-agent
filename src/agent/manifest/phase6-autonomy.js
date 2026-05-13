@@ -75,6 +75,12 @@ function phase6(ctx, R) {
         { prop: '_trustLevelSystem', service: 'trustLevelSystem', optional: true, expectedActive: true, expects: ['getLevel'] },
         // v7.2.0: LessonsStore — for self-define activity
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expectedActive: true, expects: ['getAll', 'getStats'] },
+        // v7.7.9: InnerSpeech — first-person thought channel.
+        // IdleMind continues writing journal.jsonl + IDLE_THOUGHT events
+        // unchanged. emit() is additive — never blocks idle cycle.
+        { prop: 'innerSpeech', service: 'innerSpeech', optional: true,
+          expects: ['emit'],
+          impact: 'Idle thoughts not routed to inner-speech channel; PSE cannot subscribe' },
       ],
       factory: (c) => {
         const im = new (R('IdleMind').IdleMind)({

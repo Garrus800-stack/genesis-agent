@@ -151,6 +151,25 @@ const SLASH_COMMANDS = [
     description: 'Clear unavailable-markers for one or all models: /model-reset [modelName]',
     sinceVersion: 'v7.5.6',
   },
+
+  // v7.7.9 Phase 2 — ProactiveSelfExpression user controls.
+  // /quiet mutes self-initiated chat messages. Hard mute, no soft-decay,
+  //        no adaptive learning from this signal — it's user sovereignty.
+  // /proactive-status shows current settings, last-message info, daily
+  //        count, mute state, and the last 10 suppressed candidates with
+  //        their reason — so Garrus can see what was attempted but blocked.
+  {
+    name: 'quiet',
+    aliases: ['silence'],
+    description: 'Mute proactive self-messages: /quiet [30m|2h|today|off] (default 60m)',
+    sinceVersion: 'v7.7.9',
+  },
+  {
+    name: 'proactive-status',
+    aliases: [],
+    description: 'Show ProactiveSelfExpression status: settings, counts, recent suppressions',
+    sinceVersion: 'v7.7.9',
+  },
 ];
 
 /** All canonical command names (no aliases). */

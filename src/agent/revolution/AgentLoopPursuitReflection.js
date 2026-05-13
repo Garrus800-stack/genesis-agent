@@ -42,10 +42,17 @@
  */
 function classifyFailure(errorMessage) {
   const m = String(errorMessage || '').toLowerCase();
-  if (/unknown step type|missing required|peer.*unavailable|no peers/.test(m)) return 'structural';
-  if (/timeout|llm|model.*unavailable/.test(m)) return 'execution';
-  if (/network|api.*rate|fetch.*fail/.test(m)) return 'external';
-  if (/rejected|user.*stop|cancel/.test(m)) return 'user-action';
+  // v7.7.9 (post-Phase-3c): broadened patterns. Pre-fix burn-in showed
+  // live-typical errors ("Plausibility check failed", "Goal verification
+  // failed after N steps") were classified as 'unclassified' and then
+  // filtered out by stableClass before reaching the lessons store. With
+  // 90%+ of real failures falling through, the lessons pipeline was
+  // effectively starved of input even after fixing the add/record bug.
+  // The added patterns cover what AgentLoopSteps.js actually emits.
+  if (/unknown step type|missing required|peer.*unavailable|no peers|implausible paths|plausibility check failed|invalid|malformed/.test(m)) return 'structural';
+  if (/timeout|llm|model.*unavailable|verification failed|verify.*fail|repair.*fail|exhausted/.test(m)) return 'execution';
+  if (/network|api.*rate|fetch.*fail|connection|refused|enotfound|ehostunreach/.test(m)) return 'external';
+  if (/rejected|user.*stop|stop.*by.*user|cancel|aborted/.test(m)) return 'user-action';
   return 'unclassified';
 }
 
@@ -92,15 +99,53 @@ function recordReflection(services, payload) {
   const stableClass = payload.classification !== 'unclassified' &&
                       payload.classification !== 'user-action';
 
-  if (lessonsStore && typeof lessonsStore.add === 'function' && stableClass) {
+  // v7.7.9 (post-Phase-3c): three-part bug fix — silent bug surfaced
+  // by burn-in showing 0 obstacle-resolution lessons after multiple
+  // plan failures.
+  //
+  // Bug X1: this called lessonsStore.add() — that method does not exist
+  //         on LessonsStore. The correct method is record(). Because
+  //         the call was gated by `typeof lessonsStore.add === 'function'`
+  //         the bug was silent: every plan-failure-reflection just
+  //         skipped the lesson write.
+  //
+  // Bug X2: even with X1 fixed, the schema sent here used type/trigger/
+  //         error/ts — LessonsStore.record() expects category/insight/
+  //         strategy/evidence/tags/source. The old schema would have
+  //         saved as `category: 'general'` with empty insight — useless
+  //         for recall by AgentLoopRecovery.
+  //
+  // Bug X3: AgentLoopRecovery._recallObstacleLessons calls
+  //         lessonsStore.recall('obstacle-resolution', ...). No code
+  //         path was writing into that category. Fix: use exactly that
+  //         category here so the read side finds what the write side
+  //         stored — closes the lessons feedback loop.
+  if (lessonsStore && typeof lessonsStore.record === 'function' && stableClass) {
     try {
-      lessonsStore.add({
-        type: 'plan-failure',
-        classification: payload.classification,
-        trigger: typeof payload.goalDescription === 'string'
-          ? payload.goalDescription.slice(0, 120) : '',
-        error: String(payload.errorMessage || '').slice(0, 120),
-        ts: Date.now(),
+      const goalDesc = typeof payload.goalDescription === 'string'
+        ? payload.goalDescription.slice(0, 120) : '';
+      const errMsg = String(payload.errorMessage || '').slice(0, 200);
+      lessonsStore.record({
+        category: 'obstacle-resolution',
+        insight: `Goal "${goalDesc}" failed (${payload.classification}): ${errMsg}`,
+        strategy: {
+          classification: payload.classification,
+          goalDescription: goalDesc,
+          errorMessage: errMsg,
+          stepsExecuted: payload.stepsExecuted || 0,
+        },
+        evidence: {
+          successRate: 0,         // this is a recorded FAILURE
+          confidence: 0.6,        // moderate — one observation, but explicit
+          sampleSize: 1,
+          surprise: 0.3,
+        },
+        tags: [
+          'plan-failure',
+          payload.classification,
+          'auto-captured',
+        ],
+        source: 'plan-failure-reflection',
       });
     } catch (_e) { /* lesson optional */ }
   }
@@ -117,6 +162,36 @@ function recordReflection(services, payload) {
       });
     } catch (_e) { /* self-statement optional */ }
   }
+
+  // v7.7.9 Phase 2: also emit through InnerSpeech so ProactiveSelfExpression
+  // can decide whether to surface this failure to the user as a self-message.
+  // This is additive — the selfStatementLog write above is unchanged. PSE
+  // applies its own gates/threshold/sanity to decide if the reflection
+  // becomes a chat message; without PSE wired (or with PSE muted), nothing
+  // user-visible happens here.
+  const innerSpeech = payload.innerSpeech;
+  if (innerSpeech && typeof innerSpeech.emit === 'function') {
+    try {
+      const text = `Plan "${(payload.goalDescription || '').slice(0, 80)}" failed — ` +
+                   `classification: ${payload.classification}. ` +
+                   `Error: ${String(payload.errorMessage || '').slice(0, 200)}.`;
+      innerSpeech.emit(text, 'plan-failure-reflection', {
+        sourceModule: 'AgentLoopPursuitReflection',
+        contextRefs: {
+          goalId: payload.goalId || null,
+          goalDescription: payload.goalDescription || null,
+          classification: payload.classification,
+          stepsExecuted: payload.stepsExecuted || 0,
+        },
+        // Significance is high for plan failures by definition — they
+        // represent a goal Genesis decided was worth pursuing, that did
+        // not work. Novelty is moderate (1 - some-recency-decay would be
+        // ideal but we don't have access to a recent-failure cache here).
+        significance: 0.65,
+        novelty: 0.6,
+      });
+    } catch (_e) { /* innerSpeech.emit() never throws but defensive anyway */ }
+  }
 }
 
 /**
@@ -127,8 +202,10 @@ function recordReflection(services, payload) {
  * @param {{
  *   bus: *,
  *   lessonsStore: *,
- *   selfStatementLog: *
- * }} services
+ *   selfStatementLog: *,
+ *   innerSpeech?: *
+ * }} services — innerSpeech is optional (v7.7.9 Phase 2); when present,
+ *               PSE can decide to surface the reflection as a self-message
  * @param {{
  *   goalId: string|null,
  *   goalDescription: string|null,
@@ -150,11 +227,56 @@ function reflectOnFailure(services, context) {
       lessonsStore: services.lessonsStore,
       selfStatementLog: services.selfStatementLog,
     }, {
+      goalId: context.goalId,
       goalDescription: context.goalDescription,
       errorMessage: context.errorMessage,
       classification,
+      stepsExecuted: context.stepsExecuted,
+      innerSpeech: services.innerSpeech || null,  // v7.7.9 Phase 2
     });
   } catch (_e) { /* reflection never breaks failure path */ }
+}
+
+/**
+ * v7.7.9 (post-Phase-3c.4) — convenience wrapper used by every
+ * reflectOnFailure call site in AgentLoopPursuit. Centralizes:
+ *   - the dedup check (`_reflected` flag on the loop instance)
+ *   - the services dict assembly (bus / lessonsStore / selfStatementLog
+ *     / innerSpeech) so each call site stays a single line
+ *   - setting `_reflected=true` after a successful reflection so later
+ *     paths skip a duplicate record
+ *
+ * Returns true if reflection ran (or was attempted), false if skipped
+ * because already-reflected. Callers don't need the return value but
+ * it's there for tests.
+ */
+function reflectIfNeeded(loop, payload) {
+  if (loop._reflected) return false;
+  try {
+    reflectOnFailure(
+      { bus: loop.bus, lessonsStore: loop.lessonsStore,
+        selfStatementLog: loop.selfStatementLog, innerSpeech: loop.innerSpeech || null },
+      payload
+    );
+  } catch (_e) { /* reflection optional, never breaks failure path */ }
+  loop._reflected = true;
+  return true;
+}
+
+/**
+ * v7.7.9 (post-Phase-3c.4) — compose a non-empty errorMessage from a
+ * pursuit-loop result. Centralises the priority order used on every
+ * early-return path: blocked-on-resources → result.error → result.summary
+ * → synthesized fallback referencing the step count. classifyFailure
+ * needs a non-empty string to categorise; an empty errorMessage routes
+ * to 'unclassified' which the stableClass gate then drops.
+ */
+function composeFailureMessage(result, stepCount) {
+  if (!result) return `Pursuit ended without result after ${stepCount} steps`;
+  if (result.blocked && Array.isArray(result.blockedByResources)) {
+    return `Blocked on missing resources: ${result.blockedByResources.join(', ')}`;
+  }
+  return result.error || result.summary || `Pursuit ended without success after ${stepCount} steps`;
 }
 
 module.exports = {
@@ -162,4 +284,6 @@ module.exports = {
   emitClassifiedEvent,
   recordReflection,
   reflectOnFailure,
+  reflectIfNeeded,
+  composeFailureMessage,
 };

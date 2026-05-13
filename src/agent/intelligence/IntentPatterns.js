@@ -45,6 +45,24 @@ const { allCommandNames } = require('./slash-commands');
 // model changes, or learned false-positives.
 const SLASH_ONLY_INTENTS = new Set(allCommandNames());
 
+// v7.7.9 Phase 2: Slash-commands that are *harmless* — they only read
+// state (proactive-status) or set a user-visible mute (quiet). When the
+// LLM/Local-classifier mis-classifies normal chat as one of these, the
+// correct response is NOT a "this is slash-only" hint — that hint shows
+// up confusingly on conversational text (e.g. "na, läuft alles?"). For
+// these specific commands, on free-text mis-classification, we silently
+// fall through to 'general' so the LLM responds normally. The slash
+// pattern itself still works — typing /proactive-status still hits the
+// command. We only suppress the slash-hint for the false-positive path.
+//
+// Rule for adding to this set: the command must be PURELY informational
+// or user-controlled (no security impact, no irreversible action). If
+// in doubt, leave it OUT — the slash-hint is the safer default.
+const SAFE_SLASH_FALLTHROUGH = new Set([
+  'quiet',
+  'proactive-status',
+]);
+
 // v7.5.1 (H-fix): Security-relevant intents that — though not registered as
 // canonical slash-commands — must REQUIRE an explicit slash trigger to fire.
 // Before v7.5.1 their classifier patterns could match conversational free
@@ -91,6 +109,19 @@ function enforceSlashDiscipline(result, message) {
   // line on actual execution.
   if (result.type === 'execute-code' && typeof message === 'string' && /^```/.test(message)) {
     return result;
+  }
+  // v7.7.9 Phase 2: SAFE_SLASH_FALLTHROUGH — for harmless commands
+  // (quiet, proactive-status) the slash-hint is more confusing than
+  // helpful when it fires on a false-positive ("na, läuft alles?" was
+  // hitting "proactive-status"). Silently fall through to general so
+  // the LLM answers normally; the slash pattern still routes correct
+  // calls to the actual handler.
+  if (SAFE_SLASH_FALLTHROUGH.has(result.type)) {
+    return {
+      type: 'general',
+      confidence: 0.3,
+      match: 'safe-slash-fallthrough',
+    };
   }
   // v7.5.9 ZIP7: Mark the result with metadata so ChatOrchestrator can
   // route to the slash-hint handler instead of falling through to the
@@ -423,6 +454,16 @@ const INTENT_DEFINITIONS = [
     /(?:^|\s)\/model-reset\b/i,
   ], 25, []],
 
+  // v7.7.9 Phase 2: ProactiveSelfExpression user controls — slash-only
+  // (no fuzzy match, no LLM classification fall-through; if Garrus types
+  // /quiet 2h, that's exactly what runs).
+  ['quiet', [
+    /(?:^|\s)\/(?:quiet|silence)\b/i,
+  ], 25, []],
+  ['proactive-status', [
+    /(?:^|\s)\/proactive-status\b/i,
+  ], 25, []],
+
   ['greeting', [
     /^(hi|hallo|hey|moin|servus|guten (morgen|tag|abend)|hello|good (morning|evening)|bonjour|buenas?)\s*[!.]?$/i,
   ], 5, ['hallo', 'hello', 'hi', 'moin', 'servus']],
@@ -431,5 +472,7 @@ const INTENT_DEFINITIONS = [
 module.exports = {
   INTENT_DEFINITIONS,
   SLASH_ONLY_INTENTS,
+  SECURITY_REQUIRED_SLASH,
+  SAFE_SLASH_FALLTHROUGH,
   enforceSlashDiscipline,
 };

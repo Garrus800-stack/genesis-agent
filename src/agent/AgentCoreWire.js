@@ -232,6 +232,11 @@ class AgentCoreWire {
 
       // v7.4.7: Settings toggle confirmation messages → chat
       { event: 'chat:system-message',        fn: (d) => push('agent:chat-system-message', d) },
+
+      // v7.7.9 Phase 2: ProactiveSelfExpression appends a self-initiated
+      // message to chat history. Bridge to renderer so the UI can render
+      // it with the dot-marker and tooltip.
+      { event: 'chat:self-message-appended', fn: (d) => push('genesis:self-message', d) },
     ];
 
     // Single subscription loop with per-handler isolation
@@ -267,11 +272,20 @@ class AgentCoreWire {
     const c = this._c;
     const settings = c.has('settings') ? c.resolve('settings') : null;
     const bus = c.has('bus') ? c.resolve('bus') : null;
+    // v7.7.9 (post-Phase-3c.4): null-check on resolved instance. Some
+    // factories return null when settings disable the service (e.g.
+    // health.httpEnabled=false → healthServer factory returns null,
+    // mcp.enabled=false → mcpClient factory returns null,
+    // daemon.controlEnabled=false → daemonController factory returns
+    // null). Without this check, _startServices logs a confusing
+    // "Cannot read properties of null (reading 'start')" warning on
+    // every boot for disabled-by-design services.
     const start = (name, ...args) => {
-      if (c.has(name)) {
-        try { c.resolve(name).start(...args); }
-        catch (err) { _log.warn(`[GENESIS] ${name}.start() failed:`, err.message); }
-      }
+      if (!c.has(name)) return;
+      const inst = c.resolve(name);
+      if (!inst || typeof inst.start !== 'function') return;
+      try { inst.start(...args); }
+      catch (err) { _log.warn(`[GENESIS] ${name}.start() failed:`, err.message); }
     };
 
     // Phase 5: Core orchestration
@@ -308,6 +322,16 @@ class AgentCoreWire {
     // Phase 9: Cognitive Architecture
     start('surpriseAccumulator');
     start('selfNarrative');
+    // v7.7.9: StalledGoalWatchdog Phase 3 Bug 2 fix — needs to start so
+    // its setInterval begins ticking; without start, watchdog is inert.
+    start('stalledGoalWatchdog');
+    // v7.7.9: LessonsStore Phase 3c.2 keystone — without start, the
+    // store subscribers don't attach and ~/.genesis-lessons/ is never
+    // created. Plan-failure-reflections then can't be recorded.
+    start('lessonsStore');
+    // v7.7.9 Plan: InnerSpeech + PSE must start so subscribers attach.
+    start('innerSpeech');
+    start('proactiveSelfExpression');
 
     // Phase 10: Agency
     start('emotionalSteering');

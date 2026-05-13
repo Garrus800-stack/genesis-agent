@@ -387,7 +387,7 @@ function fakeIntervals() {
       `expired-pause goal should be pursueable, got ${JSON.stringify(pickable2.map(g=>g.id))}`);
   });
 
-  await test('GoalDriver: generic failure exponential backoff (5s → 30s → ...)', async () => {
+  await test('GoalDriver: generic failure exponential backoff (10s → 60s → 300s)', async () => {
     const bus = new EventBus({ verbose: false });
     const stalled = [];
     const goals = [{
@@ -425,12 +425,12 @@ function fakeIntervals() {
     assert(driver._goalPausedUntil.has('gBF'), `gBF should be paused after first failure`);
     const burst = driver._failureBurst.get('gBF');
     assert(burst && burst.count >= 1, `failureBurst count should be tracked, got: ${JSON.stringify(burst)}`);
-    // First backoff is 5s (from schedule[0])
+    // v7.7.9 (post-burnin P5): first backoff is 10s (was 5s)
     const pauseUntil = driver._goalPausedUntil.get('gBF');
-    const expectedMin = Date.now() + 4_500;
-    const expectedMax = Date.now() + 5_500;
+    const expectedMin = Date.now() + 9_500;
+    const expectedMax = Date.now() + 10_500;
     assert(pauseUntil >= expectedMin && pauseUntil <= expectedMax,
-      `first backoff should be ~5s, got ${Math.round((pauseUntil - Date.now())/1000)}s`);
+      `first backoff should be ~10s, got ${Math.round((pauseUntil - Date.now())/1000)}s`);
     driver.stop();
   });
 

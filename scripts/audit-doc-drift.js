@@ -290,15 +290,19 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '6943 passing',      label: 'badge: tests',
+        tests:      { live: '7231 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
+                      // v7.7.9: +154 over v7.7.8 (innerSpeech 26 + phase1c 13 +
+                      //   anti-pattern 5 + pse-scoring 19 + pse-gates 20 +
+                      //   pse-content-sanity 23 + pse-integration 9 +
+                      //   pse-support 23, plus minor doc-drift baseline shifts).
                       // v7.7.1: +23 (v771-* contract tests). v7.7.0: -52 (renderer.test.js -51 + agentloop-legacy
                       //   lying test -1) +81 (v770-test-helpers contract +16,
                       //   ui-statusbar-module +13, ui-i18n-module +8, ui-chat-
                       //   module +19, ui-filetree-module +8, ui-settings-module
                       //   +7, ui-renderer-main +10) = +29 net.
-                      // Linux actual: 6856. Win actual: 6867 (~11 Win-conditional
+                      // Linux actual: ~7086. Win actual: 7097 (~11 Win-conditional
                       // test in v759-linux-open early-returns on non-Win, but
                       // the test() call itself counts as 'passed' on both
                       // platforms — the +1 difference comes from elsewhere).
@@ -391,7 +395,7 @@ function runChecks() {
       // "<N> tests (Win baseline)" — pin to Win baseline (Linux is -1 because
       // of one Win-conditional test). Update this constant on each release
       // that changes test count.
-      const TESTS_WIN_BASELINE = 6943;
+      const TESTS_WIN_BASELINE = 7231;
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -431,7 +435,7 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 6943;
+  const TESTS_WIN = 7231;
   // v7.7.7: TEST_FILES is now dynamic — counts *.test.js under test/ at audit-time.
   // This closes the drift-blind tautology where the constant was pinned and the
   // doc was pinned to the same constant — drift would never be detected. With
