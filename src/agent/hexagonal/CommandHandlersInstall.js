@@ -64,6 +64,11 @@ const _log = createLogger('CommandHandlersInstall');
 
 const _db = require('./CommandHandlersInstallDB');
 const _detectMixin = require('./CommandHandlersInstallDetect');
+// v7.8.4: lazy Node v22 LTS resolver — replaces hardcoded v22.22.2
+// in _SOFTWARE_DB.nodejs with a live nodejs.org/dist/index.json
+// query (24h cache, hardcoded fallback). Pinned to v22 major;
+// a bump to v24 is its own explicit decision, not a silent drift.
+const { NodeVersionResolver } = require('../capabilities/NodeVersionResolver');
 
 const {
   _PACKAGE_MANAGERS,
@@ -312,8 +317,25 @@ const CommandHandlersInstall = {
   // ── Tier 3: direct download + auto-launch installer ──────────
   async _tryTier3DirectDownload(packageName, fullAutonomy, trustLevel, leadIn) {
     const lower = packageName.toLowerCase();
-    const dbEntry = _SOFTWARE_DB[lower];
+    let dbEntry = _SOFTWARE_DB[lower];
     const platform = process.platform;
+
+    // v7.8.4: for nodejs, resolve the current v22 LTS lazily. Falls back
+    // to the static _SOFTWARE_DB.nodejs entry on fetch/parse failure
+    // (offline scenarios). Resolver is pinned to v22 major.
+    if (lower === 'nodejs') {
+      try {
+        const cacheDir = path.join(this.rootDir || process.cwd(), '.genesis', 'cache');
+        const resolver = new NodeVersionResolver({ cacheDir });
+        const resolved = await resolver.resolve();
+        dbEntry = resolved.urls;
+        _log.debug(`[INSTALL] node resolver source=${resolved.source} version=${resolved.version}`);
+      } catch (err) {
+        // resolver is supposed to never throw, but stay defensive
+        _log.warn(`[INSTALL] node resolver unexpectedly threw: ${err.message} — using static DB`);
+      }
+    }
+
     const variant = dbEntry?.[platform];
 
     if (!variant) {

@@ -1,9 +1,60 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.7.8 · Audit findings, monitor items, and resolution status.
+> Version: 7.8.4 · Audit findings, monitor items, and resolution status.
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+
+## Resolved in v7.8.4
+
+### Six focused items — no themed release wrapper
+
+Two correctness fixes in the agent loop, one diagram-rendering
+hardening, one toolchain bump, one installer-URL resilience pass,
+and a new pre-deletion-audit capability with auto-hook and slash
+command. Each item stands alone — no cross-cutting theme tying
+them together.
+
+- **Item 1 — Verification-reporting contradiction.** `AgentLoopSteps._stepCode`
+  pre-declared `test passed` before verification ran. Fix: neutral output
+  in `_stepCode`, `[verification failed]` overlay in `AgentLoopPursuit`
+  on failure. (`step-reporting contract:` prefix, 4 tests.)
+- **Item 2 — DELEGATE warning dead-code removal.** Validator warning
+  for an impossible state (v7.3.5 `canDelegate` gate + `_stepDelegate`
+  fallback already cover it). (`plan-validator contract:` prefix, 3 tests.)
+- **Item 3 — Mermaid SVG sanitisation.** `DOMPurify.sanitize()` wraps
+  mermaid output before `diagramEl.innerHTML`. SVG profile +
+  `foreignObject` re-allowed for mermaid HTML-in-SVG labels.
+  (`mermaid-safety contract:` prefix, 3 tests.)
+- **Item 4 — mermaid v10 → v11.** Toolchain bump. Bundle-copy in
+  `build-bundle.js` made resilient against future filename renames
+  (probes `mermaid.min.js` / `.js` / `.esm.min.mjs`).
+  (`mermaid-version contract:` prefix, 4 tests.)
+- **Item 5 — Node v22 LTS lazy resolution.** `NodeVersionResolver`
+  capability replaces hardcoded v22.22.2 URLs with `nodejs.org/dist/`
+  index lookup. 24h cache, four-tier fallback chain, pinned to v22
+  major. (`install-db contract:` prefix, 10 tests.)
+- **Item 6 — Pre-deletion-audit (B4 four layers).** `CleanupVerifier`
+  capability + `AgentLoopSteps` auto-hook + `/cleanup-check` slash
+  command + `docs/CLEANUP-PROTOCOL.md`. New telemetry event
+  `cleanup-verifier:scan-complete`. (`cleanup-verifier contract:`
+  prefix, 29 tests.)
+- **Item 7 — Test isolation from real Ollama daemon.** Long-standing
+  bug (since v5.1.0) where the legacy ModelBridge test silently fell
+  back to the default Ollama URL on its `chat()` failover path. Hidden
+  while cloud models were in use; surfaced when a local model was
+  selected and Ollama loaded it into RAM during `npm test`.
+  `OllamaBackend._httpGet`/`_httpPost` now honour
+  `GENESIS_OFFLINE_TESTS=1`; `test/index.js` sets the flag before
+  spawning child test processes so they inherit it. Live verification:
+  zero real HTTP calls to Ollama during full test runs.
+  (`test-isolation contract:` prefix, 5 tests.)
+
+See [CHANGELOG.md § 7.8.4](CHANGELOG.md) for full file change list
+and verification numbers.
 
 ---
 

@@ -174,7 +174,12 @@ class HTNPlanner {
     }
 
     else if (type === 'DELEGATE') {
-      warnings.push('DELEGATE step requires reachable peers');
+      // v7.8.4: no warning emitted here. Peer availability is decided
+      // at plan-construction time in AgentLoopPlanner (canDelegate gates
+      // whether DELEGATE appears in the step-type list given to the LLM)
+      // and at execution time in AgentLoopSteps._stepDelegate (graceful
+      // fallback to ANALYZE if taskDelegation is null). The validator
+      // doesn't need to orakel about peer status — that's not its job.
     }
 
     else if (!type) {

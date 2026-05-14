@@ -498,11 +498,11 @@ const agentLoopPursuitMixin = {
           const stepVerification = await this.verifier.verify(
             step.type || step.verifierType, step, result
           );
+          result.verification = stepVerification;
           if (stepVerification.status === 'fail') {
             result.error = `Verification failed: ${stepVerification.reason}`;
-            result.verification = stepVerification;
-          } else {
-            result.verification = stepVerification;
+            // v7.8.4: overlay output so step-log doesn't show pre-verification claim + failure together.
+            if (typeof result.output === 'string') result.output = `[verification failed] ${result.output}`;
           }
         } catch (err) {
           _log.debug('[AGENT-LOOP] Step verification error:', err.message);

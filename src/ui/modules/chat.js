@@ -7,6 +7,12 @@
 const { t } = require('./i18n');
 const { isAgentReady } = require('./agent-state');
 const { showToast } = require('./statusbar');
+// v7.8.4: DOMPurify wraps mermaid-rendered SVG before it touches innerHTML.
+// Mermaid renders user-controllable text into SVG; without sanitisation a
+// crafted diagram source could embed <script> / onclick / javascript: URIs
+// that would execute in the Renderer context. esbuild bundles this into
+// dist/renderer.bundle.js so no separate <script> tag is needed.
+const DOMPurify = require('dompurify');
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -357,7 +363,15 @@ async function _hydrateMermaid(wrapper) {
     }
     const svg = renderResult && renderResult.svg ? renderResult.svg : '';
     if (!svg) throw new Error('Mermaid lieferte leeres SVG');
-    diagramEl.innerHTML = svg;
+    // v7.8.4: sanitize before innerHTML. SVG profile + foreignObject
+    // allowed (mermaid uses it for HTML-in-SVG labels). Removes any
+    // <script>, onclick=, javascript: URIs that could have been
+    // injected through a malicious diagram source.
+    diagramEl.innerHTML = DOMPurify.sanitize(svg, {
+      USE_PROFILES: { svg: true, svgFilters: true },
+      ADD_TAGS: ['foreignObject'],
+      ADD_ATTR: ['target'],
+    });
   } catch (err) {
     const msg = (err && err.message) ? err.message : 'unknown error';
     diagramEl.innerHTML = `<div class="mermaid-error">[Diagramm-Render fehlgeschlagen: ${escapeHtml(msg)}]</div>` +

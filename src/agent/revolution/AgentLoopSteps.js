@@ -17,6 +17,7 @@ const { TIMEOUTS, THRESHOLDS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
 const { normalizeStepType, getStepRequirements } = require('./step-types');
 const { _filterImplausibleFilePaths } = require('./PathPlausibility');
+const { extractDeleteTarget } = require('./DeleteCommandHeuristic');
 const path = require('path');
 const fs = require('fs');
 const _log = createLogger('AgentLoopSteps');
@@ -319,7 +320,11 @@ class AgentLoopStepsDelegate {
       await atomicWriteFile(fullPath, newCode, 'utf-8');
     }
 
-    return { output: `Code written: ${step.target || 'sandbox'} (${newCode.split('\n').length} lines, test passed)`, error: null };
+    // v7.8.4: do NOT pre-declare "test passed" — that's the verifier's
+    // job in AgentLoopPursuit, which runs after this step. Saying it
+    // here would be a lie when verification later fails. Output stays
+    // neutral; pursuit-layer overlays a verification marker if needed.
+    return { output: `Code written: ${step.target || 'sandbox'} (${newCode.split('\n').length} lines)`, error: null };
   }
 
   async _stepSandbox(step, context) {
@@ -344,13 +349,7 @@ class AgentLoopStepsDelegate {
 
   async _stepShell(step, context, onProgress) {
     const loop = this.loop;
-    // v7.4.6.fix #28: FormalPlanner schema documents BOTH `target` and
-    // `command` as places the shell command can live. The LLM frequently
-    // puts the actual command in step.command and leaves step.target null
-    // (especially for non-file commands like "dir /b *.js"). The old
-    // code read only step.target → empty → fallback LLM call with no
-    // context → LLM invented broad-scope commands ("dir /s C:\") that
-    // hit "Zugriff verweigert" on system directories. Now we read both.
+    // v7.4.6.fix #28: read both step.target and step.command — LLM often puts the command in either.
     let command = step.target || step.command || '';
 
     if (!command) {
@@ -380,14 +379,32 @@ class AgentLoopStepsDelegate {
       };
     }
 
+    // v7.8.4: pre-deletion audit. Run CleanupVerifier on a shell-delete
+    // target and surface findings in the approval text. Skipped silently
+    // when the command is not a single-file delete inside rootDir.
+    let cleanupReport = null;
+    const deleteTarget = extractDeleteTarget(command, loop.rootDir);
+    if (deleteTarget) {
+      try {
+        const { CleanupVerifier } = require('../capabilities/CleanupVerifier');
+        cleanupReport = await new CleanupVerifier({ rootDir: loop.rootDir, bus: loop.bus }).verify(deleteTarget);
+      } catch (err) { _log.debug(`[AGENT-LOOP] CleanupVerifier failed: ${err.message}`); }
+    }
+
     // Safety: request approval for shell commands
+    let approvalDetail = `Run: ${command}`;
+    if (cleanupReport && !cleanupReport.safe && cleanupReport.findings.length > 0) {
+      approvalDetail += `\n\n⚠ Pre-deletion audit findings for ${cleanupReport.target}:`;
+      for (const f of cleanupReport.findings) approvalDetail += `\n  • [${f.kind}] ${f.message}`;
+    }
+
     onProgress({
       phase: 'approval-needed',
-      detail: `Run: ${command}`,
+      detail: approvalDetail,
       action: 'shell-command',
     });
 
-    const approved = await loop._requestApproval('shell-command', `Run: ${command}`);
+    const approved = await loop._requestApproval('shell-command', approvalDetail);
     if (!approved) {
       return { output: 'User rejected shell command', error: null };
     }

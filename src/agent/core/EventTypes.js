@@ -186,6 +186,17 @@ const EVENTS = Object.freeze({
     COMPLETED: 'install:completed',
   }),
 
+  // ── Cleanup Verifier (v7.8.4) ──────────────────────────
+  CLEANUP_VERIFIER: Object.freeze({
+    /**
+     * Fired after every CleanupVerifier.verify() call (both /cleanup-check
+     * slash and the AgentLoopSteps auto-hook before shell-deletion approval).
+     * Telemetry-only — failure to deliver does not affect the verifier result.
+     * @payload {{ target: string, safe: boolean, findingKinds: string[], findingCount: number }}
+     */
+    SCAN_COMPLETE: 'cleanup-verifier:scan-complete',
+  }),
+
   // ── Injection Gate (v7.3.5) ─────────────────────────────
   INJECTION: Object.freeze({
     /** @payload {{ signals: Array<{kind: string, note: string}>, toolCount: number }} */

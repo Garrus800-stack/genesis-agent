@@ -191,6 +191,13 @@ const SCHEMAS = {
   // doesn't find a binary on disk yet (PATH not refreshed). Audit §3.2.)
   'install:completed':       { packageName: 'required', path: 'optional' },
 
+  // v7.8.4 — Pre-deletion-audit telemetry. Fired from CleanupVerifier
+  // both for the /cleanup-check slash and the _stepShell auto-hook.
+  // safe=false means at least one blocking finding (importers or
+  // entrypoint-pattern); informational findings (identical-siblings,
+  // sibling-name-matches) do not flip safe.
+  'cleanup-verifier:scan-complete': { target: 'required', safe: 'required', findingKinds: 'required', findingCount: 'required' },
+
   // Reserved (registered in EventTypes, not yet emitted — schemas ready for use)
   // v7.1.6: shell:complete removed — consolidated to shell:outcome (see line 322)
   'mcp:tool-call':           { server: 'required', tool: 'required' },

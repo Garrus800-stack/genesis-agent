@@ -206,6 +206,18 @@ class OllamaBackend {
   // ── HTTP Helpers ─────────────────────────────────────────
 
   _httpGet(urlStr) {
+    // v7.8.4: test-mode guard. When GENESIS_OFFLINE_TESTS=1 is set
+    // (typically by the test runner), reject real HTTP calls so that
+    // tests never accidentally hit a developer's running Ollama
+    // daemon — previously this would trigger model loads in Ollama's
+    // RAM during npm test, especially when the user's preferred model
+    // failed over to a local model. Tests that need network behavior
+    // must use MockBackend instead.
+    if (process.env.GENESIS_OFFLINE_TESTS === '1') {
+      return Promise.reject(new Error(
+        'OllamaBackend: real HTTP calls disabled in test mode (GENESIS_OFFLINE_TESTS=1)'
+      ));
+    }
     return new Promise((resolve, reject) => {
       const url = new URL(urlStr);
       const req = http.get(url, (res) => {
@@ -227,6 +239,12 @@ class OllamaBackend {
   }
 
   _httpPost(urlStr, body, extraHeaders = {}, timeoutMs = 30000) {
+    // v7.8.4: test-mode guard — see _httpGet above.
+    if (process.env.GENESIS_OFFLINE_TESTS === '1') {
+      return Promise.reject(new Error(
+        'OllamaBackend: real HTTP calls disabled in test mode (GENESIS_OFFLINE_TESTS=1)'
+      ));
+    }
     return new Promise((resolve, reject) => {
       const url = new URL(urlStr);
       const postData = JSON.stringify(body);

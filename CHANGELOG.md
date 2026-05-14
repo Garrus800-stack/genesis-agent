@@ -1,3 +1,190 @@
+## [7.8.4]
+
+**Bug-Sweep + Pre-deletion-audit.**
+
+Six focused items: two correctness fixes in the agent loop, one
+defense-in-depth hardening for diagram rendering, one toolchain
+bump, one resilience pass on Node installer URLs, and a new
+pre-deletion-audit capability with auto-hook and slash command.
+No themed release wrapper — each item stands alone.
+
+---
+
+### Item 1 — Verification-reporting contradiction
+
+`AgentLoopSteps._stepCode` pre-declared `test passed` in its return
+value, before `verifier.verify()` had even run. When the verifier
+later failed, the step log carried two contradicting truths in the
+same step: `Code written: X (N lines, test passed)` next to
+`Verification failed: …`.
+
+Fix: the `_stepCode` return value is now neutral (`Code written: X
+(N lines)`), and `AgentLoopPursuit` overlays a `[verification
+failed]` prefix onto `result.output` when verification fails,
+guarded by a `typeof === 'string'` check so non-string outputs are
+left alone. Tested under `step-reporting contract:` prefix.
+
+### Item 2 — DELEGATE-Step warning removal
+
+`HTNPlanner` emitted `DELEGATE step requires reachable peers` on
+every plan containing a DELEGATE step, regardless of actual peer
+status. This was dead code for an impossible state: `AgentLoopPlanner`
+already gates DELEGATE out of the LLM step-type list when
+`taskDelegation` is null (v7.3.5), and `AgentLoopSteps._stepDelegate`
+falls back to ANALYZE if peers are unavailable at execution time.
+
+Fix: the warning is gone. The DELEGATE branch in HTNPlanner remains
+as a short-circuit so DELEGATE is not flagged by the unknown-step-
+type catch-all. Tested under `plan-validator contract:` prefix.
+
+### Item 3 — Mermaid SVG sanitisation (DOMPurify)
+
+`src/ui/modules/chat.js` previously wrote mermaid-rendered SVG
+directly to `diagramEl.innerHTML`. A crafted diagram source could
+embed `<script>`, `onclick=`, or `javascript:` URIs that would
+execute in the Renderer context.
+
+Fix: SVG output is wrapped in `DOMPurify.sanitize()` with
+`USE_PROFILES.svg`, `ADD_TAGS: ['foreignObject']` (mermaid uses it
+for HTML-in-SVG labels), and `ADD_ATTR: ['target']`. `dompurify`
+is added as a runtime dependency (bundled into `renderer.bundle.js`
+by esbuild); `jsdom` is added as a devDependency for the live-
+sanitize test. Tested under `mermaid-safety contract:` prefix.
+
+### Item 4 — mermaid v10 → v11
+
+`mermaid` bumped from `^10.9.1` to `^11.0.0`. Breaking changes in
+v11 (refactored flowchart/state rendering engine, ESBuild/IIFE
+output, `useMaxWidth` defaults true for gitGraph/sankey) do not
+affect the diagrams we use (`graph`, `sequenceDiagram`), but the
+bundle-copy in `scripts/build-bundle.js` is now resilient against
+a future filename rename: it probes `mermaid.min.js` first,
+`mermaid.js` second, `mermaid.esm.min.mjs` as last fallback.
+Tested under `mermaid-version contract:` prefix.
+
+### Item 5 — Node v22 LTS lazy resolution
+
+The `nodejs` entry in `CommandHandlersInstallDB._SOFTWARE_DB`
+hardcoded `v22.22.2` URLs, drifting on every Node maintenance
+release.
+
+Fix: new `NodeVersionResolver` capability lazily fetches the latest
+`v22.* lts: true` from `nodejs.org/dist/index.json` with a 24 h
+cache and graceful fallback chain: fresh cache → live fetch →
+stale cache → hardcoded fallback. Pinned to the v22 major so a bump
+to v24 LTS remains an explicit decision. The resolver is invoked
+from `CommandHandlersInstall._tryTier3DirectDownload` when the
+package is `nodejs`; for all other packages the static DB stays
+authoritative. Tested under `install-db contract:` prefix.
+
+### Item 6 — B4 Pre-deletion-audit (four layers)
+
+A reusable refactoring pattern for code cleanups, replacing the
+ad-hoc `git grep` + eyeball-diff workflow that hand-audited
+file deletions previously.
+
+- **Capability** `src/agent/capabilities/CleanupVerifier.js` —
+  emits four finding kinds: `importers` (other files statically
+  require/import the target — blocking), `entrypoint-pattern`
+  (basename matches `index.js`, `main.js`, `preload.js`, … —
+  blocking), `identical-siblings` (sha256-identical files
+  elsewhere — informational), `sibling-name-matches` (same
+  basename in other dirs — informational). `result.safe` is
+  `false` if any blocking finding exists.
+- **Auto-hook** in `AgentLoopSteps._stepShell` via the new
+  `DeleteCommandHeuristic` helper module. Patterns cover `rm`,
+  `unlink`, `Remove-Item`, `del`, `erase`. When a single-file
+  delete inside `rootDir` is detected, findings are surfaced in
+  the approval prompt so the user sees them before approving.
+  Glob targets and paths outside `rootDir` are skipped.
+- **Slash command** `/cleanup-check <relative-path>` —
+  manual audit via `CommandHandlersCleanup` mixin. Rejects
+  absolute paths and `..` segments. Output is bilingual
+  (EN/DE) with markers ✅ (no findings), ⚠ (informational only),
+  🛑 (blocking findings).
+- **External spec** `docs/CLEANUP-PROTOCOL.md` — when the audit
+  runs, what it looks at, what the four finding kinds mean,
+  known limits (dynamic require/import not detected), evolution
+  rules.
+
+New telemetry event `cleanup-verifier:scan-complete` (registered
+in `EventTypes` + `EventPayloadSchemas`). Tested under
+`cleanup-verifier contract:` prefix.
+
+### Item 7 — Test isolation from real Ollama daemon
+
+A long-standing bug (since v5.1.0) was hidden as long as the user
+ran cloud models: the legacy ModelBridge test
+(`test/run-tests.js` — *"should throw on chat without configured
+backend"*) called `bridge.chat()` with no active backend, which
+silently fell back to the default Ollama URL. When a real Ollama
+daemon was running on the developer machine, the call landed —
+and if the user's preferred model was a `:cloud`-tagged model
+that rate-limited and failed over to a local model, Ollama loaded
+that local model into RAM during `npm test`. Two models in RAM
+simultaneously then exceeded available memory on the next
+`npm start`. The same issue applied to `headless-boot.test.js`,
+which boots AgentCore → `ModelBridge.asyncLoad()` →
+`detectAvailable()` → real `GET /api/tags`.
+
+Fix: `OllamaBackend._httpGet` and `_httpPost` honour
+`GENESIS_OFFLINE_TESTS=1` and reject real HTTP calls when set.
+`test/index.js` sets the env var before requiring `child_process`,
+so all spawned test workers inherit it. Anthropic and OpenAI
+backends are already protected by their `isConfigured()` guard
+(no API key → no network calls). Tested under
+`test-isolation contract:` prefix with a contract test that
+verifies the guard is present, the env var is set at the right
+time, and a live runtime check that confirms `listModels()` is
+rejected when the flag is on.
+
+---
+
+### File changes
+
+- **Source** (358 files, +4):
+  - `src/agent/capabilities/CleanupVerifier.js` (new)
+  - `src/agent/capabilities/NodeVersionResolver.js` (new)
+  - `src/agent/hexagonal/CommandHandlersCleanup.js` (new)
+  - `src/agent/revolution/DeleteCommandHeuristic.js` (new)
+  - `src/agent/revolution/AgentLoopSteps.js` (Item 1 + Item 6 hook)
+  - `src/agent/revolution/AgentLoopPursuit.js` (Item 1 overlay)
+  - `src/agent/revolution/HTNPlanner.js` (Item 2 warning removed)
+  - `src/agent/hexagonal/CommandHandlers.js` (cleanup mixin wired)
+  - `src/agent/hexagonal/CommandHandlersInstall.js` (Item 5 resolver hook)
+  - `src/agent/intelligence/IntentPatterns.js` (cleanup-check intent)
+  - `src/agent/core/EventTypes.js` (cleanup-verifier:scan-complete)
+  - `src/agent/core/EventPayloadSchemas.js` (scan-complete schema)
+  - `src/ui/modules/chat.js` (Item 3 DOMPurify wrap)
+- **Tests** (450 files, +5):
+  - `test/modules/v784-step-reporting.test.js` (7)
+  - `test/modules/v784-mermaid-safety.test.js` (7)
+  - `test/modules/v784-node-version-resolver.test.js` (10)
+  - `test/modules/v784-cleanup-verifier.test.js` (15)
+  - `test/modules/v784-cleanup-integration.test.js` (14)
+- **Scripts**:
+  - `scripts/build-bundle.js` (Item 4 mermaid layout probe)
+  - `scripts/stale-refs.json` (5 new contract prefixes)
+  - `scripts/audit-doc-drift.js` (TESTS_WIN bumped to 7432)
+- **Docs**:
+  - `docs/CLEANUP-PROTOCOL.md` (new)
+  - `docs/banner.svg`, `README.md`, `docs/CAPABILITIES.md`,
+    `docs/COMMUNICATION.md`, `docs/ARCHITECTURE-DEEP-DIVE.md`,
+    `docs/GATE-INVENTORY.md` (live-value updates)
+- **Manifest**:
+  - `package.json`: `dompurify ^3.2.0` runtime dep, `jsdom ^25.0.0`
+    devDep, `mermaid ^11.0.0` (was `^10.9.1`), version 7.8.4
+
+### Verification
+
+- 7432 tests passing on Win baseline (7431 on Linux)
+- Architectural fitness 130/130
+- All 17 strict CI audits green
+- 21 contract prefixes registered (5 new in this release)
+- 462 events catalogued, 462 payload schemas, 100% parity
+
+---
+
 ## [7.8.3]
 
 **Bug-Sweep + Loose-Ends + Convention-Audit-Closeout.**

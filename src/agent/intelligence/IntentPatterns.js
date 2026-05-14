@@ -86,6 +86,7 @@ const SECURITY_REQUIRED_SLASH = new Set([
   'self-recall',  // v7.5.5
   'install-software',  // v7.5.9 ZIP3 Phase 4a — fuzzy + slash; injection-relevant
   'open-software',     // v7.5.9 ZIP8 — fuzzy + slash; could be tricked into launching unintended binaries
+  'cleanup-check',     // v7.8.4 — pre-deletion audit, slash-only by convention
 ]);
 
 function enforceSlashDiscipline(result, message) {
@@ -452,6 +453,11 @@ const INTENT_DEFINITIONS = [
   // v7.5.5: Self-Statement-Log recall
   ['self-recall', [
     /^\/recall\b/i,
+  ], 22, []],
+
+  // v7.8.4: Pre-deletion audit (slash-only)
+  ['cleanup-check', [
+    /(?:^|\s)\/cleanup-check\b/i,
   ], 22, []],
 
   // v7.5.6: Model availability marker reset

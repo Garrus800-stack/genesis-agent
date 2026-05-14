@@ -8,16 +8,16 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.8.3-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-7231%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.8.4-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-7437%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-354-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/modules-358-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-168-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
-  <img src="https://img.shields.io/badge/events-461-c084fc?style=flat-square" alt="Events">
+  <img src="https://img.shields.io/badge/events-462-c084fc?style=flat-square" alt="Events">
   <img src="https://img.shields.io/badge/MCP-bidirectional-c084fc?style=flat-square" alt="MCP">
   <img src="https://img.shields.io/badge/languages-EN%20DE%20FR%20ES-85B7EB?style=flat-square" alt="Languages">
   <img src="https://img.shields.io/badge/electron-39+-47848f?style=flat-square" alt="Electron">
@@ -85,7 +85,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (7 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). Emotional-cognitive bridge: EmotionalSteering signals flow into AdaptiveStrategy (v7.1.7). Internal A/B benchmark on a single model (kimi-k2.5:cloud, 12 tasks): +16pp to +33pp task success with Organism active vs. disabled. The v6.0.4 run had CPU-only baseline timeouts that likely inflated the upper delta — treat the lower bound as the conservative reading. Not yet replicated across models. See [BENCHMARKING.md](docs/BENCHMARKING.md).
 
-**Infrastructure** — 12-phase DI boot, EventBus (461 event types validated by CI ratchet with 0 schema mismatches), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 semantic safety rules), 21 hash-locked files, DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
+**Infrastructure** — 12-phase DI boot, EventBus (462 event types validated by CI ratchet with 0 schema mismatches), MCP bidirectional (client + server — Genesis exposes 7 tools to external IDEs/agents via JSON-RPC 2.0), CircuitBreaker per connection, CorrelationContext tracing, PeerNetwork (AES-256-GCM), NetworkSentinel (offline detection, automatic Ollama failover, mutation queue with reconnect replay), 10-layer defense-in-depth security, PreservationInvariants (11 semantic safety rules), 21 hash-locked files, DisclosurePolicy (trust-based information sovereignty), event-audit cross-reference (v7.1.7).
 
 **Self-Perception** — Introspection accuracy: verified facts from ArchitectureReflection, SelfModel, CognitiveSelfModel injected into prompt during self-reflect queries — prevents hallucinated metrics. Lesson confirmation loop: recalled lessons correlated with task outcomes (confirmed/contradicted). Research quality gate: Jaccard+specificity scoring before KG write. Frontier-driven GoalSynthesizer: unfinished work, anomalies, and contradicted lessons generate autonomous goals (v7.1.7).
 

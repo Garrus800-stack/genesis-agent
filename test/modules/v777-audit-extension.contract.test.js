@@ -48,14 +48,23 @@ function track(name, fn) {
 //   assert.strictEqual(pkg.version, '7.7.7');
 // });
 
-// ── A2: GATE-INVENTORY says 12 SECURITY_REQUIRED_SLASH ───────
+// ── A2: GATE-INVENTORY claims match the live SECURITY_REQUIRED_SLASH count ──
+// v7.8.4 fix: replace hardcoded "12" pin with a live-count check. The
+// previous form (12 hardcoded) broke as soon as the set grew — v7.8.4
+// added cleanup-check, taking the count to 13. The contract here is the
+// invariant "GATE-INVENTORY.md claims the correct number", not a frozen
+// historical snapshot.
 
-track('A2: GATE-INVENTORY.md claims 12 SECURITY_REQUIRED_SLASH', () => {
+track('A2: GATE-INVENTORY.md claims the live SECURITY_REQUIRED_SLASH count', () => {
   const src = read('docs/GATE-INVENTORY.md');
-  assert.ok(/12 SECURITY_REQUIRED_SLASH/.test(src),
-    'GATE-INVENTORY.md should claim "12 SECURITY_REQUIRED_SLASH"');
-  assert.ok(!/9 SECURITY_REQUIRED_SLASH/.test(src),
-    'GATE-INVENTORY.md should no longer claim "9 SECURITY_REQUIRED_SLASH"');
+  const intentSrc = read('src/agent/intelligence/IntentPatterns.js');
+  // Find the SECURITY_REQUIRED_SLASH Set and count the entries.
+  const setBlock = intentSrc.match(/SECURITY_REQUIRED_SLASH\s*=\s*new\s+Set\(\[([\s\S]+?)\]\)/);
+  assert.ok(setBlock, 'SECURITY_REQUIRED_SLASH Set must exist in IntentPatterns.js');
+  const liveCount = (setBlock[1].match(/'[^']+'/g) || []).length;
+  const docPattern = new RegExp(`${liveCount} SECURITY_REQUIRED_SLASH`);
+  assert.ok(docPattern.test(src),
+    `GATE-INVENTORY.md should claim "${liveCount} SECURITY_REQUIRED_SLASH" (live count from IntentPatterns.js Set)`);
 });
 
 // ── A3: AUDIT-BACKLOG slash-discipline entry uses 12 ────────

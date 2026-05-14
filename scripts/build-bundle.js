@@ -140,13 +140,27 @@ async function build() {
   }
 
   // Mermaid: copy local mermaid.min.js to dist/ for the chat renderer.
+  // v7.8.4: resilient against the v10 (UMD) → v11 (IIFE) layout shift.
+  // Both versions publish `dist/mermaid.min.js` at the same path, but
+  // we probe a few fallback paths so a future filename rename does not
+  // silently break diagram rendering. The first existing path wins.
   try {
-    const mermaidSrc = path.join(ROOT, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js');
-    if (fs.existsSync(mermaidSrc)) {
+    const mermaidDist = path.join(ROOT, 'node_modules', 'mermaid', 'dist');
+    const candidates = [
+      'mermaid.min.js',          // v10 UMD, v11 IIFE — primary
+      'mermaid.js',              // unminified fallback
+      'mermaid.esm.min.mjs',     // ESM-only fallback (would need <script type=module>)
+    ];
+    let chosen = null;
+    for (const name of candidates) {
+      const p = path.join(mermaidDist, name);
+      if (fs.existsSync(p)) { chosen = { name, path: p }; break; }
+    }
+    if (chosen) {
       const mermaidDest = path.join(DIST, 'mermaid.min.js');
-      fs.copyFileSync(mermaidSrc, mermaidDest);
+      fs.copyFileSync(chosen.path, mermaidDest);
       const sizeKB = Math.round(fs.statSync(mermaidDest).size / 1024);
-      console.log(`  dist/mermaid.min.js: ${sizeKB}KB (local fallback)`);
+      console.log(`  dist/mermaid.min.js: ${sizeKB}KB (source: ${chosen.name})`);
     } else {
       console.log('[BUILD] mermaid not in node_modules — diagram rendering will fail until installed');
     }

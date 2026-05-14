@@ -15,6 +15,14 @@
 //   node test/index.js --new    — run only new test files
 // ============================================================
 
+// v7.8.4: enforce test isolation from real network backends.
+// OllamaBackend honours this flag and rejects real HTTP calls
+// instead of hitting a developer's local Ollama daemon, which
+// previously could trigger model loads in Ollama's RAM during
+// npm test (especially when the user's preferred model was a
+// cloud-tagged model that failed over to local).
+process.env.GENESIS_OFFLINE_TESTS = '1';
+
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);

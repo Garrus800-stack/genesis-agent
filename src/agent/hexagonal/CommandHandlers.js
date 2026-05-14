@@ -38,6 +38,7 @@ const { commandHandlersInstall } = require('./CommandHandlersInstall');
 const { commandHandlersArchitecture } = require('./CommandHandlersArchitecture');
 const { commandHandlersSlashHint } = require('./CommandHandlersSlashHint');
 const { commandHandlersOpen } = require('./CommandHandlersOpen');
+const { commandHandlersCleanup } = require('./CommandHandlersCleanup');   // v7.8.4
 
 class CommandHandlers {
   constructor({ bus, lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient, coreMemories}) {
@@ -90,6 +91,8 @@ class CommandHandlers {
     orchestrator.registerHandler('memory-veto', (msg) => this.memoryVeto(msg));
     // v7.5.5: Self-Domain
     orchestrator.registerHandler('self-recall', (msg) => this.selfRecall(msg));
+    // v7.8.4: Pre-deletion audit
+    orchestrator.registerHandler('cleanup-check', (msg) => this.cleanupCheck(msg));
     // v7.5.6: Model availability marker reset
     orchestrator.registerHandler('model-reset', (msg) => this.modelReset(msg));
     // v7.7.9 Phase 2: ProactiveSelfExpression user controls.
@@ -222,7 +225,8 @@ Object.assign(
   commandHandlersInstall,     // v7.5.9 ZIP3 Phase 4a
   commandHandlersArchitecture, // v7.5.9 ZIP4 Phase 8
   commandHandlersSlashHint,   // v7.5.9 ZIP7
-  commandHandlersOpen         // v7.5.9 ZIP8
+  commandHandlersOpen,        // v7.5.9 ZIP8
+  commandHandlersCleanup      // v7.8.4
 );
 
 module.exports = { CommandHandlers };

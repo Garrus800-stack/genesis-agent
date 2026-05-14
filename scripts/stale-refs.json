@@ -108,6 +108,41 @@
       "prefix": "hardgate contract: ",
       "minCount": 5,
       "note": "v7.8.3 follow-up (originated v7.7.9 Phase 3) \u2014 PSE HardGate fail-closed invariants (5 tests in v779-pse-gates.test.js): quiet-hours block, /quiet mute block, kind-not-allowed block, per-kind significance-floor block, malformed-input fail-closed. Without these the proactive self-expression pipeline could push thoughts into chat when it should not. Initially shipped without contract prefix; registered in v7.8.3 follow-up after audit-contracts surfaced the gap."
+    },
+    {
+      "prefix": "step-reporting contract: ",
+      "minCount": 4,
+      "note": "v7.8.4 \u2014 AgentLoopSteps._stepCode must not pre-declare 'test passed' in its return value (verification has not run yet at that point), and AgentLoopPursuit must overlay result.output with a [verification failed] marker when stepVerification.status === 'fail', guarded by a typeof === 'string' check. Without these invariants the step-log carries a self-contradiction (\"Code written: X — test passed\" plus \"Verification failed: ...\") in the same step."
+    },
+    {
+      "prefix": "plan-validator contract: ",
+      "minCount": 3,
+      "note": "v7.8.4 \u2014 HTNPlanner must not emit the obsolete 'DELEGATE step requires reachable peers' warning. Peer availability is decided at plan-construction time in AgentLoopPlanner (canDelegate gates whether DELEGATE appears in the LLM step-type list) and at execution time in AgentLoopSteps._stepDelegate (graceful fallback to ANALYZE). The validator does not orakel about peer status \u2014 that is not its job. The DELEGATE branch in HTNPlanner remains as a short-circuit so DELEGATE is not flagged by the unknown-step-type catch-all."
+    },
+    {
+      "prefix": "mermaid-safety contract: ",
+      "minCount": 3,
+      "note": "v7.8.4 \u2014 mermaid-rendered SVG must pass through DOMPurify.sanitize() before reaching diagramEl.innerHTML in chat.js. Without sanitisation a crafted diagram source could embed <script>, onclick=, or javascript: URIs that would execute in the Renderer context. The sanitize call must enable USE_PROFILES.svg, ADD_TAGS for foreignObject (mermaid uses it for HTML-in-SVG labels), and remove all event handlers + javascript: URIs by default."
+    },
+    {
+      "prefix": "mermaid-version contract: ",
+      "minCount": 4,
+      "note": "v7.8.4 \u2014 mermaid is pinned to ^11.x (v10 \u2192 v11 major bump, IIFE/ESBuild output, refactored flowchart/state rendering engine). dompurify is a runtime dependency (bundled into renderer.bundle.js by esbuild), jsdom is a devDependency (for sanitize tests in node environment). scripts/build-bundle.js must probe multiple mermaid layouts (mermaid.min.js primary, mermaid.esm.min.mjs fallback) so a future package layout change does not silently break diagram rendering."
+    },
+    {
+      "prefix": "install-db contract: ",
+      "minCount": 8,
+      "note": "v7.8.4 \u2014 NodeVersionResolver replaces the hardcoded v22.22.2 in CommandHandlersInstallDB._SOFTWARE_DB.nodejs with a lazy nodejs.org/dist/index.json fetch, 24h cache, and graceful fallback chain: fresh cache \u2192 live fetch \u2192 stale cache \u2192 hardcoded fallback. Pinned to v22 major (no silent drift to v23/v24). Tests must cover all four sources, malformed responses, timeouts, non-200 status codes, and missing-v22-LTS scenarios."
+    },
+    {
+      "prefix": "cleanup-verifier contract: ",
+      "minCount": 15,
+      "note": "v7.8.4 \u2014 CleanupVerifier capability emits four finding kinds (importers, entrypoint-pattern, identical-siblings, sibling-name-matches). result.safe is false when any blocking finding exists (importers or entrypoint-pattern); informational findings do not flip safe. Auto-hook in AgentLoopSteps._stepShell runs the verifier before the approval prompt for delete commands (rm/unlink/Remove-Item/del/erase) and surfaces findings in the approval text. /cleanup-check slash command exposes the same verifier manually; rejects absolute paths and '..' segments; emits cleanup-verifier:scan-complete telemetry. Caveat (documented in docs/CLEANUP-PROTOCOL.md): dynamic require/import patterns are not detected."
+    },
+    {
+      "prefix": "test-isolation contract: ",
+      "minCount": 5,
+      "note": "v7.8.4 \u2014 OllamaBackend._httpGet/_httpPost honour the GENESIS_OFFLINE_TESTS=1 environment variable and reject real HTTP calls when it is set. test/index.js sets the flag before requiring child_process so all spawned test workers inherit it. Without this guard, the legacy ModelBridge test (test/run-tests.js 'should throw on chat without configured backend') would silently fall back to the default Ollama URL, and if a developer's preferred model was cloud-tagged that failed over to local, Ollama would load the local model into RAM during npm test. Same protection covers headless-boot.test.js which boots AgentCore and would otherwise GET /api/tags."
     }
   ],
   "_scanRoots": [
