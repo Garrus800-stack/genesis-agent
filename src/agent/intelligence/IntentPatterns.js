@@ -196,14 +196,19 @@ const INTENT_DEFINITIONS = [
   ], 12, []],
 
   // v5.9.1: Run/execute/use an installed skill — must be ABOVE execute-code
+  // v7.8.0: Free-text patterns excluded when 'skill' is part of a path
+  // ('src/skills', '.genesis/skills', etc.) — those are file/dir refs, not
+  // skill-invocations. Path-detection via negative lookahead for /, \, or .
+  // adjacent to the word.
   ['run-skill', [
     // v7.5.1: slash-trigger (REQUIRED — see SECURITY_REQUIRED_SLASH)
     /(?:^|\s)\/run-skill\b/i,
     // Free-text patterns kept for natural-language matching, but
     // enforceSlashDiscipline rewrites to 'general' unless / is present.
-    /(?:run|execute|use|start|starte?|fuehr).*skill/i,
-    /skill.*(?:run|execute|use|starten?|ausfuehr)/i,
-    /(?:nutze?|verwende?).*skill/i,
+    // v7.8.0: don't match when 'skill' is in a path-like context.
+    /(?:run|execute|use|start|starte?|fuehr).*\bskill\b(?![s]?[\/\\.])/i,
+    /(?<![\/\\.])\bskill\b(?![s]?[\/\\.]).*(?:run|execute|use|starten?|ausfuehr)/i,
+    /(?:nutze?|verwende?).*\bskill\b(?![s]?[\/\\.])/i,
     /(?:run|execute|use)\s+(?:the\s+)?[\w-]+-skill\b/i,
     // v5.9.1: Match "run <name>" where name is a single hyphenated word (no flags/paths)
     /^(?:run|execute|use)\s+(?:the\s+)?[a-z][\w-]+$/i,

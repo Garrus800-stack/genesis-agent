@@ -568,6 +568,10 @@ const helpers = {
         `The file-read tool already tries common variants (case, extension, fuzzy). ` +
         `If you're looking for a file with a typo or unusual case, try file-list on the parent directory first to see what's actually there.`
       );
+      // v7.8.0: lesson-from-failure — Genesis learns from wrong-path attempts
+      // so the next pursuit recalls "this path didn't exist" instead of
+      // re-guessing. Best-effort, never throws.
+      this._captureNotFoundLesson?.(name, requested);
     }
 
     // Pattern B: shell sandbox block
@@ -590,6 +594,9 @@ const helpers = {
         `Different operating systems use different commands — on Windows use 'dir' instead of 'ls', 'type' instead of 'cat', 'where' instead of 'which'. ` +
         `Use the file-list tool for portable directory listing.`
       );
+      // v7.8.0: lesson-from-failure for unknown shell commands.
+      const cmd = (call.input?.command || '').split(/\s+/)[0] || '';
+      if (cmd) this._captureUnknownCmdLesson?.(cmd);
     }
 
     // Pattern D: read-source budget exhausted
@@ -605,6 +612,40 @@ const helpers = {
       line += `\n${hints.join('\n')}`;
     }
     return line;
+  },
+
+  // v7.8.0: capture a lesson when a tool call fails because the
+  // referenced path/command doesn't exist. Records into LessonsStore
+  // as obstacle-resolution so AgentLoopPlanner sees it next time.
+  // Best-effort, swallows all errors — never blocks a tool result.
+  _captureNotFoundLesson(toolName, requestedPath) {
+    try {
+      const lessonsStore = this._lessonsStore || this.lessonsStore;
+      if (!lessonsStore || typeof lessonsStore.record !== 'function') return;
+      if (!requestedPath || requestedPath === '<unknown>') return;
+      lessonsStore.record({
+        category: 'obstacle-resolution',
+        insight: `Tool '${toolName}' was called with path '${String(requestedPath).slice(0, 120)}' which does not exist. Check the path before referencing it; use file-list on the parent dir to verify.`,
+        evidence: { confidence: 0.6, sampleSize: 1, surprise: 0.5 },
+        tags: ['tool-failure', 'path-not-found', toolName],
+        source: 'tool-failure',
+      });
+    } catch (_e) { /* best-effort */ }
+  },
+
+  _captureUnknownCmdLesson(cmd) {
+    try {
+      const lessonsStore = this._lessonsStore || this.lessonsStore;
+      if (!lessonsStore || typeof lessonsStore.record !== 'function') return;
+      if (!cmd) return;
+      lessonsStore.record({
+        category: 'obstacle-resolution',
+        insight: `Shell command '${String(cmd).slice(0, 60)}' was not found on this system. Different OSes have different commands — verify availability before using.`,
+        evidence: { confidence: 0.6, sampleSize: 1, surprise: 0.5 },
+        tags: ['tool-failure', 'unknown-command', cmd],
+        source: 'tool-failure',
+      });
+    } catch (_e) { /* best-effort */ }
   },
 
 };

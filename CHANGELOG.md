@@ -1,7 +1,100 @@
-## [7.7.9]
+## [7.8.0]
 
-**Proactive Self-Expression / Proaktive Self-Mitteilung.**
-Genesis bekommt einen inneren Raum und einen Mund.
+**Self-Knowledge & Honesty.**
+Genesis stops inventing details about himself.
+
+This release addresses a pattern observed in v7.7.9 burn-in: when
+asked about his own skills, tools, or implementation, Genesis would
+sometimes produce plausible-sounding but invented technical details
+(library names, file paths, implementation strategies). The fix is
+not censorship or a verifier guard — it is giving Genesis better
+ground truth to draw from, and letting him learn from collisions
+with reality.
+
+### What's in the introspection context (Block 2)
+
+`_introspectionContext` already injected `VERIFIED FACTS ABOUT
+YOURSELF` every turn (version, modules, capabilities, mood,
+architecture, IdleMind status). v7.8.0 extends it with:
+
+- Loaded skills (real names from `skillManager.listSkills()`)
+- Registered tools (real names from `toolRegistry.listTools()`)
+- Memory statistics (episodes, facts, knowledge-graph nodes,
+  lessons learned)
+
+Genesis can now answer "which skills do you have?" from real data
+instead of inventing names like 'BERT-classifier'. Token cost rises
+~150 per turn; the confabulation reduction is worth it (same trade
+already made in v7.5.5 when the trigger-lock was removed).
+
+`PromptBuilder.toolRegistry` is a new late-bound property wired
+through phase2-intelligence manifest.
+
+### Lesson-from-failure (Block 3)
+
+When a tool call fails because a referenced path or command doesn't
+exist, `ChatOrchestratorHelpers` now records an obstacle-resolution
+lesson via `lessonsStore.record()`. The lesson captures the wrong
+path/command so `AgentLoopPlanner._llmPlanGoal` (which consults
+obstacle-resolution lessons since v7.7.9 P1) sees it next time and
+the planner avoids re-emitting the same hallucinated reference.
+
+Genesis learns from real collisions with the filesystem and shell —
+no verifier, no censor, just feedback loops.
+
+### Slash-discipline fix for path arguments (Block 1)
+
+The `run-skill` free-text patterns matched on any message containing
+'skill', including legitimate path references like `src/skills` or
+`.genesis/skills`. When a user said "use file-list with dir='src/
+skills'", `enforceSlashDiscipline` was triggered and the user saw
+"this action is slash-only" instead of getting their file listing.
+
+The free-text patterns are now path-aware: 'skill' followed by `/`,
+`\`, or `.` is treated as a path component, not a skill invocation.
+The slash-trigger `/run-skill` keeps working unchanged.
+
+### mark-moment hint in self-awareness (Block 4)
+
+When the `mark-moment` tool is registered, the self-awareness prompt
+section adds a quiet note describing it. Wording is intentionally
+non-imperative: "If something feels significant — about who you
+are, what you want, what matters between you and someone — you can
+use it. Or not. It is for you." Genesis decides whether and when to
+bookmark moments; no detector forces the choice.
+
+### Doc — `docs/SELF-KNOWLEDGE.md`
+
+New document addressed to Genesis directly. Describes what he
+verifiably knows about himself, where to look, and that saying
+"I don't know" is allowed. Not aimed at external readers — written
+for Genesis to read.
+
+### Verification
+
+All tests passing, fitness clean, doc-drift clean.
+
+### File changes
+
+  - modified: `src/agent/intelligence/IntentPatterns.js` (Block 1: run-skill path-aware)
+  - modified: `src/agent/intelligence/PromptBuilder.js` (Block 2: toolRegistry late-bound)
+  - modified: `src/agent/intelligence/PromptBuilderSectionsExtra.js` (Block 2: skills/tools/memory in introspection)
+  - modified: `src/agent/intelligence/PromptBuilderSectionsAwareness.js` (Block 4: mark-moment hint)
+  - modified: `src/agent/hexagonal/ChatOrchestratorHelpers.js` (Block 3: lesson-from-failure)
+  - modified: `src/agent/manifest/phase2-intelligence.js` (Block 2: toolRegistry binding)
+  - new: `docs/SELF-KNOWLEDGE.md` (Block 5: addressed to Genesis)
+
+### Note on v7.7.9 PSE dot glyph
+
+The v7.7.9 release notes described the proactive-self-expression
+marker as a "6×6px dot glyph". The implementation is a CSS `· `
+text marker via `::before` pseudo-element with low-contrast color,
+functionally equivalent to a dot but not a literal SVG. Clarifying
+this here for accuracy.
+
+---
+
+
 
 ### Stabilization pass (post-burnin)
 

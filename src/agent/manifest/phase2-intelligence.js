@@ -98,6 +98,8 @@ function phase2(ctx, R) {
         { prop: 'promptEvolution', service: 'promptEvolution', optional: true, expectedActive: true },
         // v5.3.0 (SA-P7): Cross-project lessons
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expectedActive: true, expects: ['buildContext'], impact: 'No lesson context in prompts' },
+        // v7.8.0: ToolRegistry — for verified tool-name introspection
+        { prop: 'toolRegistry', service: 'tools', optional: true, expectedActive: true, expects: ['listTools'], impact: 'No verified tool list in introspection' },
         // v5.7.0 (SA-P3): Architecture self-reflection
         { prop: 'architectureReflection', service: 'architectureReflection', optional: true, expectedActive: true, expects: ['getSnapshot', 'buildPromptContext'], impact: 'No architecture data for introspection' },
         // v5.7.0: Project intelligence

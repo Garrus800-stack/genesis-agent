@@ -221,6 +221,63 @@ const sectionsExtra = {
         } catch (_e) { /* optional */ }
       }
 
+      // v7.8.0: loaded skills (real names, not invented). Avoid hallucinating
+      // skill names like 'BERT-classifier' when SkillManager has the truth.
+      // Empty list is silent so the populated=false test contract holds when
+      // no other sources are present.
+      if (this.skills && typeof this.skills.listSkills === 'function') {
+        try {
+          const skills = this.skills.listSkills() || [];
+          if (skills.length > 0) {
+            const names = skills.slice(0, 8).map(s => s.name || s.id || s).join(', ');
+            const more = skills.length > 8 ? ` (+${skills.length - 8} more)` : '';
+            parts.push(`  Loaded skills: ${names}${more}`);
+          }
+        } catch (_e) { /* optional */ }
+      }
+
+      // v7.8.0: registered tools (real names). Tells the LLM what tools
+      // actually exist so it doesn't invent tool names in its replies.
+      if (this.toolRegistry && typeof this.toolRegistry.listTools === 'function') {
+        try {
+          const tools = this.toolRegistry.listTools() || [];
+          if (tools.length > 0) {
+            const names = tools.slice(0, 12).map(t => t.name || t).join(', ');
+            const more = tools.length > 12 ? ` (+${tools.length - 12} more)` : '';
+            parts.push(`  Registered tools: ${names}${more}`);
+          }
+        } catch (_e) { /* optional */ }
+      }
+
+      // v7.8.0: memory stats (concrete numbers). Genesis tends to guess
+      // counts when asked "how many X do you remember"; the real numbers
+      // are cheap to read.
+      if (this.memory && typeof this.memory.getStats === 'function') {
+        try {
+          const st = this.memory.getStats();
+          const ep = st?.episodicCount ?? st?.episodes ?? null;
+          const fa = st?.factCount ?? st?.facts ?? null;
+          const parts2 = [];
+          if (ep != null) parts2.push(`episodes:${ep}`);
+          if (fa != null) parts2.push(`facts:${fa}`);
+          if (parts2.length > 0) parts.push(`  Memory stats: ${parts2.join(', ')}`);
+        } catch (_e) { /* optional */ }
+      }
+      if (this.kg && typeof this.kg.getStats === 'function') {
+        try {
+          const kgStats = this.kg.getStats();
+          const nodes = kgStats?.nodeCount ?? kgStats?.nodes ?? null;
+          if (nodes != null) parts.push(`  Knowledge graph: ${nodes} nodes`);
+        } catch (_e) { /* optional */ }
+      }
+      if (this.lessonsStore && typeof this.lessonsStore.stats === 'function') {
+        try {
+          const ls = this.lessonsStore.stats();
+          const total = ls?.total ?? ls?.lessonsCreated ?? null;
+          if (total != null) parts.push(`  Lessons learned: ${total}`);
+        } catch (_e) { /* optional */ }
+      }
+
       // v7.5.5: signal SelfStatementLog whether the section was populated.
       // chat:completed handler uses this to detect structural claims that
       // were made WITHOUT verified-data backing. Pass the current message

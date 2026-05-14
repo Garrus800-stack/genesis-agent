@@ -75,6 +75,9 @@ class PromptBuilder {
 
     // v5.3.0: LessonsStore (late-bound)
     this.lessonsStore = null;
+    // v7.8.0: ToolRegistry (late-bound) — used by _introspectionContext
+    // to list real tool names so the LLM doesn't invent ones.
+    this.toolRegistry = null;
 
     // v4.0: SelfNarrative (late-bound)
     this.selfNarrative = null;
