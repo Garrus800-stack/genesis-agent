@@ -34,6 +34,9 @@ class IntentRouter {
 
     // v4.10.0: LocalClassifier — set via late-binding
     this._localClassifier = null;
+    // v7.8.1: ToolRegistry — set via late-binding, used to validate
+    // explicit tool names mentioned by the user ("benutze file-list").
+    this._toolRegistry = null;
 
     // Online learning: patterns learned from LLM fallback observations
     this._learnedPatterns = new Map(); this._maxLearnedPatterns = 500; // intent -> Set<keyword>
@@ -63,14 +66,53 @@ class IntentRouter {
     // routed to create-skill. "Write a function" ≠ "Create a Genesis skill".
     // Without this, LLM classifiers misroute coding tasks to the skill builder.
     if (this._isCodeGenRequest(message)) {
-      return { type: 'general', confidence: 0.95, match: 'codegen-guard' };
+      return this._withExplicitTool({ type: 'general', confidence: 0.95, match: 'codegen-guard' }, message);
     }
 
     const regex = this._regexClassify(message);
-    if (regex.confidence >= 0.9) return regex;
+    if (regex.confidence >= 0.9) return this._withExplicitTool(regex, message);
     const fuzzy = this._fuzzyClassify(message);
-    if (fuzzy.confidence >= 0.6) return fuzzy;
-    return regex.confidence > fuzzy.confidence ? regex : fuzzy;
+    if (fuzzy.confidence >= 0.6) return this._withExplicitTool(fuzzy, message);
+    const chosen = regex.confidence > fuzzy.confidence ? regex : fuzzy;
+    return this._withExplicitTool(chosen, message);
+  }
+
+  /**
+   * v7.8.1: Detect when the user explicitly names a tool ("benutze X",
+   * "use X"). If the named token matches a registered tool, attach the
+   * tool name to the classification result so PromptBuilder can hint
+   * the LLM to prefer it. Soft only — Genesis can still deviate with
+   * a stated reason. No hard override of autonomy.
+   */
+  _withExplicitTool(result, message) {
+    if (!result || !this._toolRegistry || typeof this._toolRegistry.hasTool !== 'function') return result;
+    if (typeof message !== 'string') return result;
+    // Patterns: "benutze X", "verwende X", "nutz X", "use X", "run X", "call X"
+    // X is a hyphenated lowercase token, optionally quoted/back-ticked.
+    const m = message.match(/(?:\b(?:benutze?|verwende?|nutze?|use|run|call)\s+["'`]?([a-z][a-z0-9-]{1,40})["'`]?)/i);
+    if (!m) return result;
+    let candidate = m[1].toLowerCase();
+    // Try exact, then space-to-hyphen normalization variants.
+    if (this._toolRegistry.hasTool(candidate)) {
+      return { ...result, explicitTool: candidate };
+    }
+    // "file list" → "file-list" already handled by regex \s+ + single token.
+    // For two-token tool names like "git-log" the user might write "git log"
+    // — that needs broader matching: scan all registered tool names.
+    if (typeof this._toolRegistry.listTools === 'function') {
+      const tools = this._toolRegistry.listTools() || [];
+      const lower = message.toLowerCase();
+      for (const t of tools) {
+        const name = (t.name || t || '').toLowerCase();
+        if (!name || name.length < 3) continue;
+        // Match "use file-list", "benutze git-log" etc. as substring after the verb
+        const re = new RegExp(`(?:\\b(?:benutze?|verwende?|nutze?|use|run|call)\\s+["'\`]?${name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}["'\`]?)`, 'i');
+        if (re.test(lower)) {
+          return { ...result, explicitTool: name };
+        }
+      }
+    }
+    return result;
   }
 
   /**

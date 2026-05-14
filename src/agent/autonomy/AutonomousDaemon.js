@@ -18,7 +18,7 @@ const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('AutonomousDaemon');
 
 class AutonomousDaemon {
-  constructor({ bus,  reflector, selfModel, memory, model, prompts, skills, sandbox, guard, intervals }) {
+  constructor({ bus,  reflector, selfModel, memory, model, prompts, skills, sandbox, guard, intervals, storage }) {
     this.bus = bus || NullBus;
     this.reflector = reflector;
     this.selfModel = selfModel;
@@ -29,6 +29,10 @@ class AutonomousDaemon {
     this.sandbox = sandbox;
     this.guard = guard;
     this._intervals = intervals || null;
+    // v7.8.1: Storage for persistent skill-build-lockout state.
+    // Without this, gapAttempts resets every reboot and Genesis tries the
+    // same impossible skill over and over, wasting LLM time each cycle.
+    this._storage = storage || null;
     // v6.0.7: Trust-gated optimization
     this.trustLevelSystem = null; // late-bound
     // v7.3.5: Goal lifecycle review
@@ -56,11 +60,76 @@ class AutonomousDaemon {
       autoRepair: true,                // Auto-repair syntax errors
       autoOptimize: false,             // Don't auto-apply optimizations (too risky)
       logLevel: 'info',                // 'debug' | 'info' | 'warn'
+      // v7.8.1: lockout config
+      skillLockoutMs: 7 * 24 * 60 * 60 * 1000,  // 7 days after 2 failures
     };
 
     // Capability gap tracker
     this.knownGaps = [];
-    this.gapAttempts = new Map(); // DA-1: bounded by gap count (~10), cap 50 // gapId → attempt count
+    // v7.8.1: gapAttempts is now Map<gapId, { attempts, lastFailure, reason,
+    // lockoutUntil }> — was Map<gapId, number>. Loaded from disk at boot
+    // (see _loadSkillAttempts()), persisted on update. Only stable IDs
+    // (gap:topic / gap:capability-name) are written — user-request IDs
+    // contain Date.now() and are ephemeral.
+    this.gapAttempts = new Map();
+    this._loadSkillAttempts();
+  }
+
+  // ── Skill-Build Lockout Persistence (v7.8.1) ─────────────
+
+  _skillAttemptsFile() { return 'skill-attempts.json'; }
+
+  _loadSkillAttempts() {
+    if (!this._storage || typeof this._storage.readJSON !== 'function') return;
+    try {
+      const raw = this._storage.readJSON(this._skillAttemptsFile(), null);
+      if (!raw || typeof raw !== 'object') return;
+      const entries = Array.isArray(raw.entries) ? raw.entries : [];
+      for (const e of entries) {
+        if (!e || typeof e.id !== 'string') continue;
+        this.gapAttempts.set(e.id, {
+          attempts: Number(e.attempts) || 0,
+          lastFailure: Number(e.lastFailure) || 0,
+          reason: typeof e.reason === 'string' ? e.reason : '',
+          lockoutUntil: Number(e.lockoutUntil) || 0,
+        });
+      }
+    } catch (_e) { /* best-effort */ }
+  }
+
+  _saveSkillAttempts() {
+    if (!this._storage || typeof this._storage.writeJSONDebounced !== 'function') return;
+    try {
+      // Only persist stable IDs — user-request IDs contain Date.now() and
+      // are not the same across reboots, so persistence is meaningless.
+      const entries = [];
+      for (const [id, val] of this.gapAttempts) {
+        if (id.startsWith('gap:user:')) continue;
+        entries.push({ id, ...val });
+      }
+      this._storage.writeJSONDebounced(this._skillAttemptsFile(), { entries, version: 1 }, 2000);
+    } catch (_e) { /* best-effort */ }
+  }
+
+  /** v7.8.1: returns true if this gap is currently in 7-day lockout. */
+  _isSkillLockedOut(gapId) {
+    const e = this.gapAttempts.get(gapId);
+    if (!e || typeof e !== 'object') return false;
+    return (e.lockoutUntil || 0) > Date.now();
+  }
+
+  /** v7.8.1: list of currently locked-out skill names for introspection. */
+  getLockedOutSkills() {
+    const now = Date.now();
+    const out = [];
+    for (const [id, val] of this.gapAttempts) {
+      if (typeof val !== 'object') continue;
+      if ((val.lockoutUntil || 0) <= now) continue;
+      // gap:topic or gap:cap-name → topic is everything after first colon
+      const topic = id.startsWith('gap:') ? id.slice(4) : id;
+      out.push({ topic, reason: val.reason || 'unknown', until: val.lockoutUntil });
+    }
+    return out;
   }
 
   // ── Lifecycle ────────────────────────────────────────────
@@ -452,12 +521,24 @@ class AutonomousDaemon {
   async _attemptSkillBuilds(gaps) {
     let built = 0;
     for (const gap of gaps) {
-      const attempts = this.gapAttempts.get(gap.id) || 0;
+      // v7.8.1: lockout check first — Genesis won't waste cycles on
+      // skills that already failed twice (7-day cooldown).
+      if (this._isSkillLockedOut(gap.id)) continue;
+
+      const entry = this.gapAttempts.get(gap.id);
+      const attempts = (entry && typeof entry === 'object') ? (entry.attempts || 0) : 0;
       if (attempts >= 2) continue;
       if (!['missing-capability', 'user-request'].includes(gap.type) || !this.skills || !this.model) continue;
 
       this._log('info', `Attempting to build skill for capability gap: ${gap.topic}`);
-      this.gapAttempts.set(gap.id, attempts + 1);
+      // v7.8.1: bump attempts in the new richer entry shape
+      const next = {
+        attempts: attempts + 1,
+        lastFailure: entry?.lastFailure || 0,
+        reason: entry?.reason || '',
+        lockoutUntil: entry?.lockoutUntil || 0,
+      };
+      this.gapAttempts.set(gap.id, next);
       if (this.gapAttempts.size > 50) { const k = this.gapAttempts.keys().next().value; this.gapAttempts.delete(k); }
 
       try {
@@ -473,13 +554,32 @@ class AutonomousDaemon {
         });
         if (result.includes('✅')) {
           built++;
+          // success: reset the lockout entry
+          this.gapAttempts.delete(gap.id);
+          this._saveSkillAttempts();
           this.bus.fire('daemon:skill-created', { skill: gap.topic, reason: 'capability-gap' }, { source: 'AutonomousDaemon' });
+        } else {
+          this._recordSkillFailure(gap.id, next, 'build-failed');
         }
       } catch (err) {
+        const reason = /timeout|timed out/i.test(err.message) ? 'timeout' : 'error';
         this._log('warn', `Skill creation for ${gap.topic} failed: ${err.message}`);
+        this._recordSkillFailure(gap.id, next, reason);
       }
     }
     return built;
+  }
+
+  /** v7.8.1: record a failure and apply 7-day lockout after 2 attempts. */
+  _recordSkillFailure(gapId, entry, reason) {
+    const updated = {
+      attempts: entry.attempts,
+      lastFailure: Date.now(),
+      reason: reason || 'unknown',
+      lockoutUntil: entry.attempts >= 2 ? Date.now() + this.config.skillLockoutMs : 0,
+    };
+    this.gapAttempts.set(gapId, updated);
+    this._saveSkillAttempts();
   }
 
   // ── Public API ───────────────────────────────────────────

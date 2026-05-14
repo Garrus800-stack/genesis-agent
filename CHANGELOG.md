@@ -1,7 +1,111 @@
-## [7.8.0]
+## [7.8.1]
 
-**Self-Knowledge & Honesty.**
-Genesis stops inventing details about himself.
+**Stop Wasting Energy.**
+Three real bugs caught in v7.8.0 live-burn-in, plus the documentation
+and tool-hint that close gaps users could feel.
+
+### Block 1 — Cloud weekly-limit detection
+
+When an Ollama Cloud model returned a weekly quota error, Genesis
+treated it as a generic rate-limit and retried every 5 minutes for
+the rest of the week. The TTL map now has a `quota-exhausted` entry
+(24h), and `_classifyFailoverReason` matches on `weekly|monthly|
+quota.*(exceeded|reached|exhausted)|usage.*limit|limit.*reached|
+reset.*(in|on|at)` before falling through to plain `rate-limit`.
+Same change in `ModelBridge.js` and `ModelBridgeFailover.js`.
+
+### Block 2 — Persistent skill-build lockout
+
+`AutonomousDaemon.gapAttempts` used to be an in-memory `Map<id,
+number>` that was wiped at every reboot. Genesis would try to build
+`file-management` (or whatever was failing), time out, give up after
+2 attempts in that session, then reboot and start over the next
+morning. Wasted LLM time, every cycle.
+
+Now `gapAttempts` is `Map<id, { attempts, lastFailure, reason,
+lockoutUntil }>`, persisted to `.genesis/skill-attempts.json`. After
+2 failures the gap enters a 7-day lockout. Only stable gap IDs
+(`gap:topic`, `gap:capability-name`) are persisted; user-request IDs
+(which contain `Date.now()`) are intentionally ephemeral. The
+introspection context now surfaces "Skills tried but couldn't
+build: name (reason), ..." so Genesis can say honestly what he
+attempted and why it didn't work.
+
+`PromptBuilder.autonomousDaemon` is a new late-bound property wired
+through `phase2-intelligence`. `AutonomousDaemon` now takes `storage`
+as a constructor dep.
+
+### Block 3 — Frontier-decay also runs while live
+
+`KnowledgeGraph.decayFrontierEdges()` was called exactly once, by
+`SessionPersistence.asyncLoad()` at boot. A Genesis that stayed up
+for 20 days carried 20-day-old emotional imprints at 100% weight.
+Dashboard line "frustrated @ successful task completion (20 days
+ago, 100% weight)" was the smoking gun.
+
+`SessionPersistence` now also registers a `frontier-decay-tick`
+interval (every 6h) via `IntervalManager`. Per-tick factor is 0.85
+— gentler than the 0.5 boot-decay, because it runs much more often.
+A Genesis that doesn't reboot now sees old imprints fade
+naturally over days, not stay frozen.
+
+### Block 4 — Persistence-layout documentation
+
+New `docs/PERSISTENCE-LAYOUT.md` documents what lives where:
+- `.genesis/` per installation (identity, sessions, knowledge)
+- `.genesis-backups/` rotation
+- `~/.genesis-lessons/` cross-installation, per-OS-user (shared
+  brain across Genesis versions running under the same account)
+
+Plus migration instructions and a clear "do not share `.genesis/`
+between concurrent installations" warning. `SELF-KNOWLEDGE.md` got
+a short addendum so Genesis himself knows about the cross-
+installation lesson sharing.
+
+### Block 5 — Soft tool-hint on explicit mentions
+
+When the user writes "benutze file-list" or "use git-log", Genesis
+sometimes picked a different tool with no explanation, which felt
+arbitrary. `IntentRouter.classify()` now attaches an `explicitTool`
+field to the classification result when a registered tool name
+follows a verb like benutze/verwende/use/run/call.
+
+`PromptBuilder.setExplicitTool()` receives the name via
+`ChatOrchestrator`, and `PromptBuilderSectionsAwareness` adds a soft
+hint into the prompt:
+
+> The user explicitly mentioned tool 'X'. It is registered and
+> available. Prefer using it unless you have a clear reason to use
+> a different one — in which case, briefly tell the user why.
+
+No hard override. Autonomy preserved. If Genesis sees a better tool
+for the situation, he can pick it and explain.
+
+### Verification
+
+7236 tests passed, 0 failed. Fitness 130/130. Audit-doc-drift clean
+(55 doc claims verified).
+
+### File changes
+
+  - modified: `src/agent/foundation/ModelBridge.js` (Block 1: quota-exhausted TTL)
+  - modified: `src/agent/foundation/ModelBridgeFailover.js` (Block 1: classifier regex)
+  - modified: `src/agent/autonomy/AutonomousDaemon.js` (Block 2: persistent lockout)
+  - modified: `src/agent/manifest/phase6-autonomy.js` (Block 2: storage dep for daemon)
+  - modified: `src/agent/intelligence/PromptBuilder.js` (Block 2 + 5: autonomousDaemon + explicitTool)
+  - modified: `src/agent/intelligence/PromptBuilderSectionsExtra.js` (Block 2: locked-out-skills line)
+  - modified: `src/agent/intelligence/PromptBuilderSectionsAwareness.js` (Block 5: tool-hint section)
+  - modified: `src/agent/intelligence/IntentRouter.js` (Block 5: _withExplicitTool detection)
+  - modified: `src/agent/hexagonal/ChatOrchestrator.js` (Block 5: setExplicitTool wiring)
+  - modified: `src/agent/manifest/phase2-intelligence.js` (Block 2 + 5: daemon + toolRegistry bindings)
+  - modified: `src/agent/revolution/SessionPersistence.js` (Block 3: intervals dep + decay tick)
+  - modified: `src/agent/manifest/phase8-revolution.js` (Block 3: intervals wired)
+  - modified: `docs/SELF-KNOWLEDGE.md` (Block 4: cross-installation lessons note)
+  - new: `docs/PERSISTENCE-LAYOUT.md` (Block 4)
+
+---
+
+
 
 This release addresses a pattern observed in v7.7.9 burn-in: when
 asked about his own skills, tools, or implementation, Genesis would

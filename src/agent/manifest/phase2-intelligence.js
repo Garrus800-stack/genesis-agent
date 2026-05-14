@@ -13,6 +13,8 @@ function phase2(ctx, R) {
       lateBindings: [
         // v4.10.0: LocalClassifier for fast intent classification
         { prop: '_localClassifier', service: 'localClassifier', optional: true },
+        // v7.8.1: ToolRegistry — for explicit-tool detection in classify()
+        { prop: '_toolRegistry', service: 'tools', optional: true, expectedActive: true, expects: ['hasTool', 'listTools'], impact: 'No explicit-tool hint when user names a tool' },
       ],
       factory: () => new (R('IntentRouter').IntentRouter)({ bus }),
     }],
@@ -100,6 +102,8 @@ function phase2(ctx, R) {
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true, expectedActive: true, expects: ['buildContext'], impact: 'No lesson context in prompts' },
         // v7.8.0: ToolRegistry — for verified tool-name introspection
         { prop: 'toolRegistry', service: 'tools', optional: true, expectedActive: true, expects: ['listTools'], impact: 'No verified tool list in introspection' },
+        // v7.8.1: AutonomousDaemon — for honest "skills I tried but couldn't" list
+        { prop: 'autonomousDaemon', service: 'daemon', optional: true, expectedActive: true, expects: ['getLockedOutSkills'], impact: 'No skill-failure honesty in introspection' },
         // v5.7.0 (SA-P3): Architecture self-reflection
         { prop: 'architectureReflection', service: 'architectureReflection', optional: true, expectedActive: true, expects: ['getSnapshot', 'buildPromptContext'], impact: 'No architecture data for introspection' },
         // v5.7.0: Project intelligence

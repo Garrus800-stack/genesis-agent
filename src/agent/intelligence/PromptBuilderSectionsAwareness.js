@@ -143,6 +143,18 @@ const awarenessSection = {
         );
       }
 
+      // v7.8.1: When the user explicitly named a registered tool, surface
+      // it as a soft preference — not a command. Genesis can still choose
+      // a different tool if he has a clear reason, but should say why.
+      if (this._explicitTool) {
+        parts.push(
+          `[User tool hint] The user explicitly mentioned tool ` +
+          `'${this._explicitTool}'. It is registered and available. ` +
+          `Prefer using it unless you have a clear reason to use a ` +
+          `different one — in which case, briefly tell the user why.`
+        );
+      }
+
       return parts.length ? parts.join('\n\n') : '';
     } catch (_e) {
       _log.debug('[catch] return summary Selfawareness:', _e.message);

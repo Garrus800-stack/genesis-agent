@@ -75,6 +75,10 @@ const failoverMixin = {
     // — Ollama Cloud Pro-gates carry both. Without this, gated cloud
     // models would get the 1h auth-TTL not the 24h subscription-TTL.
     if (/subscription|requires.*upgrade|upgrade for access|ollama\.com\/upgrade/.test(msg)) return 'subscription-required';
+    // v7.8.1: weekly/monthly quota exhaustion. Distinguishes one-week
+    // resets from per-minute rate-limits so Genesis stops retrying every
+    // 5min for a whole week on a single cloud model.
+    if (/weekly|monthly|quota.{0,20}(exceeded|reached|exhausted)|usage.{0,20}limit|limit.{0,20}reached|reset.{0,20}(in|on|at)/.test(msg)) return 'quota-exhausted';
     if (/rate.?limit|429|too many/.test(msg)) return 'rate-limit';
     if (/timeout|timed out|etimedout/.test(msg)) return 'timeout';
     if (/econnrefused|enotfound|eai_again|network|socket hang up|fetch failed/.test(msg)) return 'connection-error';

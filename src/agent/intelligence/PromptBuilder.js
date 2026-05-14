@@ -78,6 +78,10 @@ class PromptBuilder {
     // v7.8.0: ToolRegistry (late-bound) — used by _introspectionContext
     // to list real tool names so the LLM doesn't invent ones.
     this.toolRegistry = null;
+    // v7.8.1: AutonomousDaemon (late-bound) — used by _introspectionContext
+    // to expose locked-out skills so Genesis tells the truth about what
+    // he tried and couldn't build.
+    this.autonomousDaemon = null;
 
     // v4.0: SelfNarrative (late-bound)
     this.selfNarrative = null;
@@ -89,6 +93,9 @@ class PromptBuilder {
     this.episodicMemory = null;
 
     this._recentQuery = '';
+    // v7.8.1: explicit-tool hint set per turn by ChatOrchestrator from
+    // IntentRouter classify() result. Read by PromptBuilderSectionsAwareness.
+    this._explicitTool = null;
     // v6.0.4: Adaptive prompt strategy — optimizes sections based on provenance data
     this._currentIntent = 'general';
     /** @type {*} */ this._adaptiveStrategy = null; // late-bound
@@ -177,6 +184,17 @@ class PromptBuilder {
    */
   setIntent(intentType) {
     this._currentIntent = intentType || 'general';
+  }
+
+  /**
+   * v7.8.1: Set the explicit tool name the user named in the current
+   * message ("benutze file-list"). Surfaced as a soft prompt-hint in
+   * the awareness section — Genesis is encouraged but not forced to
+   * use that tool. Autonomy is preserved.
+   * @param {string|null} toolName
+   */
+  setExplicitTool(toolName) {
+    this._explicitTool = (typeof toolName === 'string' && toolName.length > 0) ? toolName : null;
   }
 
   /**

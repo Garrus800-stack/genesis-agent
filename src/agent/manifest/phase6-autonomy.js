@@ -9,7 +9,7 @@ function phase6(ctx, R) {
   return [
     ['daemon', {
       phase: 6,
-      deps: ['reflector', 'selfModel', 'memory', 'llm', 'prompts', 'skills', 'sandbox'],
+      deps: ['reflector', 'selfModel', 'memory', 'llm', 'prompts', 'skills', 'sandbox', 'storage'],
       tags: ['autonomy'],
       // v6.0.7: Trust-gated repair scope
       lateBindings: [
@@ -28,6 +28,7 @@ function phase6(ctx, R) {
           memory: c.resolve('memory'), model: c.resolve('llm'),
           prompts: c.resolve('prompts'), skills: c.resolve('skills'),
           sandbox: c.resolve('sandbox'), guard, intervals,
+          storage: c.resolve('storage'),
         });
         // v7.5.7-fix Phase 2 round 3: cycleMinutes from settings (UI exposed).
         const settings = c.tryResolve ? c.tryResolve('settings') : null;

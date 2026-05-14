@@ -125,6 +125,7 @@ class ChatOrchestrator {
         if (!response) {
           if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
           if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
+          if (this.promptBuilder.setExplicitTool) this.promptBuilder.setExplicitTool(intent.explicitTool || null);
           if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
           this._maybeAttachSourceHint(message, intent);  // v7.3.7
           this._maybeReadSourceSync(message, intent);    // v7.3.8
@@ -135,6 +136,7 @@ class ChatOrchestrator {
         // v7.3.3: setQuery — lets sourceAccessContext detect file/class/service references
         if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
         if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
+        if (this.promptBuilder.setExplicitTool) this.promptBuilder.setExplicitTool(intent.explicitTool || null);
         if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
         this._maybeAttachSourceHint(message, intent);  // v7.3.7
         this._maybeReadSourceSync(message, intent);    // v7.3.8
@@ -271,6 +273,7 @@ class ChatOrchestrator {
       // v7.3.3: setQuery — lets sourceAccessContext detect file/class/service references
       if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
       if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
+      if (this.promptBuilder.setExplicitTool) this.promptBuilder.setExplicitTool(intent.explicitTool || null);
       if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
       const systemPrompt = this.promptBuilder.buildAsync
         ? await this.promptBuilder.buildAsync()

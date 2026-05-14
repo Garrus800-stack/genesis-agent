@@ -36,11 +36,14 @@ const TASK_TYPE_ROUTING_MAP = {
 // v7.5.6/v7.5.7-fix: TTL by failover-reason for the unavailable-marker.
 // 'connection-error' and 'other' are intentionally absent (transient).
 // 'subscription-required' (v7.5.7-fix): 24h, Pro-gates don't fix in 1h.
+// 'quota-exhausted' (v7.8.1): 24h, weekly/monthly limits reset on a slow
+// cadence — retrying every 5min just burns more rate-limit responses.
 const UNAVAILABLE_TTL_MAP = {
   'auth':                  60 * 60 * 1000,         // 1h
   'rate-limit':              5 * 60 * 1000,        // 5min
   'timeout':                10 * 60 * 1000,        // 10min
   'subscription-required': 24 * 60 * 60 * 1000,    // 24h
+  'quota-exhausted':       24 * 60 * 60 * 1000,    // 24h
 };
 
 // ── Lightweight Semaphore ─────────────────────────────────

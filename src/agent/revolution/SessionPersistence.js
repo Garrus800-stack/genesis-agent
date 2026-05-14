@@ -33,12 +33,16 @@ const _log = createLogger('SessionPersistence');
 const { applySubscriptionHelper } = require('../core/subscription-helper');
 
 class SessionPersistence {
-  constructor({ bus, model, memory, storage, lang }) {
+  constructor({ bus, model, memory, storage, lang, intervals }) {
     this.bus = bus || NullBus;
     this.model = model;
     this.memory = memory;
     this.storage = storage || null;
     this.lang = lang || { t: k => k };
+    // v7.8.1: IntervalManager for periodic frontier decay (not only at boot)
+    this._intervals = intervals || null;
+    // v7.8.1: timestamp of last decay run (boot or tick), used to throttle
+    this._lastDecayAt = 0;
 
     // v7.1.4: Session ID for crash-safe checkpoint
     this._sessionId = `s-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -473,6 +477,7 @@ UNFINISHED: ...`;
     // v7.1.4: Decay old frontier edges at boot (deterministic, no timer)
     if (this._knowledgeGraph) {
       this._knowledgeGraph.decayFrontierEdges(0.5);
+      this._lastDecayAt = Date.now();
     }
     // v7.1.5: Restore dampened emotional state from frontier imprints
     // Runs AFTER decay so imprint weights reflect their current relevance
@@ -480,6 +485,21 @@ UNFINISHED: ...`;
       try {
         this._emotionalFrontier.restoreAtBoot();
       } catch (err) { _log.debug('[SESSION] Emotional restore error:', err.message); }
+    }
+
+    // v7.8.1: Long-running sessions need decay too — without this, a
+    // Genesis that hasn't rebooted in days carries 100%-weight imprints
+    // forever. Per-tick factor 0.85 is gentler than the 0.5 boot-decay
+    // because it runs every 6h instead of once per restart.
+    if (this._intervals && this._knowledgeGraph) {
+      this._intervals.register('frontier-decay-tick', () => {
+        try {
+          this._knowledgeGraph.decayFrontierEdges(0.85);
+          this._lastDecayAt = Date.now();
+        } catch (err) {
+          _log.debug('[SESSION] Frontier-decay tick error:', err.message);
+        }
+      }, 6 * 60 * 60 * 1000); // 6h
     }
   }
 

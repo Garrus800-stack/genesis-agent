@@ -35,6 +35,7 @@ function phase8(ctx, R) {
       factory: (c) => new (R('SessionPersistence').SessionPersistence)({
         bus, model: c.resolve('llm'), memory: c.resolve('memory'),
         storage: c.resolve('storage'), lang: R('Language').lang,
+        intervals,
       }),
     }],
 

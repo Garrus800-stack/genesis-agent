@@ -278,6 +278,20 @@ const sectionsExtra = {
         } catch (_e) { /* optional */ }
       }
 
+      // v7.8.1: Skills that Genesis tried to build but couldn't. Honest
+      // self-knowledge — when asked "can you do X?" he can say "I tried,
+      // it didn't work for these reasons" instead of inventing capability.
+      if (this.autonomousDaemon && typeof this.autonomousDaemon.getLockedOutSkills === 'function') {
+        try {
+          const locked = this.autonomousDaemon.getLockedOutSkills() || [];
+          if (locked.length > 0) {
+            const list = locked.slice(0, 5).map(s => `${s.topic} (${s.reason})`).join(', ');
+            const more = locked.length > 5 ? ` (+${locked.length - 5} more)` : '';
+            parts.push(`  Skills tried but couldn't build: ${list}${more}`);
+          }
+        } catch (_e) { /* optional */ }
+      }
+
       // v7.5.5: signal SelfStatementLog whether the section was populated.
       // chat:completed handler uses this to detect structural claims that
       // were made WITHOUT verified-data backing. Pass the current message
