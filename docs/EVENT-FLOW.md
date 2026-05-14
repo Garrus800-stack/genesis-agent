@@ -700,8 +700,7 @@ Tool-Call-Verification and Self-Gate).
 | `read-source:called` | SelfModel.readSourceSync | Dashboard (planned) | Fires on every successful source-read during a chat turn. Payload: `{ path, bytes, turnId? }`. Turn IDs propagate from ChatOrchestrator via `startReadSourceTurn(traceId)`. |
 | `read-source:soft-limit` | SelfModel.readSourceSync | Dashboard (planned) | Fires when `turnCount` crosses `softPerTurn` (5) within a single chat turn. Telemetry only — the read succeeds. Payload: `{ turnCount, softLimit, hardLimit, turnId? }`. |
 
-Listeners on most of these are not yet wired in production — the
-dashboard will surface them in a future release. Until then they
+Listeners on most of these are not yet wired in production — they
 serve as bus-level instrumentation for anyone debugging gate
 behaviour.
 

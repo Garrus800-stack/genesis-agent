@@ -8,7 +8,7 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.8.1-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.8.2-d4a017?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/tests-7231%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
@@ -81,7 +81,7 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Memory & learning** — 5-layer memory (conversation, episodic, vector, unified, knowledge graph), adaptive forgetting (surprise amplifies retention 5×), DreamCycle consolidation during idle time, MetaLearning prompt optimization, PromptEvolution A/B testing, OnlineLearner real-time feedback (streak detection, model escalation, temperature tuning), LessonsStore cross-project persistent learning.
 
-**Cognition & awareness** — ExpectationEngine (quantitative predictions), SurpriseAccumulator (information-theoretic), AwarenessPort (interface for coherence gating during self-modification; default implementation is NullAwareness, real coherence source reserved for a future release), CognitiveWorkspace (9-slot transient working memory), ArchitectureReflection (live queryable self-model of own architecture), DynamicToolSynthesis (generates new tools on demand via LLM + sandbox).
+**Cognition & awareness** — ExpectationEngine (quantitative predictions), SurpriseAccumulator (information-theoretic), AwarenessPort (interface for coherence gating during self-modification; default implementation is NullAwareness, real coherence source not yet wired), CognitiveWorkspace (9-slot transient working memory), ArchitectureReflection (live queryable self-model of own architecture), DynamicToolSynthesis (generates new tools on demand via LLM + sandbox).
 
 **Organism** — 5 emotional dimensions, homeostasis (6 vitals), 4 needs (social, mastery, novelty, rest), metabolism (500 AU energy pool), heritable genome (7 evolvable traits), immune system (anomaly detection), body schema (capability tracking), embodied perception (UI engagement tracking). Emotional-cognitive bridge: EmotionalSteering signals flow into AdaptiveStrategy (v7.1.7). Internal A/B benchmark on a single model (kimi-k2.5:cloud, 12 tasks): +16pp to +33pp task success with Organism active vs. disabled. The v6.0.4 run had CPU-only baseline timeouts that likely inflated the upper delta — treat the lower bound as the conservative reading. Not yet replicated across models. See [BENCHMARKING.md](docs/BENCHMARKING.md).
 
@@ -463,7 +463,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Languages | EN primary (+ DE, FR, ES via i18n) |
 | Architectural fitness | 130/130 — 0 cross-layer violations, 0 orphans, 0 phantoms, 0 files >700 LOC |
 | TypeScript | TSC clean — 0 errors in agent source (checkJs + strictNullChecks) |
-| CI gates | 15 (architectural-fitness + audit-events + validate-events + validate-channels + validate-service-wiring + validate-intent-wiring + audit-self-gate-coverage + audit-gate-stats-callers + audit-hash-lock-coverage + audit-contracts + audit-doc-drift + audit-raw-settimeout + audit-class-wiring + audit-listener-lifecycle + check-ratchet) |
+| CI gates | 16 (architectural-fitness + audit-events + validate-events + validate-channels + validate-service-wiring + validate-intent-wiring + audit-self-gate-coverage + audit-gate-stats-callers + audit-hash-lock-coverage + audit-contracts + audit-doc-drift + audit-future-version-refs + audit-raw-settimeout + audit-class-wiring + audit-listener-lifecycle + check-ratchet) |
 
 ---
 

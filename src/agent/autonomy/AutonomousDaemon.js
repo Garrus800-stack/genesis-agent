@@ -525,6 +525,21 @@ class AutonomousDaemon {
       // skills that already failed twice (7-day cooldown).
       if (this._isSkillLockedOut(gap.id)) continue;
 
+      // v7.8.2: cooldown-expired reset. v7.8.1 stored attempts=2 + a
+      // 7-day lockoutUntil, then the lockout-check passed after day 8
+      // but the `attempts >= 2` guard below blocked forever. The promised
+      // 7-day lockout was effectively permanent. Now: when a previously
+      // locked-out gap reaches the lockoutUntil expiry, the entry is
+      // dropped so the LLM gets a fresh shot.
+      const existing = this.gapAttempts.get(gap.id);
+      if (existing && typeof existing === 'object'
+          && (existing.attempts || 0) >= 2
+          && (existing.lockoutUntil || 0) > 0
+          && (existing.lockoutUntil || 0) <= Date.now()) {
+        this.gapAttempts.delete(gap.id);
+        this._saveSkillAttempts();
+      }
+
       const entry = this.gapAttempts.get(gap.id);
       const attempts = (entry && typeof entry === 'object') ? (entry.attempts || 0) : 0;
       if (attempts >= 2) continue;
@@ -539,7 +554,18 @@ class AutonomousDaemon {
         lockoutUntil: entry?.lockoutUntil || 0,
       };
       this.gapAttempts.set(gap.id, next);
-      if (this.gapAttempts.size > 50) { const k = this.gapAttempts.keys().next().value; this.gapAttempts.delete(k); }
+      // v7.8.2: when evicting due to map size, protect active lockouts.
+      // v7.8.1 dropped the oldest entry blindly, which could wipe a
+      // still-running 7-day cooldown and let a hopeless skill back into
+      // rotation. Now: skip locked-out entries; if every entry is locked,
+      // size grows past 50 rather than losing safety info.
+      if (this.gapAttempts.size > 50) {
+        for (const [k, v] of this.gapAttempts) {
+          if (v && typeof v === 'object' && (v.lockoutUntil || 0) > Date.now()) continue;
+          this.gapAttempts.delete(k);
+          break;
+        }
+      }
 
       try {
         // FIX v6.1.1: Use the actual user request for context when available

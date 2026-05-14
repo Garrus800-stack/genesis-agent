@@ -1,3 +1,96 @@
+## [7.8.2]
+
+**Honest Lockouts, Tighter Quota.**
+Five bug-fixes for v7.8.1 regressions caught in tiefenanalyse, plus a
+new audit gate to prevent the convention drift that produced two of
+them.
+
+### Block A — Quota-classifier over-match fixed
+
+`v7.8.1` added a `quota-exhausted` reason (24h TTL) to stop Genesis
+from retrying a weekly-quota-exhausted cloud model every 5min for
+the rest of the week. The regex was too greedy: `limit.{0,20}reached`
+and bare `reset.{0,20}(in|on|at)` matched normal per-minute rate-
+limits ("rate-limit reached", "reset in 60 seconds") and unrelated
+text ("Weekly digest is unavailable"). Result: any transient 60-second
+rate-limit marked the backend offline for 24 hours. Exactly inverted
+from the intended fix.
+
+The patterns are now tightened to require either an explicit
+calendar-scale word (weekly/monthly/daily) or a long reset window
+(days/weeks/months). 14 cases pinned in the new test file
+`v782-failover-quota.test.js`, including all eight regression
+scenarios from the analysis.
+
+### Block B — 7-day lockout was effectively permanent
+
+`v7.8.1` recorded `attempts: 2, lockoutUntil: now + 7d` after two
+skill-build failures. The `_isSkillLockedOut()` guard let the gap
+through after day 8 — but the next line `if (attempts >= 2) continue`
+blocked it again immediately. The attempts counter was never reset,
+so the "7-day lockout" became permanent. Genesis never retried a
+once-failed skill, even if the LLM had since improved.
+
+v7.8.2 adds a cooldown-expired reset: when the entry has
+`attempts >= 2` and `lockoutUntil > 0 && lockoutUntil <= now`, the
+entry is deleted before the attempts-check, giving the gap a fresh
+chance.
+
+### Block C — LRU eviction protected from wiping active lockouts
+
+When `gapAttempts.size > 50`, v7.8.1 evicted the oldest key blindly
+via `Map.keys().next()`. If the oldest 50 entries happened to be in
+active lockout, every new gap silently destroyed a still-running
+7-day cooldown. Persistence then mirrored the loss, and the lockout
+guarantee dissolved at scale.
+
+v7.8.2 walks the map looking for a non-locked entry to evict. If
+every entry is locked, the map grows past 50 rather than losing
+safety info. Two regression tests pin both behaviours.
+
+### Block D + E — CHANGELOG structure repaired
+
+v7.8.1 had three releases (v7.8.1, v7.8.0, v7.7.9) all living under
+a single `## [7.8.1]` header — the v7.8.0 and v7.7.9 headers were
+missing entirely. `## [7.8.0]` and `## [7.7.9]` are now present with
+their own titles. The roadmap-style line in the v7.7.9 section that
+named a forward version is rewritten as a factual gated-off status,
+and a sentence about a later release in the same section is removed.
+Convention: docs and current-release notes describe the current
+plan, not forward ones.
+
+### Block F — `scripts/audit-future-version-refs.js`
+
+New audit script that scans the current-release CHANGELOG section,
+README, and `docs/*.md` for the convention-violating phrasing
+(forward-version pointers, roadmap notes). Distinguishes
+context-coupled forward refs (forbidden) from bare "since version
+X" shorthand (allowed). Wired into the `npm run ci` audit chain —
+drift of this convention now fails the build.
+
+### Verification
+
+7250 tests passed, 0 failed (2 new files: 14 + 5 cases). Fitness
+130/130. Audit-doc-drift clean (55 doc claims verified, test-files
+bumped 437 → 439). `audit-future-version-refs.js` reports 0
+violations.
+
+### File changes
+
+  - modified: `src/agent/foundation/ModelBridgeFailover.js` (Block A: tightened quota regex)
+  - modified: `src/agent/autonomy/AutonomousDaemon.js` (Blocks B + C: cooldown reset, lockout-aware eviction)
+  - modified: `CHANGELOG.md` (Blocks D + E: 7.8.0 and 7.7.9 headers, deferred-language rewritten)
+  - modified: `README.md` (Block E: drop forward-release phrasing)
+  - modified: `docs/EVENT-FLOW.md` (Block E: drop forward-release phrasing)
+  - modified: `docs/ARCHITECTURE-DEEP-DIVE.md` (test files 437 → 439)
+  - modified: `docs/CAPABILITIES.md` (test files 437 → 439)
+  - new: `scripts/audit-future-version-refs.js` (Block F)
+  - new: `test/modules/v782-failover-quota.test.js` (Block A regression coverage)
+  - new: `test/modules/v782-skill-lockout.test.js` (Blocks B + C regression coverage)
+  - modified: `package.json` (ci script adds audit-future-version-refs)
+
+---
+
 ## [7.8.1]
 
 **Stop Wasting Energy.**
@@ -105,7 +198,10 @@ for the situation, he can pick it and explain.
 
 ---
 
+## [7.8.0]
 
+**Self-Knowledge & Honesty.**
+Genesis stops inventing details about himself.
 
 This release addresses a pattern observed in v7.7.9 burn-in: when
 asked about his own skills, tools, or implementation, Genesis would
@@ -198,7 +294,11 @@ this here for accuracy.
 
 ---
 
+## [7.7.9]
 
+**Proactive Self-Expression / Post-burnin Stabilization.**
+Genesis bekommt einen inneren Raum und einen Mund — plus a coherent
+stabilization pass for systemic patterns surfaced during burn-in.
 
 ### Stabilization pass (post-burnin)
 
@@ -284,8 +384,7 @@ inner space and occasionally — under conservative, non-adaptive gates
 — chooses to surface a thought into the chat as a self-initiated
 message. Plan Phase 1 + Phase 2 ship in v7.7.9; the four additional
 trigger kinds (idle-thought, goal-closure-thought, self-formulated-
-plan, question) are code-complete but gated off by default and reserved
-for a future release after Phase 2 is observed stable.
+plan, question) are code-complete but gated off by default.
 
 Alongside the Plan, this release also bundles all bug-fixes that
 surfaced during the v7.7.9 burn-in cycle — fixes for issues that
@@ -488,14 +587,15 @@ LessonsStore actually starts. Added to `_startServices`.
 **StalledGoalWatchdog start() lifecycle.** Same root cause — without
 start(), the watchdog's setInterval never opens.
 
-### What's NOT in v7.7.9 (deferred to v7.7.10+ per the Plan)
+### Code-present but gated off in v7.7.9
 
   - Trigger kinds beyond plan-failure-reflection (idle-thought,
     goal-closure, self-formulated-plan, question) — code-complete,
     gated off via `proactive.allowedKinds = ['plan-failure-reflection']`
-  - AgentLoop reasoning-trace migration to InnerSpeech (Plan Phase 4)
+  - AgentLoop reasoning-trace migration to InnerSpeech — substrate
+    present, AgentLoop integration not yet wired
   - WakeUpRoutine activation — Service exists in the manifest but is
-    not started; the boot-time LLM call is intentionally deferred
+    not started; the boot-time LLM call is intentionally inactive
   - Auto-start of the wider Phase 9/11 services group (dreamCycle,
     onlineLearner, memoryConsolidator, projectIntelligence, etc.) —
     each is resolvable in the container but inert unless explicitly
