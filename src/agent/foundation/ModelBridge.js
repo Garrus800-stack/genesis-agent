@@ -265,8 +265,21 @@ class ModelBridge {
       const fallbackModelName = this._fallbackModel?.name || null;
       _log.warn(`[MODEL] ${label} ${targetBackend} failed, falling back to ${fallback}: ${err.message}`);
       this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message, reason }, { source: 'ModelBridge' });
+      // v7.8.3: stamp the failover reason on the options object so the
+      // subsequent _emitCallComplete (in LLMPort) can pick it up. We
+      // mutate `options` directly because LLMPort holds the same
+      // reference — `{...options, _failoverReason: reason}` would only
+      // update the local copy. Default for non-failover calls is `'none'`
+      // set in LLMPort._emitCallComplete.
+      // v7.8.3 follow-up (F5): renamed from `failover` to
+      // `_failoverReason` so the meta-outcome retry marker below
+      // (`isFailoverRetry: true`) can live on the same options bag
+      // without semantic collision. Pre-rename both used `failover` —
+      // a string for LLMPort, a boolean for meta — and any future
+      // MetaLearning reader of options.failover would have been bitten.
+      if (options && typeof options === 'object') options._failoverReason = reason;
       const result = await dispatch(fallback);
-      this._recordMetaOutcome(taskType, temp, startTime, true, { ...options, failover: true }, fallbackModelName);
+      this._recordMetaOutcome(taskType, temp, startTime, true, { ...options, isFailoverRetry: true }, fallbackModelName);
       return result;
     }
     this._emitFailoverUnavailable(targetBackend, err);
@@ -304,7 +317,16 @@ class ModelBridge {
       : this._cache.buildKey(systemPrompt, messages, taskType);
     if (cacheKey) {
       const cached = this._cache.get(cacheKey);
-      if (cached) return cached;
+      if (cached) {
+        // v7.8.3 follow-up (F9): explicit cache-hit marker on the
+        // options bag so LLMPort can emit the right cached:true on
+        // the call-complete event instead of guessing via latency
+        // heuristic. Pre-fix LLMPort used `latency < 5` which gave
+        // false-positives on fast local Ollama calls — leading to
+        // cost rows that claimed cached:true with non-zero tokens.
+        if (options && typeof options === 'object') options._cached = true;
+        return cached;
+      }
     }
 
     const startTime = Date.now();

@@ -128,6 +128,26 @@ class AgentCoreBoot {
       _log.warn(`[catch] Hauptstandort marker init: ${err.message}`);
     }
 
+    // v7.8.3: cloud-sync root detection. If Genesis is installed under
+    // OneDrive / iCloud / Dropbox / Google Drive, file operations during
+    // boot (skill scan, plugin scan, hot-reload watch) may hang on
+    // Files-On-Demand placeholders. Log a prominent warning and emit
+    // a one-shot event so dashboards / external tooling can flag it.
+    try {
+      const { isCloudSyncPath } = require('./foundation/CloudSyncSafety');
+      if (isCloudSyncPath(core.rootDir)) {
+        _log.warn(`  [0] ⚠  CLOUD-SYNC ROOT DETECTED: ${core.rootDir}`);
+        _log.warn(`  [0]    Genesis is installed under a cloud-sync folder.`);
+        _log.warn(`  [0]    Boot and skill loads may hang on Files-On-Demand placeholders.`);
+        _log.warn(`  [0]    Move Genesis to a local-only folder for best stability.`);
+        try {
+          this._bus.fire('system:cloud-sync-root-detected', {
+            rootDir: core.rootDir,
+          }, { source: 'AgentCoreBoot' });
+        } catch (_e) { /* bus not ready yet — safe to skip */ }
+      }
+    } catch (_e) { /* defensive — never block boot on this */ }
+
     _log.info('  [0] Bootstrap: rootDir, guard, bus, storage, lang, logger');
   }
 

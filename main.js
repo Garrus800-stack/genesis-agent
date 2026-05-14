@@ -1163,6 +1163,11 @@ const CHANNELS = {
   // contract list complete and prevents future drift.
   'agent:chat-system-message': null, // Agent -> UI (push only — system messages in chat)
   'ui:resume-prompt': null,           // Agent -> UI (push only — resume previous goal?)
+  // v7.8.3 follow-up: declared after audit §3.4 — fires from
+  // AgentCoreWire.js when a self-statement bubble should appear in the
+  // chat UI (PSE pipeline). Was missing from this contract; the same
+  // class of drift as the v7.6.0 entries above.
+  'genesis:self-message': null,       // Agent -> UI (push only — self-statement bubble)
 };
 
 // Register all invoke handlers (with rate limiting)

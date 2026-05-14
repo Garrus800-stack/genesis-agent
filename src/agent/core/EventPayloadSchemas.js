@@ -548,6 +548,7 @@ const SCHEMAS = {
     taskType: 'optional', model: 'optional', backend: 'optional',
     latencyMs: 'optional', promptTokens: 'optional', responseTokens: 'optional',
     cached: 'optional', goalId: 'optional', correlationId: 'optional',
+    failover: 'optional',  // v7.8.3
     tokens: 'optional', durationMs: 'optional',  // legacy aliases
   },
   'llm:call-error':         { error: 'required' },
@@ -562,6 +563,7 @@ const SCHEMAS = {
     ts: 'required', taskType: 'optional', model: 'optional', backend: 'optional',
     promptTokens: 'optional', responseTokens: 'optional', latencyMs: 'optional',
     cached: 'optional', goalId: 'optional', correlationId: 'optional',
+    failover: 'optional',  // v7.8.3
   },
 
   // Perception
@@ -733,6 +735,8 @@ const SCHEMAS = {
 
   // ── v7.0.5: System kernel events ────────────────────────
   'system:security-degraded': { reason: 'required', preloadMode: 'required', mitigation: 'required' },
+  // v7.8.3: emitted once at boot when rootDir is under a cloud-sync root.
+  'system:cloud-sync-root-detected': { rootDir: 'required' },
 
   // ── v7.0.5: EventStore-forwarded events (store:TYPE) ────
   // All emitted by EventStore.append() → bus.fire(`store:${type}`, event).

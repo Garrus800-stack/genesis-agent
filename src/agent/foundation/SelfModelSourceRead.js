@@ -43,36 +43,25 @@ const _log = createLogger('SelfModel');
 //       a 1500ms cap. Chat-time reads stay synchronous (user-initiated,
 //       cloud-fetch is acceptable) but log a warning if we're under a
 //       cloud-sync root.
-const CLOUD_SYNC_PATH_MARKERS = [
-  /\\OneDrive(\s-\s[^\\/]+)?\\/i,    // \OneDrive\ or \OneDrive - Personal\
-  /\/OneDrive(\s-\s[^/]+)?\//i,      // /OneDrive/ (Mac path)
-  /\\iCloudDrive\\/i,
-  /\\Dropbox\\/i,
-  /\\Google\s+Drive\\/i,
-  /\/Google\s+Drive\//i,
-];
+// v7.8.3: cloud-sync markers + timeout wrapper extracted to
+// src/agent/foundation/CloudSyncSafety.js — shared across boot-path
+// callers (SkillManager, PluginRegistry, HotReloader, AgentCoreBoot).
+// The detection markers and behaviour are unchanged from v7.5.8;
+// only the location moved, plus three additional markers were added
+// in v7.8.3 (Mac iCloud canonical path, Mac/Linux Dropbox slash-form,
+// GoogleDrive alt no-space form). See CloudSyncSafety.js for context.
+const {
+  isCloudSyncPath: _isCloudSyncPathImpl,
+  readFileWithTimeout: _readFileWithTimeoutImpl,
+  DEFAULT_READ_TIMEOUT_MS: READ_TIMEOUT_IDLE_MS,
+} = require('./CloudSyncSafety');
 
 function _isCloudSyncPath(fullPath) {
-  return CLOUD_SYNC_PATH_MARKERS.some(re => re.test(fullPath));
+  return _isCloudSyncPathImpl(fullPath);
 }
 
-const READ_TIMEOUT_IDLE_MS = 1500;
-
 function _readFileWithTimeout(fullPath, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      const err = new Error(`Read timeout (${timeoutMs}ms) — likely cloud-sync placeholder: ${fullPath}`);
-      err.code = 'CLOUD_PLACEHOLDER_TIMEOUT';
-      reject(err);
-    }, timeoutMs);
-    fsp.readFile(fullPath, 'utf-8').then(
-      (content) => { if (!settled) { settled = true; clearTimeout(timer); resolve(content); } },
-      (err)     => { if (!settled) { settled = true; clearTimeout(timer); reject(err); } }
-    );
-  });
+  return _readFileWithTimeoutImpl(fullPath, timeoutMs);
 }
 
 // v7.5.8 Hotfix: Filename-Resolution with variants.

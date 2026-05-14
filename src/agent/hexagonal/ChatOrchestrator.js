@@ -9,6 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
+const { detectVagueReference: _detectVagueRef } = require('../foundation/VagueReferenceDetector');
 const { LIMITS } = require('../core/Constants');
 const { safeJsonParse, atomicWriteFileSync } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
@@ -118,25 +119,25 @@ class ChatOrchestrator {
       const handlerKey = (intent._wasSlashOnlyRewrite && this.handlers.has('slash-hint')) ? 'slash-hint' : intent.type;
       const handler = this.handlers.get(handlerKey);
 
+      // v7.8.3 follow-up (F8): vague-reference detection lifted ABOVE
+      // the handler check so a handler that returns a truthy help
+      // string (e.g. openPath for "öffne das") cannot swallow the
+      // signal. Computed once, passed both to the handler (via context)
+      // and to PromptBuilder (fallback path).
+      const vagueSignal = _detectVagueRef(message, this.history);
+
       if (handler) {
-        response = await handler(message, { history: this.history, intent });
-        // v7.1.9: If handler returns null/empty, fall through to general chat
-        // (e.g. retry with nothing to retry → treat as normal message)
-        if (!response) {
-          if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
-          if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
-          if (this.promptBuilder.setExplicitTool) this.promptBuilder.setExplicitTool(intent.explicitTool || null);
-          if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
-          this._maybeAttachSourceHint(message, intent);  // v7.3.7
-          this._maybeReadSourceSync(message, intent);    // v7.3.8
-          response = await this._generalChat(message);
-        }
-      } else {
-        // v6.0.4: Pass intent + budget to PromptBuilder
-        // v7.3.3: setQuery — lets sourceAccessContext detect file/class/service references
+        response = await handler(message, { history: this.history, intent, vagueSignal });
+      }
+      // v7.1.9: handler missing or null → general-chat fallback.
+      // v7.8.3: setter cluster collapsed into one block so paths agree.
+      if (!response) {
         if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
         if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
         if (this.promptBuilder.setExplicitTool) this.promptBuilder.setExplicitTool(intent.explicitTool || null);
+        if (this.promptBuilder.setVagueReference) {
+          this.promptBuilder.setVagueReference(vagueSignal);
+        }
         if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
         this._maybeAttachSourceHint(message, intent);  // v7.3.7
         this._maybeReadSourceSync(message, intent);    // v7.3.8

@@ -135,6 +135,11 @@ const EVENTS = Object.freeze({
   SYSTEM: Object.freeze({
     /** @payload {{ reason: string, preloadMode: string, mitigation: string }} */
     SECURITY_DEGRADED: 'system:security-degraded',
+    /** @payload {{ rootDir: string }} — v7.8.3: emitted once at boot
+     *  when AgentCoreBoot detects that rootDir lives under a cloud-sync
+     *  root (OneDrive / iCloud / Dropbox / Google Drive). Surfaces a
+     *  warning to dashboards / external tooling without halting boot. */
+    CLOUD_SYNC_ROOT_DETECTED: 'system:cloud-sync-root-detected',
   }),
 
   // ── Boot ───────────────────────────────────────────────

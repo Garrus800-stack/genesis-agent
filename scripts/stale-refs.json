@@ -93,6 +93,21 @@
       "prefix": "selfmod contract: ",
       "minCount": 6,
       "note": "v7.6.3 \u2014 SelfModificationPipeline safety gates (8 tests in selfmodpipeline-safety.test.js). Cover the three pre-write gates (validateWrite, codeSafety.scanCode, _verifyCode) plus the v7.6.2 audit-closeout patches (Modify.js hash-lock, dark-rule restoration). Removing re-opens the v7.4.3-era defense gap that the v7.6.2 audit-closeout fixed. minCount 6 = 8 - 2 safety margin."
+    },
+    {
+      "prefix": "chat contract: ",
+      "minCount": 2,
+      "note": "v7.8.3 \u2014 ui-bundle-modules.test.js XSS escape + attribute-injection regression tests on the chat module's escapeHtml helper. Surfaced by the v7.8.3 auto-detect pass (Mode 3) as an unregistered contract that had been quietly added without stale-ref protection. Removing or weakening these tests re-opens the v6.x-era XSS exposure on the chat surface."
+    },
+    {
+      "prefix": "cloud-safety contract: ",
+      "minCount": 2,
+      "note": "v7.8.3 follow-up \u2014 CloudSyncSafety boundary invariants (2 tests in v783-cloud-sync-safety.test.js): (1) substring matches without path-separator context are rejected (path-marker discipline), (2) readFileWithTimeout rejects with CLOUD_PLACEHOLDER_TIMEOUT code so callers can distinguish cloud-hang from normal I/O errors. Removing either re-opens the v7.5.8-era Files-On-Demand boot-hang exposure that the cloud-sync helper exists to bound."
+    },
+    {
+      "prefix": "hardgate contract: ",
+      "minCount": 5,
+      "note": "v7.8.3 follow-up (originated v7.7.9 Phase 3) \u2014 PSE HardGate fail-closed invariants (5 tests in v779-pse-gates.test.js): quiet-hours block, /quiet mute block, kind-not-allowed block, per-kind significance-floor block, malformed-input fail-closed. Without these the proactive self-expression pipeline could push thoughts into chat when it should not. Initially shipped without contract prefix; registered in v7.8.3 follow-up after audit-contracts surfaced the gap."
     }
   ],
   "_scanRoots": [

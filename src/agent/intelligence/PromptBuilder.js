@@ -198,6 +198,17 @@ class PromptBuilder {
   }
 
   /**
+   * v7.8.3: Attach a vague-reference signal so the awareness section
+   * can hint Genesis that the user's pronoun has no clear antecedent.
+   * Soft hint — Genesis decides whether to ask or to act with care.
+   * Set to null when there is no vague reference.
+   * @param {{pronoun: string}|null} signal
+   */
+  setVagueReference(signal) {
+    this._vagueReference = (signal && typeof signal === 'object' && signal.pronoun) ? signal : null;
+  }
+
+  /**
    * v6.0.4: Set the cognitive budget for proportional prompt assembly.
    * Trivial requests skip organism/consciousness sections entirely.
    * @param {{ tier: object, tierName: string }} budget

@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { isCloudSyncPath } = require('../foundation/CloudSyncSafety');
 const _log = createLogger('HotReloader');
 
 // FIX v4.0.0 (F-02): Use acorn for syntax checking instead of new Function().
@@ -51,6 +52,15 @@ class HotReloader {
     if (this.guard.isProtected(fullPath)) {
       _log.info(`[HOT-RELOAD] Skipping protected file: ${filePath}`);
       return;
+    }
+
+    // v7.8.3: warn if the watched file is under a cloud-sync root.
+    // fs.watch on a Files-On-Demand placeholder is unreliable —
+    // the watcher may report changes only after the file is
+    // materialised, or miss events entirely while the file is in
+    // placeholder state.
+    if (isCloudSyncPath(fullPath)) {
+      _log.warn(`[HOT-RELOAD] Watching cloud-sync path may be unreliable: ${filePath} — Files-On-Demand placeholders mask change events`);
     }
 
     this.reloadCallbacks.set(filePath, onReload);

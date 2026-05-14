@@ -226,6 +226,16 @@ class ModelBridgeAdapter extends LLMPort {
       cached,
       goalId,
       correlationId,
+      // v7.8.3: failover dimension. Stamped on options by
+      // ModelBridge._handleFailoverError when a call retried via
+      // fallback backend. 'none' is the explicit no-failover value
+      // so CostStream queries can distinguish original from fallback
+      // calls without null-checks.
+      // v7.8.3 follow-up (F5): field renamed from `failover` to
+      // `_failoverReason` on the options bag to avoid collision with
+      // the `isFailoverRetry` boolean used by MetaLearning. The
+      // event payload field name stays `failover` for back-compat.
+      failover: options._failoverReason || 'none',
     }, { source: 'LLMPort' });
   }
 
@@ -332,8 +342,14 @@ class ModelBridgeAdapter extends LLMPort {
       this._recordLatency(latency);
 
       // v7.4.5 Baustein B: detect cache hit by comparing latency
-      // (cache hits return in <2ms; real LLM calls take >50ms even local)
-      const cached = latency < 5;
+      // (cache hits return in <2ms; real LLM calls take >50ms even local).
+      // v7.8.3 follow-up (F9): prefer the explicit cache-hit marker
+      // stamped by ModelBridge when available. Latency-only heuristic
+      // gave false-positives on fast local Ollama calls. The marker
+      // is read via options._cached (set in ModelBridge.chat when a
+      // cached entry is returned). Latency check stays as a safety
+      // net for callers that bypass ModelBridge.
+      const cached = (options && options._cached === true) || latency < 5;
 
       this._emitCallComplete({
         taskType, systemPrompt, messages, result, latencyMs: latency, cached, options,

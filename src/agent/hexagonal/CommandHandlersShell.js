@@ -18,6 +18,12 @@
 
 'use strict';
 
+// v7.8.3 follow-up: app-launch logic + regex/sets extracted to
+// hexagonal/OpenPathAppLaunch.js so this mixin stays compact.
+// The helper exports `tryAppLaunch(message, shell)` which returns
+// null, a {launched:true,name} result, or a {launched:false,error}.
+const { tryAppLaunch } = require('./OpenPathAppLaunch');
+
 const commandHandlersShell = {
 
   async shellTask(message) {
@@ -232,17 +238,12 @@ const commandHandlersShell = {
     }
 
     if (!targetPath) {
-      // FIX v6.1.1: Detect application launch requests (öffne firefox, chrome, etc.)
-      const appMatch = message.match(/(?:oeffne|öffne|open|start|starte)\s+(?:den\s+|das\s+|die\s+)?(\w[\w\s.-]*\w)/i);
-      if (appMatch) {
-        const appName = appMatch[1].trim();
-        const platform = process.platform;
-        const cmd = platform === 'win32' ? `start "" "${appName}"` : platform === 'darwin' ? `open -a "${appName}"` : `xdg-open "${appName}" 2>/dev/null || ${appName}`;
-        try {
-          const result = await this.shell.run(cmd, { tier: 'read' });
-          return `Anwendung gestartet: ${appName}`;
-        } catch (err) { return `Konnte "${appName}" nicht starten: ${err.message}`; }
-      }
+      // v7.8.3 follow-up: app-launch routed through OpenPathAppLaunch
+      // helper. Returns null when the message isn't an app launch, an
+      // object on either successful or failed launch attempt.
+      const launch = await tryAppLaunch(message, this.shell);
+      if (launch && launch.launched) return `Anwendung gestartet: ${launch.name}`;
+      if (launch && !launch.launched) return `Konnte "${launch.name}" nicht starten: ${launch.error}`;
       return 'Welchen Ordner oder welche Datei soll ich öffnen? Gib mir den Pfad an.';
     }
 

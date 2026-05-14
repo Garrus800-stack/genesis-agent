@@ -97,7 +97,7 @@ describe('Hard gates — fail-fast sequence', () => {
     assertEqual(r.reason, 'disabled');
   });
 
-  test('quiet hours block', () => {
+  test('hardgate contract: quiet hours block', () => {
     const midnight = new Date('2026-05-10T23:30:00').getTime();
     const r = runGates(thought(), { now: midnight }, defaultSettings());
     assertEqual(r.ok, false);
@@ -138,7 +138,7 @@ describe('Hard gates — fail-fast sequence', () => {
     assertEqual(r.ok, true);
   });
 
-  test('mute via /quiet blocks', () => {
+  test('hardgate contract: mute via /quiet blocks', () => {
     const r = runGates(thought(), {
       now: NOON,
       mutedUntilMs: NOON + 60 * 60 * 1000,
@@ -155,13 +155,13 @@ describe('Hard gates — fail-fast sequence', () => {
     assertEqual(r.ok, true);
   });
 
-  test('kind-not-allowed blocks', () => {
+  test('hardgate contract: kind-not-allowed blocks', () => {
     const r = runGates(thought('idle-thought'), { now: NOON }, defaultSettings());
     assertEqual(r.ok, false);
     assertEqual(r.reason, 'kind-not-allowed');
   });
 
-  test('per-kind significance floor blocks', () => {
+  test('hardgate contract: per-kind significance floor blocks', () => {
     const r = runGates(thought('plan-failure-reflection', { significance: 0.4 }),
       { now: NOON }, defaultSettings());
     assertEqual(r.ok, false);
@@ -176,7 +176,7 @@ describe('Hard gates — fail-fast sequence', () => {
     assertEqual(r.reason, 'daily-volume-hard-stop');
   });
 
-  test('fail-closed on malformed input', () => {
+  test('hardgate contract: fail-closed on malformed input', () => {
     const r = runGates(null, null, defaultSettings());
     assertEqual(r.ok, false);
   });

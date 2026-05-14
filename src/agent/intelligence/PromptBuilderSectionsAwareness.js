@@ -155,6 +155,22 @@ const awarenessSection = {
         );
       }
 
+      // v7.8.3: Vague-reference soft hint. When the user's message has
+      // an action verb + a pronoun ("öffne das", "open it") but no
+      // concrete antecedent in this or the last 2 turns, do NOT invent
+      // a referent. Either ask the user, or — if the situation makes
+      // a sensible interpretation obvious — name what was assumed and
+      // confirm before doing anything irreversible.
+      if (this._vagueReference) {
+        parts.push(
+          `[Vague reference] The user used '${this._vagueReference.pronoun}' ` +
+          `without a clear antecedent in this message or the last 2 turns. ` +
+          `Do not invent a referent. Either ask which item, or — if one ` +
+          `interpretation is clearly the most likely — name it and ` +
+          `confirm before acting on anything irreversible.`
+        );
+      }
+
       return parts.length ? parts.join('\n\n') : '';
     } catch (_e) {
       _log.debug('[catch] return summary Selfawareness:', _e.message);

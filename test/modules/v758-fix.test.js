@@ -174,7 +174,11 @@ describe('v7.5.8 — Bug 3: Slash-discipline requires slash-command position', (
 describe('v7.5.8 — Bug 4: ReadSource handles OneDrive Files-On-Demand', () => {
 
   test('source-presence: cloud-sync path markers exist', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SelfModelSourceRead.js'), 'utf8');
+    // v7.8.3: markers + helper extracted to CloudSyncSafety.js so other
+    // boot-path callers (SkillManager, PluginRegistry, HotReloader) can
+    // reuse them. SelfModelSourceRead.js now delegates. Test updated to
+    // follow the move.
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/CloudSyncSafety.js'), 'utf8');
     assert(/CLOUD_SYNC_PATH_MARKERS/.test(src), 'CLOUD_SYNC_PATH_MARKERS missing');
     assert(/OneDrive/.test(src), 'OneDrive marker missing');
     assert(/iCloudDrive/.test(src), 'iCloudDrive marker missing');

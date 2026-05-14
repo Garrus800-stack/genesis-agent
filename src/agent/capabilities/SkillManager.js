@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { safeJsonParse, atomicWriteFileSync } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
+const { isCloudSyncPath } = require('../foundation/CloudSyncSafety');
 const _log = createLogger('SkillManager');
 
 class SkillManager {
@@ -31,6 +32,14 @@ class SkillManager {
   loadSkills() {
     this.loadedSkills.clear();
     if (!fs.existsSync(this.skillsDir)) return;
+
+    // v7.8.3: warn (but proceed) if skills live under a cloud-sync root.
+    // Reading manifest/entry files may hang on first touch as the OS
+    // pulls Files-On-Demand placeholders. The warning gives the user
+    // a chance to move Genesis before they hit a slow boot.
+    if (isCloudSyncPath(this.skillsDir)) {
+      _log.warn(`[SKILLS] skillsDir is under a cloud-sync root (${this.skillsDir}) — skill loads may hang on Files-On-Demand placeholders`);
+    }
 
     for (const entry of fs.readdirSync(this.skillsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;

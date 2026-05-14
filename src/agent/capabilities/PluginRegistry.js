@@ -33,6 +33,7 @@ const { safeJsonParse, atomicWriteFileSync } = require('../core/utils');
 // FIX v5.1.0 (DI-1): CodeSafety injected via constructor or falls back to
 // direct import for standalone/test usage.
 const { createLogger } = require('../core/Logger');
+const { isCloudSyncPath } = require('../foundation/CloudSyncSafety');
 const _log = createLogger('PluginRegistry');
 
 class PluginRegistry {
@@ -66,6 +67,13 @@ class PluginRegistry {
    */
   async asyncLoad() {
     if (!fs.existsSync(this.pluginsDir)) return;
+
+    // v7.8.3: warn (but proceed) if plugins live under a cloud-sync root.
+    // Same rationale as SkillManager — plugin-manifest reads may hang on
+    // Files-On-Demand placeholders during boot.
+    if (isCloudSyncPath(this.pluginsDir)) {
+      _log.warn(`[PLUGIN] pluginsDir is under a cloud-sync root (${this.pluginsDir}) — plugin loads may hang on Files-On-Demand placeholders`);
+    }
 
     for (const entry of fs.readdirSync(this.pluginsDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;

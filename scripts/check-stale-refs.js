@@ -122,6 +122,55 @@ function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// ── Mode 3: Unregistered-Contract auto-detect (v7.8.3) ──────
+//
+// Process-risk fix. The `contracts` list in stale-refs.json is
+// hand-maintained — when a developer adds a new security-critical
+// test prefix (e.g. `chat contract: escapes HTML`), they must also
+// add an entry here. v7.8.1 burn-in surfaced that this step was
+// quietly skipped: `chat contract: …` tests existed but no
+// stale-ref entry guarded them. A later cleanup pass could rename
+// them and lose the safety net silently.
+//
+// This mode auto-scans test files for `(test|it)('<word> contract: '`
+// patterns, counts occurrences, and lists prefixes seen ≥2× that
+// are not in the registered contracts list. With --strict the script
+// fails so the human must either register them (with a deliberate
+// minCount) or fold them into existing prefixes. Either way it
+// surfaces in CI rather than rotting silently.
+
+function detectUnregisteredContracts(config) {
+  const testDir = path.join(ROOT, 'test');
+  if (!fs.existsSync(testDir)) return { detected: [], unregistered: [] };
+
+  const testFiles = getAllFiles(testDir, ['.js']);
+  const PREFIX_RE = /(?:test|it)\s*\(\s*['"`]([a-z][a-z0-9-]*\s+contract:\s)/gi;
+
+  const counts = new Map();
+  for (const file of testFiles) {
+    const content = fs.readFileSync(file, 'utf8');
+    let m;
+    PREFIX_RE.lastIndex = 0;
+    while ((m = PREFIX_RE.exec(content)) !== null) {
+      const prefix = m[1];
+      counts.set(prefix, (counts.get(prefix) || 0) + 1);
+    }
+  }
+
+  const registered = new Set((config.contracts || []).map(c => c.prefix));
+  const detected = [];
+  const unregistered = [];
+  for (const [prefix, count] of counts) {
+    detected.push({ prefix, count });
+    // Threshold: 2+ occurrences = treat as a behavioural contract worth
+    // protecting. Single-shot tests are not contracts; they're regular tests.
+    if (count >= 2 && !registered.has(prefix)) {
+      unregistered.push({ prefix, count });
+    }
+  }
+  return { detected, unregistered };
+}
+
 // ── Mode 2: Contract check (graceful — Iter 4 R) ────────────
 
 function checkContracts(config) {
@@ -216,8 +265,32 @@ function main() {
     }
   }
 
+  // Mode 3: unregistered-contract auto-detect (v7.8.3)
+  console.log(dim('\n  Mode 3: Unregistered-contract scan'));
+  const auto = detectUnregisteredContracts(config);
+  if (auto.unregistered.length === 0) {
+    console.log(green(
+      `  ✓ ${auto.detected.length} prefix(es) seen, all known — 0 unregistered contracts`
+    ));
+  } else {
+    console.log(red(
+      `  ✗ ${auto.unregistered.length} unregistered contract prefix(es) found:`
+    ));
+    for (const u of auto.unregistered) {
+      console.log(`    "${u.prefix}" — ${u.count} test occurrence(s)`);
+    }
+    console.log(dim(
+      '       Either register them in stale-refs.json with a deliberate'
+    ));
+    console.log(dim(
+      '       minCount, or rename to fold into an existing prefix.'
+    ));
+  }
+
   // Summary
-  const failureCount = sym.hits.length + con.failures.filter(f => !f._ok).length;
+  const failureCount = sym.hits.length
+    + con.failures.filter(f => !f._ok).length
+    + auto.unregistered.length;
   console.log('');
   if (failureCount === 0) {
     console.log(green('  All checks passed.'));
@@ -229,6 +302,6 @@ function main() {
 }
 
 // Export for testing
-module.exports = { scanSymbols, checkContracts, loadConfig };
+module.exports = { scanSymbols, checkContracts, detectUnregisteredContracts, loadConfig };
 
 if (require.main === module) main();

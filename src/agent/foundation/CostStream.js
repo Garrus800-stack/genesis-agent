@@ -143,6 +143,12 @@ class CostStream {
       cached: Boolean(data.cached),
       goalId,
       correlationId: data.correlationId || null,
+      // v7.8.3: failover dimension. 'none' for original-backend calls,
+      // otherwise the classified reason ('quota-exhausted', 'rate-limit',
+      // 'subscription-required', 'auth', 'timeout', 'connection-error',
+      // 'other'). Persisted into cost shards so post-hoc analysis can
+      // see the failover rate per backend / model / week.
+      failover: data.failover || 'none',
     };
 
     this._writeQueue.push(row);
