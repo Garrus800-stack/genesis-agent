@@ -288,8 +288,13 @@ function freshTmpDir(suffix = '') {
   // ──────────────────────────────────────────────────────────────
 
   await test('reason: 403 → auth (1h would be triggered)', () => {
+    // v7.8.7: original test used "HTTP 403: requires a subscription"
+    // which matches the v7.5.7-fix subscription-required pattern and
+    // correctly classifies as subscription-required (24h TTL). Plain
+    // 403 / forbidden without the subscription keyword stays as 'auth'.
+    // Subscription-required coverage lives in v757-fix-cloud-fallback.
     const mb = new ModelBridge({ bus: makeBus() });
-    const reason = mb._classifyFailoverReason(new Error('HTTP 403: requires a subscription'));
+    const reason = mb._classifyFailoverReason(new Error('HTTP 403: forbidden'));
     assertEqual(reason, 'auth');
   });
 

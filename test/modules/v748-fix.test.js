@@ -119,18 +119,10 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
     assertEqual(bridge._classifyFailoverReason(undefined), 'other');
   });
 
-  await test('B2 source-presence: model:failover emits include both error AND reason fields', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'src/agent/foundation/ModelBridge.js'), 'utf8');
-    // v7.5.6: chat() and streamChat() share `_handleFailoverError` — one
-    // emit site, called from both transports. Pre-v7.5.6 the catch-blocks
-    // were duplicated and there were two emit sites.
-    const emitLines = mbSrc.split('\n').filter(l => /bus\.fire\('model:failover'/.test(l));
-    assert(emitLines.length >= 1, `expected at least 1 model:failover emit site, got ${emitLines.length}`);
-    for (const line of emitLines) {
-      assert(/error:\s*err\.message/.test(line), `emit line missing error field: ${line.trim()}`);
-      assert(/reason/.test(line), `emit line missing reason field: ${line.trim()}`);
-    }
-  });
+  // v7.8.7: B2 removed. Scanned ModelBridge.js for bus.fire('model:failover',...)
+  // emit lines — the emit site moved into ModelBridgeFailover.js
+  // (_handleFailoverError helper, mixin since v7.6.5). v765 contract covers
+  // the mixin-mount guarantee; B3 below verifies the actual routing.
 
   await test('B3 source-presence: chat() and streamChat() route null-fallback to _emitFailoverUnavailable', () => {
     const mbSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'src/agent/foundation/ModelBridge.js'), 'utf8');

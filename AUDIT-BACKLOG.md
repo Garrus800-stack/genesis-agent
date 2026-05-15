@@ -232,33 +232,11 @@ focused fix.
 
 ## Deferred from v7.7.6 audit (carried forward)
 
-These items came out of the v7.7.6 full-codebase audit and are still
-deferred. Each deserves its own focused release.
-
-- **F5 / C1 — Mermaid SVG `innerHTML` without DOMPurify**.
-  Defense-in-depth fix. Needs a runtime `dompurify` dependency
-  decision (cannot reuse monaco-bundled). Own defense-in-depth release.
-- **F6 / B2 — Hardcoded Node v22.22.2 in
-  `CommandHandlersInstallDB.js`**. Not currently stale, but the pattern
-  will drift by every Node maintenance release. Needs an LTS strategy
-  decision (dynamic fetch / latest-symlink / v22 → v24 LTS bump). Own
-  Node-LTS-strategy release.
-- **B4 — Pre-deletion-audit pattern formalisation.** Re-scoped from
-  the original CLEANUP-PROTOCOL.md item. Three layers planned: a
-  Genesis-readable skill in `.genesis/skills/pre-deletion-audit.md`, a
-  capability `src/agent/capabilities/CleanupVerifier.js` for live
-  behavior-diff against equivalents, and a `docs/CLEANUP-PROTOCOL.md`.
-  Genesis applies this method during its own code cleanups. Next
-  focused release after v7.7.8.
-- **mermaid ^10.9.1 → v11 evaluation**. No CVE; one major behind. Own
-  toolchain-maintenance release.
-
 **Pre-existing (carried from v7.7.4+):**
 
 - **monaco-editor's bundled DOMPurify** (2 moderate XSS, formerly 8).
-  Not self-fixable; depends on monaco upstream.
-- **Sidebar splitter not draggable**. Pre-existing UI issue. Own UI
-  release.
+  Not self-fixable; depends on monaco upstream. Documentation entry
+  only — does not count as an open backlog item.
 
 ---
 

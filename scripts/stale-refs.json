@@ -178,6 +178,11 @@
       "prefix": "sidebar-splitter contract: ",
       "minCount": 18,
       "note": "v7.8.6 resize splitters between 4 main-layout panels. Smart visibility via nextElementSibling traversal."
+    },
+    {
+      "prefix": "runner-parser-v787 contract: ",
+      "minCount": 12,
+      "note": "v7.8.7 \u2014 test/index.js parser must accept label-prefix summaries (v756-fix: N passed, M failed) and ANSI-coloured summaries (Integration: \\x1b[..]N passed[..]\\x1b[]), and must use search-from-end so mock-output lines like \\\"13 passed, 1 failed\\\" inside test assertions do not win over the real summary. Without these, files using those formats display green while their failures are absorbed."
     }
   ],
   "_scanRoots": [

@@ -43,27 +43,14 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
 
   // ──────────────────────────────────────────────────────────────
   // Component A — Same-Backend Failover (Item 1)
+  //
+  // v7.8.7: A1, A2, A3 removed. They scanned src/agent/foundation/ModelBridge.js
+  // for patterns that have lived in src/agent/foundation/ModelBridgeFailover.js
+  // (mixin) since v7.6.5. The Mixin-Garantie ist durch
+  // v765-modelbridge-split.contract.test.js (prototype-mount + reference-
+  // identity) sauberer geprüft als durch Source-Regex-Scan. A4 bleibt,
+  // weil es das ENTFERNEN eines alten Patterns prüft — anderes Ziel.
   // ──────────────────────────────────────────────────────────────
-
-  await test('A1 source-presence: _findFallbackBackend signature accepts failedModelName', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
-    assert(/_findFallbackBackend\s*\(\s*failedBackend\s*,\s*failedModelName\s*=\s*null\s*\)/.test(mbSrc),
-      '_findFallbackBackend must accept (failedBackend, failedModelName = null)');
-  });
-
-  await test('A2 source-presence: _findFallbackBackend skips failed model and marked-unavailable', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
-    assert(/if\s*\(\s*modelName\s*===\s*failedModelName\s*\)\s*continue/.test(mbSrc),
-      'must skip when modelName === failedModelName');
-    assert(/if\s*\(\s*this\.isMarkedUnavailable\s*\(\s*modelName\s*\)\s*\)\s*continue/.test(mbSrc),
-      'must skip marked-unavailable models in chain');
-  });
-
-  await test('A3 source-presence: cross-backend ollama check filters marked-unavailable', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
-    assert(/m\.backend\s*===\s*'ollama'\s*&&\s*!this\.isMarkedUnavailable\s*\(\s*m\.name\s*\)/.test(mbSrc),
-      'cross-backend ollama check must filter marked-unavailable');
-  });
 
   await test('A4 source-presence: old strict check (model.backend !== failedBackend) is gone', () => {
     const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
@@ -345,13 +332,11 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
       'success-path _recordMetaOutcome must include calledModel arg');
   });
 
-  await test('E3 source-presence: post-failover success records fallbackModelName', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
-    assert(/fallbackModelName\s*=\s*this\._fallbackModel\?\.name/.test(mbSrc),
-      'must capture _fallbackModel.name BEFORE _dispatchChat consumes it');
-    assert(/_recordMetaOutcome\([^)]*failover:\s*true\s*\}[^)]*fallbackModelName\)/.test(mbSrc),
-      'post-failover _recordMetaOutcome must pass fallbackModelName');
-  });
+  // v7.8.7: E3 removed. Scanned ModelBridge.js for fallbackModelName
+  // capture and post-failover _recordMetaOutcome call — both live in
+  // ModelBridgeFailover.js mixin since v7.6.5. v765 contract covers
+  // the mixin-mount guarantee. E4 below tests _recordMetaOutcome
+  // behaviour directly which is what actually matters.
 
   await test('E4 behavior: success path attributes correct model', () => {
     const { ModelBridge } = require('../../src/agent/foundation/ModelBridge');

@@ -143,11 +143,16 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
     assertEqual(opened, '/var/log');
   });
 
-  await test('home-relative path ~/.config is preserved', async () => {
+  await test('home-relative path ~/.config is expanded to homedir', async () => {
+    // v7.8.7: original test expected '~/.config' preserved, but v7.5.9
+    // Linux-fix expands tilde BEFORE shell.run by design — child_process
+    // spawn without shell=true doesn't tilde-expand, so a preserved tilde
+    // would be passed as literal "~/.config" to xdg-open and fail.
+    // existsSync also doesn't shell-expand. The expansion is the contract.
     const ctx = makeMockCtx();
     await commandHandlersShell.openPath.call(ctx, 'öffne ~/.config');
     const opened = extractedPath(ctx._calls[0]);
-    assertEqual(opened, '~/.config');
+    assertEqual(opened, path.join(os.homedir(), '.config'));
   });
 
   await test('Windows full path is preserved', async () => {

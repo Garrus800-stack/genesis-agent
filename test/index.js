@@ -172,18 +172,42 @@ async function main() {
 
         for (const result of results) {
           const { moduleName, stdout, error } = result.status === 'fulfilled' ? result.value : { moduleName: '?', stdout: '', error: result.reason?.message || 'Unknown error' };
-          const passMatch = stdout.match(/(\d+) passed/);
+          // v7.8.7: robust summary extraction.
+          // Old parser had two bugs that let test failures display as green:
+          //   1. summaryFailMatch regex did not accept label-prefix summaries
+          //      ("v756-fix: 30 passed, 4 failed") or ANSI-coloured ones,
+          //      so any test using those formats had failed=0 default.
+          //   2. passMatch was not multiline-anchored — `(\d+) passed` greedy-
+          //      matched the FIRST occurrence anywhere in stdout, e.g. a mock
+          //      demo line "✅ legacy: \"13 passed, 1 failed\"" rather than
+          //      the real summary at the end.
+          // Fix: strip ANSI codes, walk lines from END to start, return the
+          // last line that matches a summary shape. Optional label prefix
+          // accepted (any [\w\-\. ]+ followed by ":"). The line-from-end
+          // walk naturally skips mock-output lines that happen to contain
+          // numbers + "passed"/"failed" earlier in the file.
+          // v7.8.7-fix2: failed-group MUST be optional. Many tests use
+          // `${passed} passed${failed > 0 ? `, ${failed} failed` : ''}` —
+          // when they pass cleanly the line is just "  14 passed" without
+          // any failed-count. Old (\d+) passed matched these; the v7.8.7
+          // strict-shape regex did not, displaying them as 0 passed. Now
+          // the `, M failed` part is optional; absent → failed = 0.
+          const cleanStdout = stdout.replace(/\x1b\[\d+m/g, '');
+          const stdoutLines = cleanStdout.split('\n');
+          let summaryMatch = null;
+          for (let i = stdoutLines.length - 1; i >= 0; i--) {
+            const m = stdoutLines[i].match(
+              /^\s*(?:[\w\-\. ]+:\s+|Results:\s+)?(\d+)\s+passed(?:\s*[,·]\s*(\d+)\s+failed\b)?/
+            );
+            if (m) { summaryMatch = m; break; }
+          }
+          // passMatch / summaryFailMatch are derived from the unified summary.
+          const passMatch = summaryMatch ? [summaryMatch[0], summaryMatch[1]] : null;
           // node:test TAP summary uses "# pass N" format instead of "N passed"
           const tapSummaryPass = !passMatch ? stdout.match(/^# pass (\d+)/m) : null;
-          // v7.3.2: Match "N failed" in all harness summary formats. We have
-          // two output shapes in the codebase:
-          //   old:  "13 passed, 1 failed"                    (comma separator)
-          //   new:  "24 passed · 0 failed · 75 assertions"   (middle-dot, with more fields)
-          // Plus the original "Results: N passed, N failed" prefix form.
-          // The regex anchors to a leading indent + "N passed" + [,·] + "N failed"
-          // to avoid matching log lines like "Health check 1/1 failed" elsewhere.
-          // Multiline flag + ^\s* anchor ensures we only hit summary lines.
-          const summaryFailMatch = stdout.match(/^\s*(?:Results:\s*)?\d+ passed\s*[,·]\s*(\d+)\s*failed/m);
+          const summaryFailMatch = summaryMatch
+            ? [summaryMatch[0], summaryMatch[2] !== undefined ? summaryMatch[2] : '0']
+            : null;
           const tapSummaryFail = stdout.match(/^# fail (\d+)/m);
           // Fallback: standalone "N failed" at end-of-line (legacy format)
           const standaloneFailMatch = !summaryFailMatch && !tapSummaryFail
