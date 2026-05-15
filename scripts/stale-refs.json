@@ -170,14 +170,14 @@
       "note": "v7.8.5 \u2014 CHANGELOG.md was 14,739 lines; split into per-major archives (CHANGELOG-v7.md, -v6.md, -v5.md, -archive.md for v0-v4). CHANGELOG.md keeps only the newest entry inline + an index pointing to the archives. ChatOrchestratorSourceRead._readChangelogLatestSection keeps working because the newest ## [x.y.z] header is still at the top of CHANGELOG.md."
     },
     {
-      "prefix": "effective-model contract: ",
-      "minCount": 14,
-      "note": "v7.8.5 \u2014 ModelBridge tracks lastEffectiveModel + lastFailoverReason as persistent state, updated by chat()/streamChat() success paths and by _handleFailoverError on successful fallback. Downstream surfaces: llm:call-complete event carries effectiveModel (forwarded from options._effectiveModel), cost:recorded persists it, model:failover payload gains effectiveModel + preferredModel, AgentCoreHealth.getHealth() exposes model.effective + model.failoverReason. Backward compatible: existing `model` field unchanged."
+      "prefix": "modelbridge-v786 contract: ",
+      "minCount": 30,
+      "note": "v7.8.6 ModelBridge call-context split: 4 helpers in ModelBridgeContext.js mixin + _dispatch({mode}) merge."
     },
     {
-      "prefix": "effective-model-ui contract: ",
-      "minCount": 8,
-      "note": "v7.8.5 \u2014 The model dropdown shows the model that actually answered. On failover, refreshEffectiveModelDisplay sets select.value to the effective model name \u2014 in the same slot the preferred model normally occupies. No separate badge, no flashing, no tooltip. Programmatic .value assignment does NOT fire `change`, so the user's preferred setting in settings is not rewritten by this display update. The user can still switch to any other model via the dropdown as before (that path fires `change`, calls agent:switch-model). Refreshed after every agent:stream-done and once on boot."
+      "prefix": "sidebar-splitter contract: ",
+      "minCount": 18,
+      "note": "v7.8.6 resize splitters between 4 main-layout panels. Smart visibility via nextElementSibling traversal."
     }
   ],
   "_scanRoots": [

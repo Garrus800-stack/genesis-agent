@@ -30,7 +30,18 @@ let agentReady = false;
 // ── Expose globals for onclick handlers in HTML ─────────
 window.togglePanel = function(id) {
   const panel = document.getElementById(id);
-  if (panel) panel.classList.toggle('hidden');
+  if (!panel) return;
+  panel.classList.toggle('hidden');
+  // v7.8.6: splitter.js listens to this to recompute splitter
+  // visibility when a panel is toggled. Guarded for test
+  // environments whose minimal DOM shim lacks window.dispatchEvent
+  // or CustomEvent — the event is observability, never primary
+  // behaviour, so the guard never crashes the toggle path.
+  if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+    window.dispatchEvent(new CustomEvent('panel:visibility-changed', {
+      detail: { id, visible: !panel.classList.contains('hidden') },
+    }));
+  }
 };
 window.closeSettings = closeSettings;
 
@@ -237,6 +248,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#btn-close-goals').addEventListener('click', () => window.togglePanel('goals-panel'));
   $('#btn-close-editor').addEventListener('click', () => window.togglePanel('editor-panel'));
   $('#btn-close-sandbox-output').addEventListener('click', () => $('#sandbox-output').classList.add('hidden'));
+
+  // v7.8.6: Initialise resize splitters between panels.
+  const { initSplitters, resetAllPanelWidths } = require('./modules/splitter');
+  initSplitters(() => agentReady).catch(_e => { /* best-effort */ });
+  $('#btn-reset-panel-widths')?.addEventListener('click', resetAllPanelWidths);
   // Settings modal
   $('#settings-backdrop').addEventListener('click', closeSettings);
   $('#btn-close-settings').addEventListener('click', closeSettings);

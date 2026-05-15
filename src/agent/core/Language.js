@@ -413,6 +413,10 @@ const STRINGS = {
     'ui.add': 'Add',
     'ui.remove': 'Remove',
     'ui.reset_to_default': 'Reset to default',
+    'ui.panel_widths': 'Panel widths',
+    'ui.reset_panel_widths': 'Reset panel widths to default',
+    'settings.section.layout': 'Layout',
+    'settings.layout.panels.hint': 'Sets file-tree, goals and editor panels back to their default widths. The chat panel always fills the remaining space.',
 
     // Section headers
     'settings.section.cost_guard': 'Cost protection (Cost-Guard)',
@@ -872,6 +876,10 @@ const STRINGS = {
     'ui.add': 'Hinzufügen',
     'ui.remove': 'Entfernen',
     'ui.reset_to_default': 'Auf Default zurücksetzen',
+    'ui.panel_widths': 'Panel-Breiten',
+    'ui.reset_panel_widths': 'Panel-Breiten zurücksetzen',
+    'settings.section.layout': 'Layout',
+    'settings.layout.panels.hint': 'Setzt Dateibaum, Goals und Editor auf die Standardbreiten zurück. Das Chat-Panel füllt immer den restlichen Platz aus.',
 
     // Section headers
     'settings.section.cost_guard': 'Kosten-Schutz (Cost-Guard)',

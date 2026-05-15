@@ -62,6 +62,8 @@
       <div id="file-tree" class="file-tree"></div>
     </aside>
 
+    <div class="splitter hidden" data-splitter="file-tree-goals" data-prev="file-tree-panel" data-next="goals-panel" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize file tree panel"></div>
+
     <aside id="goals-panel" class="panel hidden">
       <div class="panel-header">
         <span data-i18n="ui.goals">Goals</span>
@@ -69,6 +71,8 @@
       </div>
       <div id="goal-tree" class="goal-tree"></div>
     </aside>
+
+    <div class="splitter hidden" data-splitter="goals-editor" data-prev="goals-panel" data-next="editor-panel" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize goals panel"></div>
 
     <section id="editor-panel" class="panel hidden">
       <div class="panel-header">
@@ -88,6 +92,8 @@
         <pre id="sandbox-result"></pre>
       </div>
     </section>
+
+    <div class="splitter hidden" data-splitter="editor-chat" data-prev="editor-panel" data-next="chat-panel" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize editor panel"></div>
 
     <section id="chat-panel" class="panel">
       <div id="chat-messages" class="chat-messages"></div>
@@ -345,6 +351,16 @@
               <option value="auto" data-i18n="settings.install.scope.auto">Auto — winget entscheidet (manche Pakete ignorieren --scope)</option>
             </select>
             <span class="setting-hint" data-i18n="settings.install.scope.hint">Bestimmt wo winget Software ablegt. "Machine" erzeugt einen Admin-Prompt aber landet in Program Files. "User" ist Admin-frei aber landet in AppData (manchmal nur als .lnk). Manche Pakete (wie WinRAR) ignorieren --scope und installieren immer im selben Bereich. Per-Aufruf überschreibbar mit /install &lt;name&gt; &lt;pfad&gt; (z.B. /install winrar D:\Programme\WinRAR).</span>
+          </div>
+
+          <!-- v7.8.6: Panel widths reset (splitter drag persists widths to ui.panelWidths) -->
+          <div class="setting-group setting-divider">
+            <label class="setting-section-label" data-i18n="settings.section.layout">Layout</label>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="ui.panel_widths">Panel widths</label>
+            <button type="button" id="btn-reset-panel-widths" class="setting-input" data-i18n="ui.reset_panel_widths">Reset panel widths to default</button>
+            <span class="setting-hint" data-i18n="settings.layout.panels.hint">Sets file-tree, goals and editor panels back to their default widths. The chat panel always fills the remaining space.</span>
           </div>
         </div>
 

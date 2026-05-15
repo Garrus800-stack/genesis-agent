@@ -147,7 +147,13 @@ class Settings {
         stalledTimeoutMs: 15 * 60 * 1000,         // 15 min blocked before stall-flag
         stalledWatchdogTickMs: 60 * 1000,         // scan once per minute
       },
-      ui: { language: 'de', editorFontSize: 13, chatFontSize: 13 },
+      ui: {
+        language: 'de',
+        editorFontSize: 13,
+        chatFontSize: 13,
+        // v7.8.6: persisted widths for the three resizeable left panels.
+        panelWidths: { 'file-tree': 220, 'goals': 280, 'editor': 600 },
+      },
       security: { allowSelfModify: true, allowNetworkPeers: true, allowFileExecution: true },
       // v7.5.9 ZIP3 Phase 4a + ZIP5 Phase 4d: Software-installation defaults.
       // allowAutoInstall=false means "preview-only by default" — Genesis

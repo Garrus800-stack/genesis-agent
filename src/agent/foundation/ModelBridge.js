@@ -21,18 +21,6 @@ const { OllamaBackend } = require('./backends/OllamaBackend');
 const { AnthropicBackend } = require('./backends/AnthropicBackend');
 const { OpenAIBackend } = require('./backends/OpenAIBackend');
 
-// v7.5.2: Alias-Map normalisiert Caller-taskTypes auf Router-Routes.
-// Ohne diese Aliase würden Dream/Wakeup/Memory-Pfade auf chat-Route fallback
-// und nie wirklich geroutet — genau die wären aber Hauptzielgruppe für Auto-Routing.
-const TASK_TYPE_ROUTING_MAP = {
-  'code':            'code-gen',
-  'dream-judgment':  'classification',
-  'dream-summarize': 'summarization',
-  'memory-classify': 'classification',
-  'wakeup':          'reasoning',
-  // 'user' bleibt unrouted (siehe _userChat-Marker in ChatOrchestrator)
-};
-
 // v7.5.6/v7.5.7-fix: TTL by failover-reason for the unavailable-marker.
 // 'connection-error' and 'other' are intentionally absent (transient).
 // 'subscription-required' (v7.5.7-fix): 24h, Pro-gates don't fix in 1h.
@@ -461,61 +449,12 @@ class ModelBridge {
    * @returns {{ temp, routedSwitch, roleOverride, targetBackend, effectiveModel, calledModel, priority }}
    */
   _prepareCallContext({ taskType, options }) {
-    // 1. Temperature resolution
-    let temp = this.temperatures[taskType] || this.temperatures.chat;
-    if (typeof options.temperature === 'number') temp = options.temperature;
-    if (this.metaLearning && taskType !== 'chat' && options.temperature === undefined) {
-      try {
-        const rec = this.metaLearning.recommend(taskType, this.activeModel);
-        if (rec && rec.temperature !== undefined) temp = rec.temperature;
-      } catch (_e) { _log.debug('[catch] MetaLearning not ready:', _e.message); }
-    }
-
-    // 2. Auto-routing (skip for direct user chat)
-    let routedSwitch = null;
-    if (
-      this._settings?.get?.('agency.autoRouteByTask') !== false &&
-      this._modelRouter &&
-      taskType &&
-      options._userChat !== true
-    ) {
-      try {
-        const routerCategory = TASK_TYPE_ROUTING_MAP[taskType] || taskType;
-        const routed = this._modelRouter.route(routerCategory);
-        if (routed?.model && routed.model !== this.activeModel) {
-          const found = this.availableModels.find(m => m.name === routed.model);
-          if (found?.backend) {
-            routedSwitch = {
-              originalModel: this.activeModel,
-              routedModel: routed.model,
-              routedBackend: found.backend,
-              taskType,
-              reason: routed.reason,
-            };
-            this._routingStats.autoRouted++;
-            this._routingStats.lastRouted = { ...routedSwitch, at: Date.now() };
-            this.bus.fire('model:auto-switched', routedSwitch, { source: 'ModelBridge' });
-          }
-          // If model exists in router but not in availableModels, silently abandon
-          // routing — fall through to activeModel/activeBackend.
-        }
-      } catch (_e) {
-        // Router error → silent fallback to activeModel, no crash
-      }
-    }
-
-    // 3. Role-based + routing precedence: routedSwitch > roleOverride > activeBackend
-    const roleOverride = this._resolveForTask(taskType);
-    const targetBackend = routedSwitch?.routedBackend
-                       || roleOverride?.backend
-                       || this.activeBackend;
-    const effectiveModel = routedSwitch?.routedModel
-                        || roleOverride?.model;  // undefined → backend uses activeModel
-    const calledModel = effectiveModel || this.activeModel;
-
-    // 4. Priority — chat tasks get higher priority in semaphore
-    const priority = options.priority ?? (taskType === 'chat' ? 10 : 0);
-
+    // v7.8.6: thin orchestrator over four mixin helpers in ModelBridgeContext.js.
+    const temp        = this._resolveTemperature(taskType, options);
+    const routedSwitch = this._resolveRouting(taskType, options);
+    const { targetBackend, effectiveModel, calledModel, roleOverride } =
+      this._resolveBackendTarget(taskType, routedSwitch);
+    const priority    = this._resolvePriority(taskType, options);
     return { temp, routedSwitch, roleOverride, targetBackend, effectiveModel, calledModel, priority };
   }
 
@@ -545,29 +484,35 @@ class ModelBridge {
   // DISPATCH & FAILOVER
   // ════════════════════════════════════════════════════════
 
-  _dispatchChat(backendName, systemPrompt, messages, temp, modelOverride, maxTokens) {
+  // v7.8.6: unified dispatch for chat and stream modes. Thin wrappers below
+  // preserve positional signature for 5 v7xx source-presence contract tests.
+  _dispatch({ mode, backendName, systemPrompt, messages, temp, modelOverride, maxTokens, onChunk, abortSignal }) {
     const model = modelOverride || this._getModelForBackend(backendName);
     const backend = this.backends[backendName];
-    if (!backend) throw new Error('No model backend configured');
-    // v7.5.1: backends accept an optional 5th maxTokens arg. Older backends
-    // ignoring it still work because JS just drops extra positional args.
-    return backend.chat(systemPrompt, messages, temp, model, maxTokens);
+    if (mode === 'chat') {
+      if (!backend) throw new Error('No model backend configured');
+      return backend.chat(systemPrompt, messages, temp, model, maxTokens);
+    }
+    if (mode === 'stream') {
+      if (!backend) {
+        return this._dispatch({ mode: 'chat', backendName, systemPrompt, messages, temp, modelOverride, maxTokens })
+          .then(result => { onChunk(result); return result; })
+          .catch(err => {
+            _log.error('[MODEL] Non-streaming fallback failed:', err.message);
+            throw err;
+          });
+      }
+      return backend.stream(systemPrompt, messages, onChunk, abortSignal, temp, model, maxTokens);
+    }
+    throw new Error(`Unknown dispatch mode: ${mode}`);
+  }
+
+  _dispatchChat(backendName, systemPrompt, messages, temp, modelOverride, maxTokens) {
+    return this._dispatch({ mode: 'chat', backendName, systemPrompt, messages, temp, modelOverride, maxTokens });
   }
 
   _dispatchStream(backendName, systemPrompt, messages, onChunk, abortSignal, temp, modelOverride, maxTokens) {
-    const model = modelOverride || this._getModelForBackend(backendName);
-    const backend = this.backends[backendName];
-    if (!backend) {
-      // v7.5.1.x: forward maxTokens to the non-streaming fallback so streaming
-      // callers' per-call cap is respected even when a backend lacks .stream().
-      return this._dispatchChat(backendName, systemPrompt, messages, temp, modelOverride, maxTokens)
-        .then(result => { onChunk(result); return result; })
-        .catch(err => {
-          _log.error('[MODEL] Non-streaming fallback failed:', err.message);
-          throw err;
-        });
-    }
-    return backend.stream(systemPrompt, messages, onChunk, abortSignal, temp, model, maxTokens);
+    return this._dispatch({ mode: 'stream', backendName, systemPrompt, messages, temp, modelOverride, maxTokens, onChunk, abortSignal });
   }
 
   // ── v7.5.6: Model-availability tracking — extracted to mixin ─────
@@ -692,6 +637,7 @@ class ModelBridge {
 const { availability } = require('./ModelBridgeAvailability');
 const { discovery } = require('./ModelBridgeDiscovery');
 const { failoverMixin } = require('./ModelBridgeFailover');
-Object.assign(ModelBridge.prototype, availability, discovery, failoverMixin);
+const { contextMixin } = require('./ModelBridgeContext');
+Object.assign(ModelBridge.prototype, availability, discovery, failoverMixin, contextMixin);
 
 module.exports = { ModelBridge };

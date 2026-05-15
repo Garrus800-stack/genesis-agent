@@ -10,19 +10,43 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
 
 ## Open backlog (added in v7.8.5)
 
-- **ModelBridge refactor** — `src/agent/foundation/ModelBridge.js` is
-  698 LOC with 22 functional methods. Two consolidations would shrink it
-  noticeably without changing external behavior:
-  - `_prepareCallContext` returns a mixed bag (taskType, routedSwitch,
-    roleOverride, targetBackend, effectiveModel, calledModel, priority).
-    Splitting into smaller helpers (resolveTask, resolveBackend,
-    resolveRouting) would improve testability.
-  - `_dispatchChat` and `_dispatchStream` differ only by `onChunk` +
-    `abortSignal` parameters. Merging into `_dispatch({ mode, ... })`
-    removes ~60 LOC of duplication.
-  - Net delta estimated −40 LOC. Kept on the open backlog —
-    ModelBridge is hot path and the refactor needs its own focused
-    cycle, not bundled with feature work.
+*(Currently no open backlog items.)*
+
+---
+
+
+## Resolved in v7.8.6
+
+### Two focused items — ModelBridge refactor + sidebar splitter
+
+- **Item 1 — ModelBridge `_prepareCallContext` split + `_dispatch`
+  merge.** Four call-context helpers extracted into
+  `ModelBridgeContext.js` mixin. `_dispatchChat` + `_dispatchStream`
+  collapsed into `_dispatch({ mode })` with thin wrappers preserved.
+  `ModelBridge.js` shrinks from 697 to 643 LOC.
+  (`modelbridge-v786 contract:` prefix, 42 tests.)
+- **Item 2 — Sidebar splitter.** Three resizeable splitters between
+  the four main-layout panels with mouse / touch / keyboard drag +
+  dblclick reset. Widths persisted in `ui.panelWidths`. Splitter
+  visibility uses smart sibling-traversal: shows whenever its
+  data-prev panel is visible AND any later panel is also visible —
+  so toggling an intermediate panel off doesn't orphan the splitter,
+  it just attaches to the next visible panel instead. 7px wide with
+  transparent default background and a visible grip line (`::before`
+  pseudo, accent-coloured on hover/focus/drag). **Reset panel widths**
+  button in Settings → Behavior tab.
+  (`sidebar-splitter contract:` prefix, 22 tests.)
+
+### Backlog tidy
+
+- **ColonyOrchestrator worker-pool-cap bug** (struck) — fixed in v7.7.9 Phase 1c.
+- **F8 / D1+D2 — Slash-Discipline coverage extension** (struck) —
+  `SECURITY_REQUIRED_SLASH` now contains 13 intents, all enforced.
+  Duplicate entry in two sections both removed.
+- **stale-refs.json deduplication** — `effective-model contract:` and
+  `effective-model-ui contract:` were each registered twice; gone.
+
+See [CHANGELOG.md § 7.8.6](CHANGELOG.md) for full details.
 
 ---
 
@@ -196,11 +220,6 @@ These three came out of the same Win live session that motivated
 v7.7.8 but did not fit the goal-awareness theme. Each deserves its own
 focused fix.
 
-- **ColonyOrchestrator worker-pool-cap bug.** Session log showed 10
-  IPC workers being spawned with seven consecutive `Max workers (3)
-  reached. Wait for completion.` warnings. The spawn loop does not
-  check the pool cap before issuing additional spawn requests. Few-LOC
-  fix.
 - **Verification-reporting contradiction.** Step output shows
   `[error] Verification failed: Unexpected token (1:5)` followed by
   `[step-complete] Code written: experimental-module.js (136 lines,
@@ -231,9 +250,6 @@ deferred. Each deserves its own focused release.
   behavior-diff against equivalents, and a `docs/CLEANUP-PROTOCOL.md`.
   Genesis applies this method during its own code cleanups. Next
   focused release after v7.7.8.
-- **F8 / D1+D2 — Slash-Discipline coverage extension** (4 of 12
-  intents currently covered). Real security-design work — own focused
-  release.
 - **mermaid ^10.9.1 → v11 evaluation**. No CVE; one major behind. Own
   toolchain-maintenance release.
 
@@ -346,12 +362,6 @@ releases where each gets its own scope and risk evaluation:
   Node-LTS-strategy release
 - **B4 — `CLEANUP-PROTOCOL.md` formalization**. Pre-existing
   documentation TODO from earlier audits; not from v7.7.6
-- **F8 / D1+D2 — Slash-Discipline coverage extension**. The current
-  Slash-Discipline contract covers 4 of the 12 SECURITY_REQUIRED_SLASH
-  intents. Extending coverage to all 12 is real security-design work
-  (deciding intent-by-intent whether the LLM/classifier post-guard is
-  sufficient, or whether the slash-only constraint should be hard).
-  Deserves its own focused release
 - **mermaid ^10.9.1 → v11 evaluation**. No CVE; one major behind
   current. Eigene Toolchain-Maintenance-Release wie electron-builder /
   monaco / esbuild

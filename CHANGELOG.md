@@ -1,84 +1,101 @@
-## [7.8.5]
+## [7.8.6]
 
-**Failover transparency end-to-end + release hygiene.**
+**ModelBridge refactor + sidebar splitter + backlog cleanup.**
 
-Five items.
+Two focused items plus a small backlog tidy.
 
-### Item 1 — `effectiveModel` end-to-end
+### Item 1 — ModelBridge `_prepareCallContext` split + `_dispatch` merge
 
-When `ModelBridge` fails over from the user's preferred model to
-a fallback, every layer now identifies the model that is actually
-answering — log, events, health endpoint, and UI.
+`_prepareCallContext` decomposed into four single-responsibility
+helpers (`_resolveTemperature`, `_resolveRouting`,
+`_resolveBackendTarget`, `_resolvePriority`) extracted into a new
+`ModelBridgeContext.js` mixin (same pattern as
+`ModelBridgeFailover.js` v7.6.5, `ModelBridgeAvailability.js`
+v7.5.6, `ModelBridgeDiscovery.js`). The orchestrator now reads as
+four named calls instead of one 56-LOC monolithic block.
 
-- **Backend state.** `ModelBridge` gains `lastEffectiveModel`,
-  `lastEffectiveBackend`, `lastFailoverReason`. Updated by
-  chat()/streamChat() success paths and by `_handleFailoverError`.
-  Clean call after a failover clears all three.
-- **Log line.** Interpolates the fallback model name:
-  `falling back to ollama (qwen3-coder-next): ...`
-- **Events.** `model:failover` payload gains `effectiveModel` +
-  `preferredModel`. `llm:call-complete` gains `effectiveModel`.
-  `cost:recorded` persists `effectiveModel`. Backward compatible.
-- **Health endpoint.** `model.effective`, `model.failoverReason`.
-- **UI.** The model dropdown shows the model that is currently
-  answering — in the same slot the preferred model normally
-  occupies. Programmatic `.value` assignment does not fire
-  `change`, so the user's preferred setting is not rewritten.
-  Switching to any other model via the dropdown works as before.
+`_dispatchChat` and `_dispatchStream` merged into a single
+`_dispatch({ mode, ... })` method. The legacy `_dispatchChat` and
+`_dispatchStream` survive as thin wrappers so the positional
+signature stays callsite-compatible.
 
-### Item 2 — Backlog audit
+`TASK_TYPE_ROUTING_MAP` moved with the routing helper into
+`ModelBridgeContext.js` (single owner).
 
-Four obsolete items struck:
-- `ImpactForecast` / `fragilityDelta` (no references anywhere)
-- `Layer-Truncation LLM-Output` (streaming covers this)
-- `CostStream failover field` (already shipped v7.8.3)
-- UI dual-path `renderer.js` (file no longer exists)
+`ModelBridge.js` shrinks from **697 to 643 LOC** (well under the
+700 File-Size-Guard warn threshold). Output bag of
+`_prepareCallContext` pinned by a 5-case regression-snapshot.
 
-`ModelBridge._prepareCallContext` + `_dispatchChat`/`_dispatchStream`
-consolidation is on the open backlog in `AUDIT-BACKLOG.md`.
+Contract prefix: `modelbridge-v786 contract:` (42 tests).
 
-### Item 3 — `audit-platform-tests.js`
+### Item 2 — Sidebar splitter (drag-to-resize panels)
 
-New reporting tool that scans `test/modules/*.test.js` for
-`if (process.platform === '...') return;` patterns and produces a
-matrix of which subtests skip on which platform. Output:
-human-readable summary + JSON snapshot at
-`scripts/platform-tests-baseline.json`. Replaces pattern-matched
-release-notes estimates with measured data. Not a strict CI gate.
+Three resizeable splitters between the four main-layout panels:
+file-tree ↔ goals, goals ↔ editor, editor ↔ chat. Drag with mouse
+or touch, focus and use arrow-keys for 10px steps, or double-click
+to reset a single panel. Window resize re-clamps widths so the
+chat-panel keeps its 400px minimum.
 
-### Item 4 — Release hygiene
+**Smart visibility.** A splitter is shown whenever its data-prev
+panel is visible AND any later panel in the row is also visible.
+Hidden intermediate panels are skipped — the splitter visually
+attaches to whichever next-visible panel actually follows. This
+means a user who toggles off `goals` and `editor` can still resize
+`file-tree`: the splitter appears between file-tree and chat. The
+naive "both adjacent neighbours visible" rule would orphan splitters
+between hidden panels and silently disable resize.
 
-- `plugins/` gains a `.gitkeep` marker with an explanatory header so
-  the directory is tracked but not confused with a build artefact.
-- `sandbox/` is now in `.gitignore`. Previously a stray `sandbox/`
-  directory could ship in the release ZIP when the user had run
-  tests locally before building. `CONTRIBUTING.md` documents both
-  directories under "Special directories (runtime-managed)".
+**Visual handle.** The splitter is 7px wide (generous click-target)
+with a transparent default background so it doesn't compete with
+the panel's border-right. A 2×32px grip line (`::before` pseudo,
+`var(--border)` colour) sits in the middle to indicate the area is
+interactive. On hover, focus, or while dragging, the background
+switches to a subtle blue accent tint and the grip line grows to
+56px in `var(--accent)` — so the resize affordance is unmistakable.
 
-### Item 5 — CHANGELOG split
+Panel widths are persisted in `ui.panelWidths` settings (debounced
+batch-save) and restored on next boot. Defaults: file-tree 220px,
+goals 280px, editor 600px. The chat-panel is the flex remainder
+and has no stored width.
 
-The previous `CHANGELOG.md` had grown to 14,739 lines / 906 KB.
-This release splits it into per-major archives:
+`window.togglePanel` extended to dispatch a `panel:visibility-changed`
+DOM event so splitters recompute when a panel is toggled. Guarded
+against test environments whose minimal DOM shim lacks
+`window.dispatchEvent` / `CustomEvent` — the event is observability,
+never primary behaviour, so the guard never crashes the toggle path.
 
-- `CHANGELOG.md` — keeps only the newest entry inline plus an
-  index pointing to the major files. Genesis'
-  `ChatOrchestratorSourceRead._readChangelogLatestSection` keeps
-  working because the newest `## [x.y.z]` header is still at the
-  top of `CHANGELOG.md`.
-- `CHANGELOG-v7.md`, `CHANGELOG-v6.md`, `CHANGELOG-v5.md`,
-  `CHANGELOG-archive.md` (v0–v4) — full historical archives.
+Reset is available three ways: double-click a splitter, the
+**Reset panel widths** button in Settings → Behavior tab, or by
+deleting `ui.panelWidths` from the settings JSON.
+
+Contract prefix: `sidebar-splitter contract:` (22 tests).
+
+### Backlog tidy
+
+Three items struck from `AUDIT-BACKLOG.md` as already done or
+overtaken by reality:
+
+- **ColonyOrchestrator worker-pool-cap bug** — fixed in v7.7.9
+  Phase 1c.
+- **F8 / D1+D2 — Slash-Discipline coverage extension (4 of 12
+  intents)** — overtaken: `SECURITY_REQUIRED_SLASH` now holds 13
+  intents, all enforced by `enforceSlashDiscipline`. Duplicate entry
+  in two sections both removed.
+- **Duplicate `effective-model contract:` + `effective-model-ui
+  contract:` entries** in `scripts/stale-refs.json` deduplicated.
+
+The non-self-fixable `monaco-editor's bundled DOMPurify` note stays
+as documentation (upstream-dependency), but it's no longer counted
+as an open backlog item when listing what's pending.
 
 ---
 
----
-
----
 
 ## Older releases
 
 For prior version history, see the archive files:
 
-- [**CHANGELOG-v7.md**](CHANGELOG-v7.md) — all v7.x.x releases (78 entries)
+- [**CHANGELOG-v7.md**](CHANGELOG-v7.md) — all v7.x.x releases (79 entries)
 - [**CHANGELOG-v6.md**](CHANGELOG-v6.md) — all v6.x.x releases (12 entries)
 - [**CHANGELOG-v5.md**](CHANGELOG-v5.md) — all v5.x.x releases (17 entries)
 - [**CHANGELOG-archive.md**](CHANGELOG-archive.md) — v0.x.x – v4.x.x (29 entries)
