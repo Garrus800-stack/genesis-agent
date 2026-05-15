@@ -112,6 +112,10 @@ class ModelBridge {
     this.bus = bus || NullBus;
     this.activeModel = null;
     this.activeBackend = null;
+    // v7.8.5: persistent state of the actually answering model.
+    this.lastEffectiveModel = null;
+    this.lastEffectiveBackend = null;
+    this.lastFailoverReason = null;
     this.availableModels = [];
     this._semaphore = new _LLMSemaphore(
       maxConcurrentLLM || LIMITS.LLM_MAX_CONCURRENT,
@@ -263,8 +267,16 @@ class ModelBridge {
     const fallback = this._findFallbackBackend(targetBackend, calledModel);
     if (fallback) {
       const fallbackModelName = this._fallbackModel?.name || null;
-      _log.warn(`[MODEL] ${label} ${targetBackend} failed, falling back to ${fallback}: ${err.message}`);
-      this.bus.fire('model:failover', { from: targetBackend, to: fallback, error: err.message, reason }, { source: 'ModelBridge' });
+      // v7.8.5: log + payload identify the actual answering model.
+      _log.warn(`[MODEL] ${label} ${targetBackend} failed, falling back to ${fallback}${fallbackModelName ? ` (${fallbackModelName})` : ''}: ${err.message}`);
+      this.bus.fire('model:failover', {
+        from: targetBackend,
+        to: fallback,
+        effectiveModel: fallbackModelName,
+        preferredModel: calledModel,
+        error: err.message,
+        reason,
+      }, { source: 'ModelBridge' });
       // v7.8.3: stamp the failover reason on the options object so the
       // subsequent _emitCallComplete (in LLMPort) can pick it up. We
       // mutate `options` directly because LLMPort holds the same
@@ -274,12 +286,18 @@ class ModelBridge {
       // v7.8.3 follow-up (F5): renamed from `failover` to
       // `_failoverReason` so the meta-outcome retry marker below
       // (`isFailoverRetry: true`) can live on the same options bag
-      // without semantic collision. Pre-rename both used `failover` —
-      // a string for LLMPort, a boolean for meta — and any future
-      // MetaLearning reader of options.failover would have been bitten.
-      if (options && typeof options === 'object') options._failoverReason = reason;
+      // without semantic collision.
+      // v7.8.5: also stamp _effectiveModel for llm:call-complete + cost rows.
+      if (options && typeof options === 'object') {
+        options._failoverReason = reason;
+        options._effectiveModel = fallbackModelName;
+      }
       const result = await dispatch(fallback);
       this._recordMetaOutcome(taskType, temp, startTime, true, { ...options, isFailoverRetry: true }, fallbackModelName);
+      // v7.8.5: failover succeeded — record state.
+      this.lastEffectiveModel = fallbackModelName;
+      this.lastEffectiveBackend = fallback;
+      this.lastFailoverReason = reason;
       return result;
     }
     this._emitFailoverUnavailable(targetBackend, err);
@@ -334,6 +352,10 @@ class ModelBridge {
     try {
       const result = await this._dispatchChat(targetBackend, systemPrompt, messages, temp, effectiveModel, options.maxTokens);
       this._recordMetaOutcome(taskType, temp, startTime, true, options, calledModel);
+      // v7.8.5: clean call resets all failover state.
+      this.lastEffectiveModel = calledModel;
+      this.lastEffectiveBackend = targetBackend;
+      this.lastFailoverReason = null;
       if (cacheKey) this._cache.set(cacheKey, result);
       return result;
     } catch (err) {
@@ -397,6 +419,10 @@ class ModelBridge {
     try {
       const result = await this._dispatchStream(targetBackend, systemPrompt, messages, onChunk, abortSignal, temp, effectiveModel, maxTokens);
       this._recordMetaOutcome(taskType, temp, startTime, true, options, calledModel);
+      // v7.8.5: mirror chat() — clean call resets failover state.
+      this.lastEffectiveModel = calledModel;
+      this.lastEffectiveBackend = targetBackend;
+      this.lastFailoverReason = null;
       return result;
     } catch (err) {
       return this._handleFailoverError(err, {

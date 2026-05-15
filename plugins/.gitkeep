@@ -1,0 +1,5 @@
+# This directory is the runtime plugin discovery root used by
+# `src/agent/foundation/PluginRegistry.js`. It is intentionally
+# empty in the release ZIP — drop user plugins here at runtime.
+# Do not delete this file; without it the directory would not be
+# tracked in version control.

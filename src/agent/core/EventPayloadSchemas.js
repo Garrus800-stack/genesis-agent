@@ -353,7 +353,7 @@ const SCHEMAS = {
   'cognitive:decision-evaluated':   { decision: 'required', outcome: 'required', rollingQuality: 'required' },
 
   // Model routing
-  'model:failover':              { from: 'required', to: 'required', error: 'required', reason: 'required' },
+  'model:failover':              { from: 'required', to: 'required', error: 'required', reason: 'required', effectiveModel: 'optional', preferredModel: 'optional' },
   'model:failover-unavailable':  { from: 'required', reason: 'required', error: 'required' },
   // v7.5.2: emitted when ModelBridge auto-switches model based on taskType
   'model:auto-switched':         { originalModel: 'required', routedModel: 'required', routedBackend: 'required', taskType: 'required', reason: 'optional' },
@@ -556,6 +556,7 @@ const SCHEMAS = {
     latencyMs: 'optional', promptTokens: 'optional', responseTokens: 'optional',
     cached: 'optional', goalId: 'optional', correlationId: 'optional',
     failover: 'optional',  // v7.8.3
+    effectiveModel: 'optional',  // v7.8.5: model that actually answered
     tokens: 'optional', durationMs: 'optional',  // legacy aliases
   },
   'llm:call-error':         { error: 'required' },
@@ -571,6 +572,7 @@ const SCHEMAS = {
     promptTokens: 'optional', responseTokens: 'optional', latencyMs: 'optional',
     cached: 'optional', goalId: 'optional', correlationId: 'optional',
     failover: 'optional',  // v7.8.3
+    effectiveModel: 'optional',  // v7.8.5
   },
 
   // Perception

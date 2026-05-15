@@ -1,9 +1,72 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.8.4 · Audit findings, monitor items, and resolution status.
+> Version: 7.8.5 · Audit findings, monitor items, and resolution status.
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+
+## Open backlog (added in v7.8.5)
+
+- **ModelBridge refactor** — `src/agent/foundation/ModelBridge.js` is
+  698 LOC with 22 functional methods. Two consolidations would shrink it
+  noticeably without changing external behavior:
+  - `_prepareCallContext` returns a mixed bag (taskType, routedSwitch,
+    roleOverride, targetBackend, effectiveModel, calledModel, priority).
+    Splitting into smaller helpers (resolveTask, resolveBackend,
+    resolveRouting) would improve testability.
+  - `_dispatchChat` and `_dispatchStream` differ only by `onChunk` +
+    `abortSignal` parameters. Merging into `_dispatch({ mode, ... })`
+    removes ~60 LOC of duplication.
+  - Net delta estimated −40 LOC. Kept on the open backlog —
+    ModelBridge is hot path and the refactor needs its own focused
+    cycle, not bundled with feature work.
+
+---
+
+
+## Resolved in v7.8.5
+
+### Five items — failover transparency end-to-end + release hygiene
+
+- **Item 1 — `effectiveModel` end-to-end.** ModelBridge tracks
+  `lastEffectiveModel`, `lastEffectiveBackend`,
+  `lastFailoverReason` as persistent state.
+  Updated on every chat()/streamChat() success and on every
+  successful failover. Downstream: warn log interpolates fallback
+  model name; `model:failover` payload gains `effectiveModel` +
+  `preferredModel`; `llm:call-complete` gains `effectiveModel`;
+  `cost:recorded` persists it; `AgentCoreHealth.getHealth()`
+  exposes `model.effective` + `model.failoverReason`; the UI
+  dropdown shows the model actually answering, in the same slot
+  the preferred model normally occupies. (`effective-model contract:` 14 + `effective-model-ui contract:` 8 tests.)
+- **Item 2 — Backlog audit.** Four items struck as obsolete:
+  `ImpactForecast`/`fragilityDelta`, `Layer-Truncation
+  LLM-Output`, `CostStream failover field`, UI dual-path
+  `renderer.js`.
+- **Item 3 — `audit-platform-tests.js`.** New reporting tool that
+  scans test files for `process.platform` skip patterns and
+  produces a matrix. Replaces pattern-matched test-count
+  estimates with measured data. JSON snapshot at
+  `scripts/platform-tests-baseline.json`. Not a strict CI gate.
+  (`platform-tests-audit contract:` 6 tests.)
+- **Item 4 — Release hygiene.** `plugins/` gains a `.gitkeep`
+  marker with explanatory header. `sandbox/` added to
+  `.gitignore` — previously a stray sandbox/ could ship in the
+  release ZIP. CONTRIBUTING.md documents both under "Special
+  directories (runtime-managed)". (`release-hygiene contract:`
+  3 tests.)
+- **Item 5 — CHANGELOG split.** 14,739 lines / 906 KB
+  CHANGELOG.md split into per-major archives:
+  `CHANGELOG-v7.md` (78), `CHANGELOG-v6.md` (12),
+  `CHANGELOG-v5.md` (17), `CHANGELOG-archive.md` (v0–v4, 29).
+  Master `CHANGELOG.md` keeps only the newest entry inline plus
+  index. Genesis' `ChatOrchestratorSourceRead._readChangelogLatestSection`
+  keeps working — the newest `## [x.y.z]` header is still at the
+  top. Cleaned a pre-existing duplicate `## [7.1.6]` header.
+  (`changelog-split contract:` 7 tests.)
 
 ---
 

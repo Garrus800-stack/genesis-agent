@@ -1,147 +1,226 @@
-# Genesis Agent v7.8.4 — **Bug-Sweep + Pre-deletion-audit.**
+# v7.8.5 — Failover transparency end-to-end + release hygiene
 
-Six focused items: two correctness fixes in the agent loop, one
-defense-in-depth hardening for diagram rendering, one toolchain
-bump, one resilience pass on Node installer URLs, and a new
-pre-deletion-audit capability with auto-hook and slash command.
-No themed release wrapper — each item stands alone.
+Five items.
 
 ---
 
-## Item 1 — Verification-reporting contradiction
+## Item 1 — `effectiveModel` end-to-end
 
-The agent loop used to claim `test passed` in its step output
-before verification had even run. When the verifier later failed,
-the step log carried two contradicting truths in the same step:
-`Code written: X (N lines, test passed)` next to
-`Verification failed: …`.
+When `ModelBridge` fails over from the user's preferred model to
+a fallback (e.g. cloud rate-limited → local), every layer now
+identifies the model that is actually answering. Behavior is
+unchanged — same fallback selection, same retry path, same
+cache. This release only fixes what was invisible.
 
-The fix removes the pre-declaration and overlays a
-`[verification failed]` prefix onto the output when verification
-fails, guarded by a `typeof === 'string'` check so non-string
-results are left alone.
+### Backend state
 
-## Item 2 — DELEGATE-Step warning removal
+`ModelBridge` gains three persistent properties:
 
-HTNPlanner used to warn `DELEGATE step requires reachable peers`
-on every plan with a DELEGATE step — regardless of whether peers
-were actually available. This was dead code for a state already
-prevented by v7.3.5 (`AgentLoopPlanner.canDelegate` gating) and
-already cured by `_stepDelegate` falling back to ANALYZE. The
-warning is gone. The DELEGATE branch itself stays as a short-
-circuit so the unknown-step-type catch-all does not flag DELEGATE.
+- `lastEffectiveModel` — the model that actually answered
+- `lastEffectiveBackend` — the backend that served it
+- `lastFailoverReason` — `null` on a clean call, classified
+  reason on a failover
 
-## Item 3 — Mermaid SVG sanitisation
+The `chat()`/`streamChat()` success paths set them to
+`calledModel` with `lastFailoverReason = null`.
+`_handleFailoverError` sets them to the fallback name + reason
+after a successful retry. A clean call following a failover
+clears the reason — so the dropdown display goes back to the
+preferred model automatically.
 
-Mermaid-rendered SVG used to be written directly to
-`diagramEl.innerHTML`. A crafted diagram source could embed
-`<script>`, `onclick=`, or `javascript:` URIs that would execute
-in the Renderer context. SVG output now passes through
-`DOMPurify.sanitize()` with the SVG profile, `foreignObject`
-re-allowed (mermaid uses it for HTML-in-SVG labels), and `target`
-attribute permitted. `dompurify` is a runtime dependency now,
-bundled into `renderer.bundle.js` by esbuild.
+### Log line
 
-## Item 4 — mermaid v10 → v11
+```
+[MODEL] Stream ollama failed, falling back to ollama (qwen3-coder-next): HTTP 429 ...
+```
 
-The mermaid library is bumped from `^10.9.1` to `^11.0.0`. The
-breaking changes in v11 (refactored flowchart/state engine,
-ESBuild/IIFE output instead of UMD, `useMaxWidth` default true
-for gitGraph/sankey) do not affect the diagram types Genesis
-actually uses. The bundle-copy step in `scripts/build-bundle.js`
-is now resilient against a future filename rename: it probes
-`mermaid.min.js` first, then `.js`, then `.esm.min.mjs`.
+Previously the line ended at the backend tier and gave no hint
+which local model Ollama actually loaded into RAM.
 
-## Item 5 — Node v22 LTS lazy resolution
+### Events
 
-The `nodejs` entry in the install database had `v22.22.2` URLs
-hardcoded — drifting on every Node maintenance release. A new
-`NodeVersionResolver` capability now fetches the latest
-`v22.* lts: true` from `nodejs.org/dist/index.json` lazily, with
-a 24-hour cache and a graceful fallback chain: fresh cache → live
-fetch → stale cache → hardcoded `v22.22.2`. Pinned to the v22
-major so a bump to v24 LTS stays an explicit decision, not a
-silent drift.
+- `model:failover` gains `effectiveModel` + `preferredModel`
+- `llm:call-complete` gains `effectiveModel`
+- `cost:recorded` persists `effectiveModel`
 
-## Item 6 — Pre-deletion-audit (four layers)
+Schemas updated for all three. Backward compatible — `model`
+field keeps its v7.8.3 meaning (user-preferred). Existing
+listeners on `model:failover` that only read `data.from /
+data.to / data.error` are unaffected.
 
-A reusable refactoring pattern for code cleanups, replacing the
-hand-audited `git grep` + eyeball-diff workflow that handled
-file deletions before.
+### Health endpoint
 
-- **Capability** `CleanupVerifier` — emits four finding kinds:
-  `importers` (blocking), `entrypoint-pattern` (blocking),
-  `identical-siblings` (informational), `sibling-name-matches`
-  (informational). `result.safe` flips to `false` when any
-  blocking finding is present.
-- **Auto-hook** in `AgentLoopSteps._stepShell` — recognises `rm`,
-  `unlink`, `Remove-Item`, `del`, `erase` targeting a single file
-  inside the project, runs the verifier, surfaces findings in
-  the approval prompt before asking for confirmation.
-- **Slash command** `/cleanup-check <relative-path>` — manual
-  audit without going through a shell step. Bilingual report
-  (EN/DE) with ✅ / ⚠ / 🛑 markers depending on findings.
-- **External spec** `docs/CLEANUP-PROTOCOL.md` — when the audit
-  runs, what each finding kind means, known limits (dynamic
-  `require()`/`import()` not detected), evolution rules.
+```js
+model: {
+  active,            // unchanged
+  available, routing, // unchanged
+  effective,         // lastEffectiveModel || activeModel
+  failoverReason,    // null when active answered directly
+}
+```
 
-A new `cleanup-verifier:scan-complete` telemetry event fires
-after every `verify()` call.
+### UI
 
-## Item 7 — Test isolation from real Ollama daemon
+The model dropdown shows the model that is currently answering.
+Same slot the preferred model normally occupies. No badge, no
+flashing, no extra DOM.
 
-A long-standing bug (since v5.1.0) was hidden as long as you ran
-cloud models. The legacy ModelBridge test — *"should throw on chat
-without configured backend"* — called `bridge.chat()` with no
-configured backend, which silently fell back to the default Ollama
-URL (`127.0.0.1:11434`). If a real Ollama daemon was running on the
-developer machine, the call landed. And if the user's preferred
-model was a `:cloud`-tagged model that rate-limited and failed
-over to a local model, Ollama loaded that local model into RAM
-during `npm test`. Two models in RAM simultaneously then exceeded
-available memory on the next `npm start`. The same issue applied
-to `headless-boot.test.js`, which boots AgentCore → real
-`GET /api/tags`.
+When `failoverReason` is set AND `effective !== active`,
+`select.value` is programmatically set to the effective model.
+Programmatic `.value` assignment does **not** fire the `change`
+event — HTML spec — so the user's preferred setting in settings
+is never rewritten by this display update.
 
-Fix: `OllamaBackend._httpGet` and `_httpPost` honour
-`GENESIS_OFFLINE_TESTS=1` and reject real HTTP calls when set.
-`test/index.js` sets the env var before requiring
-`child_process`, so all spawned test workers inherit it.
-Anthropic and OpenAI backends are already protected by their
-own `isConfigured()` guards (no API key → no network calls).
-Tested under `test-isolation contract:` prefix with a contract
-test that verifies the guard is present, the env var is set at
-the right time, and a live runtime check that confirms
-`listModels()` is rejected when the flag is on. Live verification
-during development: full test run with trace logging behind the
-guard produced **zero** real HTTP calls to Ollama.
+The `change` listener on the dropdown only fires on real user
+input. Switching to a different model from the dropdown works
+exactly as before, calls `agent:switch-model`, writes to
+settings.
+
+Refreshed after every `agent:stream-done` and once on boot.
 
 ---
 
-## Verification
+## Item 2 — Backlog audit
 
-- 7437 tests passing on Windows (7436 on Linux)
-- Architectural fitness 130/130
-- All 17 strict CI audits green
-- 22 contract prefixes registered (6 new in this release)
-- 462 events catalogued, 462 payload schemas, 100% parity
-- 358 source modules, 451 test files
+Four obsolete items struck after source grep:
 
-## What's needed to test
+| Item | State | Action |
+|---|---|---|
+| `ImpactForecast` / `fragilityDelta` | No references anywhere | Removed |
+| `Layer-Truncation LLM-Output` | No references; streaming covers this | Removed |
+| `CostStream failover field` | Already shipped v7.8.3 | Removed |
+| UI dual-path `renderer.js` | File no longer exists | Removed |
 
-`npm install` pulls the new dependencies:
+One item moved from "low priority" to **open backlog** in
+`AUDIT-BACKLOG.md`: `ModelBridge._prepareCallContext` extract +
+`_dispatchChat` / `_dispatchStream` merge. ModelBridge is hot
+path; the refactor needs its own focused cycle.
 
-- `dompurify ^3.2.0` (runtime — required for diagram sanitisation)
-- `jsdom ^25.0.0` (dev — required for sanitisation tests)
-- `mermaid ^11.0.0` (dev — diagram engine bump)
+---
 
-Then `npm test` runs the full suite. `npm run audit` validates
-the 17 strict gates.
+## Item 3 — `audit-platform-tests.js`
 
-## Compatibility
+New reporting script that scans `test/modules/*.test.js` for
+`if (process.platform === '...') return;` patterns and reports
+which subtests skip on which platform. Output:
 
-No breaking changes for users. Existing `.genesis/` directories,
-plans, journal entries, and self-identity remain compatible.
-Shell-step approval prompts may now include pre-deletion-audit
-findings when a delete command is detected — this is additive
-information, the approval flow itself is unchanged.
+- Human-readable matrix on stdout
+- JSON snapshot at `scripts/platform-tests-baseline.json`
+- Single number: `linuxTestCountDeltaFromWin32`
+
+Replaces pattern-matched release-notes estimates with measured
+data. Not a strict CI gate.
+
+Result for v7.8.5: **Linux runs −1 test vs Windows** (linux-sandbox.test.js defines 3 tests in its non-linux branch but only 2 in its linux branch).
+
+---
+
+## Item 4 — Release hygiene
+
+- `plugins/` gains a `.gitkeep` marker whose header explains
+  the directory's role (PluginRegistry discovery root). Without
+  the marker the directory would not be tracked by git and
+  would disappear from fresh clones / release ZIPs.
+- `sandbox/` is a runtime workspace `Sandbox.js` creates on
+  demand for test execution. Previously it could end up in the
+  release ZIP if the developer had run tests locally before
+  building. Now in `.gitignore`, excluded from ZIP builds.
+- Both directories documented under "Special directories
+  (runtime-managed)" in `CONTRIBUTING.md`.
+
+---
+
+## Item 5 — CHANGELOG split
+
+`CHANGELOG.md` had grown to **14,739 lines / 906 KB** with 136
+release entries. Split into per-major archives:
+
+| File | Contents | Entries |
+|---|---|---|
+| `CHANGELOG.md` | Newest entry inline + index | 1 + index |
+| `CHANGELOG-v7.md` | All v7.x.x releases | 78 |
+| `CHANGELOG-v6.md` | All v6.x.x releases | 12 |
+| `CHANGELOG-v5.md` | All v5.x.x releases | 17 |
+| `CHANGELOG-archive.md` | v0.x.x – v4.x.x | 29 |
+
+The newest `## [x.y.z]` header stays at the top of
+`CHANGELOG.md`, so Genesis'
+`ChatOrchestratorSourceRead._readChangelogLatestSection` still
+finds "was hat sich geändert" without changes to the parser.
+
+Cleaned a pre-existing duplicate header (`## [7.1.6]` appeared
+twice in the original — a stub plus the full entry) along the
+way.
+
+---
+
+## Files touched
+
+### Source
+- `src/agent/foundation/ModelBridge.js`
+- `src/agent/ports/LLMPort.js`
+- `src/agent/foundation/CostStream.js`
+- `src/agent/AgentCoreHealth.js`
+- `src/agent/core/EventPayloadSchemas.js`
+- `src/ui/renderer-main.js`
+
+### Tests (five new contract prefixes, 38 tests)
+- `test/modules/v785-effective-model.test.js` (14)
+- `test/modules/v785-effective-model-ui.test.js` (8)
+- `test/modules/v785-platform-tests-audit.test.js` (6)
+- `test/modules/v785-release-hygiene.test.js` (3)
+- `test/modules/v785-changelog-split.test.js` (7)
+
+### Scripts
+- `scripts/audit-platform-tests.js` (new)
+- `scripts/platform-tests-baseline.json` (new)
+- `scripts/split-changelog.js` (one-shot migration tool)
+- `scripts/audit-doc-drift.js` — test counts
+- `scripts/stale-refs.json` — five new contract prefixes
+
+### Repo structure
+- `plugins/.gitkeep` (new)
+- `.gitignore` — `sandbox/` entry
+- `CHANGELOG.md` — slim index
+- `CHANGELOG-v7.md`, `CHANGELOG-v6.md`, `CHANGELOG-v5.md`,
+  `CHANGELOG-archive.md` (new archives)
+- `CONTRIBUTING.md` — "Special directories" section
+- `AUDIT-BACKLOG.md` — ModelBridge refactor as open backlog +
+  v7.8.5 resolved section + four obsolete items struck
+- `RELEASE_NOTES.md` — this file
+- `docs/banner.svg`, `README.md` — version + test badge
+- `docs/CAPABILITIES.md`, `docs/ARCHITECTURE-DEEP-DIVE.md`,
+  `docs/COMMUNICATION.md` — counts + failover capability bullet
+- `docs/EVENT-FLOW.md` — `model:failover` entry with new fields
+
+---
+
+## Verification targets
+
+|  | Windows | Linux |
+|---|---|---|
+| Tests | **7475** passing, 0 failed | **7474** passing, 0 failed |
+| Fitness | 130/130 | 130/130 |
+| Strict CI audits | 10/10 green | 10/10 green |
+| Contract prefixes | 27 (5 new) | 27 |
+| Source modules | 358 | 358 |
+| Test files | 456 (5 new) | 456 |
+| Doc-drift | all 56 claims match live values | same |
+
+---
+
+## Migration notes
+
+- No settings changes. No new keys, no schema migrations, no
+  `.genesis/` state changes.
+- Event payload additions are optional — existing listeners are
+  not broken.
+- No API breaks. ModelBridge and LLMPort public surfaces
+  unchanged.
+- The UI dropdown's `change` listener is untouched. Only the
+  programmatic `.value` assignment path is new, and it cannot
+  trigger settings writes by HTML spec.
+- `CHANGELOG.md` split is non-destructive — history preserved
+  across four archive files plus the inline newest entry.
+- Genesis' own `ChatOrchestratorSourceRead` continues to find
+  the latest CHANGELOG section without parser changes.

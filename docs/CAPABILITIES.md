@@ -6,7 +6,7 @@
 
 - 338 source modules across 12 boot phases
 - 168 DI services (155 manifest + 13 bootstrap)
-- 7437 tests on Windows / 7436 on Linux (passing, 0 failures)
+- 7475 tests on Windows / 7474 on Linux (passing, 0 failures)
 - 462 events with 462 payload schemas (full parity)
 - Architectural fitness: 130/130
 - 16 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
@@ -84,7 +84,7 @@ Genesis is not tied to any single LLM. It supports three backend types simultane
 | **Ollama** (local) | Any model Ollama supports: gemma3, qwen3-vl, deepseek-r1, nemotron, llama3, mistral, phi, etc. | Auto-detected on localhost:11434 |
 
 Features:
-- **Auto-failover** — if the active backend fails, Genesis tries the next one. v7.5.6: same-backend failover works (e.g. ollama→ollama through `models.fallbackChain`), not only cross-backend escape
+- **Auto-failover** — if the active backend fails, Genesis tries the next one. v7.5.6: same-backend failover works (e.g. ollama→ollama through `models.fallbackChain`), not only cross-backend escape. v7.8.5: ModelBridge tracks the model that actually answered (`lastEffectiveModel`) and exposes it via the health endpoint + the `effectiveModel` field on `model:failover`, `llm:call-complete`, `cost:recorded`. The UI dropdown shows the model that is currently answering, in the same slot the preferred model normally occupies — switching to a different model works as before. The warn log interpolates the fallback model name.
 - **Sticky-error TTL marker** (v7.5.6) — auth (1h), rate-limit (5min), timeout (10min) lock the failed model, persisted in `.genesis/model-unavailable.json`. Boot selection skips marked models. Manual recovery via `/model-reset [name]`. Closes the loop where Genesis would retry a 403-failing cloud model every IdleMind tick for hours
 - **Reasoning-block filter** (v7.5.6) — `<think>...</think>` blocks from reasoning models (DeepSeek-R1, QwQ, nemotron-3-nano) are stripped from chat output AND from the tool-call audit stream. Phantom tool calls inside reasoning cannot reach the executor. Reasoning content is preserved as `model:thinking-trace` events for the ReasoningTracer
 - **Concurrency control** — semaphore limits to 3 simultaneous LLM calls
@@ -257,7 +257,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **451 test files** | 7437 tests (Win baseline, v7.7.9), coverage gates: 80% lines, 76% branches, 78% functions |
+| **456 test files** | 7475 tests (Win baseline, v7.8.5), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

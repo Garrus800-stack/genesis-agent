@@ -56,6 +56,11 @@ class AgentCoreHealth {
         active: c.resolve('model').activeModel,
         available: c.resolve('model').availableModels,
         routing: c.resolve('model').getRoutingStats?.() || null,  // v7.5.2
+        // v7.8.5: effective is the model that actually answered. Falls back
+        // to active so consumers never see null. failoverReason is null
+        // when active answered directly, otherwise the classified reason.
+        effective: c.resolve('model').lastEffectiveModel || c.resolve('model').activeModel,
+        failoverReason: c.resolve('model').lastFailoverReason,
       },
       modules:   c.resolve('selfModel').moduleCount(),
       skills:    c.resolve('skills').listSkills(),

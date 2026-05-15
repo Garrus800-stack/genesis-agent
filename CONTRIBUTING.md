@@ -128,6 +128,19 @@ genesis-agent/
 └── .github/workflows/ci.yml   # GitHub Actions CI pipeline
 ```
 
+### Special directories (runtime-managed)
+
+Two directories at the repository root are intentionally empty in
+the release ZIP — they are *runtime* workspaces, not source:
+
+- **`plugins/`** — discovery root for `PluginRegistry`. Drop user
+  plugins here at runtime; Genesis loads them on boot. Tracked in
+  version control via `plugins/.gitkeep` so the directory exists in
+  a fresh checkout.
+- **`sandbox/`** — workspace that `Sandbox.js` creates on demand to
+  execute sandboxed test code. Gitignored. Not part of any release
+  ZIP. If you see one in your checkout, it was created by tests.
+
 ---
 
 ## Development Workflow

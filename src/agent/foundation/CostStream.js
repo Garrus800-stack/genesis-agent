@@ -136,6 +136,10 @@ class CostStream {
       ts: now.toISOString(),
       taskType: data.taskType || 'unknown',
       model: data.model || 'unknown',
+      // v7.8.5: model that actually answered. Same as `model` for
+      // non-failover calls, different (fallback model name) when
+      // failover kicked in.
+      effectiveModel: data.effectiveModel || data.model || 'unknown',
       backend: data.backend || 'unknown',
       promptTokens: Number(data.promptTokens || 0),
       responseTokens: Number(data.responseTokens || 0),

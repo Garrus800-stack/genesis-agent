@@ -219,6 +219,9 @@ class ModelBridgeAdapter extends LLMPort {
     this.bus.fire('llm:call-complete', {
       taskType,
       model: this._bridge.activeModel,
+      // v7.8.5: model that actually answered. Falls back to activeModel
+      // when no failover happened (options._effectiveModel undefined).
+      effectiveModel: options._effectiveModel || this._bridge.activeModel,
       backend: this._bridge.activeBackend,
       latencyMs,
       promptTokens,

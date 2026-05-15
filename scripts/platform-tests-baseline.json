@@ -1,0 +1,87 @@
+{
+  "generated": "2026-05-15T09:29:01.287Z",
+  "summary": {
+    "pureSkipsOnWin32": 3,
+    "pureSkipsOnLinux": 3,
+    "pureSkipsOnDarwin": 2,
+    "conditional": 1,
+    "linuxTestCountDeltaFromWin32": -1
+  },
+  "files": [
+    {
+      "file": "test/modules/linux-sandbox.test.js",
+      "findings": [
+        {
+          "testName": "non-linux: isAvailable returns false",
+          "line": 52,
+          "kind": "pure",
+          "skipsOn": [
+            "linux"
+          ]
+        },
+        {
+          "testName": "non-linux: reason mentions platform",
+          "line": 52,
+          "kind": "pure",
+          "skipsOn": [
+            "linux"
+          ]
+        },
+        {
+          "testName": "non-linux: wrapCommand returns original",
+          "line": 52,
+          "kind": "pure",
+          "skipsOn": [
+            "linux"
+          ]
+        },
+        {
+          "testName": "linux: detect() probes namespaces",
+          "line": 70,
+          "kind": "pure",
+          "skipsOn": [
+            "win32",
+            "darwin"
+          ]
+        },
+        {
+          "testName": "linux: wrapCommand applies available namespaces",
+          "line": 70,
+          "kind": "pure",
+          "skipsOn": [
+            "win32",
+            "darwin"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "test/modules/v759-linux-open.test.js",
+      "findings": [
+        {
+          "testName": "Fix 3: Linux probe uses both command -v AND which",
+          "line": 101,
+          "kind": "pure",
+          "skipsOn": [
+            "win32"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "test/modules/v759-zip3.test.js",
+      "findings": [
+        {
+          "testName": "alias: case-insensitive lookup (",
+          "line": 226,
+          "kind": "conditional",
+          "skipsOn": [
+            "linux",
+            "darwin",
+            "win32"
+          ]
+        }
+      ]
+    }
+  ]
+}

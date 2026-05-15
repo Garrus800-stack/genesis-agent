@@ -112,7 +112,7 @@
     {
       "prefix": "step-reporting contract: ",
       "minCount": 4,
-      "note": "v7.8.4 \u2014 AgentLoopSteps._stepCode must not pre-declare 'test passed' in its return value (verification has not run yet at that point), and AgentLoopPursuit must overlay result.output with a [verification failed] marker when stepVerification.status === 'fail', guarded by a typeof === 'string' check. Without these invariants the step-log carries a self-contradiction (\"Code written: X — test passed\" plus \"Verification failed: ...\") in the same step."
+      "note": "v7.8.4 \u2014 AgentLoopSteps._stepCode must not pre-declare 'test passed' in its return value (verification has not run yet at that point), and AgentLoopPursuit must overlay result.output with a [verification failed] marker when stepVerification.status === 'fail', guarded by a typeof === 'string' check. Without these invariants the step-log carries a self-contradiction (\"Code written: X \u2014 test passed\" plus \"Verification failed: ...\") in the same step."
     },
     {
       "prefix": "plan-validator contract: ",
@@ -143,6 +143,41 @@
       "prefix": "test-isolation contract: ",
       "minCount": 5,
       "note": "v7.8.4 \u2014 OllamaBackend._httpGet/_httpPost honour the GENESIS_OFFLINE_TESTS=1 environment variable and reject real HTTP calls when it is set. test/index.js sets the flag before requiring child_process so all spawned test workers inherit it. Without this guard, the legacy ModelBridge test (test/run-tests.js 'should throw on chat without configured backend') would silently fall back to the default Ollama URL, and if a developer's preferred model was cloud-tagged that failed over to local, Ollama would load the local model into RAM during npm test. Same protection covers headless-boot.test.js which boots AgentCore and would otherwise GET /api/tags."
+    },
+    {
+      "prefix": "effective-model contract: ",
+      "minCount": 14,
+      "note": "v7.8.5 \u2014 ModelBridge tracks lastEffectiveModel + lastFailoverReason as persistent state, updated by chat()/streamChat() success paths and by _handleFailoverError on successful fallback. Downstream surfaces: llm:call-complete event carries effectiveModel, cost:recorded persists it, model:failover payload gains effectiveModel + preferredModel, AgentCoreHealth.getHealth() exposes model.effective + model.failoverReason. Backward compatible: existing `model` field unchanged."
+    },
+    {
+      "prefix": "effective-model-ui contract: ",
+      "minCount": 8,
+      "note": "v7.8.5 \u2014 The model dropdown shows the model that actually answered. refreshEffectiveModelDisplay sets select.value to the effective model when failover is active. Programmatic .value assignment does NOT fire `change`, so the user's preferred setting is not rewritten. Switching to any other model via the dropdown still works (that path fires `change`, calls agent:switch-model). Refreshed after every agent:stream-done and once on boot."
+    },
+    {
+      "prefix": "platform-tests-audit contract: ",
+      "minCount": 6,
+      "note": "v7.8.5 \u2014 scripts/audit-platform-tests.js scans test/modules/*.test.js for `if (process.platform === '...') return;` patterns and reports the matrix of which subtests skip on which platform. Reporting tool, not strict CI gate. Replaces pattern-matched release-notes test-count estimates with measured data. Baseline snapshot at scripts/platform-tests-baseline.json."
+    },
+    {
+      "prefix": "release-hygiene contract: ",
+      "minCount": 3,
+      "note": "v7.8.5 \u2014 plugins/ has a .gitkeep marker explaining its role (PluginRegistry discovery root). sandbox/ is gitignored \u2014 previously a stray sandbox/ from local test runs could ship in the release ZIP. CONTRIBUTING.md documents both directories under 'Special directories (runtime-managed)'."
+    },
+    {
+      "prefix": "changelog-split contract: ",
+      "minCount": 7,
+      "note": "v7.8.5 \u2014 CHANGELOG.md was 14,739 lines; split into per-major archives (CHANGELOG-v7.md, -v6.md, -v5.md, -archive.md for v0-v4). CHANGELOG.md keeps only the newest entry inline + an index pointing to the archives. ChatOrchestratorSourceRead._readChangelogLatestSection keeps working because the newest ## [x.y.z] header is still at the top of CHANGELOG.md."
+    },
+    {
+      "prefix": "effective-model contract: ",
+      "minCount": 14,
+      "note": "v7.8.5 \u2014 ModelBridge tracks lastEffectiveModel + lastFailoverReason as persistent state, updated by chat()/streamChat() success paths and by _handleFailoverError on successful fallback. Downstream surfaces: llm:call-complete event carries effectiveModel (forwarded from options._effectiveModel), cost:recorded persists it, model:failover payload gains effectiveModel + preferredModel, AgentCoreHealth.getHealth() exposes model.effective + model.failoverReason. Backward compatible: existing `model` field unchanged."
+    },
+    {
+      "prefix": "effective-model-ui contract: ",
+      "minCount": 8,
+      "note": "v7.8.5 \u2014 The model dropdown shows the model that actually answered. On failover, refreshEffectiveModelDisplay sets select.value to the effective model name \u2014 in the same slot the preferred model normally occupies. No separate badge, no flashing, no tooltip. Programmatic .value assignment does NOT fire `change`, so the user's preferred setting in settings is not rewritten by this display update. The user can still switch to any other model via the dropdown as before (that path fires `change`, calls agent:switch-model). Refreshed after every agent:stream-done and once on boot."
     }
   ],
   "_scanRoots": [

@@ -27,3 +27,7 @@ npm-debug.log*
 # Coverage
 coverage/
 .nyc_output/
+
+# v7.8.5: sandbox/ is a runtime workspace created by Sandbox.js for test
+# execution. It must not be committed and must not appear in release ZIPs.
+sandbox/

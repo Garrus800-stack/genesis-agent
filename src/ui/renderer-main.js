@@ -35,6 +35,29 @@ window.togglePanel = function(id) {
 window.closeSettings = closeSettings;
 
 // ── Model Selector ─────────────────────────────────────
+// v7.8.5: when ModelBridge has failed over, the dropdown shows the
+// model that actually answered — same slot the preferred model
+// normally occupies. Switching to another model works as before
+// (the `change` listener calls agent:switch-model). Programmatic
+// .value assignment here does not fire `change`, so this display
+// update never accidentally rewrites the user's preferred setting.
+async function refreshEffectiveModelDisplay() {
+  const select = document.querySelector('#model-select');
+  if (!select) return;
+  let health;
+  try { health = await window.genesis.invoke('agent:get-health'); }
+  catch (_e) { return; }
+  const m = health?.model;
+  if (!m) return;
+  const target = (m.failoverReason && m.effective && m.effective !== m.active)
+    ? m.effective
+    : m.active;
+  if (!target) return;
+  // Silent no-op if the target is not among the dropdown options.
+  if (!Array.from(select.options).some(o => o.value === target)) return;
+  if (select.value !== target) select.value = target;
+}
+
 async function loadModels() {
   const sel = $('#model-select');
   if (!sel) return;
@@ -72,6 +95,10 @@ async function onAgentReady(status) {
   console.debug('[UI] Genesis ready');
   await loadI18n();
   loadModels();
+  // v7.8.5: after loadModels populates the options, sync the display
+  // to whatever ModelBridge currently considers effective (in case the
+  // user reopened the app while a failover is still active).
+  setTimeout(() => refreshEffectiveModelDisplay().catch(() => {}), 500);
   try {
     // v7.2.4: Use filesystem check for first-boot detection.
     // Health data was unreliable due to IPC timing — facts/episodes/KG could
@@ -256,7 +283,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // IPC event listeners
   window.genesis.on('agent:stream-chunk', appendToStream);
-  window.genesis.on('agent:stream-done', finishStream);
+  // v7.8.5: after every stream, refresh the model dropdown display so
+  // the user sees the model that actually answered. Programmatic
+  // .value assignment does NOT fire `change`, so the user's preferred
+  // setting is not touched.
+  window.genesis.on('agent:stream-done', () => {
+    finishStream();
+    refreshEffectiveModelDisplay().catch(() => { /* best-effort */ });
+  });
 
   // v7.4.5.fix #23: Goal results in chat. When a goal completes via
   // GoalDriver auto-pickup (boot-pickup, periodic scan) — NOT via the
