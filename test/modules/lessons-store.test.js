@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { describe, test, assertEqual, assert, run } = require('../harness');
 const { LessonsStore } = require('../../src/agent/cognitive/LessonsStore');
+const { LessonsAutoCapture } = require('../../src/agent/cognitive/LessonsAutoCapture');
 
 // ── Test helpers ────────────────────────────────────────────
 
@@ -184,6 +185,8 @@ describe('LessonsStore — Auto-Capture', () => {
     const dir = makeTempDir();
     const store = new LessonsStore({ bus, globalDir: dir });
     store.start();
+    const cap = new LessonsAutoCapture({ bus, store });
+    cap.start();
 
     bus.emit('online-learning:streak-detected', {
       actionType: 'code-gen',
@@ -205,6 +208,8 @@ describe('LessonsStore — Auto-Capture', () => {
     const dir = makeTempDir();
     const store = new LessonsStore({ bus, globalDir: dir });
     store.start();
+    const cap = new LessonsAutoCapture({ bus, store });
+    cap.start();
 
     bus.emit('online-learning:escalation-needed', {
       actionType: 'analysis',
@@ -224,6 +229,8 @@ describe('LessonsStore — Auto-Capture', () => {
     const dir = makeTempDir();
     const store = new LessonsStore({ bus, globalDir: dir });
     store.start();
+    const cap = new LessonsAutoCapture({ bus, store });
+    cap.start();
 
     bus.emit('online-learning:temp-adjusted', {
       actionType: 'code-gen',

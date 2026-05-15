@@ -253,6 +253,14 @@ Or in Settings (via the UI), or via the settings file `~/.genesis/settings.json`
 
 If you want the best results, you can paste an **Anthropic API key** or **OpenAI API key** in the Settings dialog. Cloud models (Claude, GPT-4o) score 95–100 and are auto-preferred.
 
+**Embedding model (optional, recommended):**
+
+```bash
+ollama pull nomic-embed-text
+```
+
+Adds semantic lesson recall (v7.8.8). Without it, Genesis matches past lessons to your current goal by category and word overlap; with it, by meaning — a German goal can find an English lesson, and lessons from any of the seven auto-capture sources (shell outcomes, dream insights, prompt evolution, …) become visible to the planner. ~270 MB one-time download. Auto-detected at next boot — Genesis searches `nomic-embed-text` → `mxbai-embed-large` → `all-minilm` and uses whichever is available. The boot log shows `[EMBEDDING] Active — model: …` once it's wired.
+
 ---
 
 ## 2. Your First Conversation

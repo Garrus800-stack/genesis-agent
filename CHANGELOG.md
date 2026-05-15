@@ -1,4 +1,97 @@
-## [7.8.7]
+## [7.8.8]
+
+**Semantic lesson recall — Genesis stops re-making mistakes he already learned from.**
+
+Pre-v7.8.8, `LessonsStore.recall(category, {query, tags, model}, limit)` had
+an inert `query` parameter: every callsite passed the goal description, but
+`_scoreRelevance` never consulted it. Lessons were matched on category, tags,
+and model only. Combined with the planner's hardcoded category filter
+(`obstacle-resolution`), six of seven auto-capture sources — shell-success,
+shell-failure, dream-insight, prompt-evolution, workspace-consolidation,
+online-learning streaks/escalations/temp-adjustments — were invisible to
+the planner regardless of how relevant they were to the current goal.
+
+v7.8.8 makes the `query` parameter alive via embeddings, opens recall to all
+categories, and adds four mitigations against pollution and overfitting.
+
+### What changed
+
+- `_scoreRelevance` consults `context.queryEmbedding × lesson.embedding`
+  with a floor of 0.6 (below-floor matches contribute 0). Score component
+  is then multiplied by an effective-confidence factor
+  `0.5 + 0.5 × (confidence × (1 − exp(−sampleSize/5)))` so single-sample
+  lessons can't dominate.
+- Cross-category dampening: if an explicit category was requested and the
+  lesson is from a different category, the embedding contribution is
+  multiplied by 0.7 — semantic match remains usable, but the categorical
+  signal is preserved.
+- `recall(null, …)` is a supported mode. It skips category-boost
+  entirely and lets embedding + tags + confidence drive ranking. Used by
+  `AgentLoopPlanner` (was hardcoded to `'obstacle-resolution'`) and by
+  `PromptBuilderSections._lessonsContext` (was falling back to `'general'`).
+- `record()` writes `embedding: null` synchronously — no embed call on the
+  hot path. A periodic 60s tick plus a `bus.on('embedding:ready', …)`
+  listener backfill pending lessons in batches via the existing
+  `EmbeddingService.embedBatch`. A lazy embed-on-first-retrieve fills any
+  lesson the moment it shows up in a recall.
+- `updateLessonOutcome` quarantines lessons that have `contradicted ≥ 3`
+  and `confirmed ≤ 1`. Quarantined lessons are filtered out of recall but
+  not deleted — the flag persists and a future Reflector pass can
+  rehabilitate them. A new `lesson:quarantined` event fires on transition.
+- `PromptBuilderSections._inferCategory` now returns `null` (was `'general'`)
+  when no regex matches — honest fallback that defers to semantic recall
+  instead of pretending a category exists.
+- `package.json` postinstall regenerates `RELEASE_NOTES.md` after the
+  bundle build. `scripts/audit-doc-drift.js` now verifies the
+  `RELEASE_NOTES.md` header version matches `package.json`.
+
+### Why goal completion improves
+
+Concretely, three patterns that used to fail now work:
+
+1. A `shell-success` lesson "`du -sh dist/` shows bundle size on Linux"
+   surfaces for the goal "write a script to analyse bundle growth", even
+   though it lives in a different category and was never tagged with the
+   query terms.
+2. A `shell-failure` lesson written in English ("Command `npm install`
+   without `--save` does not update package.json") matches a German goal
+   ("Pakete installieren und package.json aktualisieren") via the
+   multilingual embedding model — TF-IDF token overlap would never find it.
+3. A chronically wrong lesson that has been contradicted three times
+   without ever being confirmed is automatically quarantined, so it stops
+   polluting future plans without waiting for the slow confidence-decay
+   to drop it below the relevance floor.
+
+### Setter and reader present in this release
+
+Every mechanism added has an active consumer in v7.8.8 — no passive
+infrastructure. Embedding fields are read by `_scoreRelevance` on every
+recall. Quarantine flag is read by the recall pre-filter. The backfill
+timer is consumed by all four existing recall callsites. The lazy embed
+trigger fires on every recall touch.
+
+### Numbers
+
+- 12 new contract tests (`v788-lessons-semantic.contract.test.js`).
+- All 64 pre-existing lessons tests pass unchanged (regression preserved
+  when `embeddingService` is absent).
+- No new modules. No schema break — `embedding` field is optional,
+  `quarantined` defaults to `false`.
+
+### Setup
+
+Semantic recall requires an embedding model in Ollama. One-time:
+
+```bash
+ollama pull nomic-embed-text
+```
+
+~270 MB, multilingual. Genesis auto-detects at boot (searches
+`nomic-embed-text` → `mxbai-embed-large` → `all-minilm`) — no settings
+change. Without an embedding model, v7.8.8 still runs and behaves
+identically to v7.8.7 (TF-IDF fallback path).
+
+
 
 **Honest test-runner + four hidden bugs surfaced and fixed.**
 

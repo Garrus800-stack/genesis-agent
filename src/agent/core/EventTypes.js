@@ -83,6 +83,7 @@ const EVENTS = Object.freeze({
     APPLIED:            'lesson:applied',
     CONFIRMED:          'lesson:confirmed',      // v7.1.7: Lesson confirmed by step outcome
     CONTRADICTED:       'lesson:contradicted',   // v7.1.7: Lesson contradicted by step outcome
+    QUARANTINED:        'lesson:quarantined',    // v7.8.8: Lesson chronically contradicted (≥3 contradicted, ≤1 confirmed)
   }),
 
   // ── Self-Preservation ────────────────────────────────────

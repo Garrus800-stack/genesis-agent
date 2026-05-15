@@ -285,6 +285,8 @@ class AgentCoreHealth {
       'onlineLearner',
       // v5.3.0 (SA-P7): LessonsStore — saves to global dir
       'lessonsStore',
+      // v7.8.8: LessonsAutoCapture — unsubscribes bus listeners on shutdown
+      'lessonsAutoCapture',
       // v5.5.0: ReasoningTracer — unsubscribes event listeners
       'reasoningTracer',
       // FIX v5.5.0 (H-2): ChatOrchestrator — sync history persist on shutdown

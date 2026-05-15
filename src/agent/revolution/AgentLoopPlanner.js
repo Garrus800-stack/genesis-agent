@@ -122,18 +122,20 @@ class AgentLoopPlannerDelegate {
     const capabilities = loop.selfModel?.getCapabilities() || [];
     const toolNames = loop.tools?.listTools()?.map(t => t.name || t).slice(0, LIMITS.PROMPT_TOOL_SLICE) || [];
 
-    // v7.7.9 (post-burnin P1): consult obstacle-resolution lessons before
-    // generating a plan. The planner had no awareness of past failures
-    // → kept halucinating the same paths. Pull top-5 token-overlap
-    // matches and inject as PAST FAILURES TO AVOID section.
+    // v7.7.9 (post-burnin P1) → v7.8.8: consult ALL lesson categories before generating
+    // a plan. Pre-v7.8.8 this was hardcoded to 'obstacle-resolution' which made shell-success,
+    // dream-insight, prompt-evolution, workspace-consolidation, online-learning lessons
+    // invisible to the planner. With LessonsStore's v7.8.8 semantic-recall, category=null
+    // routes scoring through embedding+tags+confidence — relevant lessons surface regardless
+    // of which auto-capture hook recorded them.
     let pastFailuresHint = '';
     try {
       const lessonsStore = loop.lessonsStore || loop._lessonsStore;
       if (lessonsStore && typeof lessonsStore.recall === 'function') {
-        const lessons = lessonsStore.recall('obstacle-resolution', { query: goalDescription }, 5) || [];
+        const lessons = lessonsStore.recall(null, { query: goalDescription }, 5) || [];
         if (lessons.length > 0) {
           const lines = lessons.slice(0, 5).map(l => `  - ${(l.insight || '').slice(0, 160)}`);
-          pastFailuresHint = `\n\nPAST FAILURES TO AVOID (lessons from previous attempts on similar goals):\n${lines.join('\n')}\nDo NOT repeat these mistakes. Reference REAL files only, no invented paths.`;
+          pastFailuresHint = `\n\nRELEVANT LESSONS FROM PAST (semantic match on similar goals):\n${lines.join('\n')}\nUse these as context. Reference REAL files only, no invented paths.`;
         }
       }
     } catch (_e) { /* best-effort */ }

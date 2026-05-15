@@ -1,226 +1,227 @@
-# v7.8.5 — Failover transparency end-to-end + release hygiene
+# Genesis Agent v7.8.8 — **Semantic lesson recall — Genesis stops re-making mistakes he already learned from.**
 
-Five items.
+**Semantic lesson recall — Genesis stops re-making mistakes he already learned from.**
 
----
+Pre-v7.8.8, `LessonsStore.recall(category, {query, tags, model}, limit)` had
+an inert `query` parameter: every callsite passed the goal description, but
+`_scoreRelevance` never consulted it. Lessons were matched on category, tags,
+and model only. Combined with the planner's hardcoded category filter
+(`obstacle-resolution`), six of seven auto-capture sources — shell-success,
+shell-failure, dream-insight, prompt-evolution, workspace-consolidation,
+online-learning streaks/escalations/temp-adjustments — were invisible to
+the planner regardless of how relevant they were to the current goal.
 
-## Item 1 — `effectiveModel` end-to-end
+v7.8.8 makes the `query` parameter alive via embeddings, opens recall to all
+categories, and adds four mitigations against pollution and overfitting.
 
-When `ModelBridge` fails over from the user's preferred model to
-a fallback (e.g. cloud rate-limited → local), every layer now
-identifies the model that is actually answering. Behavior is
-unchanged — same fallback selection, same retry path, same
-cache. This release only fixes what was invisible.
+### What changed
 
-### Backend state
+- `_scoreRelevance` consults `context.queryEmbedding × lesson.embedding`
+  with a floor of 0.6 (below-floor matches contribute 0). Score component
+  is then multiplied by an effective-confidence factor
+  `0.5 + 0.5 × (confidence × (1 − exp(−sampleSize/5)))` so single-sample
+  lessons can't dominate.
+- Cross-category dampening: if an explicit category was requested and the
+  lesson is from a different category, the embedding contribution is
+  multiplied by 0.7 — semantic match remains usable, but the categorical
+  signal is preserved.
+- `recall(null, …)` is a supported mode. It skips category-boost
+  entirely and lets embedding + tags + confidence drive ranking. Used by
+  `AgentLoopPlanner` (was hardcoded to `'obstacle-resolution'`) and by
+  `PromptBuilderSections._lessonsContext` (was falling back to `'general'`).
+- `record()` writes `embedding: null` synchronously — no embed call on the
+  hot path. A periodic 60s tick plus a `bus.on('embedding:ready', …)`
+  listener backfill pending lessons in batches via the existing
+  `EmbeddingService.embedBatch`. A lazy embed-on-first-retrieve fills any
+  lesson the moment it shows up in a recall.
+- `updateLessonOutcome` quarantines lessons that have `contradicted ≥ 3`
+  and `confirmed ≤ 1`. Quarantined lessons are filtered out of recall but
+  not deleted — the flag persists and a future Reflector pass can
+  rehabilitate them. A new `lesson:quarantined` event fires on transition.
+- `PromptBuilderSections._inferCategory` now returns `null` (was `'general'`)
+  when no regex matches — honest fallback that defers to semantic recall
+  instead of pretending a category exists.
+- `package.json` postinstall regenerates `RELEASE_NOTES.md` after the
+  bundle build. `scripts/audit-doc-drift.js` now verifies the
+  `RELEASE_NOTES.md` header version matches `package.json`.
 
-`ModelBridge` gains three persistent properties:
+### Why goal completion improves
 
-- `lastEffectiveModel` — the model that actually answered
-- `lastEffectiveBackend` — the backend that served it
-- `lastFailoverReason` — `null` on a clean call, classified
-  reason on a failover
+Concretely, three patterns that used to fail now work:
 
-The `chat()`/`streamChat()` success paths set them to
-`calledModel` with `lastFailoverReason = null`.
-`_handleFailoverError` sets them to the fallback name + reason
-after a successful retry. A clean call following a failover
-clears the reason — so the dropdown display goes back to the
-preferred model automatically.
+1. A `shell-success` lesson "`du -sh dist/` shows bundle size on Linux"
+   surfaces for the goal "write a script to analyse bundle growth", even
+   though it lives in a different category and was never tagged with the
+   query terms.
+2. A `shell-failure` lesson written in English ("Command `npm install`
+   without `--save` does not update package.json") matches a German goal
+   ("Pakete installieren und package.json aktualisieren") via the
+   multilingual embedding model — TF-IDF token overlap would never find it.
+3. A chronically wrong lesson that has been contradicted three times
+   without ever being confirmed is automatically quarantined, so it stops
+   polluting future plans without waiting for the slow confidence-decay
+   to drop it below the relevance floor.
 
-### Log line
+### Setter and reader present in this release
 
+Every mechanism added has an active consumer in v7.8.8 — no passive
+infrastructure. Embedding fields are read by `_scoreRelevance` on every
+recall. Quarantine flag is read by the recall pre-filter. The backfill
+timer is consumed by all four existing recall callsites. The lazy embed
+trigger fires on every recall touch.
+
+### Numbers
+
+- 12 new contract tests (`v788-lessons-semantic.contract.test.js`).
+- All 64 pre-existing lessons tests pass unchanged (regression preserved
+  when `embeddingService` is absent).
+- No new modules. No schema break — `embedding` field is optional,
+  `quarantined` defaults to `false`.
+
+### Setup
+
+Semantic recall requires an embedding model in Ollama. One-time:
+
+```bash
+ollama pull nomic-embed-text
 ```
-[MODEL] Stream ollama failed, falling back to ollama (qwen3-coder-next): HTTP 429 ...
+
+~270 MB, multilingual. Genesis auto-detects at boot (searches
+`nomic-embed-text` → `mxbai-embed-large` → `all-minilm`) — no settings
+change. Without an embedding model, v7.8.8 still runs and behaves
+identically to v7.8.7 (TF-IDF fallback path).
+
+
+
+**Honest test-runner + four hidden bugs surfaced and fixed.**
+
+The pre-v7.8.7 test-runner parser had two bugs that displayed test
+files as green while their failures were silently absorbed. v7.8.7
+fixes the parser, then deals with every hidden failure it surfaces.
+Backlog tidy alongside.
+
+### Item 1 — Test-runner parser honesty
+
+`test/index.js` had two parser bugs that combined to swallow
+failures and miscount passes:
+
+- **Label-prefix summaries were rejected.** Test files using formats
+  like `v756-fix: 30 passed, 4 failed`, `v3.5.0 COGNITIVE TESTS: 82
+  passed, 0 failed` or ANSI-coloured `Integration: \x1b[32m200
+  passed\x1b[0m, \x1b[32m0 failed\x1b[0m` did not match the regex
+  `^\s*(?:Results:\s*)?\d+ passed\s*[,·]\s*(\d+)\s*failed`. The
+  parser fell back to `failed = 0` and displayed the file as `✅ N
+  passed` regardless of how many tests actually failed inside.
+- **passMatch was greedy, not multiline-anchored.** The regex
+  `(\d+) passed` matched the FIRST `N passed` anywhere in stdout.
+  In `suite-parser.test.js`, a mock-output line `✅ legacy comma
+  format: "13 passed, 1 failed"` is printed BEFORE the real summary
+  `8 passed · 0 failed`. The parser took 13 from the mock line and
+  showed `suite-parser... ✅ 13 passed` instead of 8.
+
+Fix: strip ANSI escapes, split stdout into lines, walk from the END
+backwards, return the last line that matches a summary shape. The
+optional prefix group now accepts both `Results:` and any
+`[\w\-\. ]+:` label. The walk-from-end naturally skips mock-output
+lines because the real summary is always at the end.
+
+New contract test `v787-runner-parser.contract.test.js` covers
+14 cases: standard middle-dot format, comma format with bracketed
+duration, legacy `Results:` prefix, label prefixes, ANSI-coloured,
+mock-demo-line followed by real summary, progress lines vs final
+summary, false-positive prevention (`Health check 1/1 failed` must
+not match), empty input, zero-zero summary.
+
+### Item 2 — 5 obsolete source-regex tests removed
+
+Once the parser was honest, five tests turned red:
+
+- `v756-fix.test.js`: **A1, A2, A3, E3** scanned
+  `src/agent/foundation/ModelBridge.js` for `_findFallbackBackend`
+  signature, the `modelName === failedModelName` continue-guard,
+  the cross-backend ollama check, and the `fallbackModelName`
+  capture. All four patterns have lived in
+  `src/agent/foundation/ModelBridgeFailover.js` (mixin) since v7.6.5.
+- `v748-fix.test.js`: **B2** scanned `ModelBridge.js` for the
+  `bus.fire('model:failover', ...)` emit line — moved to
+  `_handleFailoverError` in the failover mixin (v7.6.5).
+
+`v765-modelbridge-split.contract.test.js` already covers the
+mixin-mount guarantee via prototype-mount and reference-identity
+checks — robust against future structural moves. The five source-
+regex scans were redundant and would have broken on any further
+ModelBridge refactor regardless of behavioural correctness. A4
+stays because it tests the ABSENCE of an old pattern (different
+contract). B3 stays because it tests the actual routing.
+
+### Item 3 — Two real hidden bugs surfaced and fixed
+
+The parser fix also exposed two real test failures that were
+hidden in every recent release:
+
+- **`model-availability` 403 → auth.** Test fed
+  `new Error('HTTP 403: requires a subscription')` and expected
+  `reason: 'auth'`, but v7.5.7-fix added a `subscription-required`
+  branch that matches anything containing `subscription` or
+  `requires.*upgrade` BEFORE the generic auth check (Ollama Cloud
+  Pro-gates carry both 403 and subscription markers; classifying
+  them as `auth` would retry hourly instead of using the 24h
+  subscription-TTL). Subscription-required coverage was already in
+  `v757-fix-cloud-fallback.test.js`. The model-availability test
+  message is now `HTTP 403: forbidden` — pure auth case without
+  subscription keyword — and the assertion still expects `auth`.
+- **`openpath-path-extraction` tilde expansion.** Test sent
+  `öffne ~/.config` and expected `~/.config` preserved in the
+  shell.run argument. But v7.5.9 Linux-fix expands `~/` to
+  `os.homedir()` BEFORE `fs.existsSync` and before passing to
+  `shell.run` because `child_process` spawn without `shell:true`
+  passes args literally — a preserved tilde would be a literal
+  `~/.config` that doesn't exist on any filesystem. Test now
+  expects `path.join(os.homedir(), '.config')` and the name is
+  updated to "is expanded to homedir".
+
+### Item 4 — AUDIT-BACKLOG.md cleanup
+
+"Deferred from v7.7.6 audit (carried forward)" section was 6 items
+listed as open. Five had already been resolved in earlier releases:
+
+- F5 / C1 — Mermaid SVG `innerHTML` without DOMPurify → v7.8.4
+- F6 / B2 — Hardcoded Node v22.22.2 → v7.8.4
+- B4 — Pre-deletion-audit pattern formalisation → v7.8.4
+- mermaid `^10.9.1` → v11 evaluation → v7.8.4
+- Sidebar splitter not draggable → v7.8.6
+
+Only `monaco-editor`'s bundled DOMPurify remains as documentation
+(upstream, not self-fixable). Section now contains only that one
+entry, clearly labelled "Documentation entry only — does not count
+as an open backlog item".
+
+### Numbers
+
+- Tests: 7552 Windows / 7551 Linux (was 7539 / 7538), +14 from
+  `runner-parser-v787` contract, −5 obsolete source-regex tests.
+- Modules: 360 (unchanged).
+- Test files: 459 (was 458).
+- Fitness 130/130, doc-drift 56/56, stale-refs ✓.
+
+### What v7.8.7 explicitly does NOT do
+
+Goal-DAG, Self-Gate per-Node, IntentRouter "kannst du X" /
+Chrome-open double-turn, ImpactForecast Activity, DELEGATE peer
+pre-check → blocker promotion. Each is its own focused release.
+
+
+---
+
+---
+
+**Full Changelog**: See [CHANGELOG.md](https://github.com/Garrus800-stack/genesis-agent/blob/main/CHANGELOG.md)
+
+**Installation**:
+```bash
+git clone https://github.com/Garrus800-stack/genesis-agent.git
+cd genesis-agent
+npm install
+npm start        # Electron desktop
+node cli.js      # Headless CLI
 ```
-
-Previously the line ended at the backend tier and gave no hint
-which local model Ollama actually loaded into RAM.
-
-### Events
-
-- `model:failover` gains `effectiveModel` + `preferredModel`
-- `llm:call-complete` gains `effectiveModel`
-- `cost:recorded` persists `effectiveModel`
-
-Schemas updated for all three. Backward compatible — `model`
-field keeps its v7.8.3 meaning (user-preferred). Existing
-listeners on `model:failover` that only read `data.from /
-data.to / data.error` are unaffected.
-
-### Health endpoint
-
-```js
-model: {
-  active,            // unchanged
-  available, routing, // unchanged
-  effective,         // lastEffectiveModel || activeModel
-  failoverReason,    // null when active answered directly
-}
-```
-
-### UI
-
-The model dropdown shows the model that is currently answering.
-Same slot the preferred model normally occupies. No badge, no
-flashing, no extra DOM.
-
-When `failoverReason` is set AND `effective !== active`,
-`select.value` is programmatically set to the effective model.
-Programmatic `.value` assignment does **not** fire the `change`
-event — HTML spec — so the user's preferred setting in settings
-is never rewritten by this display update.
-
-The `change` listener on the dropdown only fires on real user
-input. Switching to a different model from the dropdown works
-exactly as before, calls `agent:switch-model`, writes to
-settings.
-
-Refreshed after every `agent:stream-done` and once on boot.
-
----
-
-## Item 2 — Backlog audit
-
-Four obsolete items struck after source grep:
-
-| Item | State | Action |
-|---|---|---|
-| `ImpactForecast` / `fragilityDelta` | No references anywhere | Removed |
-| `Layer-Truncation LLM-Output` | No references; streaming covers this | Removed |
-| `CostStream failover field` | Already shipped v7.8.3 | Removed |
-| UI dual-path `renderer.js` | File no longer exists | Removed |
-
-One item moved from "low priority" to **open backlog** in
-`AUDIT-BACKLOG.md`: `ModelBridge._prepareCallContext` extract +
-`_dispatchChat` / `_dispatchStream` merge. ModelBridge is hot
-path; the refactor needs its own focused cycle.
-
----
-
-## Item 3 — `audit-platform-tests.js`
-
-New reporting script that scans `test/modules/*.test.js` for
-`if (process.platform === '...') return;` patterns and reports
-which subtests skip on which platform. Output:
-
-- Human-readable matrix on stdout
-- JSON snapshot at `scripts/platform-tests-baseline.json`
-- Single number: `linuxTestCountDeltaFromWin32`
-
-Replaces pattern-matched release-notes estimates with measured
-data. Not a strict CI gate.
-
-Result for v7.8.5: **Linux runs −1 test vs Windows** (linux-sandbox.test.js defines 3 tests in its non-linux branch but only 2 in its linux branch).
-
----
-
-## Item 4 — Release hygiene
-
-- `plugins/` gains a `.gitkeep` marker whose header explains
-  the directory's role (PluginRegistry discovery root). Without
-  the marker the directory would not be tracked by git and
-  would disappear from fresh clones / release ZIPs.
-- `sandbox/` is a runtime workspace `Sandbox.js` creates on
-  demand for test execution. Previously it could end up in the
-  release ZIP if the developer had run tests locally before
-  building. Now in `.gitignore`, excluded from ZIP builds.
-- Both directories documented under "Special directories
-  (runtime-managed)" in `CONTRIBUTING.md`.
-
----
-
-## Item 5 — CHANGELOG split
-
-`CHANGELOG.md` had grown to **14,739 lines / 906 KB** with 136
-release entries. Split into per-major archives:
-
-| File | Contents | Entries |
-|---|---|---|
-| `CHANGELOG.md` | Newest entry inline + index | 1 + index |
-| `CHANGELOG-v7.md` | All v7.x.x releases | 78 |
-| `CHANGELOG-v6.md` | All v6.x.x releases | 12 |
-| `CHANGELOG-v5.md` | All v5.x.x releases | 17 |
-| `CHANGELOG-archive.md` | v0.x.x – v4.x.x | 29 |
-
-The newest `## [x.y.z]` header stays at the top of
-`CHANGELOG.md`, so Genesis'
-`ChatOrchestratorSourceRead._readChangelogLatestSection` still
-finds "was hat sich geändert" without changes to the parser.
-
-Cleaned a pre-existing duplicate header (`## [7.1.6]` appeared
-twice in the original — a stub plus the full entry) along the
-way.
-
----
-
-## Files touched
-
-### Source
-- `src/agent/foundation/ModelBridge.js`
-- `src/agent/ports/LLMPort.js`
-- `src/agent/foundation/CostStream.js`
-- `src/agent/AgentCoreHealth.js`
-- `src/agent/core/EventPayloadSchemas.js`
-- `src/ui/renderer-main.js`
-
-### Tests (five new contract prefixes, 38 tests)
-- `test/modules/v785-effective-model.test.js` (14)
-- `test/modules/v785-effective-model-ui.test.js` (8)
-- `test/modules/v785-platform-tests-audit.test.js` (6)
-- `test/modules/v785-release-hygiene.test.js` (3)
-- `test/modules/v785-changelog-split.test.js` (7)
-
-### Scripts
-- `scripts/audit-platform-tests.js` (new)
-- `scripts/platform-tests-baseline.json` (new)
-- `scripts/split-changelog.js` (one-shot migration tool)
-- `scripts/audit-doc-drift.js` — test counts
-- `scripts/stale-refs.json` — five new contract prefixes
-
-### Repo structure
-- `plugins/.gitkeep` (new)
-- `.gitignore` — `sandbox/` entry
-- `CHANGELOG.md` — slim index
-- `CHANGELOG-v7.md`, `CHANGELOG-v6.md`, `CHANGELOG-v5.md`,
-  `CHANGELOG-archive.md` (new archives)
-- `CONTRIBUTING.md` — "Special directories" section
-- `AUDIT-BACKLOG.md` — ModelBridge refactor as open backlog +
-  v7.8.5 resolved section + four obsolete items struck
-- `RELEASE_NOTES.md` — this file
-- `docs/banner.svg`, `README.md` — version + test badge
-- `docs/CAPABILITIES.md`, `docs/ARCHITECTURE-DEEP-DIVE.md`,
-  `docs/COMMUNICATION.md` — counts + failover capability bullet
-- `docs/EVENT-FLOW.md` — `model:failover` entry with new fields
-
----
-
-## Verification targets
-
-|  | Windows | Linux |
-|---|---|---|
-| Tests | **7475** passing, 0 failed | **7474** passing, 0 failed |
-| Fitness | 130/130 | 130/130 |
-| Strict CI audits | 10/10 green | 10/10 green |
-| Contract prefixes | 27 (5 new) | 27 |
-| Source modules | 358 | 358 |
-| Test files | 456 (5 new) | 456 |
-| Doc-drift | all 56 claims match live values | same |
-
----
-
-## Migration notes
-
-- No settings changes. No new keys, no schema migrations, no
-  `.genesis/` state changes.
-- Event payload additions are optional — existing listeners are
-  not broken.
-- No API breaks. ModelBridge and LLMPort public surfaces
-  unchanged.
-- The UI dropdown's `change` listener is untouched. Only the
-  programmatic `.value` assignment path is new, and it cannot
-  trigger settings writes by HTML spec.
-- `CHANGELOG.md` split is non-destructive — history preserved
-  across four archive files plus the inline newest entry.
-- Genesis' own `ChatOrchestratorSourceRead` continues to find
-  the latest CHANGELOG section without parser changes.

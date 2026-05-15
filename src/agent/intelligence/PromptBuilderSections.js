@@ -335,7 +335,10 @@ const sections = {
     if (/test|spec|assert|coverage/.test(q)) return 'testing';
     if (/analyz|review|inspect|audit/.test(q)) return 'analysis';
     if (/deploy|build|ci|pipeline/.test(q)) return 'deployment';
-    return 'general';
+    // v7.8.8: previously returned 'general'. Honest fallback is null — let LessonsStore's
+    // semantic-recall path (embedding+tags+confidence) decide rather than boosting a
+    // "general" category as a fake match.
+    return null;
   },
 
   _solutionContext() {

@@ -248,9 +248,9 @@ describe('PromptBuilderSections: _inferCategory', () => {
     assertEqual(builder._inferCategory('run tests for EventBus'), 'testing');
   });
 
-  test('returns general for unknown', () => {
+  test('returns null for unknown query (v7.8.8: honest no-match)', () => {
     const builder = createBuilder();
-    assertEqual(builder._inferCategory('what is the weather today'), 'general');
+    assertEqual(builder._inferCategory('what is the weather today'), null);
   });
 });
 

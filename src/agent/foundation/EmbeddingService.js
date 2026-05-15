@@ -73,7 +73,7 @@ class EmbeddingService {
       }
 
       if (!this.available) {
-        _log.info('[EMBEDDING] No embedding model found — using TF-IDF fallback');
+        _log.info('[EMBEDDING] No embedding model found — using TF-IDF fallback. To enable semantic lesson recall: `ollama pull nomic-embed-text` (one-time, ~270 MB, multilingual)');
       }
     } catch (err) {
       _log.debug('[EMBEDDING] Ollama not available for embeddings:', err.message);

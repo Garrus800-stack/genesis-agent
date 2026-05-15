@@ -322,10 +322,26 @@ function phase9(ctx, R) {
     ['lessonsStore', {
       phase: 9, deps: ['bus'], tags: ['cognitive', 'learning', 'persistent'],
       // late-bindings: PatternMatcher (structural retrieval, v7.0.9)
+      //                embeddingService + intervalManager (semantic recall, v7.8.8)
       lateBindings: [
         { prop: '_patternMatcher', service: 'patternMatcher', optional: true },
       ],
-      factory: () => new (R('LessonsStore').LessonsStore)({ bus }),
+      factory: (c) => new (R('LessonsStore').LessonsStore)({
+        bus,
+        embeddingService: c.tryResolve ? c.tryResolve('embeddingService') : null,
+        intervalManager:  c.tryResolve ? c.tryResolve('intervalManager')  : null,
+      }),
+    }],
+
+    // v7.8.8: LessonsAutoCapture — extracted bus-listener layer that converts
+    // runtime events into lessonsStore.record() calls. Separate lifecycle from
+    // the store so the store stays focused on persistence and recall.
+    ['lessonsAutoCapture', {
+      phase: 9, deps: ['bus', 'lessonsStore'], tags: ['cognitive', 'learning'],
+      factory: (c) => new (R('LessonsAutoCapture').LessonsAutoCapture)({
+        bus,
+        store: c.resolve('lessonsStore'),
+      }),
     }],
 
     // v5.5.0: ReasoningTracer — collects causal reasoning traces for Dashboard

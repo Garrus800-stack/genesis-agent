@@ -290,7 +290,7 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '7552 passing',      label: 'badge: tests',
+        tests:      { live: '7577 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
                       // v7.7.9: +154 over v7.7.8 (innerSpeech 26 + phase1c 13 +
@@ -399,7 +399,7 @@ function runChecks() {
       //   file), v784-mermaid-safety 7, v784-node-version-resolver 10,
       //   v784-cleanup-verifier 15, v784-cleanup-integration 14, plus
       //   intent-wiring shift and a few baseline updates).
-      const TESTS_WIN_BASELINE = 7552;
+      const TESTS_WIN_BASELINE = 7577;
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -439,7 +439,7 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 7552;
+  const TESTS_WIN = 7577;
   // v7.7.7: TEST_FILES is now dynamic — counts *.test.js under test/ at audit-time.
   // This closes the drift-blind tautology where the constant was pinned and the
   // doc was pinned to the same constant — drift would never be detected. With
@@ -598,6 +598,25 @@ function runChecks() {
       if (m) {
         const ok = /^\d+\.\d+\.\d+$/.test(m[1]);
         const r = { doc: 'AUDIT-BACKLOG.md', label: 'header version (pattern)', expected: 'X.Y.Z', actual: m[1], ok };
+        checked.push(r);
+        if (!ok) drifts.push(r);
+      }
+    }
+  }
+
+  // #11b (v7.8.8): RELEASE_NOTES.md must reflect current package.json version.
+  // The postinstall hook regenerates it on every npm install — this check catches
+  // the case where the regenerator failed silently or was bypassed. Exact match.
+  {
+    let src;
+    try { src = fs.readFileSync(path.join(ROOT, 'RELEASE_NOTES.md'), 'utf-8'); }
+    catch { src = null; }
+    if (src) {
+      // Header pattern: "# Genesis Agent v7.8.8 — ..." or "# Genesis v7.8.8" etc.
+      const m = /Genesis(?:\s+Agent)?\s+v(\d+\.\d+\.\d+)/.exec(src);
+      if (m) {
+        const ok = m[1] === VERSION;
+        const r = { doc: 'RELEASE_NOTES.md', label: 'header-version (exact)', expected: VERSION, actual: m[1], ok };
         checked.push(r);
         if (!ok) drifts.push(r);
       }

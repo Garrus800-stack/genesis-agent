@@ -287,7 +287,7 @@ const SCHEMAS = {
   // v7.1.7: Lesson confirmation loop
   'lesson:confirmed':     { id: 'required', category: 'required', confirmed: 'required' },
   'lesson:contradicted':  { id: 'required', category: 'required', contradicted: 'required' },
-
+  'lesson:quarantined':   { id: 'required', category: 'required', contradicted: 'required', confirmed: 'required' },
   // Prompt Strategy (v6.0.4 — AdaptivePromptStrategy)
   'prompt:strategy-updated': { intents: 'required', recommendations: 'required' },
 

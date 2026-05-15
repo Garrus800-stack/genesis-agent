@@ -28,17 +28,27 @@ class LessonsStore {
    * @param {object} deps.bus           - EventBus (required)
    * @param {string} [deps.globalDir]   - Override global dir (for testing)
    * @param {object} [deps.config]      - Override thresholds
+   * @param {object} [deps.embeddingService] - Optional, enables semantic recall (v7.8.8)
+   * @param {object} [deps.intervalManager]  - Optional, manages backfill timer (v7.8.8)
    */
-  constructor({ bus, globalDir, config = {} }) {
+  constructor({ bus, globalDir, config = {}, embeddingService, intervalManager }) {
     this.bus = bus || NullBus;
     this._globalDir = globalDir || GLOBAL_DIR;
     this._maxLessons = config.maxLessons || MAX_LESSONS;
     this._decayDays = config.decayDays || RELEVANCE_DECAY_DAYS;
 
-    /** @type {Array<{id: string, insight: string, strategy: object, evidence: {confidence: number, [k:string]: any}, category: string, source: string, useCount: number, lastUsed: number, [k:string]: any}>} */
+    // v7.8.8: Semantic-recall dependencies (both optional — graceful fallback to TF-IDF mode)
+    this._embeddingService = embeddingService || null;
+    this._intervalManager = intervalManager || null;
+    this._embedInFlight = new Set();           // lesson IDs currently being embedded — race-condition guard
+    this._backfillIntervalMs = config.backfillIntervalMs || 60_000;  // 60s default
+    this._backfillBatchSize = config.backfillBatchSize || 10;
+    this._backfillTimer = null;
+
+    /** @type {Array<{id: string, insight: string, strategy: object, evidence: {confidence: number, [k:string]: any}, category: string, source: string, useCount: number, lastUsed: number, embedding?: number[]|null, quarantined?: boolean, [k:string]: any}>} */
     this._lessons = [];
     this._dirty = false;
-    this._stats = { lessonsCreated: 0, lessonsRecalled: 0, lessonsDecayed: 0, autoCaptures: 0 };
+    this._stats = { lessonsCreated: 0, lessonsRecalled: 0, lessonsDecayed: 0, autoCaptures: 0, embeddingsBackfilled: 0, quarantined: 0 };
   }
 
   // ════════════════════════════════════════════════════════
@@ -48,69 +58,28 @@ class LessonsStore {
   start() {
     this._ensureDir();
     this._load();
-
-    // ── Auto-capture from OnlineLearner events ──────────
-    this._unsub1 = this.bus.on('online-learning:streak-detected', (data) => {
-      this._captureStreakLesson(data);
-    }, { source: 'LessonsStore' });
-
-    this._unsub2 = this.bus.on('online-learning:escalation-needed', (data) => {
-      this._captureEscalationLesson(data);
-    }, { source: 'LessonsStore' });
-
-    this._unsub3 = this.bus.on('online-learning:temp-adjusted', (data) => {
-      this._captureTempLesson(data);
-    }, { source: 'LessonsStore' });
-
-    // ── Auto-capture from high-surprise consolidation ───
-    this._unsub4 = this.bus.on('workspace:consolidate', (data) => {
-      this._captureWorkspaceLesson(data);
-    }, { source: 'LessonsStore' });
-
-    // ── Auto-capture from prompt evolution promotions ────
-    this._unsub5 = this.bus.on('prompt-evolution:promoted', (data) => {
-      this._capturePromptLesson(data);
-    }, { source: 'LessonsStore' });
-
-    // FIX v6.1.1: Learn from shell command outcomes
-    this._unsub6 = this.bus.on('shell:outcome', (data) => {
-      if (!data.command) return;
-      this.record({
-        category: data.success ? 'shell-success' : 'shell-failure',
-        insight: data.success
-          ? `Command "${data.command}" works on ${data.platform}`
-          : `Command "${data.command}" failed on ${data.platform}: ${data.error || 'unknown'}`,
-        strategy: { command: data.command, platform: data.platform },
-        tags: ['shell', data.platform, data.success ? 'works' : 'fails'],
-        source: 'shell-outcome',
-        evidence: { successRate: data.success ? 1 : 0, confidence: 0.8, sampleSize: 1 },
-      });
-    }, { source: 'LessonsStore' });
-
-    // FIX v6.1.1: Wire dream insights into lessons — dreams are no longer an attrappe
-    this._unsub7 = this.bus.on('dream:complete', (data) => {
-      if (data.insights > 0 || data.newSchemas > 0) {
-        this.record({
-          category: 'dream-insight',
-          insight: `Dream #${data.dreamNumber}: ${data.insights} insights, ${data.newSchemas} new schemas, ${data.strengthened} strengthened memories`,
-          tags: ['dream', 'autonomous'],
-          source: 'dream-cycle',
-          evidence: { confidence: 0.5, sampleSize: 1, successRate: 0.5 },
-        });
-      }
-    }, { source: 'LessonsStore' });
-
+    // Auto-capture hooks live in LessonsAutoCapture (v7.8.8)
     _log.info(`[LESSONS] Active - ${this._lessons.length} lessons loaded from ${this._globalDir}`);
+
+    // v7.8.8: Semantic-recall: embedding:ready listener + periodic backfill (if intervalManager wired).
+    // Without IntervalManager, lazy embed-on-first-retrieve and the embedding:ready listener
+    // still handle backfill on their own — no raw setInterval fallback.
+    if (this._embeddingService) {
+      this._unsub8 = this.bus.on('embedding:ready', () => this._scheduleBackfillTick(), { source: 'LessonsStore' });
+      if (this._intervalManager && typeof this._intervalManager.set === 'function') {
+        this._backfillTimer = this._intervalManager.set('lessons-embedding-backfill',
+          () => this._scheduleBackfillTick(), this._backfillIntervalMs);
+      }
+      this._scheduleBackfillTick();  // fire once in case service is already up
+    }
   }
 
   stop() {
-    this._unsub1?.();
-    this._unsub2?.();
-    this._unsub3?.();
-    this._unsub4?.();
-    this._unsub5?.();
-    this._unsub6?.();
-    this._unsub7?.();
+    this._unsub8?.();
+    if (this._backfillTimer && this._intervalManager && typeof this._intervalManager.clear === 'function') {
+      this._intervalManager.clear('lessons-embedding-backfill');
+    }
+    this._backfillTimer = null;
     if (this._dirty) this._save();
     _log.info(`[LESSONS] Stopped - ${this._stats.lessonsCreated} created, ${this._stats.lessonsRecalled} recalled`);
   }
@@ -150,6 +119,9 @@ class LessonsStore {
       createdAt: Date.now(),
       lastUsed: Date.now(),
       useCount: 0,
+      // v7.8.8: semantic-recall fields. embedding stays null until backfill or first-recall fills it.
+      embedding: null,
+      quarantined: false,
     };
 
     // Deduplicate - don't store near-identical lessons
@@ -199,11 +171,29 @@ class LessonsStore {
   recall(category, context = {}, limit = 5) {
     if (this._lessons.length === 0) return [];
 
+    // v7.8.8: Get cached query embedding; if missing, schedule background embed
+    // (this recall scores without it, next will use it).
+    let queryEmbedding = null;
+    if (this._embeddingService && this._embeddingService.isAvailable && this._embeddingService.isAvailable()) {
+      const queryText = context.query || context.queryText;
+      if (queryText && typeof queryText === 'string' && queryText.length > 0) {
+        queryEmbedding = this._tryGetCachedQueryEmbedding(queryText);
+        if (queryEmbedding == null) this._scheduleQueryEmbedFireAndForget(queryText);
+      } else if (context.queryEmbedding && Array.isArray(context.queryEmbedding)) {
+        queryEmbedding = context.queryEmbedding;
+      }
+    }
+
+    const enrichedContext = { ...context, queryEmbedding };
+    const serviceReady = !!(this._embeddingService && this._embeddingService.isAvailable && this._embeddingService.isAvailable());
+
     const scored = this._lessons
-      .map(lesson => ({
-        lesson,
-        relevance: this._scoreRelevance(lesson, category, context),
-      }))
+      .filter(lesson => !lesson.quarantined)   // v7.8.8: quarantine filter
+      .map(lesson => {
+        // v7.8.8: lazy embed-on-first-retrieve (fire-and-forget) — populates lesson.embedding for next recall.
+        if (serviceReady && lesson.embedding == null) this._scheduleLessonEmbedFireAndForget(lesson);
+        return { lesson, relevance: this._scoreRelevance(lesson, category, enrichedContext) };
+      })
       .filter(s => s.relevance > 0.1)
       .sort((a, b) => b.relevance - a.relevance)
       .slice(0, limit);
@@ -297,6 +287,22 @@ class LessonsStore {
         insight: (lesson.insight || '').slice(0, 80),
       }, { source: 'LessonsStore' });
     }
+
+    // v7.8.8: Quarantine chronically wrong lessons. contradicted≥3 AND confirmed≤1 means
+    // a lesson has failed in application multiple times without ever helping — pull it
+    // from recall results. Flag is persisted; Reflector may rehabilitate it later.
+    const contradicted = lesson.contradicted || 0;
+    const confirmed = lesson.confirmed || 0;
+    if (!lesson.quarantined && contradicted >= 3 && confirmed <= 1) {
+      lesson.quarantined = true;
+      this._stats.quarantined++;
+      _log.info(`[LESSONS] Quarantined: ${lessonId} (contradicted=${contradicted}, confirmed=${confirmed})`);
+      this.bus.fire('lesson:quarantined', {
+        id: lessonId, category: lesson.category, contradicted, confirmed,
+        insight: (lesson.insight || '').slice(0, 80),
+      }, { source: 'LessonsStore' });
+    }
+
     this._dirty = true;
     return true;
   }
@@ -325,84 +331,6 @@ class LessonsStore {
     return `LESSONS FROM PAST PROJECTS (${lessons.length}):\n${lines.join('\n')}`;
   }
 
-  // ════════════════════════════════════════════════════════
-  // AUTO-CAPTURE: Convert events to lessons
-  // ════════════════════════════════════════════════════════
-
-  _captureStreakLesson(data) {
-    if (!data?.suggestion) return;
-    this._stats.autoCaptures++;
-    this.record({
-      category: data.actionType || 'general',
-      insight: `After ${data.consecutiveFailures} failures on ${data.actionType}, switching to "${data.suggestion.promptStyle}" at temperature ${data.suggestion.temperature?.toFixed(2)} resolved the issue`,
-      strategy: { promptStyle: data.suggestion.promptStyle, temperature: data.suggestion.temperature, trigger: 'failure-streak' },
-      evidence: { surprise: 0.6, successRate: 0, sampleSize: data.consecutiveFailures, confidence: 0.5 },
-      tags: [data.actionType, 'streak-recovery'],
-      source: 'streak',
-    });
-  }
-
-  _captureEscalationLesson(data) {
-    if (!data?.actionType) return;
-    this._stats.autoCaptures++;
-    this.record({
-      category: data.actionType,
-      insight: `Model "${data.currentModel}" insufficient for ${data.actionType} tasks - high surprise (${data.surprise?.toFixed(2)}) indicates capability gap`,
-      strategy: { model: data.currentModel, trigger: 'escalation' },
-      evidence: { surprise: data.surprise || 0.7, confidence: 0.6 },
-      tags: [data.actionType, data.currentModel, 'model-limit'],
-      source: 'escalation',
-    });
-  }
-
-  _captureTempLesson(data) {
-    if (!data?.actionType) return;
-    this._stats.autoCaptures++;
-    const direction = data.newTemp > data.oldTemp ? 'raised' : 'lowered';
-    this.record({
-      category: data.actionType,
-      insight: `Temperature ${direction} from ${data.oldTemp?.toFixed(2)} to ${data.newTemp?.toFixed(2)} for ${data.actionType} (success rate: ${Math.round((data.successRate || 0) * 100)}%)`,
-      strategy: { temperature: data.newTemp, previousTemp: data.oldTemp, model: data.model },
-      evidence: { successRate: data.successRate || 0, sampleSize: data.windowSize || 10, confidence: 0.4 },
-      tags: [data.actionType, data.model, 'temperature'],
-      source: 'temp-tuning',
-    });
-  }
-
-  _captureWorkspaceLesson(data) {
-    if (!data?.items || data.items.length === 0) return;
-    const top = data.items[0];
-    if (top.salience < 0.6) return;
-    this._stats.autoCaptures++;
-    this.record({
-      category: 'goal-execution',
-      insight: `Key insight during goal "${data.goalId}": ${typeof top.value === 'string' ? top.value.slice(0, 150) : JSON.stringify(top.value).slice(0, 150)}`,
-      evidence: { surprise: top.salience, confidence: Math.min(top.salience, 0.7) },
-      tags: ['workspace', top.key],
-      source: 'workspace-consolidation',
-    });
-  }
-
-  _capturePromptLesson(data) {
-    if (!data?.section || !data?.variant) return;
-    this._stats.autoCaptures++;
-
-    this.record({
-      category: 'prompt-optimization',
-      insight: `Prompt section "${data.section}" improved ${Math.round((data.improvement || 0) * 100)}% with variant "${data.variant}" after ${data.trials || 0} trials`,
-      strategy: {
-        promptStyle: data.variant,
-        section: data.section,
-      },
-      evidence: {
-        successRate: data.improvement || 0,
-        sampleSize: data.trials || 25,
-        confidence: 0.7,
-      },
-      tags: ['prompt-evolution', data.section],
-      source: 'prompt-evolution',
-    });
-  }
 
   // ════════════════════════════════════════════════════════
   // RELEVANCE SCORING
@@ -411,9 +339,11 @@ class LessonsStore {
   _scoreRelevance(lesson, category, context) {
     let score = 0;
 
-    // Category match (strongest signal)
-    if (lesson.category === category) score += 0.4;
-    else if (lesson.category === 'general') score += 0.1;
+    // Category match (strongest signal) — skipped when category=null (v7.8.8 semantic mode)
+    if (category !== null && category !== undefined) {
+      if (lesson.category === category) score += 0.4;
+      else if (lesson.category === 'general') score += 0.1;
+    }
 
     // Tag overlap
     if (context.tags && lesson.tags.length > 0) {
@@ -424,6 +354,29 @@ class LessonsStore {
     // Model match
     if (context.model && lesson.tags.includes(context.model)) {
       score += 0.15;
+    }
+
+    // v7.8.8: Semantic embedding component — only when both query- and lesson-embedding present.
+    // Floor τ=0.6 (below that, treat as no signal). Cross-category dampening when an explicit
+    // category was requested but doesn't match. Effective-confidence multiplier penalizes
+    // low-sample-size, low-confidence lessons even if semantically near.
+    if (context.queryEmbedding && Array.isArray(lesson.embedding) && lesson.embedding.length > 0) {
+      const cos = this._cosineSim(context.queryEmbedding, lesson.embedding);
+      if (cos >= 0.6) {
+        let embeddingComponent = cos * 0.5;
+        // Cross-category dampening — only when category was explicitly requested
+        if (category !== null && category !== undefined && lesson.category !== category) {
+          embeddingComponent *= 0.7;
+        }
+        // Effective confidence: confidence × (1 − exp(−sampleSize/5)) avoids over-trusting n=1 lessons.
+        // trustFactor maps [0..1] → [0.5..1.0] so even untrusted lessons keep half their semantic match.
+        const conf = lesson.evidence?.confidence ?? 0.5;
+        const sampleSize = lesson.evidence?.sampleSize ?? 1;
+        const effectiveConf = conf * (1 - Math.exp(-sampleSize / 5));
+        const trustFactor = 0.5 + 0.5 * effectiveConf;
+        embeddingComponent *= trustFactor;
+        score += embeddingComponent;
+      }
     }
 
     // Evidence strength
@@ -438,6 +391,109 @@ class LessonsStore {
     if (lesson.useCount > 3) score += 0.05;
 
     return Math.min(1, score);
+  }
+
+  /**
+   * v7.8.8: Cosine similarity between two equal-length vectors. Returns 0 on length mismatch
+   * or zero-norm input (defensive). Inline to avoid pulling EmbeddingService into _scoreRelevance.
+   */
+  _cosineSim(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || a.length === 0) return 0;
+    let dot = 0, na = 0, nb = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      na += a[i] * a[i];
+      nb += b[i] * b[i];
+    }
+    if (na === 0 || nb === 0) return 0;
+    return dot / (Math.sqrt(na) * Math.sqrt(nb));
+  }
+
+  // ════════════════════════════════════════════════════════
+  // SEMANTIC RECALL — embedding backfill (v7.8.8)
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * v7.8.8: Schedule a backfill tick. Picks up to _backfillBatchSize lessons without
+   * embeddings, embeds them via the service's batch API. Fire-and-forget; errors logged
+   * at debug level.
+   */
+  _scheduleBackfillTick() {
+    if (!this._embeddingService || !this._embeddingService.isAvailable || !this._embeddingService.isAvailable()) return;
+    const pending = this._lessons
+      .filter(l => l.embedding == null && !l.quarantined && !this._embedInFlight.has(l.id))
+      .slice(0, this._backfillBatchSize);
+    if (pending.length === 0) return;
+
+    for (const l of pending) this._embedInFlight.add(l.id);
+
+    Promise.resolve(this._embeddingService.embedBatch(pending.map(l => l.insight || '')))
+      .then(vectors => {
+        if (!Array.isArray(vectors)) return;
+        for (let i = 0; i < pending.length; i++) {
+          const vec = vectors[i];
+          if (vec && Array.isArray(vec) && vec.length > 0) {
+            pending[i].embedding = vec;
+            this._stats.embeddingsBackfilled++;
+          }
+          this._embedInFlight.delete(pending[i].id);
+        }
+        this._dirty = true;
+      })
+      .catch(err => {
+        for (const l of pending) this._embedInFlight.delete(l.id);
+        _log.debug('[LESSONS] backfill batch failed:', err.message);
+      });
+  }
+
+  // v7.8.8: Try to compute embedding for a single lesson if not already in flight. Called from recall() lazy-path. Fire-and-forget.
+  _scheduleLessonEmbedFireAndForget(lesson) {
+    if (!this._embeddingService || !this._embeddingService.isAvailable || !this._embeddingService.isAvailable()) return;
+    if (this._embedInFlight.has(lesson.id)) return;
+    this._embedInFlight.add(lesson.id);
+    Promise.resolve(this._embeddingService.embed(lesson.insight || ''))
+      .then(vec => {
+        if (vec && Array.isArray(vec) && vec.length > 0) {
+          lesson.embedding = vec;
+          this._stats.embeddingsBackfilled++;
+          this._dirty = true;
+        }
+        this._embedInFlight.delete(lesson.id);
+      })
+      .catch(err => {
+        this._embedInFlight.delete(lesson.id);
+        _log.debug('[LESSONS] lazy embed failed:', err.message);
+      });
+  }
+
+  // v7.8.8: Per-recall query-embedding cache. Same query reused in a hot loop
+  // (e.g. multiple recall calls with same goal description) hits the cache rather than re-embedding. Bounded to last 32 entries.
+  _tryGetCachedQueryEmbedding(queryText) {
+    if (!this._queryEmbedCache) return null;
+    return this._queryEmbedCache.get(queryText) || null;
+  }
+
+  _scheduleQueryEmbedFireAndForget(queryText) {
+    if (!this._queryEmbedCache) this._queryEmbedCache = new Map();
+    if (this._queryEmbedCache.has(queryText)) return;     // already cached or in flight
+    this._queryEmbedCache.set(queryText, null);            // mark in flight (placeholder)
+    Promise.resolve(this._embeddingService.embed(queryText))
+      .then(vec => {
+        if (vec && Array.isArray(vec) && vec.length > 0) {
+          this._queryEmbedCache.set(queryText, vec);
+        } else {
+          this._queryEmbedCache.delete(queryText);
+        }
+        // Bound cache size
+        if (this._queryEmbedCache.size > 32) {
+          const firstKey = this._queryEmbedCache.keys().next().value;
+          this._queryEmbedCache.delete(firstKey);
+        }
+      })
+      .catch(err => {
+        this._queryEmbedCache.delete(queryText);
+        _log.debug('[LESSONS] query embed failed:', err.message);
+      });
   }
 
   // ════════════════════════════════════════════════════════
