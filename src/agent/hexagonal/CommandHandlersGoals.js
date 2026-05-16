@@ -3,10 +3,11 @@
 // GENESIS — CommandHandlersGoals.js (v7.4.2 "Kassensturz")
 //
 // Extracted from CommandHandlers.js as part of the v7.4.2 domain
-// split. Handles Goals, Plans, and Journal:
-//   - plans    — render IdleMind.getPlans()
-//   - goals    — add/cancel/show goals via GoalStack
-//   - journal  — render IdleMind.readJournal(10)
+// split. Handles Goals, Plans, Journal, and Affect-Trail:
+//   - plans         — render IdleMind.getPlans()
+//   - goals         — add/cancel/show goals via GoalStack
+//   - journal       — render IdleMind.readJournal(10)
+//   - affect-trail  — render KoennenCandidateLog boundaries (v7.8.9)
 //
 // journal grouped here because it renders GoalStack-adjacent
 // journal entries from the same agent-state subsystem.
@@ -270,6 +271,47 @@ const commandHandlersGoals = {
       }
     }
     return lines.join('\n');
+  },
+
+  // v7.8.9 (koennen-v789 contract): /affect-trail [n] — show recent
+  // AgentLoop boundaries with affect snapshot, gate-pass status, current θ,
+  // and overall pass-rate statistics. Surfaces the calibration data for
+  // v7.9.0 — Garrus can inspect what kinds of trajectories Genesis is
+  // tagging as skill-candidates and tune EmotionalState reactivity if
+  // affect varies too little.
+  async affectTrail(message) {
+    if (!this.koennenCandidateLog) {
+      return 'KoennenCandidateLog not available.';
+    }
+
+    const m = (message || '').match(/\/(?:affect-trail|affekt-trail)\s+(\d+)/i);
+    const limit = m ? parseInt(m[1], 10) : 20;
+
+    const boundaries = this.koennenCandidateLog.getRecentBoundaries(limit);
+    const stats = this.koennenCandidateLog.getStats();
+
+    if (!boundaries || boundaries.length === 0) {
+      return 'No AgentLoop boundaries recorded yet. Affect-encoding starts with the next AgentLoop task.';
+    }
+
+    const passPct = (stats.gatePassRate * 100).toFixed(0);
+    const header = `**Affect Trail** (last ${boundaries.length} of ${stats.totalEvaluated}, ` +
+      `${passPct}% pass rate, θ=${stats.currentTheta.toFixed(2)}` +
+      (stats.missedStarts > 0 ? `, ${stats.missedStarts} missed starts` : '') + `):`;
+
+    const lines = boundaries.map(b => {
+      const sym = b.gatePass ? '✓' : '·';
+      const sat = (b.affect.satisfaction_end ?? 0).toFixed(2);
+      const frP = (b.affect.frustration_peak ?? 0).toFixed(2);
+      const stepCount = b.affect.step_count || 0;
+      const surA = stepCount > 0
+        ? (b.affect.surprise_sum / stepCount).toFixed(2)
+        : '—';
+      const title = (b.taskTitle || '(unnamed)').slice(0, 50);
+      return `${sym} ${title} — sat=${sat} frP=${frP} surA=${surA}`;
+    });
+
+    return `${header}\n\n${lines.join('\n')}`;
   },
 
 };

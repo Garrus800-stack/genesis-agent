@@ -329,7 +329,7 @@ function phase9(ctx, R) {
       factory: (c) => new (R('LessonsStore').LessonsStore)({
         bus,
         embeddingService: c.tryResolve ? c.tryResolve('embeddingService') : null,
-        intervalManager:  c.tryResolve ? c.tryResolve('intervalManager')  : null,
+        intervalManager:  intervals,
       }),
     }],
 

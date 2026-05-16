@@ -35,6 +35,17 @@ const TIMEOUTS = {
    *  Cloud APIs (Anthropic/OpenAI) are faster but long prompts can take 60s+. */
   LLM_RESPONSE_LOCAL: 180000,
   LLM_RESPONSE_CLOUD: 60000,
+  /** v7.8.9 (llm-resilience-v789 contract): Streaming-specific timeouts.
+   *  Used by StreamingCompletion + ContinuationLoop for code-generation calls
+   *  where TCP request timeout is too coarse. Cold-loaded large models can
+   *  legitimately take 60-90s before the first token, while active generation
+   *  usually streams one token every 30-200ms. Total cap protects against
+   *  runaway generations. Each constant is user-overridable via
+   *  settings.json `llm.streamTimeouts.{firstChunk,chunk,total,continuationTotal}`. */
+  LLM_STREAM_FIRST_CHUNK: 120000,
+  LLM_STREAM_CHUNK: 30000,
+  LLM_STREAM_TOTAL: 600000,
+  LLM_CONTINUATION_TOTAL: 1200000,
   /** v5.5.0: MCP SSE connection timeout (ms) — time to establish Server-Sent Events stream */
   MCP_SSE_CONNECT: 15000,
   /** v5.5.0: AgentLoop step drain timeout (ms) — max wait for current step during stop() */

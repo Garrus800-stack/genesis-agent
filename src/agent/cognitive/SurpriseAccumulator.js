@@ -310,6 +310,19 @@ class SurpriseAccumulator {
     return this._buffer.slice(-count);
   }
 
+  /**
+   * v7.8.9 (koennen-v789 contract): Time-windowed read of buffered surprise signals.
+   * Used by KoennenCandidateLog to integrate surprise over a single AgentLoop
+   * trajectory. Pure read on existing _buffer.
+   *
+   * @param {number} timestamp - Lower bound (inclusive). Signals with ts >= timestamp returned.
+   * @returns {Array<{totalSurprise: number, valence: string, actionType: string, timestamp: number}>}
+   */
+  getSignalsSince(timestamp) {
+    if (!timestamp || typeof timestamp !== 'number') return [];
+    return this._buffer.filter(s => s.timestamp >= timestamp);
+  }
+
   getStats() {
     return {
       ...this._stats,

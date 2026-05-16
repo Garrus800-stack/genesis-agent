@@ -35,6 +35,43 @@ class OllamaBackend {
     this.localTimeoutMs = (typeof localTimeoutMs === 'number' && localTimeoutMs > 0)
       ? localTimeoutMs
       : TIMEOUTS.LLM_RESPONSE_LOCAL;
+    // v7.8.9 (llm-resilience-v789 contract): override stack for keep_alive.
+    // Used by ContinuationLoop to keep the model loaded between sequence
+    // re-calls without permanently changing the user-configured value.
+    // Stack semantics support concurrent sequences (each push/pop pair).
+    this._keepAliveOverrides = [];
+  }
+
+  /**
+   * v7.8.9: Effective keep_alive for the next outbound call.
+   * Returns the topmost override if any are active, else the constructor value.
+   */
+  _effectiveKeepAlive() {
+    if (this._keepAliveOverrides.length > 0) {
+      return this._keepAliveOverrides[this._keepAliveOverrides.length - 1];
+    }
+    return this.keepAlive;
+  }
+
+  /**
+   * v7.8.9: Push a temporary keep_alive override (e.g., "15m" for the duration
+   * of a continuation sequence). Returns a release function — call it when
+   * the sequence ends to restore the previous value. Stack-based so parallel
+   * sequences each push their own override.
+   *
+   * @param {string|number} value - Ollama-compatible keep_alive value
+   * @returns {Function} release function
+   */
+  pushKeepAliveOverride(value) {
+    this._keepAliveOverrides.push(value);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      // Remove most recent occurrence (stack discipline)
+      const idx = this._keepAliveOverrides.lastIndexOf(value);
+      if (idx >= 0) this._keepAliveOverrides.splice(idx, 1);
+    };
   }
 
   /**
@@ -104,7 +141,12 @@ class OllamaBackend {
         ...(maxTokens ? { num_predict: maxTokens } : {}),
       },
       // v7.5.7-fix Phase 2: respect configured keep_alive (null = Ollama default).
-      ...(this.keepAlive != null ? { keep_alive: this.keepAlive } : {}),
+      // v7.8.9: route through _effectiveKeepAlive() so ContinuationLoop's
+      // temporary overrides take precedence over the constructor value.
+      ...((() => {
+        const eff = this._effectiveKeepAlive();
+        return eff != null ? { keep_alive: eff } : {};
+      })()),
     };
 
     const data = await this._httpPost(
@@ -116,7 +158,11 @@ class OllamaBackend {
   }
 
   /** Streaming chat — calls onChunk(text) for each token */
-  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens) {
+  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens, onDone) {
+    // v7.8.9 (llm-resilience-v789 contract): optional `onDone(reason)` callback.
+    // Called once with the terminal NDJSON chunk's `done_reason` value
+    // ('stop' | 'length' | etc.) before the promise resolves. Backward-compatible:
+    // callers that don't pass onDone see identical behavior to v7.8.8.
     const ollamaMessages = [];
     if (systemPrompt) {
       ollamaMessages.push({ role: 'system', content: systemPrompt });
@@ -131,7 +177,11 @@ class OllamaBackend {
       stream: true,
       options: { temperature, num_ctx: 8192 },
       // v7.5.7-fix Phase 2: respect configured keep_alive.
-      ...(this.keepAlive != null ? { keep_alive: this.keepAlive } : {}),
+      // v7.8.9: route through _effectiveKeepAlive() for ContinuationLoop overrides.
+      ...((() => {
+        const eff = this._effectiveKeepAlive();
+        return eff != null ? { keep_alive: eff } : {};
+      })()),
     };
     if (typeof maxTokens === 'number' && maxTokens > 0) body.options.num_predict = maxTokens;
 
@@ -139,8 +189,25 @@ class OllamaBackend {
       const url = new URL(`${this.baseUrl}/api/chat`);
       const postData = JSON.stringify(body);
       let _settled = false;
-      const _resolve = () => { if (!_settled) { _settled = true; resolve(undefined); } };
-      const _reject = (err) => { if (!_settled) { _settled = true; reject(err); } };
+      let _doneReason = null;
+      const _resolve = () => {
+        if (!_settled) {
+          _settled = true;
+          if (typeof onDone === 'function') {
+            try { onDone(_doneReason); } catch (_e) { /* swallow callback errors */ }
+          }
+          resolve(undefined);
+        }
+      };
+      const _reject = (err) => {
+        if (!_settled) {
+          _settled = true;
+          if (typeof onDone === 'function') {
+            try { onDone(_doneReason || 'error'); } catch (_e) { /* swallow */ }
+          }
+          reject(err);
+        }
+      };
 
       const req = http.request(
         {
@@ -174,7 +241,11 @@ class OllamaBackend {
                 const parsed = JSON.parse(line);
                 _consecutiveParseErrors = 0;
                 if (parsed.message?.content) onChunk(parsed.message.content);
-                if (parsed.done) _resolve();
+                if (parsed.done) {
+                  // v7.8.9: capture done_reason from terminal chunk
+                  _doneReason = parsed.done_reason || 'stop';
+                  _resolve();
+                }
               } catch (_e) {
                 _consecutiveParseErrors++;
                 // FIX v4.12.7 (Audit-01): Warn on persistent parse failures
@@ -190,10 +261,16 @@ class OllamaBackend {
       );
 
       if (abortSignal) {
-        abortSignal.addEventListener('abort', () => { req.destroy(); _resolve(); }, { once: true });
+        abortSignal.addEventListener('abort', () => {
+          // v7.8.9: mark abort reason so onDone sees it
+          if (!_doneReason) _doneReason = 'abort';
+          req.destroy();
+          _resolve();
+        }, { once: true });
       }
 
       req.setTimeout(this.localTimeoutMs, () => {
+        if (!_doneReason) _doneReason = 'timeout';
         req.destroy();
         _reject(new Error(`[TIMEOUT] Ollama not responding (${Math.round(this.localTimeoutMs / 1000)}s)`));
       });

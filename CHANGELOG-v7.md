@@ -4,6 +4,38 @@ For the current release notes see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
+## [7.8.9]
+
+**Affect-encoding at AgentLoop boundaries + LLM resilience layer.**
+
+v7.8.9 ships two coherent additions. First, the foundation layer for procedural-memory crystallization in v7.9.0: at every AgentLoop boundary Genesis snapshots his 5-dimensional emotional state, accumulates surprise across the trajectory, and persists pass/fail decisions to `.genesis/koennen/candidates.jsonl`. Second, an LLM-resilience layer that keeps long code-generation calls alive across timeouts and token-cap truncations — Skill builds, multi-file refactors, and code reflections no longer lose work when a single HTTP request hits its limit.
+
+### What changed — Affect-encoding
+
+- New `KoennenCandidateLog` subscribes to `agent-loop:started`, `emotion:shift`, and `agent-loop:complete`. Tracks per-task affect snapshots (start, end, peaks), accumulates surprise across the trajectory via the new `SurpriseAccumulator.getSignalsSince(timestamp)` method, and persists every boundary to `.genesis/koennen/candidates.jsonl`. A 30-min TTL cleanup tick prunes `_activeTaskStarts` entries older than 2h.
+- Triage gate is baseline-relative: `satisfaction_end > satisfaction_baseline + 0.15` AND `frustration_peak < frustration_baseline + 0.4` AND `surprise_sum/step_count > θ` AND `success === true` AND `step_count > 0`. `θ = 0.6 - (genome.consolidation * 0.3)`, range [0.315, 0.585].
+- New `SkillCandidateNarrative` reacts immediately to each passing candidate. When ≥3 candidates passed gate in the last 7 days (with 6h cooldown), it fires `koennen:candidates-noticed` which boosts SelfNarrative's `_changeAccumulator` by 2.
+- New `/affect-trail [n]` slash command shows the last n AgentLoop boundaries with affect snapshot, gate-pass status, current θ, and overall pass-rate.
+- New `KOENNEN` namespace in EventTypes catalog: `CANDIDATE_RECORDED` and `CANDIDATES_NOTICED` with payload schemas.
+
+### What changed — LLM resilience
+
+- New `StreamingCompletion` wraps `backend.stream()` with three layered timeouts (first-chunk 120s, inter-chunk 30s, total 600s — all user-overridable), accumulates chunks into an in-memory buffer, captures the terminal NDJSON chunk's `done_reason`, and never throws.
+- New `TruncationDetector` auto-detects expected shape (`code-with-manifest`, `code-single-block`, `json-bare`, `code-bare`, `free`) and validates structural completeness: fences must pair, brackets must balance via a stack-based matcher that ignores strings/line-comments/block-comments, JSON must parse. Truncation signals (`length`, `chunk-timeout`, `null` TCP-drop, etc.) override structural balance.
+- New `LLMCapabilityDetector` probes `/api/show` once per (model, digest) pair, classifies the template as `messages-loop` (prefill-capable) or `prompt-response` (legacy), checks for `m.Config.Renderer` (special-renderer models). For modern templates, runs a small verification call with an unambiguous prefill marker. Four status values persist to `.genesis/llm-capabilities.json` with digest-based cache invalidation. Lazy: only invoked when continuation is needed.
+- New `ContinuationLoop` orchestrates initial stream + completeness check + capability-aware re-call (trailing-assistant prefill for `verified-prefill` models, pseudo-continuation prompt for all other status values). Exponential backoff between attempts (1s, 2s, 4s, 8s), `MAX_CONTINUATIONS=4`, cumulative token budget `0.8 * num_ctx`, hard sequence deadline 1200s. Emits `llm:continuation-started/-complete/-failed` bus events. CircuitBreaker integration: one logical call per sequence.
+- `OllamaBackend.stream()` gains an optional `onDone(reason)` callback parameter (backward-compatible). New `pushKeepAliveOverride(value)` stack lets ContinuationLoop temporarily keep the model loaded between re-calls.
+- `ModelBridge` routes `taskType === 'code'` calls against the Ollama backend through ContinuationLoop. All nine code-generation call sites benefit transparently. Other taskTypes and Anthropic/OpenAI backends keep the original non-streaming path unchanged.
+- New `ModelBridgeContinuation` mixin (keeps ModelBridge.js under the 700-LOC soft-guard).
+- New `MockBackend` `chunked` mode for deterministic stream-timing tests.
+- New `LLM_STREAM_FIRST_CHUNK`, `LLM_STREAM_CHUNK`, `LLM_STREAM_TOTAL`, `LLM_CONTINUATION_TOTAL` constants. New `LLM.CONTINUATION_STARTED/COMPLETE/FAILED` events with payload schemas.
+
+### Numbers
+
+7601+ tests pass (Win baseline), 7600+ (Linux). 130/130 fitness. 87 new tests in 6 files (`v789-llm-streaming-completion.contract.test.js`, `v789-llm-truncation-detector.contract.test.js`, `v789-llm-capability-detection.contract.test.js`, `v789-llm-continuation-loop.contract.test.js`, `v789-llm-resilience-integration.contract.test.js`, `modelbridge-continuation.test.js`) on top of the 28 affect-encoding tests.
+
+---
+
 ## [7.8.8]
 
 **Semantic lesson recall — Genesis stops re-making mistakes he already learned from.**

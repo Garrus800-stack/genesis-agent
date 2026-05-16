@@ -86,6 +86,15 @@ const EVENTS = Object.freeze({
     QUARANTINED:        'lesson:quarantined',    // v7.8.8: Lesson chronically contradicted (≥3 contradicted, ≤1 confirmed)
   }),
 
+  // v7.8.9: Können-Konzept — affect-tagged procedural memory.
+  // Foundation layer. v7.9.0 adds skill crystallization; v7.9.1 adds habitat promotion.
+  KOENNEN: Object.freeze({
+    /** @payload {{ candidateId: string, goalId: string, gatePass: boolean }} */
+    CANDIDATE_RECORDED: 'koennen:candidate-recorded',
+    /** @payload {{ count: number, windowMs: number, sampleTitles?: string[] }} */
+    CANDIDATES_NOTICED: 'koennen:candidates-noticed',
+  }),
+
   // ── Self-Preservation ────────────────────────────────────
   PRESERVATION: Object.freeze({
     /** @payload {{ file: string, violations: Array<{invariant: string, detail: string}> }} */
@@ -648,6 +657,15 @@ const EVENTS = Object.freeze({
     /** v7.5.1: emitted when LLMPort.resetBudget() is called explicitly (e.g. via /budget reset) */
     /** @payload {{ timestamp: string }} */
     BUDGET_MANUAL_RESET: 'llm:budget-manual-reset',
+    /** v7.8.9 (llm-resilience-v789 contract): emitted at the start of a ContinuationLoop sequence. */
+    /** @payload {{ model: string, taskType?: string, capability?: string }} */
+    CONTINUATION_STARTED: 'llm:continuation-started',
+    /** v7.8.9: emitted when a ContinuationLoop sequence completes successfully. */
+    /** @payload {{ model: string, attempts: number, finalDoneReason?: string, totalTokens?: number, durationMs: number }} */
+    CONTINUATION_COMPLETE: 'llm:continuation-complete',
+    /** v7.8.9: emitted when a ContinuationLoop sequence fails (max attempts reached, budget exceeded, or unrecoverable error). */
+    /** @payload {{ model: string, attempts: number, reason: string, partialContentLength?: number, durationMs: number }} */
+    CONTINUATION_FAILED: 'llm:continuation-failed',
   }),
 
   // ── COST (v7.4.5 Baustein B) ──────────────────────────

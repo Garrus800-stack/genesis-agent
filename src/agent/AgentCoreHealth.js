@@ -383,6 +383,13 @@ class AgentCoreHealth {
       // and planner:complete so no late-arriving events get translated
       // into InnerSpeech thoughts after shutdown began.
       'kindTriggers',
+      // v7.8.9 (koennen-v789 contract): KoennenCandidateLog — unsubscribes
+      // agent-loop:started/complete + emotion:shift bus listeners and clears
+      // the 30-min koennen-cleanup interval.
+      'koennenCandidateLog',
+      // v7.8.9 (koennen-v789 contract): SkillCandidateNarrative —
+      // unsubscribes koennen:candidate-recorded listener.
+      'skillCandidateNarrative',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

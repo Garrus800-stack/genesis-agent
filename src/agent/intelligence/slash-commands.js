@@ -170,6 +170,12 @@ const SLASH_COMMANDS = [
     description: 'Show ProactiveSelfExpression status: settings, counts, recent suppressions',
     sinceVersion: 'v7.7.9',
   },
+  {
+    name: 'affect-trail',
+    aliases: ['affekt-trail'],
+    description: 'Show recent AgentLoop boundaries with affect snapshot, gate status, and θ',
+    sinceVersion: 'v7.8.9',
+  },
 ];
 
 /** All canonical command names (no aliases). */

@@ -29,9 +29,11 @@
 class MockBackend {
   /**
    * @param {object} [options]
-   * @param {'echo'|'scripted'|'json'|'error'} [options.mode='echo']
+   * @param {'echo'|'scripted'|'json'|'error'|'chunked'} [options.mode='echo']
    * @param {string[]} [options.responses] - For 'scripted' mode
    * @param {object[]} [options.jsonResponses] - For 'json' mode
+   * @param {object[]} [options.chunkedScripts] - For 'chunked' mode (v7.8.9).
+   *   Each script: { chunks: string[], delayMs?: number, doneReason?: string|null, terminateAt?: number|null }
    * @param {string} [options.errorMessage] - For 'error' mode
    * @param {number} [options.latencyMs=0] - Simulated latency
    */
@@ -44,6 +46,7 @@ class MockBackend {
     this._mode = options.mode || 'echo';
     this._responses = options.responses || [];
     this._jsonResponses = options.jsonResponses || [];
+    this._chunkedScripts = options.chunkedScripts || [];
     this._errorMessage = options.errorMessage || 'Mock backend error';
     this._latencyMs = options.latencyMs || 0;
     this._callIndex = 0;
@@ -100,7 +103,7 @@ class MockBackend {
     }
   }
 
-  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens) {
+  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens, onDone) {
     this.calls.push({
       method: 'stream',
       systemPrompt,
@@ -111,6 +114,37 @@ class MockBackend {
       timestamp: Date.now(),
     });
 
+    // v7.8.9 (llm-resilience-v789 contract): chunked mode for precise stream tests.
+    // Lets a test specify exact chunks, inter-chunk delays, and a done_reason
+    // (including null to simulate TCP-drop where no terminal chunk arrives).
+    if (this._mode === 'chunked') {
+      const script = this._chunkedScripts[this._callIndex % this._chunkedScripts.length];
+      this._callIndex++;
+      if (!script) {
+        if (typeof onDone === 'function') onDone('stop');
+        return;
+      }
+      const { chunks = [], delayMs = 0, doneReason = 'stop', terminateAt = null } = script;
+      for (let i = 0; i < chunks.length; i++) {
+        if (abortSignal?.aborted) {
+          if (typeof onDone === 'function') onDone('abort');
+          return;
+        }
+        if (terminateAt !== null && i === terminateAt) {
+          // Simulate TCP-drop: no further chunks, no terminal chunk, no onDone
+          // (matches OllamaBackend behavior on abort/timeout)
+          if (typeof onDone === 'function') onDone(null);
+          return;
+        }
+        if (delayMs > 0) {
+          await new Promise(r => setTimeout(r, delayMs));
+        }
+        onChunk(chunks[i]);
+      }
+      if (typeof onDone === 'function') onDone(doneReason);
+      return;
+    }
+
     const response = await this.chat(systemPrompt, messages, temperature, modelName);
     // Remove the duplicate chat call from history
     this.calls.pop();
@@ -118,12 +152,16 @@ class MockBackend {
     // Simulate token-by-token streaming
     const words = response.split(' ');
     for (const word of words) {
-      if (abortSignal?.aborted) break;
+      if (abortSignal?.aborted) {
+        if (typeof onDone === 'function') onDone('abort');
+        return;
+      }
       if (this._latencyMs > 0) {
         await new Promise(r => setTimeout(r, Math.min(this._latencyMs, 10)));
       }
       onChunk(word + ' ');
     }
+    if (typeof onDone === 'function') onDone('stop');
   }
 
   // ── Test Utilities ──────────────────────────────────────
@@ -152,6 +190,13 @@ class MockBackend {
   /** Set new scripted responses */
   setResponses(responses) {
     this._responses = responses;
+    this._callIndex = 0;
+  }
+
+  /** v7.8.9: Set chunked-mode scripts and switch into 'chunked' mode. */
+  setChunkedScripts(scripts) {
+    this._chunkedScripts = Array.isArray(scripts) ? scripts : [scripts];
+    this._mode = 'chunked';
     this._callIndex = 0;
   }
 

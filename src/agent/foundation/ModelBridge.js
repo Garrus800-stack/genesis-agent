@@ -21,6 +21,9 @@ const { OllamaBackend } = require('./backends/OllamaBackend');
 const { AnthropicBackend } = require('./backends/AnthropicBackend');
 const { OpenAIBackend } = require('./backends/OpenAIBackend');
 
+// v7.8.9 (llm-resilience-v789 contract): continuation pipeline lives in
+// the ModelBridgeContinuation mixin (lazy-loaded backends inside).
+
 // v7.5.6/v7.5.7-fix: TTL by failover-reason for the unavailable-marker.
 // 'connection-error' and 'other' are intentionally absent (transient).
 // 'subscription-required' (v7.5.7-fix): 24h, Pro-gates don't fix in 1h.
@@ -338,7 +341,7 @@ class ModelBridge {
     const startTime = Date.now();
     await this._semaphore.acquire(priority);
     try {
-      const result = await this._dispatchChat(targetBackend, systemPrompt, messages, temp, effectiveModel, options.maxTokens);
+      const result = await this._dispatchChat(targetBackend, systemPrompt, messages, temp, effectiveModel, options.maxTokens, taskType);
       this._recordMetaOutcome(taskType, temp, startTime, true, options, calledModel);
       // v7.8.5: clean call resets all failover state.
       this.lastEffectiveModel = calledModel;
@@ -349,7 +352,7 @@ class ModelBridge {
     } catch (err) {
       return this._handleFailoverError(err, {
         taskType, temp, startTime, options, calledModel, targetBackend, label: '',
-        dispatch: (backend) => this._dispatchChat(backend, systemPrompt, messages, temp, undefined, options.maxTokens),
+        dispatch: (backend) => this._dispatchChat(backend, systemPrompt, messages, temp, undefined, options.maxTokens, taskType),
       });
     } finally {
       this._semaphore.release();
@@ -486,16 +489,25 @@ class ModelBridge {
 
   // v7.8.6: unified dispatch for chat and stream modes. Thin wrappers below
   // preserve positional signature for 5 v7xx source-presence contract tests.
-  _dispatch({ mode, backendName, systemPrompt, messages, temp, modelOverride, maxTokens, onChunk, abortSignal }) {
+  _dispatch({ mode, backendName, systemPrompt, messages, temp, modelOverride, maxTokens, onChunk, abortSignal, taskType }) {
     const model = modelOverride || this._getModelForBackend(backendName);
     const backend = this.backends[backendName];
     if (mode === 'chat') {
       if (!backend) throw new Error('No model backend configured');
+      // v7.8.9 (llm-resilience-v789 contract): code-generation calls through
+      // OllamaBackend get routed through ContinuationLoop so partial outputs
+      // survive timeout/length truncations. Other taskTypes and other backends
+      // (Anthropic/OpenAI) keep their original non-streaming path unchanged.
+      if (taskType === 'code' && backendName === 'ollama') {
+        return this._dispatchChatWithContinuation({
+          backend, systemPrompt, messages, temp, model, maxTokens, taskType,
+        });
+      }
       return backend.chat(systemPrompt, messages, temp, model, maxTokens);
     }
     if (mode === 'stream') {
       if (!backend) {
-        return this._dispatch({ mode: 'chat', backendName, systemPrompt, messages, temp, modelOverride, maxTokens })
+        return this._dispatch({ mode: 'chat', backendName, systemPrompt, messages, temp, modelOverride, maxTokens, taskType })
           .then(result => { onChunk(result); return result; })
           .catch(err => {
             _log.error('[MODEL] Non-streaming fallback failed:', err.message);
@@ -507,12 +519,20 @@ class ModelBridge {
     throw new Error(`Unknown dispatch mode: ${mode}`);
   }
 
-  _dispatchChat(backendName, systemPrompt, messages, temp, modelOverride, maxTokens) {
-    return this._dispatch({ mode: 'chat', backendName, systemPrompt, messages, temp, modelOverride, maxTokens });
+  /**
+   * v7.8.9: route a code-generation call through ContinuationLoop.
+   * Implementation lives in ModelBridgeContinuation.js (mixin) to keep
+   * this file under the 700-LOC architectural-fitness soft-guard.
+   * @private
+   */
+  // _dispatchChatWithContinuation — mixed in from ModelBridgeContinuation.js
+
+  _dispatchChat(backendName, systemPrompt, messages, temp, modelOverride, maxTokens, taskType) {
+    return this._dispatch({ mode: 'chat', backendName, systemPrompt, messages, temp, modelOverride, maxTokens, taskType });
   }
 
-  _dispatchStream(backendName, systemPrompt, messages, onChunk, abortSignal, temp, modelOverride, maxTokens) {
-    return this._dispatch({ mode: 'stream', backendName, systemPrompt, messages, temp, modelOverride, maxTokens, onChunk, abortSignal });
+  _dispatchStream(backendName, systemPrompt, messages, onChunk, abortSignal, temp, modelOverride, maxTokens, taskType) {
+    return this._dispatch({ mode: 'stream', backendName, systemPrompt, messages, temp, modelOverride, maxTokens, onChunk, abortSignal, taskType });
   }
 
   // ── v7.5.6: Model-availability tracking — extracted to mixin ─────
@@ -634,10 +654,13 @@ class ModelBridge {
 // v7.6.5: Mix in failover helpers (_findFallbackBackend, _classifyFailoverReason,
 // _emitFailoverUnavailable). Pure structural extraction for File-Size-Guard
 // closeout — runtime semantics unchanged. See ModelBridgeFailover.js.
+// v7.8.9: Mix in continuation pipeline (_dispatchChatWithContinuation).
+// See ModelBridgeContinuation.js for the llm-resilience-v789 contract.
 const { availability } = require('./ModelBridgeAvailability');
 const { discovery } = require('./ModelBridgeDiscovery');
 const { failoverMixin } = require('./ModelBridgeFailover');
 const { contextMixin } = require('./ModelBridgeContext');
-Object.assign(ModelBridge.prototype, availability, discovery, failoverMixin, contextMixin);
+const { continuationMixin } = require('./ModelBridgeContinuation');
+Object.assign(ModelBridge.prototype, availability, discovery, failoverMixin, contextMixin, continuationMixin);
 
 module.exports = { ModelBridge };

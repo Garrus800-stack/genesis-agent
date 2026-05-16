@@ -13,14 +13,14 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 361 JS files |
-| Test Files / Tests | 461 / 7577 (Win baseline) |
+| Source Modules | 369 JS files |
+| Test Files / Tests | 471 / 7601 (Win baseline) |
 | DI Services | 168 (155 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
 | npm Dependencies | 4 production + 1 optional + 10 dev |
-| Event Types (catalogued) | 463 |
-| Event Schemas | 463 |
+| Event Types (catalogued) | 468 |
+| Event Schemas | 468 |
 | IPC Channels | 68 main ↔ 68 preload |
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
 | Coverage Gates | 80% lines, 76% branches, 78% functions |
@@ -414,7 +414,7 @@ The EmbeddingService integration is optional. Without an embedding backend (Olla
 The EventBus (~600 LOC) is the nervous system of Genesis:
 
 - **452 catalogued event types** in EventTypes.js (1316 LOC) with JSDoc payload docs
-- **463 payload schemas** in EventPayloadSchemas.js (~846 LOC) — full parity since v7.6.x (every catalog entry has a registered schema; v7.6.3 dropped 4 dead entries from both files in lockstep, B1+B2 regression tests in `store-event-catalog.test.js` enforce the link)
+- **468 payload schemas** in EventPayloadSchemas.js (~846 LOC) — full parity since v7.6.x (every catalog entry has a registered schema; v7.6.3 dropped 4 dead entries from both files in lockstep, B1+B2 regression tests in `store-event-catalog.test.js` enforce the link)
 - **Dev-mode validation** — unknown events produce warnings with stack traces
 - **Wildcard prefix-map** (v3.8.0) — O(k) matching instead of O(n)
 - **Ring buffer history** (v4.0.0) — O(1) push instead of O(n) push+slice
@@ -482,5 +482,5 @@ Approximate as of v7.5.6 (numbers shift with each release):
   ─────────────────────────────────────────────
   agent/ total     259 files  ~84,900 LOC
   + UI/kernel       47 files  ~13,800 LOC
-  = src/ total     361 modules ~107,000 LOC
+  = src/ total     369 modules ~108,000 LOC
 ```

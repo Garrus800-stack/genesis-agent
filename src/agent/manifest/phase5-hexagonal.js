@@ -139,6 +139,9 @@ function phase5(ctx, R) {
         // v7.7.9 Phase 2: P5→P9 for /quiet, /proactive-status slash commands.
         { prop: 'proactiveSelfExpression', service: 'proactiveSelfExpression', optional: true,
           impact: '/quiet and /proactive-status return "service not available"' },
+        // v7.8.9: P5→P9 for /affect-trail slash command (koennen-v789 contract).
+        { prop: 'koennenCandidateLog', service: 'koennenCandidateLog', optional: true,
+          impact: '/affect-trail returns "KoennenCandidateLog not available"' },
       ],
       factory: (c) => {
         const { lang } = R('Language');

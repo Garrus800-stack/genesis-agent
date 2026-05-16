@@ -288,6 +288,11 @@ const SCHEMAS = {
   'lesson:confirmed':     { id: 'required', category: 'required', confirmed: 'required' },
   'lesson:contradicted':  { id: 'required', category: 'required', contradicted: 'required' },
   'lesson:quarantined':   { id: 'required', category: 'required', contradicted: 'required', confirmed: 'required' },
+
+  // Können (v7.8.9 — koennen-v789 contract)
+  'koennen:candidate-recorded': { candidateId: 'required', goalId: 'required', gatePass: 'required' },
+  'koennen:candidates-noticed': { count: 'required', windowMs: 'required', sampleTitles: 'optional' },
+
   // Prompt Strategy (v6.0.4 — AdaptivePromptStrategy)
   'prompt:strategy-updated': { intents: 'required', recommendations: 'required' },
 
@@ -565,6 +570,20 @@ const SCHEMAS = {
   // v7.5.1: emitted from LLMPort, subscribed by GoalDriver
   'llm:budget-auto-reset':   { reason: 'required', triggeredBy: 'required' },
   'llm:budget-manual-reset': { timestamp: 'required' },
+  // v7.8.9 (llm-resilience-v789 contract): emitted by ContinuationLoop.
+  // Telemetry for understanding which models need how many continuation
+  // attempts on average — useful for picking better defaults over time.
+  'llm:continuation-started': {
+    model: 'required', taskType: 'optional', capability: 'optional',
+  },
+  'llm:continuation-complete': {
+    model: 'required', attempts: 'required', finalDoneReason: 'optional',
+    totalTokens: 'optional', durationMs: 'required',
+  },
+  'llm:continuation-failed': {
+    model: 'required', attempts: 'required', reason: 'required',
+    partialContentLength: 'optional', durationMs: 'required',
+  },
 
   // COST (v7.4.5 Baustein B)
   'cost:recorded':          {

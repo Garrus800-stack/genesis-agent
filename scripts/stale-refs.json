@@ -188,6 +188,16 @@
       "prefix": "lessons-v788 contract: ",
       "minCount": 10,
       "note": "v7.8.8 \u2014 LessonsStore semantic recall: _scoreRelevance embedding component with floor 0.6, cross-category dampening only when category requested, effective_confidence (confidence times (1 minus exp(minus sampleSize over 5))), quarantine at contradicted>=3 and confirmed<=1, recall(null, ...) routes through embedding, lazy embed-on-first-retrieve, embedding:ready backfill via embedBatch, regression preserved when no embeddingService."
+    },
+    {
+      "prefix": "koennen-v789 contract: ",
+      "minCount": 20,
+      "note": "v7.8.9 \u2014 K\u00f6nnen foundation layer (Affect-Encoding at AgentLoop boundaries). KoennenCandidateLog snapshots 5-tuple affect at agent-loop:started/complete, tracks frustration+curiosity peaks via emotion:shift, sums surprise via SurpriseAccumulator.getSignalsSince(timestamp), evaluates baseline-relative triage gate (satisfaction_end > baseline+0.15 AND frustration_peak < baseline+0.4 AND surprise_sum/step_count > theta AND success AND step_count>0), theta=0.6-(genome.consolidation*0.3). Persists every boundary (pass and fail) to .genesis/koennen/candidates.jsonl for v7.9.0 calibration. SkillCandidateNarrative emits koennen:candidates-noticed when >=3 passing candidates in 7d window with 6h cooldown. SelfNarrative._changeAccumulator boosted by 2. /affect-trail slash inspects boundaries with theta and pass-rate. Removing these breaks the foundation for v7.9.0 SkillCrystallizer."
+    },
+    {
+      "prefix": "llm-resilience-v789 contract: ",
+      "minCount": 60,
+      "note": "v7.8.9 \u2014 LLM resilience layer. StreamingCompletion wraps backend.stream() with three timer layers (first-chunk/inter-chunk/total) and surfaces done_reason from the terminal NDJSON chunk; never throws. TruncationDetector classifies output shape (code-with-manifest/code-single-block/json-bare/code-bare/free) and validates structural completeness via balanced-fence count plus stack-based bracket matcher that ignores strings/line-comments/block-comments. LLMCapabilityDetector probes /api/show, scans the template for range .Messages vs .Prompt/.Response, runs a small verification call when the template is modern (4 status values: verified-prefill, unverified-no-prefill, verification-failed, special-renderer), persists results to .genesis/llm-capabilities.json keyed by digest. ContinuationLoop orchestrates initial stream + completeness check + capability-aware re-call (trailing-assistant prefill for verified-prefill models, pseudo-continuation prompt for all others), with exponential backoff (1s/2s/4s/8s), MAX_CONTINUATIONS=4, cumulative token budget (0.8*num_ctx), and continuation-total deadline. Backend pushKeepAliveOverride() stack lets the loop temporarily hold the model loaded between re-calls. Bus events: continuation-started/-complete/-failed. CircuitBreaker integration: one logical call per sequence. Removing any of this breaks resilience for taskType='code' Ollama calls."
     }
   ],
   "_scanRoots": [

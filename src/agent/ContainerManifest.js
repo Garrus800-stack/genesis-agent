@@ -42,6 +42,7 @@ const { phase6 } = require('./manifest/phase6-autonomy');
 const { phase7 } = require('./manifest/phase7-organism');
 const { phase8 } = require('./manifest/phase8-revolution');
 const { phase9 } = require('./manifest/phase9-cognitive');
+const { phase9Koennen } = require('./manifest/phase9-cognitive-koennen');
 const { phase10 } = require('./manifest/phase10-agency');
 const { phase11 } = require('./manifest/phase11-extended');
 const { phase12 } = require('./manifest/phase12-hybrid');
@@ -85,6 +86,17 @@ function _buildAutoMap() {
 }
 
 /**
+ * v7.8.9: Phase 9 file-split discipline. Können-Konzept services live in
+ * a separate sub-manifest (phase9-cognitive-koennen.js) to keep
+ * phase9-cognitive.js under the 700-LOC architectural-fitness ceiling.
+ * Both sub-manifests are logically Phase 9; this wrapper composes them
+ * transparently so PHASE_MAP / PHASE_FN_MAP / skipPhases remain unchanged.
+ */
+function phase9Composite(ctx, R) {
+  return [...phase9(ctx, R), ...phase9Koennen(ctx, R)];
+}
+
+/**
  * Build the full container manifest.
  * @param {object} ctx - Boot context
  * @returns {Map<string, object>}
@@ -116,8 +128,8 @@ function buildManifest(ctx) {
   const profile = ctx.bootProfile || 'cognitive';
 
   const PHASE_MAP = {
-    full:      [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8, phase9, phase10, phase11, phase12],
-    cognitive: [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8, phase9, phase10, phase11, phase12],
+    full:      [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8, phase9Composite, phase10, phase11, phase12],
+    cognitive: [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8, phase9Composite, phase10, phase11, phase12],
     minimal:   [phase1, phase2, phase3, phase4, phase5, phase6, phase7, phase8],
   };
 
@@ -127,7 +139,7 @@ function buildManifest(ctx) {
   // Usage: node cli.js --skip-phase 7       (skip organism)
   // Phases 1-5 cannot be skipped (core infrastructure).
   if (ctx.skipPhases && Array.isArray(ctx.skipPhases)) {
-    const PHASE_FN_MAP = { 1: phase1, 2: phase2, 3: phase3, 4: phase4, 5: phase5, 6: phase6, 7: phase7, 8: phase8, 9: phase9, 10: phase10, 11: phase11, 12: phase12 };
+    const PHASE_FN_MAP = { 1: phase1, 2: phase2, 3: phase3, 4: phase4, 5: phase5, 6: phase6, 7: phase7, 8: phase8, 9: phase9Composite, 10: phase10, 11: phase11, 12: phase12 };
     const skippable = ctx.skipPhases.filter(p => p >= 6); // Phases 1-5 are required
     if (skippable.length > 0) {
       phases = phases.filter(fn => {

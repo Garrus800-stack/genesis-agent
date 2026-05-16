@@ -224,8 +224,10 @@ describe('v7.4.2 Baustein D — CommandHandlers split structure', () => {
     //   _addGoalCommand, _cancelGoalCommand, _cancelAllCommand,
     //   _confirmPendingCommand, _revisePendingCommand,
     //   _dismissPendingCommand, _renderGoalsList.
+    // v7.8.9: +1 affectTrail (koennen-v789 contract). Goals-domain
+    // appropriate — surfaces KoennenCandidateLog boundaries.
     // Domain-integrity is preserved — all helpers are goal-domain only.
-    assert.strictEqual(Object.keys(commandHandlersGoals).length, 10, 'Goals mixin: 10 methods expected (3 public + 7 v7.5.0 helpers)');
+    assert.strictEqual(Object.keys(commandHandlersGoals).length, 11, 'Goals mixin: 11 methods expected (3 public + 7 v7.5.0 helpers + 1 v7.8.9 affectTrail)');
     assert.strictEqual(Object.keys(commandHandlersMemory).length, 3, 'Memory mixin: 3 methods expected');
     assert.strictEqual(Object.keys(commandHandlersSystem).length, 3, 'System mixin: 3 methods expected');
     assert.strictEqual(Object.keys(commandHandlersNetwork).length, 3, 'Network mixin: 3 methods expected');

@@ -1,215 +1,39 @@
-# Genesis Agent v7.8.8 — **Semantic lesson recall — Genesis stops re-making mistakes he already learned from.**
+# Genesis Agent v7.8.9 — **Affect-encoding at AgentLoop boundaries — Genesis starts noticing which tasks feel like they should become skills. Plus a resilience layer that keeps long code-generation calls alive across timeouts.**
 
-**Semantic lesson recall — Genesis stops re-making mistakes he already learned from.**
+**Affect-encoding at AgentLoop boundaries — Genesis starts noticing which tasks feel like they should become skills. Plus a resilience layer that keeps long code-generation calls alive across timeouts.**
 
-Pre-v7.8.8, `LessonsStore.recall(category, {query, tags, model}, limit)` had
-an inert `query` parameter: every callsite passed the goal description, but
-`_scoreRelevance` never consulted it. Lessons were matched on category, tags,
-and model only. Combined with the planner's hardcoded category filter
-(`obstacle-resolution`), six of seven auto-capture sources — shell-success,
-shell-failure, dream-insight, prompt-evolution, workspace-consolidation,
-online-learning streaks/escalations/temp-adjustments — were invisible to
-the planner regardless of how relevant they were to the current goal.
+v7.8.9 introduces the foundation layer for procedural-memory crystallization in v7.9.0. At every AgentLoop task start and end, Genesis snapshots his 5-dimensional emotional state, tracks frustration and curiosity peaks via emotion:shift events during the trajectory, sums surprise signals from SurpriseAccumulator between start and end timestamps, and evaluates the result against a baseline-relative triage gate. Both passing and failing boundaries are persisted as calibration data for v7.9.0.
 
-v7.8.8 makes the `query` parameter alive via embeddings, opens recall to all
-categories, and adds four mitigations against pollution and overfitting.
+The same release adds an LLM-resilience layer so long code-generation calls (skill builds, multi-file refactors, code reflections) survive Ollama timeouts and token-cap truncations instead of being thrown away when a single HTTP request hits its limit.
 
-### What changed
+### What changed — Affect-encoding
 
-- `_scoreRelevance` consults `context.queryEmbedding × lesson.embedding`
-  with a floor of 0.6 (below-floor matches contribute 0). Score component
-  is then multiplied by an effective-confidence factor
-  `0.5 + 0.5 × (confidence × (1 − exp(−sampleSize/5)))` so single-sample
-  lessons can't dominate.
-- Cross-category dampening: if an explicit category was requested and the
-  lesson is from a different category, the embedding contribution is
-  multiplied by 0.7 — semantic match remains usable, but the categorical
-  signal is preserved.
-- `recall(null, …)` is a supported mode. It skips category-boost
-  entirely and lets embedding + tags + confidence drive ranking. Used by
-  `AgentLoopPlanner` (was hardcoded to `'obstacle-resolution'`) and by
-  `PromptBuilderSections._lessonsContext` (was falling back to `'general'`).
-- `record()` writes `embedding: null` synchronously — no embed call on the
-  hot path. A periodic 60s tick plus a `bus.on('embedding:ready', …)`
-  listener backfill pending lessons in batches via the existing
-  `EmbeddingService.embedBatch`. A lazy embed-on-first-retrieve fills any
-  lesson the moment it shows up in a recall.
-- `updateLessonOutcome` quarantines lessons that have `contradicted ≥ 3`
-  and `confirmed ≤ 1`. Quarantined lessons are filtered out of recall but
-  not deleted — the flag persists and a future Reflector pass can
-  rehabilitate them. A new `lesson:quarantined` event fires on transition.
-- `PromptBuilderSections._inferCategory` now returns `null` (was `'general'`)
-  when no regex matches — honest fallback that defers to semantic recall
-  instead of pretending a category exists.
-- `package.json` postinstall regenerates `RELEASE_NOTES.md` after the
-  bundle build. `scripts/audit-doc-drift.js` now verifies the
-  `RELEASE_NOTES.md` header version matches `package.json`.
+- New `KoennenCandidateLog` subscribes to `agent-loop:started`, `emotion:shift`, and `agent-loop:complete`. Tracks per-task affect snapshots (start, end, peaks), accumulates surprise across the trajectory via the new `SurpriseAccumulator.getSignalsSince(timestamp)` method, and persists every boundary to `.genesis/koennen/candidates.jsonl`. A 30-min TTL cleanup tick prunes `_activeTaskStarts` entries older than 2h (crash-recovery for tasks where `:started` fired but `:complete` never came).
+- Triage gate is baseline-relative: `satisfaction_end > satisfaction_baseline + 0.15` AND `frustration_peak < frustration_baseline + 0.4` AND `surprise_sum/step_count > θ` AND `success === true` AND `step_count > 0`. `θ = 0.6 - (genome.consolidation * 0.3)`, range [0.315, 0.585]. The `consolidation` genome trait gets its third active reader (alongside Metabolism's regen rate and PickContext's idle-activity context).
+- New `SkillCandidateNarrative` reacts immediately to each passing candidate. When ≥3 candidates passed gate in the last 7 days (with 6h cooldown between reflections), it fires `koennen:candidates-noticed` which boosts SelfNarrative's `_changeAccumulator` by 2 — Genesis updates his narrative more often when he's actively learning.
+- New `/affect-trail [n]` slash command shows the last n AgentLoop boundaries with affect snapshot, gate-pass status, current θ, and overall pass-rate statistics.
+- New `KOENNEN` namespace in EventTypes catalog with two events: `CANDIDATE_RECORDED` and `CANDIDATES_NOTICED`. Both have matching payload schemas in EventPayloadSchemas.
 
-### Why goal completion improves
+### What changed — LLM resilience layer
 
-Concretely, three patterns that used to fail now work:
-
-1. A `shell-success` lesson "`du -sh dist/` shows bundle size on Linux"
-   surfaces for the goal "write a script to analyse bundle growth", even
-   though it lives in a different category and was never tagged with the
-   query terms.
-2. A `shell-failure` lesson written in English ("Command `npm install`
-   without `--save` does not update package.json") matches a German goal
-   ("Pakete installieren und package.json aktualisieren") via the
-   multilingual embedding model — TF-IDF token overlap would never find it.
-3. A chronically wrong lesson that has been contradicted three times
-   without ever being confirmed is automatically quarantined, so it stops
-   polluting future plans without waiting for the slow confidence-decay
-   to drop it below the relevance floor.
-
-### Setter and reader present in this release
-
-Every mechanism added has an active consumer in v7.8.8 — no passive
-infrastructure. Embedding fields are read by `_scoreRelevance` on every
-recall. Quarantine flag is read by the recall pre-filter. The backfill
-timer is consumed by all four existing recall callsites. The lazy embed
-trigger fires on every recall touch.
-
-### Numbers
-
-- 12 new contract tests (`v788-lessons-semantic.contract.test.js`).
-- All 64 pre-existing lessons tests pass unchanged (regression preserved
-  when `embeddingService` is absent).
-- No new modules. No schema break — `embedding` field is optional,
-  `quarantined` defaults to `false`.
+- New `StreamingCompletion` wraps any backend's `stream()` with three layered timeouts (`LLM_STREAM_FIRST_CHUNK` 120s, `LLM_STREAM_CHUNK` 30s, `LLM_STREAM_TOTAL` 600s — all user-overridable), accumulates chunks into an in-memory buffer, captures the terminal NDJSON chunk's `done_reason`, and never throws. Partial content always survives, no matter how the stream ended.
+- New `TruncationDetector` decides whether accumulated content is structurally complete. Auto-detects expected shape (`code-with-manifest` for the SkillManager pattern, `code-single-block`, `json-bare`, `code-bare`, or `free`) and validates per-shape: code fences must pair, JS brackets must balance via a stack-based matcher that ignores strings/line-comments/block-comments, JSON must parse. Truncation signals (`length`, `chunk-timeout`, `total-timeout`, `abort`, `null` TCP-drop) override structural balance — a model can emit a clean EOS mid-thought even with `done_reason='stop'`.
+- New `LLMCapabilityDetector` probes a model's `/api/show` template once per (model, digest) pair, classifies it as `messages-loop` (modern, prefill-capable) or `prompt-response` (legacy, no prefill), checks for `m.Config.Renderer` (multimodal/OCR — pseudo-continuation only). For modern templates, runs a small verification call with an unambiguous prefill marker to confirm the model actually continues from the trailing assistant message instead of re-emitting it. Four status values (`verified-prefill`, `unverified-no-prefill`, `verification-failed`, `special-renderer`) persist to `.genesis/llm-capabilities.json` with model digest for cache invalidation. Lazy: only invoked when continuation is actually needed.
+- New `ContinuationLoop` orchestrates the full pipeline. On truncation, re-calls the model with either a trailing-assistant prefill message (`verified-prefill` models) or a pseudo-continuation user prompt (all other status values). Exponential backoff between attempts (1s, 2s, 4s, 8s), `MAX_CONTINUATIONS=4`, cumulative token budget `0.8 * num_ctx`, hard sequence deadline `LLM_CONTINUATION_TOTAL` 1200s. Pushes a temporary `keep_alive: "15m"` override on the backend so the model stays loaded between re-calls (released on sequence exit). Emits `llm:continuation-started/-complete/-failed` bus events. Records a single success/failure to the CircuitBreaker per sequence (not per re-call).
+- `OllamaBackend.stream()` gains an optional `onDone(reason)` callback parameter. Backward-compatible: callers that don't pass it see identical v7.8.8 behavior. New `pushKeepAliveOverride(value)` returns a release function; supports nested overrides via a stack so parallel continuation sequences don't fight over the model's keep_alive setting.
+- `ModelBridge` routes `taskType === 'code'` calls against the Ollama backend through ContinuationLoop. All nine code-generation call sites (SkillManager, Reflector, MultiFileRefactor, AgentLoopSteps, GoalStackExecution, CloneFactory, SelfModificationPipelineModify) benefit transparently — no caller code changes needed. Other taskTypes and Anthropic/OpenAI backends keep their original non-streaming path unchanged.
+- New `ModelBridgeContinuation` mixin holds the dispatch helper (same mixin pattern as ModelBridgeFailover/Availability — keeps ModelBridge.js under the 700-LOC architectural-fitness soft-guard).
+- New `MockBackend` `chunked` mode with per-script chunks, inter-chunk delays, `doneReason`, and `terminateAt` (simulates TCP-drop). Used by the resilience contract tests; useful for any test that needs deterministic stream timing.
+- New `LLM_STREAM_FIRST_CHUNK`, `LLM_STREAM_CHUNK`, `LLM_STREAM_TOTAL`, `LLM_CONTINUATION_TOTAL` constants in Constants.js.
+- New `LLM.CONTINUATION_STARTED`, `LLM.CONTINUATION_COMPLETE`, `LLM.CONTINUATION_FAILED` events with matching payload schemas.
 
 ### Setup
 
-Semantic recall requires an embedding model in Ollama. One-time:
-
-```bash
-ollama pull nomic-embed-text
-```
-
-~270 MB, multilingual. Genesis auto-detects at boot (searches
-`nomic-embed-text` → `mxbai-embed-large` → `all-minilm`) — no settings
-change. Without an embedding model, v7.8.8 still runs and behaves
-identically to v7.8.7 (TF-IDF fallback path).
-
-
-
-**Honest test-runner + four hidden bugs surfaced and fixed.**
-
-The pre-v7.8.7 test-runner parser had two bugs that displayed test
-files as green while their failures were silently absorbed. v7.8.7
-fixes the parser, then deals with every hidden failure it surfaces.
-Backlog tidy alongside.
-
-### Item 1 — Test-runner parser honesty
-
-`test/index.js` had two parser bugs that combined to swallow
-failures and miscount passes:
-
-- **Label-prefix summaries were rejected.** Test files using formats
-  like `v756-fix: 30 passed, 4 failed`, `v3.5.0 COGNITIVE TESTS: 82
-  passed, 0 failed` or ANSI-coloured `Integration: \x1b[32m200
-  passed\x1b[0m, \x1b[32m0 failed\x1b[0m` did not match the regex
-  `^\s*(?:Results:\s*)?\d+ passed\s*[,·]\s*(\d+)\s*failed`. The
-  parser fell back to `failed = 0` and displayed the file as `✅ N
-  passed` regardless of how many tests actually failed inside.
-- **passMatch was greedy, not multiline-anchored.** The regex
-  `(\d+) passed` matched the FIRST `N passed` anywhere in stdout.
-  In `suite-parser.test.js`, a mock-output line `✅ legacy comma
-  format: "13 passed, 1 failed"` is printed BEFORE the real summary
-  `8 passed · 0 failed`. The parser took 13 from the mock line and
-  showed `suite-parser... ✅ 13 passed` instead of 8.
-
-Fix: strip ANSI escapes, split stdout into lines, walk from the END
-backwards, return the last line that matches a summary shape. The
-optional prefix group now accepts both `Results:` and any
-`[\w\-\. ]+:` label. The walk-from-end naturally skips mock-output
-lines because the real summary is always at the end.
-
-New contract test `v787-runner-parser.contract.test.js` covers
-14 cases: standard middle-dot format, comma format with bracketed
-duration, legacy `Results:` prefix, label prefixes, ANSI-coloured,
-mock-demo-line followed by real summary, progress lines vs final
-summary, false-positive prevention (`Health check 1/1 failed` must
-not match), empty input, zero-zero summary.
-
-### Item 2 — 5 obsolete source-regex tests removed
-
-Once the parser was honest, five tests turned red:
-
-- `v756-fix.test.js`: **A1, A2, A3, E3** scanned
-  `src/agent/foundation/ModelBridge.js` for `_findFallbackBackend`
-  signature, the `modelName === failedModelName` continue-guard,
-  the cross-backend ollama check, and the `fallbackModelName`
-  capture. All four patterns have lived in
-  `src/agent/foundation/ModelBridgeFailover.js` (mixin) since v7.6.5.
-- `v748-fix.test.js`: **B2** scanned `ModelBridge.js` for the
-  `bus.fire('model:failover', ...)` emit line — moved to
-  `_handleFailoverError` in the failover mixin (v7.6.5).
-
-`v765-modelbridge-split.contract.test.js` already covers the
-mixin-mount guarantee via prototype-mount and reference-identity
-checks — robust against future structural moves. The five source-
-regex scans were redundant and would have broken on any further
-ModelBridge refactor regardless of behavioural correctness. A4
-stays because it tests the ABSENCE of an old pattern (different
-contract). B3 stays because it tests the actual routing.
-
-### Item 3 — Two real hidden bugs surfaced and fixed
-
-The parser fix also exposed two real test failures that were
-hidden in every recent release:
-
-- **`model-availability` 403 → auth.** Test fed
-  `new Error('HTTP 403: requires a subscription')` and expected
-  `reason: 'auth'`, but v7.5.7-fix added a `subscription-required`
-  branch that matches anything containing `subscription` or
-  `requires.*upgrade` BEFORE the generic auth check (Ollama Cloud
-  Pro-gates carry both 403 and subscription markers; classifying
-  them as `auth` would retry hourly instead of using the 24h
-  subscription-TTL). Subscription-required coverage was already in
-  `v757-fix-cloud-fallback.test.js`. The model-availability test
-  message is now `HTTP 403: forbidden` — pure auth case without
-  subscription keyword — and the assertion still expects `auth`.
-- **`openpath-path-extraction` tilde expansion.** Test sent
-  `öffne ~/.config` and expected `~/.config` preserved in the
-  shell.run argument. But v7.5.9 Linux-fix expands `~/` to
-  `os.homedir()` BEFORE `fs.existsSync` and before passing to
-  `shell.run` because `child_process` spawn without `shell:true`
-  passes args literally — a preserved tilde would be a literal
-  `~/.config` that doesn't exist on any filesystem. Test now
-  expects `path.join(os.homedir(), '.config')` and the name is
-  updated to "is expanded to homedir".
-
-### Item 4 — AUDIT-BACKLOG.md cleanup
-
-"Deferred from v7.7.6 audit (carried forward)" section was 6 items
-listed as open. Five had already been resolved in earlier releases:
-
-- F5 / C1 — Mermaid SVG `innerHTML` without DOMPurify → v7.8.4
-- F6 / B2 — Hardcoded Node v22.22.2 → v7.8.4
-- B4 — Pre-deletion-audit pattern formalisation → v7.8.4
-- mermaid `^10.9.1` → v11 evaluation → v7.8.4
-- Sidebar splitter not draggable → v7.8.6
-
-Only `monaco-editor`'s bundled DOMPurify remains as documentation
-(upstream, not self-fixable). Section now contains only that one
-entry, clearly labelled "Documentation entry only — does not count
-as an open backlog item".
+No new setup steps over v7.8.8. The LLM-resilience layer activates automatically the first time a code-generation call is made through an Ollama backend; the capability cache lives in `.genesis/llm-capabilities.json` and is populated lazily.
 
 ### Numbers
 
-- Tests: 7552 Windows / 7551 Linux (was 7539 / 7538), +14 from
-  `runner-parser-v787` contract, −5 obsolete source-regex tests.
-- Modules: 360 (unchanged).
-- Test files: 459 (was 458).
-- Fitness 130/130, doc-drift 56/56, stale-refs ✓.
-
-### What v7.8.7 explicitly does NOT do
-
-Goal-DAG, Self-Gate per-Node, IntentRouter "kannst du X" /
-Chrome-open double-turn, ImpactForecast Activity, DELEGATE peer
-pre-check → blocker promotion. Each is its own focused release.
-
+7601+ tests pass (Win baseline), 7600+ (Linux). 130/130 fitness. 87 new tests in 6 contract/test files (`v789-llm-streaming-completion.contract.test.js`, `v789-llm-truncation-detector.contract.test.js`, `v789-llm-capability-detection.contract.test.js`, `v789-llm-continuation-loop.contract.test.js`, `v789-llm-resilience-integration.contract.test.js`, `modelbridge-continuation.test.js`) on top of the 28 affect-encoding tests.
 
 ---
 

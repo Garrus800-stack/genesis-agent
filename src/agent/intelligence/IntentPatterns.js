@@ -475,6 +475,12 @@ const INTENT_DEFINITIONS = [
     /(?:^|\s)\/proactive-status\b/i,
   ], 25, []],
 
+  // v7.8.9 (koennen-v789 contract): /affect-trail [n] — inspect recent
+  // AgentLoop boundaries with affect snapshot and gate status.
+  ['affect-trail', [
+    /(?:^|\s)\/(?:affect-trail|affekt-trail)\b/i,
+  ], 25, []],
+
   ['greeting', [
     /^(hi|hallo|hey|moin|servus|guten (morgen|tag|abend)|hello|good (morning|evening)|bonjour|buenas?)\s*[!.]?$/i,
   ], 5, ['hallo', 'hello', 'hi', 'moin', 'servus']],

@@ -26,6 +26,7 @@
 //   dream:complete            → accumulator += newSchemas
 //   surprise:novel-event      → accumulator += 5
 //   meta:recommendations-updated → accumulator += 2
+//   koennen:candidates-noticed   → accumulator += 2  (v7.8.9)
 //   PromptBuilder.build()     → getIdentitySummary()
 // ============================================================
 
@@ -104,6 +105,14 @@ class SelfNarrative {
 
     this._sub('expectation:calibrated', () => {
       this._changeAccumulator += 3;
+    }, { source: 'SelfNarrative' });
+
+    // v7.8.9 (koennen-v789 contract): when SkillCandidateNarrative
+    // observes ≥3 skill-candidate trajectories in a 7-day window,
+    // boost accumulator so narrative updates more often during
+    // active learning periods.
+    this._sub('koennen:candidates-noticed', () => {
+      this._changeAccumulator += 2;
     }, { source: 'SelfNarrative' });
   }
 

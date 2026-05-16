@@ -72,6 +72,7 @@ class CommandHandlers {
     orchestrator.registerHandler('journal', () => this.journal());
     orchestrator.registerHandler('plans', () => this.plans());
     orchestrator.registerHandler('goals', (msg) => this.goals(msg));
+    orchestrator.registerHandler('affect-trail', (msg) => this.affectTrail(msg));   // v7.8.9
     orchestrator.registerHandler('settings', (msg) => this.handleSettings(msg));
     orchestrator.registerHandler('web-lookup', (msg) => this.webLookup(msg));
     orchestrator.registerHandler('undo', () => this.undo());
