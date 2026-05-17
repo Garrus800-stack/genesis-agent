@@ -481,6 +481,12 @@ const INTENT_DEFINITIONS = [
     /(?:^|\s)\/(?:affect-trail|affekt-trail)\b/i,
   ], 25, []],
 
+  // v7.9.0 Phase 2 (koennen-crystallizer-v790 contract): /skills-pending —
+  // list skills SkillCrystallizer has extracted but not yet promoted.
+  ['skills-pending', [
+    /(?:^|\s)\/skills-pending\b/i,
+  ], 25, []],
+
   ['greeting', [
     /^(hi|hallo|hey|moin|servus|guten (morgen|tag|abend)|hello|good (morning|evening)|bonjour|buenas?)\s*[!.]?$/i,
   ], 5, ['hallo', 'hello', 'hi', 'moin', 'servus']],

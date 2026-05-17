@@ -47,26 +47,64 @@ const commandHandlersCode = {
   async runSkill(message) {
     if (!this.skillManager) return 'No SkillManager available — skills are not loaded.';
 
-    // Extract skill name from message
-    const nameMatch = message.match(/([\w-]+-skill)\b/i) ||
-                      message.match(/(?:run|execute|use|start|starte?|nutze?|verwende?)\s+(?:the\s+|skill\s+|(?:de[nr]|dein(?:en?)?|mein(?:en?)?)\s+)?["']?([\w-]+)["']?/i);
-    const skillName = nameMatch ? (nameMatch[1] || nameMatch[2]) : null;
+    // v7.9.0: slash-aware parsing. `/run-skill <name>` puts the literal
+    // "run-skill" right next to the slash, and the legacy `[\w-]+-skill`
+    // pattern would greedily match that as the skill name — then
+    // executeSkill("run-skill", {}) throws "not found" and the catch
+    // below falls through to shellRun(message), which executes the
+    // entire chat input ("/run-skill random-hex-color") in PowerShell
+    // and surfaces "command not found" to the user. Handle the slash
+    // form explicitly first so the actual argument is the name.
+    // v7.9.0 final: also parse optional JSON argument so skills that
+    // need input (e.g. slugify needs a text) become callable.
+    // Syntax: /run-skill <name> {"key":"value"} — JSON optional, defaults to {}.
+    const isSlashCommand = /^\s*\/run-skill\b/i.test(message);
+    let skillName = null;
+    let skillInput = {};
+    let jsonParseError = null;
+    if (isSlashCommand) {
+      const slashArg = message.match(/^\s*\/run-skill\s+([\w-]+)(?:\s+(.+))?$/i);
+      skillName = slashArg ? slashArg[1] : null;
+      if (slashArg && slashArg[2] && slashArg[2].trim()) {
+        try {
+          skillInput = JSON.parse(slashArg[2].trim());
+          if (!skillInput || typeof skillInput !== 'object' || Array.isArray(skillInput)) {
+            jsonParseError = 'argument must be a JSON object (e.g. {"text":"hello"})';
+            skillInput = {};
+          }
+        } catch (err) {
+          jsonParseError = `JSON argument could not be parsed: ${err.message}`;
+        }
+      }
+    } else {
+      const nameMatch = message.match(/([\w-]+-skill)\b/i) ||
+                        message.match(/(?:run|execute|use|start|starte?|nutze?|verwende?)\s+(?:the\s+|skill\s+|(?:de[nr]|dein(?:en?)?|mein(?:en?)?)\s+)?["']?([\w-]+)["']?/i);
+      skillName = nameMatch ? (nameMatch[1] || nameMatch[2]) : null;
+    }
+
+    if (jsonParseError) {
+      return `❌ ${jsonParseError}\n\nUsage: /run-skill <skill-name> [JSON-object]\nExample: /run-skill slugify {"text":"Hello World"}`;
+    }
 
     if (!skillName || skillName === 'skill' || skillName === 'skills' || /^(dein|mein|den|der|die|das|the|my)$/i.test(skillName)) {
       // List available skills
       const all = this.skillManager.listSkills();
       if (all.length === 0) return 'No skills installed. Use "create a skill..." to build one.';
-      return `Available skills:\n${all.map(s => `  • ${s.name}: ${s.description || '(no description)'}`).join('\n')}\n\nUsage: "run <skill-name>"`;
+      return `Available skills:\n${all.map(s => `  • ${s.name}: ${s.description || '(no description)'}`).join('\n')}\n\nUsage: "/run-skill <skill-name> [JSON-object]"`;
     }
 
     try {
-      const result = await this.skillManager.executeSkill(skillName, {});
+      const result = await this.skillManager.executeSkill(skillName, skillInput);
       if (result.error) return `⚠️ Skill "${skillName}" error: ${result.error}`;
       const output = result.output || result.result || result;
       return `✅ Skill "${skillName}" result:\n\`\`\`json\n${JSON.stringify(output, null, 2)}\n\`\`\``;
     } catch (err) {
-      // v5.9.1: If skill not found but shell is available, try as shell command
-      if (err.message?.includes('not found') && this.shell) {
+      // v7.9.0: NEVER fall back to shellRun for slash-form commands —
+      // the legacy "skill not found → try as shell" path was for
+      // free-text imperatives like "run my-tool". Slash commands are
+      // explicit and should return a clean error, not execute the
+      // user's chat input as a shell command (security + UX).
+      if (!isSlashCommand && err.message?.includes('not found') && this.shell) {
         return this.shellRun(message);
       }
       return `❌ Skill "${skillName}" failed: ${err.message}`;

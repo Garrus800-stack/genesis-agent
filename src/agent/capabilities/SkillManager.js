@@ -85,16 +85,49 @@ class SkillManager {
 
     // Run in sandbox for safety
     const code = fs.readFileSync(entryPath, 'utf-8');
+    // v7.9.0 final: format-tolerant skill invocation. Accept four export
+    // shapes so the LLM is not constrained to one rigid class pattern:
+    //   1. class with execute() method        — `class Foo { execute() }`
+    //   2. plain function or arrow function    — `module.exports = (i) => ...`
+    //   3. object with execute() method        — `module.exports = { execute }`
+    //   4. legacy: any constructable function  — fallback
+    // Detection happens inside the sandbox after the skill module loads.
     const execCode = `
       ${code}
-      const SkillClass = Object.values(module.exports || {}).find(v => typeof v === 'function');
-      if (SkillClass) {
-        const instance = new SkillClass();
-        const result = await instance.execute(${JSON.stringify(input)});
-        console.log(JSON.stringify(result));
+      const _exported = Object.values(module.exports || {});
+      const _direct = typeof module.exports === 'function' ? module.exports : null;
+      const _input = ${JSON.stringify(input)};
+      let _result;
+      // 1. Class with execute() on prototype
+      const _SkillClass = _exported.find(v =>
+        typeof v === 'function' && v.prototype && typeof v.prototype.execute === 'function'
+      );
+      if (_SkillClass) {
+        const _instance = new _SkillClass();
+        _result = await _instance.execute(_input);
       } else {
-        throw new Error('No exported class found in skill');
+        // 3. Object with execute() method (also covers module.exports = { execute })
+        const _objWithExecute = _exported.find(v =>
+          v && typeof v === 'object' && typeof v.execute === 'function'
+        );
+        if (_objWithExecute) {
+          _result = await _objWithExecute.execute(_input);
+        } else if (_direct && typeof _direct === 'function') {
+          // 2. module.exports is itself the function (arrow / plain)
+          _result = await _direct(_input);
+        } else {
+          // 2b. Plain function exported by name (no prototype.execute)
+          const _plainFn = _exported.find(v =>
+            typeof v === 'function' && (!v.prototype || typeof v.prototype.execute !== 'function')
+          );
+          if (_plainFn) {
+            _result = await _plainFn(_input);
+          } else {
+            throw new Error('Skill has no callable export (expected: class with execute(), plain function, or object with execute())');
+          }
+        }
       }
+      console.log(JSON.stringify(_result));
     `;
 
     return await this.sandbox.execute(execCode, {
@@ -123,31 +156,120 @@ class SkillManager {
     const desiredName = typeof opts.desiredName === 'string' && opts.desiredName.trim()
       ? opts.desiredName.trim()
       : null;
+    const maxAttempts = typeof opts.maxAttempts === 'number' && opts.maxAttempts > 0
+      ? opts.maxAttempts
+      : 3;
 
-    const existingSkills = this.listSkills()
-      .map(s => `${s.name}: ${s.description}`)
-      .join('\n') || 'Keine';
-
-    // Step 1: Generate skill code via LLM. If a desiredName was provided,
-    // append a strong directive so the LLM produces a manifest using it.
+    // v7.9.0 final: iteration loop with error feedback (Voyager pattern).
+    // The configured model stays configured — no auto-routing. Errors from
+    // parser / safety / sandbox flow back into the next prompt so the LLM
+    // can correct its own output. Three attempts: if the LLM can't produce
+    // a working skill in three tries with this model, an honest failure
+    // message is returned. The configured model is NEVER silently switched.
     const augmentedDescription = desiredName
       ? `${description}\n\nIMPORTANT: the skill manifest's "name" field MUST be exactly "${desiredName}".`
       : description;
 
-    const prompt = this.prompts.build('create-skill', {
-      description: augmentedDescription,
-      existingSkills,
-    });
+    let lastError = null;
+    let lastCode = null;
 
-    const response = await this.model.chat(prompt, [], 'code');
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const prompt = this.prompts.build('create-skill', {
+        description: augmentedDescription,
+        attempt,
+        lastError,
+        lastCode,
+      });
 
-    // Step 2: Extract manifest and code — with fallback strategies
+      this.bus?.fire?.('skill:forge-attempt', {
+        source: 'create-skill',
+        attempt,
+        maxAttempts,
+      }, { source: 'SkillManager' });
+
+      const response = await this.model.chat(prompt, [], 'code');
+
+      const result = await this._runForgeAttempt({
+        response, description, desiredName, attempt,
+      });
+
+      if (result.ok) {
+        this.bus?.fire?.('skill:forge-succeeded', {
+          source: 'create-skill',
+          skillName: result.skillName,
+          attempts: attempt,
+        }, { source: 'SkillManager' });
+        return result.message;
+      }
+
+      lastError = result.lastError;
+      lastCode = result.lastCode;
+    }
+
+    this.bus?.fire?.('skill:forge-failed', {
+      source: 'create-skill',
+      attempts: maxAttempts,
+      lastError: String(lastError || 'unknown'),
+    }, { source: 'SkillManager' });
+
+    return `❌ Could not forge a working skill after ${maxAttempts} attempts with the configured model.\n\n**Last error:** ${lastError}\n\nThe configured model was not switched. Consider: (1) a more detailed description, (2) a different configured model in settings, or (3) a different skill scope.`;
+  }
+
+  /**
+   * Single forge attempt: parse → safety → sandbox → install.
+   * Returns { ok: true, skillName, message } on success, or
+   * { ok: false, lastError, lastCode } on failure (feeds next iteration).
+   * @private
+   */
+  async _runForgeAttempt({ response, description, desiredName, attempt }) {
+    // Step 1: Extract manifest and code — with fallback strategies.
+    // Order matters: the LLM often emits a closed ```json manifest fence
+    // FIRST and an unclosed ```javascript code fence SECOND (truncated
+    // mid-output by cloud token caps). A naive generic ```\w* fence
+    // grabber would catch the *manifest* JSON as "code". So we prefer
+    // explicit `javascript|js` tags at every level, accept truncated JS
+    // before falling back to any generic fence, and reject any code
+    // capture that starts with `{` (those are manifest leakages).
     let manifestMatch = response.match(/```(?:json)?\n(\{[\s\S]*?"name"[\s\S]*?\})\n```/);
+
+    // (a) Strict: closed `javascript` or `js` fence
     let codeMatch = response.match(/```(?:javascript|js)\n([\s\S]+?)```/);
 
-    // Fallback: try any code block if javascript-tagged one not found
+    // (b) Truncated `javascript|js` fence (no closing fence — cloud cut off)
     if (!codeMatch) {
-      codeMatch = response.match(/```\w*\n([\s\S]+?)```/);
+      codeMatch = response.match(/```(?:javascript|js)\n([\s\S]+)$/);
+    }
+
+    // (c) Closed generic ```\w* fence — but reject if the capture starts
+    //     with `{` (a manifest leaked through). The actual JS fence may
+    //     still be truncated later in the response.
+    if (!codeMatch) {
+      const generic = response.match(/```(?!json\b)\w*\n([\s\S]+?)```/);
+      if (generic && !generic[1].trim().startsWith('{')) {
+        codeMatch = generic;
+      }
+    }
+
+    // (d) Truncated generic fence to EOF — last resort, still reject JSON
+    if (!codeMatch) {
+      const truncGeneric = response.match(/```(?!json\b)\w*\n([\s\S]+)$/);
+      if (truncGeneric && !truncGeneric[1].trim().startsWith('{')) {
+        codeMatch = truncGeneric;
+      }
+    }
+
+    // (e) Bare code without any fences. Accept the response as code if it
+    //     contains function/exports/module patterns and no markdown fences.
+    if (!codeMatch && !response.includes('```')) {
+      const looksLikeCode = /(?:^|\n)\s*(?:async\s+)?function\s+\w+\s*\(|=>\s*[\{(]|module\.exports\s*=|exports\.\w+\s*=/.test(response);
+      if (looksLikeCode) {
+        codeMatch = [null, response.trim()];
+      }
+    }
+
+    // Bare manifest JSON (no fences) — recoverable if the LLM dropped fences
+    if (!manifestMatch) {
+      manifestMatch = response.match(/(\{[\s\S]*?"name"\s*:[\s\S]*?\})/);
     }
 
     // If we have code but no manifest, generate a manifest from the description.
@@ -166,14 +288,18 @@ class SkillManager {
     }
 
     if (!codeMatch) {
-      return '❌ Could not create skill — model returned incomplete result. Try a more detailed description.';
+      return { ok: false, lastError: 'response contained no parseable code block', lastCode: null };
     }
 
     let manifest;
     try {
       manifest = JSON.parse(manifestMatch[1]);
-    } catch (err) {
-      return '❌ Invalid manifest JSON from model.';
+    } catch (_err) {
+      return {
+        ok: false,
+        lastError: `manifest JSON malformed: ${_err.message}`,
+        lastCode: codeMatch[1].trim(),
+      };
     }
 
     // v7.7.9 Phase 1c: if desiredName was provided and the LLM still chose a
@@ -190,20 +316,38 @@ class SkillManager {
     // FIX v5.1.0 (DI-1): CodeSafety via port lateBinding (this._codeSafety)
     const safety = this._codeSafety.scanCode(skillCode, `skills/${skillName}/index.js`);
     if (!safety.safe) {
-      return `❌ Skill "${skillName}" blocked by safety scanner:\n${safety.blocked.map(b => b.description).join('\n')}`;
+      return {
+        ok: false,
+        lastError: `code safety scanner blocked: ${safety.blocked.map(b => b.description).join('; ')}`,
+        lastCode: skillCode,
+      };
     }
 
     // Step 3: Test in sandbox
     const testResult = await this.sandbox.testPatch(
       `skills/${skillName}/index.js`,
-      skillCode
+      skillCode,
     );
 
     if (!testResult.success) {
-      return `⚠️ Skill "${skillName}" failed the test:\n\n**Phase:** ${testResult.phase}\n**Error:** ${testResult.error}\n\nShould I try again?`;
+      return {
+        ok: false,
+        lastError: `sandbox test failed (${testResult.phase || 'unknown'}): ${testResult.error}`,
+        lastCode: skillCode,
+      };
     }
 
     // Step 4: Install
+    return this._installForgedSkill(manifest, skillCode, skillName, skillDir, attempt);
+  }
+
+  /**
+   * Write a verified skill to disk and reload the registry.
+   * Returns { ok: true, skillName, message } on success or
+   * { ok: false, lastError, lastCode } on install-time failure (rare).
+   * @private
+   */
+  async _installForgedSkill(manifest, skillCode, skillName, skillDir, attempts) {
     // FIX v4.10.0 (Audit P1-03b): Path traversal protection + SafeGuard validation.
     // manifest.entry and skillName come from LLM output — must be sanitized.
     const safeEntry = path.basename(manifest.entry || 'index.js');
@@ -213,10 +357,10 @@ class SkillManager {
     // Verify paths resolve inside skillsDir
     const skillsDirResolved = path.resolve(this.skillsDir);
     if (!path.resolve(manifestPath).startsWith(skillsDirResolved + path.sep)) {
-      return `❌ Path traversal blocked: ${manifestPath}`;
+      return { ok: false, lastError: `path traversal blocked: ${manifestPath}`, lastCode: skillCode };
     }
     if (!path.resolve(codePath).startsWith(skillsDirResolved + path.sep)) {
-      return `❌ Path traversal blocked: ${codePath}`;
+      return { ok: false, lastError: `path traversal blocked: ${codePath}`, lastCode: skillCode };
     }
 
     // SafeGuard validation (blocks kernel, critical files, node_modules, .git)
@@ -225,7 +369,7 @@ class SkillManager {
         this.guard.validateWrite(manifestPath);
         this.guard.validateWrite(codePath);
       } catch (err) {
-        return `❌ SafeGuard blocked: ${err.message}`;
+        return { ok: false, lastError: `SafeGuard blocked: ${err.message}`, lastCode: skillCode };
       }
     }
 
@@ -240,7 +384,12 @@ class SkillManager {
     // Reload skills
     await this.loadSkills();
 
-    return `✅ Skill "${skillName}" erstellt und installiert!\n\n**Beschreibung:** ${manifest.description}\n**Interface:** ${JSON.stringify(manifest.interface, null, 2)}\n**Test:** Bestanden`;
+    const attemptNote = attempts > 1 ? `\n**Attempts:** ${attempts}` : '';
+    return {
+      ok: true,
+      skillName,
+      message: `✅ Skill "${skillName}" erstellt und installiert!\n\n**Beschreibung:** ${manifest.description}${attemptNote}\n**Interface:** ${JSON.stringify(manifest.interface, null, 2)}\n**Test:** Bestanden`,
+    };
   }
 
   /** Remove a skill */

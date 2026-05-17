@@ -130,6 +130,8 @@ function phase9(ctx, R) {
         { prop: 'coreMemories',        service: 'coreMemories',        optional: true },
         { prop: 'activeRefs',          service: 'activeReferences',    optional: true },
         { prop: 'contextCollector',    service: 'contextCollector',    optional: true },
+        // v7.9.0 Phase 2: Können skill crystallization (Phase 3c).
+        { prop: 'skillCrystallizer',   service: 'skillCrystallizer',   optional: true },
       ],
       factory: (c) => new (R('DreamCycle').DreamCycle)({
         bus,

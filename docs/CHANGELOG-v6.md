@@ -1,6 +1,6 @@
 # Genesis Agent — Changelog v6.x.x
 
-For the current release notes see [CHANGELOG.md](CHANGELOG.md).
+For the current release notes see [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 

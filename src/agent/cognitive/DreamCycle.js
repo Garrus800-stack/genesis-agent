@@ -57,6 +57,9 @@ class DreamCycle {
     this.activeRefs = null;
     this.contextCollector = null;
 
+    // v7.9.0 Phase 2: Können skill crystallization (DreamCycle Phase 3c).
+    this.skillCrystallizer = null;
+
     // ── Configuration ────────────────────────────────────
     const cfg = config || {};
     this._minEpisodesForDream = cfg.minEpisodes || 10;
@@ -194,6 +197,22 @@ class DreamCycle {
 
         // ── Phase 3b: VALUE CRYSTALLIZATION (v4.12.4) ──────
         this._dreamPhaseCrystallize(newSchemas);
+
+        // ── Phase 3c: SKILL CRYSTALLIZATION (v7.9.0 Phase 2 — Können) ──
+        // Extracts reusable skills from clustered Können candidates.
+        // No-op when the crystallizer is not wired or the master toggle is off.
+        // Runs only at intensity ≥ 0.5 because it involves an LLM call.
+        if (this.skillCrystallizer) {
+          try {
+            const skillResult = await this.skillCrystallizer.run();
+            const skillCount = (skillResult && Array.isArray(skillResult.results))
+              ? skillResult.results.filter(r => r.success).length
+              : 0;
+            report.phases.push({ name: 'skill-crystallization', crystallized: skillCount });
+          } catch (err) {
+            report.phases.push({ name: 'skill-crystallization', skipped: `error: ${err.message}` });
+          }
+        }
       } else {
         report.phases.push({ name: 'pattern-detection', patternCount: 0, skipped: 'low-intensity' });
         report.phases.push({ name: 'schema-extraction', newSchemas: 0, skipped: 'low-intensity' });

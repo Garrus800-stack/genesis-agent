@@ -54,20 +54,40 @@ test('changelog-split contract: CHANGELOG.md contains exactly one version header
 });
 
 test('changelog-split contract: per-major archives exist', () => {
-  for (const f of ['CHANGELOG-v7.md', 'CHANGELOG-v6.md', 'CHANGELOG-v5.md', 'CHANGELOG-archive.md']) {
-    assert.ok(fs.existsSync(path.join(ROOT, f)), `${f} must exist after split`);
+  // v7.9.0: older archives (v5, v6, pre-v5) moved to docs/ for tidier root.
+  // CHANGELOG-v7.md stays at root since v7 is the current active major.
+  const rootArchives = ['CHANGELOG-v7.md'];
+  const docsArchives = ['CHANGELOG-v6.md', 'CHANGELOG-v5.md', 'CHANGELOG-archive.md'];
+  for (const f of rootArchives) {
+    assert.ok(fs.existsSync(path.join(ROOT, f)), `${f} must exist at root`);
+  }
+  for (const f of docsArchives) {
+    assert.ok(fs.existsSync(path.join(ROOT, 'docs', f)), `docs/${f} must exist after move`);
   }
 });
 
 test('changelog-split contract: CHANGELOG.md indexes the archive files', () => {
-  for (const f of ['CHANGELOG-v7.md', 'CHANGELOG-v6.md', 'CHANGELOG-v5.md', 'CHANGELOG-archive.md']) {
+  // v7.9.0: docs/-archives still need to be linked from CHANGELOG.md.
+  const indexedTargets = [
+    'CHANGELOG-v7.md',
+    'docs/CHANGELOG-v6.md',
+    'docs/CHANGELOG-v5.md',
+    'docs/CHANGELOG-archive.md',
+  ];
+  for (const f of indexedTargets) {
     assert.ok(CHANGELOG.includes(f),
       `CHANGELOG.md index section must link to ${f}`);
   }
 });
 
 test('changelog-split contract: no duplicate version headers within any single archive', () => {
-  for (const f of ['CHANGELOG-v7.md', 'CHANGELOG-v6.md', 'CHANGELOG-v5.md', 'CHANGELOG-archive.md']) {
+  const archivePaths = [
+    'CHANGELOG-v7.md',
+    'docs/CHANGELOG-v6.md',
+    'docs/CHANGELOG-v5.md',
+    'docs/CHANGELOG-archive.md',
+  ];
+  for (const f of archivePaths) {
     const content = fs.readFileSync(path.join(ROOT, f), 'utf-8');
     // Capture the full version expression between [ and ]
     const headers = (content.match(/^## \[[^\]]+\]/gm) || []).map(h => h.replace(/^## /, ''));
@@ -79,7 +99,7 @@ test('changelog-split contract: no duplicate version headers within any single a
 
 test('changelog-split contract: archive entries land in the right major file', () => {
   const v7 = fs.readFileSync(path.join(ROOT, 'CHANGELOG-v7.md'), 'utf-8');
-  const v6 = fs.readFileSync(path.join(ROOT, 'CHANGELOG-v6.md'), 'utf-8');
+  const v6 = fs.readFileSync(path.join(ROOT, 'docs', 'CHANGELOG-v6.md'), 'utf-8');
   // v7 archive must only contain v7.x.x headers
   const v7headers = v7.match(/^## \[(\d+)\./gm) || [];
   for (const h of v7headers) {

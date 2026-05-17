@@ -293,6 +293,16 @@ const SCHEMAS = {
   'koennen:candidate-recorded': { candidateId: 'required', goalId: 'required', gatePass: 'required' },
   'koennen:candidates-noticed': { count: 'required', windowMs: 'required', sampleTitles: 'optional' },
 
+  // Können (v7.9.0 Phase 2 — koennen-crystallizer-v790 contract)
+  'skill-crystallized':        { skillName: 'required', sourceCandidateIds: 'required', patternSignature: 'required' },
+  'dream:skills-crystallized': { crystallized: 'required', rejected: 'required' },
+  'skill:quarantined':         { skillName: 'required', reason: 'required', details: 'optional' },
+
+  // Skill Forge (v7.9.0 final — iteration-loop telemetry — koennen-forge-v790)
+  'skill:forge-attempt':       { source: 'required', attempt: 'required', maxAttempts: 'required' },
+  'skill:forge-succeeded':     { source: 'required', skillName: 'required', attempts: 'required' },
+  'skill:forge-failed':        { source: 'required', attempts: 'required', lastError: 'required' },
+
   // Prompt Strategy (v6.0.4 — AdaptivePromptStrategy)
   'prompt:strategy-updated': { intents: 'required', recommendations: 'required' },
 
@@ -462,6 +472,9 @@ const SCHEMAS = {
   'settings:auto-resume-changed':      { from: 'required', to: 'required', key: 'required' },
   'settings:auto-route-toggled':       { from: 'required', to: 'required', key: 'required' },
   'settings:mcp-serve-toggled':        { from: 'required', to: 'required', key: 'required' },
+  // v7.9.0 Phase 2 — Können toggles
+  'settings:koennen-toggled':                 { from: 'required', to: 'required', key: 'required' },
+  'settings:koennen-crystallization-toggled': { from: 'required', to: 'required', key: 'required' },
   // v7.6.6 Track A.4 — installation-anchored encryption key migration
   'settings:keys-unreadable':          { keys: 'required' },
   // Chat system message (UI-bridge for runtime confirmations)

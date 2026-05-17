@@ -119,6 +119,14 @@ async function openSettings() {
     _setBool('#set-negotiate', s?.agency?.negotiateBeforeAdd);
     _setBool('#set-cognitive-strict', s?.cognitive?.strictMode);
 
+    // v7.9.0 Phase 2 — Können-Konzept settings (load)
+    _setBool('#set-koennen-enabled',       s?.cognitive?.koennen?.enabled);
+    _setBool('#set-koennen-cryst-enabled', s?.cognitive?.koennen?.crystallization?.enabled);
+    _setNum('#set-koennen-cryst-min-candidates',
+      s?.cognitive?.koennen?.crystallization?.minCandidatesPerPattern ?? 3);
+    _setNum('#set-koennen-cryst-cooldown-ms',
+      s?.cognitive?.koennen?.crystallization?.cooldownMs ?? 21600000);
+
     _setNum('#set-max-concurrent', s?.models?.maxConcurrent ?? 3);
     _setNum('#set-max-workers', s?.selfSpawner?.maxWorkers ?? 3);
     _setStr('#set-keep-alive', s?.models?.ollamaKeepAlive ?? '');
@@ -275,6 +283,12 @@ async function saveSettings() {
   const cogStrictEl = $('#set-cognitive-strict');
   if (cogStrictEl) sets.push(['cognitive.strictMode', cogStrictEl.value === 'true']);
 
+  // v7.9.0 Phase 2 — Können-Konzept settings (save)
+  const koennenEnabledEl = $('#set-koennen-enabled');
+  if (koennenEnabledEl) sets.push(['cognitive.koennen.enabled', koennenEnabledEl.value === 'true']);
+  const koennenCrystEl = $('#set-koennen-cryst-enabled');
+  if (koennenCrystEl) sets.push(['cognitive.koennen.crystallization.enabled', koennenCrystEl.value === 'true']);
+
   const _intIfValid = (selector, key, min, max) => {
     const el = $(selector);
     if (!el || el.value === '') return;
@@ -294,6 +308,8 @@ async function saveSettings() {
 
   _intIfValid('#set-sim-branches', 'cognitive.simulation.maxBranches', 1, 20);
   _intIfValid('#set-sim-depth',    'cognitive.simulation.maxDepth',    1, 100);
+  _intIfValid('#set-koennen-cryst-min-candidates', 'cognitive.koennen.crystallization.minCandidatesPerPattern', 1, 20);
+  _intIfValid('#set-koennen-cryst-cooldown-ms',    'cognitive.koennen.crystallization.cooldownMs',              1000, 604800000);
   _intIfValid('#set-idle-minutes', 'idleMind.idleMinutes',             1, 120);
   _intIfValid('#set-think-minutes', 'idleMind.thinkMinutes',           1, 120);
   _intIfValid('#set-daemon-cycle', 'daemon.cycleMinutes',              1, 120);

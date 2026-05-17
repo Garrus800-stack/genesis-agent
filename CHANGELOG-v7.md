@@ -4,6 +4,37 @@ For the current release notes see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
+## [7.9.0]
+
+**Bug-Fix-Konsolidierung aus v7.8.9-Real-Run.**
+
+Drei dokumentierte Bugs aus dem v7.8.9-Real-Run mit qwen3-vl:235b-cloud + Template-Regex-Robustheit. v7.8.9-Verhalten für Cloud-Skill-Build erhalten (kein Family-Fallback).
+
+### Bugs gefixt
+
+- **`.genesis/llm-capabilities.json` wurde nie geschrieben** — `ModelBridge.constructor` speicherte `genesisDir` nicht als instance field. Fix: `this._genesisDir = genesisDir || null`.
+- **`LLM_STREAM_FIRST_CHUNK` 120s → 180s** — qwen3-vl:235b-cloud unter Last bei 120-150s.
+- **`EmbeddingService` GPU/CPU-Fallback** — Retry mit `num_gpu: 0` bei HTTP 500 "load failed" auf 8GB-VRAM-Systemen.
+
+### Robustheits-Verbesserung
+
+- **Template-Regex tolerant gegen Klammern/Newlines** — `range[\s\S]{0,100}?\.Messages`. Bei unrecognized: weiterhin `status='unknown'` (= v7.8.9-Verhalten).
+
+### Skill Forge — Iteration loop + format tolerance + skill awareness
+
+Final pass to make skill creation actually work with any configured model — no auto-routing, no silent model substitution. Robustness comes from a feedback loop, not from picking a better model behind the user's back.
+
+- **`SkillManager.createSkill` iteration loop** — Voyager-pattern up to 3 attempts. On parser failure, code-safety block, or sandbox-test failure the concrete error plus the failing code are fed back into the next prompt. The configured model stays configured throughout. After max attempts an honest failure message is returned with the last error and suggestions (more detailed description, different configured model, different scope). Emits `skill:forge-attempt` per try, `skill:forge-succeeded` on first success, `skill:forge-failed` after exhaustion.
+- **`SkillCrystallizer._crystallizeOne` iteration loop** — same feedback pattern wired into the DreamCycle Phase 3c LLM extraction so Phase 2 Können skill crystallization gains the same robustness as user-driven `/create-skill`. Settings key `cognitive.koennen.crystallization.maxAttempts` (default 3) controls the loop budget.
+- **`PromptEngine` create-skill template — attempt-aware** — slots extended from `{description, existingSkills}` to `{description, attempt, lastError, lastCode}`. On attempt 1 the template still shows the format skeleton. On attempt ≥2 it instead surfaces the previous error and previous code with the instruction "Fix the specific error above; keep the working parts of the previous code intact" — the LLM sees its own broken output and the concrete reason it failed.
+- **`SkillManager.executeSkill` format tolerance** — accepts four export shapes so the LLM is not forced into one rigid class pattern: class with `execute()` method on prototype, `module.exports = async function`, `module.exports = async (input) =>`, and `module.exports = { execute }`. The sandbox `execCode` template auto-detects and invokes the right form.
+- **`/run-skill <name> {json}` JSON argument parsing** — slash-form now accepts an optional JSON-object argument so skills that need input (e.g. a slugify skill needs `{"text":"..."}`) become callable from the command line. Non-object JSON (arrays, strings, numbers) is rejected with a clear error and usage hint.
+- **`PromptBuilderSectionsExtra._skillsContext`** — new section surfaces installed skills (name + description, capped at 30) into the system prompt under `[Installed Skills]` so Genesis is aware of his own toolset and can call skills via `/run-skill`. Wired into `PromptBuilder.js` next to `_lessonsContext` and `_solutionContext`. Uses the existing `this.skills` lateBinding — no new DI needed.
+- **3 new events** — `skill:forge-attempt`, `skill:forge-succeeded`, `skill:forge-failed` with payload schemas (catalogue grows from 473 to 476).
+- **New contract prefix** — `koennen-forge-v790 contract:` minCount 12 in `scripts/stale-refs.json`. 21 new contract tests in `test/modules/v790-skill-forge.contract.test.js` covering iteration loop, retry template, format-tolerant executeSkill, JSON-arg parsing, and skills-context section (test files 477 → 478).
+
+---
+
 ## [7.8.9]
 
 **Affect-encoding at AgentLoop boundaries + LLM resilience layer.**
@@ -411,8 +442,8 @@ This release splits it into per-major archives:
   `ChatOrchestratorSourceRead._readChangelogLatestSection` keeps
   working because the newest `## [x.y.z]` header is still at the
   top of `CHANGELOG.md`.
-- `CHANGELOG-v7.md`, `CHANGELOG-v6.md`, `CHANGELOG-v5.md`,
-  `CHANGELOG-archive.md` (v0–v4) — full historical archives.
+- `CHANGELOG-v7.md`, `docs/CHANGELOG-v6.md`, `docs/CHANGELOG-v5.md`,
+  `docs/CHANGELOG-archive.md` (v0–v4) — full historical archives.
 
 ---
 

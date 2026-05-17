@@ -40,6 +40,9 @@ const TOGGLE_EVENT_KEYS = {
   'agency.autoResumeGoals':    'settings:auto-resume-changed',
   'agency.autoRouteByTask':    'settings:auto-route-toggled',  // v7.5.2
   'mcp.serve.enabled':         'settings:mcp-serve-toggled',
+  // v7.9.0 Phase 2: Können-Pipeline toggles.
+  'cognitive.koennen.enabled':                 'settings:koennen-toggled',
+  'cognitive.koennen.crystallization.enabled': 'settings:koennen-crystallization-toggled',
 };
 
 class Settings {
@@ -274,6 +277,23 @@ class Settings {
           maxSchemas: 200,
           relevanceThreshold: 0.3,
           confidenceDecayRate: 0.005,
+        },
+        // v7.9.0 Phase 2: Können — skill crystallization layer.
+        // Phase 3 (v7.9.1) will extend this tree with promotion/rehearsal/skillRecall.
+        koennen: {
+          enabled: true,
+          crystallization: {
+            enabled: true,
+            minCandidatesPerPattern: 3,
+            windowMs: 7 * 24 * 60 * 60 * 1000,    // 7d lookback
+            cooldownMs: 6 * 60 * 60 * 1000,       // 6h per pattern
+            llm: { enabled: true, maxTokens: 2000, timeoutMs: 120000 },
+            sandbox: { initTestTimeoutMs: 10000 },
+          },
+          effectiveness: {
+            initialEvidence: 1,         // Wilson seed: 1 success / 1 total
+            decayPerWeek: 0.05,         // Confidence drift when unused
+          },
         },
       },
       // v3.5.0: Organism tuning — previously hardcoded in EmotionalState/Homeostasis/NeedsSystem

@@ -41,6 +41,11 @@ const FIELD_REGISTRY = {
   'set-auto-route':               { type: 'bool',     settingsPath: 'agency.autoRouteByTask',          resetSafe: true,  default: false },
   'set-negotiate':                { type: 'bool',     settingsPath: 'agency.negotiateBeforeAdd',       resetSafe: true,  default: false },
   'set-cognitive-strict':         { type: 'bool',     settingsPath: 'cognitive.strictMode',            resetSafe: true,  default: false },
+  // v7.9.0 Phase 2 — Können-Konzept (Skill Crystallization) settings.
+  'set-koennen-enabled':                  { type: 'bool',   settingsPath: 'cognitive.koennen.enabled',                                  resetSafe: true, default: true },
+  'set-koennen-cryst-enabled':            { type: 'bool',   settingsPath: 'cognitive.koennen.crystallization.enabled',                  resetSafe: true, default: true },
+  'set-koennen-cryst-min-candidates':     { type: 'number', settingsPath: 'cognitive.koennen.crystallization.minCandidatesPerPattern',  resetSafe: true, default: 3,        min: 1,    max: 20 },
+  'set-koennen-cryst-cooldown-ms':        { type: 'number', settingsPath: 'cognitive.koennen.crystallization.cooldownMs',               resetSafe: true, default: 21600000, min: 1000, max: 604800000 },
   'set-daemon-auto-repair':       { type: 'bool',     settingsPath: 'daemon.autoRepair',               resetSafe: true,  default: true },
   'set-daemon-auto-optimize':     { type: 'bool',     settingsPath: 'daemon.autoOptimize',             resetSafe: true,  default: false },
   'set-idlemind-max-goals':       { type: 'number',   settingsPath: 'idleMind.maxActiveGoals',         resetSafe: true,  default: 3,    min: 1,    max: 20 },

@@ -42,7 +42,11 @@ const TIMEOUTS = {
    *  usually streams one token every 30-200ms. Total cap protects against
    *  runaway generations. Each constant is user-overridable via
    *  settings.json `llm.streamTimeouts.{firstChunk,chunk,total,continuationTotal}`. */
-  LLM_STREAM_FIRST_CHUNK: 120000,
+  /** v7.9.0 (was 120s in v7.8.9): cloud models under load occasionally need
+   *  >120s for the first chunk (qwen3-vl:235b-cloud observed at ~120-150s on
+   *  congested days). 180s gives enough headroom without masking real hangs.
+   *  Override per-install via settings.json `llm.streamTimeouts.firstChunk`. */
+  LLM_STREAM_FIRST_CHUNK: 180000,
   LLM_STREAM_CHUNK: 30000,
   LLM_STREAM_TOTAL: 600000,
   LLM_CONTINUATION_TOTAL: 1200000,

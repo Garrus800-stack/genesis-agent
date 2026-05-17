@@ -51,6 +51,8 @@ describe('PromptBuilderSections: Delegation', () => {
       '_groundednessContext', '_sourceAccessContext', '_buildSourceBlock',
       // v7.4.0: Runtime-state block from RuntimeStatePort
       '_runtimeStateContext',
+      // v7.9.0 final: Installed-skills awareness section
+      '_skillsContext',
     ];
     for (const name of expected) {
       assert(typeof allSections[name] === 'function', `sections.${name} should be a function`);

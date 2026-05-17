@@ -1,39 +1,58 @@
-## [7.8.9]
+## [7.9.0]
 
-**Affect-encoding at AgentLoop boundaries — Genesis starts noticing which tasks feel like they should become skills. Plus a resilience layer that keeps long code-generation calls alive across timeouts.**
+**Bug-Fix-Konsolidierung aus dem v7.8.9 Real-Run-Log (qwen3-vl:235b-cloud, 9h+ Test-Run).**
 
-v7.8.9 introduces the foundation layer for procedural-memory crystallization in v7.9.0. At every AgentLoop task start and end, Genesis snapshots his 5-dimensional emotional state, tracks frustration and curiosity peaks via emotion:shift events during the trajectory, sums surprise signals from SurpriseAccumulator between start and end timestamps, and evaluates the result against a baseline-relative triage gate. Both passing and failing boundaries are persisted as calibration data for v7.9.0.
+v7.9.0 adressiert die drei Bugs, die im v7.8.9-Real-Run-Log gefunden wurden, sowie eine kleine Regex-Robustheits-Verbesserung in der Template-Erkennung. **v7.8.9-Verhalten für Cloud-Modell-Skill-Build bleibt erhalten** (status='unknown' für unrecognized templates → pseudo-continuation pfad). Kein Family-Fallback eingeführt, da dieser zwischen v7.8.9 und v7.9.0-Iterationen für Cloud-Skill-Build-Regress verantwortlich war.
 
-The same release adds an LLM-resilience layer so long code-generation calls (skill builds, multi-file refactors, code reflections) survive Ollama timeouts and token-cap truncations instead of being thrown away when a single HTTP request hits its limit.
+### Bugs gefixt
 
-### What changed — Affect-encoding
+- **`.genesis/llm-capabilities.json` wurde nie geschrieben** — `ModelBridge` constructor las `genesisDir` aber speicherte es nicht als instance field. Der ContinuationMixin las `this._genesisDir` was immer `undefined` war → `_capabilityFilePath()` returnte null → `_persist()` war no-op. Fix: `this._genesisDir = genesisDir || null` im constructor. Capability-Cache persistiert jetzt zwischen Boots, was bei wiederholten Boots die ~30s teure Verification-Probe für lokale Modelle einspart.
+- **`LLM_STREAM_FIRST_CHUNK` von 120s auf 180s erhöht** — qwen3-vl:235b-cloud unter Last beobachtet bei 120-150s für ersten Chunk. 180s ist konservativer ohne real-hangs zu maskieren. Override per `settings.json` `llm.streamTimeouts.firstChunk` möglich.
+- **`EmbeddingService` GPU/CPU-Fallback** — Auf 8GB-VRAM-Systemen kollidiert `nomic-embed-text` mit geladenem Chat-Modell (Ollama returnt HTTP 500 "model failed to load, resource limitations"). Fix: bei einem solchen Fehler einmaliger Retry mit `options.num_gpu: 0`. CPU-only ist bei nomic-embed-text 200-500ms statt 50ms — akzeptabel. Andere Fehler (404 etc.) triggern keinen Retry.
 
-- New `KoennenCandidateLog` subscribes to `agent-loop:started`, `emotion:shift`, and `agent-loop:complete`. Tracks per-task affect snapshots (start, end, peaks), accumulates surprise across the trajectory via the new `SurpriseAccumulator.getSignalsSince(timestamp)` method, and persists every boundary to `.genesis/koennen/candidates.jsonl`. A 30-min TTL cleanup tick prunes `_activeTaskStarts` entries older than 2h (crash-recovery for tasks where `:started` fired but `:complete` never came).
-- Triage gate is baseline-relative: `satisfaction_end > satisfaction_baseline + 0.15` AND `frustration_peak < frustration_baseline + 0.4` AND `surprise_sum/step_count > θ` AND `success === true` AND `step_count > 0`. `θ = 0.6 - (genome.consolidation * 0.3)`, range [0.315, 0.585]. The `consolidation` genome trait gets its third active reader (alongside Metabolism's regen rate and PickContext's idle-activity context).
-- New `SkillCandidateNarrative` reacts immediately to each passing candidate. When ≥3 candidates passed gate in the last 7 days (with 6h cooldown between reflections), it fires `koennen:candidates-noticed` which boosts SelfNarrative's `_changeAccumulator` by 2 — Genesis updates his narrative more often when he's actively learning.
-- New `/affect-trail [n]` slash command shows the last n AgentLoop boundaries with affect snapshot, gate-pass status, current θ, and overall pass-rate statistics.
-- New `KOENNEN` namespace in EventTypes catalog with two events: `CANDIDATE_RECORDED` and `CANDIDATES_NOTICED`. Both have matching payload schemas in EventPayloadSchemas.
+### Robustheits-Verbesserung
 
-### What changed — LLM resilience layer
+- **Template-Klassifikation tolerant gegen Klammern + Newlines** — Der v7.8.9-Regex `range[^.{}]*\.Messages` matched bei real-world Qwen3-Templates nicht zuverlässig (Klammern in nested `{{...}}` zwischen `range` und `.Messages`). Tolerant version: `range[\s\S]{0,100}?\.Messages`. Erkennt jetzt mehr Templates korrekt als 'messages-loop'. Bei unrecognized templates: weiterhin `status='unknown'` (= v7.8.9-Verhalten), kein Family-Fallback und kein Verification-Probe — dieser Pfad hatte einen Cloud-Skill-Build-Regress in v7.9.0-Iterations verursacht.
 
-- New `StreamingCompletion` wraps any backend's `stream()` with three layered timeouts (`LLM_STREAM_FIRST_CHUNK` 120s, `LLM_STREAM_CHUNK` 30s, `LLM_STREAM_TOTAL` 600s — all user-overridable), accumulates chunks into an in-memory buffer, captures the terminal NDJSON chunk's `done_reason`, and never throws. Partial content always survives, no matter how the stream ended.
-- New `TruncationDetector` decides whether accumulated content is structurally complete. Auto-detects expected shape (`code-with-manifest` for the SkillManager pattern, `code-single-block`, `json-bare`, `code-bare`, or `free`) and validates per-shape: code fences must pair, JS brackets must balance via a stack-based matcher that ignores strings/line-comments/block-comments, JSON must parse. Truncation signals (`length`, `chunk-timeout`, `total-timeout`, `abort`, `null` TCP-drop) override structural balance — a model can emit a clean EOS mid-thought even with `done_reason='stop'`.
-- New `LLMCapabilityDetector` probes a model's `/api/show` template once per (model, digest) pair, classifies it as `messages-loop` (modern, prefill-capable) or `prompt-response` (legacy, no prefill), checks for `m.Config.Renderer` (multimodal/OCR — pseudo-continuation only). For modern templates, runs a small verification call with an unambiguous prefill marker to confirm the model actually continues from the trailing assistant message instead of re-emitting it. Four status values (`verified-prefill`, `unverified-no-prefill`, `verification-failed`, `special-renderer`) persist to `.genesis/llm-capabilities.json` with model digest for cache invalidation. Lazy: only invoked when continuation is actually needed.
-- New `ContinuationLoop` orchestrates the full pipeline. On truncation, re-calls the model with either a trailing-assistant prefill message (`verified-prefill` models) or a pseudo-continuation user prompt (all other status values). Exponential backoff between attempts (1s, 2s, 4s, 8s), `MAX_CONTINUATIONS=4`, cumulative token budget `0.8 * num_ctx`, hard sequence deadline `LLM_CONTINUATION_TOTAL` 1200s. Pushes a temporary `keep_alive: "15m"` override on the backend so the model stays loaded between re-calls (released on sequence exit). Emits `llm:continuation-started/-complete/-failed` bus events. Records a single success/failure to the CircuitBreaker per sequence (not per re-call).
-- `OllamaBackend.stream()` gains an optional `onDone(reason)` callback parameter. Backward-compatible: callers that don't pass it see identical v7.8.8 behavior. New `pushKeepAliveOverride(value)` returns a release function; supports nested overrides via a stack so parallel continuation sequences don't fight over the model's keep_alive setting.
-- `ModelBridge` routes `taskType === 'code'` calls against the Ollama backend through ContinuationLoop. All nine code-generation call sites (SkillManager, Reflector, MultiFileRefactor, AgentLoopSteps, GoalStackExecution, CloneFactory, SelfModificationPipelineModify) benefit transparently — no caller code changes needed. Other taskTypes and Anthropic/OpenAI backends keep their original non-streaming path unchanged.
-- New `ModelBridgeContinuation` mixin holds the dispatch helper (same mixin pattern as ModelBridgeFailover/Availability — keeps ModelBridge.js under the 700-LOC architectural-fitness soft-guard).
-- New `MockBackend` `chunked` mode with per-script chunks, inter-chunk delays, `doneReason`, and `terminateAt` (simulates TCP-drop). Used by the resilience contract tests; useful for any test that needs deterministic stream timing.
-- New `LLM_STREAM_FIRST_CHUNK`, `LLM_STREAM_CHUNK`, `LLM_STREAM_TOTAL`, `LLM_CONTINUATION_TOTAL` constants in Constants.js.
-- New `LLM.CONTINUATION_STARTED`, `LLM.CONTINUATION_COMPLETE`, `LLM.CONTINUATION_FAILED` events with matching payload schemas.
+### Skill Forge — Iteration loop + format tolerance + skill awareness
+
+Final pass to make skill creation work with any configured model — no auto-routing, no silent model substitution. Robustness comes from a feedback loop, not from picking a better model behind the user's back.
+
+- **`SkillManager.createSkill` iteration loop** — Voyager-pattern up to 3 attempts. On parser failure, code-safety block, or sandbox-test failure the concrete error plus the failing code are fed back into the next prompt. The configured model stays configured throughout. After max attempts an honest failure message is returned. Emits `skill:forge-attempt`/`-succeeded`/`-failed` lifecycle events.
+- **`SkillCrystallizer._crystallizeOne` iteration loop** — same feedback pattern wired into DreamCycle Phase 3c so Phase 2 Können crystallization gains the same robustness. Settings key `cognitive.koennen.crystallization.maxAttempts` (default 3).
+- **`PromptEngine` create-skill template — attempt-aware** — on attempt ≥2 the prompt surfaces the previous error and previous code with "Fix the specific error above; keep the working parts of the previous code intact" — the LLM sees its own broken output and the concrete reason it failed.
+- **`SkillManager.executeSkill` format tolerance** — accepts class with `execute()`, `module.exports = async function`, `module.exports = (input) => ({...})`, and `module.exports = { execute }`. No more "is not a constructor" crashes when the LLM returns a plain function.
+- **`/run-skill <name> {json}`** — slash form accepts optional JSON-object argument so skills that need input become callable from the command line.
+- **`PromptBuilderSectionsExtra._skillsContext`** — new section surfaces installed skills (name + description, capped at 30) into the system prompt so Genesis is aware of his own toolset.
+- **3 new events** — `skill:forge-attempt`, `skill:forge-succeeded`, `skill:forge-failed` (catalogue 473 → 476).
+- **21 new contract tests** under `koennen-forge-v790 contract:` prefix (minCount 12 in stale-refs.json).
+
+### Können-Konzept — Phase 2 (Skill Crystallization)
+
+Phase 2 of the three-phase Können-Konzept (Phase 1 was v7.8.9 affect-encoding; Phase 3 is v7.9.1 habitat-promotion). Genesis can now extract reusable JavaScript skills from recurring gate-passed task patterns observed at AgentLoop boundaries. Extracted skills are persisted to `.genesis/koennen/skills-pending/` for inspection but are NOT yet active in the SkillManager repertoire — promotion is Phase 3.
+
+**New components:**
+- `SkillCrystallizer` (492 LOC) — runs as DreamCycle Phase 3c at intensity ≥ 0.5. Reads gate-passed records from `KoennenCandidateLog.getCandidatesSince(now − windowMs)`, clusters by embedding similarity (threshold 0.75, fallback token-overlap ≥ 2), requires ≥ 3 candidates per pattern, asks the LLM to extract a manifest + JavaScript module, validates the output through CodeSafetyScanner and a sandbox-init probe, then writes passing skills to `.genesis/koennen/skills-pending/<name>/` with embedded provenance (`crystallizedAt`, `sourceCandidateIds`, `patternSignature`). Per-pattern cooldown (6h default) lives in `.genesis/koennen/crystallization-cooldown.json`.
+- `SkillEffectivenessTracker` (231 LOC) — tracks per-skill Wilson lower bound using `wilsonLower(successes, total)` imported from CognitiveSelfModel (single source of truth). Public API: `recordInvocation`, `getWilsonLB`, `getStats`, `getAll`, `applyDecay`, `forget`. Persists to `.genesis/koennen/skill-effectiveness.json`. No bus listeners yet — Phase 3 HabitatOutpost will call `recordInvocation()` directly during rehearsals.
+
+**Wiring:**
+- `DreamCycle.dream()` calls `skillCrystallizer.run()` as Phase 3c, after value-crystallization, with full try/catch isolation.
+- `SelfNarrative` adds `+3` to its change-accumulator on `skill-crystallized` (stronger than v7.8.9's `+2` on `koennen:candidates-noticed`).
+- New slash command `/skills-pending` lists extracted skills with description, crystallization date, and Wilson-LB if the tracker is wired.
+
+**Settings (`cognitive.koennen.*`):** master toggle `enabled`; `crystallization.{enabled, minCandidatesPerPattern=3, windowMs=7d, cooldownMs=6h, llm.{enabled, maxTokens=2000, timeoutMs=120s}, sandbox.initTestTimeoutMs=10s}`; `effectiveness.{initialEvidence=1, decayPerWeek=0.05}`. Two toggle-event keys registered (`cognitive.koennen.enabled`, `cognitive.koennen.crystallization.enabled`) so runtime toggling fires the right events.
+
+**Events (3 new, catalogued + payload-schema'd):** `skill-crystallized`, `dream:skills-crystallized`, `skill:quarantined`.
+
+**Tests:** 28 new contract tests under `koennen-crystallizer-v790 contract:` (Tracker 10 + Crystallizer 12 + Narrative+Slash 6). The v7.8.9 KoennenCandidateLog regression suite stays green at 13/13.
 
 ### Setup
 
-No new setup steps over v7.8.8. The LLM-resilience layer activates automatically the first time a code-generation call is made through an Ollama backend; the capability cache lives in `.genesis/llm-capabilities.json` and is populated lazily.
+No new setup steps over v7.8.9. The capability cache at `.genesis/llm-capabilities.json` is now actually populated.
 
 ### Numbers
 
-7601+ tests pass (Win baseline), 7600+ (Linux). 130/130 fitness. 87 new tests in 6 contract/test files (`v789-llm-streaming-completion.contract.test.js`, `v789-llm-truncation-detector.contract.test.js`, `v789-llm-capability-detection.contract.test.js`, `v789-llm-continuation-loop.contract.test.js`, `v789-llm-resilience-integration.contract.test.js`, `modelbridge-continuation.test.js`) on top of the 28 affect-encoding tests.
+7700+ tests pass (Win baseline), 7699+ (Linux). 130/130 fitness. 4 Code-Änderungen, keine neuen Tests notwendig (existierende v789-llm-* contract tests decken die geänderten Pfade ab).
 
 ---
 
@@ -42,9 +61,9 @@ No new setup steps over v7.8.8. The LLM-resilience layer activates automatically
 For prior version history, see the archive files:
 
 - [**CHANGELOG-v7.md**](CHANGELOG-v7.md) — all v7.x.x releases (81 entries)
-- [**CHANGELOG-v6.md**](CHANGELOG-v6.md) — all v6.x.x releases (12 entries)
-- [**CHANGELOG-v5.md**](CHANGELOG-v5.md) — all v5.x.x releases (17 entries)
-- [**CHANGELOG-archive.md**](CHANGELOG-archive.md) — v0.x.x – v4.x.x (29 entries)
+- [**docs/CHANGELOG-v6.md**](docs/CHANGELOG-v6.md) — all v6.x.x releases (12 entries)
+- [**docs/CHANGELOG-v5.md**](docs/CHANGELOG-v5.md) — all v5.x.x releases (17 entries)
+- [**docs/CHANGELOG-archive.md**](docs/CHANGELOG-archive.md) — v0.x.x – v4.x.x (29 entries)
 
 This index file (`CHANGELOG.md`) keeps only the newest release inline so
 the file stays readable. The major-version archives carry the full

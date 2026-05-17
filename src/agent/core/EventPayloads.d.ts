@@ -1,7 +1,7 @@
 // ============================================================
 // GENESIS — EventPayloads.d.ts (auto-generated)
-// Generated: 2026-04-12
-// Source: EventPayloadSchemas.js (335 events)
+// Generated: 2026-05-17
+// Source: EventPayloadSchemas.js (446 events)
 //
 // DO NOT EDIT — regenerate with:
 //   node scripts/generate-event-types.js
@@ -11,7 +11,7 @@
 export interface EventPayloadMap {
   'agent-loop:started': {
     goalId: any;
-    goal: any;
+    goal?: any;
   };
   'agent-loop:complete': {
     goalId: any;
@@ -22,12 +22,12 @@ export interface EventPayloadMap {
   'agent-loop:step-complete': {
     goalId: any;
     stepIndex: any;
-    type: any;
+    type?: any;
   };
   'agent-loop:step-failed': {
     goalId: any;
     stepIndex: any;
-    type: any;
+    type?: any;
     error: any;
   };
   'agentloop:colony-escalated': {
@@ -62,7 +62,60 @@ export interface EventPayloadMap {
     success: any;
   };
   'chat:error': {
-    error: any;
+    message: any;
+  };
+  'chat:llm-failure': {
+    stage: any;
+    errorType: any;
+    backend: any;
+    model: any;
+    userVisible: any;
+    sourceReadAttempted: any;
+    retriesUsed: any;
+    details: any;
+  };
+  'injection:blocked': {
+    signals: any;
+    toolCount: any;
+  };
+  'injection:tool-result-flagged': {
+    toolName: any;
+    toolSource: any;
+    signals: any;
+    score: any;
+  };
+  'tool-call:unverified': {
+    verdict: any;
+    flagCount: any;
+    categories: any;
+  };
+  'read-source:called': {
+    path: any;
+    bytes: any;
+    turnId?: any;
+  };
+  'read-source:soft-limit': {
+    turnCount: any;
+    softLimit: any;
+    hardLimit: any;
+    turnId?: any;
+  };
+  'self-gate:warned': {
+    actionType: any;
+    signals: any;
+    triggerSource: any;
+  };
+  'self-statement:contradiction': {
+    text: any;
+    type: any;
+    intent: any;
+    ts: any;
+  };
+  'self-statement:activity-hint': {
+    text: any;
+    intent: any;
+    activeGoalCount: any;
+    ts: any;
   };
   'circuit:state-change': {
     from: any;
@@ -73,8 +126,8 @@ export interface EventPayloadMap {
     issues: any;
   };
   'cognitive:circularity-detected': {
-    pattern: any;
-    count: any;
+    pattern?: any;
+    count?: any;
   };
   'cognitive:overload': {
     metric: any;
@@ -108,9 +161,26 @@ export interface EventPayloadMap {
     service: any;
     totalAttempts: any;
   };
+  'idle:cycle-start': {
+    thoughtCount: any;
+    timeSinceUser: any;
+    energy: any;
+  };
   'idle:thinking': {
     activity: any;
     thought: any;
+  };
+  'idle:research-started': {
+    topic: any;
+    source: any;
+  };
+  'idle:research-complete': {
+    topic: any;
+    source: any;
+    insight?: any;
+  };
+  'idle:self-defined': {
+    revision: any;
   };
   'idle:thought-complete': Record<string, never>;
   'idle:proactive-insight': {
@@ -156,7 +226,7 @@ export interface EventPayloadMap {
     length?: any;
   };
   'verification:complete': {
-    result: any;
+    result?: any;
   };
   'homeostasis:pause-autonomy': Record<string, never>;
   'homeostasis:state-change': {
@@ -183,6 +253,16 @@ export interface EventPayloadMap {
     to: any;
     mood: any;
   };
+  'emotional-frontier:imprint-written': {
+    sessionId: any;
+    peaks: any;
+    sustained: any;
+    dominantMood: any;
+  };
+  'emotional-frontier:boot-restored': {
+    shifted: any;
+    imprintId: any;
+  };
   'metabolism:cost': {
     cost: any;
     tokens: any;
@@ -198,19 +278,92 @@ export interface EventPayloadMap {
     type: any;
     confidence?: any;
   };
+  'intent:tool-mismatch': {
+    kind: any;
+    intent: any;
+    tool: any;
+    category: any;
+    severity: any;
+    note: any;
+    correlationId?: any;
+  };
   'surprise:novel-event': {
     summary: any;
   };
   'selfmod:success': {
     file: any;
   };
+  'selfmod:settings-blocked': {
+    message?: any;
+  };
+  'selfmod:language-guard-blocked': {
+    targetFile: any;
+    ext: any;
+    allowedExt: any;
+  };
+  'selfmod:trigger-sanity-blocked': {
+    intentClass: any;
+    originText?: any;
+    message?: any;
+  };
+  'agent:goal-failed-classified': {
+    goalId?: any;
+    goalDescription?: any;
+    errorMessage: any;
+    classification: any;
+    stepsExecuted?: any;
+  };
+  'agent:inner-thought': {
+    thoughtId: any;
+    kind: any;
+    sourceModule: any;
+    significance?: any;
+    novelty?: any;
+    textLength: any;
+    timestamp: any;
+  };
+  'agent:self-message-candidate': {
+    thoughtId: any;
+    kind: any;
+    score: any;
+    threshold: any;
+    passed: any;
+  };
+  'agent:self-message': {
+    thoughtId: any;
+    kind: any;
+    score: any;
+    textLength: any;
+    timestamp: any;
+  };
+  'agent:self-message-suppressed': {
+    thoughtId?: any;
+    kind: any;
+    reason: any;
+    detail?: any;
+    hadGeneratedText?: any;
+    timestamp: any;
+  };
+  'chat:self-message-appended': {
+    role: any;
+    content: any;
+    timestamp: any;
+    initiatedBy: any;
+    selfMeta?: any;
+  };
   'daemon:skill-created': {
     skill: any;
     reason: any;
   };
-  'shell:complete': {
-    command?: any;
-    exitCode?: any;
+  'install:completed': {
+    packageName: any;
+    path?: any;
+  };
+  'cleanup-verifier:scan-complete': {
+    target: any;
+    safe: any;
+    findingKinds: any;
+    findingCount: any;
   };
   'mcp:tool-call': {
     server: any;
@@ -241,6 +394,10 @@ export interface EventPayloadMap {
   };
   'tool:synthesis-failed': {
     description: any;
+  };
+  'tool-use:reprompt-needed': {
+    round: any;
+    excerpt: any;
   };
   'colony:run-started': {
     id: any;
@@ -279,9 +436,6 @@ export interface EventPayloadMap {
     id: any;
     target: any;
     error: any;
-  };
-  'deploy:request': {
-    target: any;
   };
   'deploy:rollback': {
     id: any;
@@ -426,6 +580,60 @@ export interface EventPayloadMap {
     title: any;
     content: any;
   };
+  'lesson:applied': {
+    id: any;
+    category: any;
+  };
+  'lesson:confirmed': {
+    id: any;
+    category: any;
+    confirmed: any;
+  };
+  'lesson:contradicted': {
+    id: any;
+    category: any;
+    contradicted: any;
+  };
+  'lesson:quarantined': {
+    id: any;
+    category: any;
+    contradicted: any;
+    confirmed: any;
+  };
+  'koennen:candidate-recorded': {
+    candidateId: any;
+    goalId: any;
+    gatePass: any;
+  };
+  'koennen:candidates-noticed': {
+    count: any;
+    windowMs: any;
+    sampleTitles?: any;
+  };
+  'dream:skills-crystallized': {
+    crystallized: any;
+    rejected: any;
+  };
+  'skill:quarantined': {
+    skillName: any;
+    reason: any;
+    details?: any;
+  };
+  'skill:forge-attempt': {
+    source: any;
+    attempt: any;
+    maxAttempts: any;
+  };
+  'skill:forge-succeeded': {
+    source: any;
+    skillName: any;
+    attempts: any;
+  };
+  'skill:forge-failed': {
+    source: any;
+    attempts: any;
+    lastError: any;
+  };
   'prompt:strategy-updated': {
     intents: any;
     recommendations: any;
@@ -477,6 +685,12 @@ export interface EventPayloadMap {
     reason: any;
     stepType: any;
   };
+  'eventstore:corrupted-row': {
+    file: any;
+    line: any;
+    error: any;
+    total: any;
+  };
   'selfmod:consciousness-blocked': {
     coherence: any;
   };
@@ -486,16 +700,15 @@ export interface EventPayloadMap {
     insight: any;
   };
   'goal:abandoned': {
-    goalId: any;
-    reason: any;
-    stepsCompleted?: any;
+    id?: any;
+    description?: any;
   };
   'goal:created': {
     goalId: any;
     description: any;
   };
   'goal:resumed': {
-    goalId: any;
+    goalId?: any;
   };
   'shell:plan-complete': {
     task: any;
@@ -559,6 +772,38 @@ export interface EventPayloadMap {
     from: any;
     to: any;
     error: any;
+    reason: any;
+    effectiveModel?: any;
+    preferredModel?: any;
+  };
+  'model:failover-unavailable': {
+    from: any;
+    reason: any;
+    error: any;
+  };
+  'model:auto-switched': {
+    originalModel: any;
+    routedModel: any;
+    routedBackend: any;
+    taskType: any;
+    reason?: any;
+  };
+  'model:marked-unavailable': {
+    modelName: any;
+    reason: any;
+    ttlMs: any;
+  };
+  'model:unavailable-cleared': {
+    modelName: any;
+    automatic: any;
+  };
+  'model:cloud-without-fallback': {
+    model: any;
+    backend: any;
+  };
+  'model:thinking-trace': {
+    text: any;
+    modelName: any;
   };
   'value:stored': {
     id: any;
@@ -617,11 +862,11 @@ export interface EventPayloadMap {
   };
   'selfmod:circuit-reset': Record<string, never>;
   'agent-loop:step-delegating': {
-    goalId: any;
-    stepIndex: any;
+    goalId?: any;
+    stepIndex?: any;
   };
   'agent-loop:timeout': {
-    goalId: any;
+    goalId?: any;
     elapsed?: any;
   };
   'agent:error': {
@@ -653,14 +898,14 @@ export interface EventPayloadMap {
   };
   'shell:blocked': {
     command: any;
-    reason: any;
+    reason?: any;
   };
   'shell:planning': {
     task: any;
   };
   'shell:step': {
     step: any;
-    command: any;
+    command?: any;
   };
   'shell:outcome': {
     command: any;
@@ -669,20 +914,20 @@ export interface EventPayloadMap {
     platform?: any;
   };
   'shell:permission-changed': {
-    command: any;
+    command?: any;
   };
   'shell:rate-limited': {
-    command: any;
+    command?: any;
   };
   'goal:failed': {
     id: any;
     reason: any;
   };
   'goal:replanned': {
-    goalId: any;
+    goalId?: any;
   };
   'goal:unblocked': {
-    goalId: any;
+    goalId?: any;
   };
   'goal:step-start': {
     goalId: any;
@@ -692,6 +937,179 @@ export interface EventPayloadMap {
     goalId: any;
     path: any;
   };
+  'goal:stalled': {
+    id: any;
+    description?: any;
+    reason: any;
+    blockedAt?: any;
+    stalledMinutes?: any;
+  };
+  'goal:obsolete': {
+    id: any;
+    description: any;
+    reason: any;
+  };
+  'goal:driver-pickup': {
+    goalId: any;
+    priority: any;
+    source: any;
+  };
+  'goal:discarded': {
+    ids: any;
+    via: any;
+  };
+  'goal:resumed-auto': {
+    goalIds: any;
+    mode: any;
+  };
+  'driver:unresponsive': {
+    idleMs: any;
+    queueDepth: any;
+  };
+  'ui:resume-prompt': {
+    goalId: any;
+    title?: any;
+    currentStep?: any;
+    totalSteps?: any;
+    lastUpdated?: any;
+    reason?: any;
+  };
+  'ui:resume-decision': {
+    goalId: any;
+    decision: any;
+    rememberAs?: any;
+  };
+  'resource:available': {
+    token: any;
+    reason?: any;
+    resourceId?: any;
+    status?: any;
+  };
+  'resource:unavailable': {
+    token: any;
+    reason?: any;
+    resourceId?: any;
+    status?: any;
+  };
+  'goal:blocked-on-resources': {
+    goalId: any;
+    resources: any;
+  };
+  'goal:resumed-from-resource-block': {
+    goalId: any;
+    resource: any;
+  };
+  'agent-loop:blocked-on-resources': {
+    goalId?: any;
+    stepIndex?: any;
+    stepType?: any;
+    resources: any;
+  };
+  'perception:ollama-tick': {
+    status?: any;
+  };
+  'goal:blocked-on-subgoal': {
+    parentId: any;
+    subId: any;
+  };
+  'goal:subgoal-spawned': {
+    parentId: any;
+    subId: any;
+    obstacleType?: any;
+    contextKey?: any;
+    stepIndex?: any;
+    description?: any;
+  };
+  'goal:obstacle-loop-protected': {
+    parentId: any;
+    obstacleType?: any;
+    contextKey?: any;
+    reason: any;
+  };
+  'goal:proposed': {
+    id: any;
+    description: any;
+    source?: any;
+  };
+  'goal:negotiation-start': {
+    pendingId: any;
+    description: any;
+    source?: any;
+    revised?: any;
+  };
+  'goal:negotiation-confirmed': {
+    pendingId: any;
+    description: any;
+  };
+  'goal:negotiation-revised': {
+    pendingId: any;
+    description: any;
+  };
+  'goal:negotiation-dismissed': {
+    pendingId: any;
+    description: any;
+  };
+  'goal:negotiation-expired': {
+    pendingId: any;
+    description: any;
+  };
+  'settings:daemon-toggled': {
+    from: any;
+    to: any;
+    key: any;
+  };
+  'settings:idlemind-toggled': {
+    from: any;
+    to: any;
+    key: any;
+  };
+  'settings:selfmod-toggled': {
+    from: any;
+    to: any;
+    key: any;
+  };
+  'settings:trust-level-changed': {
+    from: any;
+    to: any;
+    key: any;
+  };
+  'settings:auto-resume-changed': {
+    from: any;
+    to: any;
+    key: any;
+  };
+  'settings:auto-route-toggled': {
+    from: any;
+    to: any;
+    key: any;
+  };
+  'settings:mcp-serve-toggled': {
+    from: any;
+    to: any;
+    key: any;
+  };
+  'settings:koennen-toggled': {
+    from: any;
+    to: any;
+    key: any;
+  };
+  'settings:koennen-crystallization-toggled': {
+    from: any;
+    to: any;
+    key: any;
+  };
+  'settings:keys-unreadable': {
+    keys: any;
+  };
+  'chat:system-message': {
+    text: any;
+  };
+  'agent-loop:blocked-on-subgoal': {
+    goalId?: any;
+    stepIndex?: any;
+    stepType?: any;
+    subId: any;
+  };
   'memory:fact-stored': {
     key: any;
     source?: any;
@@ -700,40 +1118,70 @@ export interface EventPayloadMap {
     query: any;
   };
   'memory:conflicts-resolved': {
-    count: any;
+    count?: any;
   };
   'memory:consolidated': {
     count?: any;
   };
-  'mcp:connected': {
-    server: any;
+  'memory:layer-transition-asked': {
+    coreMemoryId: any;
+    fromLayer: any;
+    toLayer: any;
+    decision: any;
   };
-  'mcp:connecting': {
-    server: any;
-  };
-  'mcp:disconnected': {
-    server: any;
-  };
-  'mcp:degraded': {
-    server: any;
+  'memory:transition-heuristic-fallback': {
+    coreMemoryId: any;
+    fromLayer: any;
+    toLayer: any;
     reason: any;
   };
+  'memory:layer-overflow': {
+    layer: any;
+    count: any;
+    pendingTransitions?: any;
+  };
+  'memory:self-elevated': {
+    episodeId: any;
+    reason: any;
+  };
+  'memory:self-released': {
+    episodeId: any;
+  };
+  'memory:marked': {
+    id: any;
+    episodeId: any;
+    timestamp?: any;
+    triggerContext?: any;
+  };
+  'mcp:connected': {
+    server?: any;
+  };
+  'mcp:connecting': {
+    server?: any;
+  };
+  'mcp:disconnected': {
+    server?: any;
+  };
+  'mcp:degraded': {
+    name: any;
+    failRate: any;
+  };
   'mcp:error': {
-    server: any;
+    server?: any;
     error: any;
   };
   'mcp:tools-discovered': {
-    server: any;
-    tools: any;
+    server?: any;
+    tools?: any;
   };
   'mcp:server-removed': {
-    server: any;
+    server?: any;
   };
   'mcp:pattern-detected': {
     pattern: any;
   };
   'mcp:notification': {
-    server: any;
+    server?: any;
     method: any;
   };
   'homeostasis:critical': Record<string, never>;
@@ -775,6 +1223,10 @@ export interface EventPayloadMap {
     newSchemas: any;
     insights: any;
   };
+  'dream:cycle-forced': {
+    reason: any;
+    layerCount: any;
+  };
   'insight:actionable': {
     source: any;
     type: any;
@@ -806,24 +1258,24 @@ export interface EventPayloadMap {
     reason: any;
   };
   'peer:discovered': {
-    peerId: any;
+    peerId?: any;
   };
   'peer:trusted': {
-    peerId: any;
+    peerId?: any;
   };
   'peer:evicted': {
-    peerId: any;
+    peerId?: any;
     reason: any;
   };
   'peer:unhealthy': {
-    peerId: any;
+    peerId?: any;
   };
   'peer:skill-imported': {
     peerId: any;
-    skill: any;
+    skill?: any;
   };
   'peer:sync-applied': {
-    peerId: any;
+    peerId?: any;
   };
   'schema:stored': {
     name: any;
@@ -835,7 +1287,7 @@ export interface EventPayloadMap {
     name: any;
   };
   'schema:pruned': {
-    count: any;
+    count?: any;
   };
   'workspace:consolidate': {
     goalId: any;
@@ -843,18 +1295,18 @@ export interface EventPayloadMap {
     workspaceStats: any;
   };
   'hot-reload:success': {
-    module: any;
+    module?: any;
   };
   'hot-reload:failed': {
-    module: any;
+    module?: any;
     error: any;
   };
   'hot-reload:syntax-error': {
-    module: any;
+    module?: any;
     error: any;
   };
   'hot-reload:rollback': {
-    module: any;
+    module?: any;
   };
   'learning:pattern-detected': {
     pattern: any;
@@ -871,10 +1323,20 @@ export interface EventPayloadMap {
     intent: any;
   };
   'learning:performance-alert': {
-    type: any;
+    type?: any;
   };
   'llm:call-complete': {
+    taskType?: any;
     model?: any;
+    backend?: any;
+    latencyMs?: any;
+    promptTokens?: any;
+    responseTokens?: any;
+    cached?: any;
+    goalId?: any;
+    correlationId?: any;
+    failover?: any;
+    effectiveModel?: any;
     tokens?: any;
     durationMs?: any;
   };
@@ -882,10 +1344,50 @@ export interface EventPayloadMap {
     error: any;
   };
   'llm:rate-limited': {
-    model: any;
+    model?: any;
   };
   'llm:budget-warning': {
-    usage: any;
+    usage?: any;
+  };
+  'llm:budget-auto-reset': {
+    reason: any;
+    triggeredBy: any;
+  };
+  'llm:budget-manual-reset': {
+    timestamp: any;
+  };
+  'llm:continuation-started': {
+    model: any;
+    taskType?: any;
+    capability?: any;
+  };
+  'llm:continuation-complete': {
+    model: any;
+    attempts: any;
+    finalDoneReason?: any;
+    totalTokens?: any;
+    durationMs: any;
+  };
+  'llm:continuation-failed': {
+    model: any;
+    attempts: any;
+    reason: any;
+    partialContentLength?: any;
+    durationMs: any;
+  };
+  'cost:recorded': {
+    ts: any;
+    taskType?: any;
+    model?: any;
+    backend?: any;
+    promptTokens?: any;
+    responseTokens?: any;
+    latencyMs?: any;
+    cached?: any;
+    goalId?: any;
+    correlationId?: any;
+    failover?: any;
+    effectiveModel?: any;
   };
   'perception:file-added': {
     path: any;
@@ -904,22 +1406,28 @@ export interface EventPayloadMap {
     task: any;
   };
   'reasoning:refined': {
-    task: any;
+    task?: any;
   };
   'reasoning:solve': {
     task: any;
   };
   'reasoning:impact-analysis': {
-    target: any;
+    target?: any;
+  };
+  'reasoning:trace-recorded': {
+    type: any;
+    summary: any;
+    correlationId?: any;
+    goalId?: any;
   };
   'simulation:started': {
-    plan: any;
+    plan?: any;
   };
   'simulation:branched': {
-    branch: any;
+    branch?: any;
   };
   'simulation:complete': {
-    result: any;
+    result?: any;
   };
   'effector:registered': {
     name: any;
@@ -936,17 +1444,17 @@ export interface EventPayloadMap {
     reason: any;
   };
   'spawner:starting': {
-    task: any;
+    task?: any;
   };
   'spawner:completed': {
-    task: any;
+    task?: any;
     success: any;
   };
   'spawner:progress': {
     task: any;
   };
   'spawner:error': {
-    task: any;
+    task?: any;
     error: any;
   };
   'file:import-blocked': {
@@ -954,7 +1462,7 @@ export interface EventPayloadMap {
     resolved: any;
   };
   'file:imported': {
-    path: any;
+    path?: any;
   };
   'file:executed': {
     path: any;
@@ -962,27 +1470,32 @@ export interface EventPayloadMap {
   'health:started': Record<string, never>;
   'health:tick': Record<string, never>;
   'health:metric': {
-    name: any;
+    service: any;
+    metric: any;
     value: any;
   };
   'htn:plan-validated': {
-    plan: any;
+    valid: any;
+    totalSteps: any;
+    totalIssues?: any;
+    totalWarnings?: any;
+    crossIssues?: any;
   };
   'htn:dry-run': {
-    plan: any;
+    plan?: any;
   };
   'htn:cost-estimated': {
-    plan: any;
-    cost: any;
+    plan?: any;
+    cost?: any;
   };
   'embodied:panel-changed': {
-    panel: any;
+    panel?: any;
   };
   'embodied:focus-changed': {
-    focus: any;
+    focus?: any;
   };
   'embodied:engagement-changed': {
-    engagement: any;
+    engagement?: any;
   };
   'web:search': {
     query: any;
@@ -1004,28 +1517,32 @@ export interface EventPayloadMap {
     command: any;
   };
   'expectation:formed': {
-    type: any;
+    type?: any;
   };
   'expectation:compared': {
-    type: any;
-    match: any;
+    totalSurprise: any;
+    valence?: any;
+    actionType?: any;
+    isNovel?: any;
+    expected?: any;
+    actual?: any;
   };
   'expectation:calibrated': {
-    type: any;
+    type?: any;
   };
   'genome:loaded': Record<string, never>;
   'genome:trait-adjusted': {
     trait: any;
-    value: any;
+    value?: any;
   };
   'genome:reproduced': {
-    generation: any;
+    generation?: any;
   };
   'metabolism:consumed': {
     tokens: any;
   };
   'metabolism:insufficient': {
-    required: any;
+    required?: any;
     available: any;
   };
   'metabolism:state-changed': {
@@ -1037,11 +1554,16 @@ export interface EventPayloadMap {
   };
   'prompt-evolution:experiment-completed': {
     section: any;
-    promoted: any;
+    promoted?: any;
   };
   'prompt-evolution:rollback': {
     section: any;
-    reason: any;
+    reason?: any;
+  };
+  'prompt-evolution:promoted': {
+    section: any;
+    variantId: any;
+    improvement: any;
   };
   'chat:retry': {
     attempt: any;
@@ -1055,6 +1577,10 @@ export interface EventPayloadMap {
   'container:replaced': {
     name: any;
   };
+  'container:binding-report': {
+    timestamp: any;
+    summary: any;
+  };
   'context:built': Record<string, never>;
   'editor:open': {
     content: any;
@@ -1066,14 +1592,14 @@ export interface EventPayloadMap {
     dimensions: any;
   };
   'episodic:recorded': {
-    episode: any;
+    episode?: any;
   };
   'ui:heartbeat': Record<string, never>;
   'router:routed': {
-    backend: any;
+    backend?: any;
   };
   'store:integrity-violation': {
-    key: any;
+    key?: any;
   };
   'worldstate:file-changed': {
     path: any;
@@ -1088,13 +1614,13 @@ export interface EventPayloadMap {
   };
   'failure:classified': {
     category: any;
-    error: any;
+    error?: any;
   };
   'classifier:trained': {
     samples: any;
   };
   'notification:show': {
-    message: any;
+    message?: any;
   };
   'fitness:evaluated': {
     score: any;
@@ -1103,13 +1629,22 @@ export interface EventPayloadMap {
     reason: any;
   };
   'boot:degraded': {
-    reason: any;
+    reason?: any;
+  };
+  'boot:complete': {
+    durationMs: any;
+    serviceCount: any;
+    timestamp: any;
+  };
+  'lifecycle:re-entry-complete': {
+    duration: any;
+    journalWritten?: any;
   };
   'error:health-summary': {
     errors: any;
   };
   'circuit:fallback': {
-    service: any;
+    service?: any;
   };
   'capability:issued': {
     module: any;
@@ -1145,14 +1680,13 @@ export interface EventPayloadMap {
   };
   'net:local': Record<string, never>;
   'surprise:processed': {
-    surprise: any;
+    surprise?: any;
   };
   'surprise:amplified-learning': {
     surprise: any;
   };
   'steering:model-escalation': {
-    from: any;
-    to: any;
+    frustration: any;
   };
   'steering:rest-mode': Record<string, never>;
   'intent:llm-classified': {
@@ -1160,7 +1694,12 @@ export interface EventPayloadMap {
     message?: any;
   };
   'intent:learned': {
-    type: any;
+    type?: any;
+  };
+  'intent:cascade-decision': {
+    stage: any;
+    verdict: any;
+    signalsMatched?: any;
   };
   'knowledge:learned': {
     count?: any;
@@ -1171,6 +1710,10 @@ export interface EventPayloadMap {
     id: any;
     type?: any;
     label?: any;
+  };
+  'knowledge:nodes-pruned': {
+    count: any;
+    remaining: any;
   };
   'meta:outcome-recorded': {
     category: any;
@@ -1186,13 +1729,13 @@ export interface EventPayloadMap {
     need: any;
   };
   'planner:complete': {
-    plan: any;
+    plan?: any;
   };
   'planner:truncated': {
     reason: any;
   };
   'preservation:violation': {
-    rule: any;
+    rule?: any;
   };
   'emotion:watchdog-reset': {
     dimension: any;
@@ -1218,6 +1761,9 @@ export interface EventPayloadMap {
     reason: any;
     preloadMode: any;
     mitigation: any;
+  };
+  'system:cloud-sync-root-detected': {
+    rootDir: any;
   };
   'causal:recorded': {
     stepId: any;
@@ -1258,6 +1804,62 @@ export interface EventPayloadMap {
     lessonId: any;
     retries: any;
     lastReason: any;
+  };
+  'goal:blocked-as-duplicate': {
+    goalId: any;
+    matchScore: any;
+    matchedCapability: any;
+    source: any;
+  };
+  'goal:duplicate-warning': {
+    goalId: any;
+    matchScore: any;
+    matchedCapability: any;
+  };
+  'goal:dissonance-pushback': {
+    goalId: any;
+    proposedDescription: any;
+    matchedGoalId: any;
+    dissonanceScore: any;
+    source: any;
+  };
+  'idle:read-source': {
+    module: any;
+    reason?: any;
+  };
+  'idle:read-source-budget-exhausted': {
+    cycleCount?: any;
+    sessionCount?: any;
+  };
+  'core-memory:created': {
+    id: any;
+    type: any;
+    significance: any;
+    signals: any;
+  };
+  'core-memory:candidate': {
+    candidateId: any;
+    signals: any;
+    signalCount: any;
+  };
+  'core-memory:veto': {
+    id: any;
+    userNote?: any;
+  };
+  'core-memory:user-marked': {
+    id: any;
+    type: any;
+  };
+  'core-memory:released': {
+    id: any;
+    reason: any;
+    releasedAt?: any;
+  };
+  'journal:written': {
+    visibility: any;
+    source: any;
+    byteLength?: any;
+    tags?: any;
   };
 }
 

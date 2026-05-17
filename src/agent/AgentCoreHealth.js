@@ -390,6 +390,12 @@ class AgentCoreHealth {
       // v7.8.9 (koennen-v789 contract): SkillCandidateNarrative —
       // unsubscribes koennen:candidate-recorded listener.
       'skillCandidateNarrative',
+      // v7.9.0 Phase 2 (koennen-crystallizer-v790 contract):
+      // SkillEffectivenessTracker — final Wilson-LB persist on shutdown.
+      'skillEffectivenessTracker',
+      // v7.9.0 Phase 2 (koennen-crystallizer-v790 contract):
+      // SkillCrystallizer — no-op stop, lifecycle compliance.
+      'skillCrystallizer',
     ];
     for (const name of TO_STOP) {
       safe(name, () => { c.tryResolve(name)?.stop(); });

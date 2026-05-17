@@ -229,21 +229,76 @@ RULES:
 Output the code in a single code block, without explanation before it.`,
 
       // ── SKILL CREATION ────────────────────────────────
-      'create-skill': ({ description, existingSkills }) =>
-        `You are a skill developer for the Genesis agent.
+      // v7.9.0 final: iteration-aware. On attempt 1 the template shows
+      // the format skeleton. On attempt ≥2 the prompt instead shows the
+      // previous failing code + the concrete error and asks the LLM to
+      // fix that specific code rather than start from scratch (Voyager
+      // pattern). The configured model is never switched — robustness
+      // comes from feedback loops, not auto-routing.
+      'create-skill': ({ description, attempt, lastError, lastCode, existingSkills }) => {
+        const attemptNum = typeof attempt === 'number' && attempt > 0 ? attempt : 1;
+        const isRetry = attemptNum > 1 && lastError;
+
+        if (isRetry) {
+          return `You are a skill developer for the Genesis agent. Your previous attempt failed. FIX the existing code rather than rewriting from scratch.
 
 DESIRED SKILL: ${description}
 
-EXISTING SKILLS:
-${existingSkills || 'None'}
+ATTEMPT: ${attemptNum} (previous attempt failed)
 
-RULES:
+PREVIOUS ERROR:
+${lastError}
+
+${lastCode ? `PREVIOUS CODE (fix this, do not rewrite from scratch):
+\`\`\`javascript
+${lastCode}
+\`\`\`
+
+` : ''}RULES:
+- Output EXACTLY two code blocks: first a \`\`\`json block with the manifest, then a \`\`\`javascript block with the corrected code
+- Fix the specific error above; keep the working parts of the previous code intact
+- ALLOWED modules: path, url, util, assert, buffer, events, stream, crypto, os, fs (read-only to project root)
+- BLOCKED modules: child_process, net, http, https, cluster, worker_threads
+
+OUTPUT FORMAT — follow this exactly:
+
+\`\`\`json
+{
+  "name": "skill-name",
+  "version": "1.0.0",
+  "description": "What this skill does in one sentence",
+  "entry": "index.js",
+  "interface": {
+    "input": { "paramName": "type" },
+    "output": { "resultName": "type" }
+  }
+}
+\`\`\`
+
+\`\`\`javascript
+// Your corrected skill code here.
+// Any of these export shapes is accepted:
+//   class SkillName { async execute(input) { ... } }
+//   module.exports = async function(input) { ... }
+//   module.exports = { execute: async (input) => { ... } }
+\`\`\`
+
+Now fix and re-output the skill.`;
+        }
+
+        return `You are a skill developer for the Genesis agent.
+
+DESIRED SKILL: ${description}
+
+${existingSkills ? `EXISTING SKILLS:
+${existingSkills}
+
+` : ''}RULES:
 - Output EXACTLY two code blocks: first a \`\`\`json block with the manifest, then a \`\`\`javascript block with the code
 - The skill runs in a sandboxed Node.js environment
 - ALLOWED modules: path, url, util, assert, buffer, events, stream, crypto, os, fs (read-only to project root)
 - BLOCKED modules: child_process, net, http, https, cluster, worker_threads
-- The execute() method MUST return a plain object (JSON-serializable)
-- Include a working test() method that verifies the skill works
+- The execute() function MUST return a plain object (JSON-serializable)
 - Keep the code simple and robust — handle errors gracefully
 
 OUTPUT FORMAT — follow this exactly:
@@ -269,16 +324,16 @@ class SkillName {
     // Skill logic here — use only allowed modules
     return { result: 'value' };
   }
-  
-  test() {
-    const result = this.execute({});
-    return { passed: true, detail: 'Test passed' };
-  }
 }
 module.exports = { SkillName };
 \`\`\`
 
-Now create the skill.`,
+Note: any of these export shapes are also accepted if you prefer them:
+  • module.exports = async function(input) { return { ... }; }
+  • module.exports = { execute: async (input) => ({ ... }) }
+
+Now create the skill.`;
+      },
 
       // ── CLONE IMPROVEMENT PLAN ────────────────────────
       'clone-plan': ({ selfModel, conversation, improvements }) =>

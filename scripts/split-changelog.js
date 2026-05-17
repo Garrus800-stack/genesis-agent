@@ -48,7 +48,7 @@ for (const s of sections) {
 //   - current major (v7) — stays in CHANGELOG.md (newest entry only) AND
 //     gets a full CHANGELOG-v7.md archive of all v7 entries
 //   - v6, v5 — their own files
-//   - v0–v4 — combined into CHANGELOG-archive.md
+//   - v0–v4 — combined into docs/CHANGELOG-archive.md
 function header(text) {
   return `# Genesis Agent — ${text}\n\nFor the current release notes see [CHANGELOG.md](CHANGELOG.md).\n\n---\n\n`;
 }
@@ -65,20 +65,20 @@ console.log(`Wrote CHANGELOG-v7.md (${v7Entries.length} entries).`);
 // CHANGELOG-v6.md
 const v6Entries = byMajor.get(6) || [];
 fs.writeFileSync(
-  path.join(ROOT, 'CHANGELOG-v6.md'),
+  path.join(ROOT, 'docs', 'CHANGELOG-v6.md'),
   header('Changelog v6.x.x') + v6Entries.map(s => s.body).join('---\n\n'),
   'utf-8'
 );
-console.log(`Wrote CHANGELOG-v6.md (${v6Entries.length} entries).`);
+console.log(`Wrote docs/CHANGELOG-v6.md (${v6Entries.length} entries).`);
 
 // CHANGELOG-v5.md
 const v5Entries = byMajor.get(5) || [];
 fs.writeFileSync(
-  path.join(ROOT, 'CHANGELOG-v5.md'),
+  path.join(ROOT, 'docs', 'CHANGELOG-v5.md'),
   header('Changelog v5.x.x') + v5Entries.map(s => s.body).join('---\n\n'),
   'utf-8'
 );
-console.log(`Wrote CHANGELOG-v5.md (${v5Entries.length} entries).`);
+console.log(`Wrote docs/CHANGELOG-v5.md (${v5Entries.length} entries).`);
 
 // CHANGELOG-archive.md (v0–v4)
 const archiveEntries = [];
@@ -86,11 +86,11 @@ for (const major of [4, 3, 2, 1, 0]) {
   archiveEntries.push(...(byMajor.get(major) || []));
 }
 fs.writeFileSync(
-  path.join(ROOT, 'CHANGELOG-archive.md'),
+  path.join(ROOT, 'docs', 'CHANGELOG-archive.md'),
   header('Changelog archive (v0.x.x – v4.x.x)') + archiveEntries.map(s => s.body).join('---\n\n'),
   'utf-8'
 );
-console.log(`Wrote CHANGELOG-archive.md (${archiveEntries.length} entries).`);
+console.log(`Wrote docs/CHANGELOG-archive.md (${archiveEntries.length} entries).`);
 
 // Rebuild CHANGELOG.md = preamble + newest entry inline + index.
 const newest = sections[0];

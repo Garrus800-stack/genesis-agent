@@ -126,6 +126,7 @@ class PromptBuilder {
       [3, 'sourceAccess',  2400],  // v7.3.3: User-asked-about-X source injection (large budget)
       [3, 'taskPerformance', 250],  // v5.9.7: Empirical task success rates — self-awareness
       [3, 'vectorMemory',  500],
+      [3, 'skills',        600],   // v7.9.0 final: Installed-skills awareness — names + descriptions so Genesis can call /run-skill instead of reimplementing
       [4, 'knowledge',     600],
       [4, 'memory',        600],
       [5, 'learning',      300],
@@ -374,6 +375,7 @@ class PromptBuilder {
       ['learning',       this._learningContext()],
       ['lessons',        this._lessonsContext()],
       ['solutions',      this._solutionContext()],
+      ['skills',         this._skillsContext()],
       ['anticipator',    this._anticipatorContext()],
       ['optimizer',      this._optimizerContext()],
       ['metacognition',  this._metacognitiveContext()],
@@ -521,6 +523,7 @@ class PromptBuilder {
     sections.push(['project',       this._projectContext()]);
     sections.push(['lessons',       this._lessonsContext()]);
     sections.push(['solutions',     this._solutionContext()]);
+    sections.push(['skills',        this._skillsContext()]);
     sections.push(['anticipator',   this._anticipatorContext()]);
     sections.push(['optimizer',     this._optimizerContext()]);
     sections.push(['episodic',      this._episodicContext()]);

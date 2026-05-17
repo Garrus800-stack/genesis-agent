@@ -354,6 +354,35 @@ const sectionsExtra = {
     }
   },
 
+  // ── Installed-skills awareness ──────────────────────────
+  // v7.9.0 final: surface installed skills into the prompt so Genesis
+  // is aware of what tools he has and can use them. PromptBuilder
+  // already has `this.skills` (SkillManager) as an optional lateBinding
+  // from phase2-intelligence.js, so no new wiring is needed. Simple
+  // list of name + description — no embedding-based ranking yet. If
+  // skill counts grow past ~20 we'd add semantic filtering, but for
+  // now the token cost is bounded (~10-15 tokens per skill).
+  _skillsContext() {
+    if (!this.skills || typeof this.skills.listSkills !== 'function') return '';
+    try {
+      const skills = this.skills.listSkills();
+      if (!Array.isArray(skills) || skills.length === 0) return '';
+
+      const lines = skills.slice(0, 30).map(s => {
+        const desc = s.description ? `: ${s.description}` : '';
+        return `  • ${s.name}${desc}`;
+      });
+
+      return '[Installed Skills]\n' +
+        'You have these skills available — call them via `/run-skill <name>` ' +
+        'or `/run-skill <name> {"key":"value"}` when you need to pass inputs:\n' +
+        lines.join('\n');
+    } catch (err) {
+      _log.debug('[PROMPT] Skills context unavailable:', err.message);
+      return '';
+    }
+  },
+
 };
 
 module.exports = { sectionsExtra };

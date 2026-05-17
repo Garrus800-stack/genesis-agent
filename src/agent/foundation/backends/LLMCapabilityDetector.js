@@ -111,11 +111,19 @@ class LLMCapabilityDetector {
 
     const digest = showData.digest || '';
     const cached = this._memCache.get(modelName);
+    const isCloudModel = /(?:^|[-:])cloud$/i.test(modelName);
 
-    // 2. Use cache if digest matches and not forcing refresh
+    // 2. Use cache if digest matches and not forcing refresh.
+    // EXCEPTION: cloud models cached as verified-prefill are stale from
+    // the buggy probe-once-cache logic (v7.9.0 mid-cycle). Probe passed
+    // but the real prefill request fails HTTP 500. Evict and re-classify.
     if (!opts.forceRefresh && cached && cached.digest === digest && cached.status !== 'verification-failed') {
-      _log.debug(`[CAPABILITY] cache hit for "${modelName}" → ${cached.status}`);
-      return cached;
+      const isStaleCloudPrefill = isCloudModel && cached.status === 'verified-prefill';
+      if (!isStaleCloudPrefill) {
+        _log.debug(`[CAPABILITY] cache hit for "${modelName}" → ${cached.status}`);
+        return cached;
+      }
+      _log.info(`[CAPABILITY] evicting stale cloud verified-prefill for "${modelName}" → re-classify as no-prefill`);
     }
 
     // 3. Renderer check (highest priority — overrides template scan)
@@ -138,9 +146,35 @@ class LLMCapabilityDetector {
     }
 
     if (templateKind === 'unknown') {
+      const trimmed = String(template).trim();
+      // Match `-cloud` or `:cloud` suffix (Ollama cloud naming convention,
+      // e.g. `qwen3-vl:235b-cloud`, `gpt-oss:120b-cloud`).
+      const isCloud = /(?:^|[-:])cloud$/i.test(modelName);
+      if (isCloud) {
+        // Cloud models accept SMALL prefill probes (HTTP 200) but reject
+        // the LARGE prefill continuation calls that the actual code-gen
+        // requires (HTTP 500 cascade, partial=0). The probe is therefore
+        // misleading — it says "verified-prefill" and ContinuationLoop
+        // then chooses the failing trailing-assistant prefill mode
+        // instead of the working pseudo-continuation mode.
+        // Conclusion: cloud is FIXED to unverified-no-prefill, no probe.
+        // ContinuationLoop sees status != 'verified-prefill' and uses
+        // pseudo-mode ("please continue"), which cloud accepts —
+        // observed live as 22713 chars across 4 attempts on 2026-05-16.
+        const entry = this._makeEntry('unverified-no-prefill', 'cloud', digest);
+        await this._persist(modelName, entry);
+        _log.info(`[CAPABILITY] "${modelName}" is a cloud model → no-prefill (pseudo-continuation only)`);
+        return entry;
+      }
       const entry = this._makeEntry('verification-failed', 'unknown', digest);
       await this._persist(modelName, entry);
-      _log.warn(`[CAPABILITY] "${modelName}" has unrecognized template → treating as no-prefill`);
+      if (trimmed !== '') {
+        const snippet = String(template).replace(/\s+/g, ' ').slice(0, 500);
+        _log.warn(`[CAPABILITY] "${modelName}" has unrecognized template → treating as no-prefill`);
+        _log.warn(`[CAPABILITY]   template-head[500]: ${snippet}`);
+      } else {
+        _log.warn(`[CAPABILITY] "${modelName}" has empty template → treating as no-prefill`);
+      }
       return entry;
     }
 
@@ -162,13 +196,21 @@ class LLMCapabilityDetector {
 
   _classifyTemplate(template) {
     if (!template || typeof template !== 'string') return 'unknown';
-    // Modern template: Go `range` loop over .Messages.
-    // Two common forms in real Ollama templates:
+    // Modern Go template: `range` loop over .Messages.
+    // Real-world template forms seen in /api/show output:
     //   {{- range .Messages }}
     //   {{- range $i, $_ := .Messages }}
-    // We accept either: any `range` followed (after optional Go vars/iota
-    // syntax) by `.Messages` within the same template directive.
-    if (/range\b[^.{}]*\.Messages\b/.test(template)) return 'messages-loop';
+    //   {{- range $idx, $msg := .Messages -}}
+    //   {{ range .Messages }} (no whitespace trimming)
+    // v7.9.0 fix: the v7.8.9 regex `[^.{}]*` between `range` and `.Messages`
+    // failed against real-world Qwen3 templates because the actual text
+    // sometimes had `{` of nested `{{}}` between `range` and `.Messages`.
+    // v7.9.0 follow-up: widen window to 300 chars — qwen3-vl:235b-cloud
+    // observed at 12:34/12:40 with template not detected at 100-char window.
+    if (/range\b[\s\S]{0,300}?\.Messages\b/.test(template)) return 'messages-loop';
+    // v7.9.0 follow-up: Jinja2 style `{% for ... in messages %}` —
+    // some vendor cloud models ship Jinja-rendered templates instead of Go.
+    if (/\{%\s*for\b[\s\S]{0,200}?\bin\s+messages\b/i.test(template)) return 'messages-loop';
     // Legacy: uses .Prompt and/or .Response variables
     if (/\.Prompt\b/.test(template) || /\.Response\b/.test(template)) return 'prompt-response';
     return 'unknown';

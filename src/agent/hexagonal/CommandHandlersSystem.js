@@ -33,27 +33,30 @@ const commandHandlersSystem = {
       return this.lang.t('settings.api_key_saved', { key: apiMatch[1].slice(0, 8) });
     }
 
-    // v7.4.5.fix: Generic dot-path setter — `<dotted.path> = <value>`
-    // Examples:
-    //   agency.autoResumeGoals = always
-    //   daemon.enabled = true
-    //   idleMind.idleMinutes = 5
-    // Booleans, integers, and quoted/unquoted strings are coerced.
-    const dotMatch = message.match(/^\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*[=:]\s*(.+?)\s*$/);
-    if (dotMatch && dotMatch[1].includes('.')) {
-      const path = dotMatch[1];
-      let raw = dotMatch[2].trim();
-      // strip surrounding quotes
+    // v7.9.0 follow-up: strip the leading "/settings" or "settings" command
+    // verb so dot-path expressions reach the parsers below. Without this,
+    // `/settings cognitive.koennen.enabled false` was treated as one long
+    // line with no `=`/`:` and fell through to the generic overview.
+    const body = message.replace(/^\s*\/?\s*settings\s+/i, '').trim();
+
+    // Coerce a raw string token into typed value.
+    const coerce = (raw) => {
+      raw = raw.trim();
       if ((raw.startsWith("'") && raw.endsWith("'")) || (raw.startsWith('"') && raw.endsWith('"'))) {
         raw = raw.slice(1, -1);
       }
-      // coerce
-      let value;
-      if (raw === 'true') value = true;
-      else if (raw === 'false') value = false;
-      else if (/^-?\d+$/.test(raw)) value = parseInt(raw, 10);
-      else if (/^-?\d+\.\d+$/.test(raw)) value = parseFloat(raw);
-      else value = raw;
+      if (raw === 'true')  return true;
+      if (raw === 'false') return false;
+      if (/^-?\d+$/.test(raw))       return parseInt(raw, 10);
+      if (/^-?\d+\.\d+$/.test(raw))  return parseFloat(raw);
+      return raw;
+    };
+
+    // v7.4.5: Original dot-path setter — `<dotted.path> = <value>` / `:`
+    const dotMatch = body.match(/^\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*[=:]\s*(.+?)\s*$/);
+    if (dotMatch && dotMatch[1].includes('.')) {
+      const path = dotMatch[1];
+      const value = coerce(dotMatch[2]);
       try {
         this.settings.set(path, value);
         return `✓ ${path} = ${JSON.stringify(value)}`;
@@ -62,7 +65,39 @@ const commandHandlersSystem = {
       }
     }
 
-    // Show settings
+    // v7.9.0 follow-up: Whitespace-form setter — `<dotted.path> <value>`.
+    // Matches the slash-conventional `/settings foo.bar.baz true` form.
+    const wsMatch = body.match(/^\s*([a-zA-Z][a-zA-Z0-9_.]*)\s+(.+?)\s*$/);
+    if (wsMatch && wsMatch[1].includes('.')) {
+      const path = wsMatch[1];
+      const value = coerce(wsMatch[2]);
+      try {
+        this.settings.set(path, value);
+        return `✓ ${path} = ${JSON.stringify(value)}`;
+      } catch (err) {
+        return `✗ Failed to set ${path}: ${err.message}`;
+      }
+    }
+
+    // v7.9.0 follow-up: GET — `<dotted.path>` alone shows the current value.
+    // Accepts paths that point to a leaf (returns the value) OR to a subtree
+    // (returns a pretty-printed JSON snippet, capped at 2000 chars).
+    const getMatch = body.match(/^\s*([a-zA-Z][a-zA-Z0-9_.]*)\s*$/);
+    if (getMatch && getMatch[1].includes('.')) {
+      const path = getMatch[1];
+      try {
+        const v = this.settings.get(path);
+        if (v === undefined) return `✗ ${path} is not set`;
+        const out = (typeof v === 'object' && v !== null)
+          ? JSON.stringify(v, null, 2)
+          : JSON.stringify(v);
+        return `${path} = ${out.length > 2000 ? out.slice(0, 2000) + '\n…(truncated)' : out}`;
+      } catch (err) {
+        return `✗ Failed to read ${path}: ${err.message}`;
+      }
+    }
+
+    // Show settings (generic overview)
     const s = this.settings.getAll();
     return [
       `**Genesis — ${this.lang.t('ui.settings')}**`, '',

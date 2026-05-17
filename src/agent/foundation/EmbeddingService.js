@@ -173,10 +173,31 @@ class EmbeddingService {
   // ── Internal ─────────────────────────────────────────────
 
   async _getEmbedding(text) {
+    const truncated = text.slice(0, 2000);
     try {
-      const body = JSON.stringify({ model: this.model, prompt: text.slice(0, 2000) });
-      const data = await this._httpPost(`${this.baseUrl}/api/embeddings`, body);
-      return data?.embedding || null;
+      const body = JSON.stringify({ model: this.model, prompt: truncated });
+      try {
+        const data = await this._httpPost(`${this.baseUrl}/api/embeddings`, body);
+        return data?.embedding || null;
+      } catch (gpuErr) {
+        // v7.9.0 fix: on 8GB-VRAM systems nomic-embed-text collides with the
+        // loaded chat model — Ollama returns HTTP 500 "model failed to load,
+        // resource limitations". Retry once with num_gpu:0 (CPU-only is
+        // 200-500ms for nomic-embed-text, acceptable). Other errors (404, etc.)
+        // are not retriable.
+        const msg = String(gpuErr.message || '').toLowerCase();
+        if (msg.includes('load') || msg.includes('resource') || msg.includes('memory') || msg.includes('500')) {
+          _log.debug('[EMBED] GPU embed failed, retrying with num_gpu=0');
+          const cpuBody = JSON.stringify({
+            model: this.model,
+            prompt: truncated,
+            options: { num_gpu: 0 },
+          });
+          const data = await this._httpPost(`${this.baseUrl}/api/embeddings`, cpuBody);
+          return data?.embedding || null;
+        }
+        throw gpuErr;
+      }
     } catch (err) {
       _log.debug('[EMBED] Embedding request failed:', err.message);
       return null;

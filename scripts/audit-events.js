@@ -416,6 +416,15 @@ const RESERVED_TELEMETRY_ONLY = new Set([
   // backend handler.
   'agent:self-message-candidate',
   'agent:self-message-suppressed',
+  // v7.9.0 final telemetry — Skill Forge iteration-loop lifecycle.
+  // Emitted from SkillManager.createSkill and SkillCrystallizer for
+  // dashboard / audit visibility. No backend handler — the user sees
+  // success/failure via the createSkill return string, the dashboard
+  // can subscribe later, but the bus events themselves are
+  // fire-and-trace by design.
+  'skill:forge-attempt',
+  'skill:forge-succeeded',
+  'skill:forge-failed',
 ]);
 
 // Dynamic event patterns that won't have static matches

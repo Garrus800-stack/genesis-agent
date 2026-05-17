@@ -176,6 +176,12 @@ const SLASH_COMMANDS = [
     description: 'Show recent AgentLoop boundaries with affect snapshot, gate status, and θ',
     sinceVersion: 'v7.8.9',
   },
+  {
+    name: 'skills-pending',
+    aliases: [],
+    description: 'List skills SkillCrystallizer extracted but that are not yet promoted (Phase 2)',
+    sinceVersion: 'v7.9.0',
+  },
 ];
 
 /** All canonical command names (no aliases). */

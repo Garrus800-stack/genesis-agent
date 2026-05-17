@@ -195,6 +195,16 @@
       "note": "v7.8.9 \u2014 K\u00f6nnen foundation layer (Affect-Encoding at AgentLoop boundaries). KoennenCandidateLog snapshots 5-tuple affect at agent-loop:started/complete, tracks frustration+curiosity peaks via emotion:shift, sums surprise via SurpriseAccumulator.getSignalsSince(timestamp), evaluates baseline-relative triage gate (satisfaction_end > baseline+0.15 AND frustration_peak < baseline+0.4 AND surprise_sum/step_count > theta AND success AND step_count>0), theta=0.6-(genome.consolidation*0.3). Persists every boundary (pass and fail) to .genesis/koennen/candidates.jsonl for v7.9.0 calibration. SkillCandidateNarrative emits koennen:candidates-noticed when >=3 passing candidates in 7d window with 6h cooldown. SelfNarrative._changeAccumulator boosted by 2. /affect-trail slash inspects boundaries with theta and pass-rate. Removing these breaks the foundation for v7.9.0 SkillCrystallizer."
     },
     {
+      "prefix": "koennen-crystallizer-v790 contract: ",
+      "minCount": 10,
+      "note": "v7.9.0 Phase 2 \u2014 Skill crystallization. SkillCrystallizer runs as DreamCycle Phase 3c (after value-crystallization, intensity>=0.5), reads candidates.jsonl via KoennenCandidateLog.getCandidatesSince(now - windowMs) filtered by gatePass===true, clusters by embedding-similarity (threshold 0.75; fallback token-overlap >=2 shared content tokens), requires >=3 candidates per pattern, runs LLM extraction (cognitive.koennen.crystallization.llm.maxTokens=2000, timeoutMs=120000), parses manifest+code from fenced blocks, validates kebab-case name and description, gates via CodeSafetyScanner + sandbox-init probe, writes passing skills to .genesis/koennen/skills-pending/<name>/{skill-manifest.json,index.js} with koennen metadata (crystallizedAt, sourceCandidateIds, patternSignature). Cooldown per pattern-signature (6h default) in .genesis/koennen/crystallization-cooldown.json. Fires skill-crystallized (per success), dream:skills-crystallized (per run summary), skill:quarantined (per CodeSafety/sandbox-init reject). SkillEffectivenessTracker tracks per-skill Wilson-LB in .genesis/koennen/skill-effectiveness.json via wilsonLower(successes, total) imported from CognitiveSelfModel; public API recordInvocation/getWilsonLB/applyDecay/forget; Phase 3 (v7.9.1) HabitatOutpost will call recordInvocation during rehearsals. SelfNarrative._changeAccumulator += 3 on skill-crystallized. /skills-pending slash lists pending skills with manifest description, crystallizedAt date, and Wilson-LB if tracker is wired. Removing these breaks Phase 3 promotion."
+    },
+    {
+      "prefix": "koennen-forge-v790 contract: ",
+      "minCount": 12,
+      "note": "v7.9.0 final \u2014 Skill forge iteration loop. SkillManager.createSkill and SkillCrystallizer._crystallizeOne both run an iteration loop (max 3 attempts by default, overridable via opts.maxAttempts or cognitive.koennen.crystallization.maxAttempts) that feeds the prior error and prior code back into the next prompt via the create-skill template's lastError/lastCode/attempt slots (PromptEngine.js) so a weaker model can self-correct. The configured model is never auto-switched \u2014 robustness comes from the loop, not from model substitution. SkillManager.executeSkill accepts four export shapes (class with execute method, plain function, arrow function as module.exports, object with execute method). CommandHandlersCode.runSkill parses optional JSON argument for /run-skill <name> {json}. PromptBuilderSectionsExtra._skillsContext surfaces installed skills into the system prompt via the new 'skills' section in PromptBuilder so Genesis knows which skills he can call. Three new events: skill:forge-attempt, skill:forge-succeeded, skill:forge-failed with payload schemas. Removing these breaks the model-agnostic skill creation contract."
+    },
+    {
       "prefix": "llm-resilience-v789 contract: ",
       "minCount": 60,
       "note": "v7.8.9 \u2014 LLM resilience layer. StreamingCompletion wraps backend.stream() with three timer layers (first-chunk/inter-chunk/total) and surfaces done_reason from the terminal NDJSON chunk; never throws. TruncationDetector classifies output shape (code-with-manifest/code-single-block/json-bare/code-bare/free) and validates structural completeness via balanced-fence count plus stack-based bracket matcher that ignores strings/line-comments/block-comments. LLMCapabilityDetector probes /api/show, scans the template for range .Messages vs .Prompt/.Response, runs a small verification call when the template is modern (4 status values: verified-prefill, unverified-no-prefill, verification-failed, special-renderer), persists results to .genesis/llm-capabilities.json keyed by digest. ContinuationLoop orchestrates initial stream + completeness check + capability-aware re-call (trailing-assistant prefill for verified-prefill models, pseudo-continuation prompt for all others), with exponential backoff (1s/2s/4s/8s), MAX_CONTINUATIONS=4, cumulative token budget (0.8*num_ctx), and continuation-total deadline. Backend pushKeepAliveOverride() stack lets the loop temporarily hold the model loaded between re-calls. Bus events: continuation-started/-complete/-failed. CircuitBreaker integration: one logical call per sequence. Removing any of this breaks resilience for taskType='code' Ollama calls."
@@ -206,6 +216,10 @@
   ],
   "_excludePaths": [
     "CHANGELOG.md",
+    "CHANGELOG-v7.md",
+    "docs/CHANGELOG-v5.md",
+    "docs/CHANGELOG-v6.md",
+    "docs/CHANGELOG-archive.md",
     "node_modules"
   ]
 }

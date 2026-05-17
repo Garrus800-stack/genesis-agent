@@ -152,6 +152,14 @@ class ModelBridge {
       : null;
     this._loadUnavailable();
 
+    // v7.9.0: persist genesisDir as instance field so the continuation mixin
+    // (ModelBridgeContinuation) can pass it to LLMCapabilityDetector for the
+    // capability cache. In v7.8.9 this was missing — detector ran but the
+    // cache was never persisted, so every code-generation call re-ran the
+    // expensive verification probe at boot.
+    /** @type {string|null} */
+    this._genesisDir = genesisDir || null;
+
     // v7.5.2: routing telemetry
     this._routingStats = { autoRouted: 0, lastRouted: null };
   }

@@ -476,7 +476,10 @@ Level persists in `.genesis/settings.json` and survives restarts.
 | `/self-modify` | Modify own source code. |
 | `/self-repair` | Run diagnostic self-repair. |
 | `/analyze-code` | Analyze / review source code. |
-| `/create-skill` | Create a new Genesis skill or plugin. |
+| `/create-skill` | Create a new Genesis skill or plugin. Iteration loop with up to 3 attempts; the configured model is never auto-switched. |
+| `/run-skill [name] [JSON]` | Run an installed skill. Without name: lists all skills. With JSON object: passes input (e.g. `/run-skill slugify {"text":"Hello World"}`). |
+| `/skills-pending` | Show skills crystallized by Phase 2 Können from agent-loop trajectories — extracted but not yet promoted. |
+| `/affect-trail [n]` | Show the last n agent-loop boundaries with affect snapshot, gate-pass status, and pass-rate (Phase 1 Können). |
 | `/clone` | Trigger clone-factory dialog. |
 | `/peer` | Show peer-network status. |
 | `/daemon` | Show daemon status and cycle count. |

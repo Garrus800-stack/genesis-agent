@@ -87,12 +87,24 @@ const EVENTS = Object.freeze({
   }),
 
   // v7.8.9: Können-Konzept — affect-tagged procedural memory.
-  // Foundation layer. v7.9.0 adds skill crystallization; v7.9.1 adds habitat promotion.
+  // Foundation layer. v7.9.0 Phase 2 adds skill crystallization;
+  // v7.9.1 Phase 3 adds habitat promotion.
   KOENNEN: Object.freeze({
     /** @payload {{ candidateId: string, goalId: string, gatePass: boolean }} */
     CANDIDATE_RECORDED: 'koennen:candidate-recorded',
     /** @payload {{ count: number, windowMs: number, sampleTitles?: string[] }} */
     CANDIDATES_NOTICED: 'koennen:candidates-noticed',
+  }),
+
+  // v7.9.0 Phase 2 — Skill crystallization.
+  // SkillCrystallizer runs as DreamCycle Phase 3c.
+  CRYSTALLIZATION: Object.freeze({
+    /** @payload {{ skillName: string, sourceCandidateIds: string[], patternSignature: string }} */
+    SKILL_CRYSTALLIZED:        'skill-crystallized',
+    /** @payload {{ crystallized: number, rejected: number }} */
+    DREAM_SKILLS_CRYSTALLIZED: 'dream:skills-crystallized',
+    /** @payload {{ skillName: string, reason: string, details?: string[] }} */
+    SKILL_QUARANTINED:         'skill:quarantined',
   }),
 
   // ── Self-Preservation ────────────────────────────────────
@@ -909,6 +921,19 @@ const EVENTS = Object.freeze({
     UNINSTALLED: 'skill:uninstalled',
   }),
 
+  // ── Skill Forge (v7.9.0 final — iteration-loop telemetry) ──
+  // Lifecycle events for the iteration-loop in SkillManager.createSkill
+  // and SkillCrystallizer._crystallizeOne. Source field distinguishes
+  // the two callers ('create-skill' vs 'crystallizer').
+  SKILL_FORGE: Object.freeze({
+    /** @payload {{ source: string, attempt: number, maxAttempts: number }} */
+    ATTEMPT:    'skill:forge-attempt',
+    /** @payload {{ source: string, skillName: string, attempts: number }} */
+    SUCCEEDED:  'skill:forge-succeeded',
+    /** @payload {{ source: string, attempts: number, lastError: string }} */
+    FAILED:     'skill:forge-failed',
+  }),
+
   // ── Memory Consolidation (v6.0.0 V6-7) ─────────────────
   MEMORY_CONSOLIDATION: Object.freeze({
     /** @payload {{ kgMerged: number, kgPruned: number, lessonsArchived: number, lessonsDecayed: number, durationMs: number }} */
@@ -1351,6 +1376,12 @@ const EVENTS = Object.freeze({
     AUTO_ROUTE_TOGGLED:    'settings:auto-route-toggled',
     /** @payload {{ from: boolean, to: boolean, key: string }} */
     MCP_SERVE_TOGGLED:     'settings:mcp-serve-toggled',
+    /** v7.9.0 Phase 2 — Können master toggle.
+     *  @payload {{ from: boolean, to: boolean, key: string }} */
+    KOENNEN_TOGGLED:                 'settings:koennen-toggled',
+    /** v7.9.0 Phase 2 — Crystallization sub-toggle.
+     *  @payload {{ from: boolean, to: boolean, key: string }} */
+    KOENNEN_CRYSTALLIZATION_TOGGLED: 'settings:koennen-crystallization-toggled',
     /** v7.6.6: Fired during Settings.setBus() if any SENSITIVE_KEYS value
      *  could not be decrypted with the active encryption key (typically
      *  after `.install-id` rotation or restoration without re-key

@@ -50,6 +50,42 @@ function phase9Koennen(ctx, R) {
       ],
       factory: () => new (R('SkillCandidateNarrative').SkillCandidateNarrative)({ bus }),
     }],
+
+    // v7.9.0 Phase 2 (koennen-crystallizer-v790 contract):
+    // Tracks per-skill Wilson-LB. Public API only; Phase 3 (v7.9.1)
+    // HabitatOutpost will call recordInvocation() during rehearsals.
+    ['skillEffectivenessTracker', {
+      phase: 9,
+      deps: ['bus'],
+      tags: ['cognitive', 'koennen', 'tracker', 'v790'],
+      lateBindings: [
+        { prop: 'storage',  service: 'storage',  optional: true },
+        { prop: 'settings', service: 'settings', optional: true },
+      ],
+      factory: () => new (R('SkillEffectivenessTracker').SkillEffectivenessTracker)({ bus }),
+    }],
+
+    // v7.9.0 Phase 2 (koennen-crystallizer-v790 contract):
+    // SkillCrystallizer runs as DreamCycle Phase 3c. Clusters
+    // Können-candidates, asks LLM to extract a reusable skill per
+    // cluster, runs CodeSafety + Sandbox-init gates, persists passing
+    // skills to .genesis/koennen/skills-pending/ for Phase-3 promotion.
+    ['skillCrystallizer', {
+      phase: 9,
+      deps: ['bus'],
+      tags: ['cognitive', 'koennen', 'crystallizer', 'v790'],
+      lateBindings: [
+        { prop: 'model',            service: 'model',                optional: true },
+        { prop: 'candidateLog',     service: 'koennenCandidateLog',  optional: true },
+        { prop: 'embeddingService', service: 'embeddingService',     optional: true },
+        { prop: 'codeSafety',       service: 'codeSafety',           optional: true },
+        { prop: 'sandbox',          service: 'sandbox',              optional: true },
+        { prop: 'settings',         service: 'settings',             optional: true },
+      ],
+      factory: () => new (R('SkillCrystallizer').SkillCrystallizer)({
+        bus, genesisDir: ctx.genesisDir,
+      }),
+    }],
   ];
 }
 

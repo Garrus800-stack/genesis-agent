@@ -142,6 +142,9 @@ function phase5(ctx, R) {
         // v7.8.9: P5→P9 for /affect-trail slash command (koennen-v789 contract).
         { prop: 'koennenCandidateLog', service: 'koennenCandidateLog', optional: true,
           impact: '/affect-trail returns "KoennenCandidateLog not available"' },
+        // v7.9.0 Phase 2: P5→P9 for /skills-pending slash (koennen-crystallizer-v790 contract).
+        { prop: 'skillEffectivenessTracker', service: 'skillEffectivenessTracker', optional: true,
+          impact: '/skills-pending shows wilson="—" instead of actual Wilson-LB' },
       ],
       factory: (c) => {
         const { lang } = R('Language');
@@ -152,6 +155,7 @@ function phase5(ctx, R) {
           settings: c.resolve('settings'), webFetcher: c.resolve('webFetcher'),
           shellAgent: c.resolve('shellAgent'),
           mcpClient: c.tryResolve('mcpClient'),
+          genesisDir,
         });
       },
     }],

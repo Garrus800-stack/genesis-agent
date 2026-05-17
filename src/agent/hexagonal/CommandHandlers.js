@@ -41,7 +41,7 @@ const { commandHandlersOpen } = require('./CommandHandlersOpen');
 const { commandHandlersCleanup } = require('./CommandHandlersCleanup');   // v7.8.4
 
 class CommandHandlers {
-  constructor({ bus, lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient, coreMemories}) {
+  constructor({ bus, lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient, coreMemories, genesisDir, skillEffectivenessTracker}) {
     this.bus = bus || null;
     this.lang = lang || { t: (k) => k, detect: () => {}, current: 'en' };
     this.sandbox = sandbox;
@@ -56,6 +56,9 @@ class CommandHandlers {
     this.shell = shellAgent;
     this.mcp = mcpClient;
     this.coreMemories = coreMemories || null; // v7.3.2
+    // v7.9.0 Phase 2: needed by /skills-pending slash.
+    this._genesisDir = genesisDir || null;
+    this.skillEffectivenessTracker = skillEffectivenessTracker || null;
     /** @type {*} */ this.skillManager = null; // late-bound v5.9.1
     /** @type {*} */ this.selfStatementLog = null; // late-bound v7.5.5
     /** @type {*} */ this.modelBridge = null; // late-bound v7.5.6 — for /model-reset
@@ -73,6 +76,7 @@ class CommandHandlers {
     orchestrator.registerHandler('plans', () => this.plans());
     orchestrator.registerHandler('goals', (msg) => this.goals(msg));
     orchestrator.registerHandler('affect-trail', (msg) => this.affectTrail(msg));   // v7.8.9
+    orchestrator.registerHandler('skills-pending', (msg) => this.skillsPending(msg)); // v7.9.0
     orchestrator.registerHandler('settings', (msg) => this.handleSettings(msg));
     orchestrator.registerHandler('web-lookup', (msg) => this.webLookup(msg));
     orchestrator.registerHandler('undo', () => this.undo());

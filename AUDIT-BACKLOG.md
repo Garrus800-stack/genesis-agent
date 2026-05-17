@@ -84,8 +84,8 @@ See [CHANGELOG.md § 7.8.6](CHANGELOG.md) for full details.
   3 tests.)
 - **Item 5 — CHANGELOG split.** 14,739 lines / 906 KB
   CHANGELOG.md split into per-major archives:
-  `CHANGELOG-v7.md` (78), `CHANGELOG-v6.md` (12),
-  `CHANGELOG-v5.md` (17), `CHANGELOG-archive.md` (v0–v4, 29).
+  `CHANGELOG-v7.md` (78), `docs/CHANGELOG-v6.md` (12),
+  `docs/CHANGELOG-v5.md` (17), `docs/CHANGELOG-archive.md` (v0–v4, 29).
   Master `CHANGELOG.md` keeps only the newest entry inline plus
   index. Genesis' `ChatOrchestratorSourceRead._readChangelogLatestSection`
   keeps working — the newest `## [x.y.z]` header is still at the

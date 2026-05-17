@@ -255,6 +255,35 @@
             </select>
           </div>
           <div class="setting-group setting-divider">
+            <label class="setting-section-label" data-i18n="settings.section.koennen">Können-Konzept (Skill Crystallization)</label>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="settings.koennen.enabled.label">Können-Pipeline</label>
+            <select id="set-koennen-enabled" class="setting-input">
+              <option value="true" data-i18n="settings.koennen.enabled.on">An (Default) — Affect-Encoding + Crystallization aktiv</option>
+              <option value="false" data-i18n="settings.koennen.enabled.off">Aus — keine Skill-Extraktion aus Trajektorien</option>
+            </select>
+            <span class="setting-hint" data-i18n="settings.koennen.enabled.hint">Master-Toggle für das ganze Können-Konzept. Bei aus: KoennenCandidateLog und SkillCrystallizer laufen nicht.</span>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="settings.koennen.cryst.enabled.label">Skill-Crystallization (Phase 2)</label>
+            <select id="set-koennen-cryst-enabled" class="setting-input">
+              <option value="true" data-i18n="settings.koennen.cryst.enabled.on">An (Default) — DreamCycle Phase 3c extrahiert Skills</option>
+              <option value="false" data-i18n="settings.koennen.cryst.enabled.off">Aus — Trajektorien werden geloggt, aber nichts crystallisiert</option>
+            </select>
+            <span class="setting-hint" data-i18n="settings.koennen.cryst.enabled.hint">Nur wirksam wenn der Master-Toggle oben an ist. Geht über LLM-Aufrufe — bei limitiertem Token-Budget ggf. ausschalten.</span>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="settings.koennen.cryst.minCandidates.label">Min. Candidates pro Pattern</label>
+            <input type="number" id="set-koennen-cryst-min-candidates" min="1" max="20" placeholder="3" class="setting-input">
+            <span class="setting-hint" data-i18n="settings.koennen.cryst.minCandidates.hint">Wie viele ähnliche gate-passed Trajektorien nötig sind, bevor ein Skill extrahiert wird. Default: 3. Höher = konservativer.</span>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="settings.koennen.cryst.cooldown.label">Pattern-Cooldown (ms)</label>
+            <input type="number" id="set-koennen-cryst-cooldown-ms" min="1000" max="604800000" placeholder="21600000" class="setting-input">
+            <span class="setting-hint" data-i18n="settings.koennen.cryst.cooldown.hint">Wie lange ein fehlgeschlagenes Pattern blockiert ist, bevor es erneut versucht wird. Default: 21600000 ms (= 6 h).</span>
+          </div>
+          <div class="setting-group setting-divider">
             <label class="setting-section-label" data-i18n="settings.section.daemon_behavior">Daemon-Verhalten</label>
           </div>
           <div class="setting-group">

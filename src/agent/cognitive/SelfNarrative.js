@@ -114,6 +114,14 @@ class SelfNarrative {
     this._sub('koennen:candidates-noticed', () => {
       this._changeAccumulator += 2;
     }, { source: 'SelfNarrative' });
+
+    // v7.9.0 Phase 2 (koennen-crystallizer-v790 contract): when
+    // SkillCrystallizer extracts a reusable skill from clustered
+    // candidates, boost accumulator (+3 — stronger than "noticed"
+    // but pre-promotion).
+    this._sub('skill-crystallized', () => {
+      this._changeAccumulator += 3;
+    }, { source: 'SelfNarrative' });
   }
 
 

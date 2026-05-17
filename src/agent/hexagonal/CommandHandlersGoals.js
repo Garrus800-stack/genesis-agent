@@ -291,7 +291,11 @@ const commandHandlersGoals = {
     const stats = this.koennenCandidateLog.getStats();
 
     if (!boundaries || boundaries.length === 0) {
-      return 'No AgentLoop boundaries recorded yet. Affect-encoding starts with the next AgentLoop task.';
+      return 'No AgentLoop boundaries recorded yet.\n\n' +
+             'Affect-encoding only fires when Genesis pursues a Goal via the AgentLoop. ' +
+             'Plain chat, /create-skill, /settings etc. do NOT trigger it. ' +
+             'Start a Goal (use the goals panel or "neues Ziel: ..." in chat) and let Genesis work on it — ' +
+             'boundaries appear here as soon as the first step completes.';
     }
 
     const passPct = (stats.gatePassRate * 100).toFixed(0);
@@ -312,6 +316,57 @@ const commandHandlersGoals = {
     });
 
     return `${header}\n\n${lines.join('\n')}`;
+  },
+
+  // v7.9.0 Phase 2 (koennen-crystallizer-v790 contract): /skills-pending —
+  // list skills SkillCrystallizer has extracted into
+  // .genesis/koennen/skills-pending/ but that haven't been promoted yet.
+  // Reads the directory directly (no service dependency on the
+  // SkillCrystallizer instance state) so the slash works as long as the
+  // .genesis tree is available.
+  skillsPending(_message) {
+    const fs = require('fs');
+    const path = require('path');
+
+    const genesisDir = this._genesisDir || '.genesis';
+    const pendingDir = path.join(genesisDir, 'koennen', 'skills-pending');
+
+    if (!fs.existsSync(pendingDir)) {
+      return 'No pending skills. SkillCrystallizer has not produced any extractions yet.';
+    }
+
+    let entries;
+    try {
+      entries = fs.readdirSync(pendingDir, { withFileTypes: true })
+        .filter(e => e.isDirectory());
+    } catch (err) {
+      return `Could not read skills-pending directory: ${err.message}`;
+    }
+
+    if (entries.length === 0) {
+      return 'No pending skills. SkillCrystallizer has not produced any extractions yet.';
+    }
+
+    const tracker = this.skillEffectivenessTracker || null;
+    const lines = [];
+    for (const e of entries) {
+      const manifestPath = path.join(pendingDir, e.name, 'skill-manifest.json');
+      let manifest = null;
+      try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); }
+      catch { /* malformed — skip details */ }
+
+      const desc = (manifest && manifest.description) ? manifest.description : '(no description)';
+      const stats = tracker ? tracker.getStats(e.name) : null;
+      const runs = stats ? stats.runs : 0;
+      const lb = stats ? stats.wilsonLB.toFixed(2) : '—';
+      const crystallizedAt = manifest && manifest.koennen && manifest.koennen.crystallizedAt
+        ? new Date(manifest.koennen.crystallizedAt).toISOString().slice(0, 10)
+        : '—';
+      lines.push(`• **${e.name}** (${crystallizedAt}, ${runs} runs, wilson: ${lb})\n  ${desc}`);
+    }
+
+    const header = `**Pending Skills** (${entries.length} extracted, awaiting promotion):`;
+    return `${header}\n\n${lines.join('\n\n')}`;
   },
 
 };
