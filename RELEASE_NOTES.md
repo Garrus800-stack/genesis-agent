@@ -1,18 +1,43 @@
-# Genesis Agent v7.9.0 — **Bug-Fix-Konsolidierung aus dem v7.8.9 Real-Run-Log (qwen3-vl:235b-cloud, 9h+ Test-Run).**
+# Genesis Agent v7.9.1 — **Live-fix pass from the v7.9.0 real-run log.**
 
-**Bug-Fix-Konsolidierung aus dem v7.8.9 Real-Run-Log (qwen3-vl:235b-cloud, 9h+ Test-Run).**
+**Live-fix pass from the v7.9.0 real-run log.**
 
-v7.9.0 adressiert die drei Bugs, die im v7.8.9-Real-Run-Log gefunden wurden, sowie eine kleine Regex-Robustheits-Verbesserung in der Template-Erkennung. **v7.8.9-Verhalten für Cloud-Modell-Skill-Build bleibt erhalten** (status='unknown' für unrecognized templates → pseudo-continuation pfad). Kein Family-Fallback eingeführt, da dieser zwischen v7.8.9 und v7.9.0-Iterationen für Cloud-Skill-Build-Regress verantwortlich war.
+Six focused fixes informed by a real run on AUTONOMOUS trust level. The user observed an approval prompt that auto-rejected after 60s, the same rejected goal being re-picked roughly 25 times in 30 minutes, synthetic loop_early failure ids polluting the burst counter, and an Insights Timeline that only showed the latest five activities with no per-type breakdown. Documentation drift across README, ARCHITECTURE-DEEP-DIVE, and CAPABILITIES is reconciled in the same pass, and the v7.9.0 CHANGELOG entry is fully Englished.
 
-### Bugs gefixt
+### Live-run fixes
 
-- **`.genesis/llm-capabilities.json` wurde nie geschrieben** — `ModelBridge` constructor las `genesisDir` aber speicherte es nicht als instance field. Der ContinuationMixin las `this._genesisDir` was immer `undefined` war → `_capabilityFilePath()` returnte null → `_persist()` war no-op. Fix: `this._genesisDir = genesisDir || null` im constructor. Capability-Cache persistiert jetzt zwischen Boots, was bei wiederholten Boots die ~30s teure Verification-Probe für lokale Modelle einspart.
-- **`LLM_STREAM_FIRST_CHUNK` von 120s auf 180s erhöht** — qwen3-vl:235b-cloud unter Last beobachtet bei 120-150s für ersten Chunk. 180s ist konservativer ohne real-hangs zu maskieren. Override per `settings.json` `llm.streamTimeouts.firstChunk` möglich.
-- **`EmbeddingService` GPU/CPU-Fallback** — Auf 8GB-VRAM-Systemen kollidiert `nomic-embed-text` mit geladenem Chat-Modell (Ollama returnt HTTP 500 "model failed to load, resource limitations"). Fix: bei einem solchen Fehler einmaliger Retry mit `options.num_gpu: 0`. CPU-only ist bei nomic-embed-text 200-500ms statt 50ms — akzeptabel. Andere Fehler (404 etc.) triggern keinen Retry.
+- **TrustLevelSystem — `'continue'` classified as medium** — the AgentLoop step-limit prompt (`ApprovalGate.request('continue', …)` after a goal reaches `maxStepsPerGoal`) previously fell back to `'high'` via `_getActionRisk` and triggered manual approval even at AUTONOMOUS. Now classified as `'medium'` so AUTONOMOUS auto-approves the benign "keep going" decision. `'plan-has-issues'` stays in the `'blocking'` tier deliberately — a structurally broken plan must always pause for conscious user decision regardless of trust level (v7.7.8 safety contract).
+- **ApprovalGate timeout 60s → 5 min** — `DEFAULT_TIMEOUT_MS` raised from 60_000 to 300_000. The live run showed the user looking away briefly and the gate auto-rejecting before they could click. Five minutes gives a real human window. Override via `settings.json` key `approval.timeoutMs` or constructor option.
+- **GoalDriverFailurePolicy — `loop_early_<ts>` filter** — `AgentLoopPursuit` emits synthetic goal-ids of the form `loop_early_<ts>` when a plan fails before `currentGoalId` is set (dry-run validation failure, plan-generation rejection). These have no GoalStack entry, so the previous code logged a misleading "stalled" warning and burned a burst-counter slot. `_applyFailurePause` now short-circuits at the top for any id starting with `loop_early_`.
+- **GoalDriver — 24h rejected-cooldown** — after `setStatus('stalled')` on a user-rejected goal, the same goal was re-picked roughly 25 times over 30 minutes by the next scan-tick, likely a race between async status update and `_scanAndMaybePursue` plus IdleMind re-arming. Belt-and-suspenders: a new `_goalRejectedCooldown` Map holds the goalId for 24h. `_listPursueable()` filters cooldown-active goals with lazy cleanup of expired entries, matching the existing `_goalPausedUntil` pattern.
+- **IdleMind — per-activity-type counts** — `IdleMind` now maintains a `_activityCounts` Map alongside the chronological `activityLog`. The recording helper `_recordActivity` lives in the new `IdleMindActivityStats.js` mixin (Object.assign on prototype, keeps IdleMind.js at 700 LOC under the soft-guard). `getStatus()` exposes the counts as `activityCounts`. The dashboard's Insights Timeline renders a top-5 sorted breakdown line ("ideate 24, explore 13, plan 7, …") above the chronological entries — see `IntelRenderers._renderInsightsTimeline` and the new `.dash-insights-breakdown` / `.dash-insight-count` CSS classes.
 
-### Robustheits-Verbesserung
+### Doc-drift reconciliation
 
-- **Template-Klassifikation tolerant gegen Klammern + Newlines** — Der v7.8.9-Regex `range[^.{}]*\.Messages` matched bei real-world Qwen3-Templates nicht zuverlässig (Klammern in nested `{{...}}` zwischen `range` und `.Messages`). Tolerant version: `range[\s\S]{0,100}?\.Messages`. Erkennt jetzt mehr Templates korrekt als 'messages-loop'. Bei unrecognized templates: weiterhin `status='unknown'` (= v7.8.9-Verhalten), kein Family-Fallback und kein Verification-Probe — dieser Pfad hatte einen Cloud-Skill-Build-Regress in v7.9.0-Iterations verursacht.
+- **README.md** — module count, source-table total, LOC, DI services, test suites, test count, event-type catalogue size all updated to current values (372 src modules, 116k LOC, 164 manifest + 13 bootstrap = 177 runtime services, 479 test files, 7794 tests, 476 events). The "Total 237 / ~80,000 LOC" agent-source summary becomes "339 / ~116k".
+- **ARCHITECTURE-DEEP-DIVE.md** — Key Numbers Source Modules 371 → 372, Test Files / Tests 478/7601 → 479/7794, services line 155/168 → 164/177, event-type catalogue 452 → 476, src/ total summary 371/108k → 372/116k.
+- **CAPABILITIES.md** — test-files row 478/7601 → 479/7794, header test counts 7601/7600 → 7794/7793.
+- **CHANGELOG.md + CHANGELOG-v7.md** — v7.9.0 entry fully translated to English (Bug-Fix-Konsolidierung → Bug-fix consolidation, Bugs gefixt → Bugs fixed, Robustheits-Verbesserung → Robustness improvement, plus all body text). The Skill Forge and Können-Konzept sections were already English.
+- **QUICK-START.md** — `/skills-pending` description rewritten to describe what the command does rather than what it does not yet do.
+- **scripts/audit-doc-drift.js** — `TESTS_WIN_BASELINE` and `TESTS_WIN` baselines bumped from 7601 to 7794 to match the new test count.
+
+### Numbers
+
+7794 tests pass (Win baseline), 7793 (Linux). 130/130 fitness. 12 new contract tests under `v791 contract:` prefix (`test/modules/v791-livefixes.contract.test.js`) covering all five code fixes. New file `src/agent/autonomy/IdleMindActivityStats.js` (51 LOC). Test files 478 → 479.
+
+---
+
+
+
+### Bugs fixed
+
+- **`.genesis/llm-capabilities.json` was never written** — the `ModelBridge` constructor read `genesisDir` but did not store it as an instance field. The `ContinuationMixin` then read `this._genesisDir` which was always `undefined` → `_capabilityFilePath()` returned null → `_persist()` was a no-op. Fix: `this._genesisDir = genesisDir || null` in the constructor. The capability cache now persists across boots, saving the ~30s verification probe for local models on every subsequent boot.
+- **`LLM_STREAM_FIRST_CHUNK` raised from 120s to 180s** — qwen3-vl:235b-cloud under load was observed at 120-150s for the first chunk. 180s is more forgiving without masking real hangs. Override via `settings.json` key `llm.streamTimeouts.firstChunk`.
+- **`EmbeddingService` GPU/CPU fallback** — on 8GB-VRAM systems `nomic-embed-text` collides with the loaded chat model (Ollama returns HTTP 500 "model failed to load, resource limitations"). Fix: on that specific error, retry once with `options.num_gpu: 0`. CPU-only runs nomic-embed-text at 200-500ms instead of 50ms — acceptable. Other errors (404 etc.) do not trigger the retry.
+
+### Robustness improvement
+
+- **Template classification tolerant of brackets and newlines** — the v7.8.9 regex `range[^.{}]*\.Messages` did not match reliably on real-world Qwen3 templates (brackets in nested `{{...}}` between `range` and `.Messages`). Tolerant version: `range[\s\S]{0,100}?\.Messages`. More templates now classify correctly as `messages-loop`. For still-unrecognized templates the path stays at `status='unknown'` (v7.8.9 behaviour) — no family-fallback and no verification probe, because that path caused a cloud-skill-build regression in v7.9.0 iterations.
 
 ### Skill Forge — Iteration loop + format tolerance + skill awareness
 

@@ -9,7 +9,14 @@
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('ApprovalGate');
 
-const DEFAULT_TIMEOUT_MS = 60_000;
+// v7.9.1: Default timeout raised from 60s to 5 minutes after live-run
+// observation (2026-05-17) where the user saw the approval card briefly
+// appear, looked away, and the 60s timeout auto-rejected before they
+// could click. The auto-reject then cascaded into the goal-reject-loop
+// (see GoalDriverFailurePolicy v7.9.1 cooldown). 5 minutes gives a real
+// human window to read the plan/blockers and respond consciously.
+// Override via settings.json `approval.timeoutMs` or constructor opt.
+const DEFAULT_TIMEOUT_MS = 300_000;
 
 class ApprovalGate {
   /**

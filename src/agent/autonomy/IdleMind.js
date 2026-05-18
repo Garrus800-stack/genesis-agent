@@ -126,6 +126,7 @@ class IdleMind {
 
     // Track what activities have been done recently
     this.activityLog = [];
+    // v7.9.1: _activityCounts is lazy-initialised by IdleMindActivityStats mixin
     this._lastInsightTs = 0; // v5.7.0: Rate-limit proactive insights
     this._thinking = false;  // FIX v7.4.1: Re-entrancy guard for _think()
 
@@ -293,10 +294,7 @@ class IdleMind {
 
       if (result) {
         this._journal(activity, result);
-        this.activityLog.push({ activity, timestamp: Date.now() });
-
-        // Keep only last 20 activity entries
-        if (this.activityLog.length > 20) this.activityLog = this.activityLog.slice(-20);
+        this._recordActivity(activity, result);
 
         this.bus.fire('idle:thought-complete', { activity, summary: result.slice(0, 200) }, { source: 'IdleMind' });
 
@@ -331,6 +329,8 @@ class IdleMind {
    * v5.7.0: Determine if an idle thought is significant enough
    * to proactively share with the user.
    * Criteria: actionable findings from reflect/explore/tidy,
+  /**
+   * v5.7.0 / v5.9.7: proactive-insight gate — only "interesting" findings
    * rate-limited to max 1 per 10 minutes.
    */
   _isSignificantInsight(activity, result) {
@@ -518,6 +518,8 @@ class IdleMind {
       isIdle: (Date.now() - this.lastUserActivity) >= this.idleThreshold,
       thoughtCount: this.thoughtCount,
       recentActivities: this.activityLog.slice(-5),
+      // v7.9.1: per-type aggregation for the Insights Timeline renderer.
+      activityCounts: Object.fromEntries(this._activityCounts || []),
       plans: this.plans.length,
       activeGoals: this.goalStack ? this.goalStack.getActiveGoals().length : 0,
       totalGoals: this.goalStack ? this.goalStack.getAll().length : 0,
@@ -691,7 +693,7 @@ class IdleMind {
 // migrated to test/modules/activities-modules.test.js which tests
 // the new modules directly. IdleMindResearch.test.js was updated to
 // import from activities/Research.js.
-
 applySubscriptionHelper(IdleMind);
-
+const { activityStatsMixin } = require('./IdleMindActivityStats'); // v7.9.1
+Object.assign(IdleMind.prototype, activityStatsMixin);
 module.exports = { IdleMind };

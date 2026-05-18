@@ -402,7 +402,13 @@ function runChecks() {
       // v7.8.9: +28 over v7.8.8 (koennen-v789 contract tests across
       //   v789-koennen-candidate-log (13), v789-skill-candidate-narrative (6),
       //   v789-affect-trail-slash (5), v789-surprise-since (4)).
-      const TESTS_WIN_BASELINE = 7601;
+      // v7.9.0: +181 over v7.8.9 (skill-forge-v790 21, koennen-crystallizer-v790 28,
+      //   plus baseline updates and contract tests across the value crystallization
+      //   and skill effectiveness paths).
+      // v7.9.1: +12 over v7.9.0 (v791-livefixes contract tests covering trust-risk
+      //   classification, ApprovalGate timeout, loop_early filter, goal-reject
+      //   cooldown, and IdleMind activity-counts).
+      const TESTS_WIN_BASELINE = 7794;
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -442,7 +448,7 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 7601;
+  const TESTS_WIN = 7794;
   // v7.7.7: TEST_FILES is now dynamic — counts *.test.js under test/ at audit-time.
   // This closes the drift-blind tautology where the constant was pinned and the
   // doc was pinned to the same constant — drift would never be detected. With

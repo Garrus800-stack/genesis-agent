@@ -13,8 +13,8 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 371 JS files |
-| Test Files / Tests | 478 / 7601 (Win baseline) |
+| Source Modules | 372 JS files |
+| Test Files / Tests | 479 / 7794 (Win baseline) |
 | DI Services | 168 (155 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
@@ -55,7 +55,7 @@ Phase 1: Bootstrap
   └── Register non-manifest instances: rootDir, guard, bus, storage, lang, logger
 
 Phase 2: Manifest
-  └── Register all 155 services from 12 phase files via ContainerManifest (+13 bootstrap = 168 runtime, cognitive default profile)
+  └── Register all 164 services from 12 phase files via ContainerManifest (+13 bootstrap = 177 runtime, cognitive default profile)
       └── Auto-discovery scans src/agent/ → builds filename→directory map
 
 Phase 3: Resolve & Init
@@ -413,7 +413,7 @@ The EmbeddingService integration is optional. Without an embedding backend (Olla
 
 The EventBus (~600 LOC) is the nervous system of Genesis:
 
-- **452 catalogued event types** in EventTypes.js (1316 LOC) with JSDoc payload docs
+- **476 catalogued event types** in EventTypes.js (1316 LOC) with JSDoc payload docs
 - **476 payload schemas** in EventPayloadSchemas.js (~846 LOC) — full parity since v7.6.x (every catalog entry has a registered schema; v7.6.3 dropped 4 dead entries from both files in lockstep, B1+B2 regression tests in `store-event-catalog.test.js` enforce the link)
 - **Dev-mode validation** — unknown events produce warnings with stack traces
 - **Wildcard prefix-map** (v3.8.0) — O(k) matching instead of O(n)
@@ -482,5 +482,5 @@ Approximate as of v7.5.6 (numbers shift with each release):
   ─────────────────────────────────────────────
   agent/ total     259 files  ~84,900 LOC
   + UI/kernel       47 files  ~13,800 LOC
-  = src/ total     371 modules ~108,000 LOC
+  = src/ total     372 modules ~116,000 LOC
 ```

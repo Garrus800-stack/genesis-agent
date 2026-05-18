@@ -60,6 +60,16 @@ const ACTION_RISK = {
   'RUN_TESTS':     'medium',
   'GIT_SNAPSHOT':  'medium',
   'DELEGATE':      'medium',
+  // v7.9.1: AgentLoop step-limit gate. ApprovalGate.request('continue', …)
+  // fires when a goal has reached its per-goal step limit and Genesis asks
+  // whether to keep going. Without explicit classification this fell back
+  // to 'high' via _getActionRisk and triggered manual approval even at
+  // AUTONOMOUS. Classified as 'medium' so AUTONOMOUS auto-approves a
+  // simple "keep going" decision. Note: `plan-has-issues` stays in the
+  // 'blocking' tier (see v7.7.8 entry below) — a structurally broken
+  // plan must always pause for conscious user decision regardless of
+  // trust level. Only the benign step-limit prompt is reclassified.
+  'continue':      'medium',
 
   // High risk (auto-execute at Level 3 only)
   'SHELL_EXEC':    'high',

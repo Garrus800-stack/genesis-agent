@@ -122,11 +122,32 @@ function apply(Dashboard) {
     const thoughtCount = idleMindData.thoughtCount || 0;
     const isIdle = idleMindData.isIdle;
     const idleSince = idleMindData.idleSince || 0;
+    // v7.9.1: per-type aggregation. Show the top 5 sorted by count so
+    // the user sees the shape of IdleMind's session (ideate 24, explore
+    // 13, …) instead of only the latest five chronologically.
+    const counts = idleMindData.activityCounts || {};
+    const countEntries = Object.entries(counts)
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
 
     let html = '<div class="dash-insights-header">' +
       '<span class="dash-stat"><span class="dash-stat-num">' + thoughtCount + '</span> thoughts</span>' +
       '<span class="dash-stat">' + (isIdle ? '💤 idle ' + this._formatDuration(idleSince) : '🟢 active') + '</span>' +
       '</div>';
+
+    if (countEntries.length > 0) {
+      html += '<div class="dash-insights-breakdown">';
+      for (const [activity, n] of countEntries) {
+        const icon = this._insightIcon(activity);
+        html += '<span class="dash-insight-count">' +
+          '<span class="dash-insight-icon">' + icon + '</span>' +
+          this._esc(activity) + ' ' +
+          '<span class="dash-stat-num">' + n + '</span>' +
+          '</span>';
+      }
+      html += '</div>';
+    }
 
     if (activities.length === 0) {
       html += '<span class="dash-muted">Noch keine Aktivitäten — IdleMind denkt nach wenn du idle bist.</span>';

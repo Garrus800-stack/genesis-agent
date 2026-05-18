@@ -58,6 +58,16 @@ const failurePolicyMixin = {
    */
   async _applyFailurePause(goalId, errMsg, goal) {
     if (!goalId) return;
+
+    // v7.9.1: Skip synthetic loop_early_<ts> goal-ids. These are emitted
+    // by AgentLoopPursuit when a plan fails before currentGoalId is set
+    // (e.g. dry-run validation failure, plan-generation rejection). They
+    // have no GoalStack entry, so setStatus would silently do nothing
+    // and we would just log a misleading "stalled" warning and burn a
+    // burst-counter slot. Drop them immediately — the real goal-id (if
+    // any) is handled by a second _applyFailurePause call.
+    if (goalId.startsWith('loop_early_')) return;
+
     const _now = Date.now();
     this._failureBurst = this._failureBurst || new Map();
     this._goalPausedUntil = this._goalPausedUntil || new Map();
@@ -145,6 +155,19 @@ const failurePolicyMixin = {
         } catch (e) {
           _log.warn('[DRIVER] failed to mark goal stalled:', e.message);
         }
+        // v7.9.1: Belt-and-suspenders cooldown. Live-Befund (Garrus-Win,
+        // 2026-05-17): even after setStatus('stalled') the goal was
+        // re-picked ~25× over 30 minutes by the next scan-tick because
+        // either (a) the status update raced with _scanAndMaybePursue,
+        // or (b) IdleMind / GoalSynthesizer re-armed the goal back to
+        // 'active'. The 24h cooldown in _goalRejectedCooldown is checked
+        // by GoalDriver._listPursueable() and survives both races and
+        // re-arming attempts. If the user really wants to retry the
+        // same goal sooner, they can do so explicitly via the chat
+        // ("/goal resume <id>" or similar) which bypasses the cooldown.
+        this._goalRejectedCooldown = this._goalRejectedCooldown || new Map();
+        const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+        this._goalRejectedCooldown.set(goalId, _now + COOLDOWN_MS);
         this._failureBurst.delete(goalId);
         this._goalPausedUntil.delete(goalId); // cleared by stall
       }

@@ -481,6 +481,12 @@ class GoalDriver {
         if (until <= _now) this._goalPausedUntil.delete(gid);
       }
     }
+    // v7.9.1: same lazy cleanup for the rejected-cooldown map.
+    if (this._goalRejectedCooldown) {
+      for (const [gid, until] of this._goalRejectedCooldown) {
+        if (until <= _now) this._goalRejectedCooldown.delete(gid);
+      }
+    }
     return all.filter(g =>
       g.status === 'active'
       && !this._currentlyPursuing.has(g.id)
@@ -488,6 +494,11 @@ class GoalDriver {
       // recent failures (rate-limit, planner errors). The pause
       // expires on its own; another scan will pick them up.
       && !(this._goalPausedUntil && this._goalPausedUntil.has(g.id))
+      // v7.9.1: skip goals that the user explicitly rejected within
+      // the last 24h. Belt-and-suspenders against status-update races
+      // and IdleMind re-arming the goal back to 'active' (live-run
+      // 2026-05-17: same goal re-picked ~25× in 30 min after reject).
+      && !(this._goalRejectedCooldown && this._goalRejectedCooldown.has(g.id))
       // Sub-goals (source='subplan') are pursued aggressively
       // because their completion unblocks a user-goal. They never
       // hit the user-source filter that gates auto-resume — they

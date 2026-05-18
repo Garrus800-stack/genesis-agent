@@ -124,6 +124,8 @@ function applyStyles(Dashboard) {
     '.dash-trace-connector{color:rgba(255,255,255,0.2);font-family:monospace;font-size:10px;min-width:18px}' +
     // v5.9.2: Insights Timeline
     '.dash-insights-header{display:flex;flex-wrap:wrap;gap:12px;padding:4px 0;margin-bottom:4px}' +
+    '.dash-insights-breakdown{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 6px 0;font-size:11px;color:var(--dash-fg-muted,#888)}' +
+    '.dash-insight-count{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;background:var(--dash-bg-soft,rgba(255,255,255,0.04));border-radius:3px}' +
     '.dash-insights-timeline{display:flex;flex-direction:column;gap:3px}' +
     '.dash-insight-entry{display:flex;gap:6px;align-items:flex-start;font-size:11px;padding:3px 0;border-left:2px solid rgba(108,140,255,0.15);padding-left:8px}' +
     '.dash-insight-icon{font-size:12px;min-width:16px}' +

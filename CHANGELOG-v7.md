@@ -4,21 +4,46 @@ For the current release notes see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
+## [7.9.1]
+
+**Live-fix pass from the v7.9.0 real-run log.**
+
+Six focused fixes plus doc-drift reconciliation. Approval auto-rejection, goal-reject re-pickup loop, synthetic failure ids, and dashboard breakdown view addressed; CHANGELOG v7.9.0 entry fully Englished.
+
+### Live-run fixes
+
+- **TrustLevelSystem `'continue'` → medium** — AgentLoop step-limit prompt auto-approved at AUTONOMOUS. `'plan-has-issues'` stays `'blocking'` (v7.7.8 safety contract).
+- **ApprovalGate timeout 60s → 5 min** — `DEFAULT_TIMEOUT_MS = 300_000`. Setting override via `approval.timeoutMs`.
+- **GoalDriverFailurePolicy `loop_early_<ts>` filter** — synthetic ids short-circuit at top of `_applyFailurePause`. No more misleading stalled-warnings or burst-counter pollution.
+- **GoalDriver 24h rejected-cooldown** — new `_goalRejectedCooldown` Map filtered in `_listPursueable()`. Stops the post-stall re-pickup race observed in the live run (~25 re-picks over 30 min).
+- **IdleMind per-type activity counts** — new `IdleMindActivityStats.js` mixin holds `_recordActivity`. `getStatus()` exposes `activityCounts`. Dashboard renders a top-5 breakdown line.
+
+### Doc-drift reconciliation
+
+- README.md, ARCHITECTURE-DEEP-DIVE.md, CAPABILITIES.md, QUICK-START.md, CHANGELOG.md, CHANGELOG-v7.md, scripts/audit-doc-drift.js — counts, services, events, test files updated to current values; v7.9.0 entries fully Englished; one negative-phrase rewrite in QUICK-START.
+
+### Numbers
+
+7794 tests / 7793 Linux. 130/130 fitness. 12 new `v791 contract:` tests. New file `src/agent/autonomy/IdleMindActivityStats.js`. Test files 478 → 479.
+
+---
+
 ## [7.9.0]
 
-**Bug-Fix-Konsolidierung aus v7.8.9-Real-Run.**
+**Bug-fix consolidation from the v7.8.9 real-run.**
 
-Drei dokumentierte Bugs aus dem v7.8.9-Real-Run mit qwen3-vl:235b-cloud + Template-Regex-Robustheit. v7.8.9-Verhalten für Cloud-Skill-Build erhalten (kein Family-Fallback).
+Three documented bugs from the v7.8.9 real-run with qwen3-vl:235b-cloud plus a template-regex robustness improvement. v7.8.9 behaviour for cloud skill builds is preserved (no family-fallback).
 
-### Bugs gefixt
+### Bugs fixed
 
-- **`.genesis/llm-capabilities.json` wurde nie geschrieben** — `ModelBridge.constructor` speicherte `genesisDir` nicht als instance field. Fix: `this._genesisDir = genesisDir || null`.
-- **`LLM_STREAM_FIRST_CHUNK` 120s → 180s** — qwen3-vl:235b-cloud unter Last bei 120-150s.
-- **`EmbeddingService` GPU/CPU-Fallback** — Retry mit `num_gpu: 0` bei HTTP 500 "load failed" auf 8GB-VRAM-Systemen.
+- **`.genesis/llm-capabilities.json` was never written** — `ModelBridge.constructor` did not store `genesisDir` as an instance field. Fix: `this._genesisDir = genesisDir || null`.
+- **`LLM_STREAM_FIRST_CHUNK` 120s → 180s** — qwen3-vl:235b-cloud observed at 120-150s under load.
+- **`EmbeddingService` GPU/CPU fallback** — retry with `num_gpu: 0` on HTTP 500 "load failed" for 8GB-VRAM systems.
 
-### Robustheits-Verbesserung
+### Robustness improvement
 
-- **Template-Regex tolerant gegen Klammern/Newlines** — `range[\s\S]{0,100}?\.Messages`. Bei unrecognized: weiterhin `status='unknown'` (= v7.8.9-Verhalten).
+- **Template regex tolerant of brackets and newlines** — `range[\s\S]{0,100}?\.Messages`. For still-unrecognized templates the path stays at `status='unknown'` (v7.8.9 behaviour).
+
 
 ### Skill Forge — Iteration loop + format tolerance + skill awareness
 
