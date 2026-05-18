@@ -135,12 +135,16 @@ describe('v791 contract: GoalDriverFailurePolicy loop_early filter', () => {
   });
 
   test('v791 contract: real goal ids still flow through _applyFailurePause', async () => {
-    let setStatusCallCount = 0;
+    let markStalledCallCount = 0;
+    let markStalledArgs = null;
     const realGoalId = 'goal_1779056971385_1';
     const host = {
       goalStack: {
         goals: [{ id: realGoalId, description: 'real goal', status: 'active' }],
-        setStatus: () => { setStatusCallCount++; },
+        // v7.9.2: real API is markStalled (not setStatus). v7.9.1 tested
+        // the wrong method which never existed on goalStack — see v792
+        // for the corrected production path.
+        markStalled: (id, reason) => { markStalledCallCount++; markStalledArgs = { id, reason }; return true; },
       },
       bus: { fire: () => {} },
       _failureBurst: new Map(),
@@ -153,70 +157,10 @@ describe('v791 contract: GoalDriverFailurePolicy loop_early filter', () => {
 
     await handler.call(host, realGoalId, 'User rejected plan with blockers');
 
-    assertEqual(setStatusCallCount, 1,
-      'real goal-id must trigger setStatus to mark it as stalled on first user rejection');
-  });
-
-  test('v791 contract: rejected goal lands in _goalRejectedCooldown with 24h expiry', async () => {
-    const realGoalId = 'goal_1779056971385_1';
-    const host = {
-      goalStack: {
-        goals: [{ id: realGoalId, description: 'real goal', status: 'active' }],
-        setStatus: () => {},
-      },
-      bus: { fire: () => {} },
-      _failureBurst: new Map(),
-      _failurePauseTimers: new Map(),
-      _goalPausedUntil: new Map(),
-      _lastPausedAt: new Map(),
-      _running: true,
-      _scanAndMaybePursue: () => {},
-    };
-
-    const _before = Date.now();
-    await handler.call(host, realGoalId, 'User rejected plan with blockers');
-
-    assert(host._goalRejectedCooldown instanceof Map,
-      'cooldown map must be created on first rejection');
-    assert(host._goalRejectedCooldown.has(realGoalId),
-      'rejected goal-id must be entered into the cooldown map');
-
-    const until = host._goalRejectedCooldown.get(realGoalId);
-    const expectedMin = _before + 24 * 60 * 60 * 1000 - 100;
-    const expectedMax = _before + 24 * 60 * 60 * 1000 + 5000;
-    assert(until >= expectedMin && until <= expectedMax,
-      `cooldown expiry must be ~24h in the future (got delta ${(until - _before) / 3600000}h)`);
-  });
-
-  test('v791 contract: _listPursueable filters out cooldown-active goals', () => {
-    const { GoalDriver } = require(path.join(ROOT, 'src/agent/agency/GoalDriver'));
-
-    const goalA = { id: 'goal_A', status: 'active', source: 'user' };
-    const goalB = { id: 'goal_B', status: 'active', source: 'idle-mind' };
-
-    const driver = new GoalDriver({
-      bus: createBus(),
-      goalStack: { goals: [goalA, goalB] },
-      intervals: { register: () => {}, clear: () => {} },
-      settings: { get: () => null },
-      memory: null,
-      cfg: { scanIntervalMs: 5000 },
-    });
-
-    assertEqual(driver._listPursueable().length, 2,
-      'both active goals are pursueable when no cooldown is set');
-
-    driver._goalRejectedCooldown = new Map();
-    driver._goalRejectedCooldown.set('goal_B', Date.now() + 24 * 60 * 60 * 1000);
-
-    const list = driver._listPursueable();
-    assertEqual(list.length, 1, 'cooldown-active goal must be filtered out of pursueable list');
-    assertEqual(list[0].id, 'goal_A', 'goalA without cooldown is still pursueable');
-
-    driver._goalRejectedCooldown.set('goal_C', Date.now() - 1000); // expired
-    driver._listPursueable(); // triggers cleanup
-    assert(!driver._goalRejectedCooldown.has('goal_C'),
-      'expired cooldown entries must be cleaned up on each scan');
+    assertEqual(markStalledCallCount, 1,
+      'real goal-id must trigger markStalled to mark it as stalled on first user rejection');
+    assertEqual(markStalledArgs.id, realGoalId,
+      'markStalled must be called with the correct goal-id');
   });
 
 });

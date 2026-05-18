@@ -85,6 +85,17 @@ class Dashboard {
     panel.classList.toggle('hidden', !this._visible);
     document.getElementById('btn-dashboard')?.classList.toggle('active', this._visible);
 
+    // v7.9.2: Notify the splitter module so the dashboard-filetree splitter
+    // appears/disappears synchronously with the dashboard panel. The other
+    // panel-toggle paths in renderer-main.js already fire this event; the
+    // dashboard previously did not, which would have left the splitter
+    // stuck in whatever state _updateSplitterVisibility last computed.
+    try {
+      window.dispatchEvent(new CustomEvent('panel:visibility-changed', {
+        detail: { id: 'dashboard-panel', visible: this._visible },
+      }));
+    } catch (_e) { /* CustomEvent may be unavailable in some test envs */ }
+
     if (this._visible) {
       this.refresh();
       this._interval = setInterval(() => this.refresh(), 2000);

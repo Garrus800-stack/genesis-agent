@@ -54,6 +54,15 @@
   </header>
 
   <main id="main-layout">
+    <!-- v7.9.2: dashboard-filetree splitter. The dashboard-panel itself is
+         injected by dashboard.js at the start of main-layout (prepend), so
+         after injection the DOM order is: [dashboard-panel] [this splitter]
+         [file-tree-panel] [...]. Before injection, this splitter sits as
+         the first child and stays hidden (data-prev resolves to null →
+         _updateSplitterVisibility hides it). aria-orientation vertical
+         matches the others. -->
+    <div class="splitter hidden" data-splitter="dashboard-filetree" data-prev="dashboard-panel" data-next="file-tree-panel" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize dashboard panel"></div>
+
     <aside id="file-tree-panel" class="panel hidden">
       <div class="panel-header">
         <span data-i18n="ui.project_structure">Project structure</span>

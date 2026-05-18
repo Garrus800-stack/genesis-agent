@@ -34,10 +34,12 @@ describe('sidebar-splitter contract: module exports', () => {
 
 describe('sidebar-splitter contract: DEFAULTS + MIN_WIDTHS', () => {
 
-  test('sidebar-splitter contract: DEFAULTS has exactly file-tree, goals, editor', () => {
+  test('sidebar-splitter contract: DEFAULTS has exactly dashboard, file-tree, goals, editor', () => {
     const { DEFAULTS } = require(path.join(ROOT, 'src/ui/modules/splitter'));
     const keys = Object.keys(DEFAULTS).sort();
-    assertEqual(keys.length, 3);
+    // v7.9.2: dashboard added as 4th resizable panel
+    assertEqual(keys.length, 4);
+    assert(keys.includes('dashboard'));
     assert(keys.includes('file-tree'));
     assert(keys.includes('goals'));
     assert(keys.includes('editor'));
@@ -70,9 +72,15 @@ describe('sidebar-splitter contract: DOM markup in index.html', () => {
 
   const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf-8');
 
-  test('sidebar-splitter contract: three .splitter divs present with role=separator', () => {
+  test('sidebar-splitter contract: four .splitter divs present with role=separator', () => {
     const matches = html.match(/<div class="splitter[^"]*"[^>]*role="separator"/g) || [];
-    assertEqual(matches.length, 3);
+    // v7.9.2: dashboard-filetree splitter added
+    assertEqual(matches.length, 4);
+  });
+
+  test('sidebar-splitter contract: splitter dashboard↔file-tree exists', () => {
+    // v7.9.2: dashboard now resizable
+    assert(/<div class="splitter[^"]*"[^>]*data-prev="dashboard-panel"[^>]*data-next="file-tree-panel"/.test(html));
   });
 
   test('sidebar-splitter contract: splitter file-tree↔goals exists', () => {
@@ -89,7 +97,8 @@ describe('sidebar-splitter contract: DOM markup in index.html', () => {
 
   test('sidebar-splitter contract: every splitter has tabindex=0', () => {
     const matches = html.match(/<div class="splitter[^"]*"[^>]*tabindex="0"/g) || [];
-    assertEqual(matches.length, 3);
+    // v7.9.2: dashboard-filetree splitter added
+    assertEqual(matches.length, 4);
   });
 
   test('sidebar-splitter contract: reset-panel-widths button is present', () => {

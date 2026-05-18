@@ -155,9 +155,12 @@ class ArchitectureGraph {
     this._addLegend(svg, this._data.layers || []);
 
     // Tooltip element
+    // v7.9.2: max-width 250→320 for the new connected-to name list; line-height
+    // 1.4 for the multi-line content; the pointer-events still :none since we
+    // don't need to interact with the tooltip — pinning is state-based.
     const tooltip = document.createElement('div');
     tooltip.className = 'arch-graph-tooltip';
-    tooltip.style.cssText = 'display:none;position:absolute;padding:6px 10px;border-radius:6px;font-size:11px;pointer-events:none;z-index:100;background:var(--color-bg-tertiary,#222);border:1px solid var(--color-border,#333);color:var(--color-text,#eee);max-width:250px;';
+    tooltip.style.cssText = 'display:none;position:absolute;padding:6px 10px;border-radius:6px;font-size:11px;line-height:1.4;pointer-events:none;z-index:100;background:var(--color-bg-tertiary,#222);border:1px solid var(--color-border,#333);color:var(--color-text,#eee);max-width:320px;';
     this._tooltip = tooltip;
 
     this._container.appendChild(svg);
@@ -199,6 +202,22 @@ class ArchitectureGraph {
   // ── Interaction ───────────────────────────────────────────
 
   _selectNode(node, edges, allNodes) {
+    // v7.9.2: toggle pin & highlights via simple "same-node-clicked-twice"
+    // detection. Reads _selected BEFORE mutating, fixing the v7.x.x toggle
+    // bug where every third+ click on the same node would re-trigger
+    // deselection. Now: first click pins & highlights, second click on
+    // same node unpins & resets, click on different node switches pin.
+    const wasSelected = this._selected === node.id;
+
+    if (wasSelected) {
+      // Unpin & reset
+      this._tooltipPinned = null;
+      this._selected = null;
+      this._resetHighlights();
+      this._hideTooltip();
+      return;
+    }
+
     // Highlight connected nodes and edges
     const connected = new Set([node.id]);
     for (const e of edges) {
@@ -224,13 +243,10 @@ class ArchitectureGraph {
     }
 
     this._selected = node.id;
-
-    // Click again to deselect
-    if (this._selected === node.id && this._svg._prevSelected === node.id) {
-      this._resetHighlights();
-      this._selected = null;
-    }
-    this._svg._prevSelected = node.id;
+    // v7.9.2: pin the tooltip so it stays visible until the user clicks
+    // elsewhere — and re-show with the pin badge.
+    this._tooltipPinned = node.id;
+    this._showTooltip(node, edges);
   }
 
   _resetHighlights() {
@@ -248,29 +264,88 @@ class ArchitectureGraph {
   }
 
   _showTooltip(node, edges) {
-    const inbound = edges.filter(e => e.to === node.id).length;
-    const outbound = edges.filter(e => e.from === node.id).length;
-    const layer = node.layer || 'unknown';
+    // v7.9.2: respect pin — don't overwrite a pinned tooltip on hover
+    if (this._tooltipPinned && this._tooltipPinned !== node.id) return;
 
-    this._tooltip.innerHTML =
+    // Build a cached node-id → name lookup. Built lazily because nodes
+    // can be filtered to services in render(); rebuilding per-call is
+    // cheap but caching is cheaper and the data doesn't change.
+    if (!this._nameById) {
+      this._nameById = new Map(this._data.nodes.map(n => [n.id, n.name]));
+    }
+    const nameById = this._nameById;
+
+    // Collect connected names — bounded to 8 with "+N more" overflow.
+    const outboundNames = edges.filter(e => e.from === node.id)
+      .map(e => nameById.get(e.to))
+      .filter(Boolean);
+    const inboundNames = edges.filter(e => e.to === node.id)
+      .map(e => nameById.get(e.from))
+      .filter(Boolean);
+
+    const fmtList = (arr) => {
+      if (arr.length === 0) return '<em>none</em>';
+      if (arr.length <= 8) return arr.map(n => this._esc(n)).join(', ');
+      return arr.slice(0, 8).map(n => this._esc(n)).join(', ') + ` <em>+${arr.length - 8} more</em>`;
+    };
+
+    const layer = node.layer || 'unknown';
+    let html =
       `<strong>${this._esc(node.name)}</strong><br>` +
       `Layer: ${this._esc(layer)} · Phase ${node.phase}<br>` +
-      `↗ ${outbound} deps out · ↙ ${inbound} deps in` +
+      `↗ ${outboundNames.length} deps out · ↙ ${inboundNames.length} deps in` +
       (node.tags?.length ? `<br>Tags: ${node.tags.join(', ')}` : '');
+
+    if (outboundNames.length > 0) {
+      html += `<br><br><strong>↗ Out:</strong> ${fmtList(outboundNames)}`;
+    }
+    if (inboundNames.length > 0) {
+      html += `<br><strong>↙ In:</strong> ${fmtList(inboundNames)}`;
+    }
+
+    if (this._tooltipPinned === node.id) {
+      html += `<br><br><em style="opacity:0.6">Click again to unpin</em>`;
+    }
+
+    this._tooltip.innerHTML = html;
     this._tooltip.style.display = 'block';
 
+    // v7.9.2: Smart positioning — measure tooltip after display, flip if
+    // it would overflow the container bounds. Container is position:relative.
     const pos = this._nodePositions.get(node.id);
-    if (pos) {
-      const rect = this._container.getBoundingClientRect();
-      const svgRect = this._svg.getBoundingClientRect();
-      const scaleX = svgRect.width / this._width;
-      const scaleY = svgRect.height / this._height;
-      this._tooltip.style.left = (pos.x * scaleX + svgRect.left - rect.left + 12) + 'px';
-      this._tooltip.style.top = (pos.y * scaleY + svgRect.top - rect.top - 10) + 'px';
-    }
+    if (!pos) return;
+    const rect = this._container.getBoundingClientRect();
+    const svgRect = this._svg.getBoundingClientRect();
+    const scaleX = svgRect.width / this._width;
+    const scaleY = svgRect.height / this._height;
+    const nodeLeft = pos.x * scaleX + svgRect.left - rect.left;
+    const nodeTop = pos.y * scaleY + svgRect.top - rect.top;
+
+    // Reset to measurable position first
+    this._tooltip.style.left = '0px';
+    this._tooltip.style.top = '0px';
+    const tw = this._tooltip.offsetWidth;
+    const th = this._tooltip.offsetHeight;
+    const cw = this._container.clientWidth;
+    const ch = this._container.clientHeight;
+
+    // Prefer right-of-node, flip to left if no room
+    let left = nodeLeft + 12;
+    if (left + tw > cw - 4) left = nodeLeft - tw - 12;
+    if (left < 4) left = 4; // last-resort clamp to container left edge
+
+    // Prefer above-node, flip below if no room above
+    let top = nodeTop - th - 10;
+    if (top < 4) top = nodeTop + 14;
+    if (top + th > ch - 4) top = Math.max(4, ch - th - 4);
+
+    this._tooltip.style.left = `${left}px`;
+    this._tooltip.style.top = `${top}px`;
   }
 
   _hideTooltip() {
+    // v7.9.2: pinned tooltips stay visible until explicitly unpinned via click
+    if (this._tooltipPinned) return;
     if (this._tooltip) this._tooltip.style.display = 'none';
   }
 

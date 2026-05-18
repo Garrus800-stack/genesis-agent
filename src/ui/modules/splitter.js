@@ -18,6 +18,7 @@
 'use strict';
 
 const PANEL_KEY_TO_ID = {
+  'dashboard': 'dashboard-panel', // v7.9.2: dashboard now resizable
   'file-tree': 'file-tree-panel',
   'goals':     'goals-panel',
   'editor':    'editor-panel',
@@ -26,8 +27,8 @@ const ID_TO_PANEL_KEY = Object.fromEntries(
   Object.entries(PANEL_KEY_TO_ID).map(([k, v]) => [v, k])
 );
 
-const DEFAULTS = { 'file-tree': 220, 'goals': 280, 'editor': 600 };
-const MIN_WIDTHS = { 'file-tree': 180, 'goals': 220, 'editor': 300 };
+const DEFAULTS = { 'dashboard': 280, 'file-tree': 220, 'goals': 280, 'editor': 600 };
+const MIN_WIDTHS = { 'dashboard': 240, 'file-tree': 180, 'goals': 220, 'editor': 300 };
 const KEYBOARD_STEP = 10;
 const PERSIST_DEBOUNCE_MS = 200;
 

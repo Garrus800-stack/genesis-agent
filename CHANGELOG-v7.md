@@ -4,6 +4,38 @@ For the current release notes see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
+## [7.9.2]
+
+**Root-cause fix for the goal-reject loop, plus dashboard splitter and graph-hover.**
+
+The v7.9.1 cooldown was a workaround for a deeper bug: `GoalDriverFailurePolicy` and `StalledGoalWatchdog` called `goalStack.setStatus`/`updateGoal` — methods that never existed. typeof-checks always failed, status stayed `'active'`, scan re-picked forever. The WARN line "failed 4× (stalled)" lied. v7.9.2 switches to the real API (`markStalled`/`markObsolete`) and the cooldown is removed.
+
+### Root-cause fix
+
+- **FailurePolicy + StalledGoalWatchdog** call real `markStalled`/`markObsolete`. Manual `bus.fire('goal:stalled')` removed (markStalled fires it itself).
+- **GoalDriver** `_goalRejectedCooldown` map and filter removed — status filter is enough now that status is actually set.
+- **Test mocks** in `v779-bug2-stalled-watchdog` and `v745-fix` updated to expose real API.
+
+### Dashboard splitter
+
+- Dashboard panel drag-to-resize. file-tree/goals/editor unchanged.
+- New `<div class="splitter" data-prev="dashboard-panel" data-next="file-tree-panel">` in index.html.
+- `splitter.js`: 3 new map entries. `DashboardStyles.js`: flex via CSS var.
+- `dashboard.toggle()` now fires `panel:visibility-changed`.
+
+### Architecture-graph hover
+
+- Tooltip shows actual connected module names (up to 8, then `+N more`).
+- Click-to-pin via new `_tooltipPinned` state. Smart positioning with flip on overflow.
+- Tooltip max-width 250→320, line-height 1.4.
+- Existing _selectNode toggle bug fixed in passing.
+
+### Numbers
+
+7799 tests / 7798 Linux. 130/130 fitness. 7 new `v792 contract:` tests. 2 v791 cooldown tests removed.
+
+---
+
 ## [7.9.1]
 
 **Live-fix pass from the v7.9.0 real-run log.**

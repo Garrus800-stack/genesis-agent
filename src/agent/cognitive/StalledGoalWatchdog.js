@@ -163,32 +163,18 @@ class StalledGoalWatchdog {
     const errorMessage = `Goal stalled — step blocked for ${stalledMinutes} min on missing resource(s): ${resources}`;
 
     // Step 1: GoalStack status transition.
+    // v7.9.2: Use markStalled — the actual API. Previously called
+    // setStatus/updateGoal which never existed on goalStack; both
+    // typeof-checks returned false and the status update silently
+    // didn't happen. markStalled fires goal:stalled itself, so the
+    // separate bus.fire below is also removed to avoid double events.
     try {
-      if (typeof this.goalStack.setStatus === 'function') {
-        this.goalStack.setStatus(goal.id, 'stalled');
-      } else if (typeof this.goalStack.updateGoal === 'function') {
-        await this.goalStack.updateGoal(goal.id, { status: 'stalled' });
-      }
+      this.goalStack.markStalled(goal.id, errorMessage);
     } catch (e) {
       _log.warn('[STALL-WATCHDOG] failed to set goal status to stalled:', e.message);
     }
 
-    // Step 2: Telemetry — goal:stalled.
-    try {
-      if (this.bus && this.bus.fire) {
-        this.bus.fire('goal:stalled', {
-          id: goal.id,
-          description: goal.description || null,
-          reason: errorMessage,
-          blockedAt: goal.blockedAt || null,
-          stalledMinutes,
-        }, { source: 'StalledGoalWatchdog' });
-      }
-    } catch (e) {
-      _log.debug('[STALL-WATCHDOG] goal:stalled emit error (ignored):', e.message);
-    }
-
-    // Step 3: Synthetic plan-failure-reflection.
+    // Step 2: Synthetic plan-failure-reflection.
     // We call AgentLoopPursuitReflection.recordReflection directly with
     // classification='external' — same shape a real pursuit-failure would
     // produce. InnerSpeech.emit fires inside recordReflection, the PSE

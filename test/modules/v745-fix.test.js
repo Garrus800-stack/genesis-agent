@@ -22,10 +22,20 @@ const { GoalDriver } = require('../../src/agent/agency/GoalDriver');
 const { EventBus } = require('../../src/agent/core/EventBus');
 
 function fakeStack(goals) {
+  // v7.9.2: real API — markStalled / markObsolete. Previous mock exposed
+  // setStatus/updateGoal which never existed on the real goalStack.
   return {
     goals,
-    setStatus: () => {},
-    updateGoal: async () => {},
+    markStalled: (id) => {
+      const g = goals.find(x => x.id === id);
+      if (g) g.status = 'stalled';
+      return !!g;
+    },
+    markObsolete: (id) => {
+      const g = goals.find(x => x.id === id);
+      if (g) g.status = 'obsolete';
+      return !!g;
+    },
   };
 }
 function fakeSettings(initial = {}) {
@@ -290,10 +300,16 @@ function fakeIntervals() {
       bus,
       goalStack: {
         goals,
-        setStatus: (id, status) => {
+        markStalled: (id) => {
           const g = goals.find(x => x.id === id);
-          if (g) g.status = status;
-          if (status === 'stalled') stalled.push(id);
+          if (g) g.status = 'stalled';
+          stalled.push(id);
+          return !!g;
+        },
+        markObsolete: (id) => {
+          const g = goals.find(x => x.id === id);
+          if (g) g.status = 'obsolete';
+          return !!g;
         },
       },
       settings: fakeSettings({ 'agency.autoResumeGoals': 'always' }),
@@ -329,10 +345,16 @@ function fakeIntervals() {
       bus,
       goalStack: {
         goals,
-        setStatus: (id, status) => {
+        markStalled: (id) => {
           const g = goals.find(x => x.id === id);
-          if (g) g.status = status;
-          if (status === 'stalled') stalled.push(id);
+          if (g) g.status = 'stalled';
+          stalled.push(id);
+          return !!g;
+        },
+        markObsolete: (id) => {
+          const g = goals.find(x => x.id === id);
+          if (g) g.status = 'obsolete';
+          return !!g;
         },
       },
       settings: fakeSettings({ 'agency.autoResumeGoals': 'always' }),
@@ -371,7 +393,7 @@ function fakeIntervals() {
     }];
     const driver = new GoalDriver({
       bus,
-      goalStack: { goals, setStatus: () => {} },
+      goalStack: { goals, markStalled: (id) => { const g = goals.find(x => x.id === id); if (g) g.status = 'stalled'; return !!g; }, markObsolete: () => true },
       settings: fakeSettings(),
       intervals: fakeIntervals(),
       goalPersistence: { resume: async () => {} },
@@ -404,10 +426,16 @@ function fakeIntervals() {
       bus,
       goalStack: {
         goals,
-        setStatus: (id, status) => {
+        markStalled: (id) => {
           const g = goals.find(x => x.id === id);
-          if (g) g.status = status;
-          if (status === 'stalled') stalled.push(id);
+          if (g) g.status = 'stalled';
+          stalled.push(id);
+          return !!g;
+        },
+        markObsolete: (id) => {
+          const g = goals.find(x => x.id === id);
+          if (g) g.status = 'obsolete';
+          return !!g;
         },
       },
       settings: fakeSettings({ 'agency.autoResumeGoals': 'always' }),
@@ -446,7 +474,7 @@ function fakeIntervals() {
     }];
     const driver = new GoalDriver({
       bus,
-      goalStack: { goals, setStatus: () => {} },
+      goalStack: { goals, markStalled: (id) => { const g = goals.find(x => x.id === id); if (g) g.status = 'stalled'; return !!g; }, markObsolete: () => true },
       settings: fakeSettings(),
       intervals: fakeIntervals(),
       goalPersistence: { resume: async () => {} },
@@ -462,7 +490,7 @@ function fakeIntervals() {
     // For generic failure, idempotency guard prevents count=2 from
     // a single failure event:
     const driver2 = new GoalDriver({
-      bus, goalStack: { goals: [{ id: 'gIDP2', source: 'user', status: 'active', currentStep: 0, steps: [{}], priority: 'low', description: 'x', created: '', updated: '' }], setStatus: () => {} },
+      bus, goalStack: { goals: [{ id: 'gIDP2', source: 'user', status: 'active', currentStep: 0, steps: [{}], priority: 'low', description: 'x', created: '', updated: '' }], markStalled: () => true, markObsolete: () => true },
       settings: fakeSettings(), intervals: fakeIntervals(),
       goalPersistence: { resume: async () => {} },
     });

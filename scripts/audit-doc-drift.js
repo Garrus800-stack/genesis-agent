@@ -408,7 +408,10 @@ function runChecks() {
       // v7.9.1: +12 over v7.9.0 (v791-livefixes contract tests covering trust-risk
       //   classification, ApprovalGate timeout, loop_early filter, goal-reject
       //   cooldown, and IdleMind activity-counts).
-      const TESTS_WIN_BASELINE = 7794;
+      // v7.9.2: +5 over v7.9.1 (v792-livefixes 7 new tests; 2 v791 cooldown
+      //   tests removed because the cooldown workaround is gone — the
+      //   real fix is markStalled/markObsolete on the actual goalStack API).
+      const TESTS_WIN_BASELINE = 7799;
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -448,7 +451,7 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 7794;
+  const TESTS_WIN = 7799;
   // v7.7.7: TEST_FILES is now dynamic — counts *.test.js under test/ at audit-time.
   // This closes the drift-blind tautology where the constant was pinned and the
   // doc was pinned to the same constant — drift would never be detected. With

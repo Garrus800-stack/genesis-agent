@@ -141,33 +141,18 @@ const failurePolicyMixin = {
       const REJECTION_STALL_THRESHOLD = 1;
       if (entry.count >= REJECTION_STALL_THRESHOLD) {
         _log.warn(`[DRIVER] goal ${goalId} rejected by user — marking as stalled (no further auto-pickup)`);
+        // v7.9.2: Use the actual API. Previously called setStatus/updateGoal
+        // which never existed on goalStack — both typeof-checks returned
+        // false and the try-block silently did nothing. Status stayed
+        // 'active', the scan re-picked the goal, infinite loop. markStalled
+        // is the real method and fires goal:stalled itself, no manual
+        // bus.fire needed. The v7.9.1 cooldown workaround is removed
+        // because the status filter in _listPursueable now actually works.
         try {
-          if (typeof this.goalStack.setStatus === 'function') {
-            this.goalStack.setStatus(goalId, 'stalled');
-          } else if (typeof this.goalStack.updateGoal === 'function') {
-            await this.goalStack.updateGoal(goalId, { status: 'stalled' });
-          }
-          this.bus.fire('goal:stalled', {
-            id: goalId,
-            description: goal?.description,
-            reason: `${entry.count} consecutive plan rejections`,
-          }, { source: 'GoalDriver' });
+          this.goalStack.markStalled(goalId, `${entry.count} consecutive plan rejections`);
         } catch (e) {
           _log.warn('[DRIVER] failed to mark goal stalled:', e.message);
         }
-        // v7.9.1: Belt-and-suspenders cooldown. Live-Befund (Garrus-Win,
-        // 2026-05-17): even after setStatus('stalled') the goal was
-        // re-picked ~25× over 30 minutes by the next scan-tick because
-        // either (a) the status update raced with _scanAndMaybePursue,
-        // or (b) IdleMind / GoalSynthesizer re-armed the goal back to
-        // 'active'. The 24h cooldown in _goalRejectedCooldown is checked
-        // by GoalDriver._listPursueable() and survives both races and
-        // re-arming attempts. If the user really wants to retry the
-        // same goal sooner, they can do so explicitly via the chat
-        // ("/goal resume <id>" or similar) which bypasses the cooldown.
-        this._goalRejectedCooldown = this._goalRejectedCooldown || new Map();
-        const COOLDOWN_MS = 24 * 60 * 60 * 1000;
-        this._goalRejectedCooldown.set(goalId, _now + COOLDOWN_MS);
         this._failureBurst.delete(goalId);
         this._goalPausedUntil.delete(goalId); // cleared by stall
       }
@@ -194,19 +179,19 @@ const failurePolicyMixin = {
 
       if (entry.count > _failureCap) {
         _log.warn(`[DRIVER] goal ${goalId} failed ${entry.count}× (${_terminalStatus}) — reason: ${(errMsg || '<empty>').slice(0, 80)}`);
+        // v7.9.2: Use the actual API. See user-rejection branch above for
+        // the full context — setStatus/updateGoal never existed, the
+        // typeof-checks always failed, status stayed 'active'. This was
+        // the exact path that produced the live-run re-pickup loop
+        // (Garrus-Win, 2026-05-17). markStalled and markObsolete are
+        // the real methods and fire their respective events.
+        const reason = `${entry.count} consecutive failures: ${(errMsg || '<empty>').slice(0, 100)}`;
         try {
-          if (typeof this.goalStack.setStatus === 'function') {
-            this.goalStack.setStatus(goalId, _terminalStatus);
-          } else if (typeof this.goalStack.updateGoal === 'function') {
-            await this.goalStack.updateGoal(goalId, { status: _terminalStatus });
+          if (_terminalStatus === 'obsolete') {
+            this.goalStack.markObsolete(goalId, reason);
+          } else {
+            this.goalStack.markStalled(goalId, reason);
           }
-          // Fire stalled OR obsolete event accordingly.
-          const _evtName = _terminalStatus === 'obsolete' ? 'goal:obsolete' : 'goal:stalled';
-          this.bus.fire(_evtName, {
-            id: goalId,
-            description: goal?.description || '(no description)',
-            reason: `${entry.count} consecutive failures: ${(errMsg || '<empty>').slice(0, 100)}`,
-          }, { source: 'GoalDriver' });
         } catch (e) {
           _log.warn('[DRIVER] failed to mark goal ' + _terminalStatus + ':', e.message);
         }

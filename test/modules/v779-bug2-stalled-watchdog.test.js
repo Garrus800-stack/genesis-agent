@@ -24,12 +24,40 @@ function makeBus() {
 
 function makeGoalStack(goals = []) {
   const statusChanges = [];
+  let _busRef = null;
+  // v7.9.2: Mock the REAL goalStack API — markStalled / markObsolete.
+  // The previous mock exposed setStatus, but setStatus never existed on
+  // the real goalStack. That's why this entire path was silently broken
+  // in production: the watchdog called setStatus, found no such method
+  // via its typeof-check, and did nothing. The mock made the test pass
+  // by accident. With markStalled the test reflects production.
+  // Both methods also fire their respective event on the bus to mirror
+  // the real GoalStackLifecycle behaviour.
   return {
     goals,
     statusChanges,
-    setStatus(id, status) {
+    _attachBus(bus) { _busRef = bus; },
+    markStalled(id, reason) {
       const g = goals.find(g => g.id === id);
-      if (g) { g.status = status; statusChanges.push({ id, status }); }
+      if (!g) return false;
+      g.status = 'stalled';
+      g.stalledReason = reason;
+      statusChanges.push({ id, status: 'stalled', reason });
+      if (_busRef && _busRef.fire) {
+        _busRef.fire('goal:stalled', { id, description: g.description, reason }, { source: 'GoalStack' });
+      }
+      return true;
+    },
+    markObsolete(id, reason) {
+      const g = goals.find(g => g.id === id);
+      if (!g) return false;
+      g.status = 'obsolete';
+      g.obsoleteReason = reason;
+      statusChanges.push({ id, status: 'obsolete', reason });
+      if (_busRef && _busRef.fire) {
+        _busRef.fire('goal:obsolete', { id, description: g.description, reason }, { source: 'GoalStack' });
+      }
+      return true;
     },
   };
 }
@@ -113,6 +141,7 @@ describe('StalledGoalWatchdog — tick scanning', () => {
     const bus = makeBus();
     const blockedAt = new Date(Date.now() - 20 * 60_000).toISOString();
     const gs = makeGoalStack([blockedGoal('g1', 'find foo', blockedAt, ['file:logs/x.log'])]);
+    gs._attachBus(bus); // v7.9.2: mock fires goal:stalled via the bus, mirroring real markStalled
     const w = new StalledGoalWatchdog({
       bus, goalStack: gs,
       settings: makeSettings({ 'goals.stalledTimeoutMs': 15 * 60_000 }),
@@ -124,7 +153,10 @@ describe('StalledGoalWatchdog — tick scanning', () => {
     assertEqual(stalled.payload.description, 'find foo');
     assert(stalled.payload.reason.includes('blocked for'));
     assert(stalled.payload.reason.includes('file:logs/x.log'));
-    assert(typeof stalled.payload.stalledMinutes === 'number');
+    // v7.9.2: stalledMinutes / blockedAt fields removed from payload — they
+    // were only emitted by the watchdog's manual bus.fire which is now gone
+    // (markStalled fires the event itself with a smaller, uniform payload).
+    // No external consumer was using those fields.
   });
 
   test('goal status transitions blocked → stalled', async () => {

@@ -12,7 +12,7 @@
  */
 function applyStyles(Dashboard) {
   Dashboard.prototype._buildCSS = function() {
-    return '#dashboard-panel{width:280px;min-width:240px;max-width:340px;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,0.06);overflow:hidden}' +
+    return '#dashboard-panel{flex:0 0 var(--panel-width-dashboard,280px);min-width:240px;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,0.06);overflow:hidden}' +
     '.dash-scroll{flex:1;overflow-y:auto;padding:8px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.1) transparent}' +
     '.dash-section{margin-bottom:12px}' +
     '.dash-section-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:rgba(255,255,255,0.4);padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px}' +
