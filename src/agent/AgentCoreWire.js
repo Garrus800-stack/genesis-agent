@@ -341,6 +341,12 @@ class AgentCoreWire {
     // Phase 4: Planning
     start('valueStore');
 
+    // v7.9.3 Bug F+S: CostGuard loads its limits from settings inside start().
+    // Without this call the four cost UI settings (sessionTokenLimit,
+    // dailyTokenLimit, warnThreshold, enabled) were silently ignored —
+    // CostGuard kept its constructor defaults.
+    start('costGuard');
+
     // Phase 13 → AwarenessPort (no-op by default)
     start('awareness');
 

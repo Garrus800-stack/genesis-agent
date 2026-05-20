@@ -65,7 +65,7 @@ function apply(Dashboard) {
     if (conv) {
       html += '<div class="dash-project-conv">' +
         '<span class="dash-muted">' +
-        [conv.moduleSystem, conv.indentation, conv.naming].filter(Boolean).join(' · ') +
+        [conv.moduleSystem, conv.indentation, conv.namingStyle ?? conv.naming, conv.srcLayout].filter(Boolean).join(' · ') +
         '</span></div>';
     }
 
@@ -291,20 +291,18 @@ function apply(Dashboard) {
   proto._archGraphInstance = null;
   proto._archGraphVisible = false;
   proto._archGraphToggleBound = false;
-
+  proto._archGraphModal = null;
+  proto._archGraphResizeObserver = null;
 
   proto._renderArchitectureGraph = function() {
-    // Bind toggle once
     if (!this._archGraphToggleBound) {
       const toggle = document.getElementById('dash-archgraph-toggle');
       if (toggle) {
         toggle.addEventListener('click', () => {
-          this._archGraphVisible = !this._archGraphVisible;
-          const body = document.getElementById('dash-archgraph-body');
-          if (body) body.style.display = this._archGraphVisible ? 'block' : 'none';
-          toggle.textContent = 'Architecture Graph ' + (this._archGraphVisible ? '▾' : '▸');
-          if (this._archGraphVisible && !this._archGraphInstance) {
-            this._loadArchGraph();
+          if (this._archGraphVisible) {
+            this._closeArchGraphModal();
+          } else {
+            this._openArchGraphModal();
           }
         });
         this._archGraphToggleBound = true;
@@ -312,16 +310,85 @@ function apply(Dashboard) {
     }
   };
 
+  proto._openArchGraphModal = function() {
+    if (this._archGraphModal) return;
+    // v7.9.3: Open the architecture graph in a fullscreen modal overlay
+    // instead of the cramped sidebar panel. The modal uses 90vw × 85vh
+    // so the graph actually gets readable space; it follows window
+    // resizes via CSS and the ResizeObserver re-renders the SVG layout
+    // when the user resizes the window. Legend stays readable because
+    // ArchitectureGraph._addLegend now uses absolute px font-sizes.
+    const overlay = document.createElement('div');
+    overlay.id = 'archgraph-modal-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;';
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'width:90vw;height:85vh;background:var(--color-bg-primary,#0e0e1a);border:1px solid var(--color-border,#333);border-radius:10px;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.6);';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'padding:10px 16px;border-bottom:1px solid var(--color-border,#333);display:flex;justify-content:space-between;align-items:center;flex:0 0 auto;';
+    header.innerHTML = '<div style="font-weight:600;color:var(--color-text-primary,#eee)">Architecture Graph</div>';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background:none;border:none;color:var(--color-text-secondary,#aaa);font-size:20px;cursor:pointer;padding:0 8px;line-height:1;';
+    closeBtn.addEventListener('click', () => this._closeArchGraphModal());
+    header.appendChild(closeBtn);
+
+    const body = document.createElement('div');
+    body.id = 'archgraph-modal-body';
+    body.style.cssText = 'flex:1 1 auto;position:relative;overflow:hidden;min-height:0;';
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // ESC closes
+    this._archGraphEscHandler = (e) => { if (e.key === 'Escape') this._closeArchGraphModal(); };
+    document.addEventListener('keydown', this._archGraphEscHandler);
+    // Click backdrop (not modal) closes
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) this._closeArchGraphModal(); });
+
+    this._archGraphModal = overlay;
+    this._archGraphVisible = true;
+    const toggle = document.getElementById('dash-archgraph-toggle');
+    if (toggle) toggle.textContent = 'Architecture Graph ▾';
+
+    this._loadArchGraph();
+  };
+
+  proto._closeArchGraphModal = function() {
+    if (this._archGraphResizeObserver) {
+      this._archGraphResizeObserver.disconnect();
+      this._archGraphResizeObserver = null;
+    }
+    if (this._archGraphInstance) {
+      this._archGraphInstance.destroy();
+      this._archGraphInstance = null;
+    }
+    if (this._archGraphEscHandler) {
+      document.removeEventListener('keydown', this._archGraphEscHandler);
+      this._archGraphEscHandler = null;
+    }
+    if (this._archGraphModal) {
+      this._archGraphModal.remove();
+      this._archGraphModal = null;
+    }
+    this._archGraphVisible = false;
+    const toggle = document.getElementById('dash-archgraph-toggle');
+    if (toggle) toggle.textContent = 'Architecture Graph ▸';
+  };
 
   proto._loadArchGraph = async function() {
-    const container = document.getElementById('dash-archgraph-body');
+    const container = document.getElementById('archgraph-modal-body');
     if (!container || !window.genesis) return;
 
-    container.innerHTML = '<span class="dash-muted">Graph wird geladen…</span>';
+    container.innerHTML = '<span class="dash-muted" style="padding:16px;display:block">Graph wird geladen…</span>';
     try {
       const data = await window.genesis.invoke('agent:get-architecture-graph');
       if (!data || !data.nodes) {
-        container.innerHTML = '<span class="dash-muted">Keine Graph-Daten</span>';
+        container.innerHTML = '<span class="dash-muted" style="padding:16px;display:block">Keine Graph-Daten</span>';
         return;
       }
       if (this._archGraphInstance) this._archGraphInstance.destroy();
@@ -329,11 +396,23 @@ function apply(Dashboard) {
       if (typeof window.ArchitectureGraph === 'function') {
         this._archGraphInstance = new window.ArchitectureGraph(container, data);
         this._archGraphInstance.render();
+
+        // Re-render on container resize (window resize while modal open)
+        if (typeof ResizeObserver === 'function') {
+          this._archGraphResizeObserver = new ResizeObserver(() => {
+            if (this._archGraphInstance && container.clientWidth > 0) {
+              this._archGraphInstance.destroy();
+              this._archGraphInstance = new window.ArchitectureGraph(container, data);
+              this._archGraphInstance.render();
+            }
+          });
+          this._archGraphResizeObserver.observe(container);
+        }
       } else {
-        container.innerHTML = '<span class="dash-muted">ArchitectureGraph component not loaded</span>';
+        container.innerHTML = '<span class="dash-muted" style="padding:16px;display:block">ArchitectureGraph component not loaded</span>';
       }
     } catch (err) {
-      container.innerHTML = '<span class="dash-muted">Graph-Fehler: ' + (err.message || 'unbekannt') + '</span>';
+      container.innerHTML = '<span class="dash-muted" style="padding:16px;display:block">Graph-Fehler: ' + (err.message || 'unbekannt') + '</span>';
     }
   };
 

@@ -45,6 +45,9 @@ class UnifiedMemory {
     this._cache = new Map();
     this._cacheMaxSize = 20;
     this._cacheTTLMs = 30000; // 30s cache
+
+    // v7.9.3 Bug T: searchCount counter for dashboard.
+    this._searchCount = 0;
   }
 
   // ════════════════════════════════════════════════════════════
@@ -63,6 +66,7 @@ class UnifiedMemory {
    * @returns {Promise<Array<{source, score, content, meta}>>}
    */
   async recall(query, options = {}) {
+    this._searchCount++;
     const { limit = 10, sources = null, minScore = 0.1 } = options;
 
     // Check cache
@@ -270,6 +274,7 @@ class UnifiedMemory {
       embeddings: this.embeddings?.getStats?.() || { available: false },
       cacheSize: this._cache.size,
       weights: { ...this.weights },
+      searchCount: this._searchCount || 0,
     };
   }
 

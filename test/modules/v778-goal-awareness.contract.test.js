@@ -105,15 +105,25 @@ track('G1e: "das klingt gut, refactor X :-)" — action verb vetoes closing', ()
 
 const { TrustLevelSystem } = require(path.join(ROOT, 'src/agent/foundation/TrustLevelSystem'));
 
-track('G2a: plan-has-issues never auto-approved at any trust level', () => {
+track('G2a: plan-has-issues gates at SUPERVISED/ASSISTED, auto-approves at AUTONOMOUS+', () => {
+  // v7.9.3 Bug A: plan-has-issues is 'blocking'. AUTONOMOUS auto-approves
+  // ['safe','medium','high','blocking']; FULL_AUTONOMY adds 'critical'.
+  // The two low-trust levels still gate so the user sees the prompt when
+  // they explicitly chose oversight. Matches the dropdown promises.
   const tls = new TrustLevelSystem({ bus: null, storage: null, settings: null });
-  for (const level of [0, 1, 2, 3]) {
+  for (const level of [0, 1]) {
     tls._level = level;
     const r = tls.checkApproval('plan-has-issues');
     assert.strictEqual(r.approved, false,
       `level ${level}: plan-has-issues must NOT be auto-approved`);
     assert.strictEqual(r.needsUserApproval, true,
       `level ${level}: plan-has-issues must need user approval`);
+  }
+  for (const level of [2, 3]) {
+    tls._level = level;
+    const r = tls.checkApproval('plan-has-issues');
+    assert.strictEqual(r.approved, true,
+      `level ${level}: plan-has-issues must auto-approve (matches dropdown promise)`);
   }
 });
 
@@ -122,17 +132,20 @@ track("G2b: ACTION_RISK['plan-has-issues'] === 'blocking'", () => {
   assert.strictEqual(ACTION_RISK['plan-has-issues'], 'blocking');
 });
 
-track("G2c: 'blocking' is not in any LEVEL_AUTO_APPROVE entry", () => {
+track("G2c: 'blocking' is in AUTONOMOUS and FULL_AUTONOMY (matches dropdown promise)", () => {
   const src = read('src/agent/foundation/TrustLevelSystem.js');
-  // Extract LEVEL_AUTO_APPROVE block
   const m = /const LEVEL_AUTO_APPROVE\s*=\s*\{([\s\S]*?)\}\s*;/.exec(src);
   assert.ok(m, 'LEVEL_AUTO_APPROVE block must be present');
   const body = m[1];
-  // 'blocking' must not appear inside any value array
-  // (we allow it in comments but those go to end-of-line)
   const codeOnly = body.split('\n').map(line => line.replace(/\/\/.*$/, '')).join('\n');
-  assert.ok(!/'blocking'/.test(codeOnly),
-    "'blocking' must not appear in any LEVEL_AUTO_APPROVE level");
+  // v7.9.3 Bug A: 'blocking' must appear in AUTONOMOUS and FULL_AUTONOMY
+  // so the "never ask" promise of FULL_AUTONOMY is not silently broken.
+  const autonomousMatch = /AUTONOMOUS[^[]*\[([^\]]*)\]/.exec(codeOnly);
+  const fullAutonomyMatch = /FULL_AUTONOMY[^[]*\[([^\]]*)\]/.exec(codeOnly);
+  assert.ok(autonomousMatch && /'blocking'/.test(autonomousMatch[1]),
+    "'blocking' must be in AUTONOMOUS auto-approve list");
+  assert.ok(fullAutonomyMatch && /'blocking'/.test(fullAutonomyMatch[1]),
+    "'blocking' must be in FULL_AUTONOMY auto-approve list");
 });
 
 // ── G3: FormalPlanner prompt has canonical types + DO NOT INVENT ──

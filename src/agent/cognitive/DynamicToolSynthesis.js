@@ -87,8 +87,10 @@ class DynamicToolSynthesis {
     this._tools = new Map();
 
     this._stats = {
-      synthesized: 0,
+      generated: 0,
+      synthesized: 0, // legacy alias
       failed: 0,
+      evicted: 0,
       loaded: 0,
     };
 
@@ -159,6 +161,7 @@ class DynamicToolSynthesis {
       try {
         const result = await this._attemptSynthesis(description, attempt);
         if (result.success) {
+          this._stats.generated++;
           this._stats.synthesized++;
           this.bus.fire('tool:synthesized', {
             name: result.name,
@@ -450,6 +453,7 @@ class DynamicToolSynthesis {
 
     if (oldestKey) {
       _log.info(`[SYNTH] Evicting LRU tool: ${oldestKey}`);
+      this._stats.evicted++;
       this.removeTool(oldestKey);
     }
   }

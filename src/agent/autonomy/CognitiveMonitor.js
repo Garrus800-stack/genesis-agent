@@ -369,12 +369,21 @@ class CognitiveMonitor {
   // (prototype delegation, see bottom of file)
 
   getReport() {
+    const circularity = this.getCircularityReport();
+    const decisionQuality = this.getDecisionQuality();
     return {
       cognitiveLoad: this.getCognitiveLoad(),
       toolAnalytics: this.getToolAnalytics(),
-      circularity: this.getCircularityReport(),
+      circularity,
       tokenBudget: this.getTokenBudget(),
-      decisionQuality: this.getDecisionQuality(),
+      decisionQuality,
+      // v7.9.3: surface anomalies + confidenceAvg for the dashboard
+      // renderer. confidenceAvg is 0-1; renderer multiplies by 100.
+      // Only set when at least one decision has actually been evaluated —
+      // otherwise the renderer would show "100%" on every fresh boot
+      // because _qualityScore defaults to 1.0 with zero data behind it.
+      anomalies: circularity.alertCount,
+      confidenceAvg: decisionQuality.evaluated > 0 ? this._qualityScore : undefined,
     };
   }
 

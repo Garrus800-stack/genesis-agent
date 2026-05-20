@@ -18,19 +18,22 @@ const _log = createLogger('GoalStack');
 // v7.3.1: Capability-gate for duplicate detection
 const CapabilityMatcher = require('./CapabilityMatcher');
 class GoalStack {
-  constructor({ lang, bus,  model, prompts, storageDir, storage, selfGate}) {
+  constructor({ lang, bus,  model, prompts, storageDir, storage, selfGate, settings}) {
     this.lang = lang || { t: (k) => k, detect: () => {}, current: 'en' };
     this.bus = bus || NullBus;
     this.model = model;
     this.prompts = prompts;
     this.storageDir = storageDir;
     this.storage = storage || null;
+    this.settings = settings || null;
 
     // The stack: most urgent goal on top
     // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()
     // this.goals = this._load();
     this.goals = [];
-    this.maxGoals = 10;
+    // v7.9.3 Bug R1: read maxActiveGoals from idleMind settings (UI control).
+    const cfgMax = this.settings?.get?.('idleMind.maxActiveGoals');
+    this.maxGoals = (typeof cfgMax === 'number' && cfgMax > 0) ? cfgMax : 10;
     this._idSeq = 0; // v5.1.0: Counter prevents duplicate IDs on Windows (15ms timer resolution)
     this.maxStepsPerGoal = 8;
 

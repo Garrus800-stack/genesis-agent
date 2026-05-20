@@ -129,13 +129,18 @@ class OllamaBackend {
       }
     }
 
+    // v7.9.3: num_ctx is model-aware. Embedding/small-context models (nomic-
+    // embed-text trained at 2048, all-minilm at 512) silently truncate when
+    // sent 8192 and log [WARN] "requested context size too large for model".
+    // For chat models 8192 stays the right default.
+    const ctxSize = /embed|minilm/i.test(modelName) ? 2048 : 8192;
     const body = {
       model: modelName,
       messages: ollamaMessages,
       stream: false,
       options: {
         temperature,
-        num_ctx: 8192,
+        num_ctx: ctxSize,
         // v7.5.1: optional per-call max-token cap (used by dream/wakeup paths
         // for short one-word answers; saves cost on cloud-Ollama setups).
         ...(maxTokens ? { num_predict: maxTokens } : {}),
@@ -171,11 +176,13 @@ class OllamaBackend {
       ollamaMessages.push({ role: m.role, content: m.content });
     }
 
+    // v7.9.3: same model-aware num_ctx as chat() — see comment there.
+    const ctxSize = /embed|minilm/i.test(modelName) ? 2048 : 8192;
     const body = {
       model: modelName,
       messages: ollamaMessages,
       stream: true,
-      options: { temperature, num_ctx: 8192 },
+      options: { temperature, num_ctx: ctxSize },
       // v7.5.7-fix Phase 2: respect configured keep_alive.
       // v7.8.9: route through _effectiveKeepAlive() for ContinuationLoop overrides.
       ...((() => {

@@ -531,12 +531,17 @@ class StorageService {
         if (stat.isFile()) { totalSize += stat.size; fileCount++; }
       }
     } catch (err) { _log.debug('[STORAGE] Stats error:', err.message); }
+    const s = this._stats || {};
+    const writes = (s.syncWrites || 0) + (s.asyncWrites || 0);
+    const reads = (s.syncReads || 0) + (s.asyncReads || 0);
     return {
       baseDir: this.baseDir,
       fileCount,
       totalSizeKB: Math.round(totalSize / 1024),
       cacheEntries: this._cache.size,
       ioStats: { ...this._stats },
+      writes,
+      reads,
     };
   }
 }

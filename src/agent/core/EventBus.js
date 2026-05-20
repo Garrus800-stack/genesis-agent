@@ -359,26 +359,26 @@ class EventBus {
    * v3.8.0: Listener health report — detects potential leaks.
    *
    * Returns per-event listener counts with source breakdown.
-   * Events with > warnThreshold listeners are flagged as suspects.
+   * Events with > threshold listeners are flagged as suspects.
    * Use after Container.replace() / hot-reload to verify cleanup.
    *
-   * @param {{ warnThreshold?: number }} options
+   * @param {{ warnThreshold?: number, perEventThresholds?: object }} options
    * @returns {{ total: number, events: number, suspects: Array, breakdown: object }}
    */
   getListenerReport(options = {}) {
-    // v7.3.2: Default threshold raised from 10 to 15.
-    //
-    // Rationale: chat:completed is architecturally a fan-out point — it's where
-    // ~all observational subsystems hook in (EmotionalState, Metabolism, UserModel,
-    // Anticipator, SolutionAccumulator, SelfOptimizer, VectorMemory, CausalAnnotation,
-    // TaskOutcomeTracker, CoreMemories, LearningService, HealthMonitor,
-    // FitnessEvaluator = 13 as of v7.3.2). This is by design — these are all
-    // passive observers that need to track conversation outcomes.
-    //
-    // The previous threshold of 10 would flag this every boot. 15 gives us
-    // headroom for 1-2 more natural consumers without becoming noise, while
-    // still catching actual runaway listener-accumulation bugs.
-    const warnThreshold = options.warnThreshold || 15;
+    // v7.9.3: Per-event thresholds. chat:completed is architecturally a fan-out
+    // point — 17 legitimate passive observers (EmotionalState, Metabolism,
+    // UserModel, Anticipator, SolutionAccumulator, SelfOptimizer, VectorMemory,
+    // CausalAnnotation, TaskOutcomeTracker, CoreMemories, LearningService,
+    // HealthMonitor, FitnessEvaluator, Homeostasis, SelfStatementLog,
+    // AdaptivePromptStrategy, TaskRecorder). All by design, not a leak. The
+    // flat 15-threshold lit this up every boot. chat:completed gets 25
+    // (8 headroom for future legit consumers); every other event keeps the
+    // flat 15-warn so real listener-accumulation bugs still get caught.
+    const defaultThreshold = options.warnThreshold || 15;
+    const perEvent = options.perEventThresholds || {
+      'chat:completed': 25,
+    };
     let total = 0;
     const breakdown = {};
     const suspects = [];
@@ -391,8 +391,9 @@ class EventBus {
         total++;
       }
       breakdown[event] = { count: entries.size, sources };
-      if (entries.size > warnThreshold) {
-        suspects.push({ event, count: entries.size, sources });
+      const threshold = perEvent[event] || defaultThreshold;
+      if (entries.size > threshold) {
+        suspects.push({ event, count: entries.size, sources, threshold });
       }
     }
 
@@ -403,9 +404,9 @@ class EventBus {
       const key = suspects.map(s => `${s.event}:${s.count}`).join(',');
       if (key !== this._lastSuspectKey) {
         this._lastSuspectKey = key;
-        console.warn(`[EVENT:HEALTH] ${suspects.length} event(s) exceed ${warnThreshold} listeners:`);
+        console.warn(`[EVENT:HEALTH] ${suspects.length} event(s) over per-event listener threshold:`);
         for (const s of suspects) {
-          console.warn(`  ⚠ "${s.event}": ${s.count} listeners — sources: ${Object.entries(s.sources).map(([k, v]) => `${k}(${v})`).join(', ')}`);
+          console.warn(`  ⚠ "${s.event}": ${s.count} listeners (threshold ${s.threshold}) — sources: ${Object.entries(s.sources).map(([k, v]) => `${k}(${v})`).join(', ')}`);
         }
       }
     } else if (suspects.length === 0) {

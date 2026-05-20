@@ -60,11 +60,9 @@ function _decorateField(id) {
 
   // Re-rendering the default-hint must always happen (language may have
   // changed). The structural decoration (row + reset button) only once.
-  // Remove any existing default-hint so we can rebuild it.
-  const existingHints = parent.parentNode
-    ? parent.parentNode.querySelectorAll('.setting-default-hint')
-    : null;
-  if (existingHints) existingHints.forEach(n => n.remove());
+  // Remove any existing OWN default-hint so we can rebuild it. The previous
+  // code queried parent.parentNode (= the whole tab panel) and wiped every
+  // hint in the tab, so only the last decorated field ever kept its hint.
   const ownHint = parent.querySelector('.setting-default-hint');
   if (ownHint) ownHint.remove();
 

@@ -234,7 +234,7 @@ class Settings {
         },
       },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
-      timeouts: { approvalSec: 60, shellMs: 15000, httpMs: 60000, gitMs: 5000 },
+      timeouts: { approvalSec: 300, shellMs: 15000, httpMs: 60000, gitMs: 5000 },
       // v3.7.0: Cognitive strictMode — when true, AgentLoop refuses to run
       // unless core cognitive services (verifier, formalPlanner, worldState) are bound.
       // Default false for backwards compatibility.

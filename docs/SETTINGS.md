@@ -208,3 +208,67 @@ just saved, validation looks broken, the JSON editor refuses to
 save), see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) — the Settings
 section there covers common UI/validation issues with reproduction
 steps.
+
+---
+
+## Runtime vs Restart (v7.9.3)
+
+Not every setting takes effect the moment you save it. Some are read once
+when the relevant service is constructed at boot. The settings UI marks
+these with `(takes effect after restart)` in the hint line.
+
+### Runtime settings (apply immediately on save)
+
+These are wired to Settings event listeners or read fresh on every use:
+
+- `trust.level` — Trust level dropdown
+- `daemon.enabled`, `daemon.autoRepair`, `daemon.autoOptimize` — Daemon toggles
+- `idleMind.enabled` — IdleMind toggle
+- `security.allowSelfModify`, `security.allowNetworkPeers`, `security.allowFileExecution`
+- `agency.autoResumeGoals`, `agency.autoRouteByTask`, `agency.negotiateBeforeAdd`
+- `agency.commitSnapshotOnShutdown`, `agency.gitAutoInit`, `agency.gitAutoCommit`
+- `agency.installAuto`, `agency.installFull`, `agency.installScope` (v7.9.3)
+- `cognitive.strictMode`, `cognitive.koennen.enabled`
+- `models.anthropicApiKey`, `models.openaiApiKey` — API keys reload live
+- `mcp.serve.enabled` — MCP server toggle
+- `timeouts.approvalSec`, `llm.costGuard.*` (after Bug F+S fix)
+- `health.httpEnabled` — health server toggle
+- `ui.editorFontSize`, `ui.chatFontSize` — apply live to Monaco editor + chat container
+
+### Restart-required settings (boot-time readers)
+
+These are constructor-time or `asyncLoad()` readers. Changing them while
+Genesis is running has no effect until the next start. The UI shows
+`(takes effect after restart)` next to these.
+
+Models tab:
+- `models.preferred`, `models.roles.chat/code/analysis/creative`
+- `models.openaiBaseUrl`, `models.openaiModels`
+
+Behavior tab:
+- `cognitive.koennen.crystallization.enabled`
+- `cognitive.koennen.crystallization.minCandidatesPerPattern`
+- `cognitive.koennen.crystallization.cooldownMs`
+- `idleMind.maxActiveGoals`
+
+Limits tab (constructor-time parameters):
+- `models.maxConcurrent`, `models.ollamaKeepAlive`
+- `selfSpawner.maxWorkers`, `selfSpawner.timeoutMs`, `selfSpawner.memoryLimitMB`
+- `workerPool.maxWorkers`
+- `knowledgeGraph.maxNodes`, `selfStatementLog.maxStatements`
+- `eventStore.maxFileSizeMB`, `eventStore.maxRotations`
+- `episodicMemory.maxEpisodes`
+- `idleMind.journalMaxFileSizeMB`
+
+MCP tab:
+- `mcp.serve.port`
+
+Advanced tab:
+- `cognitive.simulation.maxBranches`, `cognitive.simulation.maxDepth`
+- `organism.emotions.decayIntervalMs`, `organism.emotions.lonelinessIntervalMs`
+- `daemon.cycleMinutes`
+- `health.httpPort`
+
+A full programmatic listing lives in
+`src/ui/modules/settings-defaults.js` — entries flagged
+`requiresRestart: true` produce the badge automatically.

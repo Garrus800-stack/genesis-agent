@@ -51,7 +51,16 @@ async function showGoalTree() {
 
 function buildGoalNode(goal, depth) {
   const indent = depth * 16;
-  const statusIcon = { active: '🔵', completed: '✅', failed: '❌', paused: '⏸' }[goal.status] || '⚪';
+  const statusIcon = {
+    active: '🔵',
+    completed: '✅',
+    failed: '❌',
+    paused: '⏸',
+    abandoned: '🚫',
+    blocked: '⛔',
+    stalled: '⏳',
+    obsolete: '🗑',
+  }[goal.status] || '⚪';
   let html = `<div class="goal-node" style="padding-left:${indent}px">
     <span class="goal-status">${statusIcon}</span>
     <span class="goal-desc">${goal.description || goal.goal || 'Unnamed goal'}</span>

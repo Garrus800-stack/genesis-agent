@@ -109,16 +109,23 @@ function apply(Dashboard) {
       }
     }
 
-    if (cognitive?.metaLearning && cognitive.metaLearning.recordings !== undefined) {
+    if (cognitive?.metaLearning) {
       var ml = cognitive.metaLearning;
-      parts.push('<div class="dash-stat"><span>ML recordings</span><span>' + (ml.recordings || 0) + '</span></div>');
-      if (ml.strategies !== undefined) {
-        parts.push('<div class="dash-stat"><span>Strategies</span><span>' + ml.strategies + '</span></div>');
+      var mlRecords = ml.totalRecords ?? ml.recordings;
+      if (mlRecords !== undefined) {
+        parts.push('<div class="dash-stat"><span>ML recordings</span><span>' + (mlRecords || 0) + '</span></div>');
+      }
+      var mlStrategies = ml.recommendationCount ?? ml.strategies;
+      if (mlStrategies !== undefined) {
+        parts.push('<div class="dash-stat"><span>Strategies</span><span>' + mlStrategies + '</span></div>');
       }
     }
 
-    if (cognitive?.episodicMemory && cognitive.episodicMemory.episodes !== undefined) {
-      parts.push('<div class="dash-stat"><span>Episodes</span><span>' + cognitive.episodicMemory.episodes + '</span></div>');
+    if (cognitive?.episodicMemory) {
+      var eps = cognitive.episodicMemory.totalEpisodes ?? cognitive.episodicMemory.episodes;
+      if (eps !== undefined) {
+        parts.push('<div class="dash-stat"><span>Episodes</span><span>' + eps + '</span></div>');
+      }
     }
 
     if (monitor) {
@@ -126,6 +133,7 @@ function apply(Dashboard) {
         parts.push('<div class="dash-stat"><span>Anomalies</span><span>' + monitor.anomalies + '</span></div>');
       }
       if (monitor.confidenceAvg !== undefined) {
+        // confidenceAvg is 0-1 from CognitiveMonitor.getReport (raw _qualityScore).
         parts.push('<div class="dash-stat"><span>Avg confidence</span><span>' + (monitor.confidenceAvg * 100).toFixed(0) + '%</span></div>');
       }
     }
@@ -256,10 +264,11 @@ function apply(Dashboard) {
         (aw.focus ? '<span class="dash-label" style="margin-left:12px">Focus</span><span class="dash-value">' + this._esc(String(aw.focus)) + '</span>' : ''));
     }
 
-    // Values
+    // Values — alignmentScore is no longer emitted by ValueStore.getReport();
+    // shown as '—' when absent. conflicts comes from conflictCount.
     if (vals) {
       const alignment = vals.alignmentScore != null ? Math.round(vals.alignmentScore * 100) + '%' : '—';
-      const conflicts = vals.conflicts || vals.conflictCount || 0;
+      const conflicts = vals.conflictCount ?? vals.conflicts ?? 0;
       html += _cRow(
         '<span class="dash-label">Value Alignment</span><span class="dash-value">' + alignment + '</span>' +
         '<span class="dash-label" style="margin-left:12px">Conflicts</span><span class="dash-value">' + conflicts + '</span>');

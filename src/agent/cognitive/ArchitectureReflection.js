@@ -450,6 +450,14 @@ class ArchitectureReflection {
    */
   getSnapshot() {
     this._ensureFresh();
+    // v7.9.3 Bug N: phases as {phase: [serviceNames]} so renderer can
+    // use Array.isArray(svcs) ? svcs.length : 0 to count services per phase.
+    const phases = {};
+    for (const [name, info] of this._services) {
+      const p = info.phase ?? -1;
+      if (!phases[p]) phases[p] = [];
+      phases[p].push(name);
+    }
     return {
       services: this._services.size,
       events: this._events.size,
@@ -462,6 +470,7 @@ class ArchitectureReflection {
       layerSummary: Object.fromEntries(
         [...this._layers.entries()].map(([name, info]) => [name, info.services.size])
       ),
+      phases,
     };
   }
 

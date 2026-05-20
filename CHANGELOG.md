@@ -1,53 +1,74 @@
-## [7.9.2]
+## [7.9.3]
 
-**Root-cause fix for the goal-reject loop, plus dashboard splitter and graph-hover improvements.**
+**Settings consistency pass: 22 dashboard/setting bugs fixed, 30 boot-only settings now show a restart hint, Architecture Graph opens in a fullscreen modal, Trust-level dropdown promises hold, Ollama embedding context size matches model capacity.**
 
-The v7.9.1 cooldown turned out to be a workaround for a deeper bug. The actual root cause: `GoalDriverFailurePolicy` and `StalledGoalWatchdog` called `goalStack.setStatus()` / `goalStack.updateGoal()` — methods that do not exist on the real goalStack. Both typeof-checks always returned false, the try-block silently did nothing, status stayed `'active'`, and the scan re-picked the goal forever. The WARN message "failed 4× (stalled)" was logged before the (failing) status mutation, so the log line lied. v7.9.2 switches to the real API — `markStalled` and `markObsolete` — and the loop disappears because the status filter in `_listPursueable` actually has something to filter. The v7.9.1 cooldown is removed because it is no longer needed.
+### Trust-level map
 
-### Root-cause fix — markStalled / markObsolete
+- `LEVEL_AUTO_APPROVE` aligned with the UI dropdown promise. `AUTONOMOUS` now auto-approves `['safe', 'medium', 'high', 'blocking']` — only the three genuinely critical actions (`DEPLOY`, `EXTERNAL_API`, `EMAIL_SEND`) still prompt. `FULL_AUTONOMY` auto-approves everything including `blocking` (so `plan-has-issues` no longer breaks the "never ask" promise).
+- `SELF_MODIFY` stays classified as `'high'`. Self-modification is a core feature, not a critical exception.
+- Default risk for unknown actions stays `'high'`.
 
-- **GoalDriverFailurePolicy.js** — both stalled paths (user-rejection branch and `_failureCap` branch) now call the real `goalStack.markStalled(id, reason)` and, in the hallucination-pattern branch, `goalStack.markObsolete(id, reason)`. The defunct `setStatus`/`updateGoal` fallback chain is removed. The manual `bus.fire('goal:stalled')` calls are also removed because `markStalled` fires the event itself — previously this would have produced double events if the real API had ever worked.
-- **StalledGoalWatchdog.js** — same fix. Plus the watchdog-specific extra fields in the event payload (`stalledMinutes`, `blockedAt`) are gone since no external consumer used them; the standard `goal:stalled` payload from `markStalled` carries everything needed.
-- **GoalDriver.js** — the v7.9.1 `_goalRejectedCooldown` map and the corresponding filter in `_listPursueable` are removed. With the real `markStalled` call setting `status='stalled'` synchronously in-memory, the existing `status === 'active'` filter is enough. Cooldown is not needed and would have created an inconsistency with `resumeGoal` (which doesn't fire a paired event to clear the cooldown).
-- **Test mocks updated** — `v779-bug2-stalled-watchdog` and `v745-fix` test mocks were exposing `setStatus`/`updateGoal` themselves, which is exactly what hid the production bug. Both updated to expose the real API (`markStalled`/`markObsolete`) so tests reflect what production actually has.
+### Dashboard property alignment
 
-### Dashboard splitter — drag-to-resize
+Renderers were reading properties the backend never produced. Each path is now wired to the actual `getStats()` / `getReport()` output, with legacy aliases kept where useful:
 
-The dashboard panel can now be resized by dragging. file-tree, goals, and editor panels are unchanged.
+- Energy panel (`OrganismRenderers._renderEnergy`) reads `metabolism.callCount`, `metabolism.totalEnergySpent`, `energy.state`.
+- Cognitive panel (`AgentRenderers._renderCognitive`) reads `metaLearning.totalRecords` / `recommendationCount` and `episodicMemory.totalEpisodes`.
+- Memory panel (`SystemRenderers._renderMemory`) reads `m.totalEpisodes` for episode count.
+- System panel reads `shell.total` for command count.
+- Tool Synthesis renders `stats.generated` and `stats.evicted` from `DynamicToolSynthesis`.
+- Project Intelligence reads `conv.namingStyle` (and `conv.srcLayout`).
+- Goal tree status icons cover all 8 backend states: active, completed, failed, paused, abandoned, blocked, stalled, obsolete.
+- Storage panel reads `health.storage.writes` (and `reads`), now produced by `StorageService.getStats()`.
+- Values panel reads `vals.conflictCount` first.
 
-- **index.html** — new `<div class="splitter" data-splitter="dashboard-filetree" data-prev="dashboard-panel" data-next="file-tree-panel">` directly before the file-tree panel. The dashboard is injected as the first child of `#main-layout` by `dashboard.js`, so post-injection the DOM order is dashboard → splitter → file-tree → … and the existing visibility logic (`_updateSplitterVisibility`) shows the splitter when the dashboard is open and any panel further right is also visible.
-- **splitter.js** — `dashboard` added to `PANEL_KEY_TO_ID`, `DEFAULTS` (280px), and `MIN_WIDTHS` (240px). No new exports needed.
-- **DashboardStyles.js** — `#dashboard-panel` switched from `width:280px; max-width:340px` to `flex:0 0 var(--panel-width-dashboard, 280px)`. The max-width cap is removed so the splitter can actually grow the panel.
-- **dashboard.js** — `toggle()` now fires `panel:visibility-changed` so the splitter appears and disappears in sync with the dashboard. Previously the dashboard toggle was the only panel toggle that did not emit this event.
-- **v786-sidebar-splitter contract tests** — assertions for 3 splitters / 3 keys updated to 4, plus a new test for the dashboard↔file-tree splitter presence.
+`CognitiveMonitor.getReport()` was extended in this release to surface `anomalies` (from `circularity.alertCount`) and `confidenceAvg` (from `decisionQuality.rollingQuality`, 0–1) so the dead-read dashboard fields show real data.
 
-### Architecture-graph hover — see what's connected
+### Service starts and lifecycle
 
-Hovering over a node in the dashboard's Architecture Graph now shows the **names** of connected modules, not just the count.
+- `costGuard.start()` is now called during boot in `AgentCoreWire`. Without this call the four CostGuard UI settings (`sessionTokenLimit`, `dailyTokenLimit`, `warnThreshold`, `enabled`) stayed at constructor defaults regardless of what the UI was set to.
+- `ArchitectureReflection.getSnapshot()` emits `phases` as `{phaseNum: [serviceNames]}` so the Architecture panel's `Array.isArray(svcs) ? svcs.length : 0` produces real counts (was always 0 before).
+- `GoalStack` reads `idleMind.maxActiveGoals` from settings at construction time (was hardcoded to 10).
+- `UnifiedMemory.recall()` increments `_searchCount`; exposed in `getStats()` as `searchCount` — drives the "Unified queries" dashboard stat.
 
-- **ArchitectureGraph.js** — tooltip extended with an "↗ Out:" and "↙ In:" line listing the actual connected module names. Up to 8 per direction, then `+N more`. The lookup is a cached `nodeId → name` map built lazily on first hover.
-- **Click-to-pin** — clicking a node now pins the tooltip via a new `_tooltipPinned` state. The tooltip stays visible on mouseleave until you click the same node again to unpin or click another node to switch the pin. Pin status is shown in the tooltip itself ("Click again to unpin").
-- **Smart positioning** — the tooltip measures itself after rendering and flips to the left if it would overflow the container on the right, or below the node if there's no room above. Last-resort clamps prevent it from leaving the container entirely.
-- **Tooltip width** raised from 250px to 320px to fit the name list, with `line-height:1.4` for multi-line content.
-- **Toggle bug fixed in passing** — `_selectNode` previously had a quirk where every third+ click on the same node would re-trigger the deselect path. The new pin-aware flow reads `_selected` before mutating, so the toggle is deterministic.
+### chat:completed payload
 
-### Doc reconciliation
+All four `chat:completed` fire sites in `ChatOrchestrator` now include `tokens` (estimated from response length) and `latencyMs` (elapsed since turn start). `Metabolism._onChatCompleted` was already prepared to read these with default fallbacks; the values are now real.
 
-- README.md, ARCHITECTURE-DEEP-DIVE.md, CAPABILITIES.md, COMMUNICATION.md test counts updated from 7794 to 7799.
-- `scripts/audit-doc-drift.js` `TESTS_WIN_BASELINE` and `TESTS_WIN` updated.
-- banner.svg version + test count bumped.
+### Settings system
 
-### Numbers
+- `timeouts.approvalSec` default raised from 60s to 300s — matches the UI registry default; prevents premature approval timeout during slow operations.
+- Three install-related settings added to `FIELD_REGISTRY` so they participate in default-hint, validation and reset flow: `agency.installAuto`, `agency.installFull`, `agency.installScope`.
+- 30 boot-only settings flagged with `requiresRestart: true`. `buildDefaultHint()` appends a localized `(takes effect after restart)` badge for these.
+- `i18n.ui.takes_effect_after_restart` and `i18n.ui.requires_restart` provided in EN + DE.
+- The six inline `setting-restart-hint` spans previously hard-coded in `index.html` are removed — the `FIELD_REGISTRY` flag is now the single source of truth.
+- 11 previously-missing i18n keys added to EN + DE (statusbar showed `Daemon: health.active` as raw key text).
+- `ui.editorFontSize` and `ui.chatFontSize` now apply live to the Monaco editor and chat container both on settings load and on save.
+- Fixed `_decorateField()` clobbering every `.setting-default-hint` in a tab when any single field was decorated. Each field now manages only its own hint, so all boot-only settings keep their `(takes effect after restart)` badge instead of only the last-decorated field in each tab.
+- CHANGELOG.md indexes per-major archive files (`CHANGELOG-v7.md`, `docs/CHANGELOG-v6.md`, `docs/CHANGELOG-v5.md`, `docs/CHANGELOG-archive.md`) — restores the v785-changelog-split contract.
 
-7799 tests pass (Win baseline), 7798 (Linux). 130/130 fitness. 7 new contract tests under `v792 contract:` prefix in `test/modules/v792-livefixes.contract.test.js`. 2 v791 cooldown tests removed (the cooldown they tested is gone). v779-bug2-stalled-watchdog and v745-fix mocks updated to real goalStack API.
+### Health endpoints
+
+`HealthServer` now serves `/metrics` (metabolism, storage, metaLearning, costGuard, unifiedMemory, episodicMemory, knowledgeGraph, shell, toolSynthesis stats) and `/events` (eventStore stats, bus listener counts). The previous "Use /health or /health/full" 404 message advertised endpoints the UI settings hint had already promised.
+
+### Architecture Graph
+
+Opens in a fullscreen modal (90vw × 85vh) on click. ResizeObserver redraws as the window resizes. Legend uses fixed 12px font so it stays readable at any zoom. ESC / backdrop click / X-button to close.
+
+### Ollama context size
+
+`OllamaBackend.chat()` / `.stream()` and `EmbeddingService` now pass `num_ctx` model-aware: embedding models (nomic-embed-text, mxbai, minilm) receive 2048, chat models receive 8192. The repeated `requested context size too large for model` warnings on every boot are gone.
+
+### Documentation
+
+`docs/SETTINGS.md` extended with a runtime-vs-restart section listing all runtime and all boot-only settings by tab.
+
 
 ---
 
-## Archive
+## Older versions
 
-Previous releases live in dedicated archive files:
-
-- `CHANGELOG-v7.md` — v7.x.x releases (current major)
-- `docs/CHANGELOG-v6.md` — v6.x.x releases
-- `docs/CHANGELOG-v5.md` — v5.x.x releases
-- `docs/CHANGELOG-archive.md` — pre-v5 releases
+- [CHANGELOG-v7.md](CHANGELOG-v7.md) — full v7.x history
+- [docs/CHANGELOG-v6.md](docs/CHANGELOG-v6.md) — v6.x history
+- [docs/CHANGELOG-v5.md](docs/CHANGELOG-v5.md) — v5.x history
+- [docs/CHANGELOG-archive.md](docs/CHANGELOG-archive.md) — earlier history

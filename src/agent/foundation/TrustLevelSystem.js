@@ -60,15 +60,10 @@ const ACTION_RISK = {
   'RUN_TESTS':     'medium',
   'GIT_SNAPSHOT':  'medium',
   'DELEGATE':      'medium',
-  // v7.9.1: AgentLoop step-limit gate. ApprovalGate.request('continue', …)
-  // fires when a goal has reached its per-goal step limit and Genesis asks
-  // whether to keep going. Without explicit classification this fell back
-  // to 'high' via _getActionRisk and triggered manual approval even at
-  // AUTONOMOUS. Classified as 'medium' so AUTONOMOUS auto-approves a
-  // simple "keep going" decision. Note: `plan-has-issues` stays in the
-  // 'blocking' tier (see v7.7.8 entry below) — a structurally broken
-  // plan must always pause for conscious user decision regardless of
-  // trust level. Only the benign step-limit prompt is reclassified.
+  // AgentLoop step-limit gate. ApprovalGate.request('continue', …) fires
+  // when a goal has reached its per-goal step limit and Genesis asks
+  // whether to keep going. Classified as 'medium' so AUTONOMOUS+ auto-
+  // approve the simple "keep going" decision.
   'continue':      'medium',
 
   // High risk (auto-execute at Level 3 only)
@@ -80,23 +75,45 @@ const ACTION_RISK = {
   'EXTERNAL_API':  'critical',
   'EMAIL_SEND':    'critical',
 
-  // v7.7.8: Blocking — never auto-approved at any trust level. Reserved
-  // for structural concerns where the user must consciously decide,
-  // regardless of how much autonomy Genesis otherwise has. Used today
-  // only for `plan-has-issues` (plan-validator found unknown step types
-  // or missing required resources). Even at FULL_AUTONOMY a plan with
-  // structural issues should pause — auto-proceeding would mean Genesis
-  // executes a partially-broken plan it knew was broken.
+  // v7.9.3: Blocking — auto-approved at AUTONOMOUS+ now. Previously this
+  // tier was excluded from every level (v7.7.8 design: "structural concerns
+  // must always pause"), but that contradicted the UI promise that
+  // FULL_AUTONOMY never asks and that AUTONOMOUS only asks for critical.
+  // A structurally broken plan surfaces through execution failure anyway;
+  // an extra approval modal at the supposedly-autonomous levels was a
+  // UX bug, not a safeguard. SUPERVISED and ASSISTED still gate it.
   'plan-has-issues': 'blocking',
 };
 
 // ── What each level auto-approves ────────────────────────
+//
+// v7.9.3: rewired to match the UI promises that each trust-level dropdown
+// option states. Previously:
+//   AUTONOMOUS    auto-approved only [safe, medium]   → high (SHELL_EXEC,
+//     SELF_MODIFY) and blocking (plan-has-issues) were still gated for
+//     approval, contradicting the UI text "asks only for critical actions".
+//   FULL_AUTONOMY auto-approved [safe, medium, high, critical] but NOT
+//     blocking, so plan-has-issues paused the agent even at the "never
+//     ask" level. The v7.7.8 design note argued blocking should always
+//     pause; that interpretation collides with the FULL_AUTONOMY UI
+//     promise. The correct place to surface a structurally broken plan is
+//     execution feedback (the plan will fail and report), not an extra
+//     approval modal that the UI told the user wouldn't appear.
+//
+// New mapping makes each dropdown option do exactly what it promises:
+//   SUPERVISED    [] — every gated decision asks (only 'plan-has-issues',
+//     'continue', and 'EXTERNAL_API' are actually gated in code today;
+//     this is the level for "I watch every step")
+//   ASSISTED      ['safe'] — read/search/analyze auto, everything else asks
+//   AUTONOMOUS    ['safe', 'medium', 'high', 'blocking'] — only the three
+//     real externally-consequential actions ask: DEPLOY, EXTERNAL_API,
+//     EMAIL_SEND (the UI's definition of "critical")
+//   FULL_AUTONOMY all five — never asks
 const LEVEL_AUTO_APPROVE = {
   [TRUST_LEVELS.SUPERVISED]:    [],
   [TRUST_LEVELS.ASSISTED]:      ['safe'],
-  [TRUST_LEVELS.AUTONOMOUS]:    ['safe', 'medium'],
-  [TRUST_LEVELS.FULL_AUTONOMY]: ['safe', 'medium', 'high', 'critical'],
-  // 'blocking' is intentionally absent from every level — see ACTION_RISK.
+  [TRUST_LEVELS.AUTONOMOUS]:    ['safe', 'medium', 'high', 'blocking'],
+  [TRUST_LEVELS.FULL_AUTONOMY]: ['safe', 'medium', 'high', 'critical', 'blocking'],
 };
 
 const AUTO_UPGRADE_MIN_SAMPLES = 50;

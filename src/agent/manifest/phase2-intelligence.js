@@ -155,7 +155,11 @@ function phase2(ctx, R) {
         const cm = new (R('ContextManager').ContextManager)(
           c.resolve('llm'), c.resolve('selfModel'), c.resolve('memory'), bus, c.resolve('lang')
         );
-        cm.configureForModel(c.resolve('llm').activeModel);
+        // v7.9.3: Don't call configureForModel here — at factory time the
+        // ModelBridge has not run asyncLoad() yet, so activeModel is null.
+        // The previous call logged `[CONTEXT] Model "null" → 8192 token
+        // window` before being immediately overwritten by the real call in
+        // AgentCoreBoot.js once the bridge resolved. Confusing log noise.
         return cm;
       },
     }],

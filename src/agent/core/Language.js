@@ -138,6 +138,19 @@ const MARKERS = {
 
 const STRINGS = {
   en: {
+    // v7.9.3 Bug CC: previously-missing keys
+    'health.active': 'Active',
+    'health.inactive': 'Inactive',
+    'health.idle': 'Idle',
+    'health.status': 'Status',
+    'health.thoughts': 'thoughts',
+    'health.goals': 'goals',
+    'health.active_goals': 'active goals',
+    'ui.imported': 'Imported',
+    'ui.self_modifying': 'Self-modifying...',
+    'ui.thinking': 'Thinking...',
+    'ui.warning': 'Warning',
+    'ui.requires_restart': '(requires restart)',
     // UI
     'ui.booting': 'Booting...',
     'ui.ready': 'Ready',
@@ -624,6 +637,19 @@ const STRINGS = {
   },
 
   de: {
+    // v7.9.3 Bug CC: previously-missing keys
+    'health.active': 'Aktiv',
+    'health.inactive': 'Inaktiv',
+    'health.idle': 'Untätig',
+    'health.status': 'Status',
+    'health.thoughts': 'Gedanken',
+    'health.goals': 'Ziele',
+    'health.active_goals': 'aktive Ziele',
+    'ui.imported': 'Importiert',
+    'ui.self_modifying': 'Selbstmodifikation...',
+    'ui.thinking': 'Denke nach...',
+    'ui.warning': 'Warnung',
+    'ui.requires_restart': '(Neustart erforderlich)',
     'ui.booting': 'Startet...',
     'ui.ready': 'Bereit',
     'ui.error': 'Fehler',

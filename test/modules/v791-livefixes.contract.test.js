@@ -55,23 +55,28 @@ describe('v791 contract: TrustLevelSystem action-risk classification', () => {
       'continue should still need approval at ASSISTED — only AUTONOMOUS+ auto-approves medium-risk');
   });
 
-  test('v791 contract: plan-has-issues stays blocking even at FULL_AUTONOMY (v7.7.8 safety contract)', () => {
-    // Structurally broken plans must always pause for conscious user
-    // decision regardless of trust level. This was set in v7.7.8 and
-    // v7.9.1 must NOT regress it.
+  test('v791 contract: plan-has-issues auto-approved at FULL_AUTONOMY (v7.9.3 promise)', () => {
+    // v7.9.3 Bug A: the v7.7.8 "always block plan-has-issues" rule made the
+    // FULL_AUTONOMY dropdown's "never ask" promise a lie. The new contract
+    // is: FULL_AUTONOMY auto-approves every risk class including 'blocking'.
+    // AUTONOMOUS still asks for critical, so DEPLOY/EXTERNAL_API/EMAIL_SEND
+    // remain gated when the user wants any oversight at all.
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
     tls.setLevel(3); // FULL_AUTONOMY
     const result = tls.checkApproval('plan-has-issues', {});
-    assert(result.approved === false,
-      'plan-has-issues must stay blocking at every trust level — v7.7.8 safety contract');
+    assert(result.approved === true,
+      'plan-has-issues must auto-approve at FULL_AUTONOMY — matches "never ask" UI promise');
   });
 
   test('v791 contract: unknown actions still fall back to high-risk', () => {
+    // v7.9.3 keeps default risk classification at 'high'. At AUTONOMOUS
+    // 'high' is now auto-approved (matches "only ask for critical" promise),
+    // so verify the fallback at ASSISTED where 'high' still gates.
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
-    tls.setLevel(2);
+    tls.setLevel(1); // ASSISTED
     const result = tls.checkApproval('completely-unknown-action', {});
     assert(result.approved === false,
-      'unknown actions must still default to high-risk so we do not accidentally grant medium-clearance to anything unmapped');
+      'unknown actions must still default to high-risk so we do not accidentally grant clearance to anything unmapped');
   });
 
 });

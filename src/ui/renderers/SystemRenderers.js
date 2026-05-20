@@ -48,7 +48,7 @@ function apply(Dashboard) {
     if (health?.memory) {
       var m = health.memory;
       parts.push('<div class="dash-stat"><span>Facts</span><span>' + (m.facts || 0) + '</span></div>');
-      parts.push('<div class="dash-stat"><span>Episodes</span><span>' + (m.episodes || 0) + '</span></div>');
+      parts.push('<div class="dash-stat"><span>Episodes</span><span>' + (m.totalEpisodes || m.episodes || 0) + '</span></div>');
     }
     if (health?.knowledgeGraph) {
       parts.push('<div class="dash-stat"><span>KG nodes</span><span>' + (health.knowledgeGraph.nodes || 0) + '</span></div>');
@@ -191,7 +191,10 @@ function apply(Dashboard) {
         '</div>';
     }
 
-    // Listener health: flag hotspots
+    // Listener health: flag hotspots. v7.9.3: show real event name (not the
+    // shortEvent abbreviation used in Recent Chains) — hotspots are health
+    // diagnostics where the user needs the exact name to grep logs/code,
+    // and there is no row-density pressure here.
     var suspects = (listenerReport.suspects || []).slice(0, 3);
     var hotHTML = '';
     if (suspects.length > 0) {
@@ -199,7 +202,7 @@ function apply(Dashboard) {
       for (var s = 0; s < suspects.length; s++) {
         var sus = suspects[s];
         hotHTML += '<div class="dash-evt-hot"><span class="dash-evt-hot-name">' +
-          this._esc(shortEvent(sus.event)) + '</span><span class="dash-evt-hot-count">' +
+          this._esc(sus.event) + '</span><span class="dash-evt-hot-count">' +
           sus.count + ' listeners</span></div>';
       }
     }
@@ -267,7 +270,7 @@ function apply(Dashboard) {
         '<div class="dash-stat"><span>Circuit</span><span style="color:' + circuitColor + '">' + this._esc(circuit) + '</span></div>' +
         '<div class="dash-stat"><span>IdleMind</span><span>' + (health.idleMind?.thoughtCount || 0) + ' thoughts</span></div>' +
         '<div class="dash-stat"><span>Goals</span><span>' + (health.goals?.active || 0) + '/' + (health.goals?.total || 0) + '</span></div>' +
-        '<div class="dash-stat"><span>Shell cmds</span><span>' + (health.shell?.totalCommands || 0) + '</span></div>' +
+        '<div class="dash-stat"><span>Shell cmds</span><span>' + (health.shell?.total ?? health.shell?.totalCommands ?? 0) + '</span></div>' +
         storageInfo + mcpInfo + mcpServerInfo +
       '</div>' +
       mcpToggle +

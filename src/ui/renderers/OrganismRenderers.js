@@ -165,23 +165,23 @@ function apply(Dashboard) {
 
     const energy = metabolism.energy || {};
     const percent = energy.percent != null ? energy.percent : 0;
-    const level = energy.level || 'unknown';
+    const state = energy.state || 'unknown';
     const current = energy.current != null ? Math.round(energy.current) : '—';
     const max = energy.max != null ? energy.max : '—';
-    const totalCost = metabolism.totalCost != null ? metabolism.totalCost.toFixed(1) : '—';
-    const calls = metabolism.llmCalls || 0;
+    const totalCost = metabolism.totalEnergySpent != null ? metabolism.totalEnergySpent.toFixed(1) : '—';
+    const calls = metabolism.callCount || 0;
 
-    const gaugeClass = level === 'depleted' ? 'dash-gauge-danger' :
-                       level === 'low' ? 'dash-gauge-warn' : 'dash-gauge-ok';
+    const gaugeClass = state === 'depleted' ? 'dash-gauge-danger' :
+                       state === 'low' ? 'dash-gauge-warn' : 'dash-gauge-ok';
 
     let html = '<div class="dash-energy-gauge">' +
       '<div class="dash-gauge-track"><div class="dash-gauge-fill ' + gaugeClass + '" style="width:' + percent + '%"></div></div>' +
       '<span class="dash-value">' + current + ' / ' + max + ' (' + percent + '%)</span>' +
-      '<span class="dash-badge dash-badge-' + level + '">' + this._esc(level) + '</span>' +
+      '<span class="dash-badge dash-badge-' + state + '">' + this._esc(state) + '</span>' +
       '</div>' +
       '<div class="dash-energy-stats">' +
       '<span class="dash-label">LLM Calls</span><span class="dash-value">' + calls + '</span>' +
-      '<span class="dash-label" style="margin-left:12px">Total Cost</span><span class="dash-value">' + totalCost + '</span>' +
+      '<span class="dash-label" style="margin-left:12px">Energy Spent</span><span class="dash-value">' + totalCost + '</span>' +
       '</div>';
 
     el.innerHTML = html;

@@ -175,7 +175,15 @@ class EmbeddingService {
   async _getEmbedding(text) {
     const truncated = text.slice(0, 2000);
     try {
-      const body = JSON.stringify({ model: this.model, prompt: truncated });
+      // v7.9.3: explicit num_ctx=2048 so we never get the
+      // [WARN] "requested context size too large for model" log entry
+      // from Ollama (nomic-embed-text n_ctx_train=2048; some chat-side
+      // defaults would leak 8192 to the same loaded model).
+      const body = JSON.stringify({
+        model: this.model,
+        prompt: truncated,
+        options: { num_ctx: 2048 },
+      });
       try {
         const data = await this._httpPost(`${this.baseUrl}/api/embeddings`, body);
         return data?.embedding || null;
@@ -191,7 +199,7 @@ class EmbeddingService {
           const cpuBody = JSON.stringify({
             model: this.model,
             prompt: truncated,
-            options: { num_gpu: 0 },
+            options: { num_gpu: 0, num_ctx: 2048 },
           });
           const data = await this._httpPost(`${this.baseUrl}/api/embeddings`, cpuBody);
           return data?.embedding || null;

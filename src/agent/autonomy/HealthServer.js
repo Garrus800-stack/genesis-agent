@@ -8,8 +8,10 @@
 //   settings.set('health.httpPort', 9477);
 //
 // Endpoints:
-//   GET /health     → { status, uptime, model, services }
+//   GET /health      → { status, uptime, model, services }
 //   GET /health/full → full diagnostic (boot time, memory, errors)
+//   GET /metrics     → service stats (metabolism, storage, metaLearning, costGuard, unifiedMemory)
+//   GET /events      → event store aggregates + bus history
 //
 // Binds to 127.0.0.1 only — never exposed externally.
 // ============================================================
@@ -40,9 +42,15 @@ class HealthServer {
         } else if (req.url === '/health/full') {
           res.writeHead(200);
           res.end(JSON.stringify(this._fullHealth()));
+        } else if (req.url === '/metrics') {
+          res.writeHead(200);
+          res.end(JSON.stringify(this._metrics()));
+        } else if (req.url === '/events') {
+          res.writeHead(200);
+          res.end(JSON.stringify(this._events()));
         } else {
           res.writeHead(404);
-          res.end(JSON.stringify({ error: 'Not found. Use /health or /health/full' }));
+          res.end(JSON.stringify({ error: 'Not found. Use /health, /health/full, /metrics or /events' }));
         }
       } catch (err) {
         res.writeHead(500);
@@ -136,6 +144,48 @@ class HealthServer {
       node: process.version,
       platform: process.platform,
     };
+  }
+
+  _metrics() {
+    const c = this.container;
+    const pick = (name, fn) => {
+      if (!c.has(name)) return null;
+      try { return fn(c.resolve(name)); } catch (_e) { return null; }
+    };
+    return {
+      timestamp: new Date().toISOString(),
+      metabolism: pick('metabolism', s => s.getReport?.() ?? null),
+      storage: pick('storage', s => s.getStats?.() ?? null),
+      metaLearning: pick('metaLearning', s => s.getStats?.() ?? null),
+      costGuard: pick('costGuard', s => s.getStatus?.() ?? s.getStats?.() ?? null),
+      unifiedMemory: pick('unifiedMemory', s => s.getStats?.() ?? null),
+      episodicMemory: pick('episodicMemory', s => s.getStats?.() ?? null),
+      knowledgeGraph: pick('knowledgeGraph', s => s.getStats?.() ?? null),
+      shell: pick('shellAgent', s => s.getStats?.() ?? null),
+      toolSynthesis: pick('dynamicToolSynthesis', s => s.getStats?.() ?? null),
+    };
+  }
+
+  _events() {
+    const c = this.container;
+    const out = { timestamp: new Date().toISOString() };
+    if (c.has('eventStore')) {
+      try {
+        const es = c.resolve('eventStore');
+        out.eventStore = es.getStats?.() ?? null;
+      } catch (_e) { out.eventStore = null; }
+    }
+    try {
+      const bus = this.bus;
+      if (bus && typeof bus.getListenerCounts === 'function') {
+        out.busListenerCounts = bus.getListenerCounts();
+      } else if (bus && bus._listeners && typeof bus._listeners.forEach === 'function') {
+        const counts = {};
+        bus._listeners.forEach((set, ev) => { counts[ev] = set?.size ?? 0; });
+        out.busListenerCounts = counts;
+      }
+    } catch (_e) { /* best effort */ }
+    return out;
   }
 }
 

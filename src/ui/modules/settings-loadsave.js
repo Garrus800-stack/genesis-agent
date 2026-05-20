@@ -183,6 +183,21 @@ async function openSettings() {
     _setNum('#set-editor-font', s?.ui?.editorFontSize ?? 13);
     _setNum('#set-chat-font', s?.ui?.chatFontSize ?? 13);
 
+    // v7.9.3 Bug R3/R4: apply font sizes live to editor and chat container.
+    try {
+      const ef = Number(s?.ui?.editorFontSize) || 13;
+      const cf = Number(s?.ui?.chatFontSize) || 13;
+      // Monaco editor — if mounted, update its font size option.
+      if (typeof window !== 'undefined' && window._editor && typeof window._editor.updateOptions === 'function') {
+        window._editor.updateOptions({ fontSize: ef });
+      }
+      // Chat container — set CSS font-size on the active chat scroll area.
+      const chatEl = (typeof document !== 'undefined')
+        ? (document.getElementById('chat-messages') || document.getElementById('chat-container') || document.querySelector('.chat-messages'))
+        : null;
+      if (chatEl) chatEl.style.fontSize = cf + 'px';
+    } catch (_e) { /* non-fatal */ }
+
     if ($('#set-openai-models')) {
       const models = Array.isArray(s?.models?.openaiModels) ? s.models.openaiModels : [];
       $('#set-openai-models').value = models.join(', ');
@@ -383,6 +398,22 @@ async function saveSettings() {
 
   _intIfValid('#set-editor-font', 'ui.editorFontSize', 10, 24);
   _intIfValid('#set-chat-font',   'ui.chatFontSize',   10, 24);
+
+  // v7.9.3 Bug R3/R4: apply font sizes live on save so the user sees the
+  // effect immediately without needing a settings reload.
+  try {
+    const efEl = $('#set-editor-font');
+    const cfEl = $('#set-chat-font');
+    const ef = efEl ? Number(efEl.value) || 13 : 13;
+    const cf = cfEl ? Number(cfEl.value) || 13 : 13;
+    if (typeof window !== 'undefined' && window._editor && typeof window._editor.updateOptions === 'function') {
+      window._editor.updateOptions({ fontSize: ef });
+    }
+    const chatEl = (typeof document !== 'undefined')
+      ? (document.getElementById('chat-messages') || document.getElementById('chat-container') || document.querySelector('.chat-messages'))
+      : null;
+    if (chatEl) chatEl.style.fontSize = cf + 'px';
+  } catch (_e) { /* non-fatal */ }
 
   const oaiModelsEl = $('#set-openai-models');
   if (oaiModelsEl) {
