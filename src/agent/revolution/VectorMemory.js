@@ -362,9 +362,9 @@ class VectorMemory {
       this._stats.totalVectors = Object.values(this.collections)
         .reduce((sum, col) => sum + (/** @type {any[]} */ (col)).filter(e => (/** @type {any} */ (e)).vector).length, 0);
 
-      if (this._stats.totalVectors > 0) {
-        _log.info(`[VECMEM] Loaded ${this._stats.totalVectors} vectors`);
-      }
+      // v7.9.5 live-fix: log unconditionally so boot-log is consistent across
+      // fresh and gelaufene installations (pre-fix: only logged when N > 0).
+      _log.info(`[VECMEM] Loaded ${this._stats.totalVectors} vectors`);
     } catch (err) {
       _log.debug('[VECMEM] Load failed:', err.message);
     }

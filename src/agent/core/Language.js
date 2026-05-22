@@ -330,6 +330,9 @@ const STRINGS = {
     'chat.error': 'Error: {{message}}',
     'chat.tools_executing': 'Executing tools...',
     'chat.no_revertable_commit': 'No revertable commit available',
+    // v7.9.5: Undo button precondition messages
+    'chat.undo_disabled': 'Undo is disabled — agency.gitAutoCommit is off (file-copy snapshots in .genesis-backups/ are the active fallback)',
+    'chat.undo_no_repo': 'Undo unavailable — no git repository at project root',
 
     // Shell
     'shell.plan_error': 'Planning error: {{message}}',
@@ -841,6 +844,8 @@ const STRINGS = {
     'chat.error': 'Fehler: {{message}}',
     'chat.tools_executing': 'Tools ausführen...',
     'chat.no_revertable_commit': 'Kein revertierbarer Commit vorhanden',
+    'chat.undo_disabled': 'Undo ist deaktiviert — agency.gitAutoCommit ist aus (Datei-Snapshots in .genesis-backups/ sind der aktive Fallback)',
+    'chat.undo_no_repo': 'Undo nicht verfügbar — kein Git-Repository im Projekt-Root',
 
     // Shell
     'shell.plan_error': 'Planungsfehler: {{message}}',
@@ -1192,6 +1197,8 @@ const STRINGS = {
     'chat.error': 'Erreur: {{message}}',
     'chat.tools_executing': 'Exécution des outils...',
     'chat.no_revertable_commit': 'Aucun commit réversible disponible',
+    'chat.undo_disabled': 'Annulation désactivée — agency.gitAutoCommit est désactivé (les instantanés fichiers dans .genesis-backups/ sont le repli actif)',
+    'chat.undo_no_repo': 'Annulation indisponible — pas de dépôt git à la racine du projet',
   },
 
   es: {
@@ -1219,6 +1226,8 @@ const STRINGS = {
     'chat.error': 'Error: {{message}}',
     'chat.tools_executing': 'Ejecutando herramientas...',
     'chat.no_revertable_commit': 'No hay commit reversible disponible',
+    'chat.undo_disabled': 'Deshacer está deshabilitado — agency.gitAutoCommit está apagado (las instantáneas de archivos en .genesis-backups/ son el respaldo activo)',
+    'chat.undo_no_repo': 'Deshacer no disponible — no hay repositorio git en la raíz del proyecto',
   },
 };
 

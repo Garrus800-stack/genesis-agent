@@ -15,6 +15,7 @@ of **this specific installation**:
 - `sessions/` — session checkpoints
 - `cost/` — token usage tracking
 - `skill-attempts.json` — record of skills Genesis tried to build (v7.8.1+)
+- `idle-activity-stats.json` — per-activity counts and last-20 activity log for the IdleMind picker; preserves cross-restart history so the repetition-penalty doesn't see a blank slate after a reboot (v7.9.4+)
 - and more (genome, metabolism, settings overrides, etc.)
 
 This directory **is** the identity of a Genesis instance. Two

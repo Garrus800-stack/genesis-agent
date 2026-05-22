@@ -326,7 +326,53 @@ class AutonomousDaemon {
     } else {
       this._log('debug', 'Health check: nothing to repair');
     }
+    // v7.9.5 live-fix: persist the actual issue list (not just the count)
+    // so `/health-issues` can surface them. Deduped by signature so a
+    // sticky 19-issue set doesn't bloat the file across hundreds of cycles.
+    this._persistHealthIssues(diagnosis.issues || []);
     return result;
+  }
+
+  // v7.9.5 live-fix: rolling jsonl of recent health-issue snapshots.
+  // Pre-fix, daemon found 19 issues per cycle for hours and the user
+  // had no way to see what they were. Now visible via /health-issues.
+  _persistHealthIssues(issues) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const rootDir = this._storage?.getRootDir?.()
+        || this.selfModel?.rootDir
+        || process.cwd();
+      const dir = path.join(rootDir, '.genesis');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, 'daemon-health-issues.jsonl');
+      // Dedup: skip persist if the same fingerprint as last entry.
+      const fingerprint = (issues || []).map(i => `${i.type || ''}:${i.file || ''}:${i.severity || ''}`).sort().join('|');
+      if (fingerprint === this._lastHealthFingerprint) return;
+      this._lastHealthFingerprint = fingerprint;
+      const entry = JSON.stringify({
+        ts: Date.now(),
+        cycle: this.cycleCount,
+        count: issues.length,
+        issues: (issues || []).slice(0, 50),
+      }) + '\n';
+      fs.appendFileSync(file, entry);
+      this._trimJsonlFile(file, 100);
+    } catch (err) {
+      this._log('debug', `health-issues persist failed: ${err.message}`);
+    }
+  }
+
+  // v7.9.5: shared rolling-trim — keep only last N jsonl lines.
+  _trimJsonlFile(file, maxLines) {
+    try {
+      const fs = require('fs');
+      const text = fs.readFileSync(file, 'utf-8');
+      const lines = text.split('\n').filter(Boolean);
+      if (lines.length <= maxLines) return;
+      const kept = lines.slice(-maxLines).join('\n') + '\n';
+      fs.writeFileSync(file, kept);
+    } catch { /* best-effort */ }
   }
 
   // ── Memory Consolidation ─────────────────────────────────
@@ -450,9 +496,36 @@ class AutonomousDaemon {
       this.bus.fire('daemon:suggestions', { suggestions }, { source: 'AutonomousDaemon' });
       // v7.9.4: surface optimization suggestions at info level.
       this._log('info', `Optimization analysis: ${suggestions.length} suggestion(s)`);
+      // v7.9.5 live-fix: previously the event went into the void — no UI
+      // subscriber, no persistence. Now rolling jsonl + /suggestions slash.
+      this._persistSuggestions(suggestions);
     }
 
     return { count: suggestions.length, suggestions };
+  }
+
+  // v7.9.5 live-fix: rolling jsonl of recent optimization snapshots.
+  _persistSuggestions(suggestions) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const rootDir = this._storage?.getRootDir?.()
+        || this.selfModel?.rootDir
+        || process.cwd();
+      const dir = path.join(rootDir, '.genesis');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, 'daemon-suggestions.jsonl');
+      const entry = JSON.stringify({
+        ts: Date.now(),
+        cycle: this.cycleCount,
+        count: suggestions.length,
+        suggestions: (suggestions || []).slice(0, 50),
+      }) + '\n';
+      fs.appendFileSync(file, entry);
+      this._trimJsonlFile(file, 100);
+    } catch (err) {
+      this._log('debug', `suggestions persist failed: ${err.message}`);
+    }
   }
 
   // ── Capability Gap Detection ─────────────────────────────

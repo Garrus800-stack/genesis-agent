@@ -194,6 +194,21 @@ const SLASH_COMMANDS = [
     description: 'Discard a Können skill with a reason (creates a Core Memory). Usage: /skill-discard <name> <reason>',
     sinceVersion: 'v7.9.4',
   },
+  // v7.9.5 live-fix: surface daemon background work that previously
+  // lived only as logged counts. Both commands accept an optional
+  // numeric argument N (max 50) to show the last N snapshots.
+  {
+    name: 'daemon-suggestions',
+    aliases: ['suggestions'],
+    description: 'Show recent optimization suggestions from the autonomous daemon. Usage: /daemon-suggestions [N]',
+    sinceVersion: 'v7.9.5',
+  },
+  {
+    name: 'daemon-health-issues',
+    aliases: ['health-issues'],
+    description: 'Show recent health-check issue snapshots from the autonomous daemon. Usage: /daemon-health-issues [N]',
+    sinceVersion: 'v7.9.5',
+  },
 ];
 
 /** All canonical command names (no aliases). */

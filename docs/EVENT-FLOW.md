@@ -457,6 +457,163 @@ ChatOrchestrator.handleStream(message)
         └── emit 'prompt:strategy-updated' {intents, recommendations}
 ```
 
+## Event Flow: Proactive Self-Expression Pipeline (v7.7.9)
+
+How an inner thought becomes (or doesn't become) a user-facing message.
+The pipeline is fail-closed — silence is the safe default. Every gate
+that blocks gets logged with a reason, visible via `/proactive-status`.
+
+```mermaid
+graph LR
+    subgraph Sources["Thought sources"]
+        IdleMind["IdleMind activities"]
+        Plan["Planning failures"]
+        Goal["Goal closure"]
+        StalledWatchdog["StalledGoalWatchdog (v7.7.9 Phase 3)"]
+    end
+
+    Sources -->|innerSpeech.emit| InnerSpeech["InnerSpeech ring"]
+    InnerSpeech -->|kind-trigger| Pipeline["PSE Pipeline"]
+
+    subgraph Pipeline
+        direction TB
+        Hard["HardGates<br/>(0) private-kind blocklist<br/>(1) enabled?<br/>(2) quiet-hours<br/>(3) min-interval<br/>(4) user-activity-cooldown<br/>(5) muted?<br/>(6) kind allowed?<br/>(7) per-kind floors<br/>(8) daily-volume cap"]
+        Sanity["ContentSanity<br/>length, repetition,<br/>self-negation, profanity"]
+        Score["PSEScoring<br/>significance · novelty · context-fit"]
+    end
+
+    Pipeline -->|all gates pass| Emit["Surface to chat"]
+    Pipeline -->|gate blocks| Suppress["Log suppression reason<br/>(visible in /proactive-status)"]
+
+    style Hard fill:#1f2937,color:#fbbf24
+    style Sanity fill:#1f2937,color:#fbbf24
+    style Score fill:#1f2937,color:#22c55e
+    style Suppress fill:#1f2937,color:#f43f5e
+```
+
+The private-kind blocklist is the first gate (v7.9.5). Currently it
+contains `self-state-snapshot` (Inhabit activity output). These kinds
+emit normally into the InnerSpeech ring — Dashboard widgets read them —
+but PSE blocks them from ever reaching the user, regardless of any
+settings. Defense in depth against accidental allowlist misconfig.
+
+## Event Flow: Können-Promotion Pipeline (v7.8.9 → v7.9.4)
+
+How an observed success pattern becomes an active skill.
+
+```mermaid
+graph TB
+    subgraph Observation
+        AgentLoop["AgentLoop runs a tool"]
+        AgentLoop -->|tool:success| Tracker["SkillEffectivenessTracker<br/>per-pattern Wilson LB"]
+        AgentLoop -->|tool:success| Candidate["SkillCandidateLog<br/>(v7.8.9)"]
+    end
+
+    Candidate -->|N occurrences| Crystallize["SkillCrystallizer<br/>(v7.8.9)<br/>extract pattern → candidate skill"]
+    Crystallize -->|skill:candidate-extracted| Forge["SkillForge<br/>(v7.9.0)<br/>LLM authors code + tests"]
+    Forge -->|skill:forged| Pending["Pending skill<br/>(quarantined)"]
+
+    Pending --> Eval["SkillPromotionEvaluator<br/>(v7.9.4)<br/>Wilson LB ≥ 0.55<br/>+ ≥ 5 invocations"]
+    Eval -->|skill:promoted| Active["Active skill<br/>(loadable via /run-skill)"]
+    Eval -->|skill:discard-suggested| Discard["Quarantined for discard review"]
+
+    Active -->|chosen by IdleMind| Rehearse["SkillRehearsal activity<br/>(v7.9.4)<br/>warm execution + outcome capture"]
+    Rehearse -->|skill:rehearsed| Tracker
+
+    style Crystallize fill:#1f2937,color:#22c55e
+    style Forge fill:#1f2937,color:#22c55e
+    style Eval fill:#1f2937,color:#22c55e
+    style Rehearse fill:#1f2937,color:#22c55e
+```
+
+Promotion is one-way per Wilson-LB pass. A skill that drops below the
+floor afterwards goes to discard-suggested, not back to pending — the
+PromotionEvaluator tracks effectiveness history so a skill that's
+genuinely useful but volatile doesn't churn the active list.
+
+## Event Flow: Chat Identity Threading (v7.9.4)
+
+How mid-conversation user messages stay identity-anchored, after the
+live observation that short positive replies like "ok" or "Das klingt
+gut" got generic "Hallo! Wie kann ich helfen?" responses from RLHF-
+trained cloud models.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant ChatOrch as ChatOrchestrator
+    participant Router as IntentRouter
+    participant Greet as _greeting handler
+    participant PB as PromptBuilder
+    participant Model as model.streamChat
+
+    User->>ChatOrch: "Das klingt gut" (mid-conv)
+    ChatOrch->>ChatOrch: history.push(user msg)
+    ChatOrch->>Router: classifyAsync(msg)
+    Router-->>ChatOrch: intent = 'greeting' (LLM fallback)
+    ChatOrch->>Greet: handler(msg, {history})
+    alt history.length > 1 (mid-conv)
+        Greet-->>ChatOrch: return null (fallthrough)
+    else first turn
+        Greet->>Model: minimal greeting prompt
+        Model-->>Greet: "Hi!"
+        Greet-->>ChatOrch: response string
+    end
+
+    ChatOrch->>PB: setHistoryLength(N-1)
+    PB->>PB: _conversationContext()<br/>"NICHT mit Hallo beginnen<br/>NICHT generisch fragen"
+    PB-->>ChatOrch: full system prompt
+    ChatOrch->>Model: streamChat(ctx, ...)
+    Model-->>User: in-flow response
+```
+
+Two fixes in v7.9.4 close this leak. The `_greeting` handler returns
+`null` when `history.length > 1`, falling through to the general-chat
+path. The PromptBuilder gained `_conversationContext()` between the
+identity and formatting sections, emitting anti-greeting + anti-
+generic-offer directives whenever `_historyLength > 0`.
+
+## Event Flow: IdleMind Maturity Cycle (v7.9.4)
+
+The autonomous activity loop with the v7.9.4 reife-Fixes wired in:
+goal-balance break-out, per-activity Metabolism costs, ActivityStats
+persistence, and the v7.9.5 Inhabit activity loop.
+
+```mermaid
+graph TB
+    Tick["idlemind-think tick"]
+    Tick --> Charge1["metabolism.consume('idleMindCycle')<br/>flat 2-energy baseline"]
+    Charge1 --> HasGoal{"active goal in<br/>goalStack?"}
+
+    HasGoal -->|yes| StepCount{"_goalStepsSincePick<br/>< N (default 3)?"}
+    StepCount -->|yes, step| GoalStep["execute next goal step"]
+    GoalStep -->|emit idle:goal-step| Tick
+    StepCount -->|no, break out| BalanceBreak["emit idle:goal-balance-break<br/>reset counter to 0"]
+
+    HasGoal -->|no| Pick["_pickActivity(ctx)<br/>= buildPickContext + score each<br/>+ Set-based repetition-penalty<br/>(v7.9.4 multiplicative-bug fix)"]
+    BalanceBreak --> Pick
+
+    Pick --> Activity["chosen activity.run(idleMind)<br/>(17 activities: reflect, plan,<br/>explore, journal, dream, ...,<br/>skill-rehearsal, inhabit)"]
+    Activity --> Charge2["metabolism.consume(`idleMind:${activity}`)<br/>(per-activity cost, v7.9.4)"]
+    Charge2 --> LogStats["activityLog.push + counters++"]
+    LogStats --> Persist["debounced writeJSON<br/>.genesis/idle-activity-stats.json<br/>(v7.9.4 cross-restart history)"]
+    Persist --> Tick
+
+    Activity -.->|if inhabit| InnerSpeech["innerSpeech.emit text<br/>kind='self-state-snapshot'<br/>(v7.9.5; PSE HardGate blocks)"]
+
+    style Pick fill:#1f2937,color:#22c55e
+    style Persist fill:#1f2937,color:#22c55e
+    style InnerSpeech fill:#1f2937,color:#a855f7
+    style BalanceBreak fill:#1f2937,color:#fbbf24
+```
+
+The picker reads `idleMind.goalStepsPerActivityPick` from settings live,
+so the goal-step counter is runtime-tunable. `0` disables the break-out
+(legacy always-goal-step behaviour). `_pickActivity` wraps the recent
+activity list in a Set before applying the 0.2 repetition-penalty —
+pre-fix, five consecutive `reflect`s pushed reflect's score to roughly
+0.03% of its computed boost, locking the activity out.
+
 ## Event Flow: Safety & Security
 
 ```mermaid

@@ -351,6 +351,7 @@ class Metabolism {
     'idleMind:study':           6,
     'idleMind:read-source':     4,
     'idleMind:skill-rehearsal': 5,
+    'idleMind:inhabit':         2,  // v7.9.5 — no LLM call, just local getters + string composition
   };
 
   /**

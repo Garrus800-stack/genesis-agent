@@ -102,6 +102,11 @@ const continuationMixin = {
         capability,
         taskType,
         eventBus: this.bus || null,
+        // v7.9.5 live-fix: configurable via llm.continuation.maxAttempts
+        // (default 4, range 1-20). Pre-fix this was hardcoded — large
+        // code generations from qwen3-coder failed at the 4-attempt
+        // ceiling with multi-thousand-char partial outputs.
+        maxContinuations: Number(this._settings?.get?.('llm.continuation.maxAttempts') ?? 4),
       },
     });
     return result.content;

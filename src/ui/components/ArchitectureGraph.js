@@ -41,7 +41,24 @@ class ArchitectureGraph {
     this._height = 0;
     this._dragging = null;
     this._animFrame = null;
+
+    // v7.9.5: Zoom + pan state. The whole nodes/edges layer lives inside
+    // a wrapper <g> with transform `translate(panX,panY) scale(zoom)`.
+    // The legend sits OUTSIDE the wrapper so it stays fixed during zoom.
+    this._zoom = 1.0;
+    this._panX = 0;
+    this._panY = 0;
+    this._zoomWrap = null;   // SVG <g> element holding the zoomable content
+    this._panning = null;    // { startX, startY } while panning the canvas
   }
+
+  // v7.9.5: Zoom bounds. 0.2× is the floor where a 178-service graph
+  // still has readable edge bundles; 5× is where individual nodes fill
+  // most of the viewport.
+  static get ZOOM_MIN() { return 0.2; }
+  static get ZOOM_MAX() { return 5.0; }
+  static get FIT_MARGIN() { return 40; }  // px of padding around the fit bbox
+
 
   render() {
     if (!this._data || !this._data.nodes || this._data.nodes.length === 0) {
@@ -79,6 +96,12 @@ class ArchitectureGraph {
     defs.innerHTML = `<marker id="arrow" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="6" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 3 L 0 6 z" fill="var(--color-text-secondary, #666)" opacity="0.4"/></marker>`;
     svg.appendChild(defs);
 
+    // v7.9.5: Wrapper <g> that carries the zoom/pan transform. Edges + nodes
+    // sit inside; the legend stays outside so it doesn't scale with the graph.
+    const zoomWrap = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    zoomWrap.setAttribute('class', 'arch-zoom-wrap');
+    this._zoomWrap = zoomWrap;
+
     // Edge group (behind nodes)
     const edgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     edgeGroup.setAttribute('class', 'arch-edges');
@@ -101,7 +124,7 @@ class ArchitectureGraph {
       line.dataset.type = edge.type;
       edgeGroup.appendChild(line);
     }
-    svg.appendChild(edgeGroup);
+    zoomWrap.appendChild(edgeGroup);
 
     // Node group
     const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -149,9 +172,10 @@ class ArchitectureGraph {
 
       nodeGroup.appendChild(g);
     }
-    svg.appendChild(nodeGroup);
+    zoomWrap.appendChild(nodeGroup);
+    svg.appendChild(zoomWrap);
 
-    // Legend
+    // Legend (outside zoomWrap — stays fixed during zoom/pan)
     this._addLegend(svg, this._data.layers || []);
 
     // Tooltip element
@@ -166,10 +190,26 @@ class ArchitectureGraph {
     this._container.appendChild(svg);
     this._container.appendChild(tooltip);
 
-    // Global drag handlers
+    // v7.9.5: zoom/pan toolbar — small absolute-positioned buttons top-right
+    // of the graph container. Provides explicit fallback for users who don't
+    // discover the wheel/drag gesture, and accessibility for keyboard users.
+    this._addZoomToolbar();
+
+    // Global drag handlers — used by both node-drag (existing) and pan (new).
     svg.addEventListener('mousemove', (e) => this._onDrag(e));
     svg.addEventListener('mouseup', () => this._endDrag());
     svg.addEventListener('mouseleave', () => this._endDrag());
+
+    // v7.9.5: Zoom / pan handlers.
+    // - Wheel anywhere over the SVG → zoom to cursor.
+    // - Mousedown on empty space (not a node) → pan.
+    // - Double-click on empty space → reset to fit.
+    svg.addEventListener('wheel', (e) => this._onWheel(e), { passive: false });
+    svg.addEventListener('mousedown', (e) => this._maybeStartPan(e));
+    svg.addEventListener('dblclick', (e) => this._maybeResetFit(e));
+
+    // Compute initial fit so the whole graph is visible without scroll.
+    this._resetToFit();
   }
 
   // ── Layout ────────────────────────────────────────────────
@@ -358,6 +398,21 @@ class ArchitectureGraph {
   }
 
   _onDrag(e) {
+    // v7.9.5: Pan path — mousedown landed on empty space.
+    if (this._panning) {
+      const dx = e.clientX - this._panning.startX;
+      const dy = e.clientY - this._panning.startY;
+      // Convert client-px deltas to viewBox units. viewBox is 0..width × 0..height
+      // mapped to svgRect.width × svgRect.height, so we scale by the same ratio.
+      const svgRect = this._svg.getBoundingClientRect();
+      const scaleX = this._width  / svgRect.width;
+      const scaleY = this._height / svgRect.height;
+      this._panX = this._panning.origPanX + dx * scaleX;
+      this._panY = this._panning.origPanY + dy * scaleY;
+      this._applyTransform();
+      return;
+    }
+
     if (!this._dragging) return;
     const pos = this._nodePositions.get(this._dragging.nodeId);
     if (!pos) return;
@@ -366,8 +421,11 @@ class ArchitectureGraph {
     const scaleX = this._width / svgRect.width;
     const scaleY = this._height / svgRect.height;
 
-    const dx = (e.clientX - this._dragging.startX) * scaleX;
-    const dy = (e.clientY - this._dragging.startY) * scaleY;
+    // v7.9.5: divide by zoom so a 1px mouse move yields a 1px on-screen
+    // node move regardless of zoom level. Without this, dragging at 5×
+    // zoom would feel 5× slower than at 1×.
+    const dx = (e.clientX - this._dragging.startX) * scaleX / this._zoom;
+    const dy = (e.clientY - this._dragging.startY) * scaleY / this._zoom;
 
     pos.x += dx;
     pos.y += dy;
@@ -394,6 +452,7 @@ class ArchitectureGraph {
 
   _endDrag() {
     this._dragging = null;
+    this._panning = null;  // v7.9.5
     if (this._svg) this._svg.style.cursor = 'grab';
   }
 
@@ -430,6 +489,186 @@ class ArchitectureGraph {
     }
 
     svg.appendChild(g);
+  }
+
+  // ── v7.9.5: Zoom + Pan ───────────────────────────────────
+
+  _applyTransform() {
+    if (!this._zoomWrap) return;
+    this._zoomWrap.setAttribute(
+      'transform',
+      `translate(${this._panX}, ${this._panY}) scale(${this._zoom})`
+    );
+  }
+
+  /**
+   * Wheel handler — zoom toward the cursor. preventDefault keeps the
+   * outer dashboard from scrolling AND blocks the Electron window-level
+   * Ctrl+wheel zoom that would otherwise interfere with pinch gestures.
+   */
+  _onWheel(e) {
+    e.preventDefault();
+    const svgRect = this._svg.getBoundingClientRect();
+    // Cursor coords in SVG-viewBox space (the coordinate space the wrap
+    // transform operates in). The viewBox is `0 0 width height`, mapped
+    // to svgRect.width × svgRect.height, so scale factor matches.
+    const mx = ((e.clientX - svgRect.left) / svgRect.width)  * this._width;
+    const my = ((e.clientY - svgRect.top)  / svgRect.height) * this._height;
+
+    // Smooth zoom factor; deltaY > 0 means scroll-down → zoom out.
+    // 0.001 is a comfortable per-tick step on standard mouse wheels and
+    // touchpad pinch deltas.
+    const factor = Math.exp(-e.deltaY * 0.001);
+    const newZoom = Math.max(
+      ArchitectureGraph.ZOOM_MIN,
+      Math.min(ArchitectureGraph.ZOOM_MAX, this._zoom * factor)
+    );
+    if (newZoom === this._zoom) return;
+
+    // Zoom-to-cursor: keep the point currently under the mouse fixed
+    // in screen space. The transform is `translate(pan) scale(zoom)`,
+    // so a point P_screen relates to P_data as
+    //   P_screen = P_data * zoom + pan.
+    // Holding (mx, my) fixed across the zoom change yields:
+    //   newPan = (mx, my) - ((mx, my) - oldPan) * (newZoom / oldZoom)
+    const ratio = newZoom / this._zoom;
+    this._panX = mx - (mx - this._panX) * ratio;
+    this._panY = my - (my - this._panY) * ratio;
+    this._zoom = newZoom;
+    this._applyTransform();
+  }
+
+  /**
+   * Mousedown on empty space (not a node) starts a pan. Mousedowns on
+   * nodes are absorbed by their own listeners (stopPropagation isn't
+   * needed because we discriminate via event.target.closest).
+   */
+  _maybeStartPan(e) {
+    if (e.button !== 0) return;           // left button only
+    // Target inside a node-<g>? Let node-drag handle it.
+    const targetEl = /** @type {Element} */ (e.target);
+    if (targetEl && typeof targetEl.closest === 'function') {
+      if (targetEl.closest('g.arch-nodes g[data-node-id]')) return;
+    }
+    e.preventDefault();
+    this._panning = { startX: e.clientX, startY: e.clientY, origPanX: this._panX, origPanY: this._panY };
+    if (this._svg) this._svg.style.cursor = 'grabbing';
+  }
+
+  /**
+   * Double-click on empty space → reset to fit. On a node, leave the
+   * existing single-click select-handler in charge (dblclick on a node
+   * is rare; not a click-conflict in practice).
+   */
+  _maybeResetFit(e) {
+    const targetEl = /** @type {Element} */ (e.target);
+    if (targetEl && typeof targetEl.closest === 'function') {
+      if (targetEl.closest('g.arch-nodes g[data-node-id]')) return;
+    }
+    this._resetToFit();
+  }
+
+  /**
+   * Compute zoom+pan such that the bounding box of all node positions
+   * fits inside the viewport with FIT_MARGIN padding. Called once after
+   * initial render and from the reset toolbar button / double-click.
+   */
+  _resetToFit() {
+    if (!this._zoomWrap || this._nodePositions.size === 0) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const pos of this._nodePositions.values()) {
+      if (pos.x < minX) minX = pos.x;
+      if (pos.y < minY) minY = pos.y;
+      if (pos.x > maxX) maxX = pos.x;
+      if (pos.y > maxY) maxY = pos.y;
+    }
+    if (!isFinite(minX)) {
+      // Degenerate — no positions yet. Reset to identity.
+      this._zoom = 1.0; this._panX = 0; this._panY = 0;
+      this._applyTransform();
+      return;
+    }
+    const m = ArchitectureGraph.FIT_MARGIN;
+    const bboxW = Math.max(1, maxX - minX);
+    const bboxH = Math.max(1, maxY - minY);
+    const availW = Math.max(1, this._width  - 2 * m);
+    const availH = Math.max(1, this._height - 2 * m);
+    const fitZoom = Math.min(availW / bboxW, availH / bboxH, ArchitectureGraph.ZOOM_MAX);
+    const clampedZoom = Math.max(ArchitectureGraph.ZOOM_MIN, fitZoom);
+    // Center the bbox in the viewport.
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    this._zoom = clampedZoom;
+    this._panX = this._width  / 2 - cx * clampedZoom;
+    this._panY = this._height / 2 - cy * clampedZoom;
+    this._applyTransform();
+  }
+
+  /**
+   * Zoom in/out by a fixed step. Used by the toolbar buttons. Zooms
+   * around the viewport center, since there's no cursor reference.
+   */
+  _zoomStep(factor) {
+    const newZoom = Math.max(
+      ArchitectureGraph.ZOOM_MIN,
+      Math.min(ArchitectureGraph.ZOOM_MAX, this._zoom * factor)
+    );
+    if (newZoom === this._zoom) return;
+    const cx = this._width / 2;
+    const cy = this._height / 2;
+    const ratio = newZoom / this._zoom;
+    this._panX = cx - (cx - this._panX) * ratio;
+    this._panY = cy - (cy - this._panY) * ratio;
+    this._zoom = newZoom;
+    this._applyTransform();
+  }
+
+  /**
+   * Inject a small absolute-positioned toolbar with + / − / ⊙ buttons.
+   * The container is set to position:relative in the dashboard CSS so
+   * this stays anchored to the graph card.
+   */
+  _addZoomToolbar() {
+    if (!this._container) return;
+    // Defensive: don't double-inject on re-render.
+    let bar = this._container.querySelector('.arch-zoom-toolbar');
+    if (bar) bar.remove();
+    bar = document.createElement('div');
+    bar.setAttribute('class', 'arch-zoom-toolbar');
+    bar.style.cssText = [
+      'position:absolute',
+      'top:8px',
+      'right:8px',
+      'display:flex',
+      'gap:4px',
+      'background:rgba(0,0,0,0.35)',
+      'border:1px solid var(--color-border,#333)',
+      'border-radius:6px',
+      'padding:2px',
+      'z-index:50',
+    ].join(';');
+
+    const mkBtn = (label, title, onClick) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.title = title;
+      b.style.cssText = [
+        'width:24px', 'height:24px', 'border:none', 'border-radius:4px',
+        'background:transparent', 'color:var(--color-text,#eee)', 'cursor:pointer',
+        'font-size:14px', 'line-height:1', 'padding:0',
+      ].join(';');
+      b.addEventListener('mouseenter', () => { b.style.background = 'rgba(255,255,255,0.08)'; });
+      b.addEventListener('mouseleave', () => { b.style.background = 'transparent'; });
+      b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+      return b;
+    };
+
+    bar.appendChild(mkBtn('+', 'Zoom in',    () => this._zoomStep(1.2)));
+    bar.appendChild(mkBtn('−', 'Zoom out',   () => this._zoomStep(1 / 1.2)));
+    bar.appendChild(mkBtn('⊙', 'Fit to view', () => this._resetToFit()));
+
+    this._container.appendChild(bar);
   }
 
   // ── Utils ─────────────────────────────────────────────────

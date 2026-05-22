@@ -499,6 +499,15 @@ const INTENT_DEFINITIONS = [
     /(?:^|\s)\/skill-discard\s+\S+\s+.+/i,
   ], 25, []],
 
+  // v7.9.5 live-fix: surface daemon background work that previously
+  // disappeared into a fire-and-forget event or a logged count.
+  ['daemon-suggestions', [
+    /(?:^|\s)\/(?:daemon-suggestions|suggestions)(?:\s+\d{1,3})?\s*$/i,
+  ], 25, []],
+  ['daemon-health-issues', [
+    /(?:^|\s)\/(?:daemon-health-issues|health-issues)(?:\s+\d{1,3})?\s*$/i,
+  ], 25, []],
+
   ['greeting', [
     /^(hi|hallo|hey|moin|servus|guten (morgen|tag|abend)|hello|good (morning|evening)|bonjour|buenas?)\s*[!.]?$/i,
   ], 5, ['hallo', 'hello', 'hi', 'moin', 'servus']],

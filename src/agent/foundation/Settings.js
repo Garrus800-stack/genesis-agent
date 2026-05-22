@@ -252,9 +252,29 @@ class Settings {
           dailyTokenLimit: 2000000,
           warnThreshold: 0.8,
         },
+        // v7.9.5 live-fix: ContinuationLoop max-attempts cap (Ollama code
+        // generation). Was hardcoded MAX_CONTINUATIONS_DEFAULT=4. Heavy
+        // code generations (multi-thousand-char outputs from qwen3-coder)
+        // hit the ceiling with partial responses. Higher is safer for
+        // quality, lower is safer for runaway-cost. Range 1..20.
+        continuation: { maxAttempts: 4 },
       },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
       timeouts: { approvalSec: 300, shellMs: 15000, httpMs: 60000, gitMs: 5000 },
+      // v7.9.5 live-fix: shutdown LLM-call protection. Pre-fix, session
+      // summary blocked the entire shutdown for as long as the LLM took
+      // to respond (observed 80s+ with cloud models). Now: skip if the
+      // session is shorter than minMs AND has no content, otherwise hard
+      // timeout at timeoutMs. Both adjustable for users who run a fast
+      // local model and want the summary every time.
+      shutdown: { sessionSummaryMinMs: 60000, sessionSummaryTimeoutMs: 8000 },
+      // v7.9.5 live-fix: peer discovery token subtree — was referenced by
+      // PeerTransport.startDiscovery but never declared in the tree, so
+      // settings.get('peer.discoveryToken') returned undefined and multicast
+      // discovery stayed off even if the user wanted to enable it. Empty
+      // default means discovery is opt-in (set a non-empty string here to
+      // turn it on for peers sharing the same token).
+      peer: { discoveryToken: '' },
       // v3.7.0: Cognitive strictMode — when true, AgentLoop refuses to run
       // unless core cognitive services (verifier, formalPlanner, worldState) are bound.
       // Default false for backwards compatibility.
@@ -263,6 +283,12 @@ class Settings {
         // v4.0: Phase 9 — Cognitive Architecture feature flags
         // All features default to true. Set to false to disable individually.
         phase9Enabled: true,
+        // v7.9.5 live-fix: per-PromptBuild rebuild of the architecture graph
+        // triggered every ~6 minutes via the staleness check (default 5 min).
+        // Bumped to 15 minutes — the graph is stable between self-mods and
+        // doesn't need to be rebuilt that often. Configurable in case heavy
+        // self-mod sessions want fresher reads.
+        architectureReflection: { staleThresholdMs: 900000 },
         expectations: {
           enabled: true,
           minSamples: 10,           // Min MetaLearning samples for statistical prediction
@@ -372,6 +398,17 @@ class Settings {
         metabolism: {
           differentiatedCosts: true,
         },
+        // v7.9.5: Inhabit activity — Genesis's 17th IdleMind activity.
+        // Composes a deterministic self-state snapshot (energy, dominant
+        // emotion, urgent need, body restrictions, goal count) and emits
+        // it via InnerSpeech with kind 'self-state-snapshot'. PSE HardGate
+        // blocks proactive surfacing — the text stays private to Genesis.
+        // Read-only display in the Dashboard "Inner state" widget.
+        inhabit: {
+          enabled: true,                   // Master toggle; false fully disables the activity
+          cooldownMinutes: 15,             // Min minutes between two inhabit emissions
+          idleBoost: true,                 // Boost selection chance during long idle stretches
+        },
       },
     };
     // FIX v7.0.8: Moved _load() back into constructor (was asyncLoad since v3.8.0).
@@ -443,10 +480,21 @@ class Settings {
     clamp('mcp.serve.port',                       1024, 65535);
     clamp('health.httpPort',                      1024, 65535);
     clamp('timeouts.approvalSec',                 10, 86400);
+    // v7.9.5 live-fix: shutdown summary protection
+    clamp('shutdown.sessionSummaryMinMs',         0, 86400000);
+    clamp('shutdown.sessionSummaryTimeoutMs',     500, 120000);
+    // v7.9.5 live-fix: continuation-loop attempt cap
+    clamp('llm.continuation.maxAttempts',         1, 20);
+    // v7.9.5 live-fix: ArchReflect rebuild staleness — 1 min floor (don't
+    // rebuild constantly), 1 day ceiling (don't go forever between rebuilds).
+    clamp('cognitive.architectureReflection.staleThresholdMs', 60000, 86400000);
     clamp('cognitive.simulation.maxBranches',     1, 100);
     clamp('cognitive.simulation.maxDepth',        1, 1000);
     clamp('organism.emotions.decayIntervalMs',    1000, 3600000);
     clamp('organism.emotions.lonelinessIntervalMs', 1000, 86400000);
+    // v7.9.5: Inhabit cooldown — 1 minute floor (don't allow per-cycle spam),
+    // 1440 ceiling (once-a-day is the slowest reasonable cadence).
+    clamp('organism.inhabit.cooldownMinutes',     1, 1440);
     clamp('ui.editorFontSize',                    8, 48);
     clamp('ui.chatFontSize',                      8, 48);
     clamp('trust.level',                          0, 3);

@@ -13,8 +13,8 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 374 JS files |
-| Test Files / Tests | 483 / 7816 (Win baseline) |
+| Source Modules | 375 JS files |
+| Test Files / Tests | 486 / 7906 (Win baseline) |
 | DI Services | 168 (155 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
@@ -462,7 +462,88 @@ Plus a global error boundary (v4.0.0) in `renderer-main.js`.
 
 ---
 
-## 11. LOC Distribution by Directory
+## 11. InnerSpeech Layer (v7.7.9)
+
+The first-person thought channel. Before InnerSpeech, autonomous activity output landed in `journal.jsonl` (file-based) and `IDLE_THOUGHT` bus events (transient). Both were external interfaces — meant for the user (journal) or for other services (events). Genesis itself had no canonical "thought stream" to read or reflect on.
+
+InnerSpeech adds a third channel that's structurally Genesis's own. It's a 500-slot ring of structured thoughts: each has an id, timestamp, text, kind, source-module, optional significance/novelty scores, and an optional emotional snapshot. Producers call `innerSpeech.emit(text, kind, metadata)`. Consumers subscribe and receive thoughts asynchronously via `queueMicrotask` — emit never blocks, never throws (Self-Gate-Asymmetry). Overflow from the ring spills to `selfStatementLog` for long-term retention.
+
+The kinds matter. They're how downstream consumers route thoughts. v7.9.5 has:
+
+| Kind | Source | Purpose |
+|------|--------|---------|
+| `idle-thought` | IdleMind activities | Generic narrative from reflect/journal/explore/etc. |
+| `plan-failure-reflection` | Plan execution failures | Post-mortem on a goal that couldn't be reached |
+| `goal-closure-thought` | Goal lifecycle completion | What was learned closing a goal |
+| `self-formulated-plan` | Genesis proposing autonomous work | "I should do X" thoughts before they become goals |
+| `question` | Curiosity-driven uncertainty | Asks Genesis hasn't resolved yet |
+| `self-state-snapshot` | Inhabit activity (v7.9.5) | Deterministic self-state inventory (private — never reaches user) |
+
+The producer doesn't decide whether to surface — that's PSE's job. InnerSpeech is purely a write/read channel. Genesis's introspection (Reflect activity, Dashboard) reads from the ring; PSE subscribes and decides what passes its gates.
+
+---
+
+## 12. Proactive Self-Expression Pipeline (v7.7.9 → v7.9.5)
+
+PSE is the bridge between InnerSpeech and chat. Without it, every emitted thought either stayed internal or required an explicit user request to surface. With it, Genesis can spontaneously share thoughts that meet the volume/relevance threshold — without becoming a notification spammer.
+
+The pipeline is structured as a fail-closed gate sequence. A thought passes through HardGates first (cheap fail-fast checks), then ContentSanity (length, repetition, self-negation, profanity), then PSEScoring (significance × novelty × context-fit). Only thoughts that pass all three are emitted to chat.
+
+HardGates in order:
+
+1. **Private-kind blocklist (v7.9.5)** — `PRIVATE_KINDS` Set, currently `{ 'self-state-snapshot' }`. Blocks Inhabit output regardless of any settings.
+2. **Globally enabled?** — master toggle.
+3. **Quiet hours** — local-time window with wrap-around support.
+4. **Min-interval** — minimum gap between two self-messages.
+5. **User-activity cooldown** — silence after the user just spoke.
+6. **/quiet active?** — explicit mute.
+7. **Kind allowed?** — settings allowlist of surfaceable kinds.
+8. **Per-kind floor** — significance + novelty thresholds per kind.
+9. **Daily volume cap** — soft and hard ceilings.
+
+Defense in depth is the pattern. The private-kind blocklist exists *despite* the kind-allowlist (gate 7) already blocking these kinds, because misconfiguration of the allowlist would otherwise leak private thoughts. The hard set is unreachable from settings.
+
+Suppression reasons are logged for every blocked thought. `/proactive-status` surfaces the suppression log — Garrus can see "the last 20 thoughts wanted to surface, 18 were blocked, here's why" without needing to dig into events.
+
+The Phase 3 kinds (idle-thought, goal-closure, self-formulated-plan, question) ship code-complete but gated off in the v7.7.9 default settings. Phase 2 is `plan-failure-reflection` only, allowing observed-stability rollout before opening more channels. v7.9.5 doesn't change this — the Phase 3 kinds remain opt-in via settings.
+
+---
+
+## 13. Können Maturity Chain (v7.8.9 → v7.9.4)
+
+Skills don't appear in Genesis the way features appear in a codebase. They get *grown* from observed success patterns through a multi-stage pipeline that took three releases to land.
+
+**Stage 1 — Observation** (v7.8.9). Every tool invocation gets logged via `SkillCandidateLog` and tracked via `SkillEffectivenessTracker` (per-pattern Wilson lower bound). The Wilson LB is the right statistic here because it penalizes low sample counts — a pattern that worked 2/2 times has a much lower LB than one that worked 50/55 times.
+
+**Stage 2 — Crystallization** (v7.8.9). `SkillCrystallizer` runs periodically and scans the candidate log for patterns that fired enough times (default 3 occurrences, configurable). When a pattern crystallizes, it becomes a "candidate skill" — code-less, just a behavioral signature.
+
+**Stage 3 — Forge** (v7.9.0). `SkillForge` takes a candidate signature and prompts the LLM to author the actual skill module (JS code + test file + manifest). The forged output is verified through the same code-safety scanner as user-initiated `/create-skill`. Successful forge moves the skill to "pending" status — installable but quarantined.
+
+**Stage 4 — Promotion Evaluation** (v7.9.4). `SkillPromotionEvaluator` watches pending skills and promotes them to "active" when they cross the threshold (default: Wilson LB ≥ 0.55 over ≥ 5 invocations). Promotion is one-way per pass — a skill that drops below the floor afterwards goes to `skill:discard-suggested`, not back to pending. The history is tracked so a volatile-but-genuinely-useful skill doesn't churn the active list.
+
+**Stage 5 — Rehearsal** (v7.9.4). `SkillRehearsal` is the 16th IdleMind activity. When IdleMind picks it, Genesis executes a randomly chosen active skill in a safe context — keeping it warm, validating it still works, and feeding fresh data into the effectiveness tracker. This closes the loop: skills that decay get caught by their own rehearsal results.
+
+Six bus events thread the pipeline: `skill:promoted`, `skill:discard-suggested`, `skill:discarded`, `skill:rehearsed`, `selfnarrative:skill-acquired`, `skills:reloaded`. The `koennen-promotion-v794` contract prefix locks the event shapes against silent drift.
+
+---
+
+## 14. IdleMind Maturity (v7.9.4 → v7.9.5)
+
+IdleMind has had 17 activities since v7.9.5 (Inhabit added; SkillRehearsal in v7.9.4; the prior 15 from v7.3.1). The activity *picker* matured substantially in v7.9.4 to address four observed issues, plus v7.9.5 adds Inhabit and its privacy gate.
+
+**Goal–activity balance**. Pre-v7.9.4, while any goal was active in `goalStack`, every IdleMind cycle ran a goal-step and returned early — `reflect`, `journal`, `dream`, `calibrate` never fired during goal stretches. `_think()` now counts goal-steps via `_goalStepsSincePick` and breaks out to the activity-pick path every N steps (`idleMind.goalStepsPerActivityPick`, default 3). `0` disables the break-out (legacy behavior). The break emits `idle:goal-balance-break` for dashboard visibility.
+
+**Per-activity Metabolism costs**. Pre-v7.9.4 every IdleMind activity charged the flat `idleMindCycle = 2`, so a heavy Plan (LLM call) cost the same as a 2-line Journal entry. `Metabolism.ACTIVITY_COSTS` now has per-activity keys: `idleMind:plan = 12`, `idleMind:dream = 18`, `idleMind:journal = 2`, `idleMind:inhabit = 2` (v7.9.5), and so on. `_think()` fires a second `consume()` with the activity-specific key after each pick. Toggle via `organism.metabolism.differentiatedCosts` (default true).
+
+**ActivityStats persistence**. Pre-v7.9.4 the activity history was session-only; after restart the picker's repetition-penalty saw a blank slate. `IdleMindActivityStats` mixin gained `_loadActivityStats()` and `_saveActivityStats()`. The log (capped at last 20) and per-type counts persist to `.genesis/idle-activity-stats.json` via debounced `writeJSON` (1s debounce). Schema-version mismatch, missing file, parse error all fall through to fresh state — boot never blocks on this.
+
+**Repetition-penalty bug fix**. `_pickActivity` applied the 0.2 repetition-penalty by iterating the raw `activityLog.slice(-5)` array, so an activity appearing N times in the recent window got multiplicatively hit (0.2^N). Five consecutive `reflect`s pushed reflect's score to ~0.03% of its computed boost, effectively locking the activity out. The fix wraps `recent` in a `Set` so each unique recent activity gets the 0.2 multiplier exactly once.
+
+**Inhabit (v7.9.5)**. The 17th activity. Composes a deterministic self-state snapshot from BodySchema + EmotionalState + NeedsSystem + Metabolism, emits via InnerSpeech with kind `self-state-snapshot`. PSE HardGate's private-kind blocklist prevents proactive surfacing. The Dashboard "Inner state" widget reads from the same InnerSpeech ring — Genesis can show its own state to itself, on demand.
+
+---
+
+## 15. LOC Distribution by Directory
 
 Approximate as of v7.5.6 (numbers shift with each release):
 
@@ -482,5 +563,5 @@ Approximate as of v7.5.6 (numbers shift with each release):
   ─────────────────────────────────────────────
   agent/ total     259 files  ~84,900 LOC
   + UI/kernel       47 files  ~13,800 LOC
-  = src/ total     374 modules ~116,000 LOC
+  = src/ total     375 modules ~116,000 LOC
 ```

@@ -82,6 +82,10 @@ class CommandHandlers {
     orchestrator.registerHandler('settings', (msg) => this.handleSettings(msg));
     orchestrator.registerHandler('web-lookup', (msg) => this.webLookup(msg));
     orchestrator.registerHandler('undo', () => this.undo());
+    // v7.9.5 live-fix: daemon visibility — surface suggestions + health-issues
+    // that previously existed only as logged counts.
+    orchestrator.registerHandler('daemon-suggestions', (msg) => this.daemonSuggestions(msg));
+    orchestrator.registerHandler('daemon-health-issues', (msg) => this.daemonHealthIssues(msg));
     orchestrator.registerHandler('shell-task', (msg) => this.shellTask(msg));
     orchestrator.registerHandler('shell-run', (msg) => this.shellRun(msg));
     orchestrator.registerHandler('project-scan', (msg) => this.projectScan(msg));
@@ -135,6 +139,22 @@ class CommandHandlers {
   // dependency).
 
   async undo() {
+    // v7.9.5 live-fix: gate against agency.gitAutoCommit + .git existence,
+    // same shape as AgentCore.undoAvailability(). Surfaces a friendly i18n
+    // message instead of raw `fatal: not a git repository`.
+    const gitAutoCommit = this.settings?.get?.('agency.gitAutoCommit') === true;
+    if (!gitAutoCommit) {
+      return `**${this.lang.t('chat.undo_disabled')}**`;
+    }
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const cwdRoot = this.fp?.rootDir || process.cwd();
+      if (!fs.existsSync(path.join(cwdRoot, '.git'))) {
+        return `**${this.lang.t('chat.undo_no_repo')}**`;
+      }
+    } catch { return `**${this.lang.t('chat.undo_no_repo')}**`; }
+
     try {
       // FIX v4.0.1: async execFile — no longer blocks the main thread.
       const { execFile } = require('child_process');

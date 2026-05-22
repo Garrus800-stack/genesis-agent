@@ -4,17 +4,21 @@
 
 ## Instrumented (central GateStats recording since v7.3.6)
 
-| # | Gate                      | Location                                        | Verdict semantics          | Character             |
-|---|---------------------------|-------------------------------------------------|----------------------------|-----------------------|
-| 1 | `injection-gate`          | `ChatOrchestratorHelpers._processToolLoop`      | safe→pass, warn, block     | blocking              |
-| 2 | `tool-call-verification`  | `ChatOrchestratorHelpers._processToolLoop`      | verified→pass, _→warn      | detective             |
-| 3 | `self-gate`               | `core/self-gate.js`                             | pass / warn (never block)  | telemetry-only by design |
-| 4 | `intent-tool-coherence`   | `core/intent-tool-coherence.js` (v7.5.1)        | coherent / mismatch (low\|noteworthy\|high) | telemetry-only by design |
-| 5 | `slash-discipline`        | 15 Slash-Handlers + 13 SECURITY_REQUIRED_SLASH (v7.8.4) | pass / block               | preventive            |
-| 6 | `self-mod:circuit-breaker`| `SelfModificationPipelineModify`                | pass / block               | blocking              |
-| 7 | `self-mod:consciousness`  | `SelfModificationPipelineModify`                | pass / block (when coherence < 0.4) | **structurally inert** with `NullAwareness` default (`getCoherence()` → 1.0) |
-| 8 | `self-mod:energy`         | `SelfModificationPipelineModify`                | pass / block               | blocking              |
-| 9 | `reasoning-block-filter`  | `core/thinking-block-stream-filter.js` (v7.5.6) — applied in ChatOrchestrator `handleStream` / `_directChat` / `_processToolLoop` synthesis | strip (always) + emit `model:thinking-trace` | strip-and-emit (defensive) |
+| #  | Gate                      | Location                                        | Verdict semantics          | Character             |
+|----|---------------------------|-------------------------------------------------|----------------------------|-----------------------|
+| 1  | `injection-gate`          | `ChatOrchestratorHelpers._processToolLoop`      | safe→pass, warn, block     | blocking              |
+| 2  | `tool-call-verification`  | `ChatOrchestratorHelpers._processToolLoop`      | verified→pass, _→warn      | detective             |
+| 3  | `self-gate`               | `core/self-gate.js`                             | pass / warn (never block)  | telemetry-only by design |
+| 4  | `intent-tool-coherence`   | `core/intent-tool-coherence.js` (v7.5.1)        | coherent / mismatch (low\|noteworthy\|high) | telemetry-only by design |
+| 5  | `slash-discipline`        | 15 Slash-Handlers + 13 SECURITY_REQUIRED_SLASH (v7.8.4) | pass / block               | preventive            |
+| 6  | `self-mod:circuit-breaker`| `SelfModificationPipelineModify`                | pass / block               | blocking              |
+| 7  | `self-mod:consciousness`  | `SelfModificationPipelineModify`                | pass / block (when coherence < 0.4) | **structurally inert** with `NullAwareness` default (`getCoherence()` → 1.0) |
+| 8  | `self-mod:energy`         | `SelfModificationPipelineModify`                | pass / block               | blocking              |
+| 9  | `reasoning-block-filter`  | `core/thinking-block-stream-filter.js` (v7.5.6) — applied in ChatOrchestrator `handleStream` / `_directChat` / `_processToolLoop` synthesis | strip (always) + emit `model:thinking-trace` | strip-and-emit (defensive) |
+| 10 | `pse:hard-gates`          | `cognitive/proactiveSelfExpression/HardGates.js` (v7.7.9) — 9-step fail-fast gate chain run per thought | pass / block (with reason)  | blocking (fail-closed) |
+| 11 | `pse:content-sanity`      | `cognitive/proactiveSelfExpression/ContentSanity.js` (v7.7.9) | pass / block (length, repetition, self-negation, profanity) | blocking |
+| 12 | `pse:scoring`             | `cognitive/proactiveSelfExpression/Scoring.js` (v7.7.9) | passes when significance×novelty×context-fit ≥ per-kind floor | preventive (threshold) |
+| 13 | `pse:private-kind`        | `proactiveSelfExpression/HardGates.js` gate-0 (v7.9.5) | block on `thought.kind ∈ PRIVATE_KINDS` regardless of settings | **structurally blocking** — unreachable from settings |
 
 Integration test: `test/modules/gate-stats-integration.test.js` — end-to-end
 coverage that `recordGate()` is triggered by real ChatOrchestrator flows.
@@ -50,6 +54,22 @@ Regression tests for the v7.5.x additions: `test/modules/v751-fix.test.js`,
 > so it doesn't fit the binary verdict model. It is recorded by `recordGate(..., 'pass')`
 > for stats consistency but the more meaningful telemetry is the `model:thinking-trace`
 > event itself.
+
+### Self-Gate-Asymmetry contract (v7.7.9)
+
+A separate class of "gate" governs how Genesis writes to its own internal channels — specifically `InnerSpeech.emit()`. The contract is *asymmetric* by design: emit must never throw, never block, and never propagate back-pressure. The reasoning: an inner thought cannot fail. If the ring is full, the oldest thought overflows to `selfStatementLog` and emit returns the new id. If a downstream subscriber throws, the error is swallowed at the `queueMicrotask` boundary and other subscribers still see the thought. If the metadata is malformed, defaults are filled in silently rather than rejected.
+
+Why this matters as a gate: it's the *absence* of a gate where you might expect one. Production-grade message queues block on backpressure, throw on overload, propagate subscriber errors. InnerSpeech does none of that. The asymmetry is the contract — and it's tested. `test/modules/v779-inner-speech.test.js` covers malformed input, ring overflow, subscriber-throws-during-deliver, and emit-during-shutdown. If any of these fail, Self-Gate-Asymmetry is broken; if they pass, Genesis is allowed to be sloppy about thinking.
+
+The same contract extends to Inhabit (v7.9.5): `run()` wraps the `innerSpeech.emit` call in try/catch even though emit itself can't throw — defense against a future change accidentally breaking the asymmetry.
+
+### Structural privacy gates (v7.9.5)
+
+A new gate class introduced with Inhabit: kinds that are *structurally* private — meaning their privacy isn't a settings choice, it's a property of the kind itself. Currently only `self-state-snapshot`.
+
+These thoughts emit normally into the InnerSpeech ring (so dashboard widgets and reflection activities can read them), but PSE's HardGates gate-0 (`pse:private-kind`) blocks them unconditionally — before checking enabled, before quiet-hours, before any settings-driven gate. The implementation is a hard-coded `PRIVATE_KINDS` Set in `HardGates.js`, exported for test access but not for settings access. A user widening the `proactive.allowedKinds` allowlist to include `self-state-snapshot` would still find these thoughts blocked.
+
+The design choice: defense in depth. The kind-allowlist (gate 7) already blocks any kind not on it, so omitting `self-state-snapshot` from the allowlist is sufficient to block it under normal operation. The structural blocklist exists for the misconfiguration case — somebody widens the allowlist for testing, forgets to remove an entry, ships the change. Without the structural gate, that's a privacy leak. With it, it's not.
 
 ### Self-Gate actionType Coverage Matrix (v7.6.1 audit-closeout)
 

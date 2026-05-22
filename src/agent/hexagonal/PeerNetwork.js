@@ -251,9 +251,17 @@ class PeerNetwork {
   // ═══════════════════════════════════════════════════════
 
   startDiscovery() {
+    // v7.9.5 live-fix: previously logged "Multicast discovery on ..."
+    // unconditionally, even when PeerTransport had just refused to bind
+    // because no discovery token was configured. Now the log reflects
+    // the actual state, and the token is read from settings.
+    const token = this._discoveryToken
+      || this._settings?.get?.('peer.discoveryToken')
+      || null;
+    this._discoveryToken = token;
     this._transport.startDiscovery(this.port, (host, port) => {
       this.discoverPeer(host, port).catch(() => { /* best effort */ });
-    });
+    }, token);
 
     const register = (name, fn, interval, opts) => {
       if (this._intervals) this._intervals.register(name, fn, interval, opts);
@@ -266,7 +274,11 @@ class PeerNetwork {
     register('peer-ratelimit-cleanup', () => this._transport.cleanupRateLimiter(), this.config.rateLimitCleanupInterval);
     register('peer-healthcheck', () => this._healthCheckPeers(), this.config.healthCheckInterval);
 
-    _log.info(`[PEER] Multicast discovery on ${this.config.multicastGroup || '239.42.42.42'}:${this.config.multicastPort || 19420}`);
+    if (token) {
+      _log.info(`[PEER] Multicast discovery on ${this.config.multicastGroup || '239.42.42.42'}:${this.config.multicastPort || 19420}`);
+    } else {
+      _log.info('[PEER] Multicast discovery inactive (no peer.discoveryToken in settings — server is listen-only)');
+    }
   }
 
   // v4.12.8: Read HTTP request body (for POST endpoints)

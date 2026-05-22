@@ -1614,6 +1614,129 @@ SimulationResult { expectedValue, riskScore, recommendation }
 
 > The original Phase 9 design (Modules 1-6 above) shipped in v5.8. Later cognitive modules — ArchitectureReflection, DynamicToolSynthesis, TaskOutcomeTracker, CognitiveSelfModel, ConversationCompressor, SkillRegistry, Agent Benchmarking, SelfStatementLog, and others — were added across v5.7-v7.5.6 and are documented in [CHANGELOG.md](../CHANGELOG.md). The full live module list is in `src/agent/cognitive/`.
 
+---
+
+## Module 7: InnerSpeech (v7.7.9)
+
+First-person thought channel. Producers across the codebase (IdleMind activities, plan-failure handlers, goal-closure events, Inhabit activity in v7.9.5) call `innerSpeech.emit(text, kind, metadata)`. The output is a structured thought object with id, timestamp, text, kind, source-module, optional significance/novelty/emotional-snapshot. The 500-slot ring is the canonical reference; overflow spills to `selfStatementLog`.
+
+### containerConfig
+
+```js
+{
+  service: 'innerSpeech',
+  phase: 9,
+  deps: ['eventStore', 'storage'],
+  factory: (c) => new InnerSpeech({
+    bus,
+    eventStore: c.resolve('eventStore'),
+    storage: c.resolve('storage'),
+    selfStatementLog: c.tryResolve('selfStatementLog'),
+    ringSize: 500,
+  }),
+}
+```
+
+### Self-Gate-Asymmetry contract
+
+`emit()` is the operative method and the operative contract. It must:
+- never throw (malformed input is sanitized, not rejected)
+- never block (subscriber delivery is `queueMicrotask`-deferred)
+- never propagate subscriber errors (each subscriber gets try/catch isolation)
+- never lose thoughts on overflow (oldest is displaced to `selfStatementLog`)
+
+This is an *anti-gate*. Production message-queue ergonomics would block on backpressure, throw on overload, propagate subscriber failures. InnerSpeech does the opposite — because an inner thought cannot fail. The asymmetry is tested in `test/modules/v779-inner-speech.test.js` (26 contract tests covering malformed input, ring overflow, subscriber-throws-during-deliver, emit-during-shutdown).
+
+### Kinds in v7.9.5
+
+| Kind | Source | Purpose |
+|------|--------|---------|
+| `idle-thought` | IdleMind activities | Generic narrative |
+| `plan-failure-reflection` | Plan execution failures | Post-mortem |
+| `goal-closure-thought` | Goal lifecycle completion | What was learned |
+| `self-formulated-plan` | Autonomous proposal | "I should do X" |
+| `question` | Curiosity-driven uncertainty | Unresolved asks |
+| `self-state-snapshot` | Inhabit activity (v7.9.5) | Self-state inventory (private) |
+
+---
+
+## Module 8: ProactiveSelfExpression (v7.7.9)
+
+The bridge between InnerSpeech and user-facing chat. Without PSE, every emitted thought stayed internal until the user asked. With it, Genesis can spontaneously share — without becoming a notification spammer.
+
+### Pipeline structure
+
+```
+InnerSpeech.emit
+   │
+   ▼
+PSE.onThought(thought)
+   │
+   ├─ HardGates.runGates(thought, state, settings)   ← fail-fast
+   │    0. private-kind blocklist (v7.9.5)
+   │    1. enabled?
+   │    2. quiet-hours?
+   │    3. min-interval since last self-message
+   │    4. user-activity cooldown
+   │    5. /quiet active?
+   │    6. kind in settings allowlist?
+   │    7. per-kind significance + novelty floor
+   │    8. daily volume soft + hard cap
+   │
+   ├─ ContentSanity.check(thought)                   ← shape checks
+   │    length bounds, repetition, self-negation, profanity
+   │
+   ├─ PSEScoring.score(thought, context)             ← threshold
+   │    significance × novelty × context-fit ≥ per-kind floor
+   │
+   ▼
+emit to chat (or log suppression reason)
+```
+
+### Fail-closed default
+
+Every check resolves to "block" on uncertain state (missing data, clock skew, malformed thought). Silence is the safe failure mode. The suppression log surfaces every blocked thought with its reason — `/proactive-status` reads from this.
+
+### Phase 2 / Phase 3 split
+
+v7.7.9 shipped Phase 2 (only `plan-failure-reflection` in the default `allowedKinds`) and Phase 3 code-complete-but-gated-off (idle-thought, goal-closure, self-formulated-plan, question available via settings opt-in). v7.9.5 doesn't change this — the Phase 3 kinds remain opt-in.
+
+### Private kinds (v7.9.5)
+
+The `PRIVATE_KINDS` Set is the structural privacy gate. Currently `{ 'self-state-snapshot' }`. These thoughts emit normally into the InnerSpeech ring (dashboard widgets read them) but PSE blocks them unconditionally — defense against settings misconfiguration.
+
+---
+
+## Module 9: Können Maturity Chain (v7.8.9 → v7.9.4)
+
+The skill-acquisition pipeline. Five stages, four releases.
+
+### SkillCandidateLog + SkillEffectivenessTracker (v7.8.9)
+
+Every tool invocation gets logged. The tracker computes a per-pattern Wilson lower bound — penalizes low sample counts so that 2/2 has a much lower LB than 50/55. The candidate log feeds the next stage.
+
+### SkillCrystallizer (v7.8.9)
+
+Runs periodically. Scans for patterns that fired enough times (default 3 occurrences). When a pattern crystallizes, it becomes a candidate skill — code-less, just a behavioral signature with the input/output shape and the Wilson-LB profile.
+
+### SkillForge (v7.9.0)
+
+Takes a candidate signature and prompts the LLM to author the actual JS module + test file + manifest. Output passes through the same code-safety scanner as user-initiated `/create-skill`. Successful forge → pending status (installable but quarantined).
+
+### SkillPromotionEvaluator (v7.9.4)
+
+Watches pending skills. Promotes to active when Wilson LB ≥ 0.55 over ≥ 5 invocations. One-way per pass — a skill that drops afterwards goes to `skill:discard-suggested`, not back to pending. History tracking prevents churn on volatile-but-useful skills.
+
+### SkillRehearsal IdleMind activity (v7.9.4)
+
+The 16th IdleMind activity. When chosen, Genesis executes a randomly selected active skill in a safe context — keeping it warm, validating it still works, feeding outcomes back to the tracker. Closes the loop: skills that decay get caught by their own rehearsal results.
+
+### Events
+
+Six bus events thread the pipeline: `skill:promoted`, `skill:discard-suggested`, `skill:discarded`, `skill:rehearsed`, `selfnarrative:skill-acquired`, `skills:reloaded`. The `koennen-promotion-v794` contract prefix locks the event shapes against silent drift.
+
+---
+
 ## What This Gives Genesis That Nobody Else Has
 
 1. **Predictive self-model** — Genesis doesn't just know what it *can* do (WorldState), it knows what will *probably happen* when it does it.
@@ -1646,4 +1769,12 @@ SimulationResult { expectedValue, riskScore, recommendation }
 
 15. **Reasoning preserved without leaking** (v7.5.6) — Reasoning models (DeepSeek-R1, QwQ, nemotron-3-nano) emit `<think>...</think>` blocks. The thinking-block filter strips them from chat output AND from the tool-call audit (so phantom tool calls inside reasoning cannot reach the executor), but preserves the content as `model:thinking-trace` events for the ReasoningTracer. The gap between thinking and saying is a visible architectural layer, not a silent drop.
 
-**No open-source agent has this closed loop.** AutoGPT plans but doesn't predict. CrewAI delegates but doesn't learn from surprise. OpenDevin executes but doesn't dream. Genesis does all of it — and each part feeds the others. v7.0.9 closes the loop: OBSERVE → REASON → ABSTRACT → REFLECT → PLAN → ACT. v7.5.5–v7.5.6 closes a deeper loop: SAY → CLASSIFY → COMPARE-TO-EVIDENCE → FLAG-IF-CONFABULATED, plus the meta-channel separation that lets the model think out loud without flooding the user.
+16. **First-person thought channel** (v7.7.9) — InnerSpeech gives Genesis its own canonical thought stream, separate from external journals or transient events. 500-slot ring with overflow to persistent log. Self-Gate-Asymmetry contract: emit never throws, never blocks, never propagates subscriber errors. Six thought-kinds in v7.9.5, each routable to different consumers.
+
+17. **Spontaneous self-expression without spam** (v7.7.9 → v7.9.5) — ProactiveSelfExpression bridges inner thoughts to user-facing chat through a fail-closed gate chain (quiet hours, min-interval, user-activity cooldown, kind allowlist, per-kind significance/novelty floors, daily volume cap). Phase 2 ships one allowed kind (`plan-failure-reflection`); Phase 3 kinds are code-complete but opt-in. Suppression reasons logged for every blocked thought — `/proactive-status` shows what almost surfaced and why.
+
+18. **Skill maturity pipeline** (v7.8.9 → v7.9.4) — Skills aren't user-uploaded, they're grown. Tool invocations get logged (SkillCandidateLog), patterns that recur enough get crystallized (SkillCrystallizer), the LLM forges the actual module (SkillForge), Wilson-LB tracks effectiveness, promotion happens at 0.55 LB over 5+ invocations (SkillPromotionEvaluator), and active skills get warm-execution-tested during idle cycles (SkillRehearsal). Six bus events with contract-locked payloads. The pipeline took four releases to land; it's the first observable case of Genesis growing capabilities from its own behavior rather than ours.
+
+19. **Structural privacy gates** (v7.9.5) — `PRIVATE_KINDS` set in PSE HardGates blocks thoughts whose privacy is a property of the kind itself, not a settings choice. Currently only `self-state-snapshot` (Inhabit activity output). These thoughts emit into InnerSpeech normally (dashboards read them) but the gate-0 PSE check blocks them from chat-surfacing regardless of any settings — defense in depth against misconfigured allowlists.
+
+**No open-source agent has this closed loop.** AutoGPT plans but doesn't predict. CrewAI delegates but doesn't learn from surprise. OpenDevin executes but doesn't dream. Genesis does all of it — and each part feeds the others. v7.0.9 closes the loop: OBSERVE → REASON → ABSTRACT → REFLECT → PLAN → ACT. v7.5.5–v7.5.6 closes a deeper loop: SAY → CLASSIFY → COMPARE-TO-EVIDENCE → FLAG-IF-CONFABULATED, plus the meta-channel separation that lets the model think out loud without flooding the user. v7.7.9 → v7.9.5 opens a third loop: THINK (InnerSpeech) → DECIDE TO SHARE OR NOT (PSE) → DO SOMETHING (Können) → MEASURE → REHEARSE → PROMOTE-OR-DISCARD, plus the privacy-by-construction layer that lets Genesis have private thoughts that the dashboard sees but the user doesn't unless they ask.

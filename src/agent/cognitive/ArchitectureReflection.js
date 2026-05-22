@@ -108,20 +108,35 @@ class ArchitectureReflection {
    * Called at boot and after self-modification events.
    */
   _rebuild() {
+    // v7.9.5 live-fix: per-phase timing so a slow rebuild has a story.
+    // Pre-fix, the v7.9.4 log showed a single 13.9s rebuild with no
+    // breakdown — no way to tell whether it was disk I/O, GC, or a
+    // single index pass blowing up. Phase-timing surfaces the culprit.
     const t0 = Date.now();
     this._services.clear();
     this._events.clear();
     this._layers.clear();
     this._couplings = [];
 
-    this._indexServices();
-    this._indexEvents();
-    this._indexLayers();
-    this._computeCouplings();
+    const phases = {};
+    let ts = Date.now();
+    this._indexServices();   phases.services  = Date.now() - ts;
+    ts = Date.now();
+    this._indexEvents();     phases.events    = Date.now() - ts;
+    ts = Date.now();
+    this._indexLayers();     phases.layers    = Date.now() - ts;
+    ts = Date.now();
+    this._computeCouplings(); phases.couplings = Date.now() - ts;
 
     this._lastBuildTs = Date.now();
     this._buildCount++;
-    _log.info(`[ARCH] Graph built in ${Date.now() - t0}ms (build #${this._buildCount})`);
+    const total = Date.now() - t0;
+    if (total > 2000) {
+      const breakdown = Object.entries(phases).map(([k, v]) => `${k}:${v}ms`).join(', ');
+      _log.warn(`[ARCH] Graph built in ${total}ms (build #${this._buildCount}) — slow! breakdown: ${breakdown}`);
+    } else {
+      _log.info(`[ARCH] Graph built in ${total}ms (build #${this._buildCount})`);
+    }
   }
 
   /** Rebuild if data is stale */

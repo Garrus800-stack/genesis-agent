@@ -791,6 +791,12 @@ const CHANNELS = {
     return agent.undo();
   },
 
+  // v7.9.5 live-fix: undo precondition probe — UI hides button when unavailable.
+  'agent:undo-available': async () => {
+    if (!agent) return { available: false, reason: 'not-booted' };
+    return agent.undoAvailability();
+  },
+
   'agent:get-lang-strings': async () => {
     if (!agent) return { _lang: 'en' };
     return agent.container.resolve('lang').getUIStrings();

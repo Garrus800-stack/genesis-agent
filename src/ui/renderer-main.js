@@ -241,6 +241,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#btn-goals').addEventListener('click', () => { window.togglePanel('goals-panel'); showGoalTree(); });
   $('#btn-settings').addEventListener('click', openSettings);
   $('#btn-undo').addEventListener('click', undoLastChange);
+  // v7.9.5 live-fix: hide undo button when git auto-commit is off or .git is
+  // missing. Re-checked after settings save (see settings-loadsave saveSettings).
+  window.refreshUndoButtonVisibility = async function () {
+    try {
+      const btn = document.getElementById('btn-undo');
+      if (!btn) return;
+      const r = await window.genesis.invoke('agent:undo-available');
+      btn.style.display = (r && r.available) ? '' : 'none';
+    } catch { /* best-effort */ }
+  };
+  window.refreshUndoButtonVisibility();
 
   // v4.0.0: Migrated from inline onclick to addEventListener (CSP compliance).
   // Panel close buttons

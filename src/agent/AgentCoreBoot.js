@@ -411,7 +411,20 @@ class AgentCoreBoot {
 
     // Late-bindings
     const bindResult = c.wireLateBindings();
-    _log.info(`  [WIRE] Late-bindings: ${bindResult.wired} wired, ${bindResult.skipped} optional skipped`);
+    // v7.9.5 live-fix: previously logged only the count ("1 optional skipped")
+    // with no way to know which binding was missing. Now lists the names too
+    // when skipped > 0, so boot-log diagnosis is immediate.
+    if (bindResult.skipped > 0 && Array.isArray(bindResult.report?.optionalSkipped)) {
+      const names = bindResult.report.optionalSkipped
+        .map(o => `${o.consumer}.${o.prop}→${o.service}`)
+        .slice(0, 8);
+      const extra = bindResult.report.optionalSkipped.length > 8
+        ? ` (+${bindResult.report.optionalSkipped.length - 8} more)`
+        : '';
+      _log.info(`  [WIRE] Late-bindings: ${bindResult.wired} wired, ${bindResult.skipped} optional skipped: ${names.join(', ')}${extra}`);
+    } else {
+      _log.info(`  [WIRE] Late-bindings: ${bindResult.wired} wired, ${bindResult.skipped} optional skipped`);
+    }
     if (bindResult.errors.length > 0) {
       _log.warn('  [WIRE] Binding errors:', bindResult.errors);
     }

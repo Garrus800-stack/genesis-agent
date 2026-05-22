@@ -170,6 +170,52 @@ const commandHandlersSystem = {
     }
   },
 
+  // v7.9.5 live-fix: surface daemon optimization suggestions that previously
+  // disappeared into a fire-and-forget event with no subscriber. Reads the
+  // rolling jsonl persisted by AutonomousDaemon._persistSuggestions.
+  daemonSuggestions(message) {
+    const m = String(message || '').match(/\b(\d{1,3})\b/);
+    const want = m ? Math.min(Math.max(parseInt(m[1], 10), 1), 50) : 5;
+    return this._readDaemonJsonl('daemon-suggestions.jsonl', want, 'suggestions', 'Optimization suggestions');
+  },
+
+  // v7.9.5 live-fix: surface daemon health-check issues that previously only
+  // existed as a count in the log.
+  daemonHealthIssues(message) {
+    const m = String(message || '').match(/\b(\d{1,3})\b/);
+    const want = m ? Math.min(Math.max(parseInt(m[1], 10), 1), 50) : 5;
+    return this._readDaemonJsonl('daemon-health-issues.jsonl', want, 'issues', 'Health issues');
+  },
+
+  _readDaemonJsonl(filename, want, listKey, heading) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const rootDir = this.fp?.rootDir || process.cwd();
+      const file = path.join(rootDir, '.genesis', filename);
+      if (!fs.existsSync(file)) return `**${heading}**: no entries yet (the daemon has not run a relevant cycle since boot).`;
+      const lines = fs.readFileSync(file, 'utf-8').split('\n').filter(Boolean);
+      if (lines.length === 0) return `**${heading}**: empty log.`;
+      const recent = lines.slice(-want).reverse();
+      const out = [`**${heading}** — last ${recent.length} snapshot(s):`];
+      for (const line of recent) {
+        try {
+          const e = JSON.parse(line);
+          const when = new Date(e.ts || 0).toISOString().replace('T', ' ').slice(0, 19);
+          out.push(`\n_${when} · cycle #${e.cycle ?? '?'} · ${e.count ?? 0} item(s)_`);
+          for (const item of (e[listKey] || []).slice(0, 8)) {
+            const desc = item.detail || item.type || item.message || JSON.stringify(item).slice(0, 120);
+            out.push(`  • ${desc}`);
+          }
+          if ((e[listKey] || []).length > 8) out.push(`  • _(+${e[listKey].length - 8} more truncated)_`);
+        } catch { out.push(`  • _(parse error in entry)_`); }
+      }
+      return out.join('\n');
+    } catch (err) {
+      return `**${heading}**: read failed — ${err.message}`;
+    }
+  },
+
 };
 
 module.exports = { commandHandlersSystem };

@@ -27,11 +27,34 @@ class LessonsAutoCapture {
     this.bus = bus;
     this.store = store;
     this._unsubs = [];
+    // v7.9.5 live-fix: per-trigger counters so we can tell whether
+    // 0 lessons over 2h means "no events fired" or "events fired but
+    // got rejected". Surfaced via getDiagnostics() and on stop().
+    this._counts = {
+      'online-learning:streak-detected': { received: 0, captured: 0 },
+      'online-learning:escalation-needed': { received: 0, captured: 0 },
+      'online-learning:temp-adjusted': { received: 0, captured: 0 },
+      'workspace:consolidate': { received: 0, captured: 0 },
+      'prompt-evolution:promoted': { received: 0, captured: 0 },
+      'shell:outcome': { received: 0, captured: 0 },
+      'dream:complete': { received: 0, captured: 0 },
+    };
   }
+
+  /** v7.9.5 live-fix: per-trigger counts for diagnostics. */
+  getDiagnostics() { return { ...this._counts }; }
 
   start() {
     const sub = (event, fn) => {
-      const off = this.bus.on(event, fn, { source: 'LessonsAutoCapture' });
+      const wrapped = (d) => {
+        const c = this._counts[event];
+        if (c) c.received++;
+        const prev = this.store._stats?.autoCaptures || 0;
+        try { fn(d); } catch (err) { _log.debug(`[AUTO-CAPTURE] ${event} handler error: ${err.message}`); }
+        const next = this.store._stats?.autoCaptures || 0;
+        if (next > prev && c) c.captured++;
+      };
+      const off = this.bus.on(event, wrapped, { source: 'LessonsAutoCapture' });
       if (off) this._unsubs.push(off);
     };
 
@@ -58,6 +81,14 @@ class LessonsAutoCapture {
   stop() {
     for (const off of this._unsubs) { try { off(); } catch (_e) {} }
     this._unsubs = [];
+    // v7.9.5 live-fix: surface per-trigger received/captured counts so the
+    // common "0 lessons after long session" pattern can be diagnosed.
+    const summary = Object.entries(this._counts || {})
+      .filter(([_, v]) => v.received > 0)
+      .map(([k, v]) => `${k}: ${v.captured}/${v.received}`)
+      .join(', ');
+    if (summary) _log.info(`[AUTO-CAPTURE] Triggers fired (captured/received): ${summary}`);
+    else _log.info('[AUTO-CAPTURE] No triggers fired during this session');
   }
 
   // ── Capture impls — each translates an event payload into a record() call.

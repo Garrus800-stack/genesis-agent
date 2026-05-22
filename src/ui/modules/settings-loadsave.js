@@ -454,6 +454,9 @@ async function saveSettings() {
   showToast(t('ui.settings_saved'), 'success');
 
   window.dispatchEvent(new Event('genesis:reload-models'));
+  // v7.9.5 live-fix: refresh undo button visibility — agency.gitAutoCommit
+  // may have just been toggled.
+  try { window.refreshUndoButtonVisibility?.(); } catch { /* best-effort */ }
 }
 
 module.exports = {

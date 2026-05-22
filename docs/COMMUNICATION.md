@@ -39,7 +39,7 @@ EmotionalState ──emit('emotion:shift')──→ EventBus ──→ PromptBui
 
 Key properties:
 
-- **483 event types** catalogued in `EventTypes.js` (v7.9.4 baseline)
+- **483 event types** catalogued in `EventTypes.js` (v7.9.5 baseline)
 - **483 payload schemas** in `EventPayloadSchemas.js` — full parity since v7.6.x (every catalog entry has a registered schema); dev-mode validation throws on mismatch
 - **Ring buffer history** — last 500 events for debugging
 - **Source tracking** — every event carries `{ source: 'ModuleName' }` for audit
@@ -47,6 +47,12 @@ Key properties:
 - **Promise.allSettled dispatch** — handler exceptions logged via `console.error`, never produce unhandled rejection events
 
 New v7.5.6 events: `model:marked-unavailable`, `model:unavailable-cleared`, `model:thinking-trace`. The first two come from the availability-TTL marker (Section 4.7 in ARCHITECTURE-DEEP-DIVE); the third carries reasoning content from `<think>...</think>` blocks for the ReasoningTracer.
+
+New v7.7.9 events (InnerSpeech + PSE): `inner-speech:emitted`, `inner-speech:overflowed`, `pse:gate-blocked`, `pse:scored`, `pse:surfaced`. The InnerSpeech events thread the ring buffer; the PSE events let `/proactive-status` surface suppression reasons without digging into raw structures.
+
+New v7.8.9–v7.9.4 events (Können maturity chain): `skill:candidate-extracted`, `skill:forged`, `skill:promoted`, `skill:discard-suggested`, `skill:discarded`, `skill:rehearsed`, `selfnarrative:skill-acquired`, `skills:reloaded`. The `koennen-promotion-v794` contract prefix in `stale-refs.json` locks the shapes against silent drift.
+
+New v7.9.4 events (IdleMind maturity): `idle:goal-balance-break` fires when IdleMind interrupts a goal-step stretch to pick a non-goal activity (default every 3 steps, configurable via `idleMind.goalStepsPerActivityPick`).
 
 ---
 

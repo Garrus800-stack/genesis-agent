@@ -662,6 +662,16 @@ ${descriptions.join('\n\n')}`;
       return { files };
     }, 'system');
 
+    // v7.9.5: shared preflight — saves users the raw `fatal: not a git repository`
+    // surface when running Genesis from a ZIP install without git.
+    const _gitAvailable = () => {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        return fs.existsSync(path.join(rootDir, '.git'));
+      } catch { return false; }
+    };
+
     // Git operations
     this.register('git-log', {
       description: 'Show recent git commits',
@@ -669,6 +679,7 @@ ${descriptions.join('\n\n')}`;
       output: { commits: 'string' },
     // FIX v4.0.1: async execFileAsync with array args — no shell, no main-thread block
     }, async (input) => {
+      if (!_gitAvailable()) return { commits: '(no git repository in this installation)' };
       try {
         const n = Math.min(input.count || 10, 50);
         const { stdout } = await execFileAsync('git', ['log', '--oneline', `-${n}`], { cwd: rootDir, encoding: 'utf-8', timeout: TIMEOUTS.GIT_OP, windowsHide: true });
@@ -684,6 +695,7 @@ ${descriptions.join('\n\n')}`;
       output: { diff: 'string' },
     // FIX v4.0.1: async execFileAsync with array args — no shell injection via file paths
     }, async (input) => {
+      if (!_gitAvailable()) return { diff: '(no git repository in this installation)' };
       try {
         const args = input.file ? ['diff', '--', input.file] : ['diff', '--stat'];
         const { stdout } = await execFileAsync('git', args, { cwd: rootDir, encoding: 'utf-8', timeout: TIMEOUTS.GIT_OP, windowsHide: true });

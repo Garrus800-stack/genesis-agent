@@ -46,6 +46,7 @@ const ACTIVITY_MODULES = [
   require('./activities/Study'),
   require('./activities/ReadSource'), // v7.3.1
   require('./activities/SkillRehearsal'), // v7.9.4
+  require('./activities/Inhabit'),        // v7.9.5
 ];
 const ACTIVITY_BY_NAME = Object.fromEntries(ACTIVITY_MODULES.map(a => [a.name, a]));
 
@@ -99,6 +100,9 @@ class IdleMind {
 
     // v7.9.4: Können Phase 3 — late-bound via DI for SkillRehearsal activity.
     this.skillManager = null; this.effectivenessTracker = null;
+
+    // v7.9.5: BodySchema — read-only capability snapshot for Inhabit activity.
+    this.bodySchema = null;
 
     // v7.1.6: Research state
     this._pendingResearch = null;

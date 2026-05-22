@@ -237,7 +237,36 @@ class AgentCore {
     );
   }
 
+  /**
+   * Check whether the undo path can currently run.
+   *
+   * Two preconditions: (a) `agency.gitAutoCommit` must be on, otherwise no
+   * Genesis-driven commits exist to be reverted; (b) a `.git` directory
+   * must exist at rootDir. Both default off in a ZIP install — the UI
+   * button is hidden in that case (v7.9.5 live-fix).
+   *
+   * @returns {{ available: boolean, reason?: 'git-disabled'|'no-repo' }}
+   */
+  undoAvailability() {
+    const settings = this.container?.tryResolve?.('settings');
+    const gitAutoCommit = settings?.get?.('agency.gitAutoCommit') === true;
+    if (!gitAutoCommit) return { available: false, reason: 'git-disabled' };
+    try {
+      if (!fs.existsSync(path.join(this.rootDir, '.git'))) {
+        return { available: false, reason: 'no-repo' };
+      }
+    } catch { return { available: false, reason: 'no-repo' }; }
+    return { available: true };
+  }
+
   async undo() {
+    // v7.9.5 live-fix: same gating shape as SelfModel.rollback. The UI button
+    // must not surface raw `fatal: not a git repository` on ZIP installs.
+    const avail = this.undoAvailability();
+    if (!avail.available) {
+      const key = avail.reason === 'git-disabled' ? 'chat.undo_disabled' : 'chat.undo_no_repo';
+      return { ok: false, error: lang.t(key), available: false, reason: avail.reason };
+    }
     try {
       const { promisify }   = require('util');
       const execFileAsync   = promisify(require('child_process').execFile);

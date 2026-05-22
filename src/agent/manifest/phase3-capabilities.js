@@ -77,6 +77,10 @@ function phase3(ctx, R) {
         { prop: 'peerConsensus', service: 'peerConsensus', optional: true },
         // v5.1.0 (DI-1): CodeSafety via port
         { prop: '_codeSafety', service: 'codeSafety' },
+        // v7.9.5 live-fix: settings late-binding so PeerNetwork can read
+        // peer.discoveryToken and only enable multicast when configured.
+        { prop: '_settings', service: 'settings', optional: true,
+          impact: 'multicast discovery cannot read peer.discoveryToken' },
       ],
       factory: (c) => {
         const net = new (R('PeerNetwork').PeerNetwork)(

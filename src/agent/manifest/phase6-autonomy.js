@@ -89,6 +89,13 @@ function phase6(ctx, R) {
           impact: 'SkillRehearsal activity disabled — cannot execute pending skills' },
         { prop: 'effectivenessTracker', service: 'skillEffectivenessTracker', optional: true,
           impact: 'SkillRehearsal cannot record invocation outcomes for Wilson-LB' },
+        // v7.9.5: BodySchema — read-only capability snapshot for Inhabit activity.
+        // Inhabit composes a self-state text including current body restrictions
+        // (canExecuteCode, canModifySelf, canCallLlm, circuitOpen). Without
+        // bodySchema the activity still runs but omits the body-state fragment.
+        { prop: 'bodySchema', service: 'bodySchema', optional: true,
+          expects: ['getCapabilities'],
+          impact: 'Inhabit cannot include body-state fragment in self-state snapshots' },
       ],
       factory: (c) => {
         const im = new (R('IdleMind').IdleMind)({

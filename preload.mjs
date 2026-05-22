@@ -34,6 +34,7 @@ const ALLOWED_INVOKE = [
   'agent:get-goals',
   'agent:get-goal-tree',
   'agent:undo',
+  'agent:undo-available',
   'agent:get-lang-strings',
   'agent:set-lang',
   'agent:mcp-status',

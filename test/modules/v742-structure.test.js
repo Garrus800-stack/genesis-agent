@@ -240,8 +240,14 @@ describe('v7.4.2 Baustein D — CommandHandlers split structure', () => {
     // Domain-integrity is preserved — all helpers are goal-domain only.
     assert.strictEqual(Object.keys(commandHandlersGoals).length, 14, 'Goals mixin: 14 methods expected (3 public + 7 v7.5.0 helpers + 1 v7.8.9 affectTrail + 1 v7.9.0 skillsPending + 2 v7.9.4 skillInfo/skillDiscard)');
     assert.strictEqual(Object.keys(commandHandlersMemory).length, 3, 'Memory mixin: 3 methods expected');
-    assert.strictEqual(Object.keys(commandHandlersSystem).length, 3, 'System mixin: 3 methods expected');
+    // v7.9.5 live-fix: System mixin grew from 3 → 6 methods. Added
+    // daemonSuggestions + daemonHealthIssues (public slash handlers for
+    // /daemon-suggestions and /daemon-health-issues) plus _readDaemonJsonl
+    // (shared private reader). The daemon's optimization analysis was
+    // firing into the void (no UI subscriber) and the 19-issue health
+    // checks only existed as logged counts — the slashes surface them.
+    assert.strictEqual(Object.keys(commandHandlersSystem).length, 6, 'System mixin: 6 methods expected (3 base + 3 v7.9.5 daemon visibility)');
     assert.strictEqual(Object.keys(commandHandlersNetwork).length, 3, 'Network mixin: 3 methods expected');
-    // Total: 4+4+10+3+3+3 = 27 in mixins + registerHandlers + undo = 29
+    // Total: 4+4+14+3+6+3 = 34 in mixins + registerHandlers + undo = 36
   });
 });

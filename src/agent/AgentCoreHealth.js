@@ -255,11 +255,33 @@ class AgentCoreHealth {
     };
 
     // Session summary (needs LLM alive)
+    // v7.9.5 live-fix: previously blocked shutdown for 80+s waiting for a
+    // cloud LLM. Now (a) skipped entirely if the session is short and empty,
+    // and (b) hard-capped at `shutdown.sessionSummaryTimeoutMs` (default 8s).
+    // The summary is a nice-to-have for next-boot context, never worth a
+    // user-visible app-close hang.
     await safeAsync('sessionSummary', async () => {
       const sp = c.tryResolve('sessionPersistence');
-      if (sp) {
-        const history = c.tryResolve('chatOrchestrator')?.getHistory() || [];
-        await sp.generateSessionSummary(history);
+      if (!sp) return;
+      const history = c.tryResolve('chatOrchestrator')?.getHistory() || [];
+      const settings = c.tryResolve('settings');
+      const minSessionMs   = Number(settings?.get?.('shutdown.sessionSummaryMinMs') ?? 60000);
+      const timeoutMs      = Number(settings?.get?.('shutdown.sessionSummaryTimeoutMs') ?? 8000);
+      const sess = sp.currentSession || {};
+      const tooShort = (Date.now() - (sess.startTime || Date.now())) < minSessionMs;
+      const noContent = (sess.messageCount || 0) === 0 && history.length === 0;
+      if (tooShort && noContent) {
+        _log.debug('[SHUTDOWN] session-summary skipped — session too short, no content');
+        return;
+      }
+      const summaryPromise = sp.generateSessionSummary(history);
+      const timeoutPromise = new Promise((_, rej) =>
+        setTimeout(() => rej(new Error(`session-summary timeout after ${timeoutMs}ms`)), timeoutMs)
+      );
+      try {
+        await Promise.race([summaryPromise, timeoutPromise]);
+      } catch (err) {
+        _log.warn('[SHUTDOWN] session-summary aborted:', err.message);
       }
     });
 

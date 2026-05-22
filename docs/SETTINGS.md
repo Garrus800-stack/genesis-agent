@@ -73,6 +73,9 @@ Models tab.
 | IdleMind enabled | `true` | Autonomous thinking when user is idle. |
 | IdleMind idle / think minutes | `2` / `3` | How long until idle, how long thinking sessions last. |
 | IdleMind max active goals | `3` | Cap on parallel autonomous goals. |
+| IdleMind goal-step balance | `3` | After N consecutive goal-step cycles, IdleMind breaks out to pick a non-goal activity (reflect, journal, dream, calibrate, inhabit). `0` = legacy always-goal-step. *(v7.9.4)* |
+| IdleMind score normalization | `'none'` | Activity-picker score smoothing. `'log'` (reserved) dampens score outliers via `log1p`. *(v7.9.4, opt-in)* |
+| IdleMind recurrence bonus | `false` | If on, activities that haven't run for a long time get a small score boost proportional to the gap. *(v7.9.4, opt-in)* |
 | Trust level | `1` (AUTONOMOUS) | `0`=Supervised, `1`=Autonomous, `2`=Earned, `3`=Full. See `EarnedAutonomy`. |
 | Goal-add mode | `ask` | `always` resume on boot, `never` skip, `ask` prompt. |
 | Negotiate before add | `false` | If on, `/goal add` proposes goals as pending; Genesis clarifies first. |
@@ -80,6 +83,63 @@ Models tab.
 | Commit-snapshot on shutdown | `false` | Was always-on, polluted git history on collaborator machines. Off now — opt in if you want shutdown-state in git. |
 | Software-Installation: Install-Ziel | `machine` | Where `/install` puts new software. `machine` = system-wide (Program Files on Win, sudo apt on Linux); `user` = per-user (no admin); `auto` = winget default. Setting key: `install.scope`. *(v7.5.9)* |
 | Software-Installation: Auto-Install | `false` | If on (and trust ≥ AUTONOMOUS), `/install <pkg>` runs the package-manager command directly instead of just previewing. Setting key: `install.allowAutoInstall`. *(v7.5.9)* |
+
+#### Organism behavior (PSE + Metabolism + Inhabit)
+
+These settings live under the `organism.*` and `proactive.*` keys. They tune
+how Genesis acts on its own emotional / homeostatic state and what it allows
+itself to surface to you proactively.
+
+| Setting | Default | Notes |
+|---|---|---|
+| `proactive.enabled` | `true` | Master toggle for the Proactive Self-Expression (PSE) pipeline (v7.7.9). When off, Genesis still emits inner-speech thoughts but never surfaces them to chat. |
+| `proactive.minIntervalMs` | `1800000` (30 min) | Minimum quiet gap between two proactive self-messages. |
+| `proactive.userActivityCooldownMs` | `600000` (10 min) | After you send a message, PSE stays silent for this window. |
+| `proactive.quietHours.start` / `.end` | `'22:00'` / `'07:00'` | Local-time quiet hours. Wrap-around supported. |
+| `proactive.allowedKinds` | `['plan-failure-reflection']` | Allowlist of thought-kinds that may surface. `self-state-snapshot` is **structurally private** and blocked at the gate regardless of this list (v7.9.5). |
+| `proactive.perKindFloors.*` | varies | Per-kind significance/novelty thresholds. Each kind has its own floor. |
+| `proactive.dailyVolumeSoftCap` | `8` | Soft cap on daily self-messages. Hard stop at 2× this value. |
+| `proactive.goals.stalledTimeoutMs` | `900000` (15 min) | StalledGoalWatchdog converts blocked goals to failure-reflections after this. |
+| `proactive.goals.stalledWatchdogTickMs` | `60000` (1 min) | How often the watchdog scans. |
+| `organism.metabolism.differentiatedCosts` | `true` | Per-activity energy costs (idleMind:plan = 12, idleMind:journal = 2, idleMind:inhabit = 2, etc.). Pre-v7.9.4 every activity charged the flat `idleMindCycle = 2`. Set to `false` to revert. *(v7.9.4)* |
+| `organism.inhabit.enabled` | `true` | Master toggle for the Inhabit activity (17th IdleMind activity). Composes a deterministic self-state snapshot (energy, dominant emotion, urgent need, body restrictions, goal count) and emits it via InnerSpeech with kind `'self-state-snapshot'`. PSE HardGate blocks proactive surfacing — text stays private to Genesis. *(v7.9.5)* |
+| `organism.inhabit.cooldownMinutes` | `15` | Min minutes between two inhabit emissions. Clamped 1–1440. *(v7.9.5)* |
+| `organism.inhabit.idleBoost` | `true` | Raise inhabit selection score during idle stretches > 30 min. Toggle off to keep cooldown-only behaviour. *(v7.9.5)* |
+
+#### Können (Skills) behavior
+
+The Können pipeline (Crystallizer → Forge → PromotionEvaluator → Active) is
+controlled by settings under `cognitive.koennen.*`.
+
+| Setting | Default | Notes |
+|---|---|---|
+| `cognitive.koennen.enabled` | `true` | Master toggle for the entire Können system. *(v7.8.9)* |
+| `cognitive.koennen.crystallization.enabled` | `true` | If off, SkillCrystallizer stops collecting candidate patterns. *(v7.8.9, restart)* |
+| `cognitive.koennen.crystallization.minCandidatesPerPattern` | `3` | How many occurrences of the same pattern before crystallization fires. *(v7.8.9, restart)* |
+| `cognitive.koennen.crystallization.cooldownMs` | `300000` (5 min) | Min gap between two crystallization runs. *(v7.8.9, restart)* |
+| `cognitive.koennen.promotion.minWilsonLB` | `0.55` | Promotion threshold on the Wilson lower bound of skill-effectiveness. Below this, skills stay pending. *(v7.9.0)* |
+| `cognitive.koennen.promotion.minInvocations` | `5` | Min invocation count before a skill is eligible for promotion. *(v7.9.0)* |
+| `cognitive.koennen.rehearsal.enabled` | `true` | Toggle for SkillRehearsal IdleMind activity. When on, Genesis exercises promoted skills during idle to keep them warm. *(v7.9.4)* |
+
+#### v7.9.5 live-fix settings
+
+These six settings came out of the v7.9.5 live-fix audit. They're not in the Behavior UI tab today — set them via JSON Editor or via slash. All are quietly defensive: the defaults preserve old behavior unless something would otherwise hurt (UX-blocker shutdown LLM wait, raw git error surface, dead optimization-suggestions firehose).
+
+| Field | Default | Notes |
+|---|---|---|
+| `shutdown.sessionSummaryMinMs` | `60000` (60 s) | Sessions shorter than this with no chat content skip the shutdown summary entirely. Pre-fix Genesis waited 80 + s for a cloud-LLM summary even on instant test-runs. *(v7.9.5)* |
+| `shutdown.sessionSummaryTimeoutMs` | `8000` (8 s) | Hard timeout on the shutdown summary LLM call. Range 500–120000. Above this, the call is abandoned and shutdown proceeds. *(v7.9.5)* |
+| `llm.continuation.maxAttempts` | `4` | Hard cap on ContinuationLoop attempts for Ollama code-generation. Previously hardcoded — `qwen3-coder:480b-cloud` hit the ceiling at 9131 chars partial output. Range 1–20. *(v7.9.5)* |
+| `cognitive.architectureReflection.staleThresholdMs` | `900000` (15 min) | Architecture graph rebuild cadence (was 5 min hardcoded, so the daemon rebuilt every ~6 min unprompted). Range 60000–86400000. *(v7.9.5)* |
+| `peer.discoveryToken` | `''` (empty) | Multicast discovery is opt-in by setting a shared token across instances. Pre-fix the multicast log line fired regardless of token, which was misleading. *(v7.9.5)* |
+| `agency.gitAutoCommit` | `false` | Existed since v7.7.1 but the Undo button surfaced raw `fatal: not a git repository` when off + no `.git`. The UI button now hides when this is off, and slash `/undo` returns a friendly i18n message. *(v7.9.5 visibility fix)* |
+
+Plus two new slash commands surface daemon work that previously disappeared into the log:
+
+| Slash | Notes |
+|---|---|
+| `/daemon-suggestions [N]` (alias `/suggestions`) | Show the last N optimization-analysis snapshots from `AutonomousDaemon`. Persisted to `.genesis/daemon-suggestions.jsonl` (rolling 100). *(v7.9.5)* |
+| `/daemon-health-issues [N]` (alias `/health-issues`) | Show the last N health-check snapshots. Persisted to `.genesis/daemon-health-issues.jsonl` (dedup by fingerprint, rolling 100). *(v7.9.5)* |
 
 ### Limits
 

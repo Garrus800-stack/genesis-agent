@@ -15,6 +15,21 @@
 
 'use strict';
 
+// v7.9.5: Kinds that are STRUCTURALLY private — Genesis emits them to its
+// own InnerSpeech ring but they must never reach the user through the PSE
+// pipeline, regardless of settings. The settings-driven `allowedKinds` is
+// an allowlist, so omitting a kind from it already blocks it — but if a
+// future change converts allowedKinds to a blocklist or someone widens it
+// for testing, private kinds would leak. This hard set is defense in depth:
+// the gate checks it before any settings lookup, so private kinds are
+// blocked even if every other check would have passed.
+//
+// Currently:
+//   - 'self-state-snapshot' — Inhabit activity output (v7.9.5)
+const PRIVATE_KINDS = new Set([
+  'self-state-snapshot',
+]);
+
 /**
  * Run the gate sequence. Returns { ok: true } if every gate passed,
  * or { ok: false, reason: 'gate-name', detail?: string } at the first
@@ -31,6 +46,13 @@
  */
 function runGates(thought, state, settings) {
   try {
+    // 0. Structurally private kind — never surface, regardless of settings.
+    // This is the first gate so privacy is the cheapest check and cannot
+    // be skipped by misconfiguration of any other gate.
+    if (thought && PRIVATE_KINDS.has(thought.kind)) {
+      return { ok: false, reason: 'private-kind', detail: thought.kind };
+    }
+
     // 1. Globally enabled?
     if (settings.enabled === false) {
       return { ok: false, reason: 'disabled' };
@@ -137,4 +159,5 @@ module.exports = {
   runGates,
   isInQuietHours,
   parseHm,
+  PRIVATE_KINDS,
 };

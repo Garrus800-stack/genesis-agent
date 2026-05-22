@@ -311,8 +311,17 @@ class FileProcessor {
     const available = Object.entries(this.runtimes)
       .filter(([_, v]) => v)
       .map(([k]) => k);
-
+    // v7.9.5 live-fix: also surface what's missing so users know why a
+    // skill type might be unavailable (pre-fix: only "available" was
+    // logged, leaving missing-python looking like Genesis just doesn't
+    // care about python). Powershell-on-Linux is informational, not a gap.
+    const missing = Object.entries(this.runtimes)
+      .filter(([_, v]) => !v)
+      .map(([k]) => k);
     _log.info(`[FILES] Runtimes: ${available.join(', ')}`);
+    if (missing.length > 0) {
+      _log.info(`[FILES] Runtimes missing (not on PATH): ${missing.join(', ')}`);
+    }
   }
 
   /** Get available runtimes */
