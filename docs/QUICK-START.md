@@ -508,7 +508,7 @@ The slash must be preceded by whitespace or start-of-message. Slashes directly a
 | `/plans` or German `/vorhaben` | Show planned-but-not-started changes Genesis is considering. |
 | `Anthropic API-Key: sk-ant-...` | Set an API key by pasting it directly (still works without slash). |
 
-The slash form is the safe form. If you write German "lass uns über die Konfiguration reden" ("let's talk about the configuration") or "what have you been thinking?", Genesis answers with words — no panel dump.
+The slash form is the safe form. If you write German `lass uns über die Konfiguration reden` ("let's talk about the configuration") or "what have you been thinking?", Genesis answers with words — no panel dump.
 
 **Self-Repair** — circuit-breaker reset (rarely needed manually).
 

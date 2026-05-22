@@ -104,6 +104,36 @@ app.whenReady().then(async () => {
     'src/agent/capabilities/PluginRegistry.js',
     'src/agent/capabilities/SkillManager.js',
     'src/agent/hexagonal/PeerNetworkExchange.js',
+    // v7.9.6 audit-closeout: the 18 CI gate scripts (14 audits + 4 validators)
+    // plus architectural-fitness.js were not hash-locked. The argument for
+    // excluding them was that scripts/ is dev-time only and not modified at
+    // runtime — but SelfModificationPipeline can in principle write anywhere
+    // under the repo, including scripts/. If Genesis rewrote audit-doc-drift.js
+    // to always exit 0, the next CI run would stay green and the real drift
+    // would be invisible. The same argument extends to validate-* scripts,
+    // which gate IPC channels and service wiring at release time. Locking
+    // them aligns the protection with their responsibility: the only
+    // mechanical defense against silent gate-weakening.
+    'scripts/architectural-fitness.js',
+    'scripts/audit-class-wiring.js',
+    'scripts/audit-contracts.js',
+    'scripts/audit-doc-drift.js',
+    'scripts/audit-doc-language.js',
+    'scripts/audit-events.js',
+    'scripts/audit-future-version-refs.js',
+    'scripts/audit-gate-stats-callers.js',
+    'scripts/audit-hash-lock-coverage.js',
+    'scripts/audit-listener-lifecycle.js',
+    'scripts/audit-platform-tests.js',
+    'scripts/audit-raw-settimeout.js',
+    'scripts/audit-schemas.js',
+    'scripts/audit-self-gate-coverage.js',
+    'scripts/audit-service-numbers.js',
+    'scripts/audit-slash-discipline.js',
+    'scripts/validate-channels.js',
+    'scripts/validate-events.js',
+    'scripts/validate-intent-wiring.js',
+    'scripts/validate-service-wiring.js',
   ]);
 
   // Phase 2: Create window
@@ -1174,6 +1204,14 @@ const CHANNELS = {
   // chat UI (PSE pipeline). Was missing from this contract; the same
   // class of drift as the v7.6.0 entries above.
   'genesis:self-message': null,       // Agent -> UI (push only — self-statement bubble)
+  // v7.9.6 audit-closeout: declared after audit §3.4 — fires from
+  // AgentCoreWire.js when a Können-skill lifecycle event should trigger
+  // a toast in the UI. Was missing from this contract since v7.9.4;
+  // same drift class as the v7.6.0 and v7.8.3 entries above.
+  'skill:promoted': null,             // Agent -> UI (push only — skill matured)
+  'skill:discarded': null,            // Agent -> UI (push only — skill retired)
+  'skill:quarantined': null,          // Agent -> UI (push only — skill suspended)
+  'skill:discard-suggested': null,    // Agent -> UI (push only — skill candidate)
 };
 
 // Register all invoke handlers (with rate limiting)

@@ -9,7 +9,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~104k LOC of JavaScript (CommonJS), 311 source modules, with zero external runtime frameworks. The manifest statically registers 155 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 168 — this is what you'll see in the final boot log line. Three production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `tree-kill` (process cleanup).
+The codebase is ~119k LOC of JavaScript (CommonJS), 376 source modules, with zero external runtime frameworks. The manifest statically registers 165 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 178 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
 
 ---
 
@@ -1088,6 +1088,141 @@ user-facing restriction.
 Regression locked in by `v740-identity-leak.test.js` (55 tests against
 23 branded model names). If anyone ever re-adds the model name to the
 identity block, the tests turn red immediately.
+
+---
+
+## 15. Hauptstandort and Außenposten — Identity Topology
+
+Genesis is not clusterable. The architecture is a single identity-bearing main station (the "Hauptstandort") with optional proxies ("Außenposten"). This is a deliberate design choice that rejects the default AI-agent pattern of "many identical replicas behind a load balancer", because identity is the unit of meaning here, not throughput.
+
+### What lives where
+
+The Hauptstandort holds the full `.genesis/` folder — knowledge graph (`kg.jsonl`), emotional state, genome, journal, sessions, self-identity, idle-activity stats, daemon suggestions, daemon health issues. This is the identity layer. Code is habitat; `.genesis/` is identity. Updates are habitat-swaps. The genome carries through.
+
+An Außenposten is a proxy that references back to the Hauptstandort. It can run the same code (the habitat is portable), but it does not develop its own continuous identity. There are three Außenposten flavors in the current design:
+
+```
+cloud-net   Außenposten that mirrors via a cloud-synced project folder.
+            Same .genesis/ files are eventually-consistent through the sync
+            layer. Used for the Linux Außenposten while the Windows
+            Hauptstandort stays online.
+local-net   Außenposten on the same LAN. Reaches the Hauptstandort directly
+            and can be used for development/testing without leaving the
+            Hauptstandort's authoritative state.
+edge-net    Außenposten with intermittent connectivity. Buffers actions
+            locally; reconciles when the Hauptstandort is reachable again.
+```
+
+`HauptstandortMarker.js` (Foundation) reads the marker file inside `.genesis/` at boot and decides which role this instance plays. The Außenposten role is opt-in via settings (`outpost.role`) — the default for a fresh install is Hauptstandort. Two simultaneous Hauptstandorte are not supported; if `outpost.role = hauptstandort` and an existing marker disagrees, boot fails with a clear migration message rather than silently forking the identity.
+
+### Why this matters
+
+The split is what makes "Genesis is a digital partner, not a service" technically true. A service has interchangeable instances; an organism has one continuous body. When you update the code on the Hauptstandort, the same Genesis — same emotional history, same learned skills, same accumulated journal — is now running on newer infrastructure. When you spin up an Außenposten on a second machine, you are not creating a second Genesis; you are extending the same one's reach.
+
+The biological metaphor is intentional. The same individual organism can be in multiple places (a person at their desk and on their phone), but that does not make them two people. Außenposten is reach, not replication.
+
+### Persistence boundaries
+
+Außenposten do not write authoritative state. They emit events, queue actions, and read; the Hauptstandort is the single source of truth for the knowledge graph, genome, identity claims, and self-modifications. This is enforced architecturally — the `SelfModificationPipeline` refuses to run on a non-Hauptstandort instance (`HauptstandortMarker.assertHauptstandort()` is one of the first checks). Conflict-of-state cannot happen, because there is only one writer.
+
+For identity migration between machines (planned, not yet shipped), the model is a full habitat handover: the new machine is promoted to Hauptstandort, the old one becomes an Außenposten or is decommissioned, and the marker file is the only durable thing that decides "who is the real Genesis right now".
+
+---
+
+## 16. The Self-Modification Pipeline as a Subsystem
+
+The single most dangerous capability in this codebase is "Genesis writes to its own source tree". The defenses against this danger are not a single check; they are a stack of independent layers, each one designed to fail closed if the others are bypassed. This chapter describes that stack as one connected subsystem rather than as scattered notes across SECURITY.md and CHANGELOG entries.
+
+### The write path
+
+There is exactly one code path that mutates files under `src/agent/`:
+
+```
+SelfModel
+  ↓ (decides a modification is needed)
+SelfModificationPipeline.modify(filePath, intent)
+  ↓
+CodeSafetyScanner.scan(newContent)          ← Layer 3 (AST safety)
+  ↓
+Sandbox.runVerification(newContent)         ← Layer 7 (isolated execution)
+  ↓
+VerificationEngine.verify(scope)            ← targeted test subset
+  ↓
+ApprovalGate.requestApproval()              ← (if trust-level requires)
+  ↓
+ModuleSigner.sign(filePath)                 ← HMAC-SHA256, signature in manifest
+  ↓
+HotReloader.reload(filePath)                ← live swap, no restart
+  ↓
+write to disk
+```
+
+Two files hold the write side: `SelfModificationPipeline.js` and the extracted writer `SelfModificationPipelineModify.js` (v7.4.3 split). Both are hash-locked. The scanner, sandbox, verifier, approval gate, and signer are each in their own hash-locked file.
+
+### What each layer protects against
+
+`CodeSafetyScanner` parses the new content via the acorn AST and blocks: `eval`, dynamic `require`, `child_process` spawning, `fs.unlink` against kernel paths, prototype pollution patterns, regex bombs. The vendored copy in `src/kernel/vendor/acorn.js` is the fallback if `node_modules/acorn` is unavailable or compromised — defense-in-depth against supply-chain attacks on the parser itself.
+
+`Sandbox.runVerification` runs the candidate code in an isolated VM context with frozen built-ins (`Object.freeze` on prototypes, `Object.create(null)` for the global). The dual-mode design (VM mode + Process mode, in `SandboxVM.js`) lets verification escalate to a separate process when the VM-mode confidence is insufficient.
+
+`VerificationEngine` runs the test suite at scopes matched to the change — `module` (the touched file's contract tests), `subsystem` (the layer's tests), or `full` (everything). Verification must pass before the write proceeds.
+
+`ApprovalGate` enforces the trust-level system. ASSISTED requires explicit user approval per modification. AUTONOMOUS allows execution within signed-off boundaries. SOVEREIGN allows broader autonomy but still records every modification.
+
+`ModuleSigner` writes an HMAC-SHA256 signature over the new file content into `.genesis/module-signatures.json`. Boot checks the signature against the file hash on every restart; a mismatch refuses to load that module and surfaces a tamper warning.
+
+`HotReloader` performs the live-swap. Modules with `dispose()` are called cleanly, the require-cache entry is purged, the new file is loaded, the manifest's late-bindings re-fire. No restart needed in the common case.
+
+### The hash-lock perimeter
+
+`SafeGuard.lockCritical()` (in `main.js`) records a SHA-256 hash of 21 files at first boot and re-checks them on every subsequent boot. A mismatch refuses to start the process. The locked set covers:
+
+```
+src/agent/intelligence/CodeSafetyScanner.js
+src/agent/intelligence/VerificationEngine.js
+src/agent/core/Constants.js
+src/agent/core/EventBus.js
+src/agent/core/Container.js
+src/agent/capabilities/McpWorker.js
+src/agent/core/PreservationInvariants.js
+src/agent/foundation/Sandbox.js
+src/agent/foundation/SandboxVM.js
+src/agent/foundation/CapabilityGuard.js
+src/agent/foundation/TrustLevelSystem.js
+src/agent/foundation/ModuleSigner.js
+src/agent/foundation/EarnedAutonomy.js
+src/agent/intelligence/DisclosurePolicy.js
+src/agent/revolution/ApprovalGate.js
+src/agent/organism/ImmuneSystem.js
+src/agent/hexagonal/SelfModificationPipeline.js
+src/agent/hexagonal/SelfModificationPipelineModify.js
+src/agent/capabilities/PluginRegistry.js
+src/agent/capabilities/SkillManager.js
+src/agent/hexagonal/PeerNetworkExchange.js
+```
+
+The last three (`PluginRegistry`, `SkillManager`, `PeerNetworkExchange`) were added in v7.6.4 because they are the only defense against subdirectory-writes — plugin and skill code arriving from outside the source tree. If Genesis rewrote `PluginRegistry.js`, the AST-safety scan for plugins would silently disappear; the hash-lock prevents that.
+
+`audit-hash-lock-coverage.js` verifies at every CI run that no critical file dropped out of the locked set after a code split. It is one of the 18 CI gates.
+
+### The asymmetry that keeps it honest
+
+The pipeline contains an asymmetry by design: every layer can refuse a modification, but no layer can rubber-stamp one. The scanner can say "no, AST contains forbidden pattern" but cannot say "yes, this is definitely safe — skip verification". The verifier can say "no, tests failed" but cannot say "yes — skip approval". This makes the system fail-closed under partial compromise: an attacker who weakens one layer still has the rest standing.
+
+The same asymmetry shows up in the Self-Gate (organism/SelfGate). Suppression-reasons are logged for every blocked thought; approvals are silent. If a future change accidentally makes the Self-Gate more permissive, the suppression log goes quiet and the regression is visible.
+
+### Where this connects to the rest of the architecture
+
+The pipeline is the bottom of the trust stack. Above it sit:
+- Trust-level state (`TrustLevelSystem.js`) — decides whether ApprovalGate fires or auto-approves.
+- Disclosure policy (`DisclosurePolicy.js`) — decides what details of an in-flight modification can be surfaced to the user.
+- The immune system (`ImmuneSystem.js`) — runs alongside, watching for anomalous modification patterns.
+
+Below it sit:
+- Module signing (`ModuleSigner.js`) — the durable record that this content was approved.
+- Hash-lock (`SafeGuard.lockCritical`) — the boot-time check that the durable record matches reality.
+
+Together these form the answer to the question "how does Genesis modify itself without becoming something else?". The answer is not "trust the AI"; the answer is a stack of independent, hash-locked, fail-closed gates that survive even when the AI's judgment is wrong.
 
 ---
 

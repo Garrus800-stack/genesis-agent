@@ -170,6 +170,12 @@ function phase8(ctx, R) {
         { prop: 'delegation',   service: 'taskDelegation',  optional: true },
         { prop: 'consensus',    service: 'peerConsensus',   optional: true },
         { prop: 'selfSpawner',  service: 'selfSpawner',     optional: true },  // V7-1: IPC workers
+        // v7.9.6 audit-closeout: surfaces real module paths in the
+        // _decompose prompt so the worker subtasks reference existing
+        // files instead of hallucinated ones (same mechanism as
+        // FormalPlanner._llmDecompose, same shared helper plan-context.js).
+        { prop: 'selfModel',    service: 'selfModel',       optional: true,
+          impact: 'Subtask prompts have no codebase context — LLM invents file paths' },
       ],
       factory: (c) => new (R('ColonyOrchestrator').ColonyOrchestrator)({
         bus, llm: c.resolve('model'),

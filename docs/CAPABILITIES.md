@@ -4,12 +4,12 @@
 
 ## Scale
 
-- 375 source modules across 12 boot phases
-- 178 DI services (160 manifest + 18 bootstrap)
-- 7888 tests on Windows / 7887 on Linux (passing, 0 failures)
+- 376 source modules across 12 boot phases
+- 178 DI services (165 manifest + 13 bootstrap)
+- 7933 tests on Windows / 7932 on Linux (passing, 0 failures)
 - 483 events with 483 payload schemas (full parity)
-- Architectural fitness: 130/130
-- 16 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
+- Architectural fitness: 127/130
+- 18 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
 
 
 ---
@@ -37,7 +37,7 @@ Genesis can rewrite its own code, but every change passes through multiple safet
 | Layer | Mechanism |
 |---|---|
 | **Immutable kernel** | `main.js`, `preload.mjs`, `src/kernel/` — agent cannot write to these |
-| **Hash-locked files** | SHA-256 locks on 21 critical files (kernel + safety scanners + sandbox + DI container + self-mod pipeline + approval gate + plugin/skill/peer-exchange registries; full list in `main.js` `lockCritical([...])`, drift-checked by `scripts/audit-hash-lock-coverage.js` since v7.6.2) — agent cannot weaken its own safety checks |
+| **Hash-locked files** | SHA-256 locks on 41 critical files (21 source files: kernel + safety scanners + sandbox + DI container + self-mod pipeline + approval gate + plugin/skill/peer-exchange registries; 20 CI gate scripts: all audit-* + validate-* + architectural-fitness; full list in `main.js` `lockCritical([...])`, drift-checked by `scripts/audit-hash-lock-coverage.js` since v7.6.2) — agent cannot weaken its own safety checks or audit gates |
 | **AST code scanner** | Every generated code file is parsed into an AST and checked against 20+ rules (eval, Function, kernel circumvention, Electron security flags, system directory writes, etc.) |
 | **Verification engine** | Programmatic post-execution checks (file exists? tests pass? syntax valid?) |
 | **Sandbox execution** | Code runs in a VM2 sandbox with frozen prototypes, or Linux namespace isolation (PID/Net/Mount/IPC) |
@@ -147,7 +147,7 @@ Bio-inspired cognitive modules that run during idle time and influence behavior:
 | **PatternMatcher** `v7.0.9` | Structural learning | Weighted Jaccard similarity on lesson patterns. Cross-context matching: "off-by-one in FizzBuzz" finds "off-by-one in Pagination". |
 | **StructuralAbstraction** `v7.0.9` | Pattern extraction | LLM-deferred pattern extraction for lessons. Typed failures, retry queue, lifecycle: pending→extracted→stale→obsolete. |
 | **GoalSynthesizer** `v7.0.9` | Autonomous goals | Generates improvement goals from CognitiveSelfModel weaknesses. Bootstrap guard, PROTECTED_MODULES, regression circuit-breaker. |
-| **SelfStatementLog** `v7.5.5` (DE/EN parity in v7.5.6) | Confabulation detection | Auto-captures Genesis's first-person responses, classifies into `strukturell`/`versprechen`/`emotional`/`uncertain`, persists to daily JSONL shards in `.genesis/self-statements/YYYY-MM-DD.jsonl`. Fires `selfstatement:contradiction` when a structural claim ("ich überwache 11 Aktivitäten") is made without a verified-data backing in the prompt. `/recall [type]` slash-command surfaces past statements. v7.5.6: bilingual patterns refactored to module-level `LANG_PATTERNS` with parity assertion. |
+| **SelfStatementLog** `v7.5.5` (DE/EN parity in v7.5.6) | Confabulation detection | Auto-captures Genesis's first-person responses, classifies into `strukturell`/`versprechen`/`emotional`/`uncertain`, persists to daily JSONL shards in `.genesis/self-statements/YYYY-MM-DD.jsonl`. Fires `selfstatement:contradiction` when a structural claim (`ich überwache 11 Aktivitäten`) is made without a verified-data backing in the prompt. `/recall [type]` slash-command surfaces past statements. v7.5.6: bilingual patterns refactored to module-level `LANG_PATTERNS` with parity assertion. |
 | **ReasoningTracer** subscription `v7.5.6` | Reasoning capture | Subscribes to `model:thinking-trace` events emitted by the new reasoning-block filter. Internal monologue from `<think>...</think>` blocks of reasoning models is preserved as `model-reasoning` traces in the dashboard, even though it is stripped from chat output. |
 
 All cognitive modules degrade gracefully — if any are unavailable, Genesis falls back to direct LLM planning.
@@ -257,7 +257,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **486 test files** | 7906 tests (Win baseline, v7.9.5), coverage gates: 80% lines, 76% branches, 78% functions |
+| **488 test files** | 7933 tests (Win baseline, v7.9.6), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

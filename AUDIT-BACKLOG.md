@@ -1,6 +1,6 @@
 # Genesis Agent — Audit Backlog
 
-> Version: 7.8.8 · Audit findings, monitor items, and resolution status.
+> Audit findings, monitor items, and resolution status.
 
 This document tracks all audit findings, monitor items, and their resolution status.
 Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
@@ -10,7 +10,32 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
 
 ## Open backlog (added in v7.8.5)
 
-*(Currently no open backlog items.)*
+### v7.9.5 live-trace items deferred from v7.9.6
+
+Two observations from the v7.9.5 outpost trace that were not addressed in the v7.9.6 closeout because they need their own focused investigation:
+
+1. **`ContinuationLoop max-continuations`** — observed once during a long `qwen3-coder:480b-cloud` reply (`attempts=4, partial=7881 chars`). The continuation loop gives up after four reties. Open question: is this a symptom of the prompt being too open-ended (the LLM producing endless plausible-sounding prose for a hallucination-induced goal that has no real resolution), or an independent issue with the continuation mechanism itself? Worth looking at once the v7.9.6 path-context fix has had some live time — if the symptom goes away, it was downstream of hallucination; if it persists, it is its own bug.
+
+2. **`AutonomousDaemon: Optimization analysis: 368 suggestion(s)`** — surfaced multiple times per session. 368 suggestions per daemon cycle is suspiciously high. Possibilities: (a) the suggestion source returns everything-as-suggestion with no filtering, (b) the daemon counts suggestions that should have been deduplicated against prior cycles, (c) the design is correct and the count just reflects a healthy "things worth noting" list — but in that case the dashboard surface needs to handle it. Worth checking the source and the dedup logic before deciding which interpretation holds.
+
+---
+
+
+## Verified in v7.9.6 — IdleMind activity-trigger structural distribution
+
+This is the closure of an earlier observation: that across a long session, only a handful of the 17 IdleMind activities surface in practice (often four or five), even though all 17 are registered and weighted. The concern was that `_pickActivity` was buggy and silently locking activities out. The v7.9.4 fix to the recent-penalty multiplier (Set-wrap so each unique recent activity gets the 0.2× factor exactly once, not 0.2^N for repeats) closed the most acute version of that problem, but the underlying distribution stayed asymmetric and the question was whether anything else was wrong.
+
+Per-activity review of all 17 `shouldTrigger(ctx)` returns confirms the distribution is structural, not a bug. The 17 activities split into two groups:
+
+**Soft-zero (returns >= 1.0 in every environment):** Reflect (weight 1.5), Plan, Explore, Ideate, Journal, Tidy, Consolidate. These seven always score above zero — they need no external service, no network, no special state. Combined with the 1.5× weight on Reflect and the recent-penalty mechanism, this is the pool that does most of the work on a fresh install with no MCP and no live web access.
+
+**Hard-zero (returns 0 unless a specific gate clears):** Calibrate (needs `adaptiveStrategy` service), Dream (needs `dreamAge >= 30min` AND `dreamUnprocessed >= 10`), Improve (needs `goalSynthesizer`), Inhabit (15-minute cooldown plus settings toggle plus `innerSpeech` availability), MCPExplore (needs `mcpConnected > 0`), ReadSource (session-budget exhaustible per rolling hour), Research (needs `webFetcher` + `networkOk` + energy ≥ 0.5 + trust ≥ 1 + not rate-limited at 3/hour + not in 30-minute cooldown), SelfDefine (needs `cognitiveSelfModel` + `storage`), SkillRehearsal (needs at least one pending skill in `koennenDir`), Study (needs an active model and a knowledge graph). All ten gates are functionally justified — running these activities without the precondition would be wasted cycles at best, broken or wasteful at worst.
+
+The effective pool size for a given install is therefore: the 7 soft-zero baseline, plus whichever of the 10 hard-zero activities currently clear their gates. On a fresh install with no MCP servers, no internet access, no pending skills, and no urgent dream backlog, the pool is the 7 baseline plus maybe Calibrate, Improve, Study, SelfDefine if those services are wired — typically 10-11 activities, of which the recent-5 penalty further narrows the daily working set.
+
+This is the intended design. Genesis activities are not interchangeable — they exist for specific cognitive functions, and gating them on their preconditions is correct. The "4 activities a day" observation from v7.9.3 reflects an environment-shaped distribution, not a bug.
+
+No code change. Memory item closed.
 
 ---
 

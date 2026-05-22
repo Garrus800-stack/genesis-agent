@@ -24,6 +24,7 @@
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
 const { buildOsContext } = require('../core/EnvironmentContext');
+const { pickRelevantModules, formatModulePathList } = require('./plan-context');
 const _log = createLogger('FormalPlanner');
 
 class FormalPlanner {
@@ -295,6 +296,19 @@ class FormalPlanner {
     // of truth shared with ShellAgent.plan().
     const { osContext, osName } = buildOsContext({ rootDir: this.rootDir });
 
+    // v7.9.6 audit-closeout: expose the real module paths to the LLM,
+    // the same way AgentLoopPlanner._llmPlanGoal does for its fallback
+    // path. Pre-fix the FormalPlanner prompt showed only the 5 most
+    // recently modified files, no broader codebase context — so the LLM
+    // produced plausible-looking but invented paths like
+    // 'src/agent-core/goal-driver/recovery-logger.js' (live-Befund
+    // 2026-05-22 v7.9.5 outpost trace; real path:
+    // 'src/agent/agency/GoalDriver.js'). pickRelevantModules + the
+    // "use these EXACT paths" directive close that gap.
+    const allModules = this.selfModel?.getModuleSummary?.() || [];
+    const relevantModules = pickRelevantModules(allModules, goalDescription);
+    const modulePathList = formatModulePathList(relevantModules);
+
     const prompt = `You are Genesis, an autonomous AI agent. Decompose this goal into concrete steps.
 
 GOAL: ${goalDescription}
@@ -303,6 +317,9 @@ AVAILABLE ACTION TYPES: ${actionTypes}
 YOUR CAPABILITIES: ${capabilities.join(', ')}
 RECENTLY MODIFIED FILES: ${recentFiles}
 ${context.memory ? `MEMORY CONTEXT: ${context.memory.buildContext?.(goalDescription) || ''}` : ''}
+
+GOAL-RELEVANT MODULE PATHS (use these EXACT paths when referring to files — do not invent new ones):
+${modulePathList}
 
 CANONICAL STEP TYPES (use ONLY these — others will be rejected):
 - ANALYZE: read, parse, understand existing code or context

@@ -377,8 +377,8 @@ class HTNPlanner {
   _generateDryRunSummary(steps, validation, cost) {
     const lines = [];
     lines.push(`Plan: ${steps.length} steps`);
-    lines.push(`Geschaetzte Dauer: ${cost.estimatedDurationHuman}`);
-    lines.push(`LLM-Aufrufe: ~${cost.totalLLMCalls}`);
+    lines.push(`Estimated duration: ${cost.estimatedDurationHuman}`);
+    lines.push(`LLM calls: ~${cost.totalLLMCalls}`);
     lines.push(`Tokens: ~${cost.totalTokensEstimated.toLocaleString()}`);
 
     if (validation.totalIssues > 0) {
@@ -391,7 +391,7 @@ class HTNPlanner {
     }
 
     if (validation.totalWarnings > 0) {
-      lines.push(`\n${validation.totalWarnings} Hinweise:`);
+      lines.push(`\n${validation.totalWarnings} warnings:`);
       for (const step of validation.steps) {
         for (const warning of step.warnings) {
           lines.push(`  Step ${step.stepIndex}: ${warning}`);
@@ -400,7 +400,7 @@ class HTNPlanner {
     }
 
     if (validation.crossIssues.length > 0) {
-      lines.push('\nPlan-weite Probleme:');
+      lines.push('\nPlan-wide issues:');
       for (const issue of validation.crossIssues) {
         lines.push(`  ${issue}`);
       }

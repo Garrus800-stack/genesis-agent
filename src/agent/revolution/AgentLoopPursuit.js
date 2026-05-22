@@ -4,10 +4,9 @@
 // GENESIS — AgentLoopPursuit.js
 // Mixin extraction of pursue() and _executeLoop() from AgentLoop.js.
 // Holds the pursuit sequence: input parsing, goal-creation, isolation
-// checks, Phase 1 PLAN, Phase 1b SIMULATE, Phase 1c CONSCIOUSNESS,
-// Phase 2 EXECUTE LOOP, post-execute cleanup. Mixin (not delegate) due
-// to deep state-coupling. Plan-failure reflection extracted to
-// AgentLoopPursuitReflection (v7.7.8). Stays under 700 LOC.
+// checks, plan, simulate, consciousness, execute-loop, cleanup. Mixin
+// (not delegate) due to deep state-coupling. Plan-failure reflection
+// extracted to AgentLoopPursuitReflection (v7.7.8). Stays under 700 LOC.
 // ============================================================
 
 const { TIMEOUTS, LIMITS } = require('../core/Constants');
@@ -16,6 +15,7 @@ const { CorrelationContext } = require('../core/CorrelationContext');
 const { reflectIfNeeded, composeFailureMessage } = require('./AgentLoopPursuitReflection');
 const { CancellationToken } = require('../core/CancellationToken');
 const { NullWorkspace } = require('../ports/WorkspacePort');
+const { normalizeStepTypes } = require('./plan-context');
 
 const _log = createLogger('AgentLoop');
 
@@ -623,7 +623,7 @@ const agentLoopPursuitMixin = {
         // Every 3 steps, check if the plan still makes sense
         const adjustment = await this.recovery.reflectOnProgress(plan, allResults, i);
         if (adjustment && adjustment.newSteps) {
-          // Replace remaining steps with adjusted plan
+          normalizeStepTypes(adjustment.newSteps, { logger: _log, tag: '[REPLAN]' });
           steps.splice(i + 1, steps.length, ...adjustment.newSteps);
           onProgress({
             phase: 'replanned',
@@ -687,11 +687,12 @@ const agentLoopPursuitMixin = {
     return {
       success: verification.success,
       summary: _finalSummary,
+      // v7.9.6: surface as `error` so the GoalDriver hallucination fast-track can fire.
+      error: verification.success ? null : _finalSummary,
       steps: this.executionLog,
       verification,
     };
   },
-
 };
 
 module.exports = { agentLoopPursuitMixin };

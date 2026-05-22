@@ -101,7 +101,11 @@ function phase9Koennen(ctx, R) {
           impact: 'Promotion cannot reach the production loader; skills stay invisible' },
         { prop: 'effectivenessTracker', service: 'skillEffectivenessTracker', optional: true,
           impact: 'No Wilson-LB available — promotion always returns not-tracked' },
-        { prop: 'toolRegistry',         service: 'toolRegistry',            optional: true,
+        // v7.9.6 audit-closeout: was 'toolRegistry' (dangling) — same drift
+        // class as the v7.1.6 fix logged in phase9-cognitive.js:403. The
+        // container registers this service as 'tools', not 'toolRegistry'.
+        // validate-service-wiring.js --strict flagged this in v7.9.5.
+        { prop: 'toolRegistry',         service: 'tools',                   optional: true,
           impact: 'Promoted skills not callable as tools until restart' },
         { prop: 'settings',             service: 'settings',                optional: true },
       ],

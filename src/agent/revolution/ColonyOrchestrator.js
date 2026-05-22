@@ -31,6 +31,7 @@
 'use strict';
 
 const { createLogger } = require('../core/Logger');
+const { pickRelevantModules, formatModulePathList } = require('./plan-context');
 const _log = createLogger('ColonyOrchestrator');
 
 const COLONY_DEFAULTS = {
@@ -66,6 +67,11 @@ class ColonyOrchestrator {
     /** @type {*} */ this.consensus = peerConsensus;
     /** @type {*} */ this.llm = llm;
     /** @type {*|null} */ this.selfSpawner = selfSpawner || null;  // V7-1: IPC worker pool
+    // v7.9.6 audit-closeout: lateBinding-filled. When wired, _decompose
+    // injects the real module-path list into the worker prompt so they
+    // don't hallucinate file paths. When null (foundation/test mode),
+    // the prompt falls back to its pre-v7.9.6 contents.
+    /** @type {*|null} */ this.selfModel = null;
     /** @type {typeof COLONY_DEFAULTS} */ this.config = { ...COLONY_DEFAULTS, ...config };
 
     /** @type {Map<string, ColonyRun>} */
@@ -240,6 +246,24 @@ class ColonyOrchestrator {
     const willExecuteLocally = this._getAvailablePeers().length === 0;
     const effectiveMax = this._effectiveMaxSubtasks(willExecuteLocally);
 
+    // v7.9.6 audit-closeout: same path-injection as FormalPlanner._llmDecompose
+    // (see plan-context.js header). Without this the worker subtasks see no
+    // codebase context and the LLM invents plausible-looking paths. Defensive:
+    // when selfModel is unwired (test mode or older boot configuration) the
+    // pathBlock simply doesn't appear in the prompt.
+    let pathBlock = '';
+    try {
+      if (this.selfModel?.getModuleSummary) {
+        const allModules = this.selfModel.getModuleSummary() || [];
+        const relevantModules = pickRelevantModules(allModules, goal);
+        if (relevantModules.length > 0) {
+          pathBlock =
+            '\nGOAL-RELEVANT MODULE PATHS (use these EXACT paths when referring to files — do not invent new ones):\n' +
+            formatModulePathList(relevantModules) + '\n';
+        }
+      }
+    } catch (_e) { /* best-effort */ }
+
     const prompt = [
       'You are a task decomposition engine for a software agent colony.',
       'Break the following goal into independent, parallelizable subtasks.',
@@ -249,7 +273,7 @@ class ColonyOrchestrator {
       `Goal: ${goal}`,
       options.context ? `Context: ${options.context}` : '',
       options.files?.length ? `Files involved: ${options.files.join(', ')}` : '',
-      '',
+      pathBlock,
       'Respond with a JSON array of objects: [{ "description": "...", "files": ["..."] }]',
       'Only output the JSON array, nothing else.',
     ].filter(Boolean).join('\n');

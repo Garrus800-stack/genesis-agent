@@ -217,7 +217,7 @@ If your subscription comes back online before the TTL expires (e.g. you renewed)
 
 ### Configuring the Fallback Chain (v7.5.7)
 
-The fallback-chain UI was rebuilt in v7.5.7. The previous `<select multiple size="3">` with "Hold Ctrl to select multiple" was unintuitive and frequently misread (markiert ≠ ausgewählt) — the most direct consequence was that users who thought they had configured a chain actually had an empty chain, and the v7.5.6 model-unavailability marker had nothing to fall back to.
+The fallback-chain UI was rebuilt in v7.5.7. The previous `<select multiple size="3">` with "Hold Ctrl to select multiple" was unintuitive and frequently misread (`markiert` ≠ `ausgewählt`) — the most direct consequence was that users who thought they had configured a chain actually had an empty chain, and the v7.5.6 model-unavailability marker had nothing to fall back to.
 
 The new UI is in **Settings → Fallback Chain**:
 
@@ -231,9 +231,9 @@ The chain is persisted to `models.fallbackChain` in `.genesis/settings.json`. Yo
 
 **Fixed in v7.5.7.** Electron apps default to NO context-menu — pre-fix Genesis chat had only Ctrl+C / Ctrl+V, which is unintuitive on Windows. v7.5.7 installs a `webContents.on('context-menu', ...)` handler in main.js that builds the menu per-click:
 
-- Editable fields (chat input, settings text-fields): Ausschneiden / Kopieren / Einfügen / Alles auswählen
-- Non-editable text with selection: Kopieren + Alles auswählen
-- Empty area: Alles auswählen only
+- Editable fields (chat input, settings text-fields): `Ausschneiden` / `Kopieren` / `Einfügen` / `Alles auswählen`
+- Non-editable text with selection: `Kopieren` + `Alles auswählen`
+- Empty area: `Alles auswählen` only
 
 If right-click still does nothing after upgrading, you're either still on a build before the fix or the renderer hasn't reloaded. Restart the app.
 
@@ -278,7 +278,7 @@ Local models are inherently slower than cloud APIs. Tips:
 ### Genesis answers gibberish, hallucinated words, or wrong language
 
 **Symptoms:**
-- Hallucinated words like "fehlentzündungen", "toiciations", invented compound nouns
+- Hallucinated words like `fehlentzündungen`, `toiciations`, invented compound nouns
 - Persona confusion: Genesis says "du bist Genesis..." instead of "ich bin Genesis..." (mixes up first and second person)
 - Sentence repetition loops at the end of responses
 - Generic "I am an AI assistant" answers ignoring the system prompt
@@ -492,9 +492,9 @@ The verification is detective, not preventative — the response still reaches y
 
 That's intentional. The bare keyword `reset` is not bound. Users typing `/reset` (intending to clear the chat) used to inadvertently trigger circuit-breaker status. Use `/self-repair-reset` or `/unfreeze` for explicit circuit-breaker management.
 
-### Genesis says he did something but I see "ich kann das nicht direkt verifizieren"
+### Genesis says he did something but I see `ich kann das nicht direkt verifizieren`
 
-This is the v7.5.5 SelfStatementLog confabulation detector firing. Genesis made a structural self-claim ("I see 11 active goals", "Ich überwache 3 Module") but the runtime-state block in his prompt was empty for that fact — there's no verified data backing the claim.
+This is the v7.5.5 SelfStatementLog confabulation detector firing. Genesis made a structural self-claim ("I see 11 active goals", `Ich überwache 3 Module`) but the runtime-state block in his prompt was empty for that fact — there's no verified data backing the claim.
 
 **Why it happens:** The LLM sometimes generates plausible-sounding self-descriptions even when the actual data isn't in the prompt. Pre-v7.5.5 this would silently pass through. Now Genesis flags it.
 

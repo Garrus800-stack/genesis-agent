@@ -301,7 +301,7 @@ class AutonomousDaemon {
         .slice(0, this.config.maxAutoRepairs);
 
       if (repairableIssues.length > 0) {
-        this._log('info', `Auto-repariere ${repairableIssues.length} Problem(e)... (trust=${trustLevel})`);
+        this._log('info', `Auto-repairing ${repairableIssues.length} issue(s)... (trust=${trustLevel})`);
         repaired = await this.reflector.repair(repairableIssues);
 
         this.bus.fire('daemon:auto-repair', {

@@ -21,61 +21,15 @@
 
 const { LIMITS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
-const { buildPlannerStepTypeList, normalizeStepType } = require('./step-types');
+const { buildPlannerStepTypeList } = require('./step-types');
+const { pickRelevantModules, formatModulePathList, normalizeStepTypes } = require('./plan-context');
 const _log = createLogger('AgentLoopPlanner');
 
-// v7.7.9 (post-Phase-3c.4): when planning, prefer modules whose file
-// path or class names actually overlap with the goal description.
-// Pre-fix: every plan got the first 20 modules by manifest order,
-// which made the LLM invent paths like 'src/core/goal-stack.js' for a
-// goal mentioning stalled goals (real path: 'src/agent/planning/
-// GoalStack.js' + 'src/agent/cognitive/StalledGoalWatchdog.js').
-// Goal-tokens drawn from the description hit the actual file names
-// most of the time; when fewer than 5 modules match we still fall
-// back to the first 20 by manifest order so a generic goal ("clean
-// up the code") never starves the prompt of context.
-const _MAX_RELEVANT_MODULES = 30;
-const _MIN_RELEVANT_MODULES = 5;
-const _STOPWORDS = new Set([
-  'the','and','for','with','from','into','that','this','your','about','some','any','all',
-  'der','die','das','und','von','mit','für','aus','der','dem','den','ist','wie','was','wo','wer','warum','wann','soll','will','muss','dass','nicht','auch','nach','wenn','bei','auf','vor','zur','zum','beim','wieder',
-]);
-
-function _goalTokens(goal) {
-  if (typeof goal !== 'string') return [];
-  return goal.toLowerCase()
-    .replace(/[^a-z0-9äöüß\s]/g, ' ')
-    .split(/\s+/)
-    .filter(t => t.length >= 3 && !_STOPWORDS.has(t));
-}
-
-function _moduleMatches(mod, tokens) {
-  const file = (mod.file || '').toLowerCase();
-  const classes = (mod.classes || []).map(c => String(c).toLowerCase());
-  for (const t of tokens) {
-    if (file.includes(t)) return true;
-    for (const c of classes) {
-      if (c.includes(t)) return true;
-    }
-  }
-  return false;
-}
-
-function pickRelevantModules(allModules, goalDescription) {
-  if (!Array.isArray(allModules) || allModules.length === 0) return [];
-  const tokens = _goalTokens(goalDescription);
-  if (tokens.length === 0) return allModules.slice(0, LIMITS.PROMPT_MODULE_SLICE);
-  const matches = allModules.filter(m => _moduleMatches(m, tokens));
-  if (matches.length >= _MIN_RELEVANT_MODULES) {
-    return matches.slice(0, _MAX_RELEVANT_MODULES);
-  }
-  // Not enough goal-relevant matches — combine matches with first-N
-  // manifest entries so the LLM still sees real paths but also a
-  // baseline of high-level project modules.
-  const seen = new Set(matches.map(m => m.file));
-  const fillers = allModules.filter(m => !seen.has(m.file)).slice(0, LIMITS.PROMPT_MODULE_SLICE);
-  return [...matches, ...fillers].slice(0, _MAX_RELEVANT_MODULES);
-}
+// v7.7.9 (post-Phase-3c.4) → v7.9.6: pickRelevantModules and its helpers
+// were extracted to ./plan-context.js so FormalPlanner and ColonyOrchestrator
+// can share the same goal-relevant module-path filter. The behaviour here
+// is unchanged — this file just imports and re-exports the helper for
+// backward compatibility with tests that read it from AgentLoopPlanner.
 
 class AgentLoopPlannerDelegate {
   /**
@@ -140,12 +94,10 @@ class AgentLoopPlannerDelegate {
       }
     } catch (_e) { /* best-effort */ }
 
-    // v7.7.9 (post-Phase-3c.4): expose actual file paths to the planner
-    // so the LLM stops inventing paths. List is bounded by
-    // pickRelevantModules above.
-    const modulePathList = modules.length > 0
-      ? modules.map(m => `- ${m.file}${m.classes?.length ? ` (${m.classes.slice(0, 2).join(', ')})` : ''}`).join('\n')
-      : '(no module manifest available)';
+    // v7.7.9 (post-Phase-3c.4) → v7.9.6: expose actual file paths to the
+    // planner so the LLM stops inventing paths. List is bounded by
+    // pickRelevantModules above. Format extracted to plan-context.js.
+    const modulePathList = formatModulePathList(modules);
 
     // v3.5.0: Inject WorldState context if available
     const wsContext = loop.worldState
@@ -228,23 +180,12 @@ Keep it to 3-8 steps. Be specific. Each step must be independently verifiable.`;
       return this._salvagePlan(response._raw, goalDescription);
     }
 
-    // v7.3.5: Normalize step types against the central catalog. The LLM
-    // sometimes invents types (GIT_SNAPSHOT, WRITE_FILE, CODE_GENERATE).
-    // Known aliases are rewritten to a valid type; unmappable types fall
-    // back to ANALYZE with a note so the plan can still run (worst case
-    // the executor just reads instead of writes — safer than failing mid-plan).
+    // v7.3.5 → v7.9.6: Normalize step types via the shared helper.
+    // The LLM sometimes invents types (GIT_SNAPSHOT, WRITE_FILE,
+    // CODE_GENERATE). Known aliases are rewritten; unmappable types
+    // fall back to ANALYZE so the plan can still run.
     if (Array.isArray(response.steps)) {
-      for (const step of response.steps) {
-        const normalized = normalizeStepType(step.type);
-        if (normalized && normalized !== step.type) {
-          _log.info(`[PLANNER] Normalized step type "${step.type}" → "${normalized}"`);
-          step.type = normalized;
-        } else if (!normalized) {
-          _log.warn(`[PLANNER] Unknown step type "${step.type}" — falling back to ANALYZE`);
-          step.description = `[was ${step.type}] ${step.description || ''}`.trim();
-          step.type = 'ANALYZE';
-        }
-      }
+      normalizeStepTypes(response.steps, { logger: _log, tag: '[PLANNER]' });
     }
 
     return response;

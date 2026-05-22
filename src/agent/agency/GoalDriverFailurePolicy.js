@@ -170,7 +170,13 @@ const failurePolicyMixin = {
       // implausible paths, unknown step types, "Unexpected token" in
       // verification. These never resolve by retry; the LLM keeps
       // emitting the same plan. Fast-track to obsolete after 2 hits.
-      const _isHallucination = /implausible path|unknown step type|Unexpected token|missing required|file not found|ENOENT/i.test(errMsg || '');
+      // v7.9.6: added 'plausibility check failed' — that is the literal
+      // wording AgentLoopSteps.js:153 emits, and it is what flows into
+      // _finalSummary when the goal eventually fails verification. With
+      // Fix 1 (error-field on the final return) plus this widened regex,
+      // hallucinated paths now reliably fast-track to obsolete instead
+      // of running the full 4-pursuit retry cycle.
+      const _isHallucination = /implausible path|plausibility check failed|unknown step type|Unexpected token|missing required|file not found|ENOENT/i.test(errMsg || '');
       const _failureCap = _isHallucination ? 2 : 3;
       const backoffSchedule = _isHallucination
         ? [10_000, 60_000]                                  // hallucination — 2 quick retries then obsolete

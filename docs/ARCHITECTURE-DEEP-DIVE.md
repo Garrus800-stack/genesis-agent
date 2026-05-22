@@ -13,9 +13,9 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 375 JS files |
-| Test Files / Tests | 486 / 7906 (Win baseline) |
-| DI Services | 168 (155 manifest + 13 bootstrap) |
+| Source Modules | 376 JS files |
+| Test Files / Tests | 488 / 7933 (Win baseline) |
+| DI Services | 178 (165 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
 | npm Dependencies | 4 production + 1 optional + 10 dev |
@@ -55,7 +55,7 @@ Phase 1: Bootstrap
   └── Register non-manifest instances: rootDir, guard, bus, storage, lang, logger
 
 Phase 2: Manifest
-  └── Register all 164 services from 12 phase files via ContainerManifest (+13 bootstrap = 177 runtime, cognitive default profile)
+  └── Register all 165 services from 12 phase files via ContainerManifest (+13 bootstrap = 178 runtime, cognitive default profile)
       └── Auto-discovery scans src/agent/ → builds filename→directory map
 
 Phase 3: Resolve & Init
@@ -503,7 +503,7 @@ HardGates in order:
 
 Defense in depth is the pattern. The private-kind blocklist exists *despite* the kind-allowlist (gate 7) already blocking these kinds, because misconfiguration of the allowlist would otherwise leak private thoughts. The hard set is unreachable from settings.
 
-Suppression reasons are logged for every blocked thought. `/proactive-status` surfaces the suppression log — Garrus can see "the last 20 thoughts wanted to surface, 18 were blocked, here's why" without needing to dig into events.
+Suppression reasons are logged for every blocked thought. `/proactive-status` surfaces the suppression log — the operator can see "the last 20 thoughts wanted to surface, 18 were blocked, here's why" without needing to dig into events.
 
 The Phase 3 kinds (idle-thought, goal-closure, self-formulated-plan, question) ship code-complete but gated off in the v7.7.9 default settings. Phase 2 is `plan-failure-reflection` only, allowing observed-stability rollout before opening more channels. v7.9.5 doesn't change this — the Phase 3 kinds remain opt-in via settings.
 
@@ -563,5 +563,5 @@ Approximate as of v7.5.6 (numbers shift with each release):
   ─────────────────────────────────────────────
   agent/ total     259 files  ~84,900 LOC
   + UI/kernel       47 files  ~13,800 LOC
-  = src/ total     375 modules ~116,000 LOC
+  = src/ total     376 modules ~119,000 LOC
 ```

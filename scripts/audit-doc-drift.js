@@ -72,8 +72,9 @@ function getHashLockCount() {
   const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf-8');
   const block = main.match(/lockCritical\(\[([\s\S]*?)\]\)/);
   if (!block) return 0;
-  // Count lines that look like 'src/...' string entries
-  const lines = block[1].split('\n').filter(l => /^\s*['"]src\//.test(l));
+  // Count lines that look like 'src/...' or 'scripts/...' string entries.
+  // v7.9.6: scripts/ entries added — CI gate scripts now hash-locked.
+  const lines = block[1].split('\n').filter(l => /^\s*['"](src|scripts)\//.test(l));
   return lines.length;
 }
 
@@ -290,7 +291,7 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '7906 passing',      label: 'badge: tests',
+        tests:      { live: '7933 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
                       // v7.7.9: +154 over v7.7.8 (innerSpeech 26 + phase1c 13 +
@@ -318,7 +319,7 @@ function runChecks() {
                       compare: (got, exp) => got === exp },
         schemas:    { live: '100%',              label: 'badge: schemas',
                       compare: (got, exp) => got === exp },
-        services:   { live: 168,                 label: 'badge: services' },
+        services:   { live: 178,                 label: 'badge: services' },
         phases:     { live: 12,                  label: 'badge: phases' },
         capabilities: { live: '240+',            label: 'badge: capabilities',
                         // "240+" wildcards: match if README shows N+ where N >= 240.
@@ -412,7 +413,7 @@ function runChecks() {
       //   minus 6 v790-koennen-narrative-and-slash tests rewritten for the new status-grouped
       //   /skills-pending output, plus the v742-structure update for goals-mixin LOC and count
       //   to accommodate the two new skill* slash handlers).
-      const TESTS_WIN_BASELINE = 7906;
+      const TESTS_WIN_BASELINE = 7933;
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -452,7 +453,7 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 7906;
+  const TESTS_WIN = 7933;
   // v7.7.7: TEST_FILES is now dynamic — counts *.test.js under test/ at audit-time.
   // This closes the drift-blind tautology where the constant was pinned and the
   // doc was pinned to the same constant — drift would never be detected. With
