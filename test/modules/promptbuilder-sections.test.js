@@ -53,6 +53,8 @@ describe('PromptBuilderSections: Delegation', () => {
       '_runtimeStateContext',
       // v7.9.0 final: Installed-skills awareness section
       '_skillsContext',
+      // v7.9.4: Mid-conversation anti-greeting cue (emits only when history > 0)
+      '_conversationContext',
     ];
     for (const name of expected) {
       assert(typeof allSections[name] === 'function', `sections.${name} should be a function`);

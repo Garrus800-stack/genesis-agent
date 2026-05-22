@@ -487,6 +487,18 @@ const INTENT_DEFINITIONS = [
     /(?:^|\s)\/skills-pending\b/i,
   ], 25, []],
 
+  // v7.9.4 (koennen-promotion-v794 contract): /skill-info <name> shows
+  // the full biography (acquisitionContext) of one skill.
+  ['skill-info', [
+    /(?:^|\s)\/(?:skill-info|skill-bio)\s+\S+/i,
+  ], 25, []],
+
+  // v7.9.4 (koennen-promotion-v794 contract): /skill-discard <name> <reason>
+  // soft-discards a skill with a min-10-character reason. Creates a Core Memory.
+  ['skill-discard', [
+    /(?:^|\s)\/skill-discard\s+\S+\s+.+/i,
+  ], 25, []],
+
   ['greeting', [
     /^(hi|hallo|hey|moin|servus|guten (morgen|tag|abend)|hello|good (morning|evening)|bonjour|buenas?)\s*[!.]?$/i,
   ], 5, ['hallo', 'hello', 'hi', 'moin', 'servus']],

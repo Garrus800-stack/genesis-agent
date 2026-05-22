@@ -82,6 +82,13 @@ function phase6(ctx, R) {
         { prop: 'innerSpeech', service: 'innerSpeech', optional: true,
           expects: ['emit'],
           impact: 'Idle thoughts not routed to inner-speech channel; PSE cannot subscribe' },
+        // v7.9.4: Können Phase 3 — required for SkillRehearsal activity.
+        // Both optional with graceful degradation: without them the activity
+        // returns 0 in shouldTrigger and never runs.
+        { prop: 'skillManager', service: 'skills', optional: true,
+          impact: 'SkillRehearsal activity disabled — cannot execute pending skills' },
+        { prop: 'effectivenessTracker', service: 'skillEffectivenessTracker', optional: true,
+          impact: 'SkillRehearsal cannot record invocation outcomes for Wilson-LB' },
       ],
       factory: (c) => {
         const im = new (R('IdleMind').IdleMind)({
@@ -93,6 +100,10 @@ function phase6(ctx, R) {
         });
         // v7.5.7-fix Phase 2: journal rotation + interval thresholds from settings.
         const settings = c.tryResolve ? c.tryResolve('settings') : null;
+        // v7.9.4: keep a reference so IdleMind code paths (e.g. per-activity
+        // metabolism cost in _think, goal-step balance in goal-loop) can
+        // read live settings without re-resolving the container per cycle.
+        im._settings = settings || null;
         const sz = settings?.get?.('idleMind.journalMaxFileSizeMB');
         const rot = settings?.get?.('idleMind.journalMaxRotations');
         if (typeof sz === 'number') im._journalMaxFileSizeMB = sz;

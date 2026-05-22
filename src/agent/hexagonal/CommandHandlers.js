@@ -77,6 +77,8 @@ class CommandHandlers {
     orchestrator.registerHandler('goals', (msg) => this.goals(msg));
     orchestrator.registerHandler('affect-trail', (msg) => this.affectTrail(msg));   // v7.8.9
     orchestrator.registerHandler('skills-pending', (msg) => this.skillsPending(msg)); // v7.9.0
+    orchestrator.registerHandler('skill-info', (msg) => this.skillInfo(msg));    // v7.9.4
+    orchestrator.registerHandler('skill-discard', (msg) => this.skillDiscard(msg)); // v7.9.4
     orchestrator.registerHandler('settings', (msg) => this.handleSettings(msg));
     orchestrator.registerHandler('web-lookup', (msg) => this.webLookup(msg));
     orchestrator.registerHandler('undo', () => this.undo());

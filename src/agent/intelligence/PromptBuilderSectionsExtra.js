@@ -225,11 +225,28 @@ const sectionsExtra = {
       // skill names like 'BERT-classifier' when SkillManager has the truth.
       // Empty list is silent so the populated=false test contract holds when
       // no other sources are present.
+      // v7.9.4: annotate promoted Können skills with Wilson-LB percentage
+      // so Genesis sees skill reliability in his own context.
       if (this.skills && typeof this.skills.listSkills === 'function') {
         try {
           const skills = this.skills.listSkills() || [];
           if (skills.length > 0) {
-            const names = skills.slice(0, 8).map(s => s.name || s.id || s).join(', ');
+            const tracker = this.effectivenessTracker || this.skills.effectivenessTracker;
+            const annotated = skills.slice(0, 8).map(s => {
+              // Only promoted Können skills get the percentage. Built-in
+              // skills (code-stats, system-info, etc.) lack manifest.koennen
+              // so they stay unannotated.
+              if (tracker && typeof tracker.getWilsonLB === 'function' && s.koennen) {
+                try {
+                  const lb = tracker.getWilsonLB(s.name);
+                  if (typeof lb === 'number' && !isNaN(lb)) {
+                    return `${s.name} (${(lb * 100).toFixed(0)}%)`;
+                  }
+                } catch (_e) { /* fall through to plain name */ }
+              }
+              return s.name || s.id || String(s);
+            });
+            const names = annotated.join(', ');
             const more = skills.length > 8 ? ` (+${skills.length - 8} more)` : '';
             parts.push(`  Loaded skills: ${names}${more}`);
           }

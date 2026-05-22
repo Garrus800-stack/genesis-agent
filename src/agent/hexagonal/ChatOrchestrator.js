@@ -139,6 +139,7 @@ class ChatOrchestrator {
           this.promptBuilder.setVagueReference(vagueSignal);
         }
         if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
+        if (this.promptBuilder.setHistoryLength) this.promptBuilder.setHistoryLength(Math.max(0, this.history.length - 1)); // v7.9.4
         this._maybeAttachSourceHint(message, intent);  // v7.3.7
         this._maybeReadSourceSync(message, intent);    // v7.3.8
         response = await this._generalChat(message);
@@ -271,6 +272,7 @@ class ChatOrchestrator {
       if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
       if (this.promptBuilder.setExplicitTool) this.promptBuilder.setExplicitTool(intent.explicitTool || null);
       if (this.promptBuilder.setBudget && budget) this.promptBuilder.setBudget(budget);
+      if (this.promptBuilder.setHistoryLength) this.promptBuilder.setHistoryLength(Math.max(0, this.history.length - 1)); // v7.9.4 chat-identity-threading
       const systemPrompt = this.promptBuilder.buildAsync
         ? await this.promptBuilder.buildAsync()
         : this.promptBuilder.build();
@@ -425,9 +427,12 @@ class ChatOrchestrator {
 
   async _generalChat(message) {
     const _h = /** @type {any} */ (this);
+    // v7.9.4: pass full PromptBuilder output so reasoning:solve doesn't fall back to ReasoningEngine's identity-stripping mini-prompt.
+    let systemPrompt = ''; try { systemPrompt = this.promptBuilder.buildAsync ? await this.promptBuilder.buildAsync() : this.promptBuilder.build(); }
+    catch (e) { _log.debug('[CHAT] PromptBuilder failed in _generalChat:', e.message); }
     try {
       return (await this.cb.execute(
-        () => this.bus.request('reasoning:solve', { task: message, history: this.history })
+        () => this.bus.request('reasoning:solve', { task: message, history: this.history, systemPrompt })
       ))?.answer || await this._directChat(message);
     } catch (err) {
       // v7.3.8: If the reasoning:solve path failed due to a hard LLM

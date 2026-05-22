@@ -62,6 +62,9 @@ function buildPickContext(idleMind) {
     storage:                  idleMind.storage,
     selfModel:                idleMind.selfModel,
     bus:                      idleMind.bus,
+    // v7.9.4: Können Phase 3 — SkillRehearsal activity needs these.
+    skillManager:             idleMind.skillManager,
+    effectivenessTracker:     idleMind.effectivenessTracker,
   };
 
   // Pre-computed snapshots — cheap reads all gathered once

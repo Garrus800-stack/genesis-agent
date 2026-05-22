@@ -320,12 +320,37 @@ class Metabolism {
     llmCallHeavy:      20,  // reasoning, code-gen
     sandboxExec:        5,
     selfModification:  50,
-    idleMindCycle:      2,
+    idleMindCycle:      2,  // baseline per-cycle overhead (unchanged)
     peerSync:           8,
     dreamCycleFull:    30,
     dreamCycleLight:    3,  // heuristic phases only
     webFetch:           4,
     skillExecution:     6,
+
+    // v7.9.4: per-IdleMind-activity differentiated costs. The idleMindCycle
+    // above remains as a baseline that fires every cycle; after pickActivity
+    // chooses a concrete activity, IdleMind charges the activity-specific
+    // cost on top so a 12-energy Plan call and a 2-energy Journal entry
+    // don't drain the pool at the same rate. Settings toggle
+    // `organism.metabolism.differentiatedCosts` (default true) controls
+    // whether the second consume fires. Costs are conservative; the energy
+    // pool is 500 by default so even a heavy day stays well above depletion.
+    'idleMind:reflect':         3,
+    'idleMind:plan':           12,  // typically includes a planning LLM call
+    'idleMind:explore':         8,
+    'idleMind:ideate':          7,
+    'idleMind:tidy':            2,
+    'idleMind:journal':         2,
+    'idleMind:mcp-explore':     6,
+    'idleMind:dream':          18,  // dream cycles are the most expensive
+    'idleMind:consolidate':     8,
+    'idleMind:calibrate':       4,
+    'idleMind:improve':         9,
+    'idleMind:research':       15,  // includes web fetches + reasoning
+    'idleMind:self-define':     5,
+    'idleMind:study':           6,
+    'idleMind:read-source':     4,
+    'idleMind:skill-rehearsal': 5,
   };
 
   /**

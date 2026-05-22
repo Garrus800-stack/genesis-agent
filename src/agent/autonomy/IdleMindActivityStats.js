@@ -27,6 +27,19 @@
 
 'use strict';
 
+// v7.9.4: persistence file for cross-session activity stats.
+// Kept under the same .genesis directory as journal/plans/etc. so a
+// project-folder copy carries the full IdleMind history along.
+const STATS_FILE = 'idle-activity-stats.json';
+const STATS_SCHEMA_VERSION = 1;
+// Bound the on-disk log to the same window the in-memory log uses (20).
+const STATS_LOG_BOUND = 20;
+// Debounce writes to coalesce activity-bursts (a dream cycle may
+// schedule several rapid recordActivity calls). 1000ms is short enough
+// that a crash within seconds still preserves recent stats, long
+// enough to avoid I/O thrash.
+const STATS_WRITE_DEBOUNCE_MS = 1000;
+
 const activityStatsMixin = {
 
   /**
@@ -34,6 +47,10 @@ const activityStatsMixin = {
    * `activityLog` (bounded to last 20) AND increments the per-type
    * counter in `_activityCounts`. Called from the main think-loop
    * after a successful activity.run().
+   *
+   * v7.9.4: also schedules a debounced save so the stats survive
+   * restarts. Save failures are logged at debug level and never
+   * interrupt the think-loop.
    *
    * @param {string} activity - canonical activity name (ideate, explore, …)
    * @param {*} _result - the activity's return value (unused here,
@@ -46,6 +63,63 @@ const activityStatsMixin = {
     }
     if (!this._activityCounts) this._activityCounts = new Map();
     this._activityCounts.set(activity, (this._activityCounts.get(activity) || 0) + 1);
+    this._saveActivityStats();
+  },
+
+  /**
+   * v7.9.4: persist the in-memory activity stats to disk. Debounced via
+   * StorageService.writeJSONDebounced so bursts collapse to a single
+   * write. No-op if storage isn't available (e.g. in unit tests with
+   * storageDir: null).
+   */
+  _saveActivityStats() {
+    if (!this.storage || typeof this.storage.writeJSONDebounced !== 'function') return;
+    try {
+      const payload = {
+        version: STATS_SCHEMA_VERSION,
+        lastUpdated: Date.now(),
+        activityCounts: Object.fromEntries(this._activityCounts || []),
+        activityLog: (this.activityLog || []).slice(-STATS_LOG_BOUND),
+      };
+      this.storage.writeJSONDebounced(STATS_FILE, payload, STATS_WRITE_DEBOUNCE_MS);
+    } catch (err) {
+      // never let persistence failures interrupt the think-loop
+      if (typeof this._log?.debug === 'function') {
+        this._log.debug('[IDLE-MIND] activity-stats save failed:', err.message);
+      }
+    }
+  },
+
+  /**
+   * v7.9.4: restore activity stats from disk. Called from IdleMind
+   * constructor after activityLog/activityCounts are initialised to
+   * empty defaults. Schema mismatch, missing file, parse error all
+   * fall through to empty state — boot must never block on this.
+   */
+  _loadActivityStats() {
+    if (!this.storage || typeof this.storage.readJSON !== 'function') return;
+    let data;
+    try {
+      data = this.storage.readJSON(STATS_FILE, null);
+    } catch (err) {
+      if (typeof this._log?.debug === 'function') {
+        this._log.debug('[IDLE-MIND] activity-stats load failed (starting fresh):', err.message);
+      }
+      return;
+    }
+    if (!data || typeof data !== 'object') return;
+    if (data.version !== STATS_SCHEMA_VERSION) return; // future-proofing
+    if (Array.isArray(data.activityLog)) {
+      // defensive: only accept entries that match the expected shape
+      this.activityLog = data.activityLog
+        .filter(e => e && typeof e.activity === 'string' && Number.isFinite(e.timestamp))
+        .slice(-STATS_LOG_BOUND);
+    }
+    if (data.activityCounts && typeof data.activityCounts === 'object') {
+      this._activityCounts = new Map(
+        Object.entries(data.activityCounts).filter(([k, v]) => typeof k === 'string' && Number.isFinite(v))
+      );
+    }
   },
 
 };

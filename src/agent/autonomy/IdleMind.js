@@ -45,6 +45,7 @@ const ACTIVITY_MODULES = [
   require('./activities/SelfDefine'),
   require('./activities/Study'),
   require('./activities/ReadSource'), // v7.3.1
+  require('./activities/SkillRehearsal'), // v7.9.4
 ];
 const ACTIVITY_BY_NAME = Object.fromEntries(ACTIVITY_MODULES.map(a => [a.name, a]));
 
@@ -96,6 +97,9 @@ class IdleMind {
     // v7.7.9: InnerSpeech — first-person thought channel (late-bound, optional)
     this.innerSpeech = null;
 
+    // v7.9.4: Können Phase 3 — late-bound via DI for SkillRehearsal activity.
+    this.skillManager = null; this.effectivenessTracker = null;
+
     // v7.1.6: Research state
     this._pendingResearch = null;
     this._networkCheckCache = undefined;
@@ -127,8 +131,17 @@ class IdleMind {
     // Track what activities have been done recently
     this.activityLog = [];
     // v7.9.1: _activityCounts is lazy-initialised by IdleMindActivityStats mixin
+    // v7.9.4: restore activity-stats from disk so the picker's
+    // repetition-penalty (in _pickActivity) and the dashboard counts
+    // reflect history across restarts. No-op when storage isn't wired
+    // (tests, partial boots).
+    if (typeof this._loadActivityStats === 'function') {
+      try { this._loadActivityStats(); } catch (e) { _log.debug('[IDLE-MIND] activity-stats restore skipped:', e.message); }
+    }
     this._lastInsightTs = 0; // v5.7.0: Rate-limit proactive insights
     this._thinking = false;  // FIX v7.4.1: Re-entrancy guard for _think()
+    // v7.9.4: goal-activity balance counter — see _think() goal-step path
+    this._goalStepsSincePick = 0;
 
     // Listen for user activity (multiple sources for reliability)
     this._sub('agent:status', () => { this.lastUserActivity = Date.now(); }, { source: 'IdleMind' });
@@ -263,19 +276,37 @@ class IdleMind {
     }, { source: 'IdleMind' });
 
     // PRIORITY 1: Execute active goals (purposeful work)
+    // v7.9.4: goal-activity balance. Pre-fix, every cycle with an active
+    // goal ran a goal-step and returned early, so non-goal activities
+    // (reflect, journal, dream, etc.) never fired while a goal was active.
+    // Now we count goal-steps and break out to the activity-pick path
+    // every N steps (setting idleMind.goalStepsPerActivityPick, default 3).
+    // Setting null/0 restores the legacy always-goal-step behavior.
     if (this.goalStack) {
       const activeGoals = this.goalStack.getActiveGoals();
       if (activeGoals.length > 0) {
-        this.bus.fire('idle:thinking', { activity: 'goal', thought: this.thoughtCount }, { source: 'IdleMind' });
-        try {
-          const result = await this.goalStack.executeNextStep();
-          if (result) {
-            this._journal('goal', `[${result.goalId}] Step: ${result.action} -> ${result.success ? 'OK' : 'FAIL'}: ${(result.output || '').slice(0, 200)}`);
-            this.bus.fire('idle:thought-complete', { activity: 'goal', summary: result.action }, { source: 'IdleMind' });
-            return;
+        const N = (() => {
+          const v = this._settings?.get?.('idleMind.goalStepsPerActivityPick');
+          return Number.isFinite(v) ? v : 3;
+        })();
+        const next = (this._goalStepsSincePick || 0) + 1;
+        if (N > 0 && next > N) {
+          // Reset and intentionally fall through to activity pick this cycle.
+          this._goalStepsSincePick = 0;
+          this.bus.fire('idle:goal-balance-break', { stepsTaken: N }, { source: 'IdleMind' });
+        } else {
+          this._goalStepsSincePick = next;
+          this.bus.fire('idle:thinking', { activity: 'goal', thought: this.thoughtCount }, { source: 'IdleMind' });
+          try {
+            const result = await this.goalStack.executeNextStep();
+            if (result) {
+              this._journal('goal', `[${result.goalId}] Step: ${result.action} -> ${result.success ? 'OK' : 'FAIL'}: ${(result.output || '').slice(0, 200)}`);
+              this.bus.fire('idle:thought-complete', { activity: 'goal', summary: result.action }, { source: 'IdleMind' });
+              return;
+            }
+          } catch (err) {
+            _log.warn('[IDLE-MIND] Goal step failed:', err.message);
           }
-        } catch (err) {
-          _log.warn('[IDLE-MIND] Goal step failed:', err.message);
         }
       }
     }
@@ -291,6 +322,20 @@ class IdleMind {
       // activity names (preserves legacy `default: _reflect()` behavior).
       const act = ACTIVITY_BY_NAME[activity] || ACTIVITY_BY_NAME['reflect'];
       result = await act.run(this);
+
+      // v7.9.4: per-activity Metabolism cost. The baseline idleMindCycle
+      // cost already fired once for the cycle itself; this second consume
+      // charges the activity-specific cost so a Plan (12) and a Journal (2)
+      // entry don't drain the pool at the same rate. Controlled by setting
+      // `organism.metabolism.differentiatedCosts` (default true). Unknown
+      // activity keys cost 0 by design (see Metabolism.consume) — no throw.
+      try {
+        const useDifferentiated = this._settings?.get?.('organism.metabolism.differentiatedCosts');
+        const enabled = useDifferentiated === undefined ? true : !!useDifferentiated;
+        if (enabled && this._metabolism && typeof this._metabolism.consume === 'function') {
+          this._metabolism.consume(`idleMind:${activity}`);
+        }
+      } catch (e) { _log.debug('[IDLE-MIND] differentiated cost skipped:', e.message); }
 
       if (result) {
         this._journal(activity, result);
@@ -377,8 +422,15 @@ class IdleMind {
     }
 
     // Repetition penalty: recently-run activities get their score reduced.
-    // Preserved from legacy _pickActivity() behavior.
-    const recent = this.activityLog.slice(-5).map(a => a.activity);
+    // v7.9.4: use a Set so each unique activity in the last 5 cycles gets
+    // the 0.2 multiplier exactly once. Pre-fix this loop iterated the raw
+    // array, so an activity appearing N times in the recent window got
+    // hit with 0.2^N — e.g. ['reflect','reflect','reflect','reflect','reflect']
+    // pushed reflect's score to score * 0.00032, effectively locking the
+    // activity out for a long time and skewing the picker toward whatever
+    // happened to be different. Single-application Set restores the
+    // intended "discourage repetition" semantic without runaway penalty.
+    const recent = new Set(this.activityLog.slice(-5).map(a => a.activity));
     for (const a of recent) {
       if (scores[a] !== undefined) scores[a] *= 0.2;
     }

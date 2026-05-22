@@ -93,6 +93,13 @@ class PromptBuilder {
     this.episodicMemory = null;
 
     this._recentQuery = '';
+    // v7.9.4: Conversation-awareness — number of prior turn exchanges in
+    // the current chat history (set per-request by ChatOrchestrator from
+    // ChatOrchestrator.history.length - 1). Read by
+    // _conversationContext() so the prompt emits anti-greeting and
+    // anti-assistant-stance directives ONLY for mid-conversation turns,
+    // never on the very first user message of a session.
+    this._historyLength = 0;
     // v7.8.1: explicit-tool hint set per turn by ChatOrchestrator from
     // IntentRouter classify() result. Read by PromptBuilderSectionsAwareness.
     this._explicitTool = null;
@@ -114,6 +121,7 @@ class PromptBuilder {
       // Removed bodySchema from default (no measurable task impact).
       // v6.0.2: formatting + capabilities expanded for code-gen workflow + conversation quality
       [1, 'identity',      500],   // v7.0.4: Expanded — model identity separation + version
+      [1, 'conversationContext', 400], // v7.9.4: mid-conversation anti-greeting cue, emits only when history > 0
       [1, 'formatting',    1200],
       [2, 'session',       500],
       [2, 'capabilities',  1300],
@@ -216,6 +224,31 @@ class PromptBuilder {
    */
   setBudget(budget) {
     this._currentBudget = budget || null;
+  }
+
+  /**
+   * v7.9.4: Set the count of prior turn exchanges in the current chat
+   * history. Called by ChatOrchestrator before build()/buildAsync() with
+   * (history.length - 1) — the current user message is already pushed
+   * to history at setter call time, so it does not count as "prior".
+   *
+   * When > 0, _conversationContext() emits an anti-greeting and
+   * anti-assistant-stance block: the large cloud models with RLHF
+   * assistant training tend to re-greet ("Hallo!") and re-offer help
+   * ("Wie kann ich dir helfen?") on every short user message, even
+   * mid-conversation, unless the system prompt explicitly says
+   * otherwise. Identity-as-Genesis is anchored in _identity() but that
+   * alone isn't enough — the model needs a positional cue ("you are
+   * already in a conversation, do not restart it").
+   *
+   * When 0 (first message of a session), the block is omitted so a
+   * genuine first greeting remains natural.
+   *
+   * @param {number} n - non-negative integer; coerced safely
+   */
+  setHistoryLength(n) {
+    const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+    this._historyLength = v;
   }
 
   /**
@@ -357,9 +390,11 @@ class PromptBuilder {
     this._applyModelGating();
 
     return this._buildWithBudget([
-      ['identity',       this._identity()],
-      ['formatting',     this._formatting()],
-      ['session',        this._sessionContext()],
+      ['identity',           this._identity()],
+      // v7.9.4: mid-conversation cue — only emits when _historyLength > 0
+      ['conversationContext', this._conversationContext()],
+      ['formatting',         this._formatting()],
+      ['session',            this._sessionContext()],
       ['frontier',       this._frontierContext()],
       // v7.4.0: Runtime-state snapshot from 8 services.
       // Positioned between frontier (emotional horizon) and
@@ -488,9 +523,11 @@ class PromptBuilder {
     this._applyModelGating(); // v6.0.7
 
     const sections = [
-      ['identity',     this._identity()],
-      ['formatting',   this._formatting()],
-      ['session',      this._sessionContext()],
+      ['identity',           this._identity()],
+      // v7.9.4: mid-conversation cue — only emits when _historyLength > 0
+      ['conversationContext', this._conversationContext()],
+      ['formatting',         this._formatting()],
+      ['session',            this._sessionContext()],
       // v7.4.0: Runtime-state snapshot (same pattern as build()).
       ['runtimeState', this._runtimeStateContext()],
       ['capabilities', this._capabilities()],

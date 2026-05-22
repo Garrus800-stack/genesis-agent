@@ -237,14 +237,17 @@ console.log('\n  📦 v7.5.1 Regression Tests\n');
 
 // ── C/E: preload ALLOWED_RECEIVE pruned ───────────────────────
 (async () => {
-  await test('C: preload ALLOWED_RECEIVE has 9 entries (4 telemetry removed in v7.5.1, +1 added in v7.7.9 Phase 2)', async () => {
+  await test('C: preload ALLOWED_RECEIVE has 13 entries (4 telemetry removed in v7.5.1, +1 added in v7.7.9 Phase 2, +4 in v7.9.4 Können Phase 3)', async () => {
     const preloadSrc = fs.readFileSync(path.join(__dirname, '../../preload.mjs'), 'utf8');
     const m = preloadSrc.match(/const\s+ALLOWED_RECEIVE\s*=\s*\[([^\]]+)\]/s);
     assert(m, 'ALLOWED_RECEIVE block found');
     const channels = [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]);
     // v7.5.1: removed 4 telemetry events. v7.7.9 Phase 2: added 1
     // (genesis:self-message — self-initiated chat messages from PSE).
-    assert.strictEqual(channels.length, 9, `expected 9 channels, got ${channels.length}: ${channels}`);
+    // v7.9.4 Können Phase 3: added 4 skill lifecycle channels (skill:promoted,
+    // skill:discarded, skill:quarantined, skill:discard-suggested) — bridged
+    // by AgentCoreWire for renderer-side toast notifications.
+    assert.strictEqual(channels.length, 13, `expected 13 channels, got ${channels.length}: ${channels}`);
     // The 4 removed:
     for (const removed of ['goal:driver-pickup', 'goal:resumed-auto', 'goal:discarded', 'driver:unresponsive']) {
       assert(!channels.includes(removed), `${removed} should be removed from ALLOWED_RECEIVE`);
@@ -253,6 +256,10 @@ console.log('\n  📦 v7.5.1 Regression Tests\n');
     assert(channels.includes('ui:resume-prompt'), 'ui:resume-prompt kept');
     // v7.7.9 Phase 2: new self-message channel
     assert(channels.includes('genesis:self-message'), 'genesis:self-message added in v7.7.9 Phase 2');
+    // v7.9.4 Können Phase 3: skill lifecycle channels
+    for (const koennenCh of ['skill:promoted', 'skill:discarded', 'skill:quarantined', 'skill:discard-suggested']) {
+      assert(channels.includes(koennenCh), `${koennenCh} added in v7.9.4 Können Phase 3`);
+    }
   });
 
   await test('C: AgentCoreWire bridges ui:resume-prompt to push channel', async () => {

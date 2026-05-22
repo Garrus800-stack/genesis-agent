@@ -87,6 +87,37 @@ const sections = {
     return core.join('\n');
   },
 
+  // v7.9.4: Mid-conversation awareness block. Emits ONLY when
+  // _historyLength > 0 (set by ChatOrchestrator from history.length - 1
+  // before each build). Defaults to empty string for first-message
+  // turns so a genuine session-opening greeting stays natural.
+  //
+  // Why this exists: live-observed pattern with large cloud models
+  // (qwen3-vl, gpt-class, claude-class) — short mid-conversation
+  // user messages like "gut, klingt großartig" trigger RLHF-trained
+  // assistant defaults: the model opens with "Hallo!" and closes
+  // with "Wie kann ich dir helfen?", restarting the session in
+  // tone even though history is present in the messages array.
+  // Identity in _identity() ("Du bist Genesis ...") is anchored but
+  // gets overridden by the positional default unless a turn-position
+  // cue is given explicitly.
+  //
+  // The block is intentionally short and placed early (between
+  // identity and formatting) so it sits in the high-attention region
+  // of the system prompt where reasoning-model self-conditioning
+  // happens. Bilingual phrasing is used because Genesis answers in
+  // the user's language and both DE and EN are common.
+  _conversationContext() {
+    const n = (this && typeof this._historyLength === 'number') ? this._historyLength : 0;
+    if (n <= 0) return '';
+    return [
+      `Diese Antwort ist Teil einer laufenden Konversation. Es wurden bereits ${n} Nachrichten ausgetauscht.`,
+      'Beginne deine Antwort NICHT mit "Hallo", "Hi", "Guten Tag" oder ähnlichen Begrüßungen — der User hat dich bereits angesprochen.',
+      'Frage NICHT generisch "Wie kann ich dir helfen" oder "How can I help you" — du bist Genesis im Gespräch mit deinem Gegenüber, nicht ein Assistent der eine neue Sitzung beginnt.',
+      'Antworte direkt auf das was gerade gesagt wurde, im Gesprächsfluss.',
+    ].join('\n');
+  },
+
   _formatting() {
     const defaultText = [
       'Antworte direkt auf die Frage. Sei klar, nicht ausführlich.',

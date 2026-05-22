@@ -55,6 +55,31 @@ class ToolRegistry {
     return removed;
   }
 
+  /**
+   * v7.9.4: Re-register all skill:* tools from SkillManager. Called by
+   * SkillPromotionEvaluator after promotion so newly-loaded skills become
+   * callable as tools without restart. Idempotent.
+   */
+  refreshSkills(skillManager) {
+    if (!skillManager || typeof skillManager.listSkills !== 'function') return;
+    const toRemove = [...this.tools.keys()].filter(n => n.startsWith('skill:'));
+    for (const name of toRemove) this.tools.delete(name);
+    let count = 0;
+    try {
+      for (const skill of skillManager.listSkills()) {
+        this.register(`skill:${skill.name}`, {
+          description: skill.description,
+          input: skill.interface?.input || {},
+          output: skill.interface?.output || {},
+        }, (input) => skillManager.executeSkill(skill.name, input), 'skill');
+        count++;
+      }
+    } catch (err) {
+      _log.warn(`[TOOLS] refreshSkills failed: ${err.message}`);
+    }
+    _log.info(`[TOOLS] refreshSkills: ${toRemove.length} removed, ${count} registered`);
+  }
+
   hasTool(name) { return this.tools.has(name); }
 
   async execute(name, input = {}) {

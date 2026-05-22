@@ -413,6 +413,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // v7.9.4: Können lifecycle toasts. Promotion is celebratory (success);
+  // discard is neutral; quarantine is warning; discard-suggestion is info
+  // so it doesn't pull focus from primary work.
+  window.genesis.on('skill:promoted', (data) => {
+    if (!data || !data.skillName) return;
+    showToast(t('koennen.toast_promoted', { name: data.skillName }), 'success');
+  });
+  window.genesis.on('skill:discarded', (data) => {
+    if (!data || !data.skillName) return;
+    showToast(t('koennen.toast_discarded', { name: data.skillName }), 'info');
+  });
+  window.genesis.on('skill:quarantined', (data) => {
+    if (!data || !data.skillName) return;
+    showToast(t('koennen.toast_quarantined', { name: data.skillName }), 'warning');
+  });
+  window.genesis.on('skill:discard-suggested', (data) => {
+    if (!data || !data.skillName) return;
+    showToast(t('koennen.toast_discard_suggested', { name: data.skillName }), 'info');
+  });
+
   // Proactive readiness check
   window.genesis.invoke('agent:get-health').then((health) => {
     if (health && !agentReady) {

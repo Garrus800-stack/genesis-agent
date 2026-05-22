@@ -418,6 +418,7 @@ ${intentList}, general
 
 IMPORTANT RULES:
 - "general" = any question, conversation, reflection, opinion, or CODE GENERATION request (write a function, create a class, etc.)
+- "greeting" = ONLY a literal opening greeting word ("hi", "hello", "hallo", "moin") at the start of a fresh conversation. NEVER classify short positive replies ("ok", "klingt gut", "thanks", "cool", "passt") or any mid-conversation message as greeting — those are "general".
 - "create-skill" = ONLY when user explicitly asks to create a GENESIS SKILL/PLUGIN, not general code
 - "execute-code" = ONLY when user provides code to RUN, not to WRITE
 - When unsure, prefer "general"

@@ -179,8 +179,20 @@ const SLASH_COMMANDS = [
   {
     name: 'skills-pending',
     aliases: [],
-    description: 'List skills SkillCrystallizer extracted but that are not yet promoted (Phase 2)',
+    description: 'List all Können skills grouped by status: promoted, rehearsing, pending, quarantined, discarded',
     sinceVersion: 'v7.9.0',
+  },
+  {
+    name: 'skill-info',
+    aliases: ['skill-bio'],
+    description: 'Show full info about one skill including its acquisition biography',
+    sinceVersion: 'v7.9.4',
+  },
+  {
+    name: 'skill-discard',
+    aliases: [],
+    description: 'Discard a Können skill with a reason (creates a Core Memory). Usage: /skill-discard <name> <reason>',
+    sinceVersion: 'v7.9.4',
   },
 ];
 

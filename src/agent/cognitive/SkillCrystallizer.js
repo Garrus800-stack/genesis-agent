@@ -237,7 +237,12 @@ class SkillCrystallizer {
         continue;
       }
 
-      const persisted = this._writePending(parsed, pattern, sig);
+      // v7.9.4: generate acquisitionContext — a first-person reflection
+      // on what would have been the gap without this skill. Best-effort:
+      // failure or timeout leaves it null, skill is still persisted.
+      const acquisitionContext = await this._generateAcquisitionContext(parsed, pattern);
+
+      const persisted = this._writePending(parsed, pattern, sig, acquisitionContext);
       if (!persisted.ok) {
         return { success: false, reason: 'write-failure', detail: persisted.error };
       }
@@ -370,16 +375,30 @@ class SkillCrystallizer {
     }
   }
 
-  _writePending(parsed, pattern, sig) {
+  _writePending(parsed, pattern, sig, acquisitionContext = null) {
     try {
       const skillDir = path.join(this.pendingDir, parsed.name);
       fs.mkdirSync(skillDir, { recursive: true });
       const enrichedManifest = {
         ...parsed.manifest,
+        // v7.9.4: status field is the central lifecycle indicator.
+        // 'pending' → not yet rehearsed; 'rehearsing' → first rehearsal ran;
+        // 'promoted' → all four promotion criteria met; 'quarantined' →
+        // Wilson-LB below threshold; 'discarded' → Genesis or user let go.
+        status: 'pending',
         koennen: {
           crystallizedAt: this._clock(),
           sourceCandidateIds: pattern.items.map(i => i.candidateId).filter(Boolean).slice(0, 20),
           patternSignature: sig,
+          // v7.9.4: the skill's biography — what would have been the gap
+          // without it. Generated once at crystallization, never updated.
+          // null if generation was disabled or failed.
+          acquisitionContext: acquisitionContext,
+          rehearsalCount: 0,
+          rehearsedInputHashes: [],
+          promotedAt: null,
+          discardedAt: null,
+          discardedReason: null,
         },
       };
       fs.writeFileSync(
@@ -391,6 +410,57 @@ class SkillCrystallizer {
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };
+    }
+  }
+
+  /**
+   * v7.9.4: Generate a first-person reflection on the gap this skill fills.
+   * Single LLM call, ≤60 words, max ~150 tokens. Best-effort: returns null
+   * on timeout or LLM error (skill still gets persisted, just without
+   * biography — visible in /skill-info as "No biography").
+   *
+   * @param {object} parsed - { name, manifest, code }
+   * @param {object} pattern - { items: [{ taskTitle }] }
+   * @returns {Promise<string|null>}
+   */
+  async _generateAcquisitionContext(parsed, pattern) {
+    if (!this._setting('cognitive.koennen.crystallization.acquisitionContext.enabled', true)) {
+      return null;
+    }
+    if (!this.model || typeof this.model.chat !== 'function') {
+      return null;
+    }
+
+    const timeoutMs = this._setting('cognitive.koennen.crystallization.acquisitionContext.timeoutMs', 30000);
+    const maxLength = this._setting('cognitive.koennen.crystallization.acquisitionContext.maxLength', 500);
+
+    const tasks = pattern.items
+      .slice(0, 5)
+      .map((c, i) => `${i + 1}. ${(c.taskTitle || '').slice(0, 100)}`)
+      .join('\n');
+
+    const prompt =
+      'You just crystallized a skill from these repeated tasks:\n' +
+      tasks + '\n\n' +
+      'The skill does: ' + (parsed.manifest.description || '').slice(0, 200) + '\n\n' +
+      'Answer in ONE sentence (max 60 words), first-person, as Genesis reflecting:\n' +
+      '"If this skill had never existed, what would have been the gap?"\n\n' +
+      'Be specific. Not "I could not do X" — but "I would have rebuilt Y from\n' +
+      'scratch every time" or "Each request would have cost me Z more steps".\n' +
+      'Concrete and honest. Return only the sentence, no quotes, no preamble.';
+
+    try {
+      const response = await this._withTimeout(
+        this.model.chat(prompt, [], 'analysis'),
+        timeoutMs,
+        'acquisition-context-timeout',
+      );
+      if (!response || typeof response !== 'string') return null;
+      const cleaned = response.trim().replace(/^["']|["']$/g, '').slice(0, maxLength);
+      return cleaned || null;
+    } catch (err) {
+      _log.debug(`[CRYSTALLIZE] acquisition-context generation failed: ${err.message}`);
+      return null;
     }
   }
 

@@ -95,6 +95,8 @@ const SCHEMAS = {
   'idle:self-defined':      { revision: 'required' },
   'idle:thought-complete': {},
   'idle:proactive-insight': { activity: 'required', insight: 'required' },
+  // v7.9.4: Goal-activity balance break (IdleMind switched from goal-step to activity-pick after N steps)
+  'idle:goal-balance-break': { stepsTaken: 'required' },
 
   // Model
   'model:ollama-unavailable': { error: 'required' },
@@ -302,6 +304,14 @@ const SCHEMAS = {
   'skill:forge-attempt':       { source: 'required', attempt: 'required', maxAttempts: 'required' },
   'skill:forge-succeeded':     { source: 'required', skillName: 'required', attempts: 'required' },
   'skill:forge-failed':        { source: 'required', attempts: 'required', lastError: 'required' },
+
+  // Können promotion (v7.9.4 Phase 3 — koennen-promotion-v794 contract)
+  'skill:promoted':              { skillName: 'required', wilsonLB: 'required', rehearsalCount: 'required' },
+  'skill:discard-suggested':     { skillName: 'required', reason: 'required', ageDays: 'required', rehearsalCount: 'required', wilsonLB: 'required' },
+  'skill:discarded':             { skillName: 'required', reason: 'required' },
+  'skill:rehearsed':             { skillName: 'required', success: 'required' },
+  'selfnarrative:skill-acquired': { skillName: 'required', acquisitionContext: 'optional', description: 'optional' },
+  'skills:reloaded':             {},
 
   // Prompt Strategy (v6.0.4 — AdaptivePromptStrategy)
   'prompt:strategy-updated': { intents: 'required', recommendations: 'required' },

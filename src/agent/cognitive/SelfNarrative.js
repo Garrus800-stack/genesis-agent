@@ -122,6 +122,13 @@ class SelfNarrative {
     this._sub('skill-crystallized', () => {
       this._changeAccumulator += 3;
     }, { source: 'SelfNarrative' });
+
+    // v7.9.4 (koennen-promotion-v794): a promoted skill is a signifi-
+    // cant identity event. The +5 boost reflects that acquisition is
+    // larger than crystallization (+3) or noticing candidates (+2).
+    this._sub('selfnarrative:skill-acquired', () => {
+      this._changeAccumulator += 5;
+    }, { source: 'SelfNarrative' });
   }
 
 

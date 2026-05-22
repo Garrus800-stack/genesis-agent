@@ -312,12 +312,21 @@ class AutonomousDaemon {
       }
     }
 
-    return {
+    const result = {
       kernelOk: kernelOk.ok,
       issues: diagnosis.issues.length,
       repaired: repaired.filter(r => r.fixed).length,
       scannedModules: diagnosis.scannedModules,
     };
+    // v7.9.4: per-cycle visibility — when something happened, log it at
+    // info level so a human glancing at the daemon stream can see it
+    // without enabling debug. When nothing happened, stay quiet at debug.
+    if (result.issues > 0 || result.repaired > 0) {
+      this._log('info', `Health check: ${result.issues} issue(s), ${result.repaired} fixed`);
+    } else {
+      this._log('debug', 'Health check: nothing to repair');
+    }
+    return result;
   }
 
   // ── Memory Consolidation ─────────────────────────────────
@@ -359,7 +368,12 @@ class AutonomousDaemon {
       }
     }
 
-    return { episodes: stats.episodes, newFacts, decayed };
+    const result = { episodes: stats.episodes, newFacts, decayed };
+    // v7.9.4: surface meaningful work at info level, stay quiet otherwise.
+    if (newFacts > 0 || decayed > 0) {
+      this._log('info', `Memory consolidation: ${newFacts} new fact(s), ${decayed} pattern(s) decayed`);
+    }
+    return result;
   }
 
   // ── Pattern Learning ─────────────────────────────────────
@@ -404,6 +418,10 @@ class AutonomousDaemon {
       } catch (err) { _log.debug('[DAEMON] Malformed reasoning event:', err.message); }
     }
 
+    // v7.9.4: surface real pattern learning at info level.
+    if (newPatterns > 0) {
+      this._log('info', `Pattern learning: ${newPatterns} new pattern(s)`);
+    }
     return { patterns: newPatterns };
   }
 
@@ -430,6 +448,8 @@ class AutonomousDaemon {
     // Report via event bus (UI can show these)
     if (suggestions.length > 0) {
       this.bus.fire('daemon:suggestions', { suggestions }, { source: 'AutonomousDaemon' });
+      // v7.9.4: surface optimization suggestions at info level.
+      this._log('info', `Optimization analysis: ${suggestions.length} suggestion(s)`);
     }
 
     return { count: suggestions.length, suggestions };

@@ -13,9 +13,17 @@ function phase3(ctx, R) {
       // v5.1.0 (DI-1): CodeSafety via port
       lateBindings: [
         { prop: '_codeSafety', service: 'codeSafety' },
+        // v7.9.4: effectiveness tracker for production-call telemetry.
+        // executeSkill records every invocation outcome for Können skills.
+        { prop: 'effectivenessTracker', service: 'skillEffectivenessTracker', optional: true,
+          impact: 'Skill invocations not recorded — Wilson-LB stays at seed value' },
       ],
       factory: (c) => new (R('SkillManager').SkillManager)(
-        path.join(rootDir, 'src', 'skills'), c.resolve('sandbox'), c.resolve('llm'), c.resolve('prompts'), guard
+        path.join(rootDir, 'src', 'skills'), c.resolve('sandbox'), c.resolve('llm'), c.resolve('prompts'), guard,
+        // v7.9.4: opts={bus, koennenDir}. bus enables forge events (was
+        // a latent no-op before). koennenDir is the secondary skill
+        // source where promoted Können skills live.
+        { bus, koennenDir: path.join(genesisDir, 'koennen', 'skills-pending') },
       ),
     }],
 

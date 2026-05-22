@@ -54,6 +54,11 @@ class AgentCoreWire {
         history:   data.history || [],
         memory:    c.resolve('memory'),
         selfModel: c.resolve('selfModel'),
+        // v7.9.4: chat-identity-threading — caller-provided full system
+        // prompt (built via PromptBuilder by ChatOrchestrator). Read by
+        // ReasoningEngine._buildContextualPrompt(); when present, the
+        // legacy mini-prompt is skipped and Genesis-identity is preserved.
+        systemPrompt: data.systemPrompt || null,
       });
     }, { source: 'AgentCore' });
 
@@ -199,6 +204,14 @@ class AgentCoreWire {
       // - their preload ALLOWED_RECEIVE entries were removed in the same
       // commit because no UI consumer was ever wired.
       { event: 'ui:resume-prompt',          fn: (d) => push('ui:resume-prompt', d) },
+
+      // ── Können lifecycle (v7.9.4) ───────────────────
+      // Pure pushes — no status mutation. The UI toasts on these without
+      // disrupting the status bar's primary signal (model state).
+      { event: 'skill:promoted',            fn: (d) => push('skill:promoted', d) },
+      { event: 'skill:discarded',           fn: (d) => push('skill:discarded', d) },
+      { event: 'skill:quarantined',         fn: (d) => push('skill:quarantined', d) },
+      { event: 'skill:discard-suggested',   fn: (d) => push('skill:discard-suggested', d) },
 
       // ── Trust + Effectors ───────────────────────────
       { event: 'trust:level-changed',       state: 'ready',    detail: (d) => `Trust level: ${d.to}` },

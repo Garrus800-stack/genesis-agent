@@ -113,6 +113,22 @@ function applyStyles(Dashboard) {
     '.dash-toolsynth-stats{display:flex;flex-wrap:wrap;gap:10px;padding:4px 0}' +
     '.dash-toolsynth-list{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}' +
     '.dash-tool-pill{font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(29,158,117,0.12);color:rgba(29,158,117,0.8);font-family:monospace}' +
+    // v7.9.4: Skills panel (Können dashboard)
+    '.dash-skill-summary{display:flex;flex-wrap:wrap;gap:10px;padding:4px 0 8px}' +
+    '.dash-skill-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}' +
+    '.dash-skill-col{display:flex;flex-direction:column;gap:2px}' +
+    '.dash-skill-col-title{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.4);margin:0 0 4px;font-weight:600}' +
+    '.dash-skill-row{display:grid;grid-template-columns:14px 1fr auto;gap:6px;align-items:baseline;font-size:11px;padding:2px 4px;border-radius:3px}' +
+    '.dash-skill-row:hover{background:rgba(255,255,255,0.04)}' +
+    '.dash-skill-dot{font-family:monospace;text-align:center}' +
+    '.dash-skill-name{font-family:monospace;color:rgba(255,255,255,0.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '.dash-skill-meta{font-size:9px;color:rgba(255,255,255,0.45);text-align:right}' +
+    '.dash-skill-promoted .dash-skill-dot{color:#5cc984}' +
+    '.dash-skill-rehearsing .dash-skill-dot{color:#6c8cff}' +
+    '.dash-skill-pending .dash-skill-dot{color:rgba(255,255,255,0.4)}' +
+    '.dash-skill-quarantined .dash-skill-dot{color:#e2a44b}' +
+    '.dash-skill-discarded .dash-skill-dot{color:rgba(226,75,74,0.6)}' +
+    '.dash-skill-discarded .dash-skill-name{text-decoration:line-through;opacity:0.5}' +
     // v5.9.0: MCP server toggle
     '.dash-mcp-toggle{margin:6px 0 2px;display:flex;gap:6px}' +
     // v5.9.2: Decision tree traces

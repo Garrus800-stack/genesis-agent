@@ -553,6 +553,97 @@ function apply(Dashboard) {
 
     el.innerHTML = html;
   };
+
+  // v7.9.4: Können skills dashboard panel — two-column layout.
+  // Left: promoted + rehearsing (productive lifecycle).
+  // Right: pending + quarantined + discarded (waiting / abandoned).
+  // Each skill row tooltips its biography on hover.
+  proto._renderSkills = function(koennenSkills) {
+    const el = this._el('dash-skills-body');
+    if (!el) return; // panel may not be in DOM yet
+    if (!koennenSkills || !koennenSkills.counts) {
+      el.innerHTML = '<span class="dash-muted">Keine Skill-Daten</span>';
+      return;
+    }
+
+    const c = koennenSkills.counts;
+    const recent = Array.isArray(koennenSkills.recent) ? koennenSkills.recent : [];
+
+    const totalKoennen = c.promoted + c.rehearsing + c.pending + c.quarantined + c.discarded;
+
+    // Summary line
+    let html = '<div class="dash-skill-summary">' +
+      '<span class="dash-stat"><span class="dash-stat-num">' + c.builtin + '</span> Built-in</span>' +
+      '<span class="dash-stat"><span class="dash-stat-num">' + c.promoted + '</span> Promoted</span>' +
+      '<span class="dash-stat"><span class="dash-stat-num">' + c.rehearsing + '</span> Rehearsing</span>' +
+      '<span class="dash-stat"><span class="dash-stat-num">' + c.pending + '</span> Pending</span>' +
+      '<span class="dash-stat"><span class="dash-stat-num">' + c.quarantined + '</span> Quarantined</span>' +
+      '<span class="dash-stat"><span class="dash-stat-num">' + c.discarded + '</span> Discarded</span>' +
+      '</div>';
+
+    if (totalKoennen === 0) {
+      html += '<div class="dash-muted">No Können skills yet. SkillCrystallizer has not produced any extractions.</div>';
+      el.innerHTML = html;
+      return;
+    }
+
+    // Two-column layout: live skills vs aside
+    const liveStatuses = ['promoted', 'rehearsing'];
+    const asideStatuses = ['pending', 'quarantined', 'discarded'];
+
+    const left = recent.filter(s => liveStatuses.indexOf(s.status) !== -1);
+    const right = recent.filter(s => asideStatuses.indexOf(s.status) !== -1);
+
+    const formatSkill = (s) => {
+      const wilsonStr = (typeof s.wilsonLB === 'number') ? (s.wilsonLB * 100).toFixed(0) + '%' : '—';
+      const meta = s.status === 'promoted'
+        ? 'Wilson ' + wilsonStr + ' · ' + s.rehearsals + ' invokes'
+        : s.status === 'rehearsing'
+          ? 'Wilson ' + wilsonStr + ' · ' + s.rehearsals + ' rehearsals · ' + s.distinct + ' distinct'
+          : s.status === 'pending'
+            ? 'awaiting first rehearsal'
+            : s.status === 'quarantined'
+              ? 'Wilson ' + wilsonStr + ' — low confidence'
+              : 'released';
+      const dot = s.status === 'promoted' ? '●'
+                : s.status === 'rehearsing' ? '○'
+                : s.status === 'pending' ? '·'
+                : s.status === 'quarantined' ? '⚠'
+                : '✗';
+      const tipAttr = s.biographyHint ? ' title="' + _escapeAttr(s.biographyHint) + '"' : '';
+      const escapedName = _escapeHtml(s.name);
+      return '<div class="dash-skill-row dash-skill-' + s.status + '"' + tipAttr + '>' +
+        '<span class="dash-skill-dot">' + dot + '</span>' +
+        '<span class="dash-skill-name">' + escapedName + '</span>' +
+        '<span class="dash-skill-meta">' + meta + '</span>' +
+        '</div>';
+    };
+
+    html += '<div class="dash-skill-cols">';
+    html += '<div class="dash-skill-col">';
+    html += '<h4 class="dash-skill-col-title">Live</h4>';
+    if (left.length === 0) html += '<div class="dash-muted">No promoted or rehearsing skills yet.</div>';
+    else html += left.map(formatSkill).join('');
+    html += '</div>';
+
+    html += '<div class="dash-skill-col">';
+    html += '<h4 class="dash-skill-col-title">Aside</h4>';
+    if (right.length === 0) html += '<div class="dash-muted">No pending or quarantined skills.</div>';
+    else html += right.map(formatSkill).join('');
+    html += '</div>';
+    html += '</div>';
+
+    el.innerHTML = html;
+  };
+
+  // v7.9.4 helpers — kept local so the renderer is fully self-contained.
+  function _escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  }
+  function _escapeAttr(s) {
+    return String(s).replace(/"/g, '&quot;').replace(/\n/g, ' ').slice(0, 300);
+  }
 }
 
 // Browser: register as global so DashboardRenderers barrel can find it without require()

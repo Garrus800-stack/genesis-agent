@@ -107,6 +107,26 @@ const EVENTS = Object.freeze({
     SKILL_QUARANTINED:         'skill:quarantined',
   }),
 
+  // v7.9.4 — Skill promotion, rehearsal, discard pathway.
+  // SkillPromotionEvaluator runs as DreamCycle phase after crystallization.
+  // SkillRehearsal is the 16th IdleMind activity. Discard is user- or
+  // genesis-initiated. selfnarrative:skill-acquired triggers SelfNarrative
+  // accumulator boost and CoreMemory creation via bypass-threshold.
+  KOENNEN_PROMOTION: Object.freeze({
+    /** @payload {{ skillName: string, wilsonLB: number, rehearsalCount: number }} */
+    SKILL_PROMOTED:              'skill:promoted',
+    /** @payload {{ skillName: string, reason: string, ageDays: number, rehearsalCount: number, wilsonLB: number }} */
+    SKILL_DISCARD_SUGGESTED:     'skill:discard-suggested',
+    /** @payload {{ skillName: string, reason: string }} */
+    SKILL_DISCARDED:             'skill:discarded',
+    /** @payload {{ skillName: string, success: boolean }} */
+    SKILL_REHEARSED:             'skill:rehearsed',
+    /** @payload {{ skillName: string, acquisitionContext: (string|null), description: string }} */
+    SELFNARRATIVE_SKILL_ACQUIRED: 'selfnarrative:skill-acquired',
+    /** @payload {{}} */
+    SKILLS_RELOADED:             'skills:reloaded',
+  }),
+
   // ── Self-Preservation ────────────────────────────────────
   PRESERVATION: Object.freeze({
     /** @payload {{ file: string, violations: Array<{invariant: string, detail: string}> }} */
@@ -617,6 +637,10 @@ const EVENTS = Object.freeze({
     /** v7.3.1: Read-source budget for this cycle/session is exhausted */
     /** @payload {{ cycleCount: number, sessionCount: number }} */
     READ_SOURCE_BUDGET_EXHAUSTED: 'idle:read-source-budget-exhausted',
+    /** v7.9.4: Goal-activity balance — fired when IdleMind breaks out of N
+     *  consecutive goal-steps to run a regular activity-pick. Dashboard cue.
+     *  @payload {{ stepsTaken: number }} */
+    GOAL_BALANCE_BREAK: 'idle:goal-balance-break',
   }),
 
   // ── Intent Router ──────────────────────────────────────

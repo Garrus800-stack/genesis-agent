@@ -60,6 +60,9 @@ class DreamCycle {
     // v7.9.0 Phase 2: Können skill crystallization (DreamCycle Phase 3c).
     this.skillCrystallizer = null;
 
+    // v7.9.4: Können skill promotion (DreamCycle phase after crystallization).
+    this.skillPromotionEvaluator = null;
+
     // ── Configuration ────────────────────────────────────
     const cfg = config || {};
     this._minEpisodesForDream = cfg.minEpisodes || 10;
@@ -211,6 +214,26 @@ class DreamCycle {
             report.phases.push({ name: 'skill-crystallization', crystallized: skillCount });
           } catch (err) {
             report.phases.push({ name: 'skill-crystallization', skipped: `error: ${err.message}` });
+          }
+        }
+
+        // ── Phase 3d: SKILL PROMOTION (v7.9.4 — Können Phase 3) ──
+        // Evaluates pending and rehearsing skills against the four
+        // promotion criteria. Promotes mature skills, quarantines failing
+        // ones, suggests discard for languishing ones. No-op when the
+        // evaluator is not wired or the master toggle is off.
+        if (this.skillPromotionEvaluator) {
+          try {
+            const promResult = await this.skillPromotionEvaluator.evaluate();
+            const r = promResult.results || {};
+            report.phases.push({
+              name: 'skill-promotion',
+              promoted: (r.promoted || []).length,
+              quarantined: (r.quarantined || []).length,
+              discardSuggested: (r.discardSuggested || []).length,
+            });
+          } catch (err) {
+            report.phases.push({ name: 'skill-promotion', skipped: `error: ${err.message}` });
           }
         }
       } else {

@@ -109,6 +109,10 @@ class AgentCoreHealth {
         episodicMemory: safe('episodicMemory',        e  => e.getStats?.() || { loaded: true }),
         modelRouter:    safe('modelRouter',           () => ({ loaded: true })),
         healthTracker:  safe('cognitiveHealthTracker',cht => cht.getReport()),
+        // v7.9.4: Können skills grouped by status for dashboard rendering.
+        // Reads .genesis/koennen/skills-pending/ directly (no service
+        // dependency on SkillManager runtime state).
+        koennenSkills:  this._collectKoennenSkillsReport(),
       },
       consciousness: {
         awareness:       safe('awareness',              aw => aw.getReport()),
@@ -469,6 +473,80 @@ class AgentCoreHealth {
 
     // v6.0.1: CrashLog — stop last so it captures all shutdown logs
     safe('crashLog', () => { c.tryResolve('crashLog')?.stop(); });
+  }
+
+  /**
+   * v7.9.4: Collect Können skills grouped by status for dashboard
+   * rendering. Reads .genesis/koennen/skills-pending/ directly so the
+   * report works even if SkillManager isn't fully wired yet.
+   *
+   * @returns {{
+   *   counts: { promoted: number, rehearsing: number, pending: number, quarantined: number, discarded: number, builtin: number },
+   *   recent: Array<{name: string, status: string, wilsonLB: number|null, rehearsals: number, distinct: number, biographyHint: string}>,
+   * }}
+   * @private
+   */
+  _collectKoennenSkillsReport() {
+    const fs = require('fs');
+    const path = require('path');
+    const counts = { promoted: 0, rehearsing: 0, pending: 0, quarantined: 0, discarded: 0, builtin: 0 };
+    const recent = [];
+
+    try {
+      const sm = this._core.container.tryResolve('skills');
+      if (sm && typeof sm.listSkills === 'function') {
+        const all = sm.listSkills();
+        for (const s of all) {
+          if (!s.koennen) counts.builtin++;
+        }
+      }
+    } catch { /* skill manager not ready */ }
+
+    try {
+      const genesisDir = this._core.genesisDir || '.genesis';
+      const koennenDir = path.join(genesisDir, 'koennen', 'skills-pending');
+      if (!fs.existsSync(koennenDir)) return { counts, recent };
+
+      const tracker = this._core.container.tryResolve('skillEffectivenessTracker');
+      const entries = fs.readdirSync(koennenDir, { withFileTypes: true }).filter(e => e.isDirectory());
+
+      for (const e of entries) {
+        const manifestPath = path.join(koennenDir, e.name, 'skill-manifest.json');
+        if (!fs.existsSync(manifestPath)) continue;
+        let m;
+        try { m = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); }
+        catch { continue; }
+        if (!m) continue;
+
+        const status = m.status || 'pending';
+        if (counts[status] !== undefined) counts[status]++;
+
+        const ko = m.koennen || {};
+        const stats = tracker ? tracker.getStats(e.name) : null;
+        const distinct = Array.isArray(ko.rehearsedInputHashes) ? new Set(ko.rehearsedInputHashes).size : 0;
+
+        recent.push({
+          name: e.name,
+          status,
+          wilsonLB: stats ? stats.wilsonLB : null,
+          rehearsals: ko.rehearsalCount || 0,
+          distinct,
+          biographyHint: ko.acquisitionContext ? ko.acquisitionContext.slice(0, 120) : '',
+        });
+      }
+    } catch { /* return what we have */ }
+
+    // Cap recent at 50 to keep snapshot lean
+    recent.sort((a, b) => {
+      // Promoted first, then rehearsing, then pending, then quarantined, then discarded
+      const order = { promoted: 0, rehearsing: 1, pending: 2, quarantined: 3, discarded: 4 };
+      const sa = order[a.status] ?? 5;
+      const sb = order[b.status] ?? 5;
+      if (sa !== sb) return sa - sb;
+      return (b.wilsonLB || 0) - (a.wilsonLB || 0);
+    });
+
+    return { counts, recent: recent.slice(0, 50) };
   }
 }
 

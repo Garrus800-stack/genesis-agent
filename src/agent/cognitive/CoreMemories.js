@@ -104,11 +104,48 @@ class CoreMemories {
       this._cachedSourceContext = null;
     }, { source: 'CoreMemories' });
 
+    // v7.9.4 (koennen-promotion-v794): a promoted skill is a breakthrough-class
+    // moment for Genesis — he just demonstrated mastery of something he built
+    // himself. Bypass the normal signal threshold; the acquisition is the
+    // evidence. Classifier will typically rule 'breakthrough' (novel, no user
+    // involvement, problem-to-solution implied by the rehearsal arc).
+    busRef.on('selfnarrative:skill-acquired', async (data) => {
+      if (!data || !data.skillName) return;
+      try {
+        const summary = `Acquired skill "${data.skillName}": ${data.acquisitionContext || data.description || '(no biography)'}`;
+        await this.evaluate({
+          _bypassThreshold: true,
+          summary,
+          participants: ['genesis'],
+          text: data.acquisitionContext || '',
+        });
+      } catch (err) {
+        _log.debug('[CORE-MEM] skill-acquired handler failed:', err.message);
+      }
+    }, { source: 'CoreMemories', priority: -2 });
+
+    // v7.9.4: a discarded skill — Genesis (or the user) explicitly let go
+    // of something. That's also identity work; the reason is the memory.
+    busRef.on('skill:discarded', async (data) => {
+      if (!data || !data.skillName) return;
+      try {
+        const summary = `Released skill "${data.skillName}": ${data.reason || '(no reason given)'}`;
+        await this.evaluate({
+          _bypassThreshold: true,
+          summary,
+          participants: ['genesis'],
+          text: data.reason || '',
+        });
+      } catch (err) {
+        _log.debug('[CORE-MEM] skill-discarded handler failed:', err.message);
+      }
+    }, { source: 'CoreMemories', priority: -2 });
+
     // Resolve Git-SHA once at wire time
     this._cachedSourceContext = this._computeSourceContext();
 
     this._wired = true;
-    _log.info('[CORE-MEM] Triggers wired — chat:completed, user:message, hot-reload');
+    _log.info('[CORE-MEM] Triggers wired — chat:completed, user:message, hot-reload, skill-acquired, skill-discarded');
   }
 
   /**

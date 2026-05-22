@@ -86,6 +86,29 @@ function phase9Koennen(ctx, R) {
         bus, genesisDir: ctx.genesisDir,
       }),
     }],
+
+    // v7.9.4 (koennen-promotion-v794 contract):
+    // SkillPromotionEvaluator runs as DreamCycle phase after crystallization.
+    // Evaluates pending+rehearsing skills against four conjunctive criteria,
+    // quarantines Wilson-LB failures, suggests discards for languishing skills.
+    // Re-loads SkillManager + refreshes ToolRegistry on successful promotion.
+    ['skillPromotionEvaluator', {
+      phase: 9,
+      deps: ['bus'],
+      tags: ['cognitive', 'koennen', 'promotion', 'v794'],
+      lateBindings: [
+        { prop: 'skillManager',         service: 'skills',                  optional: true,
+          impact: 'Promotion cannot reach the production loader; skills stay invisible' },
+        { prop: 'effectivenessTracker', service: 'skillEffectivenessTracker', optional: true,
+          impact: 'No Wilson-LB available — promotion always returns not-tracked' },
+        { prop: 'toolRegistry',         service: 'toolRegistry',            optional: true,
+          impact: 'Promoted skills not callable as tools until restart' },
+        { prop: 'settings',             service: 'settings',                optional: true },
+      ],
+      factory: () => new (R('SkillPromotionEvaluator').SkillPromotionEvaluator)({
+        bus, genesisDir: ctx.genesisDir,
+      }),
+    }],
   ];
 }
 

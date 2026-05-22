@@ -13,7 +13,7 @@ const { isCloudSyncPath } = require('../foundation/CloudSyncSafety');
 const _log = createLogger('SkillManager');
 
 class SkillManager {
-  constructor(skillsDir, sandbox, model, prompts, guard) {
+  constructor(skillsDir, sandbox, model, prompts, guard, opts = {}) {
     this.skillsDir = skillsDir;
     this.sandbox = sandbox;
     this.model = model;
@@ -22,45 +22,83 @@ class SkillManager {
     this.loadedSkills = new Map();
     /** @type {any} late-bound via DI (CodeSafetyPort) */
     this._codeSafety = null;
+    // v7.9.4: bus reference so forge events fire properly (was a latent
+    // no-op before — this.bus?.fire?.() was always undefined).
+    this.bus = opts.bus || null;
+    // v7.9.4: secondary skill source — .genesis/koennen/skills-pending/.
+    // Skills with status === 'promoted' there are loaded into loadedSkills
+    // alongside the built-in skills from skillsDir. Pending and quarantined
+    // and discarded ones stay in the directory but are not loaded; they
+    // are only accessible via executeSkillByManifest for rehearsal.
+    this.koennenDir = opts.koennenDir || null;
+    // v7.9.4: late-bound via DI (SkillEffectivenessTracker).
+    // When set, executeSkill records every invocation outcome.
+    this.effectivenessTracker = null;
 
     if (!fs.existsSync(skillsDir)) {
       fs.mkdirSync(skillsDir, { recursive: true });
     }
+    if (this.koennenDir && !fs.existsSync(this.koennenDir)) {
+      try { fs.mkdirSync(this.koennenDir, { recursive: true }); }
+      catch (_e) { /* best effort */ }
+    }
   }
 
-  /** Load all installed skills from disk */
+  /** Load all installed skills from disk. v7.9.4: dual-source loading. */
   loadSkills() {
     this.loadedSkills.clear();
-    if (!fs.existsSync(this.skillsDir)) return;
 
-    // v7.8.3: warn (but proceed) if skills live under a cloud-sync root.
-    // Reading manifest/entry files may hang on first touch as the OS
-    // pulls Files-On-Demand placeholders. The warning gives the user
-    // a chance to move Genesis before they hit a slow boot.
-    if (isCloudSyncPath(this.skillsDir)) {
-      _log.warn(`[SKILLS] skillsDir is under a cloud-sync root (${this.skillsDir}) — skill loads may hang on Files-On-Demand placeholders`);
+    // Source 1: built-in skills under skillsDir (typically src/skills/).
+    if (fs.existsSync(this.skillsDir)) {
+      // v7.8.3: warn (but proceed) if skills live under a cloud-sync root.
+      // Reading manifest/entry files may hang on first touch as the OS
+      // pulls Files-On-Demand placeholders. The warning gives the user
+      // a chance to move Genesis before they hit a slow boot.
+      if (isCloudSyncPath(this.skillsDir)) {
+        _log.warn(`[SKILLS] skillsDir is under a cloud-sync root (${this.skillsDir}) — skill loads may hang on Files-On-Demand placeholders`);
+      }
+      this._loadFromDir(this.skillsDir, null);
     }
 
-    for (const entry of fs.readdirSync(this.skillsDir, { withFileTypes: true })) {
+    // Source 2 (v7.9.4): promoted Können skills under koennenDir.
+    // Filter: only manifests with status === 'promoted' get loaded.
+    // Pending/rehearsing/quarantined/discarded ones stay on disk but
+    // are not in loadedSkills.
+    if (this.koennenDir && fs.existsSync(this.koennenDir)) {
+      this._loadFromDir(this.koennenDir, (manifest) => manifest.status === 'promoted');
+    }
+
+    _log.info(`[SKILLS] Loaded ${this.loadedSkills.size} skills`);
+  }
+
+  /**
+   * v7.9.4: Internal loader for one skill source directory.
+   *
+   * @param {string} dir - Directory to scan for skill subdirectories
+   * @param {Function|null} filter - Optional manifest filter; receives
+   *   parsed manifest object, returns true to include, false to skip
+   * @private
+   */
+  _loadFromDir(dir, filter) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
 
-      const manifestPath = path.join(this.skillsDir, entry.name, 'skill-manifest.json');
+      const manifestPath = path.join(dir, entry.name, 'skill-manifest.json');
       if (!fs.existsSync(manifestPath)) continue;
 
       try {
         const manifest = safeJsonParse(fs.readFileSync(manifestPath, 'utf-8'), null, 'SkillManager');
         if (!manifest) { _log.warn('[SKILLS] Invalid manifest:', manifestPath); continue; }
+        if (filter && !filter(manifest)) continue;
         this.loadedSkills.set(manifest.name, {
           ...manifest,
-          dir: path.join(this.skillsDir, entry.name),
+          dir: path.join(dir, entry.name),
           loaded: true,
         });
       } catch (err) {
         _log.warn(`[SKILLS] Failed to load skill ${entry.name}: ${err.message}`);
       }
     }
-
-    _log.info(`[SKILLS] Loaded ${this.loadedSkills.size} skills`);
   }
 
   /** List all skills */
@@ -73,8 +111,18 @@ class SkillManager {
     }));
   }
 
-  /** Execute a skill by name */
-  async executeSkill(name, input) {
+  /**
+   * Execute a skill by name. v7.9.4 changes:
+   *   - third argument opts={source} for invocation source tagging
+   *   - invocations of Können skills (manifest.koennen present) record
+   *     outcome to effectivenessTracker if late-bound
+   *   - sandbox-success semantic: success = !result.error
+   *
+   * Existing callers (ToolRegistry, CommandHandlersCode, PluginRegistry,
+   * SelfModificationPipeline) pass two arguments and get production
+   * source tagging by default.
+   */
+  async executeSkill(name, input, opts = {}) {
     const skill = this.loadedSkills.get(name);
     if (!skill) throw new Error(`Skill not found: ${name}`);
 
@@ -83,8 +131,122 @@ class SkillManager {
       throw new Error(`Skill entry point not found: ${entryPath}`);
     }
 
-    // Run in sandbox for safety
     const code = fs.readFileSync(entryPath, 'utf-8');
+    const execCode = this._buildExecCode(code, input);
+
+    const startedAt = Date.now();
+    let result;
+    let success = false;
+
+    try {
+      result = await this.sandbox.execute(execCode, {
+        allowRequire: true,
+        // FIX v6.1.1: Skills need read access to project files (fs path restrictions still enforced)
+        env: { GENESIS_SANDBOX_ALLOW_READ_ROOT: this.sandbox?.rootDir || process.cwd() },
+      });
+      // v7.9.4: sandbox.execute returns { output, error, duration, ... }.
+      // success = no execution error.
+      success = !result.error;
+    } catch (err) {
+      // Re-throw — callers (ToolRegistry, CommandHandlersCode) expect
+      // throws on infrastructure failure. But record the failure first.
+      if (this.effectivenessTracker && skill.koennen) {
+        try {
+          this.effectivenessTracker.recordInvocation(name, false, {
+            latencyMs: Date.now() - startedAt,
+            source: opts.source || 'production',
+          });
+        } catch (_e) { /* tracker errors must not mask original */ }
+      }
+      throw err;
+    }
+
+    // v7.9.4: record Können skill invocations to effectiveness tracker.
+    // Only Können skills (with manifest.koennen) are tracked — built-in
+    // skills (code-stats, etc.) are not in the Wilson-LB system.
+    if (this.effectivenessTracker && skill.koennen) {
+      try {
+        this.effectivenessTracker.recordInvocation(name, success, {
+          latencyMs: Date.now() - startedAt,
+          source: opts.source || 'production',
+        });
+      } catch (e) {
+        _log.debug(`[SKILLS] tracker recordInvocation failed: ${e.message}`);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * v7.9.4: Backdoor execution for pending skills not in loadedSkills.
+   * Used by SkillRehearsal to execute pending/rehearsing skills directly
+   * from their manifest directory without needing them in the loadedSkills
+   * map.
+   *
+   * @param {string} name - skill name (for tracker tagging)
+   * @param {string} manifestDir - directory containing skill-manifest.json + entry file
+   * @param {object} input - input object to pass to the skill
+   * @param {object} opts - { source: 'rehearsal' | 'production' }
+   * @returns {Promise<{output: any, error: string|null, duration: number}>}
+   */
+  async executeSkillByManifest(name, manifestDir, input, opts = {}) {
+    const manifestPath = path.join(manifestDir, 'skill-manifest.json');
+    if (!fs.existsSync(manifestPath)) {
+      throw new Error(`Skill manifest not found: ${manifestPath}`);
+    }
+
+    const manifest = safeJsonParse(fs.readFileSync(manifestPath, 'utf-8'), null, 'SkillManager');
+    if (!manifest) throw new Error(`Skill manifest invalid: ${manifestPath}`);
+
+    const entryPath = path.join(manifestDir, manifest.entry || 'index.js');
+    if (!fs.existsSync(entryPath)) {
+      throw new Error(`Skill entry point not found: ${entryPath}`);
+    }
+
+    const code = fs.readFileSync(entryPath, 'utf-8');
+    const execCode = this._buildExecCode(code, input);
+
+    const startedAt = Date.now();
+    let result;
+    let success = false;
+
+    try {
+      result = await this.sandbox.execute(execCode, {
+        allowRequire: true,
+        env: { GENESIS_SANDBOX_ALLOW_READ_ROOT: this.sandbox?.rootDir || process.cwd() },
+      });
+      success = !result.error;
+    } catch (err) {
+      result = { output: '', error: err.message, duration: Date.now() - startedAt };
+      success = false;
+    }
+
+    if (this.effectivenessTracker) {
+      try {
+        this.effectivenessTracker.recordInvocation(name, success, {
+          latencyMs: Date.now() - startedAt,
+          source: opts.source || 'rehearsal',
+        });
+      } catch (e) {
+        _log.debug(`[SKILLS] tracker recordInvocation failed: ${e.message}`);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * v7.9.4: Build the sandbox-execution wrapper code. Extracted from
+   * executeSkill so executeSkillByManifest can reuse it without code
+   * duplication. Accepts four export shapes — see comments below.
+   *
+   * @param {string} code - raw skill code (contents of index.js)
+   * @param {*} input - input object to inject as _input
+   * @returns {string} wrapped JS ready for sandbox.execute()
+   * @private
+   */
+  _buildExecCode(code, input) {
     // v7.9.0 final: format-tolerant skill invocation. Accept four export
     // shapes so the LLM is not constrained to one rigid class pattern:
     //   1. class with execute() method        — `class Foo { execute() }`
@@ -92,7 +254,7 @@ class SkillManager {
     //   3. object with execute() method        — `module.exports = { execute }`
     //   4. legacy: any constructable function  — fallback
     // Detection happens inside the sandbox after the skill module loads.
-    const execCode = `
+    return `
       ${code}
       const _exported = Object.values(module.exports || {});
       const _direct = typeof module.exports === 'function' ? module.exports : null;
@@ -129,12 +291,58 @@ class SkillManager {
       }
       console.log(JSON.stringify(_result));
     `;
+  }
 
-    return await this.sandbox.execute(execCode, {
-      allowRequire: true,
-      // FIX v6.1.1: Skills need read access to project files (fs path restrictions still enforced)
-      env: { GENESIS_SANDBOX_ALLOW_READ_ROOT: this.sandbox?.rootDir || process.cwd() },
-    });
+  /**
+   * v7.9.4: Soft-discard a skill with reason. Sets manifest.status to
+   * 'discarded' (no physical deletion — different from removeSkill which
+   * does fs.rmSync). Fires skill:discarded for CoreMemories pickup.
+   *
+   * @param {string} name - skill name (must exist in koennenDir)
+   * @param {string} reason - required, min 10 chars, max 300 chars
+   * @returns {Promise<{ok: boolean, name: string, status: string}>}
+   */
+  async discardSkill(name, reason) {
+    if (!name || typeof name !== 'string') {
+      throw new Error('discardSkill: name required');
+    }
+    if (!reason || typeof reason !== 'string' || reason.length < 10) {
+      throw new Error('discardSkill: reason required (min 10 chars)');
+    }
+    if (!this.koennenDir) {
+      throw new Error('discardSkill: koennenDir not configured');
+    }
+
+    const skillDir = path.join(this.koennenDir, name);
+    const manifestPath = path.join(skillDir, 'skill-manifest.json');
+    if (!fs.existsSync(manifestPath)) {
+      throw new Error(`Skill not found in Können directory: ${name}`);
+    }
+
+    const manifest = safeJsonParse(fs.readFileSync(manifestPath, 'utf-8'), null, 'SkillManager');
+    if (!manifest) throw new Error(`Skill manifest invalid: ${name}`);
+
+    manifest.status = 'discarded';
+    manifest.koennen = manifest.koennen || {};
+    manifest.koennen.discardedAt = Date.now();
+    manifest.koennen.discardedReason = String(reason).slice(0, 300);
+
+    atomicWriteFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+
+    // If the skill was promoted (in loadedSkills), remove it so future
+    // calls fail clean. Discarded skills are gone from production use.
+    if (this.loadedSkills.has(name)) {
+      this.loadedSkills.delete(name);
+    }
+
+    if (this.bus) {
+      this.bus.fire('skill:discarded', {
+        skillName: name,
+        reason: manifest.koennen.discardedReason,
+      }, { source: 'SkillManager' });
+    }
+
+    return { ok: true, name, status: 'discarded' };
   }
 
   /**

@@ -43,6 +43,10 @@ const TOGGLE_EVENT_KEYS = {
   // v7.9.0 Phase 2: Können-Pipeline toggles.
   'cognitive.koennen.enabled':                 'settings:koennen-toggled',
   'cognitive.koennen.crystallization.enabled': 'settings:koennen-crystallization-toggled',
+  // v7.9.4: Können Phase 3 toggles.
+  'cognitive.koennen.promotion.enabled':                          'settings:koennen-promotion-toggled',
+  'cognitive.koennen.rehearsal.enabled':                          'settings:koennen-rehearsal-toggled',
+  'cognitive.koennen.crystallization.acquisitionContext.enabled': 'settings:koennen-context-toggled',
 };
 
 class Settings {
@@ -82,7 +86,23 @@ class Settings {
         maxConcurrent: 3,
       },
       daemon: { enabled: true, cycleMinutes: 5, autoRepair: true, autoOptimize: false },
-      idleMind: { enabled: true, idleMinutes: 2, thinkMinutes: 3, maxActiveGoals: 3, journalMaxFileSizeMB: 10, journalMaxRotations: 3 },
+      idleMind: {
+        enabled: true, idleMinutes: 2, thinkMinutes: 3, maxActiveGoals: 3, journalMaxFileSizeMB: 10, journalMaxRotations: 3,
+        // v7.9.4: every N goal-steps, break out of goal-execution and let the
+        // activity-picker run instead. Keeps reflect/journal/dream/etc. firing
+        // even when goals are active. 0 or null restores legacy always-goal
+        // behavior. Default 3 = goal-step, goal-step, goal-step, activity, repeat.
+        goalStepsPerActivityPick: 3,
+        // v7.9.4: optional score normalisation in _pickActivity. 'none' (default)
+        // preserves current additive scoring; 'log' applies Math.log1p to dampen
+        // outlier boosts. Opt-in only; defaults match pre-v7.9.4 behaviour.
+        scoreNormalization: 'none',
+        // v7.9.4: optional bonus for activities that haven't run in a while.
+        // When true, _pickActivity multiplies non-recent activities by a small
+        // bonus factor proportional to time since last run. Default false to
+        // keep behaviour stable; enable for more variety on long-running daemons.
+        recurrenceBonus: false,
+      },
       // v7.5.7-fix Phase 2: SelfSpawner config
       selfSpawner: { maxWorkers: 3, timeoutMs: 5 * 60 * 1000, memoryLimitMB: 256 },
       // v7.5.7-fix Phase 2: WorkerPool (worker_threads, used by GenericWorker
@@ -279,7 +299,7 @@ class Settings {
           confidenceDecayRate: 0.005,
         },
         // v7.9.0 Phase 2: Können — skill crystallization layer.
-        // Phase 3 (v7.9.1) will extend this tree with promotion/rehearsal/skillRecall.
+        // v7.9.4 extends with promotion, rehearsal, and acquisitionContext.
         koennen: {
           enabled: true,
           crystallization: {
@@ -289,10 +309,27 @@ class Settings {
             cooldownMs: 6 * 60 * 60 * 1000,       // 6h per pattern
             llm: { enabled: true, maxTokens: 2000, timeoutMs: 120000 },
             sandbox: { initTestTimeoutMs: 10000 },
+            // v7.9.4: short first-person reflection generated at crystallization.
+            acquisitionContext: { enabled: true, timeoutMs: 30000, maxLength: 500 },
           },
           effectiveness: {
             initialEvidence: 1,         // Wilson seed: 1 success / 1 total
             decayPerWeek: 0.05,         // Confidence drift when unused
+          },
+          // v7.9.4: promotion criteria for pending skills (conservative).
+          promotion: {
+            enabled: true,
+            minInvocations:    8,                     // total rehearsals + productive uses
+            minWilsonLB:       0.70,                  // confidence lower bound
+            minDistinctInputs: 3,                     // distinct input shapes seen
+            minAgeMs:          48 * 60 * 60 * 1000,   // 48h since crystallization
+            discardSuggestionAfterDays: 14,
+          },
+          // v7.9.4: rehearsal as 16th IdleMind activity.
+          rehearsal: {
+            enabled: true,
+            cooldownMs: 10 * 60 * 1000,
+            inputGeneration: { llmFallback: true, timeoutMs: 30000 },
           },
         },
       },
@@ -323,6 +360,17 @@ class Settings {
           growthRates: { knowledge: 0.008, social: 0.005, maintenance: 0.003, rest: 0.002 },
           weights: { knowledge: 1.2, social: 0.8, maintenance: 1.0, rest: 0.6 },
           satisfyAmounts: { knowledge: 0.15, social: 0.25, maintenance: 0.20, rest: 0.12 },
+        },
+        // v7.9.4: Metabolism settings — per-activity differentiated energy
+        // costs. Pre-fix every IdleMind activity charged the flat
+        // idleMindCycle cost of 2 energy, so a heavy Plan (LLM call) cost
+        // the same as a 2-line Journal entry. Now Metabolism.ACTIVITY_COSTS
+        // has per-activity keys (idleMind:plan = 12, idleMind:journal = 2,
+        // etc.) and IdleMind._think() fires a second consume() with the
+        // activity-specific key after each pick. Set to false to revert to
+        // the flat-rate-only behaviour.
+        metabolism: {
+          differentiatedCosts: true,
         },
       },
     };
@@ -388,6 +436,9 @@ class Settings {
     clamp('idleMind.maxActiveGoals',              1, 100);
     clamp('idleMind.journalMaxFileSizeMB',        1, 5000);
     clamp('idleMind.journalMaxRotations',         0, 100);
+    // v7.9.4: goal-activity balance. 0 = legacy always-goal-step,
+    // 1-50 = break every N steps. Above 50 effectively disables it.
+    clamp('idleMind.goalStepsPerActivityPick',    0, 50);
     clamp('daemon.cycleMinutes',                  1, 1440);
     clamp('mcp.serve.port',                       1024, 65535);
     clamp('health.httpPort',                      1024, 65535);

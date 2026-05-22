@@ -144,6 +144,8 @@ class Dashboard {
       this._renderTaskOutcomes(taskOutcomes);
       this._renderSelfModel(selfModelReport);
       this._renderEventFlow(eventDebug);
+      // v7.9.4: Können skills panel
+      this._renderSkills(health?.cognitive?.koennenSkills);
       this._renderSystem(health);
     } catch (err) {
       console.debug('[DASH] Refresh failed:', err.message);
@@ -157,7 +159,8 @@ class Dashboard {
                        'dash-vitals-body', 'dash-loop-body',
                        'dash-cognitive-body', 'dash-reasoning-body',
                        'dash-architecture-body', 'dash-project-body', 'dash-toolsynth-body',
-                       'dash-memory-body', 'dash-modifications-body', 'dash-events-body', 'dash-system-body']) {
+                       'dash-memory-body', 'dash-modifications-body', 'dash-events-body',
+                       'dash-skills-body', 'dash-system-body']) {
       this._el(id).innerHTML = msg;
     }
   }
@@ -190,6 +193,7 @@ class Dashboard {
         '<div class="dash-section"><div class="dash-section-head">Memory</div><div id="dash-memory-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Self-Modifications</div><div id="dash-modifications-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Event Flow</div><div id="dash-events-body" class="dash-section-body"></div></div>' +
+        '<div class="dash-section"><div class="dash-section-head">Skills</div><div id="dash-skills-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">System</div><div id="dash-system-body" class="dash-section-body"></div></div>' +
       '</div>';
   }

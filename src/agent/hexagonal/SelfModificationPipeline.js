@@ -215,7 +215,7 @@ class SelfModificationPipeline {
     orchestrator.registerHandler('self-repair-reset', () => this.handleCircuitReset());
     orchestrator.registerHandler('create-skill', (msg) => this.createSkill(msg));
     orchestrator.registerHandler('clone', (msg, ctx) => this.clone(msg, ctx.history));
-    orchestrator.registerHandler('greeting', (msg) => this._greeting(msg));
+    orchestrator.registerHandler('greeting', (msg, ctx) => this._greeting(msg, ctx?.history));
     // v5.9.1: Retry last failed operation
     orchestrator.registerHandler('retry', () => this._retry());
   }
@@ -422,7 +422,19 @@ Antworte ehrlich und spezifisch in der Sprache des Users. Keine Modullisten.`;
   }
 
   // ── GREETING ─────────────────────────────────────────────
-  async _greeting(message) {
+  async _greeting(message, history) {
+    // v7.9.4 (live-fix): mid-conversation must NOT route through the greeting
+    // handler. Pre-fix, IntentRouter's LLM-fallback classified short positive
+    // user messages like "Das klingt gut" or "ok" as `greeting` mid-chat;
+    // this handler then built its own minimal system prompt without identity
+    // anchor, history, or the v7.9.4 anti-greeting cue — so the model
+    // happily replied "Hallo! Schön, dass es dir gefällt. Wie kann ich dir
+    // helfen?". Returning null here falls through to the regular general-chat
+    // path which carries the full PromptBuilder including _conversationContext().
+    // history.length > 1 ⇒ at least one prior turn already exists (the
+    // current user message was just pushed into history before the handler
+    // dispatch in ChatOrchestrator).
+    if (Array.isArray(history) && history.length > 1) return null;
     // v5.1.0: Use LLM for natural greeting instead of static string.
     // Minimal system prompt — no consciousness/organism/knowledge overhead.
     try {

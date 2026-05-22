@@ -507,6 +507,18 @@ Provide the improved answer:`;
   // ── Helpers ──────────────────────────────────────────────
 
   _buildContextualPrompt(task, context) {
+    // v7.9.4: chat-identity-threading — when ChatOrchestrator passes a
+    // full system prompt (built via the rich PromptBuilder with identity,
+    // formatting, conversation-awareness, capabilities, etc.), use it
+    // verbatim. The legacy mini-prompt below is too thin for cloud models
+    // with strong RLHF assistant defaults — they fall back to "Hallo! Wie
+    // kann ich dir helfen?" without an explicit Genesis-identity anchor.
+    // Legacy fallback remains for bus consumers that invoke reasoning:solve
+    // directly without going through ChatOrchestrator (peer-network calls,
+    // future external integrations).
+    if (typeof context.systemPrompt === 'string' && context.systemPrompt.length > 0) {
+      return context.systemPrompt;
+    }
     const parts = ['You are Genesis.'];
 
     if (context.memory) {

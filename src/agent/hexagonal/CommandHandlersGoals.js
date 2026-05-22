@@ -318,12 +318,10 @@ const commandHandlersGoals = {
     return `${header}\n\n${lines.join('\n')}`;
   },
 
-  // v7.9.0 Phase 2 (koennen-crystallizer-v790 contract): /skills-pending —
-  // list skills SkillCrystallizer has extracted into
-  // .genesis/koennen/skills-pending/ but that haven't been promoted yet.
-  // Reads the directory directly (no service dependency on the
-  // SkillCrystallizer instance state) so the slash works as long as the
-  // .genesis tree is available.
+  // v7.9.4 (koennen-promotion-v794 contract): /skills-pending — list ALL
+  // Können skills grouped by status (promoted, rehearsing, pending,
+  // quarantined, discarded). Replaces the v7.9.0 single-status view.
+  // Built-in skills (src/skills/) are listed separately at top.
   skillsPending(_message) {
     const fs = require('fs');
     const path = require('path');
@@ -331,8 +329,22 @@ const commandHandlersGoals = {
     const genesisDir = this._genesisDir || '.genesis';
     const pendingDir = path.join(genesisDir, 'koennen', 'skills-pending');
 
+    const tracker = this.skillEffectivenessTracker || null;
+    const sm = this.skillManager || null;
+
+    // Built-in skills first (just names).
+    let builtinLine = '';
+    if (sm && typeof sm.listSkills === 'function') {
+      try {
+        const all = sm.listSkills();
+        const builtin = all.filter(s => !s.koennen);
+        const names = builtin.map(s => s.name).join(', ');
+        if (builtin.length > 0) builtinLine = `**Built-in** (${builtin.length}): ${names}\n\n`;
+      } catch (_e) { /* ignore */ }
+    }
+
     if (!fs.existsSync(pendingDir)) {
-      return 'No pending skills. SkillCrystallizer has not produced any extractions yet.';
+      return (builtinLine || '') + 'No Können skills yet. SkillCrystallizer has not produced any extractions.';
     }
 
     let entries;
@@ -344,29 +356,172 @@ const commandHandlersGoals = {
     }
 
     if (entries.length === 0) {
-      return 'No pending skills. SkillCrystallizer has not produced any extractions yet.';
+      return (builtinLine || '') + 'No Können skills yet.';
     }
 
-    const tracker = this.skillEffectivenessTracker || null;
-    const lines = [];
+    // Group by status. Legacy manifests without status default to 'pending'.
+    // Malformed manifests get a stub entry under 'pending' with "(no description)"
+    // so the user sees the directory exists and can decide what to do — this
+    // matches v7.9.0 behavior preserved by the koennen-crystallizer-v790 contract.
+    const groups = { promoted: [], rehearsing: [], pending: [], quarantined: [], discarded: [] };
     for (const e of entries) {
       const manifestPath = path.join(pendingDir, e.name, 'skill-manifest.json');
       let manifest = null;
       try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); }
-      catch { /* malformed — skip details */ }
+      catch { /* malformed — fall through to stub */ }
 
-      const desc = (manifest && manifest.description) ? manifest.description : '(no description)';
+      if (!manifest) {
+        groups.pending.push({
+          name: e.name, runs: 0, lb: '—', rehearsals: 0, distinct: 0,
+          manifest: { koennen: {} }, desc: '(no description)',
+        });
+        continue;
+      }
+
+      const status = manifest.status || 'pending';
+      if (!groups[status]) continue;
+
       const stats = tracker ? tracker.getStats(e.name) : null;
-      const runs = stats ? stats.runs : 0;
-      const lb = stats ? stats.wilsonLB.toFixed(2) : '—';
-      const crystallizedAt = manifest && manifest.koennen && manifest.koennen.crystallizedAt
-        ? new Date(manifest.koennen.crystallizedAt).toISOString().slice(0, 10)
-        : '—';
-      lines.push(`• **${e.name}** (${crystallizedAt}, ${runs} runs, wilson: ${lb})\n  ${desc}`);
+      const runs = stats ? stats.total : 0;
+      const lb = stats ? (stats.wilsonLB * 100).toFixed(0) + '%' : '—';
+      const rehearsals = (manifest.koennen && manifest.koennen.rehearsalCount) || 0;
+      const distinct = manifest.koennen && Array.isArray(manifest.koennen.rehearsedInputHashes)
+        ? new Set(manifest.koennen.rehearsedInputHashes).size : 0;
+      const desc = manifest.description || '(no description)';
+
+      groups[status].push({ name: e.name, runs, lb, rehearsals, distinct, manifest, desc });
     }
 
-    const header = `**Pending Skills** (${entries.length} extracted, awaiting promotion):`;
-    return `${header}\n\n${lines.join('\n\n')}`;
+    const totalKoennen = Object.values(groups).reduce((s, arr) => s + arr.length, 0);
+    if (totalKoennen === 0) {
+      return (builtinLine || '') + 'No Können skills yet.';
+    }
+
+    const out = [builtinLine, `**Skills** (${totalKoennen} Können total):\n`];
+
+    if (groups.promoted.length > 0) {
+      out.push(`**Promoted** (${groups.promoted.length}):`);
+      for (const s of groups.promoted) {
+        const promotedAt = s.manifest.koennen && s.manifest.koennen.promotedAt
+          ? new Date(s.manifest.koennen.promotedAt).toISOString().slice(0, 10) : '—';
+        out.push(`  ● ${s.name} — Wilson ${s.lb} (${s.runs} invokes, since ${promotedAt})`);
+      }
+    }
+    if (groups.rehearsing.length > 0) {
+      out.push(`\n**Rehearsing** (${groups.rehearsing.length}):`);
+      for (const s of groups.rehearsing) {
+        out.push(`  ○ ${s.name} — Wilson ${s.lb}, ${s.rehearsals} rehearsals, ${s.distinct} distinct inputs`);
+      }
+    }
+    if (groups.pending.length > 0) {
+      out.push(`\n**Pending** (${groups.pending.length}):`);
+      for (const s of groups.pending) {
+        const cAt = s.manifest.koennen && s.manifest.koennen.crystallizedAt
+          ? new Date(s.manifest.koennen.crystallizedAt).toISOString().slice(0, 10) : '—';
+        // Include the description (or "(no description)" stub) so malformed
+        // manifests still render a visible row per the v7.9.0 contract.
+        out.push(`  · ${s.name} — ${s.desc} (crystallized ${cAt})`);
+      }
+    }
+    if (groups.quarantined.length > 0) {
+      out.push(`\n**Quarantined** (${groups.quarantined.length}):`);
+      for (const s of groups.quarantined) {
+        out.push(`  ⚠ ${s.name} — Wilson ${s.lb} (${s.runs} invokes)`);
+      }
+    }
+    if (groups.discarded.length > 0) {
+      out.push(`\n**Discarded** (${groups.discarded.length}):`);
+      for (const s of groups.discarded) {
+        const reason = s.manifest.koennen && s.manifest.koennen.discardedReason
+          ? `"${s.manifest.koennen.discardedReason.slice(0, 60)}"` : '(no reason)';
+        out.push(`  ✗ ${s.name} — ${reason}`);
+      }
+    }
+
+    return out.join('\n');
+  },
+
+  // v7.9.4 (koennen-promotion-v794 contract): /skill-info <name> — show
+  // full info on one skill including its acquisitionContext biography.
+  skillInfo(message) {
+    const fs = require('fs');
+    const path = require('path');
+
+    const match = message.match(/\/(?:skill-info|skill-bio)\s+(\S+)/i);
+    if (!match) return 'Usage: /skill-info <skill-name>';
+    const name = match[1];
+
+    const genesisDir = this._genesisDir || '.genesis';
+    const manifestPath = path.join(genesisDir, 'koennen', 'skills-pending', name, 'skill-manifest.json');
+    if (!fs.existsSync(manifestPath)) {
+      return `Skill "${name}" not found in Können directory.`;
+    }
+
+    let manifest;
+    try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); }
+    catch (err) { return `Could not read skill manifest: ${err.message}`; }
+
+    const tracker = this.skillEffectivenessTracker || null;
+    const stats = tracker ? tracker.getStats(name) : null;
+    const ko = manifest.koennen || {};
+
+    const lines = [];
+    lines.push(`**Skill: ${name}**`);
+    lines.push(`Status: ${manifest.status || 'pending'}`);
+    if (ko.promotedAt) lines.push(`Promoted: ${new Date(ko.promotedAt).toISOString().slice(0, 19).replace('T', ' ')}`);
+    if (ko.discardedAt) {
+      lines.push(`Discarded: ${new Date(ko.discardedAt).toISOString().slice(0, 19).replace('T', ' ')}`);
+      if (ko.discardedReason) lines.push(`Discard reason: "${ko.discardedReason}"`);
+    }
+    if (stats) {
+      lines.push(`Wilson-LB: ${(stats.wilsonLB * 100).toFixed(0)}% (${stats.successes}/${stats.total})`);
+    } else {
+      lines.push('Wilson-LB: — (not yet tracked)');
+    }
+    const distinctCount = Array.isArray(ko.rehearsedInputHashes) ? new Set(ko.rehearsedInputHashes).size : 0;
+    lines.push(`Rehearsals: ${ko.rehearsalCount || 0} (${distinctCount} distinct inputs)`);
+    if (ko.crystallizedAt) {
+      lines.push(`Crystallized: ${new Date(ko.crystallizedAt).toISOString().slice(0, 10)}`);
+    }
+    lines.push('');
+    lines.push('**Acquisition context:**');
+    if (ko.acquisitionContext) {
+      lines.push(`"${ko.acquisitionContext}"`);
+    } else {
+      lines.push('No biography (crystallized before v7.9.4)');
+    }
+    lines.push('');
+    lines.push(`**Description:** ${manifest.description || '(no description)'}`);
+
+    return lines.join('\n');
+  },
+
+  // v7.9.4 (koennen-promotion-v794 contract): /skill-discard <name> <reason>
+  // soft-discards a skill (status → 'discarded'). Reason min 10 chars.
+  // Fires skill:discarded event which CoreMemories picks up as bypass-event.
+  async skillDiscard(message) {
+    const match = message.match(/\/skill-discard\s+(\S+)\s+(.+)/i);
+    if (!match) {
+      return 'Usage: /skill-discard <skill-name> <reason (min 10 chars)>';
+    }
+    const name = match[1];
+    const reason = match[2].trim();
+
+    if (reason.length < 10) {
+      return 'A discard reason must be at least 10 characters. Be specific about why this skill does not fit.';
+    }
+
+    const sm = this.skillManager;
+    if (!sm || typeof sm.discardSkill !== 'function') {
+      return 'SkillManager not available — cannot discard.';
+    }
+
+    try {
+      const r = await sm.discardSkill(name, reason);
+      return `Discarded skill "${r.name}" with reason:\n"${reason}"\n\nThis is now a Core Memory.`;
+    } catch (err) {
+      return `Could not discard "${name}": ${err.message}`;
+    }
   },
 
 };

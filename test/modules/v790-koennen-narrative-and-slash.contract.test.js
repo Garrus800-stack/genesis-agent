@@ -91,7 +91,9 @@ describe('koennen-crystallizer-v790 contract: SelfNarrative + /skills-pending', 
     try {
       const h = newGoalsHandler({ _genesisDir: tmp });
       const out = h.skillsPending('/skills-pending');
-      assert(/No pending skills/.test(out));
+      // v7.9.4: wording changed to "No Können skills yet" but the contract
+      // (helpful message instead of error/crash) is preserved.
+      assert(/No Können skills|No pending skills/.test(out));
     } finally { cleanup(tmp); }
   });
 
@@ -100,7 +102,7 @@ describe('koennen-crystallizer-v790 contract: SelfNarrative + /skills-pending', 
     try {
       fs.mkdirSync(path.join(tmp, 'koennen', 'skills-pending'), { recursive: true });
       const h = newGoalsHandler({ _genesisDir: tmp });
-      assert(/No pending skills/.test(h.skillsPending('/skills-pending')));
+      assert(/No Können skills|No pending skills/.test(h.skillsPending('/skills-pending')));
     } finally { cleanup(tmp); }
   });
 
@@ -109,25 +111,28 @@ describe('koennen-crystallizer-v790 contract: SelfNarrative + /skills-pending', 
     try {
       writePendingSkill(tmp, 'markdown-to-html', {
         name: 'markdown-to-html', description: 'Converts markdown to HTML',
+        status: 'pending',
         koennen: { crystallizedAt: Date.parse('2026-05-15T10:00:00Z'), patternSignature: 'a' },
       });
       const h = newGoalsHandler({ _genesisDir: tmp });
       const out = h.skillsPending('/skills-pending');
-      assert(out.includes('Pending Skills'));
-      assert(out.includes('1 extracted'));
+      // v7.9.4: status-grouped output. Contract preserved: name and
+      // description must appear, with crystallization date.
       assert(out.includes('markdown-to-html'));
       assert(out.includes('Converts markdown to HTML'));
       assert(out.includes('2026-05-15'));
-      assert(out.includes('wilson: —'));
     } finally { cleanup(tmp); }
   });
 
   test('koennen-crystallizer-v790 contract: /skills-pending shows Wilson-LB when tracker wired', () => {
     const tmp = tmpDir();
     try {
+      // v7.9.4: needs status='rehearsing' so Wilson-LB shows in the meta line.
+      // Pending skills don't get Wilson rendered (they haven't been rehearsed yet).
       writePendingSkill(tmp, 'flaky', {
         name: 'flaky', description: 'does X',
-        koennen: { crystallizedAt: Date.now(), patternSignature: 's' },
+        status: 'rehearsing',
+        koennen: { crystallizedAt: Date.now(), patternSignature: 's', rehearsalCount: 9, rehearsedInputHashes: ['a','b','c'] },
       });
       const tracker = {
         getStats: (n) => n === 'flaky'
@@ -137,8 +142,10 @@ describe('koennen-crystallizer-v790 contract: SelfNarrative + /skills-pending', 
       };
       const h = newGoalsHandler({ _genesisDir: tmp, skillEffectivenessTracker: tracker });
       const out = h.skillsPending('/skills-pending');
-      assert(out.includes('wilson: 0.18'));
-      assert(out.includes('9 runs'));
+      // v7.9.4: Wilson rendered as percentage. Contract preserved: stats
+      // from the tracker appear in the output.
+      assert(out.includes('Wilson') && (out.includes('18%') || out.includes('0.18')),
+        `expected Wilson stat in output: ${out}`);
     } finally { cleanup(tmp); }
   });
 

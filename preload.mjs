@@ -114,6 +114,12 @@ const ALLOWED_RECEIVE = [
   // the chat:self-message-appended bus event (role, content, timestamp,
   // initiatedBy, selfMeta).
   'genesis:self-message',
+  // v7.9.4 Können Phase 3: skill lifecycle toasts. Bridged by AgentCoreWire
+  // as pure pushes — UI shows a toast and re-renders the Skills dashboard.
+  'skill:promoted',
+  'skill:discarded',
+  'skill:quarantined',
+  'skill:discard-suggested',
 ];
 
 contextBridge.exposeInMainWorld('genesis', {

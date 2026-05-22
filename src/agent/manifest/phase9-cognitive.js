@@ -132,6 +132,8 @@ function phase9(ctx, R) {
         { prop: 'contextCollector',    service: 'contextCollector',    optional: true },
         // v7.9.0 Phase 2: Können skill crystallization (Phase 3c).
         { prop: 'skillCrystallizer',   service: 'skillCrystallizer',   optional: true },
+        // v7.9.4: Können skill promotion (Phase 3d, after crystallization).
+        { prop: 'skillPromotionEvaluator', service: 'skillPromotionEvaluator', optional: true, impact: 'Pending skills never get promoted' },
       ],
       factory: (c) => new (R('DreamCycle').DreamCycle)({
         bus,
