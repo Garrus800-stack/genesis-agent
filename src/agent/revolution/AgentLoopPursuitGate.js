@@ -39,8 +39,8 @@ function shouldAbortOnRisk(cogResult, priorFailures) {
 
 /**
  * Run the full cleanup sequence after a hard-gate abort. Matches
- * the normal failure-path cleanup so no globalTimeout, attempts-
- * counter, or workspace state leaks past the abort.
+ * the normal failure-path cleanup so no globalTimeout or workspace
+ * state leaks past the abort.
  *
  * Pre-v7.9.7-P5b this cleanup was missing — the gate returned
  * directly, leaving running=true, globalTimeout active, workspace
@@ -49,8 +49,21 @@ function shouldAbortOnRisk(cogResult, priorFailures) {
  * globalTimeout fired ~10 minutes later as "Global timeout
  * reached" with no clear cause.
  *
+ * v7.9.8 Fix 5: the attempts counter is intentionally NOT cleared
+ * here. The hard-gate aborts when retry-with-high-risk fires, and
+ * the pursuit is *about to retry again* via GoalDriver back-off.
+ * Clearing the counter resets priorFailures to 0 on the next
+ * pursue() pickup, which makes shouldAbortOnRisk return false
+ * (needs priorFailures >= 1), the warning-only branch runs, the
+ * goal proceeds with the same broken plan, fails again, and the
+ * cycle repeats — exactly what the Win outpost trace showed
+ * (identical riskScore 5.88 producing abort one cycle and
+ * "proceeding anyway" the next). Counter stays alive until the
+ * normal success-delete at AgentLoopPursuit.js:391 or until the
+ * GoalDriver failure-cap marks the goal stalled/obsolete.
+ *
  * @param {object} loop                 AgentLoop instance (mutates running/currentGoalId/_workspace)
- * @param {string} abortedGoalId        the goalId being aborted
+ * @param {string} abortedGoalId        the goalId being aborted (kept in counter)
  * @param {function} clearGlobalTimeout closure that clears the running pursuit timeout
  * @param {function} NullWorkspaceCtor  constructor for the empty-workspace placeholder
  */
@@ -58,7 +71,7 @@ function cleanupAfterAbort(loop, abortedGoalId, clearGlobalTimeout, NullWorkspac
   loop.running = false;
   loop.currentGoalId = null;
   try { clearGlobalTimeout(); } catch (_e) { /* best-effort */ }
-  try { loop._pursuitAttempts.delete(abortedGoalId); } catch (_e) { /* best-effort */ }
+  // v7.9.8 Fix 5: do NOT delete the attempts counter — see header.
   try { loop._workspace.clear(); } catch (_e) { /* best-effort */ }
   loop._workspace = new NullWorkspaceCtor();
 }
@@ -67,4 +80,28 @@ module.exports = {
   HIGH_RISK_THRESHOLD,
   shouldAbortOnRisk,
   cleanupAfterAbort,
+  safeFailureMessage,
 };
+
+/**
+ * v7.9.8 Fix 7: build a non-empty, semantic failure message from whatever
+ * the failure path has at hand. `<empty>` in the GoalDriver log meant the
+ * upstream emit had err.message='' or no message at all — useless for
+ * FailureAnalyzer and confusing for human readers. This helper centralises
+ * the fallback chain used by both _emitFailure and the catch-block emit in
+ * AgentLoopPursuit.pursue().
+ *
+ * Accepts string | Error | undefined. Always returns a non-empty trimmed
+ * string. If nothing usable was passed, returns a synthetic message
+ * referencing the step count.
+ *
+ * @param {string|Error|undefined} err  the error or message at hand
+ * @param {number} stepCount            current step counter for fallback synth
+ * @param {string} [phase]              optional phase tag for the synthetic fallback
+ * @returns {string} guaranteed non-empty
+ */
+function safeFailureMessage(err, stepCount, phase = 'aborted') {
+  if (err instanceof Error && err.message && err.message.trim()) return err.message.trim();
+  if (typeof err === 'string' && err.trim()) return err.trim();
+  return `Pursuit ${phase} after ${stepCount} step(s) without specific error message`;
+}

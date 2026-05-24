@@ -8,7 +8,6 @@
 // (not delegate) due to deep state-coupling. Plan-failure reflection
 // extracted to AgentLoopPursuitReflection (v7.7.8). Stays under 700 LOC.
 // ============================================================
-
 const { TIMEOUTS, LIMITS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
 const { CorrelationContext } = require('../core/CorrelationContext');
@@ -16,16 +15,11 @@ const { reflectIfNeeded, composeFailureMessage } = require('./AgentLoopPursuitRe
 const { CancellationToken } = require('../core/CancellationToken');
 const { NullWorkspace } = require('../ports/WorkspacePort');
 const { normalizeStepTypes } = require('./plan-context');
-const { shouldAbortOnRisk, cleanupAfterAbort } = require('./AgentLoopPursuitGate');
+const { shouldAbortOnRisk, cleanupAfterAbort, safeFailureMessage } = require('./AgentLoopPursuitGate');
 
 const _log = createLogger('AgentLoop');
 
-// ============================================================
-// Mixin
-// ============================================================
-
 const agentLoopPursuitMixin = {
-
   /**
    * Start pursuing a goal. This is the main entry point.
    * Called by ChatOrchestrator when it detects a goal-oriented message.
@@ -93,9 +87,11 @@ const agentLoopPursuitMixin = {
       this._pursuitAttempts.set(_presetGoal.id, prev + 1);
     }
 
-    // v7.4.5.fix: shared early-return helper — emit agent-loop:complete
-    // from every failure return so GoalDriver releases _currentlyPursuing.
+    // v7.4.5.fix + v7.9.8 Fix 7: shared early-return helper. Emits
+    // agent-loop:complete (so GoalDriver releases _currentlyPursuing)
+    // and routes the message through safeFailureMessage (never empty).
     const _emitFailure = (errorMessage) => {
+      const safeMsg = safeFailureMessage(errorMessage, this.stepCount, 'aborted early');
       try {
         // v7.5.8: synthesise stable goalId when currentGoalId not yet set.
         const _emittedGoalId = this.currentGoalId || `loop_early_${Date.now()}`;
@@ -104,7 +100,8 @@ const agentLoopPursuitMixin = {
           success: false,
           steps: this.stepCount,
           title: (typeof goalDescription === 'string' ? goalDescription : '').slice(0, 100),
-          summary: `Failed: ${(errorMessage || '').slice(0, 200)}`,
+          summary: `Failed: ${safeMsg.slice(0, 200)}`,
+          error: safeMsg, // v7.9.8 Fix 7: explicit field for GoalDriver primary extraction
           verificationMethod: 'early-return',
           toolsUsed: [],
         }, { source: 'AgentLoop' });
@@ -113,7 +110,7 @@ const agentLoopPursuitMixin = {
       reflectIfNeeded(this, {
         goalId: this.currentGoalId,
         goalDescription: typeof goalDescription === 'string' ? goalDescription : null,
-        errorMessage: errorMessage || '',
+        errorMessage: safeMsg,
         stepsExecuted: this.stepCount,
       });
     };
@@ -400,7 +397,9 @@ const agentLoopPursuitMixin = {
       _clearGlobalTimeout();
       this._workspace.clear();
       this._workspace = new NullWorkspace();
-      onProgress({ phase: 'error', detail: err.message });
+      onProgress({ phase: 'error', detail: err && err.message });
+      // v7.9.8 Fix 7: catch-path safeMsg via shared helper.
+      const safeMsg = safeFailureMessage(err, this.stepCount, 'threw');
       // v7.4.5.fix: emit agent-loop:complete on error-path so GoalDriver releases _currentlyPursuing.
       try {
         this.bus.fire('agent-loop:complete', {
@@ -408,7 +407,8 @@ const agentLoopPursuitMixin = {
           success: false,
           steps: this.stepCount,
           title: (typeof goalDescription === 'string' ? goalDescription : '').slice(0, 100),
-          summary: `Failed: ${(err.message || '').slice(0, 200)}`,
+          summary: `Failed: ${safeMsg.slice(0, 200)}`,
+          error: safeMsg, // v7.9.8 Fix 7: explicit field for GoalDriver primary extraction
           verificationMethod: 'error',
           toolsUsed: [],
         }, { source: 'AgentLoop' });
@@ -417,10 +417,10 @@ const agentLoopPursuitMixin = {
       reflectIfNeeded(this, {
         goalId: failedGoalId,
         goalDescription: typeof goalDescription === 'string' ? goalDescription : null,
-        errorMessage: err.message || '',
+        errorMessage: safeMsg,
         stepsExecuted: this.stepCount,
       });
-      return { success: false, error: err.message, steps: this.executionLog, goalId: failedGoalId };
+      return { success: false, error: safeMsg, steps: this.executionLog, goalId: failedGoalId };
     }
     }); // end of CorrelationContext.run
   },

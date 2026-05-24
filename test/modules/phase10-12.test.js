@@ -331,20 +331,20 @@ describe('EmotionalSteering', () => {
 describe('TrustLevelSystem', () => {
   const { TrustLevelSystem, TRUST_LEVELS } = require('../../src/agent/foundation/TrustLevelSystem');
 
-  it('should default to AUTONOMOUS level (v7.9.7)', () => {
+  it('should default to SUPERVISED level (v7.9.8)', () => {
     const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null });
-    assert(tls.getLevel() === TRUST_LEVELS.AUTONOMOUS, 'Default level is AUTONOMOUS');
+    assert(tls.getLevel() === TRUST_LEVELS.SUPERVISED, 'Default level is SUPERVISED');
   });
 
   it('should auto-approve safe actions at AUTONOMOUS', () => {
-    const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null });
+    const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null, config: { level: TRUST_LEVELS.AUTONOMOUS } });
     const result = tls.checkApproval('ANALYZE');
     assert(result.approved === true, 'ANALYZE should be auto-approved');
     assert(result.needsUserApproval === false, 'No user approval needed');
   });
 
   it('should require approval for critical actions at AUTONOMOUS', () => {
-    const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null });
+    const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null, config: { level: TRUST_LEVELS.AUTONOMOUS } });
     const result = tls.checkApproval('DEPLOY');
     assert(result.approved === false, 'DEPLOY (critical) needs approval at AUTONOMOUS');
     assert(result.needsUserApproval === true, 'Needs user approval');
@@ -382,7 +382,8 @@ describe('TrustLevelSystem', () => {
   it('should provide full status', () => {
     const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null });
     const status = tls.getStatus();
-    assert(status.levelName === 'AUTONOMOUS', 'Level name correct');
+    // v7.9.8: fresh-install default is SUPERVISED, not AUTONOMOUS.
+    assert(status.levelName === 'SUPERVISED', 'Level name correct (v7.9.8 default: SUPERVISED)');
     assert(Array.isArray(status.autoApproves), 'Has auto-approve list');
   });
 });

@@ -636,16 +636,20 @@ test('CHAIN: v7.9.8 Win-trace lesson (real recall shape) does not produce DIRECT
 // 0% because the verifier was running against P5-abort error strings).
 // ════════════════════════════════════════════════════════════════
 
-test('EXT2 P5: simulation hard-gate cleans up this.running and pursuitAttempts before returning', () => {
+test('EXT2 P5: simulation hard-gate cleans up this.running before returning, preserves attempts counter (v7.9.8)', () => {
   // v7.9.7-fix (P5b): cleanup centralised in AgentLoopPursuitGate.cleanupAfterAbort.
+  // v7.9.8 Fix 5: counter delete REMOVED so retry-with-high-risk stays gated
+  // across consecutive pursuits (Win trace showed deterministic loss otherwise).
   const gateSrc = fs.readFileSync(
     path.join(ROOT, 'src/agent/revolution/AgentLoopPursuitGate.js'), 'utf8');
   assert(/loop\.running\s*=\s*false/.test(gateSrc),
     'cleanupAfterAbort must reset running');
   assert(/clearGlobalTimeout\(\)/.test(gateSrc),
     'cleanupAfterAbort must clear the global timeout');
-  assert(/_pursuitAttempts\.delete/.test(gateSrc),
-    'cleanupAfterAbort must delete the per-goal pursuit-attempts entry');
+  // v7.9.8 Fix 5: counter delete must NOT happen here. Only the success-path
+  // delete in AgentLoopPursuit.js may clear it.
+  assert(!/_pursuitAttempts\.delete\(abortedGoalId\)/.test(gateSrc),
+    'cleanupAfterAbort must NOT delete the attempts counter (v7.9.8 Fix 5)');
   // Pursuit must actually invoke the cleanup before its high-risk return.
   const pursuitSrc = fs.readFileSync(
     path.join(ROOT, 'src/agent/revolution/AgentLoopPursuit.js'), 'utf8');

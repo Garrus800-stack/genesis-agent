@@ -32,11 +32,11 @@ const { TrustLevelSystem } = require('../../src/agent/foundation/TrustLevelSyste
 // ── Tests ──────────────────────────────────────────────────
 
 describe('TrustLevelSystem — Defaults', () => {
-  test('starts at AUTONOMOUS level (v7.9.7 default)', () => {
+  test('starts at SUPERVISED level (v7.9.8 default)', () => {
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
     const status = tls.getStatus();
-    assert(status.level === 1 || status.levelName === 'autonomous' || status.levelName === 'AUTONOMOUS',
-      `expected autonomous level, got ${JSON.stringify(status)}`);
+    assert(status.level === 0 || status.levelName === 'supervised' || status.levelName === 'SUPERVISED',
+      `expected supervised level, got ${JSON.stringify(status)}`);
   });
 
   test('getStats returns zeroed counters', () => {
@@ -47,15 +47,25 @@ describe('TrustLevelSystem — Defaults', () => {
 });
 
 describe('TrustLevelSystem — Approval Checks', () => {
-  test('low-risk actions approved at any trust level', () => {
+  test('low-risk actions approved at AUTONOMOUS level', async () => {
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
+    await tls.setLevel(1); // v7.9.8: default is now SUPERVISED; test AUTONOMOUS explicitly
     const result = tls.checkApproval('read-file', {});
     assert(result.approved === true || result.needsApproval === false,
-      'low-risk read should be auto-approved');
+      'low-risk read should be auto-approved at AUTONOMOUS');
   });
 
-  test('critical actions require approval at AUTONOMOUS level', () => {
+  test('SUPERVISED requires approval for everything (v7.9.8 default)', () => {
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
+    // No setLevel — default is SUPERVISED in v7.9.8.
+    const result = tls.checkApproval('read-file', {});
+    assert(result.approved === false || result.needsApproval === true || result.needsUserApproval === true,
+      'at SUPERVISED, even low-risk read must require approval (sacred user-settings invariant)');
+  });
+
+  test('critical actions require approval at AUTONOMOUS level', async () => {
+    const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
+    await tls.setLevel(1); // v7.9.8: default is now SUPERVISED; test AUTONOMOUS explicitly
     const result = tls.checkApproval('EXTERNAL_API', {});
     // At AUTONOMOUS level, critical should still need approval
     assert(result.approved === false || result.needsApproval === true,
@@ -110,10 +120,10 @@ describe('TrustLevelSystem — Migration (v7.9.7)', () => {
     assertEqual(TrustLevelSystem._migrateLevel(0), 0);
   });
 
-  test('out-of-range values default to AUTONOMOUS', () => {
-    assertEqual(TrustLevelSystem._migrateLevel(99), 1);
-    assertEqual(TrustLevelSystem._migrateLevel(-5), 1);
-    assertEqual(TrustLevelSystem._migrateLevel(undefined), 1);
+  test('out-of-range values default to SUPERVISED (v7.9.8)', () => {
+    assertEqual(TrustLevelSystem._migrateLevel(99), 0);
+    assertEqual(TrustLevelSystem._migrateLevel(-5), 0);
+    assertEqual(TrustLevelSystem._migrateLevel(undefined), 0);
   });
 });
 

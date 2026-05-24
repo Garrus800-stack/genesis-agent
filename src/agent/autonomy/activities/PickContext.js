@@ -97,7 +97,7 @@ function buildPickContext(idleMind) {
       const vitals = services.homeostasis?.vitals || {};
       return vitals.memoryPressure?.value ?? 50;
     }),
-    trustLevel: _safeSnap(() => services.trustLevelSystem?.getLevel?.() ?? 1),
+    trustLevel: _safeSnap(() => services.trustLevelSystem?.getLevel?.() ?? 0),
     networkOk: _safeSnap(() => {
       if (!services.webFetcher) return false;
       return typeof idleMind._isNetworkAvailable === 'function'

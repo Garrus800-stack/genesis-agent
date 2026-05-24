@@ -242,12 +242,15 @@ test('E3: IntentPatterns matches /daemon-suggestions [N]', () => {
 
 // ── F: ContinuationLoop maxAttempts setting ───────────────────
 
-test('F1: llm.continuation.maxAttempts default 4', () => {
+test('F1: llm.continuation.maxAttempts default 6 (v7.9.8: was 4)', () => {
   const { Settings } = require(path.join(ROOT, 'src/agent/foundation/Settings'));
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'genesis-livefix-cl-'));
   try {
     const s = new Settings(tmpDir);
-    assertEqual(s.get('llm.continuation.maxAttempts'), 4);
+    // v7.9.8 Fix 6: default raised from 4 to 6 to match ContinuationLoop's
+    // own default. ModelBridgeContinuation reads Settings, and the Settings
+    // default was the ceiling that actually applied at runtime.
+    assertEqual(s.get('llm.continuation.maxAttempts'), 6);
     // Clamp range is enforced by _sanityClampOnLoad at load time. Verify
     // by writing directly into data and re-clamping.
     s.data.llm.continuation.maxAttempts = 999;

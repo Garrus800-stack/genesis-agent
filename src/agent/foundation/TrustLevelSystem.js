@@ -115,8 +115,12 @@ class TrustLevelSystem {
     const cfg = config || {};
     // FIX v7.0.8: Use ?? instead of || — level 0 (SUPERVISED) is valid.
     // Previously, cfg.level=0 was falsy → fell back to default.
-    // v7.9.7: default is AUTONOMOUS (was ASSISTED, now removed).
-    this._level = TrustLevelSystem._migrateLevel(cfg.level ?? TRUST_LEVELS.AUTONOMOUS);
+    // v7.9.8: fresh installs default to SUPERVISED (was AUTONOMOUS).
+    // User-Settings are sacred — existing stored values are loaded in
+    // asyncLoad and respected. Higher trust is an explicit opt-in by
+    // the user, not a default. For a self-modifying public-repo agent
+    // this protects new clones from ever auto-approving anything.
+    this._level = TrustLevelSystem._migrateLevel(cfg.level ?? TRUST_LEVELS.SUPERVISED);
     this._actionOverrides = {}; // Per-action trust overrides
 
     // ── Upgrade suggestions (pending user confirmation) ──
@@ -143,43 +147,102 @@ class TrustLevelSystem {
    *   Old 0 SUPERVISED → New 0 SUPERVISED       (unchanged)
    *   Old 1 ASSISTED   → New 1 AUTONOMOUS       (slightly more autonomy)
    *   Old 2 AUTONOMOUS → New 1 AUTONOMOUS       (same behaviour, new index)
-   *   Old 3 FULL       → New 2 FULL_AUTONOMY   (same behaviour, new index)
+   *   Old 3 FULL       → New 2 FULL_AUTONOMY    (same behaviour, new index)
    *
-   * Values already in 0..2 pass through. Invalid values clamp to AUTONOMOUS.
+   * Values already in 0..2 pass through. Invalid/corrupt/out-of-range
+   * values clamp to SUPERVISED (v7.9.8 — was AUTONOMOUS; SUPERVISED is
+   * the safer default when the stored state is untrustworthy).
    *
    * @param {number} level
    * @returns {number} migrated level in 0..2
    */
   static _migrateLevel(level) {
-    if (typeof level !== 'number' || !Number.isFinite(level)) return TRUST_LEVELS.AUTONOMOUS;
+    if (typeof level !== 'number' || !Number.isFinite(level)) return TRUST_LEVELS.SUPERVISED;
     if (level === 0) return TRUST_LEVELS.SUPERVISED;
     if (level === 1) return TRUST_LEVELS.AUTONOMOUS;       // was ASSISTED → AUTONOMOUS
     if (level === 2) return TRUST_LEVELS.AUTONOMOUS;       // was AUTONOMOUS → still AUTONOMOUS (new index)
     if (level === 3) return TRUST_LEVELS.FULL_AUTONOMY;    // was FULL → FULL (new index)
-    // Out of range — clamp to safe default
-    return TRUST_LEVELS.AUTONOMOUS;
+    // Out of range — clamp to safest default (v7.9.8)
+    return TRUST_LEVELS.SUPERVISED;
   }
 
   async asyncLoad() {
+    let storageHadSchema = false;
+    let needsStorageWriteback = false;
     try {
       const saved = await this.storage?.readJSON('trust-level.json');
       if (saved) {
-        const rawLevel = typeof saved.level === 'number' ? saved.level : TRUST_LEVELS.AUTONOMOUS;
-        const migrated = TrustLevelSystem._migrateLevel(rawLevel);
-        if (migrated !== rawLevel) {
-          _log.info(`[TRUST-MIGRATION] stored level ${rawLevel} → ${migrated} (4-level system → 3-level)`);
+        // v7.9.8 NODOUBLE: if schemaVersion >= 3 the value was written by
+        // a 3-level-system boot and must be trusted as-is. Migration would
+        // re-translate the 2 (FULL_AUTONOMY in 3-level world) into 1
+        // (AUTONOMOUS by the 4→3 mapping for old-AUTONOMOUS=2), silently
+        // downgrading the user's setting on every subsequent boot.
+        if (typeof saved.schemaVersion === 'number' && saved.schemaVersion >= 3) {
+          if (typeof saved.level === 'number' && saved.level >= 0 && saved.level <= 2) {
+            this._level = saved.level;
+            storageHadSchema = true;
+          } else {
+            // schemaVersion claims 3-level but level is corrupt → SUPERVISED.
+            this._level = TRUST_LEVELS.SUPERVISED;
+            needsStorageWriteback = true;
+            _log.warn(`[TRUST-MIGRATION] schemaVersion=${saved.schemaVersion} but level=${saved.level} is invalid; falling back to SUPERVISED`);
+          }
+        } else {
+          // No schema marker → pre-v7.9.8 storage. Apply 4-to-3 migration.
+          // v7.9.8: corrupt saved.level (not a number) → SUPERVISED.
+          // The file exists but its level field is broken — safer to drop
+          // back to ask-before-acting than assume the user's intent.
+          const rawLevel = typeof saved.level === 'number' ? saved.level : TRUST_LEVELS.SUPERVISED;
+          const migrated = TrustLevelSystem._migrateLevel(rawLevel);
+          if (migrated !== rawLevel) {
+            _log.info(`[TRUST-MIGRATION] stored level ${rawLevel} → ${migrated} (4-level system → 3-level)`);
+          }
+          this._level = migrated;
+          // Always writeback so the schemaVersion marker is set, even if
+          // the level itself didn't change — prevents re-migration loops.
+          needsStorageWriteback = true;
         }
-        this._level = migrated;
         this._actionOverrides = saved.overrides || {};
         this._pendingUpgrades = saved.pendingUpgrades || [];
       }
     } catch (_e) { _log.debug('[catch] use defaults:', _e.message); }
 
-    // Also check Settings
+    // v7.9.8 Fix 1: persist storage-side migration once so the next boot
+    // sees a clean value and doesn't re-migrate. Wrapped in try so a
+    // write-failure (read-only fs, permission denied) never blocks boot.
+    if (needsStorageWriteback) {
+      try { await this._save(); }
+      catch (_e) { _log.warn('[TRUST-MIGRATION] storage writeback failed:', _e.message); }
+    }
+
+    // Settings: only consulted as a secondary source. If storage already
+    // had a schemaVersion=3 marker, that value is authoritative and
+    // settings will be synced to match. Otherwise, settings can supply
+    // (or migrate) the level if storage was empty/corrupt.
     if (this.settings) {
       const settingsLevel = this.settings.get('trust.level');
       if (typeof settingsLevel === 'number') {
-        this._level = TrustLevelSystem._migrateLevel(settingsLevel);
+        if (storageHadSchema) {
+          // Storage wins (was already migrated). Settings sync to storage.
+          if (settingsLevel !== this._level) {
+            try { this.settings.set('trust.level', this._level); }
+            catch (_e) { _log.warn('[TRUST-MIGRATION] settings sync to storage failed:', _e.message); }
+          }
+        } else {
+          // No schemaVersion on storage side → settings can still inform/
+          // override the level (preserves pre-v7.9.8 behaviour where
+          // settings was the dominant source).
+          const migrated = TrustLevelSystem._migrateLevel(settingsLevel);
+          this._level = migrated;
+          if (migrated !== settingsLevel) {
+            try { this.settings.set('trust.level', migrated); }
+            catch (_e) { _log.warn('[TRUST-MIGRATION] settings writeback failed:', _e.message); }
+            // Re-save storage so the migrated value + schemaVersion are
+            // persisted on the storage side too.
+            try { await this._save(); }
+            catch (_e) { _log.warn('[TRUST-MIGRATION] post-settings storage writeback failed:', _e.message); }
+          }
+        }
       }
     }
   }
@@ -243,7 +306,7 @@ class TrustLevelSystem {
 
   /**
    * Set trust level (user action).
-   * @param {number} level - 0-3
+   * @param {number} level - 0-2 (SUPERVISED, AUTONOMOUS, FULL_AUTONOMY)
    */
   async setLevel(level) {
     if (level < 0 || level > 2) throw new Error(`Invalid trust level: ${level} (valid range: 0..2)`);
@@ -368,6 +431,16 @@ class TrustLevelSystem {
   async _save() {
     try {
       await this.storage?.writeJSON('trust-level.json', {
+        // v7.9.8 Fix 1 + NODOUBLE-protection: schemaVersion: 3 marker so
+        // subsequent boots can distinguish "already-migrated 3-level value"
+        // from "raw 4-level value still needing migration". Without this
+        // marker, a stored level=2 is ambiguous (could be old-AUTONOMOUS=2
+        // wanting migration to new-1, or new-FULL_AUTONOMY=2 wanting to
+        // stay put). Garrus' Win-trace symptom — FULL stays as FULL after
+        // first boot then quietly drops to AUTONOMOUS on every subsequent
+        // boot — came from re-migrating a 2 that was already in the new
+        // schema.
+        schemaVersion: 3,
         level: this._level,
         overrides: this._actionOverrides,
         pendingUpgrades: this._pendingUpgrades,

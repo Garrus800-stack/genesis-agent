@@ -63,11 +63,11 @@ test('R1: _migrateLevel(0..3) maps correctly', () => {
   assertEqual(TrustLevelSystem._migrateLevel(3), 2, '3 maps to FULL_AUTONOMY (was FULL, now index 2)');
 });
 
-test('R1: _migrateLevel clamps out-of-range to AUTONOMOUS', () => {
-  assertEqual(TrustLevelSystem._migrateLevel(99), 1, 'large value clamps to AUTONOMOUS');
-  assertEqual(TrustLevelSystem._migrateLevel(-5), 1, 'negative value clamps to AUTONOMOUS');
-  assertEqual(TrustLevelSystem._migrateLevel(undefined), 1, 'undefined clamps to AUTONOMOUS');
-  assertEqual(TrustLevelSystem._migrateLevel(NaN), 1, 'NaN clamps to AUTONOMOUS');
+test('R1: _migrateLevel clamps out-of-range to SUPERVISED (v7.9.8)', () => {
+  assertEqual(TrustLevelSystem._migrateLevel(99), 0, 'large value clamps to SUPERVISED');
+  assertEqual(TrustLevelSystem._migrateLevel(-5), 0, 'negative value clamps to SUPERVISED');
+  assertEqual(TrustLevelSystem._migrateLevel(undefined), 0, 'undefined clamps to SUPERVISED');
+  assertEqual(TrustLevelSystem._migrateLevel(NaN), 0, 'NaN clamps to SUPERVISED');
 });
 
 test('R1: setLevel rejects values outside 0..2', async () => {

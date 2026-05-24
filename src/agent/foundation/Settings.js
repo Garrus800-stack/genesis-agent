@@ -257,7 +257,12 @@ class Settings {
         // code generations (multi-thousand-char outputs from qwen3-coder)
         // hit the ceiling with partial responses. Higher is safer for
         // quality, lower is safer for runaway-cost. Range 1..20.
-        continuation: { maxAttempts: 4 },
+        // v7.9.8 Fix 6: raised default 4 → 6 to match ContinuationLoop's
+        // own default. The v7.9.7 P6 fix only touched ContinuationLoop's
+        // MAX_CONTINUATIONS_DEFAULT, but ModelBridgeContinuation reads
+        // from Settings and the Settings default was still 4 — heavy
+        // code generations in Win-trace still cut off at attempt 4.
+        continuation: { maxAttempts: 6 },
       },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
       timeouts: { approvalSec: 300, shellMs: 15000, httpMs: 60000, gitMs: 5000 },
@@ -497,7 +502,11 @@ class Settings {
     clamp('organism.inhabit.cooldownMinutes',     1, 1440);
     clamp('ui.editorFontSize',                    8, 48);
     clamp('ui.chatFontSize',                      8, 48);
-    clamp('trust.level',                          0, 3);
+    // v7.9.8: trust.level clamp removed. Validation lives in
+    // TrustLevelSystem._migrateLevel — the domain owner — so old stored
+    // values from the 4-level system (0..3) reach the migration intact.
+    // Clamping here to 0..2 first would collapse old level 3 (FULL) to
+    // level 2 before the migration could see it as old-FULL.
   }
 
   /** Internal: write value at dot-path without touching events or _save. */

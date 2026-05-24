@@ -31,8 +31,8 @@ module.exports = {
     const energy = ctx.snap.emotional?.energy ?? 0.5;
     if (energy < 0.5) return 0;
 
-    // Trust gate — hard zero
-    const trust = ctx.snap.trustLevel ?? 1;
+    // Trust gate — hard zero (v7.9.8: missing trustLevel defaults to SUPERVISED)
+    const trust = ctx.snap.trustLevel ?? 0;
     if (trust < 1) return 0;
 
     // Rate limit: max 3 per hour

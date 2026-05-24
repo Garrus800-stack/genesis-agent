@@ -111,7 +111,7 @@ function phase3(ctx, R) {
           impact: 'shell-task plans not captured into Self-Statement-Log' },
         { prop: 'trustLevelSystem', service: 'trustLevelSystem',
           optional: true, expectedActive: true, expects: ['getLevel'],
-          impact: 'sandbox falls back to default trust=1 (AUTONOMOUS)' },
+          impact: 'sandbox falls back to default trust=0 (SUPERVISED, v7.9.8)' },
         { prop: 'settings', service: 'settings',
           optional: true, expectedActive: true, expects: ['get'],
           impact: 'sandbox falls back to default scope=user-home' },

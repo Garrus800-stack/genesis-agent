@@ -36,7 +36,7 @@ const FIELD_REGISTRY = {
   'set-daemon':                   { type: 'bool',     settingsPath: 'daemon.enabled',                  resetSafe: true,  default: true },
   'set-idle':                     { type: 'bool',     settingsPath: 'idleMind.enabled',                resetSafe: true,  default: true },
   'set-selfmod':                  { type: 'bool',     settingsPath: 'security.allowSelfModify',        resetSafe: true,  default: true },
-  'set-trust-level':              { type: 'enum',     settingsPath: 'trust.level',                     resetSafe: true,  default: 1, options: [0,1,2] },
+  'set-trust-level':              { type: 'enum',     settingsPath: 'trust.level',                     resetSafe: true,  default: 0, options: [0,1,2] },
   'set-auto-resume':              { type: 'enum',     settingsPath: 'agency.autoResumeGoals',          resetSafe: true,  default: 'ask', options: ['ask','always','never'] },
   'set-auto-route':               { type: 'bool',     settingsPath: 'agency.autoRouteByTask',          resetSafe: true,  default: false },
   'set-negotiate':                { type: 'bool',     settingsPath: 'agency.negotiateBeforeAdd',       resetSafe: true,  default: false },

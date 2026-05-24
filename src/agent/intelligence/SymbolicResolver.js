@@ -176,7 +176,20 @@ class SymbolicResolver {
     const directive = this._buildDirective(bestLesson, bestSchema);
     this._stats.guidedHits++;
 
-    _log.info(`[SYMBOLIC] GUIDED "${stepType}" — ${bestSource?.insight?.slice(0, 60) || bestSource?.name || '?'} (conf=${(bestConf * 100).toFixed(0)}%)`);
+    // v7.9.8 Fix 8: differentiate the GUIDED log-line between PROVEN-approach
+    // lessons and AVOID-this-failed lessons. Pre-fix the log only showed the
+    // first 60 chars of `lesson.insight`, which for plan-failure-reflection
+    // lessons reads "Goal failed (structural): <past goal name>" — readers
+    // of the log mistook this for the currently-running goal's name, which
+    // was confusing in Win-traces where lessons from earlier pursuits showed
+    // up in later, semantically-similar pursuits. The marker makes the
+    // re-use explicit.
+    const isPredictionLesson =
+      bestLesson?.source === 'plan-failure-reflection' ||
+      ['structural', 'execution', 'external', 'user-action', 'unclassified', 'causal-suspicion'].includes(bestLesson?.strategy?.classification);
+    const lessonMarker = isPredictionLesson ? 'AVOID-past-failure' : 'proven-approach';
+    const insightSnippet = bestSource?.insight?.slice(0, 60) || bestSource?.name || '?';
+    _log.info(`[SYMBOLIC] GUIDED "${stepType}" [${lessonMarker}] — ${insightSnippet} (conf=${(bestConf * 100).toFixed(0)}%)`);
 
     this.bus.fire('symbolic:resolved', {
       level: LEVEL.GUIDED,

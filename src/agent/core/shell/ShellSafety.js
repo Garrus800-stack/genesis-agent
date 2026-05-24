@@ -138,10 +138,11 @@ function checkRootDirSandbox(command, rootDir, opts = {}) {
   const _path = isWindows ? path.win32 : path.posix;
   const root = _path.resolve(rootDir).toLowerCase();
 
-  // Resolve trust + scope from opts/settings. Default trust = 1 (AUTONOMOUS).
+  // v7.9.8: Resolve trust + scope from opts/settings. Default trust = 0 (SUPERVISED)
+  // for fresh installs — explicit user opt-in required for any auto-approval.
   const trustLevel = (typeof opts.trustLevel === 'number')
     ? opts.trustLevel
-    : (opts.settings?.get?.('trust.level') ?? 1);
+    : (opts.settings?.get?.('trust.level') ?? 0);
   const readScope = opts.readScope
     || opts.settings?.get?.('sandbox.readScope')
     || 'user-home';

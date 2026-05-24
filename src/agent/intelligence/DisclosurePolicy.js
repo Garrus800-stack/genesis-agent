@@ -117,7 +117,7 @@ class DisclosurePolicy {
     if (!this.trustLevelSystem) return INTERLOCUTOR.OWNER;
 
     // v7.9.7: 3-level system. FULL_AUTONOMY=2 → OWNER, AUTONOMOUS=1 → TRUSTED, SUPERVISED=0 → STRANGER.
-    const level = this.trustLevelSystem.getLevel?.() ?? 1;
+    const level = this.trustLevelSystem.getLevel?.() ?? 0;
     if (level >= 2) return INTERLOCUTOR.OWNER;
     if (level >= 1) return INTERLOCUTOR.TRUSTED;
     return INTERLOCUTOR.STRANGER;
