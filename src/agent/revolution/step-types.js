@@ -91,6 +91,22 @@ const STEP_TYPE_ALIASES = Object.freeze({
   'CREATE_FILE':   'CODE',
   'CODE_GENERATE': 'CODE',
   'GENERATE_CODE': 'CODE',
+  // v7.9.7 P2b: broader LLM-idiomatic code-mutation verbs. Pre-fix these
+  // fell through to ANALYZE via the unknown-type fallback, losing the
+  // path-hint and routing file-mutating intent to a read-only handler.
+  'REFACTOR':      'CODE',
+  'IMPLEMENT':     'CODE',
+  'INTEGRATE':     'CODE',
+  'ADD':           'CODE',
+  'ADD_FEATURE':   'CODE',
+  'ADD_DEPENDENCY':'CODE',
+  'FIX':           'CODE',
+  'FIX_FILE':      'CODE',
+  'UPDATE':        'CODE',
+  'UPDATE_FILE':   'CODE',
+  'PATCH':         'CODE',
+  'PATCH_FILE':    'CODE',
+  'WIRE':          'CODE',
   // reading variants → ANALYZE
   'READ':          'ANALYZE',
   'READ_FILE':     'ANALYZE',
@@ -124,6 +140,10 @@ const STEP_TYPE_ALIASES = Object.freeze({
   // question variants → ASK
   'QUESTION':      'ASK',
   'CLARIFY':       'ASK',
+  // v7.9.7 P4: LLM idiomatically writes ASK_USER. TrustLevelSystem already
+  // classifies 'ASK_USER' as 'safe', but the alias table was missing it so
+  // normalizeStepType returned null and the fallback rewrote to ANALYZE.
+  'ASK_USER':      'ASK',
 });
 
 /**

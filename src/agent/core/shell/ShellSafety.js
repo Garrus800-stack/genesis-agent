@@ -106,9 +106,8 @@ function sanitizeCommand(command, opts = {}) {
  *
  *   3. TRUST (what level is the user comfortable with?)
  *      - 0 SUPERVISED      → only rootDir, both read+write
- *      - 1 ASSISTED  (def) → rootDir read+write; user-home READ-only
- *      - 2 AUTONOMOUS      → rootDir+user-home both; system blocked
- *      - 3 FULL_AUTONOMY   → everything except secret/system
+ *      - 1 AUTONOMOUS (def) → rootDir+user-home both; system blocked
+ *      - 2 FULL_AUTONOMY    → everything except secret/system
  *
  * BLOCKED regardless of trust:
  *   - secret files (*.env, *.pem, *.key, .aws/credentials, .ssh/*)
@@ -119,7 +118,7 @@ function sanitizeCommand(command, opts = {}) {
  * Settings.sandbox.readScope overrides the default scope for trust level 1+:
  *   - 'project' (legacy)  → only rootDir
  *   - 'user-home' (default) → user-home safe-area
- *   - 'permissive' (trust 3 only) → almost everything
+ *   - 'permissive' (FULL_AUTONOMY only) → almost everything
  *
  * @param {string} command
  * @param {string|null|undefined} rootDir
@@ -139,7 +138,7 @@ function checkRootDirSandbox(command, rootDir, opts = {}) {
   const _path = isWindows ? path.win32 : path.posix;
   const root = _path.resolve(rootDir).toLowerCase();
 
-  // Resolve trust + scope from opts/settings. Default trust = 1 (ASSISTED).
+  // Resolve trust + scope from opts/settings. Default trust = 1 (AUTONOMOUS).
   const trustLevel = (typeof opts.trustLevel === 'number')
     ? opts.trustLevel
     : (opts.settings?.get?.('trust.level') ?? 1);
@@ -245,34 +244,31 @@ function checkRootDirSandbox(command, rootDir, opts = {}) {
     // (c) Trust-gated: outside rootDir but in user-home safe-area.
     const userHomeMatch = _isUserHomeSafeArea(abs, isWindows);
     if (userHomeMatch && (allowUserHome !== false) && readScope !== 'project') {
-      // user-home access enabled. Check trust + intent.
-      if (trustLevel >= 2) continue;                        // AUTONOMOUS+: read+write
-      if (trustLevel >= 1 && intent === 'read') continue;   // ASSISTED: read-only
-      // SUPERVISED or write-attempt at ASSISTED → block
+      // user-home access enabled. v7.9.7: AUTONOMOUS+ (1,2) → read+write.
+      // SUPERVISED (0) → block.
+      if (trustLevel >= 1) continue;
       return {
         ok: false,
-        reason: `path "${raw}" is in your user-home (${userHomeMatch}), but trust level ${trustLevel} ${intent === 'write' ? 'forbids writes' : 'is too low'} there.`,
-        hint: trustLevel === 1 && intent === 'write'
-          ? 'Trust ASSISTED only allows READ in user-home. Raise trust to AUTONOMOUS for writes, or work inside the project directory.'
-          : `Raise trust to ${intent === 'write' ? 'AUTONOMOUS' : 'ASSISTED'} (Settings → Behavior → Trust) to access this.`,
+        reason: `path "${raw}" is in your user-home (${userHomeMatch}), but trust level ${trustLevel} (SUPERVISED) blocks access there.`,
+        hint: 'Raise trust to AUTONOMOUS (Settings → Behavior → Trust) to access user-home paths.',
       };
     }
 
-    // (c2) Launch (.lnk/.exe) anywhere in user-home with trust ≥ 2.
+    // (c2) Launch (.lnk/.exe) anywhere in user-home with trust ≥ 1 (AUTONOMOUS+).
     // GUI installers (winget user-scope, portable apps) often place
     // their .lnk shortcuts in non-safe-area subfolders of user-home
     // (Start Menu, AppData/Local). Launching a shortcut is read-only-
-    // execute. Restricted to AUTONOMOUS+ so SUPERVISED/ASSISTED can't
+    // execute. Restricted to AUTONOMOUS+ so SUPERVISED can't
     // be tricked into spawning random user-scope binaries.
-    if (intent === 'launch' && trustLevel >= 2) {
+    if (intent === 'launch' && trustLevel >= 1) {
       const home = (require('os').homedir() || '').toLowerCase();
       if (home && abs.startsWith(home) && /\.(lnk|exe)$/i.test(abs)) {
         continue;
       }
     }
 
-    // (d) Permissive scope — Trust 3 only, almost everything outside system/secret.
-    if (readScope === 'permissive' && trustLevel >= 3) continue;
+    // (d) Permissive scope — FULL_AUTONOMY only, almost everything outside system/secret.
+    if (readScope === 'permissive' && trustLevel >= 2) continue;
 
     // (e) Otherwise — outside scope.
     return {

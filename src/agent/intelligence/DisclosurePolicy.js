@@ -18,10 +18,10 @@
 //               SafeGuard internals. Owner only.
 //
 // Trust source: TrustLevelSystem (action trust) is repurposed for
-// information trust. The mapping:
-//   SUPERVISED (0) / ASSISTED (1)  → interlocutor is STRANGER
-//   AUTONOMOUS (2)                  → interlocutor is TRUSTED
-//   FULL_AUTONOMY (3)               → interlocutor is OWNER
+// information trust. The mapping (v7.9.7: 3-level system):
+//   SUPERVISED (0)    → interlocutor is STRANGER
+//   AUTONOMOUS (1)    → interlocutor is TRUSTED
+//   FULL_AUTONOMY (2) → interlocutor is OWNER
 //
 // If no TrustLevelSystem is available, defaults to TRUSTED
 // (single-user local install assumption).
@@ -116,9 +116,10 @@ class DisclosurePolicy {
   getInterlocutor() {
     if (!this.trustLevelSystem) return INTERLOCUTOR.OWNER;
 
+    // v7.9.7: 3-level system. FULL_AUTONOMY=2 → OWNER, AUTONOMOUS=1 → TRUSTED, SUPERVISED=0 → STRANGER.
     const level = this.trustLevelSystem.getLevel?.() ?? 1;
-    if (level >= 3) return INTERLOCUTOR.OWNER;
-    if (level >= 2) return INTERLOCUTOR.TRUSTED;
+    if (level >= 2) return INTERLOCUTOR.OWNER;
+    if (level >= 1) return INTERLOCUTOR.TRUSTED;
     return INTERLOCUTOR.STRANGER;
   }
 

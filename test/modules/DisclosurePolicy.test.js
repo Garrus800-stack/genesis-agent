@@ -55,9 +55,9 @@ describe('DisclosurePolicy — trust with TrustLevelSystem', () => {
     assertEqual(tiers[0], TIER.PUBLIC);
   });
 
-  test('TRUSTED gets PUBLIC + GUARDED', () => {
+  test('TRUSTED gets PUBLIC + GUARDED (level 1 = AUTONOMOUS in v7.9.7)', () => {
     const dp = new DisclosurePolicy();
-    dp.trustLevelSystem = { getLevel: () => 2 };
+    dp.trustLevelSystem = { getLevel: () => 1 };
     assertEqual(dp.getInterlocutor(), INTERLOCUTOR.TRUSTED);
     const tiers = dp.getAllowedTiers();
     assertEqual(tiers.length, 2);
@@ -66,9 +66,9 @@ describe('DisclosurePolicy — trust with TrustLevelSystem', () => {
     assert(!tiers.includes(TIER.INTERNAL));
   });
 
-  test('OWNER (level 3) gets all tiers', () => {
+  test('OWNER (level 2 = FULL_AUTONOMY in v7.9.7) gets all tiers', () => {
     const dp = new DisclosurePolicy();
-    dp.trustLevelSystem = { getLevel: () => 3 };
+    dp.trustLevelSystem = { getLevel: () => 2 };
     assertEqual(dp.getInterlocutor(), INTERLOCUTOR.OWNER);
     assertEqual(dp.getAllowedTiers().length, 3);
   });

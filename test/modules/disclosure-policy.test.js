@@ -44,21 +44,15 @@ describe('DisclosurePolicy', () => {
     assert.strictEqual(dp.getInterlocutor(), INTERLOCUTOR.STRANGER);
   });
 
-  it('maps trust level 1 (ASSISTED) to STRANGER', () => {
+  it('maps trust level 1 (AUTONOMOUS) to TRUSTED', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
     dp.trustLevelSystem = { getLevel: () => 1 };
-    assert.strictEqual(dp.getInterlocutor(), INTERLOCUTOR.STRANGER);
-  });
-
-  it('maps trust level 2 (AUTONOMOUS) to TRUSTED', () => {
-    const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getLevel: () => 2 };
     assert.strictEqual(dp.getInterlocutor(), INTERLOCUTOR.TRUSTED);
   });
 
-  it('maps trust level 3 (FULL_AUTONOMY) to OWNER', () => {
+  it('maps trust level 2 (FULL_AUTONOMY) to OWNER', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getLevel: () => 3 };
+    dp.trustLevelSystem = { getLevel: () => 2 };
     assert.strictEqual(dp.getInterlocutor(), INTERLOCUTOR.OWNER);
   });
 
@@ -72,7 +66,7 @@ describe('DisclosurePolicy', () => {
 
   it('TRUSTED gets PUBLIC + GUARDED', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getLevel: () => 2 };
+    dp.trustLevelSystem = { getLevel: () => 1 };
     const tiers = dp.getAllowedTiers();
     assert.deepStrictEqual(tiers, [TIER.PUBLIC, TIER.GUARDED]);
   });
@@ -97,7 +91,7 @@ describe('DisclosurePolicy', () => {
 
   it('TRUSTED context mentions share architecture but keep security', () => {
     const dp = new DisclosurePolicy({ bus: mockBus() });
-    dp.trustLevelSystem = { getLevel: () => 2 };
+    dp.trustLevelSystem = { getLevel: () => 1 };
     const ctx = dp.buildPromptContext();
     assert.ok(ctx.includes('trusted user'));
     assert.ok(ctx.includes('security internals'));

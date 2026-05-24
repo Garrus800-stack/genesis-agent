@@ -36,6 +36,34 @@ const { LIMITS } = require('../core/Constants');
 const _MAX_RELEVANT_MODULES = 30;
 const _MIN_RELEVANT_MODULES = 5;
 
+// v7.9.7 P2: core-infrastructure floor — the modules a Genesis-generated
+// plan will almost always want to reference (Logger via createLogger,
+// EventBus for fire/on, Container for resolve, Storage/Settings for
+// persistence, IntervalManager for timers). Pre-fix, when a goal's
+// tokens did not match these by name (e.g. "Research Activity Time
+// Logging" — "logging" did not match "logger"), the LLM saw a path
+// list that did not contain the Logger and invented a relative path
+// that did not exist (`require('../../core/Logger')` from a fake
+// position). Sandbox.testPatch then blocked with "Read access blocked"
+// or "Cannot find module ...". Live-Befund v7.9.7 outpost trace: every
+// pursuit of "Research Activity Time Logging" failed with this exact
+// pattern.
+//
+// The floor injects these paths at the head of the picked-modules list
+// (provided the entries actually exist in allModules — we do not
+// fabricate non-existent files) so the LLM always has the real Logger
+// path available to reference, regardless of token-match outcome. Six
+// paths, ~30 LOC of prompt budget — cheap insurance against repeated
+// hallucination.
+const CORE_INFRASTRUCTURE_PATHS = Object.freeze([
+  'src/agent/core/Logger.js',
+  'src/agent/core/EventBus.js',
+  'src/agent/core/Container.js',
+  'src/agent/foundation/StorageService.js',
+  'src/agent/foundation/Settings.js',
+  'src/agent/core/IntervalManager.js',
+]);
+
 const _STOPWORDS = new Set([
   'the','and','for','with','from','into','that','this','your','about','some','any','all',
   'der','die','das','und','von','mit','für','aus','dem','den','ist','wie','was','wo','wer','warum','wann','soll','will','muss','dass','nicht','auch','nach','wenn','bei','auf','vor','zur','zum','beim','wieder',
@@ -76,15 +104,41 @@ function _moduleMatches(mod, tokens) {
  */
 function pickRelevantModules(allModules, goalDescription) {
   if (!Array.isArray(allModules) || allModules.length === 0) return [];
-  const tokens = _goalTokens(goalDescription);
-  if (tokens.length === 0) return allModules.slice(0, LIMITS.PROMPT_MODULE_SLICE);
-  const matches = allModules.filter(m => _moduleMatches(m, tokens));
-  if (matches.length >= _MIN_RELEVANT_MODULES) {
-    return matches.slice(0, _MAX_RELEVANT_MODULES);
+
+  // v7.9.7 P2: core-infrastructure floor at the head of the result.
+  // We project allModules into a Map<filePath, entry> once, then walk
+  // CORE_INFRASTRUCTURE_PATHS in order picking up the entries that
+  // actually exist. The remaining picks (token matches + fillers) are
+  // appended after, deduped against the floor.
+  const byPath = new Map(allModules.map(m => [m.file, m]));
+  const floor = [];
+  const floorPaths = new Set();
+  for (const p of CORE_INFRASTRUCTURE_PATHS) {
+    if (byPath.has(p)) {
+      floor.push(byPath.get(p));
+      floorPaths.add(p);
+    }
   }
-  const seen = new Set(matches.map(m => m.file));
-  const fillers = allModules.filter(m => !seen.has(m.file)).slice(0, LIMITS.PROMPT_MODULE_SLICE);
-  return [...matches, ...fillers].slice(0, _MAX_RELEVANT_MODULES);
+
+  const tokens = _goalTokens(goalDescription);
+  if (tokens.length === 0) {
+    // v7.9.7 P2: floor takes priority but the empty-goal cap stays at
+    // PROMPT_MODULE_SLICE total — subtract floor.length from the filler
+    // slice so callers still see "at most PROMPT_MODULE_SLICE modules"
+    // for the empty-goal fallback. Pre-fix this returned floor + slice(0, 20)
+    // which produced 22 items in tests/contexts where floor had 2 entries.
+    const fillerCap = Math.max(0, LIMITS.PROMPT_MODULE_SLICE - floor.length);
+    const fillers = allModules.filter(m => !floorPaths.has(m.file)).slice(0, fillerCap);
+    return [...floor, ...fillers].slice(0, _MAX_RELEVANT_MODULES);
+  }
+
+  const matches = allModules.filter(m => _moduleMatches(m, tokens) && !floorPaths.has(m.file));
+  if (matches.length >= _MIN_RELEVANT_MODULES) {
+    return [...floor, ...matches].slice(0, _MAX_RELEVANT_MODULES);
+  }
+  const seenAfterFloor = new Set([...floorPaths, ...matches.map(m => m.file)]);
+  const fillers = allModules.filter(m => !seenAfterFloor.has(m.file)).slice(0, LIMITS.PROMPT_MODULE_SLICE);
+  return [...floor, ...matches, ...fillers].slice(0, _MAX_RELEVANT_MODULES);
 }
 
 /**
@@ -136,7 +190,26 @@ function normalizeStepTypes(steps, opts = {}) {
   const { normalizeStepType } = require('./step-types');
   const log = opts.logger || null;
   const tag = opts.tag || '[PLAN-CTX]';
-  for (const step of steps) {
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    // v7.9.7: guard against bare-string and other non-object array entries.
+    // The reflect-LLM in AgentLoopRecovery.reflectOnProgress occasionally
+    // returns mixed arrays of step-objects and bare strings; pre-fix this
+    // crashed with `Cannot create property 'description' on string` because
+    // the unknown-type fallback unconditionally wrote step.description.
+    if (typeof step !== 'object' || step === null || Array.isArray(step)) {
+      const kind = step === null ? 'null' : (Array.isArray(step) ? 'array' : typeof step);
+      let asText;
+      if (typeof step === 'string') {
+        asText = step;
+      } else {
+        try { asText = JSON.stringify(step); } catch (_e) { asText = String(step); }
+        if (typeof asText !== 'string') asText = String(step);
+      }
+      if (log) log.warn(`${tag} Step was not a plan object (${kind}) — wrapping as ANALYZE: "${asText.slice(0, 80)}"`);
+      steps[i] = { type: 'ANALYZE', description: `[was ${kind}] ${asText}`.trim() };
+      continue;
+    }
     const normalized = normalizeStepType(step.type);
     if (normalized && normalized !== step.type) {
       if (log) log.info(`${tag} Normalized step type "${step.type}" → "${normalized}"`);

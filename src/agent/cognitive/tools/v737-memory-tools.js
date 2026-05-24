@@ -49,6 +49,24 @@ function registerV737Tools(toolRegistry, deps = {}) {
           : (episodicMemory._episodes && episodicMemory._episodes[0]);
 
         if (!latest?.id) {
+          // v7.9.7 R2: no episode available, but the caller may still have
+          // a clear summary of why this moment matters. Fall back to
+          // coreMemories.markAsSignificant — bypasses the DreamCycle review
+          // queue and writes directly into the core-memory layer with full
+          // user-defined significance. Without the fallback, mark-moment
+          // returned 'no-latest-episode' as a hard failure during the early
+          // boot window or any session where EpisodicMemory had not yet
+          // recorded its first episode. Only fires when summary is present
+          // (otherwise nothing to record).
+          const summary = typeof input.summary === 'string' ? input.summary.trim() : '';
+          if (summary && coreMemories && typeof coreMemories.markAsSignificant === 'function') {
+            try {
+              const memory = await coreMemories.markAsSignificant({ summary, type: 'other' });
+              return { ok: true, id: memory?.id || null, reason: 'no-episode-fallback-to-core-memory' };
+            } catch (e) {
+              return { ok: false, id: null, reason: `no-episode; core-memory fallback failed: ${e.message}` };
+            }
+          }
           return { ok: false, id: null, reason: 'no-latest-episode' };
         }
 

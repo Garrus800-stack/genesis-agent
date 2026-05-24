@@ -89,6 +89,29 @@ class AgentLoopStepsDelegate {
       // source — AgentLoopPlanner, FormalPlanner, _salvagePlan, manually-set
       // goals, HTN-produced plans — so aliases like WRITE_FILE or GIT_SNAPSHOT
       // are rewritten to CODE/SHELL instead of hitting the default branch.
+      // v7.9.7: defensive guard against bare-string steps. normalizeStepTypes
+      // (plan-context.js) wraps these at the replan boundary, but a step
+      // can reach _executeStep through other paths (preset steps, HTN
+      // output, _salvagePlan, manually-injected goals) so the fallback
+      // below also needs the type-guard. Without it, `step.description =
+      // ...` on a string entry crashes with "Cannot create property
+      // 'description' on string" — the v7.9.6 outpost-trace pattern.
+      // Reassign the local param (step is a function arg, not an array
+      // entry) so the rest of the step-execution pipeline sees a real
+      // object.
+      if (typeof step !== 'object' || step === null || Array.isArray(step)) {
+        const kind = step === null ? 'null' : (Array.isArray(step) ? 'array' : typeof step);
+        let asText;
+        if (typeof step === 'string') {
+          asText = step;
+        } else {
+          try { asText = JSON.stringify(step); } catch (_e) { asText = String(step); }
+          if (typeof asText !== 'string') asText = String(step);
+        }
+        _log.warn(`[STEPS] Step was not a plan object (${kind}) — wrapping as ANALYZE: "${asText.slice(0, 80)}"`);
+        // eslint-disable-next-line no-param-reassign
+        step = { type: 'ANALYZE', description: `[was ${kind}] ${asText}`.trim() };
+      }
       const normalizedType = normalizeStepType(step.type);
       if (normalizedType && normalizedType !== step.type) {
         _log.debug(`[STEPS] Normalized step type "${step.type}" → "${normalizedType}"`);
@@ -263,7 +286,21 @@ class AgentLoopStepsDelegate {
       ? loop.selfModel.readModule(step.target) || ''
       : '';
 
-    const prompt = `${context}\n\nCODE TASK: ${step.description}\n${step.target ? `TARGET FILE: ${step.target}` : ''}${existingCode ? '\n\nExisting code:\n```javascript\n' + existingCode.slice(0, 4000) + '\n```' : ''}\n\nGenerate the complete file content. Respond ONLY with the code inside a single code block.`;
+    // v7.9.7 R4: PROJECT_API_CONVENTIONS block. The LLM in the outpost
+    // trace repeatedly generated code patterns that violate Genesis'
+    // module APIs — `new Logger(...)` instead of `createLogger(...)`,
+    // `new EventBus()` constructed by clients instead of resolved via
+    // the container, `require('../../core/EventBus')` from positions
+    // that don't resolve. The conventions block surfaces the API
+    // shapes the LLM keeps getting wrong, so it sees the correct
+    // pattern in the prompt before generating.
+    const apiConventions = `\nPROJECT API CONVENTIONS (use these EXACT shapes):\n` +
+      `  - Logger:       const { createLogger } = require('<path>/core/Logger');  // factory, NOT 'new Logger(...)'\n` +
+      `  - EventBus:     resolve via Container.resolve('bus') — clients NEVER call 'new EventBus()' directly.\n` +
+      `  - Storage:      const storage = c.resolve('storage');  // read/writeJSON methods, NOT 'new StorageService(...)'\n` +
+      `  - Container:    constructor-injected as 'c' or this.container — never reach into globals.\n`;
+
+    const prompt = `${context}${apiConventions}\nCODE TASK: ${step.description}\n${step.target ? `TARGET FILE: ${step.target}` : ''}${existingCode ? '\n\nExisting code:\n```javascript\n' + existingCode.slice(0, 4000) + '\n```' : ''}\n\nGenerate the complete file content. Respond ONLY with the code inside a single code block.`;
 
     const response = await loop.model.chat(prompt, [], 'code');
 
@@ -274,6 +311,43 @@ class AgentLoopStepsDelegate {
     }
 
     const newCode = codeMatch[1].trim();
+
+    // v7.9.7 R4: pre-flight scan for hallucinated require paths. Match
+    // any `require('...')` literal whose target does not resolve relative
+    // to the target file (or the project root if no target). Skip
+    // node-builtins and npm packages (no leading dot). Anything that
+    // looks like a relative project import and resolves to nothing
+    // gets surfaced as a structural failure BEFORE the heavier
+    // sandbox.testPatch round-trip — same shape the failure-patterns
+    // regex recognises so GoalDriver fast-tracks to obsolete on retry.
+    try {
+      const fs = require('fs');
+      const requireRe = /require\(\s*['"]((?:\.\.?\/)[^'"]+)['"]\s*\)/g;
+      const targetPath = step.target ? path.join(loop.rootDir, step.target) : path.join(loop.rootDir, 'src/agent/__placeholder__.js');
+      const targetDir = path.dirname(targetPath);
+      const invalidPaths = [];
+      let m;
+      while ((m = requireRe.exec(newCode)) !== null) {
+        const rel = m[1];
+        const tryPaths = [rel, rel + '.js', rel + '/index.js'];
+        let resolved = false;
+        for (const p of tryPaths) {
+          try {
+            const abs = path.resolve(targetDir, p);
+            if (fs.existsSync(abs)) { resolved = true; break; }
+          } catch (_e) { /* ignore */ }
+        }
+        if (!resolved) invalidPaths.push(rel);
+      }
+      if (invalidPaths.length > 0) {
+        const shown = invalidPaths.slice(0, 3).join(', ');
+        return {
+          output: '',
+          error: `Invalid target path (hallucinated): ${shown}${invalidPaths.length > 3 ? ` (+${invalidPaths.length - 3} more)` : ''}`,
+          code: newCode,
+        };
+      }
+    } catch (_e) { /* best-effort; fall through to sandbox check */ }
 
     // Security: validate write target
     if (step.target) {

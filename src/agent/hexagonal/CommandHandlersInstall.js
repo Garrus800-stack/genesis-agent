@@ -33,9 +33,8 @@
 //   install.downloadDir: '~/Downloads' (default)
 //
 // Trust gates (cannot be overridden by settings):
-//   Trust 0 (SUPERVISED): hard block — only manual instructions.
-//   Trust 1 (ASSISTED): preview-only by default.
-//   Trust 2+ (AUTONOMOUS / FULL_AUTONOMY): full pipeline if settings on.
+//   Trust 0 (SUPERVISED):   hard block — only manual instructions.
+//   Trust 1+ (AUTONOMOUS / FULL_AUTONOMY): full pipeline if settings on.
 //
 // What CANNOT be automated on Windows:
 //   The UAC elevation prompt. When Genesis launches an installer,
@@ -114,6 +113,8 @@ const CommandHandlersInstall = {
     const trustLevel = (typeof this.trustLevelSystem?.getLevel === 'function')
       ? this.trustLevelSystem.getLevel() : 1;
 
+    // v7.9.7: 3-level system. SUPERVISED (0) blocks install entirely;
+    // AUTONOMOUS+ (1,2) can request install (auto-execute requires AUTONOMOUS+).
     if (trustLevel < 1) {
       return `[INSTALL-GUARD] Software-Installation gesperrt im Trust-Level SUPERVISED. Höhere Trust-Stufe nötig.`;
     }
@@ -164,7 +165,8 @@ const CommandHandlersInstall = {
       // no cached credential is available; we then surface a clear
       // "copy this command into a terminal" message to the user.
       const cmdForExec = cmd.replace(/^sudo\s+(?!-n\b)/, 'sudo -n ');
-      const canExecute = allowAuto && trustLevel >= 2;
+      // v7.9.7: AUTONOMOUS+ (level 1,2) can auto-execute installs.
+      const canExecute = allowAuto && trustLevel >= 1;
 
       if (!canExecute) {
         return [
@@ -278,7 +280,7 @@ const CommandHandlersInstall = {
     if (!bootstrapMap) {
       return { installed: false, attemptInfo: ` Bootstrap auf Plattform ${platform} nicht unterstützt.` };
     }
-    if (!allowAuto || trustLevel < 2) {
+    if (!allowAuto || trustLevel < 1) {
       const options = Object.keys(bootstrapMap).join(', ');
       return {
         installed: false,
@@ -363,7 +365,7 @@ const CommandHandlersInstall = {
     }
 
     // Real installer URL — proceed with download.
-    if (!fullAutonomy || trustLevel < 2) {
+    if (!fullAutonomy || trustLevel < 1) {
       return [
         leadIn,
         ``,
@@ -372,7 +374,7 @@ const CommandHandlersInstall = {
         `URL: ${variant.url}`,
         `Würde nach \`~/Downloads/${variant.filename}\` herunterladen und Installer öffnen.`,
         ``,
-        `Aktiviert mit Setting "install.fullAutonomy" + Trust 2 (AUTONOMOUS).`,
+        `Aktiviert mit Setting "install.fullAutonomy" + Trust 1 (AUTONOMOUS) oder höher.`,
         `Wichtig: Windows zeigt einen UAC-Dialog beim Installer-Start — den musst du selbst klicken.`,
       ].join('\n');
     }

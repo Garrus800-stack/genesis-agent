@@ -148,25 +148,27 @@ describe('Reflector — repair()', () => {
 
 describe('Reflector — suggestOptimizations()', () => {
   test('suggests split for large files', () => {
+    // v7.9.7 P8: threshold raised from > 300 to > 500 lines. Use 501.
     const r = makeReflector({
-      files: { 'src/agent/core/Big.js': { lines: 500 } },
+      files: { 'src/agent/core/Big.js': { lines: 501 } },
       modules: { 'src/agent/core/Big.js': { requires: [], classes: [], functions: 0 } },
     });
     const suggestions = r.suggestOptimizations();
     const complex = suggestions.filter(s => s.type === 'complexity');
     assert(complex.length >= 1);
-    assert(complex[0].detail.includes('500 lines'));
+    assert(complex[0].detail.includes('501 lines'));
   });
 
   test('suggests decoupling for many dependencies', () => {
+    // v7.9.7 P8: threshold raised from > 6 to > 10 requires. Use 11.
     const r = makeReflector({
       files: { 'src/agent/core/Coupled.js': { lines: 100 } },
-      modules: { 'src/agent/core/Coupled.js': { requires: ['./a', './b', './c', './d', './e', './f', './g'], classes: [], functions: 0 } },
+      modules: { 'src/agent/core/Coupled.js': { requires: ['./a', './b', './c', './d', './e', './f', './g', './h', './i', './j', './k'], classes: [], functions: 0 } },
     });
     const suggestions = r.suggestOptimizations();
     const coupling = suggestions.filter(s => s.type === 'coupling');
     assert(coupling.length >= 1);
-    assert(coupling[0].detail.includes('7 dependencies'));
+    assert(coupling[0].detail.includes('11 dependencies'));
   });
 
   test('returns empty for clean modules', () => {

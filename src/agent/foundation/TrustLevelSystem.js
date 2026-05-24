@@ -7,20 +7,22 @@
 //   Level 0 — SUPERVISED
 //     Everything needs user approval. Training wheels.
 //
-//   Level 1 — ASSISTED
-//     Safe actions auto-execute (read, analyze, plan).
-//     Risky actions (write, shell, self-modify) need approval.
-//
-//   Level 2 — AUTONOMOUS
+//   Level 1 — AUTONOMOUS
 //     Everything auto-executes EXCEPT:
-//     - Self-modification of safety-critical files
-//     - Shell commands with network access
-//     - External effectors (email, GitHub, deploy)
+//     - Critical actions (deploy, external API, email)
+//     The "ask only for critical" default.
 //
-//   Level 3 — FULL AUTONOMY
+//   Level 2 — FULL AUTONOMY
 //     Everything auto-executes. Only hard safety invariants
 //     (kernel integrity, hash-locked files) still block.
 //     Requires explicit user opt-in + success rate >90%.
+//
+// v7.9.7: ASSISTED ("ask for risky") removed. The four-level system
+// had two middle tiers that confused users — ASSISTED auto-approved
+// only 'safe' while AUTONOMOUS auto-approved everything except
+// 'critical'. Real-world usage showed users picking AUTONOMOUS to
+// avoid constant approval prompts, making ASSISTED dead UX. Now
+// three clear options: always ask / only critical / never ask.
 //
 // Trust can auto-upgrade: if MetaLearning shows >90% success
 // rate for a specific action type over 50+ attempts, the system
@@ -39,14 +41,13 @@ const _log = createLogger('TrustLevelSystem');
 
 const TRUST_LEVELS = Object.freeze({
   SUPERVISED: 0,
-  ASSISTED: 1,
-  AUTONOMOUS: 2,
-  FULL_AUTONOMY: 3,
+  AUTONOMOUS: 1,
+  FULL_AUTONOMY: 2,
 });
 
 // ── Action risk classification ───────────────────────────
 const ACTION_RISK = {
-  // Safe actions (auto-execute at Level 1+)
+  // Safe actions (always auto-execute except at SUPERVISED)
   'ANALYZE':       'safe',
   'SEARCH':        'safe',
   'ASK_USER':      'safe',
@@ -54,7 +55,7 @@ const ACTION_RISK = {
   'read':          'safe',
   'list-files':    'safe',
 
-  // Medium risk (auto-execute at Level 2+)
+  // Medium risk (auto-execute at AUTONOMOUS+)
   'CODE_GENERATE': 'medium',
   'WRITE_FILE':    'medium',
   'RUN_TESTS':     'medium',
@@ -66,11 +67,11 @@ const ACTION_RISK = {
   // approve the simple "keep going" decision.
   'continue':      'medium',
 
-  // High risk (auto-execute at Level 3 only)
+  // High risk (auto-execute at AUTONOMOUS+)
   'SHELL_EXEC':    'high',
   'SELF_MODIFY':   'high',
 
-  // Critical (always needs approval regardless of level, except Level 3)
+  // Critical (always needs approval, except at FULL_AUTONOMY)
   'DEPLOY':        'critical',
   'EXTERNAL_API':  'critical',
   'EMAIL_SEND':    'critical',
@@ -81,37 +82,22 @@ const ACTION_RISK = {
   // FULL_AUTONOMY never asks and that AUTONOMOUS only asks for critical.
   // A structurally broken plan surfaces through execution failure anyway;
   // an extra approval modal at the supposedly-autonomous levels was a
-  // UX bug, not a safeguard. SUPERVISED and ASSISTED still gate it.
+  // UX bug, not a safeguard. SUPERVISED still gates it.
   'plan-has-issues': 'blocking',
 };
 
 // ── What each level auto-approves ────────────────────────
 //
-// v7.9.3: rewired to match the UI promises that each trust-level dropdown
-// option states. Previously:
-//   AUTONOMOUS    auto-approved only [safe, medium]   → high (SHELL_EXEC,
-//     SELF_MODIFY) and blocking (plan-has-issues) were still gated for
-//     approval, contradicting the UI text "asks only for critical actions".
-//   FULL_AUTONOMY auto-approved [safe, medium, high, critical] but NOT
-//     blocking, so plan-has-issues paused the agent even at the "never
-//     ask" level. The v7.7.8 design note argued blocking should always
-//     pause; that interpretation collides with the FULL_AUTONOMY UI
-//     promise. The correct place to surface a structurally broken plan is
-//     execution feedback (the plan will fail and report), not an extra
-//     approval modal that the UI told the user wouldn't appear.
-//
-// New mapping makes each dropdown option do exactly what it promises:
+// v7.9.7: Three trust levels (ASSISTED removed — was redundant middle tier).
 //   SUPERVISED    [] — every gated decision asks (only 'plan-has-issues',
 //     'continue', and 'EXTERNAL_API' are actually gated in code today;
 //     this is the level for "I watch every step")
-//   ASSISTED      ['safe'] — read/search/analyze auto, everything else asks
 //   AUTONOMOUS    ['safe', 'medium', 'high', 'blocking'] — only the three
 //     real externally-consequential actions ask: DEPLOY, EXTERNAL_API,
 //     EMAIL_SEND (the UI's definition of "critical")
 //   FULL_AUTONOMY all five — never asks
 const LEVEL_AUTO_APPROVE = {
   [TRUST_LEVELS.SUPERVISED]:    [],
-  [TRUST_LEVELS.ASSISTED]:      ['safe'],
   [TRUST_LEVELS.AUTONOMOUS]:    ['safe', 'medium', 'high', 'blocking'],
   [TRUST_LEVELS.FULL_AUTONOMY]: ['safe', 'medium', 'high', 'critical', 'blocking'],
 };
@@ -128,8 +114,9 @@ class TrustLevelSystem {
 
     const cfg = config || {};
     // FIX v7.0.8: Use ?? instead of || — level 0 (SUPERVISED) is valid.
-    // Previously, cfg.level=0 was falsy → fell back to ASSISTED.
-    this._level = cfg.level ?? TRUST_LEVELS.ASSISTED; // Default: Level 1
+    // Previously, cfg.level=0 was falsy → fell back to default.
+    // v7.9.7: default is AUTONOMOUS (was ASSISTED, now removed).
+    this._level = TrustLevelSystem._migrateLevel(cfg.level ?? TRUST_LEVELS.AUTONOMOUS);
     this._actionOverrides = {}; // Per-action trust overrides
 
     // ── Upgrade suggestions (pending user confirmation) ──
@@ -150,11 +137,39 @@ class TrustLevelSystem {
     };
   }
 
+  /**
+   * v7.9.7: Migrate a stored 4-level trust value to the new 3-level system.
+   *
+   *   Old 0 SUPERVISED → New 0 SUPERVISED       (unchanged)
+   *   Old 1 ASSISTED   → New 1 AUTONOMOUS       (slightly more autonomy)
+   *   Old 2 AUTONOMOUS → New 1 AUTONOMOUS       (same behaviour, new index)
+   *   Old 3 FULL       → New 2 FULL_AUTONOMY   (same behaviour, new index)
+   *
+   * Values already in 0..2 pass through. Invalid values clamp to AUTONOMOUS.
+   *
+   * @param {number} level
+   * @returns {number} migrated level in 0..2
+   */
+  static _migrateLevel(level) {
+    if (typeof level !== 'number' || !Number.isFinite(level)) return TRUST_LEVELS.AUTONOMOUS;
+    if (level === 0) return TRUST_LEVELS.SUPERVISED;
+    if (level === 1) return TRUST_LEVELS.AUTONOMOUS;       // was ASSISTED → AUTONOMOUS
+    if (level === 2) return TRUST_LEVELS.AUTONOMOUS;       // was AUTONOMOUS → still AUTONOMOUS (new index)
+    if (level === 3) return TRUST_LEVELS.FULL_AUTONOMY;    // was FULL → FULL (new index)
+    // Out of range — clamp to safe default
+    return TRUST_LEVELS.AUTONOMOUS;
+  }
+
   async asyncLoad() {
     try {
       const saved = await this.storage?.readJSON('trust-level.json');
       if (saved) {
-        this._level = typeof saved.level === 'number' ? saved.level : TRUST_LEVELS.ASSISTED;
+        const rawLevel = typeof saved.level === 'number' ? saved.level : TRUST_LEVELS.AUTONOMOUS;
+        const migrated = TrustLevelSystem._migrateLevel(rawLevel);
+        if (migrated !== rawLevel) {
+          _log.info(`[TRUST-MIGRATION] stored level ${rawLevel} → ${migrated} (4-level system → 3-level)`);
+        }
+        this._level = migrated;
         this._actionOverrides = saved.overrides || {};
         this._pendingUpgrades = saved.pendingUpgrades || [];
       }
@@ -164,7 +179,7 @@ class TrustLevelSystem {
     if (this.settings) {
       const settingsLevel = this.settings.get('trust.level');
       if (typeof settingsLevel === 'number') {
-        this._level = settingsLevel;
+        this._level = TrustLevelSystem._migrateLevel(settingsLevel);
       }
     }
   }
@@ -231,7 +246,7 @@ class TrustLevelSystem {
    * @param {number} level - 0-3
    */
   async setLevel(level) {
-    if (level < 0 || level > 3) throw new Error(`Invalid trust level: ${level}`);
+    if (level < 0 || level > 2) throw new Error(`Invalid trust level: ${level} (valid range: 0..2)`);
     const prev = this._level;
     this._level = level;
     await this._save();

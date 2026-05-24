@@ -331,23 +331,29 @@ describe('EmotionalSteering', () => {
 describe('TrustLevelSystem', () => {
   const { TrustLevelSystem, TRUST_LEVELS } = require('../../src/agent/foundation/TrustLevelSystem');
 
-  it('should default to ASSISTED level', () => {
+  it('should default to AUTONOMOUS level (v7.9.7)', () => {
     const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null });
-    assert(tls.getLevel() === TRUST_LEVELS.ASSISTED, 'Default level is ASSISTED');
+    assert(tls.getLevel() === TRUST_LEVELS.AUTONOMOUS, 'Default level is AUTONOMOUS');
   });
 
-  it('should auto-approve safe actions at ASSISTED', () => {
+  it('should auto-approve safe actions at AUTONOMOUS', () => {
     const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null });
     const result = tls.checkApproval('ANALYZE');
     assert(result.approved === true, 'ANALYZE should be auto-approved');
     assert(result.needsUserApproval === false, 'No user approval needed');
   });
 
-  it('should require approval for medium-risk at ASSISTED', () => {
+  it('should require approval for critical actions at AUTONOMOUS', () => {
     const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null });
-    const result = tls.checkApproval('CODE_GENERATE');
-    assert(result.approved === false, 'CODE_GENERATE needs approval at ASSISTED');
+    const result = tls.checkApproval('DEPLOY');
+    assert(result.approved === false, 'DEPLOY (critical) needs approval at AUTONOMOUS');
     assert(result.needsUserApproval === true, 'Needs user approval');
+  });
+
+  it('should require approval for everything at SUPERVISED', () => {
+    const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null, config: { level: TRUST_LEVELS.SUPERVISED } });
+    const result = tls.checkApproval('CODE_GENERATE');
+    assert(result.approved === false, 'CODE_GENERATE needs approval at SUPERVISED');
   });
 
   it('should auto-approve medium-risk at AUTONOMOUS', () => {
@@ -369,14 +375,14 @@ describe('TrustLevelSystem', () => {
 
   it('should change level', async () => {
     const tls = new TrustLevelSystem({ bus: mockBus, storage: { ...mockStorage, _data: {}, writeJSON: async () => {} }, settings: null });
-    await tls.setLevel(TRUST_LEVELS.AUTONOMOUS);
-    assert(tls.getLevel() === TRUST_LEVELS.AUTONOMOUS, 'Level changed');
+    await tls.setLevel(TRUST_LEVELS.FULL_AUTONOMY);
+    assert(tls.getLevel() === TRUST_LEVELS.FULL_AUTONOMY, 'Level changed');
   });
 
   it('should provide full status', () => {
     const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null });
     const status = tls.getStatus();
-    assert(status.levelName === 'ASSISTED', 'Level name correct');
+    assert(status.levelName === 'AUTONOMOUS', 'Level name correct');
     assert(Array.isArray(status.autoApproves), 'Has auto-approve list');
   });
 });

@@ -77,24 +77,28 @@ describe('v7.5.9 ZIP2 Phase 1 — Sandbox 3-Tier with trust', () => {
     assertEqual(r.ok, false, 'trust 0 blocks user-home');
   });
 
-  test('behavior: trust 1 allows READ in user-home', () => {
+  test('behavior: trust 1 allows READ in user-home (AUTONOMOUS in 3-level system)', () => {
     const r = checkRootDirSandbox(`ls "${homeDesktop}"`, projectRoot, { trustLevel: 1 });
     assertEqual(r.ok, true, 'trust 1 allows ls in user-home');
   });
 
-  test('behavior: trust 1 BLOCKS WRITE in user-home', () => {
+  test('behavior: trust 1 ALLOWS WRITE in user-home (AUTONOMOUS — was ASSISTED-read-only pre-v7.9.7)', () => {
     const r = checkRootDirSandbox(`rm "${homeDesktop}/file"`, projectRoot, { trustLevel: 1 });
-    assertEqual(r.ok, false, 'trust 1 blocks rm in user-home');
-    assert(/forbids writes|too low/.test(r.reason), 'reason should explain trust gating');
+    assertEqual(r.ok, true, 'v7.9.7: trust 1 (AUTONOMOUS) allows rm in user-home');
   });
 
-  test('behavior: trust 2 allows WRITE in user-home', () => {
+  test('behavior: trust 2 allows WRITE in user-home (FULL_AUTONOMY in 3-level system)', () => {
     const r = checkRootDirSandbox(`rm "${homeDesktop}/file"`, projectRoot, { trustLevel: 2 });
     assertEqual(r.ok, true, 'trust 2 allows rm in user-home');
   });
 
+  test('behavior: trust 0 blocks WRITE in user-home (SUPERVISED)', () => {
+    const r = checkRootDirSandbox(`rm "${homeDesktop}/file"`, projectRoot, { trustLevel: 0 });
+    assertEqual(r.ok, false, 'trust 0 (SUPERVISED) blocks rm in user-home');
+  });
+
   test('behavior: critical system paths blocked at ALL trust levels', () => {
-    for (const trust of [0, 1, 2, 3]) {
+    for (const trust of [0, 1, 2]) {
       const r = checkRootDirSandbox('cat /etc/passwd', projectRoot, { trustLevel: trust });
       assertEqual(r.ok, false, `trust ${trust} must still block /etc/passwd`);
       assert(/critical system path/.test(r.reason), 'must mention critical system path');
@@ -102,24 +106,24 @@ describe('v7.5.9 ZIP2 Phase 1 — Sandbox 3-Tier with trust', () => {
   });
 
   test('behavior: secret files blocked at ALL trust levels', () => {
-    for (const trust of [0, 1, 2, 3]) {
+    for (const trust of [0, 1, 2]) {
       const r = checkRootDirSandbox(`cat "${home}/.aws/credentials"`, projectRoot, { trustLevel: trust });
       assertEqual(r.ok, false, `trust ${trust} must still block .aws/credentials`);
     }
   });
 
-  test('behavior: .ssh blocked', () => {
-    const r = checkRootDirSandbox(`cat "${home}/.ssh/id_rsa"`, projectRoot, { trustLevel: 3 });
-    assertEqual(r.ok, false, 'trust 3 must still block ~/.ssh');
+  test('behavior: .ssh blocked even at FULL_AUTONOMY', () => {
+    const r = checkRootDirSandbox(`cat "${home}/.ssh/id_rsa"`, projectRoot, { trustLevel: 2 });
+    assertEqual(r.ok, false, 'trust 2 (FULL_AUTONOMY) must still block ~/.ssh');
   });
 
-  test('behavior: .env blocked', () => {
-    const r = checkRootDirSandbox(`cat "${home}/.env"`, projectRoot, { trustLevel: 3 });
-    assertEqual(r.ok, false, 'trust 3 must still block .env');
+  test('behavior: .env blocked even at FULL_AUTONOMY', () => {
+    const r = checkRootDirSandbox(`cat "${home}/.env"`, projectRoot, { trustLevel: 2 });
+    assertEqual(r.ok, false, 'trust 2 (FULL_AUTONOMY) must still block .env');
   });
 
   test('behavior: drive-root recursive scan blocked', () => {
-    const r = checkRootDirSandbox('dir /s C:\\', projectRoot, { trustLevel: 3 });
+    const r = checkRootDirSandbox('dir /s C:\\', projectRoot, { trustLevel: 2 });
     assertEqual(r.ok, false, 'recursive C:\\ scan must always be blocked');
   });
 
@@ -142,7 +146,7 @@ describe('v7.5.9 ZIP2 Phase 1 — Sandbox 3-Tier with trust', () => {
 
   test('regression Win: cat /etc/passwd blocked on win32 too', () => {
     const r = checkRootDirSandbox('cat /etc/passwd', projectRoot,
-      { trustLevel: 3, platform: 'win32' });
+      { trustLevel: 2, platform: 'win32' });
     assertEqual(r.ok, false, 'POSIX system path blocked even on win32');
     assert(/critical system path/.test(r.reason || ''),
       `expected critical-system-path reason, got: ${r.reason}`);
@@ -150,7 +154,7 @@ describe('v7.5.9 ZIP2 Phase 1 — Sandbox 3-Tier with trust', () => {
 
   test('regression Win: cat C:\\Windows\\System32 blocked on linux too', () => {
     const r = checkRootDirSandbox('type C:\\Windows\\System32\\config',
-      '/home/claude/project', { trustLevel: 3, platform: 'linux' });
+      '/home/claude/project', { trustLevel: 2, platform: 'linux' });
     assertEqual(r.ok, false, 'Win system path blocked even on linux');
     assert(/critical system path/.test(r.reason || ''),
       `expected critical-system-path reason, got: ${r.reason}`);

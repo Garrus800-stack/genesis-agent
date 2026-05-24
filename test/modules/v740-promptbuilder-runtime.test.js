@@ -79,13 +79,13 @@ describe('v7.4.0 — _runtimeStateContext rendering', () => {
     pb.runtimeStatePort = makePortWith({
       settings: {
         backend: 'ollama', model: 'qwen2.5:7b',
-        trustLevel: 'ASSISTED', language: 'de',
+        trustLevel: 'AUTONOMOUS', language: 'de',
       },
     });
     const out = pb._runtimeStateContext();
     assert.ok(out.includes('qwen2.5:7b'));
     assert.ok(out.includes('ollama'));
-    assert.ok(out.includes('ASSISTED'));
+    assert.ok(out.includes('AUTONOMOUS'));
     assert.ok(out.includes('de'));
   });
 
@@ -206,7 +206,7 @@ describe('v7.4.0 — _runtimeStateContext rendering', () => {
   it('renders complete snapshot with all 8 services', () => {
     const pb = makeBuilder();
     pb.runtimeStatePort = makePortWith({
-      settings: { backend: 'ollama', model: 'qwen2.5:7b', trustLevel: 'ASSISTED', language: 'de' },
+      settings: { backend: 'ollama', model: 'qwen2.5:7b', trustLevel: 'AUTONOMOUS', language: 'de' },
       emotionalState: { dominant: 'curiosity', intensity: 60, mood: 'curious', trend: 'stable',
         top3: [{name:'curiosity',value:80},{name:'satisfaction',value:50},{name:'loneliness',value:30}] },
       needsSystem: { active: [{name:'knowledge',drive:80}] },
@@ -277,7 +277,7 @@ describe('v7.4.0/v7.4.1 — _runtimeStateContext budget enforcement', () => {
   it('typical snapshot stays compact (directive + small data)', () => {
     const pb = makeBuilder();
     pb.runtimeStatePort = makePortWith({
-      settings: { backend: 'ollama', model: 'qwen2.5:7b', trustLevel: 'ASSISTED', language: 'de' },
+      settings: { backend: 'ollama', model: 'qwen2.5:7b', trustLevel: 'AUTONOMOUS', language: 'de' },
       emotionalState: { dominant: 'curiosity', intensity: 60, mood: 'curious', trend: 'stable',
         top3: [{name:'curiosity',value:80},{name:'satisfaction',value:50},{name:'loneliness',value:30}] },
       metabolism: { energyPercent: 73, llmCalls: 12 },
@@ -293,7 +293,7 @@ describe('v7.4.0/v7.4.1 — _runtimeStateContext budget enforcement', () => {
     // Build an artificially large goal title to push data over budget.
     const longTitle = 'x'.repeat(500);
     pb.runtimeStatePort = makePortWith({
-      settings: { backend: 'ollama', model: 'qwen2.5:7b', trustLevel: 'ASSISTED', language: 'de' },
+      settings: { backend: 'ollama', model: 'qwen2.5:7b', trustLevel: 'AUTONOMOUS', language: 'de' },
       emotionalState: { dominant: 'curiosity', intensity: 60, mood: 'curious',
         top3: [{name:'a',value:1},{name:'b',value:2},{name:'c',value:3}] },
       needsSystem: { active: [{name:'x',drive:1},{name:'y',drive:2},{name:'z',drive:3}] },

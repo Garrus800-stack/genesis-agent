@@ -15,6 +15,13 @@ class Reflector {
     this.prompts = prompts;
     this.sandbox = sandbox;
     this.guard = guard;
+    // v7.9.7 P8: cross-cycle dedup. Each suggestion is keyed by
+    // `${file}::${type}` and a second emission of the same key during
+    // this Reflector instance's lifetime is dropped. Pre-fix the same
+    // pair filled the daemon log every fifteen minutes for the whole
+    // session because suggestOptimizations regenerated from scratch
+    // each call.
+    this._emittedSuggestions = new Set();
   }
 
   /**
@@ -197,23 +204,36 @@ class Reflector {
     for (const [filePath, mod] of Object.entries(modules)) {
       if (this.guard.isProtected(path.join(this.selfModel.rootDir, filePath))) continue;
 
-      // Large modules might benefit from splitting
+      // Large modules might benefit from splitting.
+      // v7.9.7 P8: raised threshold 300→500. Pre-fix flagged 372 of
+      // 377 modules — useful as a measurement, meaningless as a
+      // feedback signal because nothing in Genesis can act differently
+      // when "almost every module" is flagged.
       const fileInfo = this.selfModel.getFullModel().files[filePath];
-      if (fileInfo && fileInfo.lines > 300) {
-        suggestions.push({
-          file: filePath,
-          type: 'complexity',
-          detail: `${fileInfo.lines} lines — could be split into smaller modules`,
-        });
+      if (fileInfo && fileInfo.lines > 500) {
+        const key = `${filePath}::complexity`;
+        if (!this._emittedSuggestions.has(key)) {
+          this._emittedSuggestions.add(key);
+          suggestions.push({
+            file: filePath,
+            type: 'complexity',
+            detail: `${fileInfo.lines} lines — could be split into smaller modules`,
+          });
+        }
       }
 
-      // Many dependencies might indicate tight coupling
-      if (mod.requires && mod.requires.length > 6) {
-        suggestions.push({
-          file: filePath,
-          type: 'coupling',
-          detail: `${mod.requires.length} dependencies — may be too tightly coupled`,
-        });
+      // Many dependencies might indicate tight coupling.
+      // v7.9.7 P8: raised threshold 6→10.
+      if (mod.requires && mod.requires.length > 10) {
+        const key = `${filePath}::coupling`;
+        if (!this._emittedSuggestions.has(key)) {
+          this._emittedSuggestions.add(key);
+          suggestions.push({
+            file: filePath,
+            type: 'coupling',
+            detail: `${mod.requires.length} dependencies — may be too tightly coupled`,
+          });
+        }
       }
     }
 

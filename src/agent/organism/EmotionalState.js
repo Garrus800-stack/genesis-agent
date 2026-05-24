@@ -394,7 +394,15 @@ class EmotionalState {
     for (const [name, dim] of Object.entries(this.dimensions)) {
       const diff = dim.baseline - dim.value;
       if (Math.abs(diff) < 0.005) continue; // close enough
-      dim.value += diff * dim.decayRate;
+      // v7.9.7 P9: 3x multiplier when the dimension is in extreme
+      // territory (>=0.85 or <=0.15). Pre-fix the per-tick decayRate
+      // (curiosity 0.02, satisfaction 0.03) was well-tuned for values
+      // near the baseline but too weak at the extremes — natural decay
+      // never pulled values back before the Watchdog had to do a hard
+      // reset (live trace: two such interventions in 58 minutes).
+      const inExtreme = dim.value >= 0.85 || dim.value <= 0.15;
+      const effectiveRate = inExtreme ? dim.decayRate * 3 : dim.decayRate;
+      dim.value += diff * effectiveRate;
     }
 
     // Record mood snapshot

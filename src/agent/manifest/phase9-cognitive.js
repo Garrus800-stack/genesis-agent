@@ -528,6 +528,11 @@ function phase9(ctx, R) {
       phase: 9, deps: [], tags: ['cognitive', 'causal', 'reasoning'],
       lateBindings: [
         { prop: 'kg', service: 'knowledgeGraph', optional: true },
+        // v7.9.7 P7: lessonsStore optional late-binding — when present,
+        // causal promotions write warning lessons that SymbolicResolver
+        // surfaces as DO-NOT-TRY directives. Optional because LessonsStore
+        // is in a later phase and may not exist in cut-down test rigs.
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true },
       ],
       factory: () => new (R('CausalAnnotation').CausalAnnotation)({
         bus,

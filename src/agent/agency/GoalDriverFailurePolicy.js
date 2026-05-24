@@ -35,6 +35,7 @@
 'use strict';
 
 const { createLogger } = require('../core/Logger');
+const { isStructuralFailure } = require('./failure-patterns');
 const _log = createLogger('GoalDriver');
 
 const failurePolicyMixin = {
@@ -159,7 +160,20 @@ const failurePolicyMixin = {
     } else {
       // Generic failure (incl. empty errMsg) → exponential backoff.
       const entry = this._failureBurst.get(goalId) || { count: 0, firstAt: _now, kind: 'generic' };
-      if (_now - entry.firstAt > 10 * 60_000) {
+      // v7.9.7 R3.2: extend the reset window for structural failures.
+      // Pre-fix the 10-minute window reset the burst-counter mid-cycle
+      // for slow pursuits — by the time the second attempt finished
+      // (LLM rounds + verification + cleanup easily exceeds 10 min) the
+      // counter was back to 0 and the fast-track-to-obsolete never
+      // triggered, even though the same structural failure had occurred
+      // four times in a row. Structural failures (hallucinated paths,
+      // TypeError, Cannot find module) need a longer window because
+      // they are the exact class of failure where each attempt costs
+      // the most time. Generic failures keep the 10-minute window so
+      // transient blips do not accumulate forever.
+      const _isHallucination = isStructuralFailure(errMsg);
+      const resetWindow = _isHallucination ? 60 * 60_000 : 10 * 60_000;
+      if (_now - entry.firstAt > resetWindow) {
         entry.count = 0;
         entry.firstAt = _now;
       }
@@ -176,7 +190,12 @@ const failurePolicyMixin = {
       // Fix 1 (error-field on the final return) plus this widened regex,
       // hallucinated paths now reliably fast-track to obsolete instead
       // of running the full 4-pursuit retry cycle.
-      const _isHallucination = /implausible path|plausibility check failed|unknown step type|Unexpected token|missing required|file not found|ENOENT/i.test(errMsg || '');
+      // v7.9.7: regex moved to ./failure-patterns to share with the
+      // lesson-classifier in AgentLoopPursuitReflection. Patterns
+      // extended to cover the v7.9.7 outpost-trace shapes (Cannot
+      // find module, is not a constructor) — those failure messages
+      // were classified as 'generic' pre-fix (cap=3 instead of cap=2)
+      // and never fast-tracked.
       const _failureCap = _isHallucination ? 2 : 3;
       const backoffSchedule = _isHallucination
         ? [10_000, 60_000]                                  // hallucination — 2 quick retries then obsolete

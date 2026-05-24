@@ -41,18 +41,18 @@ describe('v791 contract: TrustLevelSystem action-risk classification', () => {
 
   test('v791 contract: continue is classified as medium and auto-approved at AUTONOMOUS', () => {
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
-    tls.setLevel(2); // AUTONOMOUS
+    tls.setLevel(1); // AUTONOMOUS (v7.9.7 index)
     const result = tls.checkApproval('continue', {});
     assert(result.approved === true,
-      'continue should be auto-approved at AUTONOMOUS (Level 2) — it is a benign step-limit prompt classified as medium');
+      'continue should be auto-approved at AUTONOMOUS (Level 1) — it is a benign step-limit prompt classified as medium');
   });
 
-  test('v791 contract: continue still needs approval at ASSISTED', () => {
+  test('v791 contract: continue still needs approval at SUPERVISED', () => {
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
-    tls.setLevel(1); // ASSISTED — only 'safe' is auto-approved
+    tls.setLevel(0); // SUPERVISED — nothing is auto-approved
     const result = tls.checkApproval('continue', {});
     assert(result.approved === false,
-      'continue should still need approval at ASSISTED — only AUTONOMOUS+ auto-approves medium-risk');
+      'continue should still need approval at SUPERVISED — only AUTONOMOUS+ auto-approves medium-risk');
   });
 
   test('v791 contract: plan-has-issues auto-approved at FULL_AUTONOMY (v7.9.3 promise)', () => {
@@ -62,7 +62,7 @@ describe('v791 contract: TrustLevelSystem action-risk classification', () => {
     // AUTONOMOUS still asks for critical, so DEPLOY/EXTERNAL_API/EMAIL_SEND
     // remain gated when the user wants any oversight at all.
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
-    tls.setLevel(3); // FULL_AUTONOMY
+    tls.setLevel(2); // FULL_AUTONOMY (v7.9.7 index)
     const result = tls.checkApproval('plan-has-issues', {});
     assert(result.approved === true,
       'plan-has-issues must auto-approve at FULL_AUTONOMY — matches "never ask" UI promise');
@@ -71,9 +71,11 @@ describe('v791 contract: TrustLevelSystem action-risk classification', () => {
   test('v791 contract: unknown actions still fall back to high-risk', () => {
     // v7.9.3 keeps default risk classification at 'high'. At AUTONOMOUS
     // 'high' is now auto-approved (matches "only ask for critical" promise),
-    // so verify the fallback at ASSISTED where 'high' still gates.
+    // so verify the fallback at SUPERVISED where 'high' still gates.
+    // v7.9.7: ASSISTED was removed; the only remaining "high still gates"
+    // level is SUPERVISED.
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
-    tls.setLevel(1); // ASSISTED
+    tls.setLevel(0); // SUPERVISED — nothing auto-approves
     const result = tls.checkApproval('completely-unknown-action', {});
     assert(result.approved === false,
       'unknown actions must still default to high-risk so we do not accidentally grant clearance to anything unmapped');

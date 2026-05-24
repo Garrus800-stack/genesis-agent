@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // ============================================================
-// Test: TrustLevelSystem.js — v4.10.0 Coverage
+// Test: TrustLevelSystem.js — v7.9.7 (3-level system)
 //
 // Covers:
-//   - Default trust level (ASSISTED)
+//   - Default trust level (AUTONOMOUS)
 //   - Approval checks per action type × trust level
 //   - Level transitions (setLevel)
 //   - Auto-upgrade suggestions
 //   - Audit log recording
 //   - Risk classification for action types
 //   - Stats tracking
+//   - v7.9.7 migration from 4-level to 3-level scheme
 // ============================================================
 
 const { describe, test, assert, assertEqual, assertRejects, run } = require('../harness');
@@ -31,11 +32,11 @@ const { TrustLevelSystem } = require('../../src/agent/foundation/TrustLevelSyste
 // ── Tests ──────────────────────────────────────────────────
 
 describe('TrustLevelSystem — Defaults', () => {
-  test('starts at ASSISTED level', () => {
+  test('starts at AUTONOMOUS level (v7.9.7 default)', () => {
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
     const status = tls.getStatus();
-    assert(status.level === 1 || status.levelName === 'assisted' || status.levelName === 'ASSISTED',
-      `expected assisted level, got ${JSON.stringify(status)}`);
+    assert(status.level === 1 || status.levelName === 'autonomous' || status.levelName === 'AUTONOMOUS',
+      `expected autonomous level, got ${JSON.stringify(status)}`);
   });
 
   test('getStats returns zeroed counters', () => {
@@ -53,11 +54,11 @@ describe('TrustLevelSystem — Approval Checks', () => {
       'low-risk read should be auto-approved');
   });
 
-  test('high-risk actions require approval at ASSISTED level', () => {
+  test('critical actions require approval at AUTONOMOUS level', () => {
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
-    const result = tls.checkApproval('self-modify', {});
-    // At ASSISTED level, self-modification should need approval
-    assert(result.approved === false || result.needsApproval === true || result.approved === true,
+    const result = tls.checkApproval('EXTERNAL_API', {});
+    // At AUTONOMOUS level, critical should still need approval
+    assert(result.approved === false || result.needsApproval === true,
       'self-modify check should return a valid result');
     // Stats should increment
     const stats = tls.getStats();
@@ -70,8 +71,8 @@ describe('TrustLevelSystem — Level Transitions', () => {
     const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
     await tls.setLevel(2);
     const status = tls.getStatus();
-    assert(status.level === 2 || status.levelName === 'supervised' || status.levelName === 'SUPERVISED',
-      `expected level 2, got ${JSON.stringify(status)}`);
+    assert(status.level === 2 || status.levelName === 'full_autonomy' || status.levelName === 'FULL_AUTONOMY',
+      `expected level 2 (full autonomy), got ${JSON.stringify(status)}`);
   });
 
   test('setLevel emits trust:level-changed event', async () => {
@@ -79,10 +80,40 @@ describe('TrustLevelSystem — Level Transitions', () => {
     let emitted = null;
     bus.on('trust:level-changed', (data) => { emitted = data; });
     const tls = new TrustLevelSystem({ bus, storage: mockStorage() });
-    await tls.setLevel(3);
+    await tls.setLevel(2);
     // Give event a tick to fire
     await new Promise(r => setTimeout(r, 50));
     assert(emitted !== null, 'should emit level-changed event');
+  });
+
+  test('setLevel rejects out-of-range values (v7.9.7: 0..2)', async () => {
+    const tls = new TrustLevelSystem({ bus: createBus(), storage: mockStorage() });
+    await assertRejects(() => tls.setLevel(3), 'level 3 is out of range');
+    await assertRejects(() => tls.setLevel(-1), 'level -1 is out of range');
+  });
+});
+
+describe('TrustLevelSystem — Migration (v7.9.7)', () => {
+  test('migrates old level 1 (ASSISTED) to new AUTONOMOUS', () => {
+    assertEqual(TrustLevelSystem._migrateLevel(1), 1);
+  });
+
+  test('migrates old level 2 (AUTONOMOUS) to new AUTONOMOUS (same behaviour)', () => {
+    assertEqual(TrustLevelSystem._migrateLevel(2), 1);
+  });
+
+  test('migrates old level 3 (FULL) to new FULL_AUTONOMY', () => {
+    assertEqual(TrustLevelSystem._migrateLevel(3), 2);
+  });
+
+  test('preserves level 0 (SUPERVISED)', () => {
+    assertEqual(TrustLevelSystem._migrateLevel(0), 0);
+  });
+
+  test('out-of-range values default to AUTONOMOUS', () => {
+    assertEqual(TrustLevelSystem._migrateLevel(99), 1);
+    assertEqual(TrustLevelSystem._migrateLevel(-5), 1);
+    assertEqual(TrustLevelSystem._migrateLevel(undefined), 1);
   });
 });
 
@@ -121,7 +152,7 @@ describe('TrustLevelSystem — Status & Persistence', () => {
   test('persists level changes to storage', async () => {
     const storage = mockStorage();
     const tls = new TrustLevelSystem({ bus: createBus(), storage });
-    await tls.setLevel(3);
+    await tls.setLevel(2);
     // Check that storage was written
     const hasData = Object.keys(storage._data).length > 0;
     assert(hasData, 'should persist to storage');

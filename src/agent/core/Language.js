@@ -186,7 +186,6 @@ const STRINGS = {
     // v7.4.7
     'ui.trust_level': 'Trust Level',
     'ui.trust_supervised': 'Supervised (always ask)',
-    'ui.trust_assisted': 'Assisted (ask for risky)',
     'ui.trust_autonomous': 'Autonomous (ask only for critical)',
     'ui.trust_full': 'Full Autonomy (never ask)',
     'ui.auto_resume': 'Auto-Resume Open Goals',
@@ -708,7 +707,6 @@ const STRINGS = {
     // v7.4.7
     'ui.trust_level': 'Vertrauensstufe',
     'ui.trust_supervised': 'Überwacht (immer fragen)',
-    'ui.trust_assisted': 'Assistiert (bei Risiko fragen)',
     'ui.trust_autonomous': 'Autonom (nur bei Kritischem fragen)',
     'ui.trust_full': 'Volle Autonomie (nie fragen)',
     'ui.auto_resume': 'Auto-Resume offener Ziele',

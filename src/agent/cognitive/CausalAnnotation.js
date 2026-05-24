@@ -64,9 +64,16 @@ class CausalAnnotation {
   /**
    * @param {{ bus?: object, knowledgeGraph?: object, config?: object }} opts
    */
-  constructor({ bus, knowledgeGraph, config } = {}) {
+  constructor({ bus, knowledgeGraph, lessonsStore, config } = {}) {
     this.bus = bus || NullBus;
     this.kg = knowledgeGraph || null;
+    // v7.9.7 P7: optional lessonsStore. When wired, every causal
+    // promotion writes a warning lesson into the store so the next
+    // SymbolicResolver recall for the affected action returns a
+    // directive pointing the LLM away from it. Pre-fix the suspicion-
+    // tracking machinery fired causal:promoted into the void with no
+    // subscriber acting on it — the whole pipeline was inert.
+    this.lessonsStore = lessonsStore || null;
 
     const cfg = config || {};
     this._refactorThreshold = cfg.refactorThreshold ?? 0.4;
@@ -74,6 +81,13 @@ class CausalAnnotation {
     // ── Tracking state ────────────────────────────────
     /** @type {Map<string, { failCount: number, successCount: number, observations: number, lastSeen: number }>} */
     this._suspicion = new Map(); // key: "tool:arg" → suspicion stats
+
+    // v7.9.7 P7: per-key dedup. _checkPromotions runs on every record;
+    // the same key would cross the threshold repeatedly and refire the
+    // event each time. Now each key fires causal:promoted (and writes
+    // its lesson) exactly once per CausalAnnotation lifetime.
+    /** @type {Set<string>} */
+    this._promoted = new Set();
 
     this._stats = {
       totalRecorded: 0,
@@ -172,9 +186,12 @@ class CausalAnnotation {
 
   /** @private Check if any correlated_with edges should be promoted to caused */
   _checkPromotions() {
-    if (!this.kg) return;
-
     for (const [key, stats] of this._suspicion.entries()) {
+      // v7.9.7 P7: dedup. Skip keys that have already fired the
+      // promotion event this lifetime. Pre-fix every record re-fired
+      // the event for the same key and filled the log with noise.
+      if (this._promoted.has(key)) continue;
+
       const suspicion = stats.failCount / (stats.failCount + stats.successCount || 1);
 
       // Early promotion: perfect failure correlation with 2+ observations
@@ -183,12 +200,26 @@ class CausalAnnotation {
       const standardPromo = suspicion >= CONF.SUSPICION_STANDARD_PROMO && stats.observations >= CONF.MIN_OBS_STANDARD;
 
       if (earlyPromo || standardPromo) {
-        // Find correlated_with edges for this action and promote them
-        // This is a graph operation — in the full implementation,
-        // GraphStore.promoteEdge() handles this
+        this._promoted.add(key);
         this._stats.promotions++;
         _log.info(`[CAUSAL] Promoting ${key} to "caused" (suspicion: ${suspicion.toFixed(2)}, obs: ${stats.observations})`);
         this.bus.fire('causal:promoted', { action: key, suspicion, observations: stats.observations }, { source: 'CausalAnnotation' });
+
+        // v7.9.7 P7: behavioural consequence. Write a warning lesson
+        // so SymbolicResolver's next recall for this action returns
+        // a directive that points the LLM away from it. Source marker
+        // matches what the resolver's filter recognises as a "do not
+        // try this" lesson rather than a proven solution.
+        if (this.lessonsStore && typeof this.lessonsStore.record === 'function') {
+          try {
+            this.lessonsStore.record({
+              category: 'obstacle-resolution',
+              insight: `Causal pattern flagged: action "${key}" correlates with failure (suspicion ${(suspicion * 100).toFixed(0)}% over ${stats.observations} observations)`,
+              strategy: { classification: 'causal-suspicion', action: key, suspicion, observations: stats.observations },
+              source: 'plan-failure-reflection',
+            });
+          } catch (e) { _log.debug('[CAUSAL] lessonsStore.record failed:', e.message); }
+        }
       }
     }
   }

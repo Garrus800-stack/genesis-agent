@@ -16,6 +16,7 @@ const { reflectIfNeeded, composeFailureMessage } = require('./AgentLoopPursuitRe
 const { CancellationToken } = require('../core/CancellationToken');
 const { NullWorkspace } = require('../ports/WorkspacePort');
 const { normalizeStepTypes } = require('./plan-context');
+const { shouldAbortOnRisk, cleanupAfterAbort } = require('./AgentLoopPursuitGate');
 
 const _log = createLogger('AgentLoop');
 
@@ -60,12 +61,7 @@ const agentLoopPursuitMixin = {
       return { success: false, error: msg };
     }
 
-    // v7.6.1 audit-closeout: Self-Gate observation for 'plan-start' actionType.
-    // Telemetry-only (does not block); closes the symmetry gap where
-    // self-gate.js documented 'plan-start' but no call site existed.
-    // Reflexivity patterns ("Ich sollte als nächstes X angehen") that
-    // mund directly into a plan-pursuit (rather than a tool-call or
-    // goal-push) were previously invisible to the gate.
+    // v7.6.1 audit-closeout: Self-Gate 'plan-start' observation (telemetry-only).
     if (this.selfGate) {
       try {
         this.selfGate.check({
@@ -89,6 +85,14 @@ const agentLoopPursuitMixin = {
     this.consecutiveErrors = 0;
     this.executionLog = [];
 
+    // v7.9.7-fix (P5): increment per-goal attempt counter; used by the
+    // simulation hard-gate below to distinguish first attempt (advisory)
+    // from retries (hard-gate if high risk).
+    if (_presetGoal?.id) {
+      const prev = this._pursuitAttempts.get(_presetGoal.id) || 0;
+      this._pursuitAttempts.set(_presetGoal.id, prev + 1);
+    }
+
     // v7.4.5.fix: shared early-return helper — emit agent-loop:complete
     // from every failure return so GoalDriver releases _currentlyPursuing.
     const _emitFailure = (errorMessage) => {
@@ -105,8 +109,7 @@ const agentLoopPursuitMixin = {
           toolsUsed: [],
         }, { source: 'AgentLoop' });
       } catch (_e) { /* never let emit break the return path */ }
-      // v7.7.8 / v7.7.9 (post-Phase-3c.4): plan-failure-reflection via
-      // reflectIfNeeded — see helper for dedup contract.
+      // v7.7.8 / v7.7.9 (post-Phase-3c.4): plan-failure-reflection via reflectIfNeeded.
       reflectIfNeeded(this, {
         goalId: this.currentGoalId,
         goalDescription: typeof goalDescription === 'string' ? goalDescription : null,
@@ -125,15 +128,11 @@ const agentLoopPursuitMixin = {
       goalTitle: typeof goalDescription === 'string' ? goalDescription.slice(0, 100) : 'goal',
     });
 
-    // v5.2.0: Wrap entire goal in correlation scope.
-    // Every EventBus emit, EventStore append, and log call
-    // within this async scope automatically carries the goal's
-    // correlation ID. No manual threading needed.
+    // v5.2.0: wrap goal in correlation scope so every bus emit, store append, and log call inherits the goalId.
     const _goalCorrelationId = CorrelationContext.generate('goal');
     return CorrelationContext.run(_goalCorrelationId, async () => {
 
-    // FIX v3.5.3: Global timeout prevents unbounded goal execution.
-    // 20 steps × 30s shell timeout = 10 min max theoretical, so 10 min global.
+    // FIX v3.5.3: global timeout caps unbounded goal execution (20 × 30s = 10 min max).
     const globalTimeout = setTimeout(() => {
       if (this.running) {
         _log.warn(`[AGENT-LOOP] Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms) reached — aborting goal`);
@@ -167,9 +166,7 @@ const agentLoopPursuitMixin = {
 
     try {
       // ── Phase 1: PLAN ─────────────────────────────────
-      // v7.4.5: If presetGoal carries preGeneratedSteps (e.g. sub-goal
-      // spawned by AgentLoopRecovery in Baustein D), skip planning and
-      // use those steps directly.
+      // v7.4.5: presetGoal.preGeneratedSteps (e.g. Baustein-D sub-goals) skip the planner.
       /** @type {*} */ let plan;
       if (_presetGoal && Array.isArray(_presetGoal.preGeneratedSteps)
           && _presetGoal.preGeneratedSteps.length > 0) {
@@ -232,10 +229,8 @@ const agentLoopPursuitMixin = {
       // FIX v6.1.1: addGoal expects (description:string, source, priority, options) — not an object
 
       // ── Colony Escalation Gate (v7.0.3 — C1) ─────────────
-      // If the plan is complex or HTN validation had issues,
-      // delegate to ColonyOrchestrator for parallel analysis.
-      // v7.7.9 (P6): threshold 3→8 — most plans 4-7 steps, escalating
-      // at >3 spawned IPC workers for nearly every goal.
+      // Complex / HTN-problematic plans escalate to ColonyOrchestrator for parallel analysis.
+      // v7.7.9 (P6): threshold 3→8 since most plans are 4-7 steps.
       const _COLONY_STEP_THRESHOLD = 8;
       if (this._colonyOrchestrator && plan.steps.length > _COLONY_STEP_THRESHOLD) {
         try {
@@ -321,8 +316,17 @@ const agentLoopPursuitMixin = {
       // ── Phase 1b: SIMULATE (Phase 9 cognitive hook) ────
       const cogResult = await this.cognition.preExecute(plan);
       if (!cogResult.proceed) {
-        // FIX v6.1.1: Simulation is advisory, not a hard gate —
-        // Genesis should TRY and learn from failure.
+        // v7.9.7-fix (P5/P5b): hard-gate on retry-with-high-risk via AgentLoopPursuitGate.
+        const priorFailures = Math.max(0, (this._pursuitAttempts.get(this.currentGoalId) || 1) - 1);
+        if (shouldAbortOnRisk(cogResult, priorFailures)) {
+          _log.warn(`[AGENT-LOOP] Simulation HIGH risk: ${cogResult.reason} (score ${cogResult.riskScore}, ${priorFailures} prior failure(s)) — aborting`);
+          onProgress({ phase: 'simulation-abort', detail: `High risk on retry: ${cogResult.reason}`, risk: cogResult.riskScore });
+          this.bus.fire('agent-loop:simulation-abort', {
+            goalId: this.currentGoalId, riskScore: cogResult.riskScore, priorFailures, reason: cogResult.reason,
+          }, { source: 'AgentLoop' });
+          cleanupAfterAbort(this, this.currentGoalId, _clearGlobalTimeout, NullWorkspace);
+          return { success: false, error: `High simulation risk (${cogResult.riskScore.toFixed(2)}) on retry attempt ${priorFailures + 1}; plan needs to change before another attempt.` };
+        }
         _log.warn(`[AGENT-LOOP] Simulation flagged risk: ${cogResult.reason} (score: ${cogResult.riskScore}) — proceeding anyway`);
         onProgress({ phase: 'simulation-warning', detail: `Risk flagged: ${cogResult.reason} — proceeding`, risk: cogResult.riskScore });
       }
@@ -382,6 +386,11 @@ const agentLoopPursuitMixin = {
       this._workspace = new NullWorkspace();
       result.workspaceStats = wsStats;
 
+      // v7.9.7-fix (P5): clear per-goal pursuit-attempts counter on success.
+      if (completedGoalId && result?.success) {
+        this._pursuitAttempts.delete(completedGoalId);
+      }
+
       return result;
 
     } catch (err) {
@@ -392,10 +401,7 @@ const agentLoopPursuitMixin = {
       this._workspace.clear();
       this._workspace = new NullWorkspace();
       onProgress({ phase: 'error', detail: err.message });
-      // v7.4.5.fix: emit agent-loop:complete also on error-path so
-      // GoalDriver._onPursuitComplete cleans up _currentlyPursuing
-      // symmetrically. Without it, a thrown pursuit kept the goal
-      // locked forever.
+      // v7.4.5.fix: emit agent-loop:complete on error-path so GoalDriver releases _currentlyPursuing.
       try {
         this.bus.fire('agent-loop:complete', {
           goalId: failedGoalId,
@@ -469,9 +475,7 @@ const agentLoopPursuitMixin = {
       /** @type {*} */ const result = await this.steps._executeStep(step, context, onProgress);
 
       // ── v7.4.5 Baustein C: Resource-blocked? ──────────
-      // The step's pre-existence check fired and returned blocked=true.
-      // Park the goal on the missing resources; abort the loop here.
-      // GoalDriver will pick this goal up again on resource:available.
+      // v7.4.5 Baustein C: step blocked on missing resources — park the goal; driver re-picks on resource:available.
       if (result && result.blocked === true && Array.isArray(result.blockedByResources)) {
         if (this.goalStack && this.currentGoalId && this.goalStack.blockOnResources) {
           this.goalStack.blockOnResources(this.currentGoalId, result.blockedByResources);
@@ -562,11 +566,7 @@ const agentLoopPursuitMixin = {
           continue;
         }
 
-        // v7.4.5 Baustein D: parent goal parked on a freshly-spawned
-        // sub-goal that will resolve the obstacle. End the loop here;
-        // _unblockDependents (existing GoalStack mechanism) will set
-        // parent back to 'active' when sub-goal completes, and
-        // GoalDriver picks it up to resume.
+        // v7.4.5 Baustein D: parent parked on freshly-spawned sub-goal; resume via _unblockDependents.
         if (recovery.action === 'blocked-on-subgoal') {
           if (this.bus && this.bus.fire) {
             this.bus.fire('agent-loop:blocked-on-subgoal', {

@@ -366,8 +366,8 @@ const PHASE10 = {
 
 // ── Phase 11: Extended Perception & Action ──────────────────
 const PHASE11 = {
-  // TrustLevelSystem
-  TRUST_DEFAULT_LEVEL: 1,  // ASSISTED
+  // TrustLevelSystem (v7.9.7: 3-level)
+  TRUST_DEFAULT_LEVEL: 1,  // AUTONOMOUS
   TRUST_AUTO_UPGRADE_MIN_SAMPLES: 50,
   TRUST_AUTO_UPGRADE_MIN_SUCCESS: 0.90,
 

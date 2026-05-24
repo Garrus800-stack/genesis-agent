@@ -286,17 +286,28 @@ class AutonomousDaemon {
     // 2. Module diagnosis
     const diagnosis = await this.reflector.diagnose();
 
+    // v7.9.7 Bug E: separate actionable from informational issues. Reflector
+    // produces four types — kernel (critical), syntax (high), read-error (high),
+    // missing-dependency (high). Of those, reflector.repair() can only actually
+    // fix 'syntax'; the others return `fixed: false` with a "module must be
+    // created or path corrected" string. Pre-fix the daemon kept logging every
+    // 15 minutes "19 issue(s), 0 fixed" because the 19 sticky missing-dependency
+    // issues counted against the issue-count and never moved. Now: informational
+    // issues are tracked separately so the repaired-vs-actionable ratio is honest.
+    const actionableIssues = diagnosis.issues.filter(i => i.type === 'syntax');
+    const informationalIssues = diagnosis.issues.filter(i => i.type !== 'syntax');
+
     // 3. Auto-repair if enabled
     let repaired = [];
-    if (this.config.autoRepair && diagnosis.issues.length > 0) {
-      // v6.0.7: Trust-gated repair scope
-      // Level 0-1: syntax only (safe). Level 2+: syntax + style + optimization.
+    if (this.config.autoRepair && actionableIssues.length > 0) {
+      // v6.0.7: Trust-gated repair scope (v7.9.7: 3-level system).
+      // SUPERVISED (0): syntax only (safe). AUTONOMOUS+ (1,2): syntax + style + optimization.
       const trustLevel = this.trustLevelSystem?.getLevel?.() ?? 0;
-      const allowedTypes = trustLevel >= 2
+      const allowedTypes = trustLevel >= 1
         ? ['syntax', 'style', 'optimization']
         : ['syntax'];
 
-      const repairableIssues = diagnosis.issues
+      const repairableIssues = actionableIssues
         .filter(i => allowedTypes.includes(i.type) && i.severity !== 'critical')
         .slice(0, this.config.maxAutoRepairs);
 
@@ -314,21 +325,26 @@ class AutonomousDaemon {
 
     const result = {
       kernelOk: kernelOk.ok,
-      issues: diagnosis.issues.length,
+      issues: actionableIssues.length,
+      informational: informationalIssues.length,
       repaired: repaired.filter(r => r.fixed).length,
       scannedModules: diagnosis.scannedModules,
     };
-    // v7.9.4: per-cycle visibility — when something happened, log it at
-    // info level so a human glancing at the daemon stream can see it
-    // without enabling debug. When nothing happened, stay quiet at debug.
+    // v7.9.7: log split — actionable count drives the visible line, informational
+    // count gets a quieter mention so the operator can tell when something
+    // repairable shows up. Pre-fix the 19 sticky missing-dependency issues hid
+    // behind the same "19 issue(s), 0 fixed" line every cycle and looked like
+    // a broken auto-repair.
     if (result.issues > 0 || result.repaired > 0) {
-      this._log('info', `Health check: ${result.issues} issue(s), ${result.repaired} fixed`);
+      this._log('info', `Health check: ${result.issues} actionable issue(s), ${result.repaired} fixed (plus ${result.informational} informational)`);
+    } else if (result.informational > 0) {
+      this._log('debug', `Health check: nothing to repair (${result.informational} informational issue(s) tracked)`);
     } else {
       this._log('debug', 'Health check: nothing to repair');
     }
     // v7.9.5 live-fix: persist the actual issue list (not just the count)
     // so `/health-issues` can surface them. Deduped by signature so a
-    // sticky 19-issue set doesn't bloat the file across hundreds of cycles.
+    // sticky issue set doesn't bloat the file across hundreds of cycles.
     this._persistHealthIssues(diagnosis.issues || []);
     return result;
   }

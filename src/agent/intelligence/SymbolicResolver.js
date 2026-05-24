@@ -255,6 +255,23 @@ class SymbolicResolver {
     // Must have an actionable strategy
     if (!lesson.strategy) return null;
 
+    // v7.9.7 P1: filter PREDICTION-class lessons. AgentLoopPursuitReflection
+    // writes "Goal failed (structural): ..." records with source
+    // 'plan-failure-reflection' and strategy.classification ∈ {structural,
+    // execution, external, user-action, unclassified}. Those describe what
+    // FAILED, not what worked — passing them through to DIRECT would have
+    // Genesis short-circuit a fresh task with a recall of last time's
+    // failure as if it were the answer. Live-Befund v7.9.7 outpost trace:
+    // SymbolicResolver returned DIRECT with uses=14→19→32→117→122 on a
+    // lesson whose insight was the literal error string "Cannot find
+    // module ...". Both the explicit source marker and the classification
+    // field gate this — either alone is sufficient.
+    if (lesson.source === 'plan-failure-reflection') return null;
+    const cls = lesson.strategy?.classification;
+    if (cls && ['structural', 'execution', 'external', 'user-action', 'unclassified', 'causal-suspicion'].includes(cls)) {
+      return null;
+    }
+
     this._stats.directHits++;
 
     _log.info(`[SYMBOLIC] DIRECT "${stepType}" — ${lesson.insight?.slice(0, 60)} (uses=${lesson.useCount}, conf=${(lesson.confidence * 100).toFixed(0)}%)`);
@@ -280,14 +297,32 @@ class SymbolicResolver {
   _buildDirective(lesson, schema) {
     const parts = [];
 
+    // v7.9.7 P1: invert framing for plan-failure-reflection (and causal-
+    // suspicion) lessons. These are warnings — the LLM should see "AVOID
+    // this approach", not "proven approach". Mixing the two framings in
+    // GUIDED prompts was confusing the LLM into treating warnings as
+    // recommendations.
+    const isPredictionLesson =
+      lesson?.source === 'plan-failure-reflection' ||
+      ['structural', 'execution', 'external', 'user-action', 'unclassified', 'causal-suspicion'].includes(lesson?.strategy?.classification);
+
     if (lesson?.insight) {
-      parts.push(`IMPORTANT — A proven approach for this type of task:`);
-      parts.push(`  "${lesson.insight}"`);
-      if (lesson.strategy?.promptStyle) {
-        parts.push(`  Recommended style: ${lesson.strategy.promptStyle}`);
-      }
-      if (lesson.strategy?.command) {
-        parts.push(`  Known working command: ${lesson.strategy.command}`);
+      if (isPredictionLesson) {
+        parts.push(`WARNING — AVOID this approach (past attempts failed for this shape of task):`);
+        parts.push(`  "${lesson.insight}"`);
+        if (lesson.strategy?.errorMessage) {
+          parts.push(`  Past error: ${String(lesson.strategy.errorMessage).slice(0, 200)}`);
+        }
+        parts.push(`  Take a different approach — do NOT repeat what is described above.`);
+      } else {
+        parts.push(`IMPORTANT — A proven approach for this type of task:`);
+        parts.push(`  "${lesson.insight}"`);
+        if (lesson.strategy?.promptStyle) {
+          parts.push(`  Recommended style: ${lesson.strategy.promptStyle}`);
+        }
+        if (lesson.strategy?.command) {
+          parts.push(`  Known working command: ${lesson.strategy.command}`);
+        }
       }
     }
 

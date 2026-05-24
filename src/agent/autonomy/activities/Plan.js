@@ -11,6 +11,25 @@
 const { createLogger } = require('../../core/Logger');
 const _log = createLogger('IdleMind');
 
+// v7.9.7 P15: extended stopwords for goal-token-overlap dedup. Pre-fix
+// the tokeniser only filtered tokens shorter than 4 chars; it didn't
+// filter generic goal-words. Both "Improve Calibration Activity Error
+// Handling" and "Research Activity Time Logging" carried the token
+// 'activity' but only that one overlapped, so the ≥2 threshold didn't
+// trigger and both synthesised. With these in place only domain-content
+// tokens count towards the overlap.
+const _STOPWORDS = new Set([
+  'activity', 'activities',
+  'error', 'errors',
+  'improve', 'improvement',
+  'handle', 'handling',
+  'system', 'method',
+  'feature', 'function',
+  'process', 'general',
+  'better', 'support',
+  'enable', 'allow',
+]);
+
 module.exports = {
   name: 'plan',
   weight: 1.0,
@@ -68,8 +87,12 @@ module.exports = {
 
       // v7.7.9 (post-burnin P2): token-overlap check against recently
       // failed goals. If 2+ tokens overlap with a recent failure → skip.
+      // v7.9.7 P15: tokeniser filters _STOPWORDS to keep only domain-content
+      // tokens — pre-fix two goals matched only on 'activity' and both
+      // synthesised.
       const _tokenize = (s) => (s || '').toLowerCase()
-        .replace(/[^a-z0-9äöüß]+/g, ' ').split(/\s+/).filter(t => t.length >= 4);
+        .replace(/[^a-z0-9äöüß]+/g, ' ').split(/\s+/)
+        .filter(t => t.length >= 4 && !_STOPWORDS.has(t));
       const titleTokens = new Set(_tokenize(title));
       const recentFailedDescs = (idleMind.goalStack?.goals || [])
         .filter(g => ['obsolete', 'stalled', 'failed'].includes(g.status))

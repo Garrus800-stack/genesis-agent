@@ -571,7 +571,7 @@ describe('CommandHandlers — trustControl', () => {
     bus._container = { resolve: () => trust };
     const result = await ch.trustControl('trust status');
     assert(result.includes('Trust Level'), 'should show table');
-    assert(result.includes('ASSISTED'), 'should show level name');
+    assert(result.includes('AUTONOMOUS'), 'should show level name');
   });
 
   test('sets level by name', async () => {
@@ -579,7 +579,9 @@ describe('CommandHandlers — trustControl', () => {
     const trust = { getLevel: () => 1, setLevel: (l) => { set = l; }, checkApproval: () => true };
     const { ch, bus } = makeHandler();
     bus._container = { resolve: () => trust };
-    await ch.trustControl('trust autonomous');
+    // v7.9.7: 3-level system. 'autonomous' now maps to level 1 (which is current),
+    // so use 'full' to test name → level mapping with an actual change.
+    await ch.trustControl('trust full');
     assertEqual(set, 2);
   });
 

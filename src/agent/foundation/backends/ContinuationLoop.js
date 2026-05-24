@@ -52,7 +52,12 @@ const { isComplete } = require('./TruncationDetector');
 
 const _log = createLogger('ContinuationLoop');
 
-const MAX_CONTINUATIONS_DEFAULT = 4;
+// v7.9.7 P6: raised from 4 to 6. The v7.9.6 outpost trace showed
+// code-with-manifest LLM outputs truncated at 9937/2999/6394 chars
+// across four attempts and then abandoned. Six attempts cover the
+// long-manifest case without doubling the worst-case cost of a
+// pathological unbounded-truncation.
+const MAX_CONTINUATIONS_DEFAULT = 6;
 const KEEP_ALIVE_OVERRIDE = '15m';
 const BACKOFF_BASE_MS = 1000;
 const PSEUDO_CONTINUATION_PROMPT =

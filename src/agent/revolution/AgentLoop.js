@@ -84,6 +84,15 @@ class AgentLoop {
     this._aborted = false;
     this._approvalTimeoutMs = approvalTimeoutMs || TIMEOUTS.APPROVAL_DEFAULT;
 
+    // v7.9.7-fix (P5 high-risk-on-retry): per-goal pursuit attempt counter,
+    // incremented at the start of each pursue() call, deleted on success.
+    // Pursuit code consults this to decide whether to honour the simulation
+    // advisory or hard-gate it: first attempt always proceeds (advisory),
+    // second+ attempt with high risk score (>=5.0) aborts so Genesis
+    // doesn't burn pursuits 2/3/4 on the same risky plan that just failed.
+    /** @type {Map<string, number>} */
+    this._pursuitAttempts = new Map();
+
     // v5.2.0: Structured cancellation — replaces raw _aborted boolean.
     // Steps can check token.isCancelled or call token.throwIfCancelled().
     // Child tokens per step enable fine-grained cancellation.

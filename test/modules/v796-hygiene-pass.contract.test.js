@@ -258,23 +258,23 @@ test('G2: Replan path normalises step types before splicing into execution loop'
 });
 
 test('G3: GoalDriver hallucination regex matches "Plausibility check failed"', () => {
-  // This is the literal wording AgentLoopSteps.js:153 emits. Before v7.9.6
-  // the regex only covered "implausible path"; the final-summary often
-  // contains the longer Plausibility wording instead, so the fast-track
-  // missed real hallucination cases.
-  const src = fs.readFileSync(
+  // v7.9.7 (B/G): the regex was extracted from GoalDriverFailurePolicy.js
+  // to src/agent/agency/failure-patterns.js as STRUCTURAL_FAILURE_RE, and
+  // both GoalDriverFailurePolicy and AgentLoopPursuitReflection now consume
+  // the same helper. Test the behaviour, not the inline literal.
+  const { isStructuralFailure } = require(
+    path.join(ROOT, 'src/agent/agency/failure-patterns'));
+  assert(isStructuralFailure('Plausibility check failed for: file:src/foo/bar.js (path does not exist)'),
+    'must match "Plausibility check failed" — the literal Steps.js wording');
+  assert(isStructuralFailure('implausible path detected'),
+    'must still match the legacy "implausible path" wording');
+  assert(isStructuralFailure('unknown step type "FOOBAR"'),
+    'must still match unknown-step-type wording');
+  // The policy file must consume the shared helper, not redefine the regex.
+  const policySrc = fs.readFileSync(
     path.join(ROOT, 'src/agent/agency/GoalDriverFailurePolicy.js'), 'utf8');
-  const regexLine = /_isHallucination\s*=\s*\/([^/]+)\/i\.test/.exec(src);
-  assert(regexLine, 'hallucination regex must be present');
-  const pattern = regexLine[1];
-  // Build the actual regex and verify it matches representative strings.
-  const re = new RegExp(pattern, 'i');
-  assert(re.test('Plausibility check failed for: file:src/foo/bar.js (path does not exist)'),
-    'regex must match "Plausibility check failed" — the literal Steps.js wording');
-  assert(re.test('implausible path detected'),
-    'regex must still match the legacy "implausible path" wording');
-  assert(re.test('unknown step type "FOOBAR"'),
-    'regex must still match unknown-step-type wording');
+  assert(/isStructuralFailure/.test(policySrc),
+    'GoalDriverFailurePolicy must call isStructuralFailure from the shared helper');
 });
 
 }); // describe

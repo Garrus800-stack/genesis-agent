@@ -106,7 +106,7 @@ describe('v7.4.0 — Sensitive-Data CI-Gate (MANDATORY)', () => {
         openaiApiKey:    'sk-VERYSECRETOPENAIPRODUCTIONKEYabcdef0123456',
         claudeApiKey:    'claude-sk-ProductionKeyPleaseNeverLeakMe123abc',
       },
-      trust: { level: 'ASSISTED' },
+      trust: { level: 'AUTONOMOUS' },
       ui:    { language: 'de' },
       secrets: {
         awsKey: 'AKIAIOSFODNN7EXAMPLE',
@@ -251,7 +251,7 @@ describe('v7.4.0 — Sensitive-Data CI-Gate (MANDATORY)', () => {
         anthropicApiKey: 'sk-ant-SECRET123456789abcdefghij',
         openaiApiKey:    'sk-OPENAISECRET123456789abcdef',
       },
-      trust: { level: 'ASSISTED' },
+      trust: { level: 'AUTONOMOUS' },
       ui: { language: 'en' },
     };
     settings.get = function(p) {

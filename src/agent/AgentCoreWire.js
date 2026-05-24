@@ -335,6 +335,12 @@ class AgentCoreWire {
     // Phase 9: Cognitive Architecture
     start('surpriseAccumulator');
     start('selfNarrative');
+    // v7.9.7 P3: ReasoningTracer registers eleven event subscriptions in
+    // its start() method. Pre-fix the service was constructed in
+    // phase9-cognitive.js and added to TO_STOP, but no caller invoked
+    // start() — so the subscriptions never attached and the dashboard's
+    // getTraces() returned an empty array forever.
+    start('reasoningTracer');
     // v7.7.9: StalledGoalWatchdog Phase 3 Bug 2 fix — needs to start so
     // its setInterval begins ticking; without start, watchdog is inert.
     start('stalledGoalWatchdog');
@@ -457,10 +463,11 @@ class AgentCoreWire {
       if (!c.has('trustLevelSystem')) return;
       try {
         c.resolve('trustLevelSystem').setLevel(ev.to);
-        // Use the same i18n keys as the dropdown, stripped of parens text
-        const trustKeys = ['ui.trust_supervised', 'ui.trust_assisted', 'ui.trust_autonomous', 'ui.trust_full'];
+        // Use the same i18n keys as the dropdown, stripped of parens text.
+        // v7.9.7: 3-level system (supervised/autonomous/full).
+        const trustKeys = ['ui.trust_supervised', 'ui.trust_autonomous', 'ui.trust_full'];
         const fullLabel = t(trustKeys[ev.to] || `level ${ev.to}`);
-        // The dropdown text includes a parenthetical hint like "Assisted (ask for risky)" —
+        // The dropdown text includes a parenthetical hint like "Autonomous (ask only for critical)" —
         // for the chat notification we want the short name only.
         const short = fullLabel.split('(')[0].trim();
         chatNotify(t('ui.toggle.trust_level', { level: short }));

@@ -267,7 +267,7 @@ const CommandHandlersInstallDetect = {
 
   _previewWhyNotExecuting(allowAuto, trustLevel) {
     if (!allowAuto) return 'Setting "install.allowAutoInstall" ist false (default). Aktiviere in Settings für autonomen Install.';
-    if (trustLevel < 2) return `Trust-Level ${trustLevel} reicht nicht — AUTONOMOUS (2) oder höher nötig.`;
+    if (trustLevel < 1) return `Trust-Level ${trustLevel} reicht nicht — AUTONOMOUS (1) oder höher nötig.`;
     return 'Bestätigung erforderlich.';
   },
 

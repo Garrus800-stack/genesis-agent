@@ -6,7 +6,7 @@
 // split. Handles System configuration:
 //   - handleSettings  — show/set Genesis settings (API keys, toggles)
 //   - daemonControl   — daemon start/stop/status
-//   - trustControl    — Trust Level System (SANDBOX/ASSISTED/AUTONOMOUS/FULL)
+//   - trustControl    — Trust Level System (SUPERVISED/AUTONOMOUS/FULL)
 //
 // Prototype-Delegation from CommandHandlers.js via Object.assign.
 // External API unchanged.
@@ -120,19 +120,19 @@ const commandHandlersSystem = {
     if (!trustSystem) return 'Trust level system not available.';
 
     const current = trustSystem.getLevel();
-    const NAMES = { 0: 'SANDBOX', 1: 'ASSISTED', 2: 'AUTONOMOUS', 3: 'FULL' };
+    // v7.9.7: 3-level system. SANDBOX/ASSISTED removed.
+    const NAMES = { 0: 'SUPERVISED', 1: 'AUTONOMOUS', 2: 'FULL' };
     const currentName = NAMES[current] || `Level ${current}`;
 
     // Parse desired level from message
     const msg = message.toLowerCase();
     let target = null;
 
-    if (/sandbox|stufe\s*0|level\s*0/.test(msg)) target = 0;
-    else if (/assisted|stufe\s*1|level\s*1/.test(msg)) target = 1;
-    else if (/autonom|stufe\s*2|level\s*2/.test(msg)) target = 2;
-    else if (/full|voll|stufe\s*3|level\s*3/.test(msg)) target = 3;
+    if (/supervised|sandbox|stufe\s*0|level\s*0/.test(msg)) target = 0;
+    else if (/autonom|stufe\s*1|level\s*1/.test(msg)) target = 1;
+    else if (/full|voll|stufe\s*2|level\s*2/.test(msg)) target = 2;
     else if (/(?:freigeb|enabl|erlaub|gewähr|grant|hoch|up|erhöh|more)/.test(msg)) {
-      target = Math.min(3, current + 1);
+      target = Math.min(2, current + 1);
     } else if (/(?:einschränk|reduz|lower|runter|weniger|restrict)/.test(msg)) {
       target = Math.max(0, current - 1);
     }
@@ -140,16 +140,15 @@ const commandHandlersSystem = {
     // No target parsed → show current status
     if (target === null) {
       const lines = [
-        `**Trust Level:** ${currentName} (${current}/3)`,
+        `**Trust Level:** ${currentName} (${current}/2)`,
         '',
         '| Level | Name | What Genesis can do |',
         '|-------|------|---------------------|',
-        `| 0 | SANDBOX | ${current === 0 ? '◀' : ''} Read-only analysis, no file writes |`,
-        `| 1 | ASSISTED | ${current === 1 ? '◀' : ''} Write with approval, self-modification with safety checks |`,
-        `| 2 | AUTONOMOUS | ${current === 2 ? '◀' : ''} Independent file operations, auto-approved safe actions |`,
-        `| 3 | FULL | ${current === 3 ? '◀' : ''} Full self-modification, shell access, deployment |`,
+        `| 0 | SUPERVISED | ${current === 0 ? '◀' : ''} Read-only analysis, every action needs approval |`,
+        `| 1 | AUTONOMOUS | ${current === 1 ? '◀' : ''} Auto-approved safe/medium/high actions; only critical asks |`,
+        `| 2 | FULL | ${current === 2 ? '◀' : ''} Full self-modification, shell access, deployment — never asks |`,
         '',
-        'Change with: "trust level 2", "autonomie freigeben", "trust autonomous"',
+        'Change with: "trust level 1", "autonomie freigeben", "trust autonomous"',
       ];
       return lines.join('\n');
     }
@@ -164,7 +163,7 @@ const commandHandlersSystem = {
     try {
       const result = await trustSystem.setLevel(target);
       const direction = target > current ? '⬆' : '⬇';
-      return `${direction} **Trust Level changed:** ${NAMES[result.from]} → **${NAMES[result.to]}**\n\nGenesis ${target >= 2 ? 'can now act autonomously.' : 'will ask for approval before making changes.'}`;
+      return `${direction} **Trust Level changed:** ${NAMES[result.from]} → **${NAMES[result.to]}**\n\nGenesis ${target >= 1 ? 'can now act autonomously.' : 'will ask for approval before making changes.'}`;
     } catch (err) {
       return `Trust level change failed: ${err.message}`;
     }

@@ -108,7 +108,8 @@ const SUBSYSTEM_SAMPLERS = [
       const status = src.getStatus?.() || {};
       const level = status.level ?? 0;
       caps.trustLevel = level;
-      caps.canModifySelf = level >= 2;
+      // v7.9.7: 3-level system. AUTONOMOUS+ (1,2) may self-modify and spawn workers.
+      caps.canModifySelf = level >= 1;
       caps.canSpawnWorkers = level >= 1;
       if (level < 1) constraints.push('Trust Level 0 — supervised mode, all actions need approval');
     },

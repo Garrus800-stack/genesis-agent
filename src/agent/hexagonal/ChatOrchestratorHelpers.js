@@ -582,7 +582,7 @@ const helpers = {
         `HINT: Sandbox blocked the path. Reason: ${reason}. ` +
         `Possible alternatives: use a path inside the project rootDir, ` +
         `or (if user-home access is needed) ask the user to raise their trust level. ` +
-        `For READ-only listing of folders on Desktop/Documents/Downloads, trust ASSISTED (1) is enough.`
+        `For READ-only listing of folders on Desktop/Documents/Downloads, trust AUTONOMOUS (1) is enough.`
       );
     }
 

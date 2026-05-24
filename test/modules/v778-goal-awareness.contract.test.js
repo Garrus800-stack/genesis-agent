@@ -105,24 +105,21 @@ track('G1e: "das klingt gut, refactor X :-)" — action verb vetoes closing', ()
 
 const { TrustLevelSystem } = require(path.join(ROOT, 'src/agent/foundation/TrustLevelSystem'));
 
-track('G2a: plan-has-issues gates at SUPERVISED/ASSISTED, auto-approves at AUTONOMOUS+', () => {
-  // v7.9.3 Bug A: plan-has-issues is 'blocking'. AUTONOMOUS auto-approves
-  // ['safe','medium','high','blocking']; FULL_AUTONOMY adds 'critical'.
-  // The two low-trust levels still gate so the user sees the prompt when
-  // they explicitly chose oversight. Matches the dropdown promises.
+track('G2a: plan-has-issues gates at SUPERVISED, auto-approves at AUTONOMOUS+', () => {
+  // v7.9.7: 3-level system. SUPERVISED (0) gates; AUTONOMOUS (1) auto-approves
+  // ['safe','medium','high','blocking']; FULL_AUTONOMY (2) adds 'critical'.
+  // Only SUPERVISED still prompts because that level explicitly chose oversight.
   const tls = new TrustLevelSystem({ bus: null, storage: null, settings: null });
-  for (const level of [0, 1]) {
+  tls._level = 0;
+  let r = tls.checkApproval('plan-has-issues');
+  assert.strictEqual(r.approved, false,
+    'level 0 (SUPERVISED): plan-has-issues must NOT be auto-approved');
+  assert.strictEqual(r.needsUserApproval, true,
+    'level 0 (SUPERVISED): plan-has-issues must need user approval');
+  for (const level of [1, 2]) {
     tls._level = level;
-    const r = tls.checkApproval('plan-has-issues');
-    assert.strictEqual(r.approved, false,
-      `level ${level}: plan-has-issues must NOT be auto-approved`);
-    assert.strictEqual(r.needsUserApproval, true,
-      `level ${level}: plan-has-issues must need user approval`);
-  }
-  for (const level of [2, 3]) {
-    tls._level = level;
-    const r = tls.checkApproval('plan-has-issues');
-    assert.strictEqual(r.approved, true,
+    const r2 = tls.checkApproval('plan-has-issues');
+    assert.strictEqual(r2.approved, true,
       `level ${level}: plan-has-issues must auto-approve (matches dropdown promise)`);
   }
 });
@@ -220,12 +217,18 @@ track('G5a: reflection helper emits agent:goal-failed-classified', () => {
 });
 
 track('G5b: reflection helper classifies failures by category', () => {
-  const src = read('src/agent/revolution/AgentLoopPursuitReflection.js');
+  // v7.9.7: classifyFailure moved to ../agency/failure-patterns to share
+  // with GoalDriverFailurePolicy. Check both files for the category strings,
+  // then verify the function is callable through its public re-export.
+  const reflectionSrc = read('src/agent/revolution/AgentLoopPursuitReflection.js');
+  const helperSrc = read('src/agent/agency/failure-patterns.js');
+  const combinedSrc = reflectionSrc + '\n' + helperSrc;
   for (const cat of ['structural', 'execution', 'external', 'user-action', 'unclassified']) {
-    assert.ok(src.includes(`'${cat}'`) || src.includes(`"${cat}"`),
-      `failure-classification must include category "${cat}"`);
+    assert.ok(combinedSrc.includes(`'${cat}'`) || combinedSrc.includes(`"${cat}"`),
+      `failure-classification must include category "${cat}" (in reflection or helper)`);
   }
-  // Also: classifyFailure() is callable and produces expected categories
+  // classifyFailure() is callable via the public re-export and produces
+  // expected categories
   const { classifyFailure } = require(path.join(ROOT, 'src/agent/revolution/AgentLoopPursuitReflection'));
   assert.strictEqual(classifyFailure('Unknown step type: ASK_USER'), 'structural');
   assert.strictEqual(classifyFailure('LLM timeout after 30s'), 'execution');

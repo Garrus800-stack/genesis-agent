@@ -490,6 +490,8 @@ const SCHEMAS = {
   // Chat system message (UI-bridge for runtime confirmations)
   'chat:system-message':               { text: 'required' },
   'agent-loop:blocked-on-subgoal':     { goalId: 'optional', stepIndex: 'optional', stepType: 'optional', subId: 'required' },
+  // v7.9.7 P5: simulation hard-gate aborted a retry pursuit
+  'agent-loop:simulation-abort':       { goalId: 'optional', riskScore: 'required', priorFailures: 'required', reason: 'optional' },
 
   // Memory
   'memory:fact-stored':     { key: 'required', source: 'optional' },

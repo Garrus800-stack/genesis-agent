@@ -33,28 +33,18 @@
 
 'use strict';
 
-/**
- * Bin an error message into one of five failure categories.
- * Pure function, no side effects, easy to test.
- *
- * @param {string} errorMessage
- * @returns {'structural'|'execution'|'external'|'user-action'|'unclassified'}
- */
-function classifyFailure(errorMessage) {
-  const m = String(errorMessage || '').toLowerCase();
-  // v7.7.9 (post-Phase-3c): broadened patterns. Pre-fix burn-in showed
-  // live-typical errors ("Plausibility check failed", "Goal verification
-  // failed after N steps") were classified as 'unclassified' and then
-  // filtered out by stableClass before reaching the lessons store. With
-  // 90%+ of real failures falling through, the lessons pipeline was
-  // effectively starved of input even after fixing the add/record bug.
-  // The added patterns cover what AgentLoopSteps.js actually emits.
-  if (/unknown step type|missing required|peer.*unavailable|no peers|implausible paths|plausibility check failed|invalid|malformed/.test(m)) return 'structural';
-  if (/timeout|llm|model.*unavailable|verification failed|verify.*fail|repair.*fail|exhausted/.test(m)) return 'execution';
-  if (/network|api.*rate|fetch.*fail|connection|refused|enotfound|ehostunreach/.test(m)) return 'external';
-  if (/rejected|user.*stop|stop.*by.*user|cancel|aborted/.test(m)) return 'user-action';
-  return 'unclassified';
-}
+// v7.9.7: classifyFailure relocated to ../agency/failure-patterns so
+// the GoalDriver fast-track regex and the lesson-recording classifier
+// share a single source of truth. Pre-fix the two inline regexes drifted
+// — the GoalDriver had "Cannot find module" coverage neither side, the
+// lesson side had "invalid|malformed" the goal side didn't, and the
+// v7.9.6 outpost trace's TypeError fell through both. Importing here
+// keeps the existing call sites stable and the public re-export at the
+// bottom keeps v778 / v779 contract tests passing. isStructuralFailure
+// is imported alongside classifyFailure so any future caller in this
+// file (e.g. a reflection short-circuit) can use the same predicate
+// without re-resolving the module.
+const { classifyFailure, isStructuralFailure } = require('../agency/failure-patterns');
 
 /**
  * Fire the `agent:goal-failed-classified` event.
@@ -281,6 +271,7 @@ function composeFailureMessage(result, stepCount) {
 
 module.exports = {
   classifyFailure,
+  isStructuralFailure,
   emitClassifiedEvent,
   recordReflection,
   reflectOnFailure,

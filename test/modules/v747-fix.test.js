@@ -234,7 +234,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { Settings } = require('../../src/agent/foundation/Settings');
     const settings = new Settings(tmpDir, null);
     const v = settings.get('trust.level');
-    assert(v === 1, `expected 1 (ASSISTED), got ${v}`);
+    assert(v === 1, `expected 1 (AUTONOMOUS), got ${v}`);
   });
 
   await test('#5 Settings defaults include agency.autoResumeGoals="ask"', () => {

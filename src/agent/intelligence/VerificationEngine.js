@@ -72,7 +72,48 @@ class VerificationEngine {
    */
   verify(type, step, result) {
     this._stats.total++;
-    const normalizedType = (type || '').toUpperCase();
+
+    // v7.9.7 P10: pre-execution skip. When the step never actually
+    // executed (e.g. P5's simulation hard-gate returns {success:false,
+    // error: 'High simulation risk ...'} before the executor sees the
+    // step), the result has an error string and no output/code/exitCode.
+    // Pre-fix the verifier ran every check against the abort message,
+    // marked every step FAIL, and the cumulative pass-rate dragged
+    // from 11% → 8% → 0% as more goals hit the gate. SHELL still
+    // carries exitCode so SHELL failures route normally; WRITE_FILE
+    // still hits its file-existence verifier.
+    const looksUnexecuted =
+      result
+      && typeof result.error === 'string'
+      && result.error.length > 0
+      && !result.output
+      && !result.code
+      && (result.exitCode === undefined || result.exitCode === null)
+      && !/timeout/i.test(result.error);
+    if (looksUnexecuted) {
+      this._stats.ambiguous = (this._stats.ambiguous || 0) + 1;
+      return {
+        status: AMBIGUOUS,
+        reason: `Step did not execute (pre-execution abort): ${(result.error || '').slice(0, 120)}`,
+        checks: [],
+      };
+    }
+
+    // v7.9.7 P10: route through normalizeStepType so the wider alias
+    // set (REFACTOR, IMPLEMENT, FIX, UPDATE, PATCH, ...) reaches
+    // CodeVerifier instead of falling to the default-AMBIGUOUS branch.
+    // Explicit pre-check preserves WRITE_FILE → FileVerifier (intent
+    // is file-existence, not code-content, so the alias mapping that
+    // flattens it to CODE shouldn't change the verifier branch).
+    const rawType = (type || '').toUpperCase();
+    let normalizedType = rawType;
+    if (rawType !== 'WRITE_FILE') {
+      try {
+        const { normalizeStepType } = require('../revolution/step-types');
+        const n = normalizeStepType(rawType);
+        if (n) normalizedType = n;
+      } catch (_e) { /* fall through with rawType */ }
+    }
 
     let verification;
     try {

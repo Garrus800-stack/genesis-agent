@@ -419,7 +419,16 @@ Recent errors: ${recentErrors.map(r => r.error).join('; ')}
 
 Should the plan be adjusted? If yes, provide new remaining steps.
 Respond with JSON: { "adjust": true/false, "reason": "why", "newSteps": [...] }
-If no adjustment needed: { "adjust": false }`;
+If no adjustment needed: { "adjust": false }
+
+Each step MUST be an object: { "type": "<TYPE>", "description": "<one short sentence>" }.
+Valid types: ANALYZE, CODE, SHELL, SANDBOX, SEARCH, ASK, DELEGATE.
+Bare strings or arrays are NOT valid step entries.
+
+Three worked examples:
+  { "type": "ANALYZE", "description": "Read src/agent/foundation/Settings.js to find the trust-level field" }
+  { "type": "CODE",    "description": "Add a default value for trust.level in Settings.getDefaults" }
+  { "type": "SHELL",   "description": "Run npm test to verify the change" }`;
 
     try {
       const response = await this.loop.model.chatStructured(prompt, [], 'analysis');
@@ -496,8 +505,23 @@ If no adjustment needed: { "adjust": false }`;
     const lessonsHint = this._buildLessonsHint(step);
     const knowledgeHint = this._buildKnowledgeHint(step);
 
+    // v7.9.7 P2 + EXT2 P2: module-path hint for code-producing steps. The planner
+    // already gives the LLM a goal-relevant module path list (via
+    // pickRelevantModules / formatModulePathList in plan-context), but each
+    // individual _stepCode call subsequently runs without that list in scope —
+    // the step-context contained recent results and lessons but no actual
+    // code-base file inventory. Live-Befund v7.9.7 outpost trace: every CODE
+    // step in "Research Activity Time Logging" emitted `require('../../core/Logger')`
+    // (a relative path that doesn't resolve). Sandbox.testPatch then blocked
+    // with "Read access blocked" or "Cannot find module". Adding a path-list
+    // block here gives the CODE step the same path grounding the planner had,
+    // with the core-infrastructure floor (Logger, EventBus, Container, etc.)
+    // always present. ANALYZE/SEARCH only get the hint when step.target looks
+    // like a real source file — see _buildPathHint.
+    const pathHint = this._buildPathHint(step);
+
     return `You are Genesis, executing step ${stepIndex + 1}/${allSteps.length} of an autonomous plan.
-${recentResults ? '\nRecent results:\n' + recentResults : ''}${consciousnessHint}${valueHint}${workspaceHint ? '\n' + workspaceHint : ''}${lessonsHint}${knowledgeHint}
+${recentResults ? '\nRecent results:\n' + recentResults : ''}${consciousnessHint}${valueHint}${workspaceHint ? '\n' + workspaceHint : ''}${lessonsHint}${knowledgeHint}${pathHint}
 Current step: ${step.type} — ${step.description}
 ${step.target ? 'Target: ' + step.target : ''}`;
   }
@@ -542,6 +566,47 @@ ${step.target ? 'Target: ' + step.target : ''}`;
       const block = kg.buildContext(query, 250);
       if (!block) return '';
       return `\n${block}`;
+    } catch (_e) {
+      return '';
+    }
+  }
+
+  /**
+   * v7.9.7 P2 / EXT2 P2: best-effort module-path block for code-producing
+   * steps. Returns '' for non-code steps that don't need it. Pulls the
+   * goal-relevant module list through the same pickRelevantModules helper
+   * the planner uses, then formats it as a labelled block. The list is
+   * bounded by pickRelevantModules (30 entries) and prefixed by the
+   * core-infrastructure floor (Logger, EventBus, Container, etc.) so
+   * the LLM always sees the real path to standard infra modules
+   * regardless of whether the goal's tokens happen to match them.
+   */
+  _buildPathHint(step) {
+    try {
+      if (!step) return '';
+      const { normalizeStepType } = require('./step-types');
+      const canonical = normalizeStepType(step.type) || step.type;
+      // Primary gate: CODE-class steps always get the hint.
+      const isCodeClass = canonical === 'CODE' || canonical === 'SANDBOX';
+      // ANALYZE/SEARCH get the hint only if the step's target looks like
+      // a real source file. "Analyse EventBus.js" benefits from the path
+      // list; "analyse the current situation" doesn't and shouldn't pay
+      // the prompt-budget cost.
+      const targetLooksLikeFile = typeof step.target === 'string' &&
+        /\.(js|jsx|ts|tsx|json|md|yml|yaml)$/i.test(step.target);
+      const isAnalyseClass = (canonical === 'ANALYZE' || canonical === 'SEARCH') && targetLooksLikeFile;
+      if (!isCodeClass && !isAnalyseClass) return '';
+
+      const selfModel = this.loop.selfModel || this.loop._selfModel;
+      if (!selfModel || typeof selfModel.getModuleSummary !== 'function') return '';
+      const allModules = selfModel.getModuleSummary() || [];
+      if (allModules.length === 0) return '';
+      const { pickRelevantModules, formatModulePathList } = require('./plan-context');
+      const goalDesc = this.loop._currentPlan?.title || step.description || '';
+      const picked = pickRelevantModules(allModules, goalDesc);
+      if (!picked || picked.length === 0) return '';
+      const block = formatModulePathList(picked);
+      return `\nAVAILABLE SOURCE MODULES (use these EXACT paths from project root; never invent relative paths):\n${block}`;
     } catch (_e) {
       return '';
     }

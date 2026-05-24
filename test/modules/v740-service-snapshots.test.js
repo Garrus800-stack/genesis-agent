@@ -30,7 +30,7 @@ describe('v7.4.0 — Settings.getRuntimeSnapshot', () => {
         openaiApiKey: 'sk-SECRET-OPENAI-987654321abcdef',
         ...overrides.models,
       },
-      trust: { level: 'ASSISTED', ...overrides.trust },
+      trust: { level: 'AUTONOMOUS', ...overrides.trust },
       ui: { language: 'de', ...overrides.ui },
     };
     return s;
@@ -41,7 +41,7 @@ describe('v7.4.0 — Settings.getRuntimeSnapshot', () => {
     const snap = s.getRuntimeSnapshot();
     assert.strictEqual(snap.backend, 'ollama');
     assert.strictEqual(snap.model, 'qwen2.5:7b');
-    assert.strictEqual(snap.trustLevel, 'ASSISTED');
+    assert.strictEqual(snap.trustLevel, 'AUTONOMOUS');
     assert.strictEqual(snap.language, 'de');
   });
 

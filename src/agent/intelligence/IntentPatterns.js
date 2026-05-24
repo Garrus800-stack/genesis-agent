@@ -247,7 +247,7 @@ const INTENT_DEFINITIONS = [
     /(?:set|change|ändere?|setze?).*trust/i,
     /(?:autonomie|autonomy).*(?:freigeb|enabl|erlaub|gewähr|grant)/i,
     /(?:freigabe|genehmig).*(?:selbst|self|autonom)/i,
-    /trust.*(?:assisted|autonomous|full|sandbox)/i,
+    /trust.*(?:supervised|autonomous|full)/i,
   ], 12, ['trust', 'vertrauen', 'stufe', 'level', 'autonomie', 'freigabe', 'genehmigung']],
 
   ['open-path', [

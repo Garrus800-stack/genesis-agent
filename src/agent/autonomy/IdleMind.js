@@ -341,9 +341,15 @@ class IdleMind {
         }
       } catch (e) { _log.debug('[IDLE-MIND] differentiated cost skipped:', e.message); }
 
+      // v7.9.7: split the previous `if (result)` gate. _recordActivity
+      // must run unconditionally so the Insights Timeline reflects what
+      // IdleMind actually picked, not just what produced a truthy output.
+      // Several activities (Reflect, Explore, Study, ReadSource, MCPExplore,
+      // SkillRehearsal, Inhabit) have legitimate `return null` paths and
+      // were silently missing from the counter pre-fix.
+      this._recordActivity(activity, result);
       if (result) {
         this._journal(activity, result);
-        this._recordActivity(activity, result);
 
         this.bus.fire('idle:thought-complete', { activity, summary: result.slice(0, 200) }, { source: 'IdleMind' });
 

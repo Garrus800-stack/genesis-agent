@@ -9,7 +9,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~119k LOC of JavaScript (CommonJS), 376 source modules, with zero external runtime frameworks. The manifest statically registers 165 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 178 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
+The codebase is ~119k LOC of JavaScript (CommonJS), 378 source modules, with zero external runtime frameworks. The manifest statically registers 165 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 178 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
 
 ---
 
@@ -1167,7 +1167,7 @@ Two files hold the write side: `SelfModificationPipeline.js` and the extracted w
 
 `VerificationEngine` runs the test suite at scopes matched to the change — `module` (the touched file's contract tests), `subsystem` (the layer's tests), or `full` (everything). Verification must pass before the write proceeds.
 
-`ApprovalGate` enforces the trust-level system. ASSISTED requires explicit user approval per modification. AUTONOMOUS allows execution within signed-off boundaries. SOVEREIGN allows broader autonomy but still records every modification.
+`ApprovalGate` enforces the trust-level system. SUPERVISED requires explicit user approval for every gated decision. AUTONOMOUS allows execution within signed-off boundaries and asks only for critical actions (deploy, external API, email). FULL_AUTONOMY never asks but still records every modification.
 
 `ModuleSigner` writes an HMAC-SHA256 signature over the new file content into `.genesis/module-signatures.json`. Boot checks the signature against the file hash on every restart; a mismatch refuses to load that module and surfaces a tamper warning.
 

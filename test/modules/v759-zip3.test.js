@@ -207,7 +207,7 @@ describe('v7.5.9 ZIP3 Phase 4a — Trust-gate + preview/execute decision', () =>
     assert(result.includes('SUPERVISED'), `expected SUPERVISED block, got: ${result}`);
   });
 
-  testAsync('trust 1 ASSISTED + allowAuto=false: preview-only', async () => {
+  testAsync('trust 1 AUTONOMOUS + allowAuto=false: preview-only', async () => {
     const h = makeHandler({ trust: 1, allowAuto: false });
     const result = await h.installSoftware('installiere git');
     // ZIP 5 reworded preview: now uses "Würde ausführen" + "Tier 1"
@@ -215,7 +215,7 @@ describe('v7.5.9 ZIP3 Phase 4a — Trust-gate + preview/execute decision', () =>
     assert(!result.includes('install git stdout'), 'must not have executed');
   });
 
-  testAsync('trust 2 AUTONOMOUS + allowAuto=false: still preview', async () => {
+  testAsync('trust 2 FULL_AUTONOMY + allowAuto=false: still preview', async () => {
     const h = makeHandler({ trust: 2, allowAuto: false, requireConfirm: true });
     const result = await h.installSoftware('installiere git');
     // Without allowAutoInstall, even trust 2 stays in preview mode.

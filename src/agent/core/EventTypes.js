@@ -47,6 +47,9 @@ const EVENTS = Object.freeze({
     /** v7.4.5 Baustein D: Loop aborted because parent parked on a fresh sub-goal */
     /** @payload {{ goalId: string, stepIndex: number, stepType: string, subId: string }} */
     BLOCKED_ON_SUBGOAL:   'agent-loop:blocked-on-subgoal',
+    /** v7.9.7 P5: simulation hard-gate aborted a retry pursuit (riskScore>=5 AND priorFailures>=1) */
+    /** @payload {{ goalId: string, riskScore: number, priorFailures: number, reason: string }} */
+    SIMULATION_ABORT:     'agent-loop:simulation-abort',
   }),
 
   // v5.2.0 (SA-P6): Working memory lifecycle
