@@ -85,8 +85,14 @@ async function main() {
     assert(shell0.status === PASS, 'Shell exit 0 → PASS');
     const shell1 = await ve.verify('SHELL', {}, { exitCode: 1, stderr: 'fail' });
     assert(shell1.status === FAIL, 'Shell exit 1 → FAIL');
-    const analyze = await ve.verify('ANALYZE', {}, {});
-    assert(analyze.status === AMBIGUOUS, 'ANALYZE → AMBIGUOUS');
+    // v7.9.9 final (revert of Fix 2): ANALYZE empty-output → AMBIGUOUS, not FAIL.
+    // Field-test 2026-05-24 showed Fix 2's strict-en dropped pass-rate to 2%;
+    // structured outputs were misclassified as "empty". LLM goal-completion
+    // evaluator judges actual content against the goal.
+    const analyzeEmpty = await ve.verify('ANALYZE', {}, {});
+    assert(analyzeEmpty.status === AMBIGUOUS, 'ANALYZE with empty output → AMBIGUOUS');
+    const analyze = await ve.verify('ANALYZE', {}, { output: 'Found three high-coupling modules' });
+    assert(analyze.status === AMBIGUOUS, 'ANALYZE with content → AMBIGUOUS');
     const fileOk = await ve.verify('WRITE_FILE', { target: 'package.json' }, {});
     assert(fileOk.status === PASS, 'Existing file → PASS');
     const fileMiss = await ve.verify('WRITE_FILE', { target: 'nonexistent-xyz.js' }, {});

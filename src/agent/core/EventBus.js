@@ -436,6 +436,14 @@ class EventBus {
     // Skip wildcard subscriptions and internal events
     if (event.endsWith('*')) return;
 
+    // v7.9.9 Fix 5: skip dynamic-prefix events. These are runtime-constructed
+    // (e.g. `frontier:${name}:written`, `store:${type}`) and are whitelisted in
+    // audit-events.js DYNAMIC_PATTERNS. Without this skip, every FrontierWriter
+    // shutdown emit produces a runtime [EVENT:DEV] Unknown event warning that
+    // confused the v7.9.8 outpost trace and obscured real schema drift. Keep
+    // this list in sync with scripts/audit-events.js#DYNAMIC_PATTERNS.
+    if (event.startsWith('frontier:') || event.startsWith('store:')) return;
+
     const known = _loadKnownEvents();
     if (known.size === 0) return; // Catalog not loaded
 

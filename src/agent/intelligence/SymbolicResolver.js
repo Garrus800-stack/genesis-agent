@@ -53,8 +53,21 @@ const DEFAULTS = Object.freeze({
   directMinUses: 3,
   /** Maximum age in days for DIRECT resolution */
   directMaxAgeDays: 7,
-  /** Minimum confidence for GUIDED resolution */
-  guidedThreshold: 0.50,
+  /** Minimum confidence for GUIDED resolution.
+   *  v7.9.9 Fix 2: raised 0.50 → 0.75. The v7.9.8 Win trace showed every
+   *  step picking up the same `plan-failure-reflection` lesson at ~60% confidence
+   *  ("Goal X failed (structural)") and routing it as AVOID-past-failure into
+   *  unrelated current goals. 0.50 admits noise; 0.75 keeps only strong
+   *  matches that genuinely apply to the current context. */
+  guidedThreshold: 0.75,
+  /** Maximum age in days for any GUIDED lesson — older lessons go stale.
+   *  v7.9.9 Fix 2: anything older than 14 days is auto-discarded. */
+  guidedMaxAgeDays: 14,
+  /** Maximum AVOID-past-failure lessons that may be injected per pursuit.
+   *  v7.9.9 Fix 2: cap at 1. Pre-fix, every step (ANALYZE → SEARCH → CODE_GENERATE
+   *  → CODE) received its own AVOID warning, six in a row, which paralysed the
+   *  LLM into producing no code-block at all. One warning per pursuit is enough. */
+  maxAvoidLessonsPerPursuit: 1,
   /** Action types that can NEVER be DIRECT (too risky) */
   neverDirect: ['CODE', 'SELF_MODIFY', 'DELEGATE', 'SANDBOX'],
   /** Action types eligible for DIRECT execution */
@@ -89,6 +102,20 @@ class SymbolicResolver {
       directSuccesses: 0,
       directFailures: 0,
     };
+
+    // v7.9.9 Fix 1: per-pursuit AVOID-lesson counter. Pre-fix every step in
+    // a pursuit got its own AVOID warning from the same stale plan-failure-
+    // reflection lesson, paralysing the LLM. Reset on every pursuit-start
+    // event. Counter is consulted in resolve() — if already at the cap
+    // (DEFAULTS.maxAvoidLessonsPerPursuit), further AVOID lessons are dropped.
+    this._avoidCountThisPursuit = 0;
+    if (this.bus && typeof this.bus.on === 'function') {
+      try {
+        this.bus.on('agent-loop:starting-pursuit', () => {
+          this._avoidCountThisPursuit = 0;
+        }, { source: 'SymbolicResolver' });
+      } catch (_e) { /* event subscription optional */ }
+    }
   }
 
   // ════════════════════════════════════════════════════════════
@@ -96,12 +123,32 @@ class SymbolicResolver {
   // ════════════════════════════════════════════════════════════
 
   /**
+   * v7.9.9 Fix 1: tokenise a goal description for affinity matching.
+   * Mirrors the tokeniser in activities/Plan.js — same stopwords, same
+   * minimum length. Used to compare currentGoal vs lesson.strategy.goalDescription.
+   * @private
+   * @param {string} s
+   * @returns {Set<string>}
+   */
+  _tokenise(s) {
+    const STOPWORDS = new Set([
+      'activity', 'activities', 'error', 'errors', 'improve', 'improvement',
+      'handle', 'handling', 'system', 'method', 'feature', 'function',
+      'process', 'general', 'better', 'support', 'enable', 'allow',
+      'with', 'from', 'into', 'goal', 'failed', 'add', 'check',
+    ]);
+    return new Set(String(s || '').toLowerCase()
+      .replace(/[^a-z0-9äöüß]+/g, ' ').split(/\s+/)
+      .filter(t => t.length >= 4 && !STOPWORDS.has(t)));
+  }
+
+  /**
    * Attempt to resolve a step without (or with reduced) LLM usage.
    *
    * @param {string} stepType    - ANALYZE, CODE, SHELL, etc.
    * @param {string} description - Step description from FormalPlanner
    * @param {string} [target]    - Target file or command
-   * @param {object} [context]   - Additional context { model, error, goalId }
+   * @param {object} [context]   - Additional context { model, error, goalId, goalDescription }
    * @returns {{ level: string, lesson?: object, schema?: object, directive?: string, confidence: number }}
    */
   resolve(stepType, description, target, context = {}) {
@@ -173,20 +220,47 @@ class SymbolicResolver {
     }
 
     // ── GUIDED: inject as directive ────────────────────────
+    // v7.9.9 Fix 1: classify and filter BEFORE building the directive.
+    // AVOID-class lessons need (a) goal-affinity to the current pursuit
+    // and (b) the per-pursuit counter to be below the cap. Without these
+    // gates, every step in every pursuit received the same stale failure-
+    // lesson as an AVOID warning, paralysing the LLM.
+    const isPredictionLesson = bestLesson && (
+      bestLesson.source === 'plan-failure-reflection' ||
+      ['structural', 'execution', 'external', 'user-action', 'unclassified', 'causal-suspicion'].includes(bestLesson.strategy?.classification)
+    );
+
+    if (isPredictionLesson) {
+      // (a) Recency gate — drop lessons older than guidedMaxAgeDays.
+      const ageDays = (Date.now() - (bestLesson.lastUsed || bestLesson.createdAt || 0)) / (1000 * 60 * 60 * 24);
+      if (ageDays > this._config.guidedMaxAgeDays) {
+        return this._pass(`avoid-lesson stale (${ageDays.toFixed(0)} days old)`, stepType);
+      }
+      // (b) Goal-affinity gate — only apply this lesson if the current
+      //     goal shares ≥2 non-stopword tokens with the lesson's original
+      //     goal-description. Otherwise it's a cross-goal contamination.
+      const currentGoalDesc = context.goalDescription || '';
+      const lessonGoalDesc = bestLesson.strategy?.goalDescription || '';
+      if (currentGoalDesc && lessonGoalDesc) {
+        const currentTokens = this._tokenise(currentGoalDesc);
+        const lessonTokens = this._tokenise(lessonGoalDesc);
+        let overlap = 0;
+        for (const t of currentTokens) if (lessonTokens.has(t)) overlap++;
+        if (overlap < 2) {
+          return this._pass(`avoid-lesson goal-affinity too low (${overlap} tokens overlap)`, stepType);
+        }
+      }
+      // (c) Per-pursuit counter — only the first N AVOID-lessons pass.
+      if (this._avoidCountThisPursuit >= this._config.maxAvoidLessonsPerPursuit) {
+        return this._pass(`avoid-lesson cap reached (${this._avoidCountThisPursuit} this pursuit)`, stepType);
+      }
+      this._avoidCountThisPursuit++;
+    }
+
     const directive = this._buildDirective(bestLesson, bestSchema);
     this._stats.guidedHits++;
 
-    // v7.9.8 Fix 8: differentiate the GUIDED log-line between PROVEN-approach
-    // lessons and AVOID-this-failed lessons. Pre-fix the log only showed the
-    // first 60 chars of `lesson.insight`, which for plan-failure-reflection
-    // lessons reads "Goal failed (structural): <past goal name>" — readers
-    // of the log mistook this for the currently-running goal's name, which
-    // was confusing in Win-traces where lessons from earlier pursuits showed
-    // up in later, semantically-similar pursuits. The marker makes the
-    // re-use explicit.
-    const isPredictionLesson =
-      bestLesson?.source === 'plan-failure-reflection' ||
-      ['structural', 'execution', 'external', 'user-action', 'unclassified', 'causal-suspicion'].includes(bestLesson?.strategy?.classification);
+    // v7.9.8 Fix 8: GUIDED log marker — AVOID-past-failure vs proven-approach.
     const lessonMarker = isPredictionLesson ? 'AVOID-past-failure' : 'proven-approach';
     const insightSnippet = bestSource?.insight?.slice(0, 60) || bestSource?.name || '?';
     _log.info(`[SYMBOLIC] GUIDED "${stepType}" [${lessonMarker}] — ${insightSnippet} (conf=${(bestConf * 100).toFixed(0)}%)`);

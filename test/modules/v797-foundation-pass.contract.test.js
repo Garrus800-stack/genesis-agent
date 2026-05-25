@@ -468,28 +468,33 @@ test('EXT P5: AgentLoop has _pursuitAttempts map for retry tracking', () => {
 test('EXT P5: AgentLoopPursuitGate hard-gates simulation on retry with high risk', () => {
   // v7.9.7-fix (P5/P5b): logic extracted to AgentLoopPursuitGate.js to keep
   // AgentLoopPursuit.js under the 700-LOC File-Size-Guard threshold.
+  // v7.9.9 Fix 5: full abort sequence further extracted to handleHardGateAbort
+  // helper (sets up Fix 4 trust-level dispatch). pursuit now dispatches to the
+  // helper rather than calling shouldAbortOnRisk directly.
   const gateSrc = fs.readFileSync(
     path.join(ROOT, 'src/agent/revolution/AgentLoopPursuitGate.js'), 'utf8');
   assert(/HIGH_RISK_THRESHOLD\s*=\s*5\.0/.test(gateSrc),
     'AgentLoopPursuitGate must define HIGH_RISK_THRESHOLD at 5.0');
   assert(/shouldAbortOnRisk/.test(gateSrc),
     'AgentLoopPursuitGate must export shouldAbortOnRisk');
-  // Pursuit must call the gate and act on a true result.
+  assert(/function handleHardGateAbort/.test(gateSrc),
+    'AgentLoopPursuitGate must define handleHardGateAbort (v7.9.9 Fix 5 extraction)');
+  // Pursuit must call the gate helper and act on a true result.
   const pursuitSrc = fs.readFileSync(
     path.join(ROOT, 'src/agent/revolution/AgentLoopPursuit.js'), 'utf8');
-  assert(/shouldAbortOnRisk\(cogResult,\s*priorFailures\)/.test(pursuitSrc),
-    'pursue() must call shouldAbortOnRisk(cogResult, priorFailures)');
-  assert(/aborting/i.test(pursuitSrc),
-    'pursue() must log an aborting message on high-risk retry, not just warn');
+  assert(/handleHardGateAbort\(this,\s*cogResult/.test(pursuitSrc),
+    'pursue() must dispatch to handleHardGateAbort with this and cogResult');
+  assert(/aborting/i.test(pursuitSrc) || /aborting/i.test(gateSrc),
+    'hard-gate path must log an aborting message on high-risk retry');
 });
 
 // ── P6 — ContinuationLoop max raised ──
 
-test('EXT P6: MAX_CONTINUATIONS_DEFAULT raised to 6', () => {
+test('EXT P6: MAX_CONTINUATIONS_DEFAULT raised (v7.9.7 P6: 4 → 6)', () => {
   const { MAX_CONTINUATIONS_DEFAULT } = require(
     path.join(ROOT, 'src/agent/foundation/backends/ContinuationLoop'));
   assertEqual(MAX_CONTINUATIONS_DEFAULT, 6,
-    'MAX_CONTINUATIONS_DEFAULT must be 6 (was 4, too low for code-with-manifest)');
+    'MAX_CONTINUATIONS_DEFAULT must be 6 (v7.9.7 P6 — covers long-manifest LLM outputs)');
 });
 
 // ── P7 — CausalAnnotation behavioural consequence + dedup ──
@@ -640,22 +645,21 @@ test('EXT2 P5: simulation hard-gate cleans up this.running before returning, pre
   // v7.9.7-fix (P5b): cleanup centralised in AgentLoopPursuitGate.cleanupAfterAbort.
   // v7.9.8 Fix 5: counter delete REMOVED so retry-with-high-risk stays gated
   // across consecutive pursuits (Win trace showed deterministic loss otherwise).
+  // v7.9.9 Fix 5: full abort sequence (including cleanupAfterAbort) lives in
+  // handleHardGateAbort helper — pursue() dispatches to it.
   const gateSrc = fs.readFileSync(
     path.join(ROOT, 'src/agent/revolution/AgentLoopPursuitGate.js'), 'utf8');
   assert(/loop\.running\s*=\s*false/.test(gateSrc),
     'cleanupAfterAbort must reset running');
   assert(/clearGlobalTimeout\(\)/.test(gateSrc),
     'cleanupAfterAbort must clear the global timeout');
-  // v7.9.8 Fix 5: counter delete must NOT happen here. Only the success-path
-  // delete in AgentLoopPursuit.js may clear it.
   assert(!/_pursuitAttempts\.delete\(abortedGoalId\)/.test(gateSrc),
     'cleanupAfterAbort must NOT delete the attempts counter (v7.9.8 Fix 5)');
-  // Pursuit must actually invoke the cleanup before its high-risk return.
-  const pursuitSrc = fs.readFileSync(
-    path.join(ROOT, 'src/agent/revolution/AgentLoopPursuit.js'), 'utf8');
-  const window = pursuitSrc.split(/shouldAbortOnRisk\(cogResult/)[1] || '';
-  assert(/cleanupAfterAbort\(/.test(window.split(/return\s*\{\s*success:\s*false/)[0] || ''),
-    'pursue() must call cleanupAfterAbort BEFORE the high-risk-failure return');
+  // The handleHardGateAbort helper must invoke cleanupAfterAbort before returning aborted: true.
+  const hardGateBlock = gateSrc.split(/function handleHardGateAbort/)[1] || '';
+  const beforeAbortReturn = hardGateBlock.split(/return\s*\{\s*aborted:\s*true/)[0] || '';
+  assert(/cleanupAfterAbort\(/.test(beforeAbortReturn),
+    'handleHardGateAbort must call cleanupAfterAbort BEFORE returning aborted:true');
 });
 
 test('EXT2 P2: new step-type aliases REFACTOR/IMPLEMENT/FIX/UPDATE/PATCH normalise to CODE', () => {

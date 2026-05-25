@@ -47,9 +47,21 @@ const EVENTS = Object.freeze({
     /** v7.4.5 Baustein D: Loop aborted because parent parked on a fresh sub-goal */
     /** @payload {{ goalId: string, stepIndex: number, stepType: string, subId: string }} */
     BLOCKED_ON_SUBGOAL:   'agent-loop:blocked-on-subgoal',
+    /** v7.9.9 Fix 1: pursuit-start signal (SymbolicResolver per-pursuit counter reset) */
+    /** @payload {{ goalDescription: string, goalId: string|null }} */
+    STARTING_PURSUIT:     'agent-loop:starting-pursuit',
     /** v7.9.7 P5: simulation hard-gate aborted a retry pursuit (riskScore>=5 AND priorFailures>=1) */
     /** @payload {{ goalId: string, riskScore: number, priorFailures: number, reason: string }} */
     SIMULATION_ABORT:     'agent-loop:simulation-abort',
+    /** v7.9.9 Fix 5: Reflexion-style detector fired — last 3 step-hashes identical for this goal */
+    /** @payload {{ goalId: string, stepHash: string, repeatCount: number }} */
+    NO_PROGRESS_DETECTED: 'agent-loop:no-progress-detected',
+    /** v7.9.9 Fix 5: pursuit-start hash matches previous attempt's plan hash for same goalId */
+    /** @payload {{ goalId: string, planHash: string }} */
+    IDENTICAL_PLAN_DETECTED: 'agent-loop:identical-plan-detected',
+    /** v7.9.9 Fix 3: 2nd strike on (goalId, stepIndex, errorClass) — spawning investigative sub-goal */
+    /** @payload {{ goalId: string, stepIndex: number, errorClass: string, strikes: number }} */
+    DECOMPOSE_ON_FAILURE: 'agent-loop:decompose-on-failure',
   }),
 
   // v5.2.0 (SA-P6): Working memory lifecycle
@@ -1074,6 +1086,9 @@ const EVENTS = Object.freeze({
   // ── Verification ───────────────────────────────────────
   VERIFICATION: Object.freeze({
     COMPLETE: 'verification:complete',
+    /** v7.9.9 Fix 2: VerificationEngine encountered an unknown step type (catalog mismatch) */
+    /** @payload {{ stepType: string, stepDescription: string }} */
+    UNKNOWN_STEP_TYPE: 'verification:unknown-step-type',
   }),
 
   // ── Web ────────────────────────────────────────────────

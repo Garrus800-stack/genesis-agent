@@ -56,9 +56,9 @@ test('R1: ASSISTED is gone from the source', () => {
   assert(/_migrateLevel/.test(src), 'TrustLevelSystem must export _migrateLevel');
 });
 
-test('R1: _migrateLevel(0..3) maps correctly', () => {
+test('R1: _migrateLevel(0..3) maps correctly (v7.9.9 A: ASSISTED → SUPERVISED rebucket)', () => {
   assertEqual(TrustLevelSystem._migrateLevel(0), 0, '0 stays SUPERVISED');
-  assertEqual(TrustLevelSystem._migrateLevel(1), 1, '1 stays at index 1 (was ASSISTED, now AUTONOMOUS)');
+  assertEqual(TrustLevelSystem._migrateLevel(1), 0, 'v7.9.9 (A): 1 (ASSISTED) → 0 (SUPERVISED) — safer-default rebucket');
   assertEqual(TrustLevelSystem._migrateLevel(2), 1, '2 collapses to AUTONOMOUS (was AUTONOMOUS, now index 1)');
   assertEqual(TrustLevelSystem._migrateLevel(3), 2, '3 maps to FULL_AUTONOMY (was FULL, now index 2)');
 });

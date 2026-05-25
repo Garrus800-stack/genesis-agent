@@ -146,7 +146,14 @@ class VerificationEngine {
         case 'ANALYZE':
         case 'SEARCH':
         case 'ASK':
-          // These are inherently subjective — always ambiguous
+          // ANALYZE/SEARCH/ASK are inherently content-producing or user-driven
+          // steps with no deterministic verifier. v7.9.9 Fix 2 tried to FAIL
+          // empty output here but field-test showed verification-pass-rate
+          // dropped to 2% — the empty-detection was too aggressive (matched
+          // structured outputs the verifier didn't recognize as content).
+          // Returning AMBIGUOUS lets the LLM-driven goal-completion evaluator
+          // judge the actual content against the goal; the per-pursuit
+          // recovery path handles real failures via FailureTaxonomy.
           verification = {
             status: AMBIGUOUS,
             reason: `Step type "${normalizedType}" requires LLM evaluation`,
@@ -154,7 +161,25 @@ class VerificationEngine {
           };
           break;
 
+        case 'DELEGATE':
+          // Colony delegation — content evaluation deferred to LLM goal-check.
+          // Same reasoning as ANALYZE/SEARCH above.
+          verification = {
+            status: AMBIGUOUS,
+            reason: 'DELEGATE result requires LLM evaluation against goal',
+            checks: [],
+          };
+          break;
+
         default:
+          // v7.9.9 Fix 2: unknown step-type emits telemetry so the catalog
+          // mismatch is visible in the dashboard rather than silently AMBIGUOUS.
+          try {
+            this.bus?.fire?.('verification:unknown-step-type', {
+              stepType: normalizedType,
+              stepDescription: (step?.description || '').slice(0, 120),
+            }, { source: 'VerificationEngine' });
+          } catch (_e) { /* never let telemetry break the verifier */ }
           verification = {
             status: AMBIGUOUS,
             reason: `Unknown step type "${normalizedType}"`,

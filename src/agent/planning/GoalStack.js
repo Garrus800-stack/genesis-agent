@@ -86,6 +86,19 @@ class GoalStack {
     const _exe = /** @type {import('./GoalStackExecution').GoalStackExecutionMixin} */ (/** @type {any} */ (this));
     const steps = await _exe._decompose(description);
 
+    // v7.9.9 Fix 1 Stage B: idle-mind goals with code-modification steps are refused.
+    // The LLM passes Stage A's verb whitelist but the decomposition produced CODE
+    // or SANDBOX steps anyway. No verifier can complete code-mod from a research
+    // verb context, so the goal would just stall. Sub-goals (goal-decomposition
+    // source) and user goals are exempt — they have explicit responsibility paths.
+    if (source === 'idle-mind' && Array.isArray(steps)) {
+      const blockedTypes = steps.filter(s => s && (s.type === 'CODE' || s.type === 'SANDBOX'));
+      if (blockedTypes.length > 0) {
+        _log.info(`[GOAL-GATE] Refused idle-mind goal "${(description || '').slice(0, 60)}" — decomposition contains ${blockedTypes.length} CODE/SANDBOX step(s)`);
+        return null;
+      }
+    }
+
     const goal = {
       id: `goal_${Date.now()}_${++this._idSeq}`,
       description,

@@ -114,13 +114,20 @@ class TrustLevelSystem {
 
     const cfg = config || {};
     // FIX v7.0.8: Use ?? instead of || — level 0 (SUPERVISED) is valid.
-    // Previously, cfg.level=0 was falsy → fell back to default.
     // v7.9.8: fresh installs default to SUPERVISED (was AUTONOMOUS).
-    // User-Settings are sacred — existing stored values are loaded in
-    // asyncLoad and respected. Higher trust is an explicit opt-in by
-    // the user, not a default. For a self-modifying public-repo agent
-    // this protects new clones from ever auto-approving anything.
-    this._level = TrustLevelSystem._migrateLevel(cfg.level ?? TRUST_LEVELS.SUPERVISED);
+    // v7.9.9 (A): cfg.level in the valid 3-level range (0..2) is trusted
+    // as-is. _migrateLevel is for STORED 4-level values (asyncLoad path),
+    // not for caller-supplied config — callers pass TRUST_LEVELS.* constants
+    // which are already in the new system. Out-of-range / corrupt cfg.level
+    // still routes through _migrateLevel (which clamps to SUPERVISED).
+    const cfgLevel = cfg.level;
+    if (typeof cfgLevel === 'number' && cfgLevel >= 0 && cfgLevel <= 2) {
+      this._level = cfgLevel;
+    } else if (cfgLevel === undefined || cfgLevel === null) {
+      this._level = TRUST_LEVELS.SUPERVISED;
+    } else {
+      this._level = TrustLevelSystem._migrateLevel(cfgLevel);
+    }
     this._actionOverrides = {}; // Per-action trust overrides
 
     // ── Upgrade suggestions (pending user confirmation) ──
@@ -143,9 +150,13 @@ class TrustLevelSystem {
 
   /**
    * v7.9.7: Migrate a stored 4-level trust value to the new 3-level system.
+   * v7.9.9 (A): ASSISTED users move to SUPERVISED (was AUTONOMOUS in v7.9.7).
+   * Re-bucketing toward the safer default — "ask for risky" no longer exists
+   * as a level, so users who chose that explicitly now ask for everything,
+   * not the opposite of what they wanted.
    *
    *   Old 0 SUPERVISED → New 0 SUPERVISED       (unchanged)
-   *   Old 1 ASSISTED   → New 1 AUTONOMOUS       (slightly more autonomy)
+   *   Old 1 ASSISTED   → New 0 SUPERVISED       (v7.9.9: safer-default rebucket)
    *   Old 2 AUTONOMOUS → New 1 AUTONOMOUS       (same behaviour, new index)
    *   Old 3 FULL       → New 2 FULL_AUTONOMY    (same behaviour, new index)
    *
@@ -159,7 +170,7 @@ class TrustLevelSystem {
   static _migrateLevel(level) {
     if (typeof level !== 'number' || !Number.isFinite(level)) return TRUST_LEVELS.SUPERVISED;
     if (level === 0) return TRUST_LEVELS.SUPERVISED;
-    if (level === 1) return TRUST_LEVELS.AUTONOMOUS;       // was ASSISTED → AUTONOMOUS
+    if (level === 1) return TRUST_LEVELS.SUPERVISED;       // v7.9.9 (A): was ASSISTED → SUPERVISED (safer rebucket)
     if (level === 2) return TRUST_LEVELS.AUTONOMOUS;       // was AUTONOMOUS → still AUTONOMOUS (new index)
     if (level === 3) return TRUST_LEVELS.FULL_AUTONOMY;    // was FULL → FULL (new index)
     // Out of range — clamp to safest default (v7.9.8)

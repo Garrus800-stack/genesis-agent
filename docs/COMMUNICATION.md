@@ -39,8 +39,8 @@ EmotionalState ──emit('emotion:shift')──→ EventBus ──→ PromptBui
 
 Key properties:
 
-- **484 event types** catalogued in `EventTypes.js` (v7.9.8 baseline)
-- **484 payload schemas** in `EventPayloadSchemas.js` — full parity since v7.6.x (every catalog entry has a registered schema); dev-mode validation throws on mismatch
+- **489 event types** catalogued in `EventTypes.js` (v7.9.9 baseline)
+- **489 payload schemas** in `EventPayloadSchemas.js` — full parity since v7.6.x (every catalog entry has a registered schema); dev-mode validation throws on mismatch
 - **Ring buffer history** — last 500 events for debugging
 - **Source tracking** — every event carries `{ source: 'ModuleName' }` for audit
 - **Listener leak detection** — warns when >5 listeners on one event

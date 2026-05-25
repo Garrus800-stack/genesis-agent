@@ -152,6 +152,23 @@ class IntentRouter {
       return { type: 'general', confidence: 0.95, stage: 'conversational-greeting' };
     }
 
+    // v7.9.9 (B): Extended introduction — greeting prefix followed by narrative
+    // identity or relational framing, with no action verb. Catches patterns the
+    // pure-greeting regex above misses because text continues after the greeting:
+    //   "Hallo Genesis, ich bin Daniel. Ich muss dir Status geben..."
+    //   "Hi Genesis, du bist ein autonomer Agent..."
+    // Pre-fix these classified as goals; FormalPlanner decomposed them into
+    // multi-step code-modification plans. Now they route as general chat.
+    const startsWithGreeting = /^(hi|hallo|moin|hey|servus|guten\s+(morgen|tag|abend))[\s,!?.]/i.test(trimmed);
+    if (startsWithGreeting && trimmed.length < 1000) {
+      const hasIdentityStatement = /\b(ich\s+(bin|hei[ßs]e)|i\s+am|my\s+name\s+is)\b/i.test(trimmed);
+      const hasRelationalFraming = /\b(du\s+bist|you\s+are|wir\s+(arbeiten|haben|sind)|we\s+(work|have))\b/i.test(trimmed);
+      const hasActionVerb = /\b(fix|refactor|implement|build|create|erstell|baue|repariere|implementier|f[üu]ge.*hinzu|[äa]ndere|change|deploy|push|commit|run|execute|start|stop|delete|remove|install|update|migrate|integrate)\b/i.test(trimmed);
+      if ((hasIdentityStatement || hasRelationalFraming) && !hasActionVerb) {
+        return { type: 'general', confidence: 0.9, stage: 'conversational-extended-greeting' };
+      }
+    }
+
     // Pure reactions / confirmations
     if (/^(ja|nein|ok|okay|verstehe|danke|genau|stimmt|kein\s+problem|alles\s+klar)[\s!?.]*$/i.test(trimmed)) {
       return { type: 'general', confidence: 0.95, stage: 'conversational-reaction' };

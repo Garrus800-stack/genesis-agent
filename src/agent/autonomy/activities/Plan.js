@@ -8,8 +8,37 @@
 
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { createLogger } = require('../../core/Logger');
 const _log = createLogger('IdleMind');
+
+// v7.9.9 Fix 3: extract src-path-like tokens from a goal title/description
+// and verify they exist in the realPaths catalogue or on disk. Pre-fix
+// IdleMind/Plan generated goals referencing non-existent files (e.g.
+// "Enhance Calibration Activity with Sensor Diagnostics" referenced
+// src/agent/autonomy/activities/SensorDiagnostics.js which never existed),
+// leading to 15-min stall-watchdog waits. The check rejects only the
+// hallucination case (path mentioned, not in catalogue, not on disk).
+// "Create new module Foo.js" without a concrete src/ path passes through —
+// it's a legitimate new-file goal, not a hallucinated reference.
+const _PATH_REGEX = /(?:src|test|scripts)\/[a-zA-Z0-9_\-/]+\.(?:js|ts|json|md)\b/g;
+function _hasHallucinatedPaths(text, realPathsList, rootDir) {
+  if (!text || !rootDir) return false;
+  const matches = String(text).match(_PATH_REGEX) || [];
+  if (matches.length === 0) return false;
+  const realSet = new Set((realPathsList || '').split('\n').map(p => p.trim()).filter(Boolean));
+  for (const ref of matches) {
+    const normRef = ref.replace(/\\/g, '/');
+    if (realSet.has(normRef)) continue;          // in catalogue → ok
+    try {
+      const abs = path.join(rootDir, normRef);
+      if (fs.existsSync(abs)) continue;          // exists on disk → ok
+    } catch (_e) { /* fall through to hallucination */ }
+    return normRef;                              // hallucinated → return the bad path
+  }
+  return false;
+}
 
 // v7.9.7 P15: extended stopwords for goal-token-overlap dedup. Pre-fix
 // the tokeniser only filtered tokens shorter than 4 chars; it didn't
@@ -29,6 +58,27 @@ const _STOPWORDS = new Set([
   'better', 'support',
   'enable', 'allow',
 ]);
+
+// v7.9.9 Fix 1 (Stage A): allowed leading verbs for IdleMind goals. Closed
+// whitelist — anything outside this set is refused. Catches paraphrased
+// blacklist verbs ("Make X better", "Strengthen Y") that an explicit
+// blacklist would miss. Only verbs that map to read-only or
+// verification-capable activities are allowed; code-modification verbs
+// (Improve, Refactor, Implement, Build, Add, Fix, Optimize) are
+// implicitly refused by being absent from this set.
+const _ALLOWED_VERBS = new Set([
+  'document', 'reflect', 'summarise', 'summarize', 'research',
+  'test', 'verify', 'list', 'compare', 'investigate',
+  'map', 'index', 'explore', 'catalog', 'catalogue', 'inspect',
+]);
+
+function _extractLeadingVerb(title) {
+  if (!title || typeof title !== 'string') return null;
+  // Strip leading punctuation / brackets, take first alphabetic token.
+  const match = title.trim().match(/^[\[\(\{"'`*]*([A-Za-z]+)/);
+  if (!match) return null;
+  return match[1].toLowerCase();
+}
 
 module.exports = {
   name: 'plan',
@@ -69,7 +119,7 @@ module.exports = {
       .map(g => `- ${(g.description || '').slice(0, 80)} [${g.status}]`)
       .join('\n');
 
-    const prompt = `You are Genesis. Propose ONE concrete, verifiable improvement.\n\nReal source files you can reference (use EXACTLY these paths, do not invent):\n${realPaths}\n\nYour capabilities: ${caps.join(', ')}\n${existingPlans.length ? 'Previous plans:\n' + existingPlans.map(p => `- ${p.title}: ${p.status}`).join('\n') : ''}\n${recentFailed ? '\nRecently FAILED goals (do NOT propose similar ones — they are obsolete):\n' + recentFailed : ''}\n\nRules:\n- Pick a SMALL, concrete improvement (not an abstract meta-system).\n- Reference ONLY real files from the list above.\n- The improvement must be verifiable in <= 3 steps.\n- If you cannot find a small concrete improvement, output: TITLE: SKIP\n\nFormat:\nTITLE: [Short name, or SKIP if no concrete idea]\nPRIORITY: [high/medium/low]\nEFFORT: [small/medium/large]\nDESCRIPTION: [What exactly should be improved, max 3 sentences]\nFIRST_STEP: [The very first concrete step, referencing a real file]`;
+    const prompt = `You are Genesis. Propose ONE concrete, verifiable activity that fits your current capabilities.\n\nReal source files you can reference (use EXACTLY these paths, do not invent):\n${realPaths}\n\nYour capabilities: ${caps.join(', ')}\n${existingPlans.length ? 'Previous plans:\n' + existingPlans.map(p => `- ${p.title}: ${p.status}`).join('\n') : ''}\n${recentFailed ? '\nRecently FAILED goals (do NOT propose similar ones — they are obsolete):\n' + recentFailed : ''}\n\nRules:\n- Pick a SMALL, concrete activity (not an abstract meta-system).\n- TITLE must start with one of these verbs: Document, Reflect, Summarise, Research, Test, Verify, List, Compare, Investigate, Map, Index, Explore, Catalog, Inspect.\n- Reference ONLY real files from the list above.\n- The activity must be verifiable in <= 3 steps.\n- If you cannot find a small concrete activity, output: TITLE: SKIP\n\nFormat:\nTITLE: [Verb + short name, or SKIP if no concrete idea]\nPRIORITY: [high/medium/low]\nEFFORT: [small/medium/large]\nDESCRIPTION: [What exactly should be done, max 3 sentences]\nFIRST_STEP: [The very first concrete step, referencing a real file]`;
 
     const thought = await idleMind.model.chat(prompt, [], 'analysis');
 
@@ -82,6 +132,17 @@ module.exports = {
       // skip empty/single-word abstract titles.
       if (/^skip$/i.test(title)) {
         _log.info('[IDLE-MIND] Plan: LLM returned SKIP — no concrete improvement found');
+        return thought;
+      }
+
+      // v7.9.9 Fix 1 Stage A: closed verb whitelist. If the title doesn't
+      // begin with a whitelisted activity verb, refuse the goal before any
+      // further processing. Catches paraphrased non-actionable verbs
+      // ("Improve", "Make X better", "Enhance", "Strengthen") that the LLM
+      // produces under the "improvement" framing of the old prompt.
+      const leadingVerb = _extractLeadingVerb(title);
+      if (!leadingVerb || !_ALLOWED_VERBS.has(leadingVerb)) {
+        _log.info(`[IDLE-MIND] Plan: skipping non-actionable verb: "${leadingVerb || '<none>'}" in title "${title.slice(0, 60)}"`);
         return thought;
       }
 
@@ -105,6 +166,16 @@ module.exports = {
       }
       if (_maxOverlap >= 2) {
         _log.info(`[IDLE-MIND] Plan: skipping "${title.slice(0, 50)}" — ${_maxOverlap} tokens overlap with recent failures`);
+        return thought;
+      }
+
+      // v7.9.9 Fix 3: reject goals that reference non-existent src/ paths.
+      // The LLM is told "use EXACTLY these paths" but ignores it. Pre-fix
+      // this produced 15-min stall-watchdog waits on hallucinated files.
+      const _rootDir = idleMind.selfModel?.rootDir || process.cwd();
+      const _halluc = _hasHallucinatedPaths(thought, realPaths, _rootDir);
+      if (_halluc) {
+        _log.info(`[IDLE-MIND] Plan: skipping "${title.slice(0, 50)}" — references non-existent path: ${_halluc}`);
         return thought;
       }
 

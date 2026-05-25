@@ -25,6 +25,7 @@ const _log = createLogger('EventPayloadSchemas');
 const SCHEMAS = {
   // Agent Loop
   'agent-loop:started':         { goalId: 'required', goal: 'optional' },
+  'agent-loop:starting-pursuit': { goalDescription: 'optional', goalId: 'optional' },
   'agent-loop:complete':        { goalId: 'required', title: 'required', steps: 'required', success: 'required' },
   // v4.12.5-fix: Schema now matches AgentLoop.js emission (stepIndex, result, type)
   // v7.3.2: 'type' softened to optional — LLM-generated replan steps (via
@@ -121,6 +122,8 @@ const SCHEMAS = {
 
   // Verification
   'verification:complete': { result: 'optional' },
+  // v7.9.9 Fix 2: unknown-step-type telemetry from VerificationEngine
+  'verification:unknown-step-type': { stepType: 'required', stepDescription: 'optional' },
 
   // Homeostasis
   'homeostasis:pause-autonomy': {},
@@ -492,6 +495,11 @@ const SCHEMAS = {
   'agent-loop:blocked-on-subgoal':     { goalId: 'optional', stepIndex: 'optional', stepType: 'optional', subId: 'required' },
   // v7.9.7 P5: simulation hard-gate aborted a retry pursuit
   'agent-loop:simulation-abort':       { goalId: 'optional', riskScore: 'required', priorFailures: 'required', reason: 'optional' },
+  // v7.9.9 Fix 5: Reflexion-style no-progress + identical-plan detectors
+  'agent-loop:no-progress-detected':   { goalId: 'required', stepHash: 'required', repeatCount: 'required' },
+  'agent-loop:identical-plan-detected': { goalId: 'required', planHash: 'required' },
+  // v7.9.9 Fix 3: decompose-on-failure event when 2nd strike triggers investigative sub-goal spawn
+  'agent-loop:decompose-on-failure':   { goalId: 'required', stepIndex: 'required', errorClass: 'required', strikes: 'required' },
 
   // Memory
   'memory:fact-stored':     { key: 'required', source: 'optional' },

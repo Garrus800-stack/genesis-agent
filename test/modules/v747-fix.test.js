@@ -229,12 +229,12 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     assert(/'timeouts\.approvalSec'/.test(src), 'missing timeouts.approvalSec save');
   });
 
-  // ── #5: Default shape ───────────────────────────────────────
-  await test('#5 Settings defaults include trust.level=1', () => {
+  // ── #5: Default shape (v7.9.9 A: SUPERVISED is fresh-install default) ───
+  await test('#5 Settings defaults include trust.level=0 (SUPERVISED)', () => {
     const { Settings } = require('../../src/agent/foundation/Settings');
     const settings = new Settings(tmpDir, null);
     const v = settings.get('trust.level');
-    assert(v === 1, `expected 1 (AUTONOMOUS), got ${v}`);
+    assert(v === 0, `expected 0 (SUPERVISED — v7.9.9 A safe default), got ${v}`);
   });
 
   await test('#5 Settings defaults include agency.autoResumeGoals="ask"', () => {

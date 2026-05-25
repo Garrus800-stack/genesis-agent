@@ -1,5 +1,4 @@
 'use strict';
-
 // ============================================================
 // GENESIS — AgentLoopPursuit.js
 // Mixin extraction of pursue() and _executeLoop() from AgentLoop.js.
@@ -15,7 +14,8 @@ const { reflectIfNeeded, composeFailureMessage } = require('./AgentLoopPursuitRe
 const { CancellationToken } = require('../core/CancellationToken');
 const { NullWorkspace } = require('../ports/WorkspacePort');
 const { normalizeStepTypes } = require('./plan-context');
-const { shouldAbortOnRisk, cleanupAfterAbort, safeFailureMessage } = require('./AgentLoopPursuitGate');
+const { shouldAbortOnRisk, cleanupAfterAbort, safeFailureMessage, handleHardGateAbort } = require('./AgentLoopPursuitGate');
+const { ProgressDetector } = require('./AgentLoopProgressDetector');
 
 const _log = createLogger('AgentLoop');
 
@@ -33,9 +33,7 @@ const agentLoopPursuitMixin = {
       return { success: false, error: 'Agent loop already running. Use stop() first.' };
     }
 
-    // v7.4.5: Accept string OR Goal object.
-    // - string  : legacy DaemonController-direct path (we'll create a stack entry below)
-    // - Goal    : new GoalDriver-pickup path (already in stack, may carry preGeneratedSteps)
+    // v7.4.5: Accept string (legacy DaemonController-direct) OR Goal object (GoalDriver-pickup with optional preGeneratedSteps).
     const _isGoalObject = (typeof input === 'object' && input !== null
                            && typeof input.id === 'string'
                            && typeof input.description === 'string');
@@ -43,6 +41,8 @@ const agentLoopPursuitMixin = {
     const _presetGoal = _isGoalObject ? input : null;
 
     _log.info(`[AGENT-LOOP] starting pursuit — goal="${(goalDescription || '').slice(0, 80)}"${_presetGoal ? ` (id=${_presetGoal.id}, ${(_presetGoal.steps || []).length} preset steps)` : ' (legacy string input)'}`);
+    // v7.9.9 Fix 1: notify SymbolicResolver to reset its per-pursuit AVOID counter.
+    try { this.bus.fire('agent-loop:starting-pursuit', { goalDescription: typeof goalDescription === 'string' ? goalDescription.slice(0, 200) : '', goalId: _presetGoal?.id || null }, { source: 'AgentLoop' }); } catch (_e) { /* never break pursuit */ }
 
     // v3.7.0: Strict Cognitive Mode — refuse to run without core cognitive services
     if (this._strictCognitiveMode && this._cognitiveLevel !== 'FULL') {
@@ -54,7 +54,6 @@ const agentLoopPursuitMixin = {
       this.bus.fire('agent:status', { state: 'error', detail: msg }, { source: 'AgentLoop' });
       return { success: false, error: msg };
     }
-
     // v7.6.1 audit-closeout: Self-Gate 'plan-start' observation (telemetry-only).
     if (this.selfGate) {
       try {
@@ -87,13 +86,10 @@ const agentLoopPursuitMixin = {
       this._pursuitAttempts.set(_presetGoal.id, prev + 1);
     }
 
-    // v7.4.5.fix + v7.9.8 Fix 7: shared early-return helper. Emits
-    // agent-loop:complete (so GoalDriver releases _currentlyPursuing)
-    // and routes the message through safeFailureMessage (never empty).
+    // Shared early-return helper (v7.4.5.fix + v7.9.8 Fix 7): fires complete + safeFailureMessage.
     const _emitFailure = (errorMessage) => {
       const safeMsg = safeFailureMessage(errorMessage, this.stepCount, 'aborted early');
       try {
-        // v7.5.8: synthesise stable goalId when currentGoalId not yet set.
         const _emittedGoalId = this.currentGoalId || `loop_early_${Date.now()}`;
         this.bus.fire('agent-loop:complete', {
           goalId: _emittedGoalId,
@@ -106,7 +102,7 @@ const agentLoopPursuitMixin = {
           toolsUsed: [],
         }, { source: 'AgentLoop' });
       } catch (_e) { /* never let emit break the return path */ }
-      // v7.7.8 / v7.7.9 (post-Phase-3c.4): plan-failure-reflection via reflectIfNeeded.
+      // v7.7.8 / Phase 3b/c4: plan-failure-reflection via reflectIfNeeded.
       reflectIfNeeded(this, {
         goalId: this.currentGoalId,
         goalDescription: typeof goalDescription === 'string' ? goalDescription : null,
@@ -124,12 +120,10 @@ const agentLoopPursuitMixin = {
       goalId: this.currentGoalId,
       goalTitle: typeof goalDescription === 'string' ? goalDescription.slice(0, 100) : 'goal',
     });
-
-    // v5.2.0: wrap goal in correlation scope so every bus emit, store append, and log call inherits the goalId.
+    // v5.2.0: wrap goal in correlation scope so every emit/log inherits the goalId.
     const _goalCorrelationId = CorrelationContext.generate('goal');
     return CorrelationContext.run(_goalCorrelationId, async () => {
-
-    // FIX v3.5.3: global timeout caps unbounded goal execution (20 × 30s = 10 min max).
+    // FIX v3.5.3: global timeout caps unbounded goal execution.
     const globalTimeout = setTimeout(() => {
       if (this.running) {
         _log.warn(`[AGENT-LOOP] Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms) reached — aborting goal`);
@@ -162,8 +156,7 @@ const agentLoopPursuitMixin = {
     onProgress({ phase: 'planning', detail: 'Decomposing goal into steps...' });
 
     try {
-      // ── Phase 1: PLAN ─────────────────────────────────
-      // v7.4.5: presetGoal.preGeneratedSteps (e.g. Baustein-D sub-goals) skip the planner.
+      // ── Phase 1: PLAN ── v7.4.5: presetGoal.preGeneratedSteps skip the planner.
       /** @type {*} */ let plan;
       if (_presetGoal && Array.isArray(_presetGoal.preGeneratedSteps)
           && _presetGoal.preGeneratedSteps.length > 0) {
@@ -182,6 +175,25 @@ const agentLoopPursuitMixin = {
         const _err = 'Could not decompose goal into actionable steps.';
         _emitFailure(_err);
         return { success: false, error: _err };
+      }
+
+      // v7.9.9 Fix 5: identical-plan detection + forced replan if same as previous attempt.
+      if (!this._progressDetector) this._progressDetector = new ProgressDetector({ bus: this.bus });
+      this._progressDetector.attachCleanupListeners();
+      // v7.9.9 final: dedup simulation-abort telemetry across pursuit retries.
+      if (!this._simulationAbortCleanupAttached) {
+        this._simulationAbortCleanupAttached = true;
+        this._simulationAbortEmittedGoals ??= new Set();
+        const clr = (d) => { const id = d?.goalId || d?.id; if (id) this._simulationAbortEmittedGoals.delete(id); };
+        for (const ev of ['goal:completed','goal:abandoned','goal:obsolete','goal:stalled']) {
+          try { this.bus?.on?.(ev, clr); } catch (_e) { /* bus may lack .on */ }
+        }
+      }
+      if (this.currentGoalId && this._progressDetector.recordPlan(this.currentGoalId, { description: goalDescription }, plan.steps).identical) {
+        try {
+          const forced = await this.recovery?.reflectOnProgress?.(plan, [], 0);
+          if (forced?.newSteps?.length > 0) plan.steps = forced.newSteps;
+        } catch (_e) { _log.debug('[PROGRESS] forced replan failed:', _e.message); }
       }
 
       // v3.5.0: Pre-validate and cost-estimate the plan
@@ -226,9 +238,12 @@ const agentLoopPursuitMixin = {
       // FIX v6.1.1: addGoal expects (description:string, source, priority, options) — not an object
 
       // ── Colony Escalation Gate (v7.0.3 — C1) ─────────────
-      // Complex / HTN-problematic plans escalate to ColonyOrchestrator for parallel analysis.
-      // v7.7.9 (P6): threshold 3→8 since most plans are 4-7 steps.
-      const _COLONY_STEP_THRESHOLD = 8;
+      // v7.9.9 Fix 1: threshold raised 8 → 15. The v7.9.8 Win-station trace
+      // showed every IdleMind goal (typically 10-15 steps) eskalating into
+      // Colony with 3× LLM calls each, draining the session token budget
+      // (100%) within ~2h45min. Threshold 15 keeps Colony for genuinely
+      // complex tasks while stopping autonomous-goal cost explosion.
+      const _COLONY_STEP_THRESHOLD = 15;
       if (this._colonyOrchestrator && plan.steps.length > _COLONY_STEP_THRESHOLD) {
         try {
           _log.info(`[AGENT-LOOP] Colony escalation: ${plan.steps.length} steps > threshold ${_COLONY_STEP_THRESHOLD}`);
@@ -266,8 +281,7 @@ const agentLoopPursuitMixin = {
         }
       }
 
-      // v7.4.5: GoalDriver path reuses stack entry; legacy string path
-      // is TRANSIENT (was: every misclassified message → persistent goal).
+      // v7.4.5: GoalDriver path reuses stack entry; legacy string path is TRANSIENT.
       let _registeredGoal;
       if (_presetGoal) {
         _registeredGoal = _presetGoal;
@@ -313,23 +327,19 @@ const agentLoopPursuitMixin = {
       // ── Phase 1b: SIMULATE (Phase 9 cognitive hook) ────
       const cogResult = await this.cognition.preExecute(plan);
       if (!cogResult.proceed) {
-        // v7.9.7-fix (P5/P5b): hard-gate on retry-with-high-risk via AgentLoopPursuitGate.
+        // v7.9.7-fix (P5/P5b) + v7.9.9 Fix 4: trust-level-aware hard-gate dispatch.
         const priorFailures = Math.max(0, (this._pursuitAttempts.get(this.currentGoalId) || 1) - 1);
-        if (shouldAbortOnRisk(cogResult, priorFailures)) {
-          _log.warn(`[AGENT-LOOP] Simulation HIGH risk: ${cogResult.reason} (score ${cogResult.riskScore}, ${priorFailures} prior failure(s)) — aborting`);
-          onProgress({ phase: 'simulation-abort', detail: `High risk on retry: ${cogResult.reason}`, risk: cogResult.riskScore });
-          this.bus.fire('agent-loop:simulation-abort', {
-            goalId: this.currentGoalId, riskScore: cogResult.riskScore, priorFailures, reason: cogResult.reason,
-          }, { source: 'AgentLoop' });
-          cleanupAfterAbort(this, this.currentGoalId, _clearGlobalTimeout, NullWorkspace);
-          return { success: false, error: `High simulation risk (${cogResult.riskScore.toFixed(2)}) on retry attempt ${priorFailures + 1}; plan needs to change before another attempt.` };
+        const _firstStep = plan.steps && plan.steps[0];
+        const _gateResult = await handleHardGateAbort(this, cogResult, priorFailures, onProgress, _emitFailure, _clearGlobalTimeout, NullWorkspace, _log, _firstStep, 0);
+        if (_gateResult.aborted) {
+          if (_gateResult.action === 'decomposed') {
+            return { success: false, blocked: true, blockedOnSubgoal: _gateResult.subId, stepResults: [] };
+          }
+          return { success: false, error: _gateResult.abortMsg };
         }
-        _log.warn(`[AGENT-LOOP] Simulation flagged risk: ${cogResult.reason} (score: ${cogResult.riskScore}) — proceeding anyway`);
-        onProgress({ phase: 'simulation-warning', detail: `Risk flagged: ${cogResult.reason} — proceeding`, risk: cogResult.riskScore });
       }
 
-      // ── Phase 1c: CONSCIOUSNESS CHECK (v4.12.4) — inject concerns/values
-      // into plan context so the LLM sees them during execution.
+      // ── Phase 1c: CONSCIOUSNESS CHECK (v4.12.4) — inject concerns/values into plan context.
       if (cogResult.consciousnessConcerns?.length > 0) {
         plan._consciousnessContext = cogResult.consciousnessConcerns.join(' ');
         onProgress({ phase: 'consciousness', detail: plan._consciousnessContext });
@@ -357,9 +367,7 @@ const agentLoopPursuitMixin = {
         errors: this.executionLog.filter(l => l.error).length,
       }, 'AgentLoop');
 
-      // v7.7.9 (post-Phase-3c.4): plan-failure-reflection on early-return
-      // paths (timeout-abort, blocked-on-resources, step-limit-stop).
-      // reflectIfNeeded dedups via _reflected — see helper for contract.
+      // v7.7.9 (post-Phase-3c.4): plan-failure-reflection on early-return paths — dedups via _reflected.
       if (!result.success) {
         reflectIfNeeded(this, {
           goalId: completedGoalId,
@@ -369,8 +377,7 @@ const agentLoopPursuitMixin = {
         });
       }
 
-      // v5.2.0 (SA-P6): Consolidate working memory before clearing.
-      // High-salience items are emitted for DreamCycle pickup.
+      // v5.2.0 (SA-P6): Consolidate working memory before clearing; high-salience items go to DreamCycle.
       const candidates = this._workspace.getConsolidationCandidates();
       if (candidates.length > 0) {
         this.bus.fire('workspace:consolidate', {
@@ -391,16 +398,16 @@ const agentLoopPursuitMixin = {
       return result;
 
     } catch (err) {
-      const failedGoalId = this.currentGoalId;
+      // v7.9.9 Fix 6: synth loop_early_<ts> if pursuit threw before
+      // currentGoalId was assigned (FormalPlanner rate-limit etc.).
+      const failedGoalId = this.currentGoalId || `loop_early_${Date.now()}`;
       this.running = false;
       this.currentGoalId = null;
       _clearGlobalTimeout();
       this._workspace.clear();
       this._workspace = new NullWorkspace();
       onProgress({ phase: 'error', detail: err && err.message });
-      // v7.9.8 Fix 7: catch-path safeMsg via shared helper.
       const safeMsg = safeFailureMessage(err, this.stepCount, 'threw');
-      // v7.4.5.fix: emit agent-loop:complete on error-path so GoalDriver releases _currentlyPursuing.
       try {
         this.bus.fire('agent-loop:complete', {
           goalId: failedGoalId,
@@ -413,7 +420,6 @@ const agentLoopPursuitMixin = {
           toolsUsed: [],
         }, { source: 'AgentLoop' });
       } catch (_e) { /* never let event emission break the error path */ }
-      // v7.7.9 Phase 3b/c4: catch-path reflection via reflectIfNeeded.
       reflectIfNeeded(this, {
         goalId: failedGoalId,
         goalDescription: typeof goalDescription === 'string' ? goalDescription : null,
@@ -428,7 +434,6 @@ const agentLoopPursuitMixin = {
   // ════════════════════════════════════════════════════════
   // EXECUTION LOOP
   // ════════════════════════════════════════════════════════
-
   async _executeLoop(plan, onProgress) {
     const steps = plan.steps;
     let allResults = [];
@@ -537,6 +542,8 @@ const agentLoopPursuitMixin = {
       }
 
       allResults.push(result);
+      // v7.9.9 Fix 5: per-step no-progress detector — emits event when last 3 step-hashes identical.
+      this._progressDetector?.recordStep(this.currentGoalId, step, result);
 
       // v5.2.0 (SA-P6): Working memory — store step result and decay salience
       this._workspace.store(
@@ -558,7 +565,7 @@ const agentLoopPursuitMixin = {
           error: (result.error || '').slice(0, 200),
         }, { source: 'AgentLoop' });
 
-        // FIX v5.1.0 (SA-O2): FailureTaxonomy classification extracted
+        // FailureTaxonomy classify (SA-O2) + Fix 8: plan+allResults for refresh→replan.
         const recovery = await this.recovery.classifyAndRecover(step, result, i, onProgress);
         if (recovery.action === 'retry') {
           i--; // Retry same step
@@ -569,12 +576,7 @@ const agentLoopPursuitMixin = {
         // v7.4.5 Baustein D: parent parked on freshly-spawned sub-goal; resume via _unblockDependents.
         if (recovery.action === 'blocked-on-subgoal') {
           if (this.bus && this.bus.fire) {
-            this.bus.fire('agent-loop:blocked-on-subgoal', {
-              goalId: this.currentGoalId,
-              stepIndex: i,
-              stepType: step.type,
-              subId: recovery.subId,
-            }, { source: 'AgentLoop' });
+            this.bus.fire('agent-loop:blocked-on-subgoal', { goalId: this.currentGoalId, stepIndex: i, stepType: step.type, subId: recovery.subId }, { source: 'AgentLoop' });
           }
           return {
             ok: false,
@@ -651,7 +653,6 @@ const agentLoopPursuitMixin = {
       detail: verification.summary,
     });
 
-    // v7.7.9: non-empty summary fallback (was '<empty>').
     let _finalSummary = verification.summary;
     if (!verification.success && (!_finalSummary || _finalSummary.trim() === '')) {
       const lastErr = [...allResults].reverse().find(r => r && r.error);
@@ -668,13 +669,11 @@ const agentLoopPursuitMixin = {
       steps: this.stepCount,
       title: plan.title,
       summary: _finalSummary,
-      // v7.7.9 (P4): explicit error field — GoalDriver sees non-empty errMsg.
-      error: verification.success ? null : _finalSummary,
+      error: verification.success ? null : _finalSummary, // v7.7.9 (P4): explicit field for GoalDriver
       verificationMethod: verification.verificationMethod,
       toolsUsed: [...new Set(this.executionLog.map(l => l.type).filter(Boolean))],
     }, { source: 'AgentLoop' });
 
-    // v7.7.9 Phase 3b/c4: verification-fail reflection via reflectIfNeeded.
     if (!verification.success) {
       reflectIfNeeded(this, {
         goalId: this.currentGoalId,

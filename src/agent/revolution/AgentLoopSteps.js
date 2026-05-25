@@ -39,9 +39,13 @@ class AgentLoopStepsDelegate {
     let symbolicResult = null;
     if (loop._symbolicResolver) {
       try {
+        // v7.9.9 Fix 1: pass current goalDescription to resolver so it
+        // can gate AVOID-past-failure lessons by token-overlap to the
+        // current pursuit, preventing cross-goal contamination.
+        const _goalDesc = (loop.goalStack?.goals?.find?.(g => g.id === loop.currentGoalId)?.description) || '';
         symbolicResult = loop._symbolicResolver.resolve(
           step.type, step.description, step.target,
-          { model: loop.model?.activeModel, goalId: loop.currentGoalId }
+          { model: loop.model?.activeModel, goalId: loop.currentGoalId, goalDescription: _goalDesc }
         );
 
         if (symbolicResult.level === 'direct' && symbolicResult.lesson) {
@@ -178,6 +182,21 @@ class AgentLoopStepsDelegate {
                 };
               }
               _log.info(`[STEPS] step blocked — missing resources: ${check.missing.join(', ')}`);
+              // v7.9.9 final: for idle-mind-sourced goals, never block-and-wait
+              // for resources. Idle-mind goals are agent-initiated activities,
+              // not user-driven requests — there is nobody who is going to
+              // make the missing file appear. Field-test 2026-05-24 showed
+              // a 15-minute stall waiting on a hallucinated test\AgentCoreHealth.test.js.
+              // Convert to immediate failure so the recovery path (FailureTaxonomy,
+              // decompose-on-failure) runs instead of the StalledGoalWatchdog.
+              const goalSource = loop?.goalStack?.getById?.(loop.currentGoalId)?.source;
+              if (goalSource === 'idle-mind') {
+                return {
+                  output: null,
+                  error: `Resource(s) unavailable for idle-mind goal: ${check.missing.join(', ')}`,
+                  durationMs: Date.now() - start,
+                };
+              }
               return {
                 output: null,
                 error: `Resource(s) unavailable: ${check.missing.join(', ')}`,

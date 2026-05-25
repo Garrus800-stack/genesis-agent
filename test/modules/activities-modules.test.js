@@ -118,19 +118,19 @@ describe('v7.3.2 — Reflect activity', () => {
 describe('v7.3.2 — Plan activity', () => {
   test('parses TITLE and creates plan', async () => {
     const obj = createIdleMindLike({
-      model: { chat: async () => 'TITLE: Better Logging\nPRIORITY: high\nDESCRIPTION: Improve log output\nFIRST_STEP: Add structured logging' },
+      model: { chat: async () => 'TITLE: Document Logging\nPRIORITY: high\nDESCRIPTION: Write a doc page for log format\nFIRST_STEP: Read existing logger config' },
       selfModel: { getModuleSummary: () => [], getCapabilities: () => [] },
     });
     await Plan.run(obj);
     assertEqual(obj.plans.length, 1);
-    assertEqual(obj.plans[0].title, 'Better Logging');
+    assertEqual(obj.plans[0].title, 'Document Logging');
     assertEqual(obj.plans[0].priority, 'high');
     assertEqual(obj.plans[0].status, 'new');
   });
 
   test('caps plans at 50', async () => {
     const obj = createIdleMindLike({
-      model: { chat: async () => 'TITLE: Plan X\nPRIORITY: low' },
+      model: { chat: async () => 'TITLE: Research X\nPRIORITY: low' },
       selfModel: { getModuleSummary: () => [], getCapabilities: () => [] },
     });
     obj.plans = Array.from({ length: 50 }, (_, i) => ({ id: `plan_${i}`, title: `Old ${i}`, status: 'done' }));

@@ -144,9 +144,9 @@ function recordReflection(services, payload) {
     try {
       selfStatementLog.append({
         kind: 'plan-failure-reflection',
-        text: `Ich habe das Ziel "${(payload.goalDescription || '').slice(0, 80)}" aufgegeben — ` +
-              `Klassifikation: ${payload.classification}. ` +
-              `Grund: ${String(payload.errorMessage || '').slice(0, 120)}.`,
+        text: `I gave up the goal "${(payload.goalDescription || '').slice(0, 80)}" — ` +
+              `classification: ${payload.classification}. ` +
+              `Reason: ${String(payload.errorMessage || '').slice(0, 120)}.`,
         classification: payload.classification,
         ts: Date.now(),
       });

@@ -4,10 +4,10 @@
 
 ## Scale
 
-- 378 source modules across 12 boot phases
+- 379 source modules across 12 boot phases
 - 178 DI services (165 manifest + 13 bootstrap)
 - 7933 tests on Windows / 7932 on Linux (passing, 0 failures)
-- 484 events with 484 payload schemas (full parity)
+- 489 events with 489 payload schemas (full parity)
 - Architectural fitness: 127/130
 - 18 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
 
@@ -257,7 +257,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **491 test files** | 7933 tests (Win baseline, v7.9.6), coverage gates: 80% lines, 76% branches, 78% functions |
+| **500 test files** | 7933 tests (Win baseline, v7.9.6), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

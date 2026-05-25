@@ -17,6 +17,14 @@ const _log = createLogger('AgentLoopRecovery');
 class AgentLoopRecoveryDelegate {
   constructor(loop) {
     this.loop = loop;
+    // v7.9.9 Fix 3: decompose-on-failure tracking. Map<failKey, {count, ts}>
+    // where failKey = `${goalId}::${stepIndex}::${errorClass}`. On the 2nd
+    // strike of the same (goal, step, error) tuple, classifyAndRecover
+    // forces a synthetic obstacle that spawns an investigative sub-goal
+    // — Genesis decomposes the obstacle instead of re-attempting it.
+    // TTL 1h via _sweepRepeatedFailures on each access.
+    this._repeatedFailures = new Map();
+    this._REPEATED_FAILURES_TTL_MS = 60 * 60 * 1000;
   }
 
   // ── Error Classification & Recovery ───────────────────
@@ -77,7 +85,69 @@ class AgentLoopRecoveryDelegate {
       }
     } catch (_e) { _log.debug('[catch] FailureTaxonomy not available:', _e.message); }
 
+    // v7.9.9 Fix 3: decompose-on-failure activation. None of the FailureTaxonomy
+    // strategies (retry_backoff / spawn_subgoal / update_world_replan / escalate_model)
+    // resolved this failure. Track repeat-strikes per (goalId, stepIndex, errorClass):
+    // on the 2nd strike, force a synthetic obstacle that spawns an investigative
+    // sub-goal so Genesis tries a DIFFERENT approach instead of looping on the
+    // same failure mode. 3rd strike+ is a no-op (we already spawned once).
+    const decomposed = await this._tryDecomposeOnRepeatedFailure(step, result, stepIndex, onProgress);
+    if (decomposed) return decomposed;
+
     return { action: 'none' };
+  }
+
+  /**
+   * v7.9.9 Fix 3 (revised): track repeated failures and spawn an investigative
+   * sub-goal on the 2nd occurrence of the same (goalId, errorClass) pair.
+   * Pre-revision key included stepIndex which is unstable across pursuit
+   * retries (each retry generates a different plan with different step
+   * positions). Dropping stepIndex makes strikes accumulate across the
+   * goal's retry attempts so "same failure-class twice in any step" triggers
+   * decompose. Catches the pattern where retries 1, 2, 3 all hit
+   * path-not-found on different steps but with the same root cause.
+   * @returns {Promise<{action: string, category?: string, subId?: string}|null>} null when no action taken
+   */
+  async _tryDecomposeOnRepeatedFailure(step, result, stepIndex, onProgress) {
+    const goalId = this.loop.currentGoalId;
+    if (!goalId) return null;
+    const errMsg = (result && result.error) ? String(result.error) : '';
+    if (!errMsg) return null;
+    // errorClass: first 80 chars of error message — coarse but stable enough
+    // to detect "same failure-class again" across retries (LLM-generated
+    // errors with timestamps would never match by full text).
+    const errorClass = errMsg.slice(0, 80);
+    const failKey = `${goalId}::${errorClass}`;
+    this._sweepRepeatedFailures();
+    const prev = this._repeatedFailures.get(failKey);
+    const strikes = (prev?.count || 0) + 1;
+    this._repeatedFailures.set(failKey, { count: strikes, ts: Date.now() });
+    // 1st strike: just record. 2nd strike: spawn. 3rd+: don't double-spawn.
+    if (strikes !== 2) return null;
+    const syntheticObstacle = {
+      contextKey: `repeated-failure-${errorClass.slice(0, 30).replace(/\s+/g, '_')}`,
+      subGoalDescription: `Investigate why this goal repeatedly fails with: ${errorClass}. Document findings, then describe a different approach.`,
+    };
+    onProgress({ phase: 'decompose-on-failure', detail: `2nd strike of same error-class on goal — spawning investigative sub-goal`, errorClass });
+    try {
+      this.loop.bus.fire('agent-loop:decompose-on-failure', {
+        goalId, stepIndex, errorClass: errorClass.slice(0, 80), strikes,
+      }, { source: 'AgentLoopRecovery' });
+    } catch (_e) { /* never let emit break the recovery path */ }
+    const spawned = await this._trySpawnObstacleSubgoal(syntheticObstacle, step, stepIndex, onProgress);
+    if (spawned.spawned) {
+      return { action: 'blocked-on-subgoal', category: 'repeated-failure', subId: spawned.subId };
+    }
+    return null;
+  }
+
+  /** v7.9.9 Fix 3: drop _repeatedFailures entries older than TTL. */
+  _sweepRepeatedFailures() {
+    const now = Date.now();
+    const ttl = this._REPEATED_FAILURES_TTL_MS;
+    for (const [key, entry] of this._repeatedFailures.entries()) {
+      if (now - entry.ts > ttl) this._repeatedFailures.delete(key);
+    }
   }
 
   // ── v7.4.5 Baustein D: Sub-goal spawn for known obstacles ──

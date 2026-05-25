@@ -104,8 +104,8 @@ describe('TrustLevelSystem — Level Transitions', () => {
 });
 
 describe('TrustLevelSystem — Migration (v7.9.7)', () => {
-  test('migrates old level 1 (ASSISTED) to new AUTONOMOUS', () => {
-    assertEqual(TrustLevelSystem._migrateLevel(1), 1);
+  test('migrates old level 1 (ASSISTED) to new SUPERVISED (v7.9.9 A — safer-default rebucket)', () => {
+    assertEqual(TrustLevelSystem._migrateLevel(1), 0);
   });
 
   test('migrates old level 2 (AUTONOMOUS) to new AUTONOMOUS (same behaviour)', () => {

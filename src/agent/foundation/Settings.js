@@ -87,7 +87,7 @@ class Settings {
       },
       daemon: { enabled: true, cycleMinutes: 5, autoRepair: true, autoOptimize: false },
       idleMind: {
-        enabled: true, idleMinutes: 2, thinkMinutes: 3, maxActiveGoals: 3, journalMaxFileSizeMB: 10, journalMaxRotations: 3,
+        enabled: true, idleMinutes: 10, thinkMinutes: 15, maxActiveGoals: 3, journalMaxFileSizeMB: 10, journalMaxRotations: 3,
         // v7.9.4: every N goal-steps, break out of goal-execution and let the
         // activity-picker run instead. Keeps reflect/journal/dream/etc. firing
         // even when goals are active. 0 or null restores legacy always-goal
@@ -203,10 +203,12 @@ class Settings {
       selfModify: {
         allowedExtensions: ['.js', '.ts'],
       },
-      // v7.4.7: Trust level (0..3 = SUPERVISED..FULL_AUTONOMY).
+      // v7.9.9 (A): Trust level (0..2 = SUPERVISED, AUTONOMOUS, FULL_AUTONOMY).
+      // Default is SUPERVISED (always ask) — completes v7.9.8 Fix 2's
+      // "safe default for fresh installs" invariant at this last site.
       // Read by TrustLevelSystem.asyncLoad — overrides the persisted
       // trust-level.json default. UI dropdown writes here.
-      trust: { level: 1 },
+      trust: { level: 0 },
       // v7.4.7: Agency runtime preferences. autoResumeGoals selects
       // GoalDriver boot-pickup behavior (already wired in GoalDriver:562).
       // Values: 'ask' | 'always' | 'never'.
@@ -262,6 +264,11 @@ class Settings {
         // MAX_CONTINUATIONS_DEFAULT, but ModelBridgeContinuation reads
         // from Settings and the Settings default was still 4 — heavy
         // code generations in Win-trace still cut off at attempt 4.
+        // v7.9.9 Fix 7: 6 → 10. The v7.9.7 outpost trace (P6) showed
+        // code-with-manifest generations of 9937/2999/6394 chars still
+        // truncating at cap 6 (multiple partial-output retries before
+        // ContinuationLoop's coalescer assembles the final). 10 covers
+        // the upper end of the observed distribution.
         continuation: { maxAttempts: 6 },
       },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)

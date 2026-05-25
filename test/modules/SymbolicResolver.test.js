@@ -93,7 +93,7 @@ describe('SymbolicResolver — resolution levels', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
       lessonsStore: mockLessonsStore([{
-        id: 'l-1', insight: 'Use step-by-step for code tasks', confidence: 0.65, useCount: 2,
+        id: 'l-1', insight: 'Use step-by-step for code tasks', confidence: 0.80, useCount: 2,
       }]),
     });
     const result = sr.resolve('CODE', 'generate a REST endpoint');
@@ -213,7 +213,7 @@ describe('SymbolicResolver — directive building', () => {
   test('builds directive from lesson insight', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
-      lessonsStore: mockLessonsStore([{ insight: 'Use async/await pattern for error handling', confidence: 0.7 }]),
+      lessonsStore: mockLessonsStore([{ insight: 'Use async/await pattern for error handling', confidence: 0.80 }]),
     });
     const result = sr.resolve('CODE', 'fix error handling');
     if (!result.directive.includes('async/await')) throw new Error('Directive should include lesson insight');
@@ -225,7 +225,7 @@ describe('SymbolicResolver — directive building', () => {
       bus: mockBus(),
       schemaStore: mockSchemaStore([{
         name: 'error-pattern', recommendation: 'Always wrap in try-catch',
-        confidence: 0.7, successModifier: 0.3,
+        confidence: 0.80, successModifier: 0.3,
       }]),
     });
     const result = sr.resolve('CODE', 'handle errors');
@@ -238,7 +238,7 @@ describe('SymbolicResolver — directive building', () => {
       bus: mockBus(),
       schemaStore: mockSchemaStore([{
         name: 'bad-pattern', recommendation: 'Using eval is risky',
-        confidence: 0.6, successModifier: -0.5,
+        confidence: 0.8, successModifier: -0.5,
       }]),
     });
     const result = sr.resolve('CODE', 'evaluate expression');
@@ -292,7 +292,7 @@ describe('SymbolicResolver — outcome recording', () => {
 describe('SymbolicResolver — events', () => {
   test('emits symbolic:resolved for GUIDED', () => {
     const bus = mockBus();
-    const sr = new SymbolicResolver({ bus, lessonsStore: mockLessonsStore([{ insight: 'works', confidence: 0.7 }]) });
+    const sr = new SymbolicResolver({ bus, lessonsStore: mockLessonsStore([{ insight: 'works', confidence: 0.8 }]) });
     sr.resolve('ANALYZE', 'check code');
     const events = bus.getEmitted('symbolic:resolved');
     if (events.length === 0) throw new Error('Should emit symbolic:resolved');
@@ -355,7 +355,7 @@ describe('SymbolicResolver — stats', () => {
   test('tracks guided hits', () => {
     const sr = new SymbolicResolver({
       bus: mockBus(),
-      lessonsStore: mockLessonsStore([{ insight: 'tip', confidence: 0.7 }]),
+      lessonsStore: mockLessonsStore([{ insight: 'tip', confidence: 0.80 }]),
     });
     sr.resolve('CODE', 'generate');
     sr.resolve('ANALYZE', 'check');

@@ -196,10 +196,17 @@ const failurePolicyMixin = {
       // find module, is not a constructor) — those failure messages
       // were classified as 'generic' pre-fix (cap=3 instead of cap=2)
       // and never fast-tracked.
-      const _failureCap = _isHallucination ? 2 : 3;
+      // v7.9.9 final: lower generic cap 3 → 2. Field-test 2026-05-24 showed
+      // idle-mind goals burning 3 retries on the same error-class without
+      // learning across attempts. Combined with the dropped-stepIndex
+      // decompose-on-failure key (recovery.js v7.9.9 revised), the 2nd
+      // pursuit either decomposes via repeated-failure or proceeds to
+      // obsolete on retry 2 — no more 3× retry cycle that produces
+      // nothing useful.
+      const _failureCap = _isHallucination ? 2 : 2;
       const backoffSchedule = _isHallucination
         ? [10_000, 60_000]                                  // hallucination — 2 quick retries then obsolete
-        : [10_000, 60_000, 300_000];                        // generic — 3 retries
+        : [10_000, 60_000];                                 // generic — 2 retries (was 3)
       const _terminalStatus = _isHallucination ? 'obsolete' : 'stalled';
 
       if (entry.count > _failureCap) {

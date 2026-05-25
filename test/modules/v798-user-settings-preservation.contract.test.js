@@ -103,12 +103,16 @@ test('SUP-04: settings-defaults.js set-trust-level default is 0 (SUPERVISED)', (
 
 // ── Existing-user preservation ─────────────────────────────
 
-test('PRES-01: existing stored trust.level=1 (AUTONOMOUS) is preserved on load', async () => {
+test('PRES-01: existing stored trust.level=1 (no schemaVersion) migrates to SUPERVISED (v7.9.9 A)', async () => {
+  // Pre-schemaVersion storage with level=1 represents either pre-v7.9.7 ASSISTED
+  // or the brief v7.9.7-only AUTONOMOUS=1. v7.9.9 (A) re-buckets ASSISTED users
+  // to SUPERVISED — the safer default direction since "ask for risky" no longer
+  // exists as a level. Both interpretations land safely at "always ask".
   const storage = makeStorage({ level: 1, overrides: {}, pendingUpgrades: [] });
   const tls = new TrustLevelSystem({ bus: makeNoopBus(), storage });
   await tls.asyncLoad();
-  assertEqual(tls.getLevel(), TRUST_LEVELS.AUTONOMOUS,
-    'user who chose AUTONOMOUS must still be AUTONOMOUS after boot');
+  assertEqual(tls.getLevel(), TRUST_LEVELS.SUPERVISED,
+    'v7.9.9 (A): un-marked stored level=1 must migrate to SUPERVISED (not AUTONOMOUS)');
 });
 
 test('PRES-02: existing stored trust.level=2 (FULL) is preserved on load', async () => {
@@ -122,22 +126,26 @@ test('PRES-02: existing stored trust.level=2 (FULL) is preserved on load', async
     'stored 2 → AUTONOMOUS (semantic preservation of pre-v7.9.7 alt-AUTONOMOUS)');
 });
 
-test('PRES-03: existing settings.trust.level=1 is preserved over fresh default', async () => {
+test('PRES-03: existing settings.trust.level=1 migrates to SUPERVISED (v7.9.9 A)', async () => {
   const settings = makeSettings({ trust: { level: 1 } });
   const tls = new TrustLevelSystem({ bus: makeNoopBus(), storage: makeStorage(null), settings });
   await tls.asyncLoad();
-  assertEqual(tls.getLevel(), TRUST_LEVELS.AUTONOMOUS,
-    'settings-level overrides the fresh-install SUPERVISED default');
+  assertEqual(tls.getLevel(), TRUST_LEVELS.SUPERVISED,
+    'v7.9.9 (A): settings level=1 without storage marker migrates to SUPERVISED');
 });
 
-test('PRES-04: existing user value is NOT overwritten with default during boot', async () => {
+test('PRES-04: settings level=1 triggers migration writeback (v7.9.9 A)', async () => {
   const settings = makeSettings({ trust: { level: 1 } });
   const tls = new TrustLevelSystem({ bus: makeNoopBus(), storage: makeStorage(null), settings });
   await tls.asyncLoad();
-  // Settings was already at 1; no migration needed → no writeback.
+  // v7.9.9 (A): level=1 now migrates to 0 (SUPERVISED), so writeback DOES happen.
+  // The invariant that "an explicit user value isn't silently overwritten" still
+  // holds in spirit — the migration is announced and the new value is the safer one.
   const writes = settings._writes.filter(w => w.path === 'trust.level');
-  assertEqual(writes.length, 0,
-    'asyncLoad must NOT rewrite trust.level when the stored value is already correct');
+  assertEqual(writes.length, 1,
+    'asyncLoad must write back the migrated value (1→0) exactly once');
+  assertEqual(writes[0].value, TRUST_LEVELS.SUPERVISED,
+    'writeback must record the migrated SUPERVISED value');
 });
 
 // ── Migration writeback (v7.9.8 Fix 1) ─────────────────────
@@ -231,6 +239,37 @@ test('CLAMP-01: Settings.js no longer clamps trust.level (TrustLevelSystem owns 
     'old clamp(0,3) for trust.level must be removed in v7.9.8');
   assert(!/clamp\('trust\.level',\s*0,\s*2\)/.test(src),
     'clamp(0,2) would still collapse pre-migration values; must be fully removed');
+});
+
+// ── v7.9.9 (A) Trust-system final corrections ─────────────
+
+test('V799A-01: Settings.js trust default reads { level: 0 } not 1', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+  assert(/trust:\s*\{\s*level:\s*0\s*\}/.test(src),
+    'v7.9.9 (A): Settings.js fresh-install default must be { level: 0 }');
+  assert(!/trust:\s*\{\s*level:\s*1\s*\}/.test(src),
+    'v7.9.9 (A): old { level: 1 } default must be removed');
+});
+
+test('V799A-02: Settings.js trust comment reads 0..2 not 0..3', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+  // Look for the trust-level documentation comment block.
+  const idx = src.indexOf('trust: { level: 0 }');
+  assert(idx > 0, 'must find trust default declaration');
+  const before = src.slice(Math.max(0, idx - 400), idx);
+  assert(/0\.\.2\s*=\s*SUPERVISED.*FULL_AUTONOMY/.test(before),
+    'v7.9.9 (A): trust comment must document range as 0..2 = SUPERVISED..FULL_AUTONOMY');
+  assert(!/0\.\.3\s*=\s*SUPERVISED.*FULL_AUTONOMY/.test(before),
+    'v7.9.9 (A): stale 0..3 range comment must be removed');
+});
+
+test('V799A-03: _migrateLevel(1) returns SUPERVISED (not AUTONOMOUS)', () => {
+  assertEqual(TrustLevelSystem._migrateLevel(1), TRUST_LEVELS.SUPERVISED,
+    'v7.9.9 (A): old ASSISTED (1) must migrate to SUPERVISED (safer-default rebucket)');
+  // Sanity: other entries unchanged
+  assertEqual(TrustLevelSystem._migrateLevel(0), TRUST_LEVELS.SUPERVISED, 'level 0 → SUPERVISED unchanged');
+  assertEqual(TrustLevelSystem._migrateLevel(2), TRUST_LEVELS.AUTONOMOUS, 'level 2 → AUTONOMOUS unchanged');
+  assertEqual(TrustLevelSystem._migrateLevel(3), TRUST_LEVELS.FULL_AUTONOMY, 'level 3 → FULL_AUTONOMY unchanged');
 });
 
 }); // describe
