@@ -18,6 +18,8 @@ const { createLogger } = require('../core/Logger');
 const { normalizeStepType, getStepRequirements } = require('./step-types');
 const { _filterImplausibleFilePaths } = require('./PathPlausibility');
 const { extractDeleteTarget } = require('./DeleteCommandHeuristic');
+// v7.9.11: Win console codepage handling for SHELL-step fallback
+const { decodeWinConsole } = require('../core/shell/WinConsoleEncoding');
 const path = require('path');
 const fs = require('fs');
 const _log = createLogger('AgentLoopSteps');
@@ -541,15 +543,22 @@ class AgentLoopStepsDelegate {
       const parts = command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [command];
       const bin = parts[0];
       const args = parts.slice(1).map(a => a.replace(/^["']|["']$/g, ''));
+      const isWin = process.platform === 'win32';
       const { stdout } = await execFileAsync(bin, args, {
         cwd: loop.rootDir,
         timeout: TIMEOUTS.SHELL_EXEC,
-        encoding: 'utf-8',
+        // v7.9.11: read raw buffer on Win, decode with detected codepage.
+        // Pre-fix utf-8 produced U+FFFD on cp850 output.
+        encoding: isWin ? 'buffer' : 'utf-8',
         windowsHide: true,
       });
-      return { output: stdout, error: null, command };
+      const output = isWin ? decodeWinConsole(stdout) : stdout;
+      return { output, error: null, command };
     } catch (err) {
-      return { output: err.stdout || '', error: err.stderr || err.message, command };
+      const isWin = process.platform === 'win32';
+      const errOut = isWin ? decodeWinConsole(err.stdout) : (err.stdout || '');
+      const errErr = isWin ? decodeWinConsole(err.stderr) : (err.stderr || err.message);
+      return { output: errOut, error: errErr, command };
     }
   }
 

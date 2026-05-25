@@ -17,17 +17,84 @@ const searchMethods = {
 
   // ── Search ────────────────────────────────────────────
 
+  // v7.9.11: TF-IDF scoring + file-token boost. Pre-fix every query word
+  // scored equally (+2 text, +3 label), so a generic idea-node that
+  // happened to contain a common word outranked a specific insight node
+  // referencing a named file. Garrus Win-trace 2026-05-25 showed 2 of 5
+  // top results being irrelevant for the query "references to Reflect.js
+  // in the codebase". Now rare tokens (file names, specific identifiers)
+  // get inverse-document-frequency weighting, and when the query
+  // explicitly names a file (X.js/X.ts/etc.) nodes whose properties.file
+  // matches are pushed up while generic-match-only nodes are demoted.
+  //
+  // Behaviour preserved: when queryWords is empty (only short-word query
+  // like "a is to be"), the word-loop runs 0 times and scoring falls
+  // through to recency/connectivity/access only — exactly what pre-fix
+  // v7.9.10 did.
+  //
+  // Performance: single-pass cache of node text + docFreq counted while
+  // iterating, then a second pass uses the cache. At realistic KG sizes
+  // (30-50 nodes) sub-millisecond. At 10k nodes ~34ms.
+  //
+  // Interaction with searchAsync: this method is invoked as the
+  // keywordResults source (line ~41 below). Final score in the hybrid
+  // path is keywordScore*0.6 + vectorScore*0.4, so improving search()
+  // improves the hybrid too.
   search(query, limit = 10) {
     const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-    const scored = [];
 
+    const fileTokens = (query.match(/\b[\w-]+\.(?:js|ts|jsx|tsx|md|json|html|css|py)\b/gi) || [])
+      .map(t => t.toLowerCase());
+
+    // Pass 1: text cache + docFreq per word
+    const nodeText = new Map();
+    const docFreq = new Map(queryWords.map(w => [w, 0]));
+    for (const [id, node] of this.graph.nodes) {
+      const text = `${node.label} ${node.type} ${JSON.stringify(node.properties)}`.toLowerCase();
+      nodeText.set(id, text);
+      for (const word of queryWords) {
+        if (text.includes(word)) docFreq.set(word, docFreq.get(word) + 1);
+      }
+    }
+
+    const totalNodes = this.graph.nodes.size || 1;
+    const wordIDF = new Map();
+    for (const [word, freq] of docFreq) {
+      // Standard IDF with +1 smoothing. Factor 1.5 keeps top-end IDF
+      // close to the legacy +3 label-match score so existing rankings
+      // shift smoothly rather than jumping discontinuously. Floor at
+      // 0.5 so the score stays positive even in the edge case where
+      // the word appears in every node (small KG with a recurring
+      // term) — otherwise IDF can go negative and `if (score > 0)`
+      // drops the matching node, breaking learnFromText recall.
+      wordIDF.set(word, Math.max(Math.log(totalNodes / (1 + freq)) * 1.5, 0.5));
+    }
+
+    // Pass 2: score per node
+    const scored = [];
     for (const [id, node] of this.graph.nodes) {
       let score = 0;
-      const text = `${node.label} ${node.type} ${JSON.stringify(node.properties)}`.toLowerCase();
+      const text = nodeText.get(id);
+      const labelLower = node.label.toLowerCase();
+
       for (const word of queryWords) {
-        if (text.includes(word)) score += 2;
-        if (node.label.toLowerCase().includes(word)) score += 3;
+        const idf = wordIDF.get(word) || 1;
+        if (text.includes(word)) score += idf;
+        if (labelLower.includes(word)) score += idf * 1.5;
       }
+
+      // File-path boost: when query names a file, nodes whose
+      // properties.file references it get a strong boost; nodes with no
+      // file property at all that only matched generic terms get demoted
+      // so genuine file-references rank above ideas-that-mention.
+      if (fileTokens.length > 0) {
+        const nodeFile = (node.properties?.file || '').toLowerCase();
+        const fileMatch = fileTokens.some(t => nodeFile.includes(t));
+        if (fileMatch) score += 10;
+        else if (!nodeFile && score > 0) score *= 0.4;
+      }
+
+      // Recency / connectivity / access boosts (unchanged from pre-fix)
       const ageDays = (Date.now() - node.accessed) / (1000 * 60 * 60 * 24);
       score += Math.max(0, 1 - ageDays / 30);
       score += Math.min((this.graph.neighborIndex.get(id) || new Set()).size * 0.3, 2);

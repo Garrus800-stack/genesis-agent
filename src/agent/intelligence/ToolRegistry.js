@@ -21,6 +21,8 @@ const { createLogger } = require('../core/Logger');
 // readme→README.md / ontogenesis→docs/ONTOGENESIS.md resolution that the
 // internal _maybeReadSourceSync already gets.
 const { _resolveFileWithVariants } = require('../foundation/SelfModelSourceRead');
+// v7.9.11: Win console codepage handling for shell/git output decoding
+const { decodeWinConsole } = require('../core/shell/WinConsoleEncoding');
 const _log = createLogger('ToolRegistry');
 
 class ToolRegistry {
@@ -451,13 +453,23 @@ ${descriptions.join('\n\n')}`;
         const isWin = process.platform === 'win32';
         const shell = isWin ? 'cmd.exe' : '/bin/sh';
         const shellFlag = isWin ? '/c' : '-c';
+        // v7.9.11: read raw buffer on Win, decode with detected codepage.
+        // Pre-fix `encoding: 'utf-8'` mistook cp850/cp1252 bytes for UTF-8
+        // → U+FFFD replacement noise in DE-Win cmd.exe output ("f�r
+        // Datentr�ger"). Linux/Mac unchanged.
         const { stdout } = await execFileAsync(shell, [shellFlag, cmd], {
-          cwd, encoding: 'utf-8', timeout: TIMEOUTS.SANDBOX_EXEC, maxBuffer: 512 * 1024,
+          cwd, encoding: isWin ? 'buffer' : 'utf-8',
+          timeout: TIMEOUTS.SANDBOX_EXEC, maxBuffer: 512 * 1024,
           windowsHide: true,
         });
-        return { stdout: stdout.slice(0, 10000), stderr: '', exitCode: 0 };
+        // Decode BEFORE slice — slicing a Buffer first could cut mid-multibyte
+        const stdoutStr = isWin ? decodeWinConsole(stdout) : stdout;
+        return { stdout: stdoutStr.slice(0, 10000), stderr: '', exitCode: 0 };
       } catch (err) {
-        return { stdout: err.stdout?.slice(0, 5000) || '', stderr: err.stderr?.slice(0, 2000) || err.message, exitCode: err.status || 1 };
+        const isWin = process.platform === 'win32';
+        const errStdout = isWin ? decodeWinConsole(err.stdout) : (err.stdout || '');
+        const errStderr = isWin ? decodeWinConsole(err.stderr) : (err.stderr || err.message);
+        return { stdout: errStdout.slice(0, 5000), stderr: errStderr.slice(0, 2000) || err.message, exitCode: err.status || 1 };
       }
     }, 'system');
 
@@ -682,8 +694,13 @@ ${descriptions.join('\n\n')}`;
       if (!_gitAvailable()) return { commits: '(no git repository in this installation)' };
       try {
         const n = Math.min(input.count || 10, 50);
-        const { stdout } = await execFileAsync('git', ['log', '--oneline', `-${n}`], { cwd: rootDir, encoding: 'utf-8', timeout: TIMEOUTS.GIT_OP, windowsHide: true });
-        return { commits: stdout.trim() };
+        const isWin = process.platform === 'win32';
+        const { stdout } = await execFileAsync('git', ['log', '--oneline', `-${n}`], {
+          cwd: rootDir, encoding: isWin ? 'buffer' : 'utf-8',
+          timeout: TIMEOUTS.GIT_OP, windowsHide: true,
+        });
+        const stdoutStr = isWin ? decodeWinConsole(stdout) : stdout;
+        return { commits: stdoutStr.trim() };
       } catch (err) {
         return { commits: 'Git not available: ' + err.message };
       }
@@ -698,8 +715,13 @@ ${descriptions.join('\n\n')}`;
       if (!_gitAvailable()) return { diff: '(no git repository in this installation)' };
       try {
         const args = input.file ? ['diff', '--', input.file] : ['diff', '--stat'];
-        const { stdout } = await execFileAsync('git', args, { cwd: rootDir, encoding: 'utf-8', timeout: TIMEOUTS.GIT_OP, windowsHide: true });
-        return { diff: (stdout || '').slice(0, 10000) || '(no changes)' };
+        const isWin = process.platform === 'win32';
+        const { stdout } = await execFileAsync('git', args, {
+          cwd: rootDir, encoding: isWin ? 'buffer' : 'utf-8',
+          timeout: TIMEOUTS.GIT_OP, windowsHide: true,
+        });
+        const stdoutStr = isWin ? decodeWinConsole(stdout) : stdout;
+        return { diff: (stdoutStr || '').slice(0, 10000) || '(no changes)' };
       } catch (err) {
         return { diff: 'Git not available: ' + err.message };
       }

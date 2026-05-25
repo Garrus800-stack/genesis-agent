@@ -28,6 +28,11 @@ const { lang }          = require('./core/Language');
 const { StorageService }= require('./foundation/StorageService');
 const { Logger, createLogger } = require('./core/Logger');
 const { buildManifest } = require('./ContainerManifest');
+// v7.9.11: kick off Win console codepage detection during boot so the
+// first shell-output decode has an accurate codepage. Fire-and-forget;
+// shell tools fall back to locale-default until detection completes
+// (typically ~50-200 ms).
+const { detectConsoleCodepage } = require('./core/shell/WinConsoleEncoding');
 const { ModuleRegistry }= require('./revolution/ModuleRegistry');
 const { ToolBootstrap } = require('./capabilities/ToolBootstrap');
 const { safeJsonParse } = require('./core/utils');
@@ -147,6 +152,13 @@ class AgentCoreBoot {
         } catch (_e) { /* bus not ready yet — safe to skip */ }
       }
     } catch (_e) { /* defensive — never block boot on this */ }
+
+    // v7.9.11: fire-and-forget console-codepage detection on Windows.
+    // No await — boot continues immediately; the detection promise
+    // populates the module-level cache. Returns 'utf-8' instantly on
+    // non-Windows, so this is a no-op there. Used by ShellAgent /
+    // ToolRegistry / AgentLoopSteps to decode cmd.exe output.
+    detectConsoleCodepage().catch(() => { /* never throws */ });
 
     _log.info('  [0] Bootstrap: rootDir, guard, bus, storage, lang, logger');
   }

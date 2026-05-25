@@ -78,6 +78,21 @@ const activityStatsMixin = {
       const payload = {
         version: STATS_SCHEMA_VERSION,
         lastUpdated: Date.now(),
+        // v7.9.11: persist thoughtCount alongside activityCounts. Pre-fix
+        // the dashboard showed "0 thoughts · idle 24min" next to stored
+        // activity counts in double digits (Garrus's Win field-trace
+        // 2026-05-25 showed explore 5 · ideate 5 · reflect 4 · plan 4 ·
+        // research 4 = 22 stored activities next to "0 thoughts"). Cause
+        // was activityCounts on disk + thoughtCount session-only.
+        //
+        // Known limitation: thoughtCount is incremented in _think() before
+        // skip-checks (user-active <60s, homeostasis-block, low-energy),
+        // but _saveActivityStats only fires through _recordActivity after
+        // a successful activity run. Skip-cycles therefore increment
+        // without persisting — ~9% drift over a typical session. The
+        // counter is "grossly accurate", not bookkeeping-precise, which
+        // is fine for a dashboard indicator.
+        thoughtCount: this.thoughtCount || 0,
         activityCounts: Object.fromEntries(this._activityCounts || []),
         activityLog: (this.activityLog || []).slice(-STATS_LOG_BOUND),
       };
@@ -119,6 +134,18 @@ const activityStatsMixin = {
       this._activityCounts = new Map(
         Object.entries(data.activityCounts).filter(([k, v]) => typeof k === 'string' && Number.isFinite(v))
       );
+    }
+    // v7.9.11: restore persistent thoughtCount. Missing field on legacy
+    // stats files (v7.9.10 and earlier) falls back to the sum of
+    // activityCounts so users don't restart at zero after upgrade — the
+    // sum is a lower bound (skip-cycles weren't counted) but vastly
+    // better than the "0 thoughts" dashboard inconsistency that triggered
+    // this fix.
+    if (Number.isFinite(data.thoughtCount)) {
+      this.thoughtCount = data.thoughtCount;
+    } else if (this._activityCounts && this._activityCounts.size > 0) {
+      this.thoughtCount = Array.from(this._activityCounts.values())
+        .reduce((sum, n) => sum + n, 0);
     }
   },
 

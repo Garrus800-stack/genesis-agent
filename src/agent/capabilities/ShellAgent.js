@@ -25,6 +25,8 @@ const { NullBus } = require('../core/EventBus');
 const { SHELL: SHELL_LIMITS, TIMEOUTS, THRESHOLDS } = require('../core/Constants');
 const { safeJsonParse } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
+// v7.9.11: Win console codepage handling
+const { decodeWinConsole } = require('../core/shell/WinConsoleEncoding');
 // v7.5.4: extracted helpers
 const Safety = require('../core/shell/ShellSafety');
 const OSAdapter = require('./shell/ShellOSAdapter');
@@ -183,8 +185,14 @@ class ShellAgent {
     // For compound commands (pipes, redirects), we fall back to shell mode
     // but with the command as a single argument (not concatenated).
     const shellMeta = /[|;&`$(){}><]/.test(command);
+    // v7.9.11: Win console codepage — read raw buffer, decode after.
+    // Pre-fix `encoding: 'utf-8'` misread cp850/cp1252 bytes as UTF-8
+    // producing U+FFFD replacement-character noise in DE-Win output.
+    const _isWin = this.isWindows;
     const execOpts = {
-      cwd: path.resolve(cwd), encoding: 'utf-8', timeout,
+      cwd: path.resolve(cwd),
+      encoding: _isWin ? 'buffer' : 'utf-8',
+      timeout,
       maxBuffer: 1024 * 1024, windowsHide: true,
     };
 
@@ -221,9 +229,12 @@ class ShellAgent {
       }
 
       const duration = Date.now() - startTime;
+      // v7.9.11: decode BEFORE slice. Pre-fix would have sliced a Buffer
+      // potentially mid-multibyte-sequence on the new buffer-encoding path.
+      const stdoutStr = _isWin ? decodeWinConsole(stdout) : (stdout || '');
       const result = {
         ok: true,
-        stdout: (stdout || '').slice(0, 20000),
+        stdout: stdoutStr.slice(0, 20000),
         stderr: '',
         exitCode: 0,
         duration,
@@ -239,9 +250,13 @@ class ShellAgent {
       return result;
     } catch (err) {
       const duration = Date.now() - startTime;
+      // v7.9.11: decode err.stdout and err.stderr from buffer on Win
+      const errStdoutStr = _isWin ? decodeWinConsole(err.stdout) : (err.stdout || '');
+      const errStderrStr = _isWin ? decodeWinConsole(err.stderr) : (err.stderr || err.message);
       const result = {
-        ok: false, stdout: (err.stdout || '').slice(0, 10000),
-        stderr: (err.stderr || err.message).slice(0, 5000),
+        ok: false,
+        stdout: errStdoutStr.slice(0, 10000),
+        stderr: errStderrStr.slice(0, 5000),
         exitCode: err.status || err.code || 1, duration, blocked: false, killed: !!err.killed,
         adaptedCommand: command,
         originalCommand,
@@ -412,8 +427,12 @@ class ShellAgent {
     scan.keyFiles = entries.filter(e => keyPatterns.test(e) || /\.(md|toml|cfg|ini)$/i.test(e)).slice(0, 20);
 
     try {
-      const { stdout: status } = await execFileAsync('git', ['status', '--porcelain'], { cwd: resolved, encoding: 'utf-8', timeout: TIMEOUTS.QUICK_CHECK, windowsHide: true });
-      const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], { cwd: resolved, encoding: 'utf-8', timeout: TIMEOUTS.QUICK_CHECK, windowsHide: true });
+      const _isWin = this.isWindows;
+      const _gitEnc = _isWin ? 'buffer' : 'utf-8';
+      const { stdout: statusBuf } = await execFileAsync('git', ['status', '--porcelain'], { cwd: resolved, encoding: _gitEnc, timeout: TIMEOUTS.QUICK_CHECK, windowsHide: true });
+      const { stdout: branchBuf } = await execFileAsync('git', ['branch', '--show-current'], { cwd: resolved, encoding: _gitEnc, timeout: TIMEOUTS.QUICK_CHECK, windowsHide: true });
+      const status = _isWin ? decodeWinConsole(statusBuf) : statusBuf;
+      const branchOut = _isWin ? decodeWinConsole(branchBuf) : branchBuf;
       const branch = branchOut.trim();
       const changes = status.trim().split('\n').filter(l => l.trim()).length;
       scan.gitStatus = `${branch} (${changes === 0 ? 'clean' : changes + ' changes'})`;
@@ -421,9 +440,10 @@ class ShellAgent {
 
     try {
       if (this.isWindows) {
-        const { stdout: countOut } = await execFileAsync('powershell', ['-NoProfile', '-Command',
+        const { stdout: countBuf } = await execFileAsync('powershell', ['-NoProfile', '-Command',
           `(Get-ChildItem -LiteralPath '${resolved.replace(/'/g, "''")}' -Recurse -File | Where-Object { $_.FullName -notmatch 'node_modules|.git' }).Count`
-        ], { cwd: resolved, encoding: 'utf-8', timeout: TIMEOUTS.GIT_OP, windowsHide: true });
+        ], { cwd: resolved, encoding: 'buffer', timeout: TIMEOUTS.GIT_OP, windowsHide: true });
+        const countOut = decodeWinConsole(countBuf);
         scan.size = parseInt(countOut.trim()) || 0;
       } else {
         const { stdout: countOut } = await execFileAsync('find', ['.', '-type', 'f', '-not', '-path', '*/node_modules/*', '-not', '-path', '*/.git/*'], { cwd: resolved, encoding: 'utf-8', timeout: TIMEOUTS.GIT_OP, windowsHide: true });

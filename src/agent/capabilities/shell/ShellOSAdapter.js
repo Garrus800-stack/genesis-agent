@@ -29,6 +29,77 @@ function resolveShell() {
 }
 
 /**
+ * v7.9.11: classifier for adaptPaths. Returns true when a token looks
+ * like a multi-segment filesystem path that needs forward-slash → backslash
+ * conversion on Windows. Returns false for cmd.exe switches (e.g. /V, /c,
+ * /verbose, /q), single-/ tokens, and anything without slashes.
+ *
+ * Rules:
+ *   - false if no '/' at all (most tokens — command names, options, args)
+ *   - true  if starts with './' or '../' (explicit relative path)
+ *   - false if matches /<letter><up to 14 word chars> (cmd switches: /V /e /verbose /q etc.)
+ *   - true  if contains <[\w.-]{2,}/[\w.-]+> (multi-segment path like src/agent/X.js)
+ *   - false otherwise
+ *
+ * @param {string} tok
+ * @returns {boolean}
+ */
+function _looksLikePath(tok) {
+  if (!tok.includes('/')) return false;
+  if (tok.startsWith('./') || tok.startsWith('../')) return true;
+  if (/^\/[a-zA-Z]\w{0,14}$/.test(tok)) return false;
+  if (/[\w.-]{2,}\/[\w.-]+/.test(tok)) return true;
+  return false;
+}
+
+/**
+ * v7.9.11: convert forward-slash paths to backslashes in a Windows command.
+ *
+ * Why: cmd.exe interprets /foo as a switch (e.g. /agent → /a /g /e /n /t),
+ * producing "Die Syntax für den Dateinamen ist falsch" on commands like
+ * `type src/agent/X.js`. LLMs generate Unix-style paths by default; the
+ * existing program-name swaps (cat→type, ls→dir, etc.) translate the
+ * binary but leave argument paths intact.
+ *
+ * Approach: token-based with quote awareness. Walk the command splitting
+ * on whitespace, preserving quoted strings as single tokens. For each
+ * non-quoted token: if _looksLikePath says yes AND it isn't a POSIX
+ * system path AND it isn't a protocol URL, replace / with \.
+ *
+ * POSIX absolute system paths (/var, /etc, /usr, /tmp, /home, /root,
+ * /opt, /mnt, /sys, /proc, /dev) are deliberately preserved — they
+ * should fail loudly on Windows instead of being silently rewritten to
+ * a non-existent location.
+ *
+ * @param {string} cmd
+ * @returns {string}
+ */
+function adaptPaths(cmd) {
+  const out = [];
+  let inSingle = false, inDouble = false, current = '';
+  for (const ch of cmd) {
+    if (!inDouble && ch === "'") { inSingle = !inSingle; current += ch; continue; }
+    if (!inSingle && ch === '"') { inDouble = !inDouble; current += ch; continue; }
+    if (!inSingle && !inDouble && ch === ' ') {
+      if (current) out.push(current);
+      out.push(' ');
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current) out.push(current);
+
+  return out.map(tok => {
+    if (tok === ' ' || tok.startsWith("'") || tok.startsWith('"')) return tok;
+    if (!_looksLikePath(tok)) return tok;
+    if (/^\/(?:var|etc|usr|tmp|home|root|opt|mnt|sys|proc|dev)\b/.test(tok)) return tok;
+    if (/^https?:\/\/|^file:\/\/|^ftp:\/\//.test(tok)) return tok;
+    return tok.replace(/\//g, '\\');
+  }).join('');
+}
+
+/**
  * Translate a POSIX command into Windows form when running on Windows.
  * No-op on non-Windows platforms.
  *
@@ -55,6 +126,15 @@ function adaptCommand(cmd, platform) {
     .replace(/^pwd\b/, 'cd')
     .replace(/^clear$/, 'cls')
     .replace(/^echo\s+\$([A-Z_][A-Z0-9_]*)\b/, 'echo %$1%');
+
+  // v7.9.11: convert forward-slash paths to backslashes. Must run AFTER
+  // the program-name swaps above (so `cat src/X.js` first becomes
+  // `type src/X.js`, then `type src\X.js`) and BEFORE the find/grep
+  // rewrites below (those produce literal cmd switches like `/V /C` in
+  // their output, which adaptPaths's _looksLikePath classifier would
+  // correctly skip anyway — but doing the path adapt earlier means we
+  // operate on shorter strings and the order of intent is clearer).
+  out = adaptPaths(out);
 
   // Quote-safe line counting:
   // `find /C /V ""` → mangled by cmd.exe quote-escaping → reads file `"\"`.

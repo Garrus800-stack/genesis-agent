@@ -346,6 +346,22 @@ If you're at AUTONOMOUS and want approval prompts on high-sim-risk steps regardl
 
 **Fix:** Upgrade to v7.9.10 or later. The cap is automatically lifted to 10 when `LLMCapabilityDetector` flags the model as no-prefill. Local prefill-capable models still cap at 6 (no benefit to raising it).
 
+### SEARCH-step returns 2-of-5 irrelevant results that don't match the file in the query (pre-v7.9.11)
+
+**Symptom:** A SEARCH goal-step with a query like `"Identify all references to Reflect.js in the codebase"` returns a top-5 mix that includes idea-nodes or insight-nodes referencing other files — even when the KG contains insight-nodes whose `properties.file` matches the queried file exactly.
+
+**Why it happens (pre-v7.9.11):** `KnowledgeGraphSearch.search()` weighted every query word equally (+2 for text match, +3 for label match). Generic words like `"all"`, `"the"`, `"references"`, `"reflect"` matched many nodes and rare tokens (file names, specific identifiers) were undistinguished. A generic idea-node containing `"reflect on..."` outranked a specific insight tagged with `properties.file = "Reflect.js"`.
+
+**Fix:** Upgrade to v7.9.11 or later. The new scoring uses inverse document frequency per query word (rare tokens score higher than common ones) plus a file-token boost (`X.js`/`X.ts`/`X.md`/`X.json` patterns in the query lift matching `properties.file` nodes and demote generic-match-only nodes). Existing `searchAsync` hybrid keyword+vector ranking gets the improvement automatically because it uses `search()` internally as its keyword source.
+
+### Dashboard shows "0 thoughts" next to activity counts in double digits (pre-v7.9.11)
+
+**Symptom:** The IdleMind dashboard widget displays `0 thoughts · idle 24min` immediately next to per-activity counts like `explore 5 · ideate 5 · reflect 4 · plan 4 · research 4` — clearly more than zero activities have happened, but the thought counter is zero.
+
+**Why it happens (pre-v7.9.11):** `IdleMindActivityStats._saveActivityStats` wrote `activityCounts` to disk but never `thoughtCount`. The constructor's `this.thoughtCount = 0` survived every restart because the load path didn't restore it.
+
+**Fix:** Upgrade to v7.9.11 or later. The save payload now includes `thoughtCount` and the load path restores it. Legacy stats files from v7.9.10 and earlier fall back to `sum(activityCounts.values())` — a lower bound (skip-cycles where Genesis decided not to think weren't counted at all pre-fix) but better than the visible reset to zero. The counter remains "grossly accurate" by design, not bookkeeping-precise; it's a dashboard indicator.
+
 ---
 
 ## Test Suite Performance
@@ -432,6 +448,22 @@ npm run test:coverage
 1. Node.js not in PATH — install via official installer, not ZIP
 2. Space in directory path — move the project to a path without spaces
 3. PowerShell execution policy — run `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`
+
+### Windows: SHELL step fails with "syntax of the filename is incorrect"
+
+**Symptom:** A SHELL goal-step or `shell` tool call returns the cmd.exe error `The syntax of the filename, directory name, or volume label is incorrect` (or its German equivalent `Die Syntax fuer den Dateinamen ... ist falsch`, with umlauts that may render as replacement characters on cp850 consoles before v7.9.11) when the LLM-generated command contained a Unix-style path like `cat src/agent/X.js`.
+
+**Cause:** cmd.exe interprets `/agent` (the second segment of the forward-slash path) as command switches `/a /g /e /n /t`. Pre-v7.9.11 the `ShellOSAdapter` translated `cat → type` but left the forward-slash path intact.
+
+**Fix:** Resolved in v7.9.11 — `ShellOSAdapter.adaptCommand` now also converts forward-slash paths to backslashes in a quote-aware, switch-aware way (single-letter and short-word `/x` tokens are recognised as cmd switches and preserved). If you see this on an older version, upgrade.
+
+### Windows: SHELL output shows `f�r` / `Datentr�ger` / replacement characters
+
+**Symptom:** Output from the `shell` tool or SHELL goal-step contains `U+FFFD` replacement characters where umlauts or other accented characters should be.
+
+**Cause:** cmd.exe writes its output in the active console codepage (cp850 on German Windows, cp437 on English Windows). Pre-v7.9.11 Node read the output with `encoding: 'utf-8'`, which misinterpreted the cp850/cp437 bytes and replaced them with `U+FFFD`.
+
+**Fix:** Resolved in v7.9.11 — `WinConsoleEncoding.js` detects the active codepage via `chcp` at boot and decodes shell output with `iconv-lite`. The fix applies to all eight execFile sites (`shell`/`git-log`/`git-diff` tools, `ShellAgent` central + git status/branch + powershell, `AgentLoopSteps` SHELL fallback). Linux and macOS are unaffected.
 
 ### macOS: App is damaged / can't be opened
 
