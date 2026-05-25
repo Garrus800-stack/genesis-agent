@@ -1356,9 +1356,13 @@ describe('Language Detection', () => {
   });
 
   test('should fall back to English for missing keys', () => {
+    // v7.9.10: with fr+es now fully populated (464 keys each, parity with en),
+    // we can't use a real language to test missing-key fallback. Use a
+    // synthetic language code 'zz' that has no STRINGS entry — Language.t
+    // must still resolve via en. This exercises the same fallback semantics
+    // without relying on the incompleteness of any real translation.
     const l = new Language();
-    l.set('fr');
-    // French doesn't have all keys, should fallback to English
+    l.current = 'zz';  // synthetic, not in STRINGS
     const result = l.t('health.title');
     assertEqual(result, 'Genesis — System status');
   });

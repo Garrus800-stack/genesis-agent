@@ -148,10 +148,13 @@ class LessonsStore {
       id, category: entry.category, insight: entry.insight.slice(0, 100),
     }, { source: 'LessonsStore' });
 
-    // Periodic save
-    if (this._stats.lessonsCreated % 5 === 0) {
-      this._save();
-    }
+    // v7.9.10: persist on every record. The pre-fix "every 5th" buffer meant
+    // the first four lessons of a fresh install never reached disk until a
+    // fifth came along — and after a typical thirty-minute idle run that
+    // produced one or two failures, the lessons folder stayed empty. _save
+    // is cheap (JSON write of an in-memory array under 5 MB), no benefit to
+    // buffering, and the buffer obscured every short-session use case.
+    this._save();
 
     return id;
   }

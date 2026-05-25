@@ -64,7 +64,16 @@ const _log = createLogger('ContinuationLoop');
 // dashboard signal before runaway-cost.
 const MAX_CONTINUATIONS_DEFAULT = 6;
 const KEEP_ALIVE_OVERRIDE = '15m';
-const BACKOFF_BASE_MS = 1000;
+// v7.9.10: base backoff between continuation attempts. In offline test mode
+// (GENESIS_OFFLINE_TESTS=1) we collapse to 0ms so test mocks that don't call
+// onDone (leaving doneReason=null, which isComplete treats as truncated)
+// don't trigger the full exponential schedule (1+2+4+8+16... seconds). The
+// flag is set by test/index.js and was never visible in production. v752-fix
+// section D test alone was burning ~31s in v7.9.9 on this path, and Fix 2's
+// no-prefill cap lift to 10 would have made it ~511s. Production callers
+// outside test mode pay the same 1000ms base they always did — this is an
+// isolated test-loop accelerator, not a behavioural change.
+const BACKOFF_BASE_MS = process.env.GENESIS_OFFLINE_TESTS === '1' ? 0 : 1000;
 const PSEUDO_CONTINUATION_PROMPT =
   'Your previous response was truncated at the output token limit. ' +
   'Continue exactly from where you stopped. Do NOT repeat any prior text, ' +
@@ -125,6 +134,16 @@ async function runContinuation(args) {
   const capabilityStatus = capability?.status || 'unknown';
   const usePrefill = capabilityStatus === 'verified-prefill';
 
+  // v7.9.10: cloud-no-prefill cap. Local prefill-capable models complete in
+  // 4-6 rounds reliably; v7.9.7 P6 evidence motivated MAX_CONTINUATIONS_DEFAULT=6.
+  // Cloud models without prefill use pseudo-continuation (model is asked to
+  // resume from where it left off) which is less reliable and often needs
+  // 8-10 rounds for code-with-manifest outputs. Field-trace 2026-05-24 lost
+  // a 37591-char qwen3-vl:cloud output at round 6. Floor stays 6 for local;
+  // for no-prefill we lift to at least CLOUD_NO_PREFILL_FLOOR (10) if the
+  // caller asked for less. Callers requesting more keep their value.
+  const effectiveMaxContinuations = computeEffectiveMaxContinuations(capability, maxContinuations);
+
   // ── keep_alive override (only if backend supports it) ──
   let releaseKeepAlive = null;
   if (typeof backend.pushKeepAliveOverride === 'function') {
@@ -145,7 +164,7 @@ async function runContinuation(args) {
   let failureReason = null;
 
   try {
-    for (let i = 0; i < maxContinuations; i++) {
+    for (let i = 0; i < effectiveMaxContinuations; i++) {
       attempts++;
 
       // ── Build messages for this round ───────────────────
@@ -225,7 +244,7 @@ async function runContinuation(args) {
       }
 
       // ── Exponential backoff before next attempt ────────
-      if (i < maxContinuations - 1) {
+      if (i < effectiveMaxContinuations - 1) {
         const backoffMs = BACKOFF_BASE_MS * Math.pow(2, i);
         const remainingTime = sequenceDeadline - Date.now();
         if (remainingTime <= backoffMs) {
@@ -281,10 +300,35 @@ function _sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// v7.9.10: cloud-no-prefill cap floor. Local prefill models complete reliably
+// at the caller's configured cap (default 6). Cloud models without prefill
+// use pseudo-continuation and often need 8-10 rounds — Field-trace 2026-05-24
+// lost a 37591-char qwen3-vl:cloud output at round 6. For no-prefill we lift
+// the floor to CLOUD_NO_PREFILL_FLOOR.
+const CLOUD_NO_PREFILL_FLOOR = 10;
+
+/**
+ * Compute the effective max-continuations cap based on model capability.
+ * Local verified-prefill returns the caller's value unchanged.
+ * Anything else (no-prefill, unverified, missing) returns max(caller, FLOOR).
+ * Callers requesting more than FLOOR keep their value; floor only lifts.
+ *
+ * @param {{status?: string} | null | undefined} capability
+ * @param {number} maxContinuations  caller-supplied cap
+ * @returns {number} effective cap for the loop
+ */
+function computeEffectiveMaxContinuations(capability, maxContinuations) {
+  const status = capability?.status || 'unknown';
+  const usePrefill = status === 'verified-prefill';
+  return usePrefill ? maxContinuations : Math.max(maxContinuations, CLOUD_NO_PREFILL_FLOOR);
+}
+
 module.exports = {
   runContinuation,
+  computeEffectiveMaxContinuations,
   // Constants exported for tests
   MAX_CONTINUATIONS_DEFAULT,
+  CLOUD_NO_PREFILL_FLOOR,
   KEEP_ALIVE_OVERRIDE,
   PSEUDO_CONTINUATION_PROMPT,
 };

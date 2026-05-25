@@ -133,8 +133,17 @@ async function main() {
                 'v743-structure',
               ]);
               const isNodeTest = NODE_TEST_FILES.has(moduleName);
+              // v7.9.10: --test-timeout=2000 prevents node:test's default
+              // 10-second drain after --test-force-exit. v737-dream-phases
+              // and v737-wakeup-routine actually run in 18ms each but the
+              // force-exit drain held the subprocess for 10000ms apiece.
+              // In Promise.allSettled batches of 4, the slowest test held
+              // the whole batch — neighbouring v7xx-fix tests appeared to
+              // hang for 10 seconds when they had already finished in 100ms.
+              // 2000ms is well above any observed real test runtime here.
               const nodeArgs = isNodeTest
-                ? ['--test-reporter=tap', '--test-reporter-destination=stdout', '--test-force-exit', filePath]
+                ? ['--test-reporter=tap', '--test-reporter-destination=stdout',
+                   '--test-force-exit', '--test-timeout=2000', filePath]
                 : [filePath];
               const { stdout, stderr: nodeStderr } = await execFileAsync('node', nodeArgs, {
                 cwd: path.join(__dirname, '..'),

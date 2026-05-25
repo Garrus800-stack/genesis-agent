@@ -230,12 +230,17 @@ test('G2: classifyFailure imports the shared helper', () => {
 });
 
 test('G3: lesson-recording gate stableClass admits structural failures', () => {
-  // The contract: classification !== 'unclassified' AND the gate accepts it.
-  // Together with G1, a TypeError-class failure now reaches lessonsStore.record.
+  // v7.9.10 widened the gate further: 'unclassified' is now accepted when
+  // errorMessage is non-empty (so LLM-verdict messages like "PARTIAL because..."
+  // also reach lessonsStore.record). The structural-failure path still passes
+  // through stableClass unchanged. 'user-action' still excluded (not a Genesis
+  // failure to learn from).
   const src = fs.readFileSync(
     path.join(ROOT, 'src/agent/revolution/AgentLoopPursuitReflection.js'), 'utf8');
-  assert(/stableClass\s*=\s*payload\.classification !== 'unclassified'/.test(src),
-    'stableClass must still be the gate (only its input is widened)');
+  assert(/stableClass/.test(src),
+    'stableClass must still exist as the recording-gate name');
+  assert(/payload\.classification !== 'user-action'/.test(src),
+    'stableClass must still exclude user-action (not a Genesis failure)');
 });
 
 // ── Bug C: IdleMind activity-recording unconditional ──────────

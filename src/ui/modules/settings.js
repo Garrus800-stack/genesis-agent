@@ -31,7 +31,7 @@
 
 const { t } = require('./i18n');
 const { openSettings, saveSettings } = require('./settings-loadsave');
-const { _refreshResetTitles } = require('./settings-fields');
+const { _refreshResetTitles, _decorateAllFields } = require('./settings-fields');
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -46,11 +46,23 @@ function closeSettings() {
  *
  * Called by the language-change handler in renderer-main.js. The modal
  * may or may not be open; we touch only what's already in the DOM.
+ *
+ * v7.9.10: now also re-runs _decorateAllFields so the JS-generated
+ * default-hint spans ("Predeterminado: vacío · (efectivo tras reinicio)")
+ * follow the language switch. Pre-fix they kept whatever language was
+ * active the first time the modal opened — the v7.9.10 full fr+es
+ * translation surfaced the bug because language-switching now actually
+ * means something visually.
  */
 function refreshSettingsI18n() {
   // 1. Reset button titles (already-decorated fields)
   _refreshResetTitles();
-  // 2. MCP "Add" button label (re-translated on next openSettings,
+  // 2. Re-render default-hint spans for every registered field.
+  // _decorateField removes ALL prior .setting-default-hint elements
+  // first via querySelectorAll on the stable .setting-group anchor,
+  // then inserts a fresh one with the current language's strings.
+  _decorateAllFields();
+  // 3. MCP "Add" button label (re-translated on next openSettings,
   //    but if the modal is open right now, we'd want it updated).
   const mcpAdd = $('#btn-mcp-server-add');
   if (mcpAdd) mcpAdd.textContent = t('ui.add');

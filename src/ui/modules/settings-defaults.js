@@ -124,8 +124,15 @@ function buildDefaultHint(id, doc, translate) {
   const span = doc.createElement('span');
   span.className = 'setting-default-hint';
 
-  // i18n helper — fallback to German originals if translate() not given
+  // i18n helper — fallback to English originals if translate() not given
   // or if the key isn't in the dictionary (so we never render `{{key}}`).
+  // v7.9.10: fallbacks anglicised. Previously they were German ('an',
+  // 'aus', 'leer', 'Default') which leaked through in early-boot moments
+  // before the i18n dictionary loaded, or in test contexts where no
+  // translate function is supplied. With the v7.9.10 full fr+es
+  // translation, the fallback path is unreachable for the four supported
+  // languages anyway — but the right default when it does trigger is
+  // English, not German.
   const t = (key, fallback) => {
     if (typeof translate !== 'function') return fallback;
     const v = translate(key);
@@ -135,9 +142,9 @@ function buildDefaultHint(id, doc, translate) {
   const L_DEFAULT = t('default_hint.label', 'Default');
   const L_MIN = t('default_hint.min', 'Min');
   const L_MAX = t('default_hint.max', 'Max');
-  const L_ON = t('default_hint.on', 'an');
-  const L_OFF = t('default_hint.off', 'aus');
-  const L_EMPTY = t('default_hint.empty', 'leer');
+  const L_ON = t('default_hint.on', 'on');
+  const L_OFF = t('default_hint.off', 'off');
+  const L_EMPTY = t('default_hint.empty', 'empty');
 
   let text = '';
   if (meta.type === 'number' && typeof meta.default === 'number') {
@@ -189,7 +196,7 @@ function validateField(id, currentValue, translate) {
   if (meta.type === 'number') {
     if (currentValue === '' || currentValue == null) return { ok: true }; // empty = use default
     const n = Number(currentValue);
-    if (Number.isNaN(n)) return { ok: false, reason: t('default_hint.not_a_number', 'keine Zahl') };
+    if (Number.isNaN(n)) return { ok: false, reason: t('default_hint.not_a_number', 'not a number') };
     if (typeof meta.min === 'number' && n < meta.min) return { ok: false, reason: `< ${t('default_hint.min','Min')} ${meta.min}` };
     if (typeof meta.max === 'number' && n > meta.max) return { ok: false, reason: `> ${t('default_hint.max','Max')} ${meta.max}` };
   }

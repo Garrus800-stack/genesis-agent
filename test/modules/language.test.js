@@ -78,6 +78,31 @@ describe('Language', () => {
     if (typeof strings !== 'object') throw new Error('Should return object');
     if (strings._lang !== 'en') throw new Error('Should include _lang');
   });
+
+  // v7.9.10 parity locks: fr and es must have the same key count as en.
+  // The pre-fix fr/es each had ~23 keys vs en's 464 — every other key fell
+  // through to English via t() fallback, producing mid-sentence language
+  // switches like "Erreur Pipeline fallback chain empty". These tests
+  // ensure future additions to en force matching additions in fr and es.
+  test('v7.9.10: fr has parity with en (464 keys, no fallthrough)', () => {
+    const { STRINGS } = require('../../src/agent/core/Language');
+    const enKeys = Object.keys(STRINGS.en).length;
+    const frKeys = Object.keys(STRINGS.fr).length;
+    if (frKeys !== enKeys) {
+      throw new Error('fr has ' + frKeys + ' keys but en has ' + enKeys +
+        ' — parity broken (add missing fr translations or remove obsolete en keys)');
+    }
+  });
+
+  test('v7.9.10: es has parity with en (464 keys, no fallthrough)', () => {
+    const { STRINGS } = require('../../src/agent/core/Language');
+    const enKeys = Object.keys(STRINGS.en).length;
+    const esKeys = Object.keys(STRINGS.es).length;
+    if (esKeys !== enKeys) {
+      throw new Error('es has ' + esKeys + ' keys but en has ' + enKeys +
+        ' — parity broken (add missing es translations or remove obsolete en keys)');
+    }
+  });
 });
 
 if (require.main === module) run();

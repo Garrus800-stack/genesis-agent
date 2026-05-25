@@ -8,8 +8,8 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.9.9-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-7933%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.9.10-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-8105%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-126%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
@@ -453,7 +453,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 165 manifest + 13 bootstrap = 178 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 488 files, 7933 tests (coverage gates: 80/76/78, ratchet floor 6014) |
+| Test suites | 488 files, 8105 tests (coverage gates: 80/76/78, ratchet floor 6014) |
 | Dependencies | 4 production + 1 optional + 10 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 79 main ↔ 79 preload (rate-limited, all in sync) |

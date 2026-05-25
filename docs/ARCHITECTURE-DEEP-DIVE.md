@@ -14,7 +14,7 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
 | Source Modules | 379 JS files |
-| Test Files / Tests | 500 / 7933 (Win baseline) |
+| Test Files / Tests | 502 / 8105 (Win baseline) |
 | DI Services | 178 (165 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
@@ -282,6 +282,12 @@ Perceive (WorldState) → Plan (FormalPlanner) → Act → Verify → Learn → 
 ```
 Max 20 steps per goal (+10 after user approval), 3 consecutive error limit, 10-minute global timeout.
 
+**AgentLoopProgressDetector** `v7.9.9` — Reflexion-style degenerate-loop detector (Shinn et al. 2023, arXiv 2303.11366). Two state Maps cleared on `goal:completed` / `goal:abandoned` / `goal:obsolete` / `goal:stalled`. The action-loop detector hashes `(stepKind, resultDigest)` per step into a per-goal ring buffer; three identical hashes in a row emit `agent-loop:no-progress-detected` and force a replan. The plan-loop detector hashes `(goalDesc, plan-step-types)` at pursuit start; a hash seen before for the same goal emits `agent-loop:identical-plan-detected` and forces a replan with a different LLM hint. ProgressDetector is not a registered Container service — AgentLoopPursuit lazy-instantiates it on first use; when absent, pursuit still runs but loses the early-loop-break and relies on the existing `failureCap` (2) and `_repeatedFailures` paths instead.
+
+**AgentLoopPursuitGate three-branch dispatch** `v7.9.9` — When MentalSimulator returns `proceed: false` with `riskScore ≥ 5.0`, `handleHardGateAbort` reads `trustLevelSystem.getLevel()` and routes: SUPERVISED + AUTONOMOUS stay warn-only (`aborted: false`), letting the step route through `TrustLevelSystem.checkApproval(stepType)` which asks SUPERVISED users about everything and AUTONOMOUS users only about categorically critical action classes; FULL_AUTONOMY tries `_trySpawnObstacleSubgoal` and on refusal calls `goalStack.markObsolete`. The architectural point is decoupling: the hard-gate is a numerical signal from MentalSimulator about a plan's overall risk; the approval mechanism is categorical via TrustLevelSystem about an individual action's risk class. Pre-v7.9.9 iterations mixed them, producing a spam path where high-sim-risk goals at AUTONOMOUS dropped into approval prompts on every retry. `agent-loop:simulation-abort` telemetry still fires at every gate trigger, deduplicated per `goalId`.
+
+**AgentLoopRecovery decompose-on-failure** `v7.9.9` — `_repeatedFailures` Map keyed `(goalId, errorClass)` with 1h TTL, consulted at the bottom of `classifyAndRecover`. On the 2nd occurrence of the same error-class for the same goal — across pursuit retries, not within a single pursuit — recovery synthesises an obstacle and routes it through `_trySpawnObstacleSubgoal`. The cross-pursuit keying is the critical detail: pre-fix the key included `stepIndex`, which is unstable across retries (each retry generates a different plan), so the strikes never matched and decompose never fired in production. Goal-lifecycle events clear all entries for that goalId.
+
 ### Phase 9: Cognitive (35 files, ~13,200 LOC)
 
 Expectation, surprise, learning, self-model, adaptation. The cognitive substrate that makes Genesis self-correcting and self-improving. Includes CognitiveSelfModel (empirical capability tracking with Wilson-score calibration), AdaptiveStrategy (closed-loop self-correction), OnlineLearner (real-time behavioral adaptation), PromptEvolution (A/B prompt optimization), MemoryConsolidator (KG/Lessons hygiene), TaskRecorder (execution replay), CoreMemories (v7.3.7), LessonsStore, GateStats (v7.3.6 — central gate-verdict telemetry), SuspicionFrontier, LessonFrontier, ArchitectureReflection, **SelfStatementLog (v7.5.5 + DE/EN parity in v7.5.6)** — auto-classifies first-person statements (`strukturell` / `versprechen` / `emotional` / `uncertain`), persists to daily JSONL shards, fires `selfstatement:contradiction` when a structural claim lacks verified-data backing.
@@ -310,7 +316,7 @@ Persistent agency layer: GoalPersistence, FailureTaxonomy, DynamicContextBudget,
 
 Trust and effectors: TrustLevelSystem, EffectorRegistry, WebPerception, SelfSpawner.
 
-**TrustLevelSystem** `v4.1` — Four levels: Level 0 (supervised), Level 1 (assisted), Level 2 (autonomous), Level 3 (full autonomy). Auto-upgrade suggestions based on MetaLearning success rates.
+**TrustLevelSystem** `v3.0 — frozen v7.9.9` — Three levels: Level 0 SUPERVISED (always ask), Level 1 AUTONOMOUS (ask only on categorically critical actions: DEPLOY, EXTERNAL_API, EMAIL_SEND), Level 2 FULL_AUTONOMY (never ask). The four-level structure that existed through v7.9.6 (Supervised / Assisted / Autonomous / Full) was collapsed in v7.9.7 R1: the ASSISTED slot lacked a clear principle that distinguished it from SUPERVISED in practice, and the migration data showed users rarely settled there. v7.9.8 Fix 1 added migration writeback with `schemaVersion: 3`. v7.9.8 Fix 2 changed the fresh-install default from AUTONOMOUS to SUPERVISED at six call sites. v7.9.9 (A) closed the last two unaligned sites in Settings.js and rerouted the migration table so old ASSISTED (stored 1) buckets to SUPERVISED (new 0) instead of AUTONOMOUS (new 1) — "Ask for risky" was the level a user chose explicitly to limit autonomy, so re-bucketing downward honours the spirit of their choice. After v7.9.9 the trust system is frozen: no future version touches the migration table, the dropdown options, or the default level. The constructor distinguishes between caller-supplied `cfg.level` (already in the 3-level system, range 0..2 passes through) and stored values from `asyncLoad` (potentially 4-level, routes through `_migrateLevel`).
 
 **EffectorRegistry** `v4.1` — External action system with precondition checking. Built-in effectors: clipboard, notifications, browser, GitHub (issues, PRs, comments). Precondition failures emit `effector:blocked` events.
 

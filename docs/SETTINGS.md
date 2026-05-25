@@ -76,13 +76,15 @@ Models tab.
 | IdleMind goal-step balance | `3` | After N consecutive goal-step cycles, IdleMind breaks out to pick a non-goal activity (reflect, journal, dream, calibrate, inhabit). `0` = legacy always-goal-step. *(v7.9.4)* |
 | IdleMind score normalization | `'none'` | Activity-picker score smoothing. `'log'` (reserved) dampens score outliers via `log1p`. *(v7.9.4, opt-in)* |
 | IdleMind recurrence bonus | `false` | If on, activities that haven't run for a long time get a small score boost proportional to the gap. *(v7.9.4, opt-in)* |
-| Trust level | `1` (AUTONOMOUS) | `0`=Supervised, `1`=Autonomous, `2`=Earned, `3`=Full. See `EarnedAutonomy`. |
+| Trust level | `0` (SUPERVISED) | `0`=Supervised (always ask), `1`=Autonomous (ask only on categorically critical actions: DEPLOY/EXTERNAL_API/EMAIL_SEND), `2`=Full Autonomy (never ask). v7.9.9 froze this three-level structure — no future version touches `TrustLevelSystem`, the migration table, or the default. |
+| IdleMind — idle threshold (minutes) | `10` | How long without user activity before IdleMind starts autonomous thinking. *(default raised from 2 in v7.9.10 after Win-trace evidence)* |
+| IdleMind — think interval (minutes) | `15` | How often IdleMind picks a new activity once idle. *(default raised from 3 in v7.9.10)* |
 | Goal-add mode | `ask` | `always` resume on boot, `never` skip, `ask` prompt. |
 | Negotiate before add | `false` | If on, `/goal add` proposes goals as pending; Genesis clarifies first. |
 | Auto-route by task | `false` | If on, ModelBridge picks model per task-type. Off because it caused multi-model thrashing on CPU-only setups. Re-enable with caution. |
 | Commit-snapshot on shutdown | `false` | Was always-on, polluted git history on collaborator machines. Off now — opt in if you want shutdown-state in git. |
 | Software-Installation: Install-Ziel | `machine` | Where `/install` puts new software. `machine` = system-wide (Program Files on Win, sudo apt on Linux); `user` = per-user (no admin); `auto` = winget default. Setting key: `install.scope`. *(v7.5.9)* |
-| Software-Installation: Auto-Install | `false` | If on (and trust ≥ AUTONOMOUS), `/install <pkg>` runs the package-manager command directly instead of just previewing. Setting key: `install.allowAutoInstall`. *(v7.5.9)* |
+| Software-Installation: Auto-Install | `false` | If on (and trust ≥ AUTONOMOUS = level 1), `/install <pkg>` runs the package-manager command directly instead of just previewing. Setting key: `install.allowAutoInstall`. *(v7.5.9)* |
 
 #### Organism behavior (PSE + Metabolism + Inhabit)
 

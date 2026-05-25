@@ -862,3 +862,83 @@ Listeners on most of these are not yet wired in production — they
 serve as bus-level instrumentation for anyone debugging gate
 behaviour.
 
+
+## v7.9.9 / v7.9.10 — Cognitive Pipelines
+
+### Hard-Gate Dispatch (v7.9.9)
+
+```mermaid
+flowchart TD
+    A[MentalSimulator.evaluate] --> B{proceed === false<br/>AND riskScore ≥ 5.0?}
+    B -->|no| C[Pursuit continues normally]
+    B -->|yes| D[emit agent-loop:simulation-abort<br/>dedup per goalId]
+    D --> E{trustLevelSystem.getLevel}
+    E -->|0 SUPERVISED| F[aborted: false<br/>step routes through<br/>TrustLevelSystem.checkApproval]
+    E -->|1 AUTONOMOUS| G[aborted: false<br/>asked only on<br/>DEPLOY / EXTERNAL_API / EMAIL_SEND]
+    E -->|2 FULL_AUTONOMY| H[_trySpawnObstacleSubgoal]
+    H -->|refused| I[goalStack.markObsolete]
+    H -->|spawned| J[Sub-goal decomposes obstacle]
+```
+
+The hard-gate is a numerical signal (riskScore) from MentalSimulator. The per-step ask is a categorical signal (actionType) from TrustLevelSystem. They are intentionally decoupled — mixing them produced approval-prompt spam on every retry of high-sim-risk goals through v7.9.7 + v7.9.8.
+
+### Decompose-on-Failure (v7.9.9)
+
+```mermaid
+flowchart TD
+    A[Pursuit fails with errorClass=X] --> B[classifyAndRecover called]
+    B --> C{_repeatedFailures<br/>has goalId+X?}
+    C -->|no, first strike| D[Record strike, 1h TTL]
+    D --> E[Default retry path]
+    C -->|yes, second strike| F[Synthesise obstacle<br/>contextKey=repeated-failure-X]
+    F --> G[_trySpawnObstacleSubgoal]
+    G --> H[emit agent-loop:decompose-on-failure]
+    G --> I[Sub-goal: Investigate why X keeps happening]
+    C -->|3rd+ strike| J[No-op — obstacle already spawned]
+    K[goal:completed / abandoned / obsolete / stalled] --> L[Clear ALL entries for goalId]
+```
+
+The cross-pursuit keying is the critical detail: the key is `(goalId, errorClass)`, not `(goalId, stepIndex, errorClass)`. Step indices are unstable across retries because each retry generates a different plan. Pre-v7.9.9 the strikes never matched and decompose never fired.
+
+### No-Progress Detector (v7.9.9)
+
+Reflexion-style heuristic, Shinn et al. 2023 (arXiv 2303.11366). Two parallel detectors with separate state Maps, both cleared on every goal-lifecycle terminal event.
+
+```mermaid
+flowchart TD
+    A[Step completes] --> B[Hash: sha256 stepKind + resultDigest, first 16 chars]
+    B --> C[Append to _actionObservationHashes goalId ring buffer]
+    C --> D{Last 3 hashes identical?}
+    D -->|yes| E[emit agent-loop:no-progress-detected]
+    E --> F[Force reflectOnProgress + replan]
+    G[Pursuit starts] --> H[Hash: sha256 goalDesc + plan-step-types]
+    H --> I{Hash seen before<br/>for this goalId?}
+    I -->|yes| J[emit agent-loop:identical-plan-detected]
+    J --> K[Force replan with different LLM hint]
+    I -->|no| L[Record hash, continue]
+```
+
+ProgressDetector is not a registered Container service. AgentLoopPursuit lazy-instantiates it on first use; when absent, pursuit still runs but loses the early loop-break and falls back to the `failureCap` (2) and `_repeatedFailures` paths.
+
+### Lessons-Pipeline (v7.9.10 — first fully functional)
+
+```mermaid
+flowchart TD
+    A[Plan fails or partial] --> B[recordReflection called]
+    B --> C[classifyFailure on errorMessage]
+    C --> D{stableClass gate}
+    D -->|classification === 'user-action'| E[Drop — not Genesis failing]
+    D -->|classification === 'unclassified'<br/>AND errorMessage empty| F[Drop — no signal]
+    D -->|otherwise| G[lessonsStore.record category=obstacle-resolution]
+    G --> H[bus.fire lessons:recorded]
+    H --> I[_save → JSON write to .genesis/lessons.json]
+    J[Next pursuit] --> K[AgentLoopRecovery._recallObstacleLessons]
+    K --> L[lessonsStore.recall 'obstacle-resolution', goalDesc]
+    L --> M[Inject AVOID-past-failure directives]
+```
+
+The pre-v7.9.10 silent bug: `stableClass` required `classification !== 'unclassified'`. LLM-generated verdict messages like `"PARTIAL because the critical step failed..."` never matched the technical regex buckets in `failure-patterns.js` and all bucketed as `'unclassified'`. Six hours of field-test produced zero stored lessons. v7.9.10 widens the gate to also accept `'unclassified'` when `errorMessage` is non-empty.
+
+A second silent bug: `_save()` ran only every 5th `record()` call. Short sessions never persisted any lessons. v7.9.10 saves on every record (cheap JSON write under 5 MB).
+
+---

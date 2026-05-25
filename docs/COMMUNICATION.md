@@ -39,7 +39,7 @@ EmotionalState ──emit('emotion:shift')──→ EventBus ──→ PromptBui
 
 Key properties:
 
-- **489 event types** catalogued in `EventTypes.js` (v7.9.9 baseline)
+- **489 event types** catalogued in `EventTypes.js` (v7.9.10 baseline)
 - **489 payload schemas** in `EventPayloadSchemas.js` — full parity since v7.6.x (every catalog entry has a registered schema); dev-mode validation throws on mismatch
 - **Ring buffer history** — last 500 events for debugging
 - **Source tracking** — every event carries `{ source: 'ModuleName' }` for audit
@@ -53,6 +53,10 @@ New v7.7.9 events (InnerSpeech + PSE): `inner-speech:emitted`, `inner-speech:ove
 New v7.8.9–v7.9.4 events (Können maturity chain): `skill:candidate-extracted`, `skill:forged`, `skill:promoted`, `skill:discard-suggested`, `skill:discarded`, `skill:rehearsed`, `selfnarrative:skill-acquired`, `skills:reloaded`. The `koennen-promotion-v794` contract prefix in `stale-refs.json` locks the shapes against silent drift.
 
 New v7.9.4 events (IdleMind maturity): `idle:goal-balance-break` fires when IdleMind interrupts a goal-step stretch to pick a non-goal activity (default every 3 steps, configurable via `idleMind.goalStepsPerActivityPick`).
+
+New v7.9.9 events (Hard-Gate + Recovery + ProgressDetector): `agent-loop:simulation-abort` fires from `AgentLoopPursuitGate.handleHardGateAbort` whenever MentalSimulator returns `proceed: false` with `riskScore >= 5.0`. Three trust-level branches dispatch from there (warn-only at SUPERVISED + AUTONOMOUS, decompose-or-obsolete at FULL_AUTONOMY). Payload `{ goalId, riskScore, priorFailures, reason }`, deduplicated per `goalId`. `agent-loop:decompose-on-failure` fires from `AgentLoopRecovery._repeatedFailures` when the same error-class hits the same goal twice across pursuit retries — payload `{ goalId, stepIndex, errorClass, strikes }`. `agent-loop:no-progress-detected` and `agent-loop:identical-plan-detected` fire from `AgentLoopProgressDetector` (Reflexion-style heuristic, Shinn et al. 2023) when three identical (action, observation) hashes appear in a row, or when a plan hash recurs for the same goal.
+
+New v7.9.10 event (Lessons-Pipeline activated): `lessons:recorded` fires from `LessonsStore.record()` on every persisted lesson — payload `{ id, category, insight }` (insight truncated to 100 chars). The pipeline became fully functional in v7.9.10 once `recordReflection`'s `stableClass` gate was relaxed to accept LLM-verdict messages and `_save()` was moved from buffered (every 5th) to immediate (every record).
 
 ---
 

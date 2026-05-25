@@ -86,8 +86,19 @@ function emitClassifiedEvent(bus, payload) {
  */
 function recordReflection(services, payload) {
   const { lessonsStore, selfStatementLog } = services || {};
-  const stableClass = payload.classification !== 'unclassified' &&
-                      payload.classification !== 'user-action';
+  // v7.9.10: stableClass also admits 'unclassified' when errorMessage carries
+  // signal. LLM-generated goal verdicts ("PARTIAL because the critical step
+  // failed...", "FAILED. The goal X was not achieved.") never match the
+  // technical-error regex in failure-patterns.js — they describe the verdict,
+  // not the error class — so they classified as 'unclassified' and the gate
+  // silently dropped them. Field-trace 2026-05-24: 6h run with 4 goals and
+  // one PARTIAL retry, lessons folder empty. Now they record (tagged with
+  // 'unclassified' so recall knows the signal is weak per individual lesson
+  // but still useful as a pattern). 'user-action' stays excluded — user
+  // cancellation is not a Genesis failure to learn from.
+  const errMsgRaw = String(payload.errorMessage || '').trim();
+  const stableClass = payload.classification !== 'user-action' &&
+                      (payload.classification !== 'unclassified' || errMsgRaw.length > 0);
 
   // v7.7.9 (post-Phase-3c): three-part bug fix — silent bug surfaced
   // by burn-in showing 0 obstacle-resolution lessons after multiple

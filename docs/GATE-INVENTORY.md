@@ -19,12 +19,15 @@
 | 11 | `pse:content-sanity`      | `cognitive/proactiveSelfExpression/ContentSanity.js` (v7.7.9) | pass / block (length, repetition, self-negation, profanity) | blocking |
 | 12 | `pse:scoring`             | `cognitive/proactiveSelfExpression/Scoring.js` (v7.7.9) | passes when significance×novelty×context-fit ≥ per-kind floor | preventive (threshold) |
 | 13 | `pse:private-kind`        | `proactiveSelfExpression/HardGates.js` gate-0 (v7.9.5) | block on `thought.kind ∈ PRIVATE_KINDS` regardless of settings | **structurally blocking** — unreachable from settings |
+| 14 | `cognitive:hard-gate`     | `revolution/AgentLoopPursuitGate.handleHardGateAbort` (v7.9.9) | three-branch dispatch by trust level: SUPERVISED/AUTONOMOUS warn-only, FULL_AUTONOMY decompose-or-obsolete | **branching** — fires `agent-loop:simulation-abort` always; `aborted: false` at SUPERVISED+AUTONOMOUS, `aborted: true` at FULL_AUTONOMY |
 
 Integration test: `test/modules/gate-stats-integration.test.js` — end-to-end
 coverage that `recordGate()` is triggered by real ChatOrchestrator flows.
 Regression tests for the v7.5.x additions: `test/modules/v751-fix.test.js`,
 `test/modules/v756-fix.test.js`, `test/modules/thinking-block-stream-filter.test.js`,
 `test/modules/thinking-block-integration.test.js`.
+
+> **Cognitive hard-gate (v7.9.9):** Gate 14, `cognitive:hard-gate`, sits at the boundary between MentalSimulator and pursuit execution. When sim returns `proceed: false` with `riskScore >= 5.0`, `AgentLoopPursuitGate.handleHardGateAbort` reads the current trust level and dispatches one of three ways. At SUPERVISED and AUTONOMOUS it is warn-only — the per-step `TrustLevelSystem.checkApproval` is the actual asking mechanism, so this gate just records the simulation-risk signal without duplicating prompts. At FULL_AUTONOMY it tries `_trySpawnObstacleSubgoal` and on refusal calls `goalStack.markObsolete`. The architectural point is the decoupling: hard-gate is a *numerical* signal about plan-level risk, `TrustLevelSystem.checkApproval` is a *categorical* signal about per-action risk class. Earlier iterations mixed them, producing approval-prompt spam on every retry of high-sim-risk goals.
 
 > **Four-layer gate architecture (v7.5.6):**
 > The bus now has four deliberately-symmetric layers across the input/action/output axis:

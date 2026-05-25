@@ -55,16 +55,26 @@ function _decorateField(id) {
   const meta = getFieldDefault(id);
   if (!meta) return;
 
-  const parent = el.parentNode;
-  if (!parent) return;
+  // v7.9.10: use closest('.setting-group') as the stable anchor for both
+  // cleanup and insertion. The pre-fix code used el.parentNode which is
+  // unstable: the first call sees .setting-group (no row yet), then this
+  // function moves el INTO a freshly-created .setting-input-row, so every
+  // subsequent call (e.g. on language switch) sees .setting-input-row as
+  // parent. Cleanup via querySelector on input-row found nothing, the
+  // original hint stayed in setting-group in its original language, and
+  // a new hint was appended to input-row — duplicates appeared, the old
+  // one never refreshed. setting-group is structurally stable; closest()
+  // returns it regardless of how many times decoration has run.
+  const settingGroup = el.closest('.setting-group');
+  if (!settingGroup) return;
 
   // Re-rendering the default-hint must always happen (language may have
   // changed). The structural decoration (row + reset button) only once.
-  // Remove any existing OWN default-hint so we can rebuild it. The previous
-  // code queried parent.parentNode (= the whole tab panel) and wiped every
-  // hint in the tab, so only the last decorated field ever kept its hint.
-  const ownHint = parent.querySelector('.setting-default-hint');
-  if (ownHint) ownHint.remove();
+  // Remove ALL stale default-hints anywhere under this setting-group via
+  // querySelectorAll, not just the first — a missed cleanup from a prior
+  // language switch could otherwise leave residuals behind.
+  const ownHints = settingGroup.querySelectorAll('.setting-default-hint');
+  ownHints.forEach(h => h.remove());
 
   if (!el._decorated) {
     el._decorated = true;
@@ -72,7 +82,10 @@ function _decorateField(id) {
     if (meta.resetSafe) {
       const row = document.createElement('div');
       row.className = 'setting-input-row';
-      parent.insertBefore(row, el);
+      // Use el's CURRENT parent for row insertion — at first-decoration
+      // time this is still settingGroup (el hasn't moved yet).
+      const insertParent = el.parentNode;
+      insertParent.insertBefore(row, el);
       row.appendChild(el);
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -91,9 +104,11 @@ function _decorateField(id) {
 
   const hint = buildDefaultHint(id, document, t);
   if (hint) {
-    const existingHint = parent.querySelector('.setting-hint');
-    if (existingHint) parent.insertBefore(hint, existingHint);
-    else parent.appendChild(hint);
+    // Insert the hint into the stable settingGroup anchor, before any
+    // descriptive .setting-hint (the long help text) if present.
+    const existingHint = settingGroup.querySelector('.setting-hint');
+    if (existingHint) settingGroup.insertBefore(hint, existingHint);
+    else settingGroup.appendChild(hint);
   }
 }
 

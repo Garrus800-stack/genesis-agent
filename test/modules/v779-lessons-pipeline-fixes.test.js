@@ -361,4 +361,87 @@ describe('End-to-end: write side and read side use the same category', () => {
   });
 });
 
+// ════════════════════════════════════════════════════════════
+// v7.9.10 — gate widened: unclassified-with-content records
+// ════════════════════════════════════════════════════════════
+describe('v7.9.10 — LLM-verdict messages record despite unclassified bucket', () => {
+  test('PARTIAL verdict message with content records a lesson', () => {
+    const { store, cleanup } = makeLessonsStore();
+    try {
+      recordReflection(
+        { lessonsStore: store, selfStatementLog: null },
+        {
+          goalId: 'g-verdict-1',
+          goalDescription: 'Inspect AgentCore.js',
+          errorMessage: 'PARTIAL, because although 2 steps were completed, the critical step failed (command on AgentCore.js) and the verification was ambiguous',
+          classification: 'unclassified',
+          stepsExecuted: 2,
+          innerSpeech: null,
+        }
+      );
+      const lessons = store.getAll();
+      assert(lessons.length === 1, `expected 1 lesson, got ${lessons.length}`);
+      assert(lessons[0].insight.includes('PARTIAL'),
+        'lesson insight must include the LLM verdict text');
+    } finally { cleanup(); }
+  });
+
+  test('FAILED verdict message with content records a lesson', () => {
+    const { store, cleanup } = makeLessonsStore();
+    try {
+      recordReflection(
+        { lessonsStore: store, selfStatementLog: null },
+        {
+          goalId: 'g-verdict-2',
+          goalDescription: 'Inspect Cognitive Monitor Analysis Output',
+          errorMessage: 'FAILED. The goal "Inspect Cognitive Monitor Analysis Output" was not achieved. Despite completing 22 steps, there were 6 errors',
+          classification: 'unclassified',
+          stepsExecuted: 22,
+          innerSpeech: null,
+        }
+      );
+      assert(store.getAll().length === 1,
+        'FAILED verdict must record despite unclassified bucket');
+    } finally { cleanup(); }
+  });
+
+  test('unclassified WITHOUT message content is still dropped (no signal)', () => {
+    const { store, cleanup } = makeLessonsStore();
+    try {
+      recordReflection(
+        { lessonsStore: store, selfStatementLog: null },
+        {
+          goalId: 'g-empty',
+          goalDescription: 'd',
+          errorMessage: '',
+          classification: 'unclassified',
+          stepsExecuted: 0,
+          innerSpeech: null,
+        }
+      );
+      assert(store.getAll().length === 0,
+        'unclassified + empty message must NOT record (no signal worth keeping)');
+    } finally { cleanup(); }
+  });
+
+  test('user-action is still dropped (not a Genesis failure)', () => {
+    const { store, cleanup } = makeLessonsStore();
+    try {
+      recordReflection(
+        { lessonsStore: store, selfStatementLog: null },
+        {
+          goalId: 'g-user',
+          goalDescription: 'd',
+          errorMessage: 'User rejected the goal',
+          classification: 'user-action',
+          stepsExecuted: 0,
+          innerSpeech: null,
+        }
+      );
+      assert(store.getAll().length === 0,
+        'user-action must NOT record — it is not Genesis failing');
+    } finally { cleanup(); }
+  });
+});
+
 run();

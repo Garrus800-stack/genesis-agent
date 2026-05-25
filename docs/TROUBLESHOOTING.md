@@ -312,6 +312,71 @@ If you previously set a small model in settings, clear it: open `~/.genesis/sett
 
 ---
 
+## Goal Execution
+
+### Goal marked obsolete after only 2 failed attempts (v7.9.9+)
+
+**Symptom:** A goal fails once, retries once, then gets marked obsolete instead of trying a third time. Pre-v7.9.9 Genesis retried up to three times before giving up.
+
+**Why it happens:** Intentional behaviour change in v7.9.9. The generic `failureCap` in `GoalDriverFailurePolicy` was lowered 3 → 2 because the third attempt almost never produced different results — it just delayed the inevitable. Combined with the new decompose-on-failure mechanism (which catches the second strike of the same error-class and synthesises an investigation sub-goal), the 2-retry pattern is more useful than the 3-retry version: less spam, faster routing to recovery.
+
+If you want to retry manually, re-submit the goal — Genesis will start a fresh pursuit. If you want to investigate what went wrong, look for an `agent-loop:decompose-on-failure` event in the dashboard or an auto-generated investigation sub-goal in the goal stack.
+
+### Idle-mind goal fails immediately on missing-file references (v7.9.9+)
+
+**Symptom:** Genesis generates an idle-mind goal that references a file path that doesn't exist (often a hallucinated test path like `test/AgentCoreHealth.test.js`). Pre-v7.9.9 Genesis would block-and-wait on the missing resource for up to 15 minutes; v7.9.9 fails fast.
+
+**Why it happens:** Intentional. The old block-and-wait path made sense for user-initiated goals where the user might be in the middle of creating the file. For idle-mind goals — Genesis-initiated, no user in the loop — waiting fifteen minutes for a file that will never appear is pointless. Now missing-resource preconditions route immediately through `FailureTaxonomy` and `_repeatedFailures`, which either decompose the obstacle or mark the goal obsolete.
+
+User-initiated and sub-goal-initiated goals still use the legacy block-and-wait behaviour.
+
+### High-risk simulation warning but no approval prompt (v7.9.9+)
+
+**Symptom:** Dashboard or log shows `agent-loop:simulation-abort` with `riskScore >= 5.0`, but Genesis proceeds with the next step without asking. Pre-v7.9.9 this would trigger an approval prompt.
+
+**Why it happens:** Intentional by design. The hard-gate is now a three-branch dispatch. SUPERVISED (level 0): warn-only at hard-gate. Per-step approval still comes from `TrustLevelSystem.checkApproval`, which asks SUPERVISED users about every action class. AUTONOMOUS (level 1): warn-only at hard-gate. Per-step approval comes from `TrustLevelSystem.checkApproval` and only fires for categorically critical action classes (DEPLOY, EXTERNAL_API, EMAIL_SEND). FULL_AUTONOMY (level 2): hard-gate triggers `_trySpawnObstacleSubgoal` or `markObsolete`; never asks.
+
+If you're at AUTONOMOUS and want approval prompts on high-sim-risk steps regardless of action class, lower to SUPERVISED. The decoupling is deliberate: sim-risk is a numerical signal about plan-level coherence; action-class is a categorical signal about an individual action's risk class. Mixing them in earlier iterations produced approval-prompt spam on every retry of high-sim-risk goals.
+
+### Cloud-model continuation truncated at 6 attempts (pre-v7.9.10)
+
+**Symptom:** A long-form output from a cloud model (especially qwen3-vl, claude:cloud, or deepseek:cloud) gets cut off after 6 continuation rounds. Log shows `[CONTINUATION] sequence for "<model>" failed: max-continuations (attempts=6, partial=<N> chars)`.
+
+**Why it happens (pre-v7.9.10):** `MAX_CONTINUATIONS_DEFAULT` was a flat 6 for all models. Local Ollama models with prefill complete reliably in 4-6 rounds. Cloud models without prefill use pseudo-continuation (the model is asked to resume from where it left off), which is less reliable and often needs 8-10 rounds for code-with-manifest outputs.
+
+**Fix:** Upgrade to v7.9.10 or later. The cap is automatically lifted to 10 when `LLMCapabilityDetector` flags the model as no-prefill. Local prefill-capable models still cap at 6 (no benefit to raising it).
+
+---
+
+## Test Suite Performance
+
+### `npm test` walltime appears unreasonably long (pre-v7.9.10)
+
+**Symptom:** `npm test` runs for 4-5 minutes on Linux; individual `v7xx-fix` lines (especially `v748-fix... ✅ 11 passed`) sit on screen for 15-30 seconds before the next test reports.
+
+**Why it happens:** Not the named test. The `Promise.allSettled` batch is waiting for a slower test in the same group. Two compounding causes:
+
+1. `LLMCapabilityDetector` did not honor `GENESIS_OFFLINE_TESTS`. Every `bridge.chat()` with `taskType='code'` triggered a real HTTP request to `localhost:11434/api/show`; with no Ollama running, `req.setTimeout(15000)` waited the full 15 seconds before rejecting. v752-fix made roughly ten such calls.
+2. `ContinuationLoop` ran an exponential backoff (1s, 2s, 4s, 8s, 16s, ...) between continuation attempts. Test mock backends that did not call `onDone` left `doneReason=null`, which `TruncationDetector.isComplete` treats as a truncation signal — so the loop kept retrying through the full schedule. At ten attempts, 511 seconds of cumulative backoff per affected test.
+
+**Fix:** Upgrade to v7.9.10 or later. Both methods of `LLMCapabilityDetector` now check `GENESIS_OFFLINE_TESTS` and short-circuit; `ContinuationLoop`'s `BACKOFF_BASE_MS` is `0` in offline test mode. v752-fix dropped from 30+ seconds to 280 milliseconds; full suite walltime dropped from 273s to 193s on Linux.
+
+(The `--test-timeout=2000` flag added to node:test args in v7.9.10 is defensive — `--test-force-exit` alone already brings the v737 node:test files to 168 ms on Linux. The flag protects against a future regression in the force-exit drain path but is not the cause of the measurable speed-up.)
+
+---
+
+## WARNUNG Badge
+
+### WARNUNG badge appears constantly when using a cloud model (pre-v7.9.10)
+
+**Symptom:** The orange WARNUNG badge in the top-right of the app bar appears on every normal chat with a cloud model (qwen3-vl, claude:cloud, deepseek:cloud). The status panel shows `[Metabolism] High cost: <value> (<N>t, <ms>ms)` for routine calls.
+
+**Why it happens:** `AgentCoreWire.js` mapped `metabolism:cost` to the `warning` state at `cost > 0.08`. Cost is a normalised energy metric — a 2000-token / 3-second / 10-MB-heap "normal" call computes 0.020. A typical qwen3-vl:235b-cloud code-gen call (10000 tokens, 20 seconds, 30 MB heap) computes 0.091 — above 0.08. The threshold was set when local models were Genesis's primary backend; cloud-model cost distributions sit well above local-model norms, so the warning fired routinely instead of marking heavy-tail outliers.
+
+**Fix:** Upgrade to v7.9.10. The threshold is raised to `0.12`. Recomputed: cloud chat 5k/10s/15MB stays at 0.061 (no warning), cloud code 10k/20s/30MB stays at 0.091 (no warning), cloud heavy 20k/40s/50MB lands at 0.120 (still no warning — exactly at threshold), cloud extreme 30k/60s/80MB lands at 0.137 (warning fires). With the configured cost ceiling of 0.15, the new threshold catches the top 20% of the range. The `metabolism:cost` event itself is still emitted unchanged for dashboard logging — only the UI badge is now conservative.
+
+---
+
 ## Self-Modification
 
 ### "Write to protected kernel file blocked"

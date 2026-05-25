@@ -181,7 +181,7 @@ class Settings {
       // v7.5.9 ZIP3 Phase 4a + ZIP5 Phase 4d: Software-installation defaults.
       // allowAutoInstall=false means "preview-only by default" — Genesis
       // shows the command it would run but does not execute. Set to true
-      // AND raise trust to AUTONOMOUS (2) to enable Tier-1 (PM-install)
+      // AND raise trust to AUTONOMOUS (level 1) to enable Tier-1 (PM-install)
       // and Tier-2 (PM-bootstrap) automatically.
       //
       // fullAutonomy=true additionally enables Tier-3: direct download

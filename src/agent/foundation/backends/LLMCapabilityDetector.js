@@ -220,6 +220,20 @@ class LLMCapabilityDetector {
     if (this._fetchImpl) {
       return this._fetchImpl({ baseUrl: this.baseUrl, modelName });
     }
+    // v7.9.10: honor GENESIS_OFFLINE_TESTS like OllamaBackend does. Without
+    // this, every bridge.chat() in tests triggers detectCapability →
+    // _fetchModelInfo → http.request('localhost:11434/api/show'). When
+    // Ollama is not running, req.setTimeout(VERIFICATION_TIMEOUT_MS=15000)
+    // holds for 15 seconds before rejecting. A test like v752-fix that
+    // makes ~10 chat() calls would block the test runner for up to 150s.
+    // detectCapability already catches this error in its try/catch and
+    // returns 'verification-failed' — exact same behaviour as a real
+    // ECONNREFUSED, but 1ms instead of 15000ms.
+    if (process.env.GENESIS_OFFLINE_TESTS === '1') {
+      throw new Error(
+        'LLMCapabilityDetector: real HTTP calls disabled in test mode (GENESIS_OFFLINE_TESTS=1)'
+      );
+    }
     return new Promise((resolve, reject) => {
       const url = new URL(`${this.baseUrl}/api/show`);
       const postData = JSON.stringify({ name: modelName });
@@ -281,6 +295,14 @@ class LLMCapabilityDetector {
           { role: 'assistant', content: VERIFICATION_PREFILL },
         ],
       });
+    }
+    // v7.9.10: honor GENESIS_OFFLINE_TESTS (same as _fetchModelInfo above).
+    // _verifyPrefill returns a Promise that resolves false on error, so
+    // throwing from the caller's perspective is wrong — return false to
+    // signal "prefill not verified". detectCapability treats that as the
+    // unverified-no-prefill branch, which is the conservative default.
+    if (process.env.GENESIS_OFFLINE_TESTS === '1') {
+      return false;
     }
     return new Promise((resolve) => {
       const url = new URL(`${this.baseUrl}/api/chat`);

@@ -235,7 +235,7 @@ class AgentCoreWire {
       { event: 'homeostasis:allostasis',         state: 'ready',   detail: (d) => `[Allostasis] ${d.vital} threshold adapted (shift #${d.shifts})` },
       { event: 'immune:intervention',            state: 'warning', detail: (d) => `[Immune] ${d.description}` },
       { event: 'immune:quarantine',              state: 'warning', detail: (d) => `[Immune] Quarantined: ${d.source} (${Math.round(d.durationMs / 1000)}s)` },
-      { event: 'metabolism:cost',                guard: (d) => d.cost > 0.08, state: 'warning', detail: (d) => `[Metabolism] High cost: ${d.cost} (${d.tokens}t, ${d.latencyMs}ms)` },
+      { event: 'metabolism:cost',                guard: (d) => d.cost > 0.12, state: 'warning', detail: (d) => `[Metabolism] High cost: ${d.cost} (${d.tokens}t, ${d.latencyMs}ms)` },
 
       // ── AgentLoop progress ──────────────────────────
       { event: 'agent-loop:started',         fn: (d) => push('agent:loop-progress',        { phase: 'started', ...d }) },
