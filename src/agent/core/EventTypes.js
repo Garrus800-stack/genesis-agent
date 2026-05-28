@@ -848,6 +848,12 @@ const EVENTS = Object.freeze({
      *  Subscribers (Dashboard) can surface a one-time hint to the user.
      *  @payload {{ model: string, backend: string }} */
     CLOUD_WITHOUT_FALLBACK: 'model:cloud-without-fallback',
+    /** v7.9.12: IdleMind rest-mode entered — all models marked unavailable.
+     *  @payload {{ modelCount: number }} */
+    REST_MODE_ENTERED:    'model:rest-mode-entered',
+    /** v7.9.12: IdleMind rest-mode exited — a model recovered.
+     *  @payload {{ modelName?: string }} */
+    REST_MODE_EXITED:     'model:rest-mode-exited',
     /** v7.5.6: emitted by ChatOrchestrator after streamChat/_directChat when the
      *  model produced a <think>...</think> block. ReasoningTracer subscribes.
      *  @payload {{ text: string, modelName: string }} */

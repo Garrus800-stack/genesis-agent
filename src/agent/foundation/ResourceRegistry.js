@@ -103,6 +103,29 @@ class ResourceRegistry {
         this._cache.clear();
         this._probeAll().catch(() => { /* swallow */ });
       }, { source: 'ResourceRegistry' }));
+
+      // v7.9.12: bridge model-availability markers onto the service:llm
+      // resource token. service:llm is resolved live in isAvailable() and is
+      // never cached, so _update() is never called for it organically —
+      // meaning resource:available / resource:unavailable would never fire on
+      // an all-models-marked transition, and GoalDriver would never unblock
+      // goals that blocked on service:llm. These two listeners close that
+      // loop by explicitly re-deriving the token state on every marker change
+      // and letting _update() emit the flip. _update is a no-op when the
+      // state hasn't changed, so single-model marks (the common case) are
+      // cheap and silent.
+      const refreshLlmToken = () => {
+        if (!this.modelBridge) return;
+        const allDown = this.modelBridge.areAllModelsUnavailable?.() === true;
+        const backend = this.modelBridge.activeBackend;
+        // available when a backend exists AND not all models are down
+        this._update('service:llm', !!backend && !allDown,
+          allDown ? 'all models marked unavailable' : null);
+      };
+      this._unsubs.push(this.bus.on('model:marked-unavailable', refreshLlmToken,
+        { source: 'ResourceRegistry' }));
+      this._unsubs.push(this.bus.on('model:unavailable-cleared', refreshLlmToken,
+        { source: 'ResourceRegistry' }));
     }
 
     // Periodic re-probe
@@ -162,6 +185,13 @@ class ResourceRegistry {
     if (token === 'service:llm') {
       const backend = this.modelBridge?.activeBackend;
       if (!backend) return false;
+      // v7.9.12: even with a configured active backend, service:llm is
+      // unavailable when every discovered model is marked unavailable
+      // (e.g. an all-429 cloud outage). Without this, in-flight goal steps
+      // requiring service:llm would pass the pre-check and then error
+      // mid-execution instead of blocking cleanly. Optional-chained so test
+      // setups without a modelBridge (or an older one) degrade gracefully.
+      if (this.modelBridge?.areAllModelsUnavailable?.()) return false;
       // available if EITHER active backend is up
       // (failover backend would also count, but we keep this
       // simple — if active is up, we proceed)

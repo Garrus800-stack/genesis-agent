@@ -1212,6 +1212,8 @@ const CHANNELS = {
   'skill:discarded': null,            // Agent -> UI (push only — skill retired)
   'skill:quarantined': null,          // Agent -> UI (push only — skill suspended)
   'skill:discard-suggested': null,    // Agent -> UI (push only — skill candidate)
+  // v7.9.12: cloud-model-without-fallback boot warning → toast in UI.
+  'model:cloud-without-fallback': null, // Agent -> UI (push only — config warning)
 };
 
 // Register all invoke handlers (with rate limiting)

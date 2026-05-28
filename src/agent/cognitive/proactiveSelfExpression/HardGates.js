@@ -26,8 +26,12 @@
 //
 // Currently:
 //   - 'self-state-snapshot' — Inhabit activity output (v7.9.5)
+//   - 'rest-mode' — IdleMind rest-mode transition note (v7.9.12). Genesis
+//     records that it is resting because no model is available; this is an
+//     internal state observation, never a message to the user.
 const PRIVATE_KINDS = new Set([
   'self-state-snapshot',
+  'rest-mode',
 ]);
 
 /**

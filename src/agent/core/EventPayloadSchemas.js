@@ -381,7 +381,7 @@ const SCHEMAS = {
   'cognitive:decision-evaluated':   { decision: 'required', outcome: 'required', rollingQuality: 'required' },
 
   // Model routing
-  'model:failover':              { from: 'required', to: 'required', error: 'required', reason: 'required', effectiveModel: 'optional', preferredModel: 'optional' },
+  'model:failover':              { from: 'required', to: 'required', error: 'required', reason: 'required', effectiveModel: 'optional', preferredModel: 'optional', cluster: 'optional' },
   'model:failover-unavailable':  { from: 'required', reason: 'required', error: 'required' },
   // v7.5.2: emitted when ModelBridge auto-switches model based on taskType
   'model:auto-switched':         { originalModel: 'required', routedModel: 'required', routedBackend: 'required', taskType: 'required', reason: 'optional' },
@@ -389,6 +389,11 @@ const SCHEMAS = {
   'model:marked-unavailable':    { modelName: 'required', reason: 'required', ttlMs: 'required' },
   'model:unavailable-cleared':   { modelName: 'required', automatic: 'required' },
   'model:cloud-without-fallback': { model: 'required', backend: 'required' },
+  // v7.9.12: IdleMind rest-mode — fired when all models are marked
+  // unavailable (entered) and when a model recovers (exited). Payload
+  // carries the model count for dashboard context.
+  'model:rest-mode-entered':     { modelCount: 'required' },
+  'model:rest-mode-exited':      { modelName: 'optional' },
   // v7.5.6: reasoning-block trace from <think>...</think> output of reasoning models
   'model:thinking-trace':        { text: 'required', modelName: 'required' },
 

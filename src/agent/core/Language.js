@@ -651,6 +651,8 @@ const STRINGS = {
     'koennen.toast_discarded': 'Released skill: {{name}}',
     'koennen.toast_quarantined': 'Quarantined skill: {{name}}',
     'koennen.toast_discard_suggested': 'Considering letting go: {{name}}',
+    // v7.9.12: model configuration warning toast
+    'warnings.cloud_without_fallback': 'Cloud model "{{model}}" has no fallback chain — Genesis will stall if it gets rate-limited. Configure Settings → Fallback Chain.',
     'koennen.no_biography': 'No biography (crystallized before v7.9.4)',
     'koennen.status_promoted': 'Promoted',
     'koennen.status_rehearsing': 'Rehearsing',
@@ -1163,6 +1165,8 @@ const STRINGS = {
     'koennen.toast_discarded': 'Fähigkeit losgelassen: {{name}}',
     'koennen.toast_quarantined': 'Fähigkeit unter Quarantäne: {{name}}',
     'koennen.toast_discard_suggested': 'Erwäge loszulassen: {{name}}',
+    // v7.9.12: model configuration warning toast
+    'warnings.cloud_without_fallback': 'Cloud-Modell „{{model}}" hat keine Fallback-Kette — Genesis bleibt stehen, wenn es rate-limitiert wird. Einstellungen → Fallback-Kette konfigurieren.',
     'koennen.no_biography': 'Keine Biographie (kristallisiert vor v7.9.4)',
     'koennen.status_promoted': 'Befördert',
     'koennen.status_rehearsing': 'Übend',
@@ -1629,6 +1633,8 @@ const STRINGS = {
     'koennen.toast_discarded': 'Compétence relâchée : {{name}}',
     'koennen.toast_quarantined': 'Compétence en quarantaine : {{name}}',
     'koennen.toast_discard_suggested': 'Envisage de relâcher : {{name}}',
+    // v7.9.12: model configuration warning toast
+    'warnings.cloud_without_fallback': 'Le modèle cloud « {{model}} » n\'a pas de chaîne de repli — Genesis se bloquera en cas de limitation. Configurez Paramètres → Chaîne de repli.',
     'koennen.no_biography': 'Aucune biographie (cristallisée avant v7.9.4)',
     'koennen.status_promoted': 'Promue',
     'koennen.status_rehearsing': 'En répétition',
@@ -2095,6 +2101,8 @@ const STRINGS = {
     'koennen.toast_discarded': 'Habilidad liberada: {{name}}',
     'koennen.toast_quarantined': 'Habilidad en cuarentena: {{name}}',
     'koennen.toast_discard_suggested': 'Considerando liberar: {{name}}',
+    // v7.9.12: model configuration warning toast
+    'warnings.cloud_without_fallback': 'El modelo en la nube «{{model}}» no tiene cadena de reserva — Genesis se detendrá si se limita su tasa. Configure Ajustes → Cadena de reserva.',
     'koennen.no_biography': 'Sin biografía (cristalizada antes de v7.9.4)',
     'koennen.status_promoted': 'Promovida',
     'koennen.status_rehearsing': 'Ensayando',

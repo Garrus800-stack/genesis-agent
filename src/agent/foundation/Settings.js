@@ -270,6 +270,14 @@ class Settings {
         // ContinuationLoop's coalescer assembles the final). 10 covers
         // the upper end of the observed distribution.
         continuation: { maxAttempts: 6 },
+        // v7.9.12: Ollama HTTP idle-timeouts. localTimeoutMs was read by
+        // phase1-foundation since v7.5.9 but never had a default entry here
+        // (settings.get returned undefined → backend fell back to the
+        // TIMEOUTS constant). Declaring both makes them UI-surfaceable and
+        // keeps the defaults tree honest. cloudTimeoutMs (v7.9.12) is the
+        // longer ceiling for Ollama-proxied cloud models (e.g. *-cloud).
+        localTimeoutMs: 180000,
+        cloudTimeoutMs: 300000,
       },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
       timeouts: { approvalSec: 300, shellMs: 15000, httpMs: 60000, gitMs: 5000 },

@@ -144,6 +144,9 @@ class IdleMind {
     }
     this._lastInsightTs = 0; // v5.7.0: Rate-limit proactive insights
     this._thinking = false;  // FIX v7.4.1: Re-entrancy guard for _think()
+    // v7.9.12: rest-mode flag — true when all models marked unavailable.
+    // Set/cleared via _enterRestMode/_exitRestMode (idempotent transitions).
+    this._inRestMode = false;
     // v7.9.4: goal-activity balance counter — see _think() goal-step path
     this._goalStepsSincePick = 0;
 
@@ -157,6 +160,13 @@ class IdleMind {
       this._pendingInsights.push({ ...data, receivedAt: Date.now() });
       // Cap queue at 10 to prevent unbounded growth
       if (this._pendingInsights.length > 10) this._pendingInsights.shift();
+    }, { source: 'IdleMind' });
+
+    // v7.9.12: when a model recovers, leave rest-mode immediately instead of
+    // waiting for the next think interval. _exitRestMode is idempotent, so a
+    // cleared event for a model we weren't resting on is a harmless no-op.
+    this._sub('model:unavailable-cleared', (data) => {
+      this._exitRestMode(data?.modelName);
     }, { source: 'IdleMind' });
   }
 
@@ -232,6 +242,65 @@ class IdleMind {
     this.lastUserActivity = Date.now();
   }
 
+  /**
+   * v7.9.12: Enter rest-mode — all models marked unavailable. Idempotent:
+   * the InnerSpeech note and the entered-event fire only on the transition,
+   * not on every skipped tick. The rest-mode flag is read by _think() to
+   * short-circuit before any LLM-backed activity is picked.
+   * @private
+   */
+  _enterRestMode() {
+    if (this._inRestMode) return;
+    this._inRestMode = true;
+    const modelCount = Array.isArray(this.model?.availableModels)
+      ? this.model.availableModels.length
+      : 0;
+    try {
+      this.bus.fire('model:rest-mode-entered', { modelCount }, { source: 'IdleMind' });
+    } catch (_e) { /* best-effort */ }
+    // Private InnerSpeech note — kind 'rest-mode' is blocklisted in PSE
+    // HardGates so it never surfaces to the user. Neutral phrasing: this is
+    // an observation of an external condition, not a complaint.
+    try {
+      if (this.innerSpeech && typeof this.innerSpeech.emit === 'function') {
+        this.innerSpeech.emit(
+          'resting — no model available right now; will resume when one returns',
+          'rest-mode',
+          { sourceModule: 'IdleMind' }
+        );
+      }
+    } catch (_e) { /* InnerSpeech.emit is contractually non-throwing */ }
+    _log.info('[IDLE-MIND] Entering rest-mode — all models unavailable');
+  }
+
+  /**
+   * v7.9.12: Exit rest-mode. Idempotent — only acts on the transition out.
+   * Called both by _think() (when a tick finds models available again) and
+   * by the model:unavailable-cleared listener (faster recovery without
+   * waiting for the next think interval).
+   * @param {string} [modelName] — the model that recovered, if known
+   * @private
+   */
+  _exitRestMode(modelName) {
+    if (!this._inRestMode) return;
+    this._inRestMode = false;
+    try {
+      this.bus.fire('model:rest-mode-exited',
+        modelName ? { modelName } : {},
+        { source: 'IdleMind' });
+    } catch (_e) { /* best-effort */ }
+    try {
+      if (this.innerSpeech && typeof this.innerSpeech.emit === 'function') {
+        this.innerSpeech.emit(
+          'a model is available again — resuming',
+          'rest-mode',
+          { sourceModule: 'IdleMind' }
+        );
+      }
+    } catch (_e) { /* non-throwing by contract */ }
+    _log.info('[IDLE-MIND] Exiting rest-mode — model available again');
+  }
+
   // ── Main Think Loop ──────────────────────────────────────
 
   async _think() {
@@ -243,6 +312,18 @@ class IdleMind {
     this._thinking = true;
     try {
     if (!this.model?.activeModel) return;
+    // v7.9.12: rest-mode when every discovered model is marked unavailable.
+    // Sits after the activeModel guard (which catches the boot/no-model case)
+    // and before thoughtCount++ (rest-mode ticks must not inflate the thought
+    // counter — resting is the absence of a cycle, not a cycle). When all
+    // models are marked, looping LLM-backed activities would only produce
+    // failures and accumulate frustration; instead we idle until a model
+    // recovers (model:unavailable-cleared → _exitRestMode).
+    if (this.model?.areAllModelsUnavailable?.()) {
+      this._enterRestMode();
+      return;
+    }
+    this._exitRestMode(); // models are available — clear any prior rest state
     this.thoughtCount++;
 
     // FIX v4.12.8: Skip idle activities when system is under load.

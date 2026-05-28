@@ -173,7 +173,10 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
     // TTL map must exist as module constant
     assert(/UNAVAILABLE_TTL_MAP\s*=\s*\{/.test(mbSrc), 'UNAVAILABLE_TTL_MAP module constant must be defined');
     assert(/'auth'\s*:\s*60\s*\*\s*60\s*\*\s*1000/.test(mbSrc), 'auth TTL must be 1h');
-    assert(/'rate-limit'\s*:\s*5\s*\*\s*60\s*\*\s*1000/.test(mbSrc), 'rate-limit TTL must be 5min');
+    // v7.9.12: rate-limit TTL was raised from 5min to 60min (see ModelBridge
+    // UNAVAILABLE_TTL_MAP comment). This source-presence assertion tracks the
+    // current value; the v7912-rate-limit-ttl contract test guards the rationale.
+    assert(/'rate-limit'\s*:\s*60\s*\*\s*60\s*\*\s*1000/.test(mbSrc), 'rate-limit TTL must be 60min (v7.9.12, was 5min)');
     assert(/'timeout'\s*:\s*10\s*\*\s*60\s*\*\s*1000/.test(mbSrc), 'timeout TTL must be 10min');
   });
 

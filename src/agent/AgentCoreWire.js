@@ -185,6 +185,19 @@ class AgentCoreWire {
       { event: 'model:no-models',           state: 'warning',  detail: () => 'No models — pull one with: ollama pull <model>' },
       // v7.6.8: Pair to model:ollama-unavailable — surface recovery in UI
       { event: 'model:unavailable-cleared', state: 'ready',    detail: (d) => `Model recovered: ${d.modelName || d.model || 'unknown'}` },
+      // v7.9.12: IdleMind rest-mode — distinct from steering:rest-mode (which
+      // is energy-driven). Here Genesis is idle because no model is reachable.
+      { event: 'model:rest-mode-entered',   state: 'resting',  detail: () => 'No model available — resting until one returns' },
+      { event: 'model:rest-mode-exited',    state: 'ready',    detail: (d) => d.modelName ? `Resuming — ${d.modelName} available` : 'Resuming — model available' },
+      // v7.9.12: cloud-without-fallback — surface the boot-time warning that
+      // was previously bus/log-only. Combined fn: a transient warning status
+      // (cleared by the next status change) PLUS a persistent toast push so a
+      // misconfiguration the user should fix doesn't scroll away silently.
+      { event: 'model:cloud-without-fallback',
+        fn: (d) => {
+          status({ state: 'warning', detail: `Cloud model ${d.model} without fallback chain` });
+          push('model:cloud-without-fallback', d);
+        } },
 
       // ── Agency ──────────────────────────────────────
       { event: 'goal:resumed',              state: 'ready',    detail: (d) => `Goal resumed: ${d.description?.slice(0, 50)}` },

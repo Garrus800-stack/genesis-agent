@@ -443,6 +443,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!data || !data.skillName) return;
     showToast(t('koennen.toast_discard_suggested', { name: data.skillName }), 'info');
   });
+  // v7.9.12: cloud-model-without-fallback boot warning. Persistent toast so a
+  // config issue the user should fix (cloud model preferred, no fallback chain)
+  // doesn't vanish with the next status change.
+  window.genesis.on('model:cloud-without-fallback', (data) => {
+    if (!data || !data.model) return;
+    showToast(t('warnings.cloud_without_fallback', { model: data.model }), 'warning');
+  });
 
   // Proactive readiness check
   window.genesis.invoke('agent:get-health').then((health) => {

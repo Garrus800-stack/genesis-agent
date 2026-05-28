@@ -78,10 +78,14 @@ function phase1(ctx, R) {
         // Default 180s is too short for older CPUs running 7B+ models —
         // first inference can take 240–300s. Settings: `llm.localTimeoutMs`.
         const localTimeoutMs = settings?.get?.('llm.localTimeoutMs');
+        // v7.9.12: longer timeout for Ollama-proxied cloud models. Settings:
+        // `llm.cloudTimeoutMs` (default 300s via TIMEOUTS.LLM_RESPONSE_CLOUD_OLLAMA).
+        const cloudTimeoutMs = settings?.get?.('llm.cloudTimeoutMs');
         const mb = new (R('ModelBridge').ModelBridge)({
           bus, genesisDir,
           ollamaKeepAlive: ollamaKeepAlive == null ? null : ollamaKeepAlive,
           ollamaLocalTimeoutMs: (typeof localTimeoutMs === 'number' && localTimeoutMs > 0) ? localTimeoutMs : undefined,
+          ollamaCloudTimeoutMs: (typeof cloudTimeoutMs === 'number' && cloudTimeoutMs > 0) ? cloudTimeoutMs : undefined,
           maxConcurrentLLM: (typeof maxConcurrent === 'number' && maxConcurrent > 0) ? maxConcurrent : undefined,
         });
         mb._settings = settings;

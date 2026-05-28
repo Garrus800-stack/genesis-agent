@@ -85,6 +85,35 @@ const availability = {
   },
 
   /**
+   * v7.9.12: True when every discovered model is currently marked
+   * unavailable. Distinct from "no models configured": an empty
+   * availableModels list returns false here, because that is a boot/
+   * discovery problem (handled by the existing `!activeModel` guards
+   * and model:no-models / model:ollama-unavailable events), not a
+   * marker-exhaustion problem.
+   *
+   * Consumers:
+   *   - IdleMind: enters a rest-mode instead of looping LLM calls that
+   *     must fail (every tick would otherwise accumulate frustration).
+   *   - ResourceRegistry: resolves service:llm to unavailable so in-flight
+   *     goal steps block cleanly instead of erroring mid-execution.
+   *
+   * Calls isMarkedUnavailable() per model, which lazy-clears expired
+   * markers and fires model:unavailable-cleared as a side effect — so a
+   * call here also doubles as an expiry sweep. That is intentional and
+   * harmless: a model whose TTL just elapsed is no longer "all
+   * unavailable", and the cleared event lets consumers recover.
+   *
+   * @returns {boolean}
+   */
+  areAllModelsUnavailable() {
+    if (!Array.isArray(this.availableModels) || this.availableModels.length === 0) {
+      return false;
+    }
+    return this.availableModels.every(m => this.isMarkedUnavailable(m.name));
+  },
+
+  /**
    * Load persisted markers from disk. Best-effort — corrupt or missing
    * file → empty map + warn-log. Filters expired entries on load.
    * @private

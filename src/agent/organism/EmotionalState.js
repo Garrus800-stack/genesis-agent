@@ -124,9 +124,16 @@ class EmotionalState {
         this._adjust('satisfaction', +0.06);
         this._adjust('curiosity', +0.03);
       },
-      'model:failover': () => {
-        this._adjust('frustration', +0.06);
-        this._adjust('energy', -0.03);
+      'model:failover': (data) => {
+        // v7.9.12: a failover that is part of a burst (cluster marker present)
+        // gets a gentle bump instead of the full one. The first 1-2 failovers
+        // in a 30s window arrive without the marker and bump normally — Genesis
+        // notices once that something is off — but the 3rd+ are dampened so a
+        // 429 storm doesn't accumulate into runaway frustration.
+        const bump = data?.cluster ? 0.02 : 0.06;
+        const energyDrop = data?.cluster ? 0.01 : 0.03;
+        this._adjust('frustration', +bump);
+        this._adjust('energy', -energyDrop);
       },
       // v7.5.2: failover-unavailable is a *stronger* signal than failover —
       // there is no Plan B model available. Slight extra frustration bump.

@@ -17,8 +17,8 @@ const { createLogger } = require('../../core/Logger');
 const _log = createLogger('OllamaBackend');
 
 class OllamaBackend {
-  /** @param {{ baseUrl?: string, keepAlive?: string|number, localTimeoutMs?: number }} [opts] */
-  constructor({ baseUrl, keepAlive, localTimeoutMs } = {}) {
+  /** @param {{ baseUrl?: string, keepAlive?: string|number, localTimeoutMs?: number, cloudTimeoutMs?: number }} [opts] */
+  constructor({ baseUrl, keepAlive, localTimeoutMs, cloudTimeoutMs } = {}) {
     this.name = 'Ollama';
     this.type = 'ollama';
     this.baseUrl = baseUrl || 'http://127.0.0.1:11434';
@@ -35,6 +35,13 @@ class OllamaBackend {
     this.localTimeoutMs = (typeof localTimeoutMs === 'number' && localTimeoutMs > 0)
       ? localTimeoutMs
       : TIMEOUTS.LLM_RESPONSE_LOCAL;
+    // v7.9.12: separate, longer timeout for Ollama-proxied cloud models
+    // (name matches /[:-]cloud/). qwen3-vl:235b-cloud was field-traced
+    // hitting the 180s LOCAL ceiling before its first chunk. Settings:
+    // `llm.cloudTimeoutMs` (default TIMEOUTS.LLM_RESPONSE_CLOUD_OLLAMA = 300s).
+    this.cloudTimeoutMs = (typeof cloudTimeoutMs === 'number' && cloudTimeoutMs > 0)
+      ? cloudTimeoutMs
+      : TIMEOUTS.LLM_RESPONSE_CLOUD_OLLAMA;
     // v7.8.9 (llm-resilience-v789 contract): override stack for keep_alive.
     // Used by ContinuationLoop to keep the model loaded between sequence
     // re-calls without permanently changing the user-configured value.
@@ -51,6 +58,29 @@ class OllamaBackend {
       return this._keepAliveOverrides[this._keepAliveOverrides.length - 1];
     }
     return this.keepAlive;
+  }
+
+  /**
+   * v7.9.12: Cloud-model name detection. Mirrors ModelBridge's
+   * _isCloudModelName regex — Ollama proxies both local and cloud models, so
+   * the backend itself must distinguish them to pick the right HTTP timeout.
+   * Kept as a local copy (3-line regex) rather than a cross-module dependency
+   * on the ModelBridge availability mixin.
+   * @param {string} modelName
+   * @returns {boolean}
+   */
+  _isCloudModel(modelName) {
+    return typeof modelName === 'string' && /[:-]cloud(\b|$)/i.test(modelName);
+  }
+
+  /**
+   * v7.9.12: HTTP idle-timeout for a given model — cloud-suffixed models get
+   * the longer cloudTimeoutMs, everything else the localTimeoutMs.
+   * @param {string} modelName
+   * @returns {number} timeout in ms
+   */
+  _timeoutForModel(modelName) {
+    return this._isCloudModel(modelName) ? this.cloudTimeoutMs : this.localTimeoutMs;
   }
 
   /**
@@ -156,7 +186,7 @@ class OllamaBackend {
 
     const data = await this._httpPost(
       `${this.baseUrl}/api/chat`, body, {},
-      this.localTimeoutMs
+      this._timeoutForModel(modelName)   // v7.9.12: cloud models get longer timeout
     );
 
     return data.message?.content || '';
@@ -276,10 +306,11 @@ class OllamaBackend {
         }, { once: true });
       }
 
-      req.setTimeout(this.localTimeoutMs, () => {
+      const streamTimeoutMs = this._timeoutForModel(modelName);  // v7.9.12
+      req.setTimeout(streamTimeoutMs, () => {
         if (!_doneReason) _doneReason = 'timeout';
         req.destroy();
-        _reject(new Error(`[TIMEOUT] Ollama not responding (${Math.round(this.localTimeoutMs / 1000)}s)`));
+        _reject(new Error(`[TIMEOUT] Ollama not responding (${Math.round(streamTimeoutMs / 1000)}s)`));
       });
       req.on('error', (err) => _reject(new Error(`[NETWORK] Ollama: ${err.message}`)));
       req.write(postData);

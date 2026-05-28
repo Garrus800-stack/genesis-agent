@@ -35,6 +35,14 @@ const TIMEOUTS = {
    *  Cloud APIs (Anthropic/OpenAI) are faster but long prompts can take 60s+. */
   LLM_RESPONSE_LOCAL: 180000,
   LLM_RESPONSE_CLOUD: 60000,
+  /** v7.9.12: Ollama-proxied cloud models (e.g. qwen3-vl:235b-cloud) need a
+   *  longer ceiling than both LOCAL and the direct-API CLOUD timeout. Ollama
+   *  proxies the request to its cloud backend AND the cloud-side model may
+   *  cold-load, so first-response can legitimately exceed 180s on congested
+   *  days (field-traced at first-chunk timeouts against the old 180s LOCAL
+   *  ceiling). This is the idle-timeout for Ollama calls whose model name is
+   *  cloud-suffixed. User-overridable via settings.json `llm.cloudTimeoutMs`. */
+  LLM_RESPONSE_CLOUD_OLLAMA: 300000,
   /** v7.8.9 (llm-resilience-v789 contract): Streaming-specific timeouts.
    *  Used by StreamingCompletion + ContinuationLoop for code-generation calls
    *  where TCP request timeout is too coarse. Cold-loaded large models can

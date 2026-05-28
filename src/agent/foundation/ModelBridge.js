@@ -29,13 +29,28 @@ const { OpenAIBackend } = require('./backends/OpenAIBackend');
 // 'subscription-required' (v7.5.7-fix): 24h, Pro-gates don't fix in 1h.
 // 'quota-exhausted' (v7.8.1): 24h, weekly/monthly limits reset on a slow
 // cadence — retrying every 5min just burns more rate-limit responses.
+// 'rate-limit' (v7.9.12): raised from 5min to 60min. Provider rate-limit
+// windows are rarely shorter than an hour, and the same logic that gives
+// quota-exhausted a long TTL applies here — short retries against a live
+// limit just produce more 429s. Manual recovery stays available via
+// clearUnavailable() if a window turns out to be shorter in practice.
 const UNAVAILABLE_TTL_MAP = {
   'auth':                  60 * 60 * 1000,         // 1h
-  'rate-limit':              5 * 60 * 1000,        // 5min
+  'rate-limit':            60 * 60 * 1000,         // 60min (v7.9.12, was 5min)
   'timeout':                10 * 60 * 1000,        // 10min
   'subscription-required': 24 * 60 * 60 * 1000,    // 24h
   'quota-exhausted':       24 * 60 * 60 * 1000,    // 24h
 };
+
+// v7.9.12: failover-cluster detection. A burst of failovers sharing one
+// reason (classic case: a cloud model throwing 429 on every retry within
+// seconds) is one external event, not N independent disappointments. When
+// >=3 failovers of the same reason land inside FAILOVER_CLUSTER_WINDOW_MS,
+// the model:failover event carries a `cluster` marker and EmotionalState
+// dampens the frustration bump. The first 2 in a window still bump normally
+// — Genesis may notice once that something is going wrong.
+const FAILOVER_CLUSTER_WINDOW_MS = 30 * 1000;   // 30s sliding window
+const FAILOVER_CLUSTER_THRESHOLD = 3;           // >=3 in window = cluster
 
 // ── Lightweight Semaphore ─────────────────────────────────
 // FIX v3.5.0: Limits concurrent LLM requests. Without this,
@@ -98,8 +113,8 @@ class _LLMSemaphore {
 }
 
 class ModelBridge {
-  /** @param {{ bus?: *, maxConcurrentLLM?: number, genesisDir?: string, ollamaKeepAlive?: string|number|null, ollamaLocalTimeoutMs?: number }} [deps] */
-  constructor({ bus, maxConcurrentLLM, genesisDir, ollamaKeepAlive, ollamaLocalTimeoutMs } = {}) {
+  /** @param {{ bus?: *, maxConcurrentLLM?: number, genesisDir?: string, ollamaKeepAlive?: string|number|null, ollamaLocalTimeoutMs?: number, ollamaCloudTimeoutMs?: number }} [deps] */
+  constructor({ bus, maxConcurrentLLM, genesisDir, ollamaKeepAlive, ollamaLocalTimeoutMs, ollamaCloudTimeoutMs } = {}) {
     this.bus = bus || NullBus;
     this.activeModel = null;
     this.activeBackend = null;
@@ -123,6 +138,7 @@ class ModelBridge {
       ollama: new OllamaBackend({
         keepAlive: ollamaKeepAlive == null ? null : ollamaKeepAlive,
         localTimeoutMs: ollamaLocalTimeoutMs,
+        cloudTimeoutMs: ollamaCloudTimeoutMs,
       }),
       anthropic: new AnthropicBackend(),
       openai: new OpenAIBackend(),
@@ -151,6 +167,14 @@ class ModelBridge {
       ? path.join(genesisDir, 'model-unavailable.json')
       : null;
     this._loadUnavailable();
+
+    // v7.9.12: failover-cluster tracking per reason. Sliding 30s window of
+    // failover timestamps keyed by reason. When a reason accumulates >=3
+    // failovers in the window, model:failover carries a `cluster` marker so
+    // EmotionalState can dampen repeated frustration bumps (a 429 burst is
+    // one external event, not N separate disappointments).
+    /** @type {Map<string, number[]>} */
+    this._failoverCluster = new Map();
 
     // v7.9.0: persist genesisDir as instance field so the continuation mixin
     // (ModelBridgeContinuation) can pass it to LLMCapabilityDetector for the
@@ -249,6 +273,24 @@ class ModelBridge {
   // ════════════════════════════════════════════════════════
 
   /**
+   * v7.9.12: Record a failover of the given reason and report whether it
+   * forms a cluster (>=FAILOVER_CLUSTER_THRESHOLD within the sliding window).
+   * Per-reason tracking: a rate-limit burst is independent of a timeout
+   * burst. Old timestamps are pruned on each call so the map stays bounded.
+   * @param {string} reason
+   * @returns {boolean} true if this failover completes/continues a cluster
+   * @private
+   */
+  _trackFailoverCluster(reason) {
+    const now = Date.now();
+    const cutoff = now - FAILOVER_CLUSTER_WINDOW_MS;
+    const arr = (this._failoverCluster.get(reason) || []).filter(ts => ts > cutoff);
+    arr.push(now);
+    this._failoverCluster.set(reason, arr);
+    return arr.length >= FAILOVER_CLUSTER_THRESHOLD;
+  }
+
+  /**
    * v7.5.6: Shared failover handler used by chat() and streamChat().
    * Classifies → marks-if-sticky → records failure → looks up fallback →
    * dispatches retry → records success (or emits failover-unavailable +
@@ -261,6 +303,11 @@ class ModelBridge {
     if (UNAVAILABLE_TTL_MAP[reason] && calledModel) {
       this.markUnavailable(calledModel, UNAVAILABLE_TTL_MAP[reason], reason);
     }
+    // v7.9.12: track failover clustering per reason (used to dampen the
+    // EmotionalState bump on bursts). Tracked for every failover attempt,
+    // whether or not a fallback exists — an all-models-429 burst is still
+    // a cluster even when there's nothing to fall back to.
+    const isCluster = this._trackFailoverCluster(reason);
     // Record failure on the actual called model (pre-v7.5.6: lost).
     this._recordMetaOutcome(taskType, temp, startTime, false, options, calledModel);
     const fallback = this._findFallbackBackend(targetBackend, calledModel);
@@ -275,6 +322,8 @@ class ModelBridge {
         preferredModel: calledModel,
         error: err.message,
         reason,
+        // v7.9.12: present only when this failover is part of a burst.
+        ...(isCluster ? { cluster: { reason, windowMs: FAILOVER_CLUSTER_WINDOW_MS } } : {}),
       }, { source: 'ModelBridge' });
       // v7.8.3: stamp the failover reason on the options object so the
       // subsequent _emitCallComplete (in LLMPort) can pick it up. We

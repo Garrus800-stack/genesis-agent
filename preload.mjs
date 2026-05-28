@@ -121,6 +121,8 @@ const ALLOWED_RECEIVE = [
   'skill:discarded',
   'skill:quarantined',
   'skill:discard-suggested',
+  // v7.9.12: cloud-model-without-fallback boot warning toast.
+  'model:cloud-without-fallback',
 ];
 
 contextBridge.exposeInMainWorld('genesis', {

@@ -60,6 +60,12 @@ const FIELD_REGISTRY = {
   'set-max-concurrent':           { type: 'number',   settingsPath: 'models.maxConcurrent',            resetSafe: true,  default: 3,    min: 1,    max: 10, requiresRestart: true },
   'set-max-workers':              { type: 'number',   settingsPath: 'selfSpawner.maxWorkers',          resetSafe: true,  default: 3,    min: 1,    max: 10, requiresRestart: true },
   'set-keep-alive':               { type: 'string',   settingsPath: 'models.ollamaKeepAlive',          resetSafe: true,  default: null, requiresRestart: true },
+  // v7.9.12: Ollama HTTP idle-timeouts (seconds in UI, _scaleMs stores ms).
+  // local = on-device models; cloud = Ollama-proxied *-cloud models which
+  // need a longer ceiling (cold-load + proxy latency). requiresRestart since
+  // the value is read once when the backend is constructed at boot.
+  'set-local-timeout':            { type: 'number',   settingsPath: 'llm.localTimeoutMs',              resetSafe: true,  default: 180,  min: 30,   max: 900, _scaleMs: true, requiresRestart: true },
+  'set-cloud-timeout':            { type: 'number',   settingsPath: 'llm.cloudTimeoutMs',              resetSafe: true,  default: 300,  min: 60,   max: 900, _scaleMs: true, requiresRestart: true },
   'set-kg-max-nodes':             { type: 'number',   settingsPath: 'knowledgeGraph.maxNodes',         resetSafe: true,  default: 5000, min: 0,    max: 100000, requiresRestart: true },
   'set-sslog-max':                { type: 'number',   settingsPath: 'selfStatementLog.maxStatements', resetSafe: true,  default: 5000, min: 0,    max: 100000, requiresRestart: true },
   'set-approval-timeout':         { type: 'number',   settingsPath: 'timeouts.approvalSec',            resetSafe: true,  default: 300,  min: 10,   max: 3600 },
