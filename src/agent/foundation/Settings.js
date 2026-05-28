@@ -11,6 +11,7 @@ const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
 const { createLogger } = require('../core/Logger');
+const { TIMEOUTS } = require('../core/Constants');
 const _log = createLogger('Settings');
 
 // v7.6.7 Track A: Encryption-at-rest concern extracted to SettingsEncryption.js
@@ -264,11 +265,13 @@ class Settings {
         // MAX_CONTINUATIONS_DEFAULT, but ModelBridgeContinuation reads
         // from Settings and the Settings default was still 4 — heavy
         // code generations in Win-trace still cut off at attempt 4.
-        // v7.9.9 Fix 7: 6 → 10. The v7.9.7 outpost trace (P6) showed
-        // code-with-manifest generations of 9937/2999/6394 chars still
-        // truncating at cap 6 (multiple partial-output retries before
-        // ContinuationLoop's coalescer assembles the final). 10 covers
-        // the upper end of the observed distribution.
+        // v7.9.9 noted that large cloud generations still truncated at 6.
+        // v7.9.10 addressed that not by raising this global default but by
+        // lifting the cap per capability: ContinuationLoop's
+        // computeEffectiveMaxContinuations keeps 6 for local verified-prefill
+        // models (where 6 suffices) and lifts no-prefill/cloud models to
+        // CLOUD_NO_PREFILL_FLOOR (10). So 6 is the correct local-prefill
+        // floor here; the 10 lives where it belongs, in the cloud path.
         continuation: { maxAttempts: 6 },
         // v7.9.12: Ollama HTTP idle-timeouts. localTimeoutMs was read by
         // phase1-foundation since v7.5.9 but never had a default entry here
@@ -276,8 +279,22 @@ class Settings {
         // TIMEOUTS constant). Declaring both makes them UI-surfaceable and
         // keeps the defaults tree honest. cloudTimeoutMs (v7.9.12) is the
         // longer ceiling for Ollama-proxied cloud models (e.g. *-cloud).
-        localTimeoutMs: 180000,
-        cloudTimeoutMs: 300000,
+        // v7.9.13: reference the constants instead of hardcoding the numbers,
+        // so the default tracks the single source of truth in Constants.js
+        // and cannot drift from it.
+        localTimeoutMs: TIMEOUTS.LLM_RESPONSE_LOCAL,
+        cloudTimeoutMs: TIMEOUTS.LLM_RESPONSE_CLOUD_OLLAMA,
+        // v7.9.13: stream timeouts surfaced as settings (the Constants.js
+        // comment promised this override but it was never wired). Values
+        // reference the constants so they cannot drift from them. These
+        // affect only Ollama code-generation streaming (taskType === 'code'),
+        // the single path through ContinuationLoop → StreamingCompletion.
+        streamTimeouts: {
+          firstChunk: TIMEOUTS.LLM_STREAM_FIRST_CHUNK,
+          chunk: TIMEOUTS.LLM_STREAM_CHUNK,
+          total: TIMEOUTS.LLM_STREAM_TOTAL,
+          continuationTotal: TIMEOUTS.LLM_CONTINUATION_TOTAL,
+        },
       },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
       timeouts: { approvalSec: 300, shellMs: 15000, httpMs: 60000, gitMs: 5000 },
@@ -505,6 +522,15 @@ class Settings {
     clamp('shutdown.sessionSummaryTimeoutMs',     500, 120000);
     // v7.9.5 live-fix: continuation-loop attempt cap
     clamp('llm.continuation.maxAttempts',         1, 20);
+    // v7.9.13: stream-timeout bounds (ms). JSON-only expert settings, so
+    // clamp() is the only guard — there is no FIELD_REGISTRY min/max for
+    // these (unlike local/cloudTimeoutMs which are UI-surfaced). Floors
+    // keep a misconfiguration from aborting mid-token; ceilings keep a
+    // typo from disabling the runaway-generation protection entirely.
+    clamp('llm.streamTimeouts.firstChunk',        10000,  600000);
+    clamp('llm.streamTimeouts.chunk',             5000,   120000);
+    clamp('llm.streamTimeouts.total',             60000,  1800000);
+    clamp('llm.streamTimeouts.continuationTotal', 120000, 3600000);
     // v7.9.5 live-fix: ArchReflect rebuild staleness — 1 min floor (don't
     // rebuild constantly), 1 day ceiling (don't go forever between rebuilds).
     clamp('cognitive.architectureReflection.staleThresholdMs', 60000, 86400000);

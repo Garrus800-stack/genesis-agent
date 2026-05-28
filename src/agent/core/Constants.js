@@ -44,16 +44,20 @@ const TIMEOUTS = {
    *  cloud-suffixed. User-overridable via settings.json `llm.cloudTimeoutMs`. */
   LLM_RESPONSE_CLOUD_OLLAMA: 300000,
   /** v7.8.9 (llm-resilience-v789 contract): Streaming-specific timeouts.
-   *  Used by StreamingCompletion + ContinuationLoop for code-generation calls
-   *  where TCP request timeout is too coarse. Cold-loaded large models can
-   *  legitimately take 60-90s before the first token, while active generation
-   *  usually streams one token every 30-200ms. Total cap protects against
-   *  runaway generations. Each constant is user-overridable via
-   *  settings.json `llm.streamTimeouts.{firstChunk,chunk,total,continuationTotal}`. */
+   *  Used by StreamingCompletion + ContinuationLoop for Ollama
+   *  code-generation calls (taskType === 'code'), the single path that
+   *  routes through ContinuationLoop — not standard chat or streaming,
+   *  and not non-Ollama backends. The TCP request timeout is too coarse
+   *  there: cold-loaded large models can legitimately take 60-90s before
+   *  the first token, while active generation usually streams one token
+   *  every 30-200ms. Total cap protects against runaway generations.
+   *  v7.9.13: overridable via settings.json
+   *  `llm.streamTimeouts.{firstChunk,chunk,total,continuationTotal}`,
+   *  wired through ModelBridgeContinuation into the ContinuationLoop
+   *  options (the settings defaults reference these constants). */
   /** v7.9.0 (was 120s in v7.8.9): cloud models under load occasionally need
    *  >120s for the first chunk (qwen3-vl:235b-cloud observed at ~120-150s on
-   *  congested days). 180s gives enough headroom without masking real hangs.
-   *  Override per-install via settings.json `llm.streamTimeouts.firstChunk`. */
+   *  congested days). 180s gives enough headroom without masking real hangs. */
   LLM_STREAM_FIRST_CHUNK: 180000,
   LLM_STREAM_CHUNK: 30000,
   LLM_STREAM_TOTAL: 600000,

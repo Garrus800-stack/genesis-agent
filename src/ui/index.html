@@ -419,6 +419,19 @@
             <span class="setting-hint" data-i18n-html="settings.keepalive.hint">Wie lange Ollama ein Modell nach dem letzten Call im RAM hält. Beispiele: <code>30s</code>, <code>5m</code>, <code>1h</code>, <code>0</code> (sofort entladen), <code>-1</code> (für immer). Leer = Ollama-Default (5min).</span>
           </div>
           <div class="setting-group setting-divider">
+            <label class="setting-section-label" data-i18n="settings.section.model_timeouts">Modell-Timeouts</label>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="settings.localtimeout.label">Timeout lokale Modelle (Sekunden)</label>
+            <input type="number" id="set-local-timeout" min="30" max="900" placeholder="180" class="setting-input">
+            <span class="setting-hint" data-i18n="settings.localtimeout.hint">Maximale Antwortzeit für lokale Modelle auf diesem Rechner, bevor der Call abgebrochen wird. Default: 180s.</span>
+          </div>
+          <div class="setting-group">
+            <label data-i18n="settings.cloudtimeout.label">Timeout Cloud-Modelle (Sekunden)</label>
+            <input type="number" id="set-cloud-timeout" min="60" max="900" placeholder="300" class="setting-input">
+            <span class="setting-hint" data-i18n="settings.cloudtimeout.hint">Maximale Antwortzeit für über Ollama bezogene Cloud-Modelle (z.B. *-cloud), die wegen Proxy und Cloud-seitigem Laden länger brauchen können. Default: 300s.</span>
+          </div>
+          <div class="setting-group setting-divider">
             <label class="setting-section-label" data-i18n="settings.section.memory_caps">Memory-Caps</label>
           </div>
           <div class="setting-group">

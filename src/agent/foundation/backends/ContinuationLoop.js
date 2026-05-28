@@ -57,10 +57,12 @@ const _log = createLogger('ContinuationLoop');
 // across four attempts and then abandoned. Six attempts cover the
 // long-manifest case without doubling the worst-case cost of a
 // pathological unbounded-truncation.
-// v7.9.9 Fix 7: raised 6 → 10. The v7.9.7 outpost trace still showed
-// the same heavy code-gen distribution (9937/2999/6394 chars) hitting
-// the cap at 6 with multiple partials. 10 covers the upper tail and
-// keeps the near-cap event (fired at attempts === max-1) as a clear
+// v7.9.9 observed that the same heavy code-gen distribution still hit
+// the cap at 6 for cloud models. v7.9.10 addressed this per capability
+// rather than by raising this global default: computeEffectiveMaxContinuations
+// (below) lifts no-prefill/cloud models to CLOUD_NO_PREFILL_FLOOR (10),
+// while local verified-prefill models stay at this 6 where it suffices.
+// The near-cap event (fired at attempts === max-1) remains a clear
 // dashboard signal before runaway-cost.
 const MAX_CONTINUATIONS_DEFAULT = 6;
 const KEEP_ALIVE_OVERRIDE = '15m';

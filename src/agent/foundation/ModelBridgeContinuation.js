@@ -30,6 +30,7 @@
 'use strict';
 
 const { createLogger } = require('../core/Logger');
+const { TIMEOUTS } = require('../core/Constants');
 const _log = createLogger('ModelBridgeContinuation');
 
 // Lazy-loaded continuation pieces. Loaded on first use so the module
@@ -103,13 +104,29 @@ const continuationMixin = {
         taskType,
         eventBus: this.bus || null,
         // v7.9.5 live-fix: configurable via llm.continuation.maxAttempts
-        // (default 10, range 1-20). Pre-fix this was hardcoded — large
-        // code generations from qwen3-coder failed at the 4-attempt
-        // ceiling with multi-thousand-char partial outputs.
-        // v7.9.9 Fix 7: fallback aligned with Settings + ContinuationLoop
-        // defaults (all three: 10). Three-place consistency: any drift
-        // produces silently mismatched behaviour depending on call path.
+        // (range 1-20). Pre-fix this was hardcoded — large code generations
+        // from qwen3-coder failed at the 4-attempt ceiling with
+        // multi-thousand-char partial outputs.
+        // The fallback here matches the Settings default (6) and
+        // ContinuationLoop's MAX_CONTINUATIONS_DEFAULT (6). This 6 is the
+        // local-prefill floor; ContinuationLoop's computeEffectiveMaxContinuations
+        // lifts no-prefill/cloud models to CLOUD_NO_PREFILL_FLOOR (10) at run
+        // time. Three-place consistency on the 6: any drift produces silently
+        // mismatched behaviour depending on call path.
         maxContinuations: Number(this._settings?.get?.('llm.continuation.maxAttempts') ?? 6),
+        // v7.9.13: stream timeouts made settings-driven. The override
+        // interface already existed at options level (StreamingCompletion
+        // and ContinuationLoop read these from options with a TIMEOUTS
+        // fallback); this bridges settings.json into those options, the
+        // same pattern as maxContinuations above. ContinuationLoop passes
+        // firstChunk/chunk/total on to StreamingCompletion per stream and
+        // keeps continuationTotal itself for the cross-attempt deadline.
+        // Scope: these only affect Ollama code-generation (taskType ===
+        // 'code'), the single path that routes through ContinuationLoop.
+        firstChunkTimeoutMs: Number(this._settings?.get?.('llm.streamTimeouts.firstChunk') ?? TIMEOUTS.LLM_STREAM_FIRST_CHUNK),
+        chunkTimeoutMs: Number(this._settings?.get?.('llm.streamTimeouts.chunk') ?? TIMEOUTS.LLM_STREAM_CHUNK),
+        totalTimeoutMs: Number(this._settings?.get?.('llm.streamTimeouts.total') ?? TIMEOUTS.LLM_STREAM_TOTAL),
+        continuationTotalTimeoutMs: Number(this._settings?.get?.('llm.streamTimeouts.continuationTotal') ?? TIMEOUTS.LLM_CONTINUATION_TOTAL),
       },
     });
     return result.content;
