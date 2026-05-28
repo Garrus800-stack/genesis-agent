@@ -67,6 +67,7 @@ function apply(Dashboard) {
           '<span class="dash-muted">' + (organism.unfinishedWorkFrontier?.dashboardLine ? '\u23f3 ' + this._esc(organism.unfinishedWorkFrontier.dashboardLine) : '') + '</span>' +
           '<span class="dash-muted">' + (organism.suspicionFrontier?.dashboardLine ? '\u26a0 ' + this._esc(organism.suspicionFrontier.dashboardLine) : '') + '</span>' +
           '<span class="dash-muted">' + (organism.lessonFrontier?.dashboardLine ? '\u2713 ' + this._esc(organism.lessonFrontier.dashboardLine) : '') + '</span>' +
+          '<span class="dash-muted">' + (organism.causalSuspicion?.dashboardLine ? '\uD83C\uDFAF Causal: ' + this._esc(organism.causalSuspicion.dashboardLine) : '') + '</span>' +
           '<span class="dash-muted">' + driveInfo + '</span>' +
         '</div>' +
       '</div>' +

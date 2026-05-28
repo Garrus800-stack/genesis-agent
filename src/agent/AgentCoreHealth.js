@@ -99,6 +99,10 @@ class AgentCoreHealth {
         unfinishedWorkFrontier: safe('unfinishedWorkFrontier', uw => uw.getReport()),
         suspicionFrontier: safe('suspicionFrontier', sf => sf.getReport()),
         lessonFrontier: safe('lessonFrontier', lf => lf.getReport()),
+        // v7.9.14: causal-suspicion report from CausalAnnotation. Distinct
+        // from suspicionFrontier above (novelty-based, v7.1.6) — this one
+        // surfaces promoted action-level failure correlations.
+        causalSuspicion: safe('causalAnnotation', ca => ca.getReport()),
       },
       cognitiveMonitor: safe('cognitiveMonitor', cm => cm.getReport()),
       cognitive: {

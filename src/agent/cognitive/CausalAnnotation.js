@@ -67,12 +67,35 @@ class CausalAnnotation {
   constructor({ bus, knowledgeGraph, lessonsStore, config } = {}) {
     this.bus = bus || NullBus;
     this.kg = knowledgeGraph || null;
-    // v7.9.7 P7: optional lessonsStore. When wired, every causal
-    // promotion writes a warning lesson into the store so the next
-    // SymbolicResolver recall for the affected action returns a
-    // directive pointing the LLM away from it. Pre-fix the suspicion-
-    // tracking machinery fired causal:promoted into the void with no
-    // subscriber acting on it — the whole pipeline was inert.
+    // v7.9.7 P7 (architecture clarified in v7.9.14): the behavioural
+    // consequence of a causal promotion runs through the warning-lesson
+    // path, not through the bus event. When a key crosses the suspicion
+    // threshold, _checkPromotions does two things in this order:
+    //
+    //   1. bus.fire('causal:promoted', ...) — a telemetry signal for
+    //      dashboards and logging. Async by nature, no behavioural
+    //      consumer. Listeners may attach later for observability.
+    //
+    //   2. lessonsStore.record({ source: 'plan-failure-reflection',
+    //      strategy.classification: 'causal-suspicion', ... }) — the
+    //      behavioural consequence. SymbolicResolver filters lessons
+    //      with this source/classification out of DIRECT recalls
+    //      (steers the next LLM call away from the suspect action);
+    //      IdleMind listens for agent:self-message kind 'plan-failure-
+    //      reflection' and cools down goal-generation on the matching
+    //      tokens for 1h. Three modules share the string contract
+    //      'plan-failure-reflection' + 'causal-suspicion'.
+    //
+    // Why synchronous lesson write, not bus-driven: the consequence
+    // must be in place before this promotion call returns, so the next
+    // resolve sees the new lesson. A bus listener would run async and
+    // could be missed by a resolve in the same tick. Refactoring to
+    // "just fire the event and let a listener record the lesson" would
+    // silently break the loop on any timing edge case.
+    //
+    // Pre-v7.9.7 the suspicion-tracking machinery fired causal:promoted
+    // alone, with no recorded consequence — the whole pipeline was
+    // inert. The lessonsStore wiring is what closes it.
     this.lessonsStore = lessonsStore || null;
 
     const cfg = config || {};
@@ -85,7 +108,8 @@ class CausalAnnotation {
     // v7.9.7 P7: per-key dedup. _checkPromotions runs on every record;
     // the same key would cross the threshold repeatedly and refire the
     // event each time. Now each key fires causal:promoted (and writes
-    // its lesson) exactly once per CausalAnnotation lifetime.
+    // its 'plan-failure-reflection' / 'causal-suspicion' lesson) exactly
+    // once per CausalAnnotation lifetime.
     /** @type {Set<string>} */
     this._promoted = new Set();
 
@@ -239,6 +263,65 @@ class CausalAnnotation {
       };
     }
     return result;
+  }
+
+  /**
+   * Dashboard report for the organism status snapshot. Follows the
+   * Frontier convention (emotionalFrontier, lessonFrontier, etc.):
+   * returns { dashboardLine, count, topSuspect } with dashboardLine
+   * empty when there is nothing worth showing.
+   *
+   * Aggregates ONLY over promoted actions (this._promoted), not over
+   * every observed key. Dashboard surfaces what crossed the threshold,
+   * not the noise floor of every tool-call that ever failed once.
+   *
+   * Differentiation from suspicionFrontier (v7.1.6, novelty-based):
+   * different concept, different icon in the UI. This report tracks
+   * action-level failure correlations; suspicionFrontier tracks novel
+   * surprising events. The dashboard label ("🎯 Causal: ...") makes
+   * the distinction explicit so both can coexist as separate lines.
+   *
+   * @returns {{ dashboardLine: string, count: number, topSuspect: { action: string, suspicion: number, observations: number } | null }}
+   */
+  getReport() {
+    if (this._promoted.size === 0) {
+      return { dashboardLine: '', count: 0, topSuspect: null };
+    }
+
+    // Collect entries for promoted actions only
+    const entries = [];
+    for (const key of this._promoted) {
+      const stats = this._suspicion.get(key);
+      if (!stats) continue;
+      const total = stats.failCount + stats.successCount;
+      const suspicion = total > 0 ? stats.failCount / total : 0;
+      entries.push({ action: key, suspicion, observations: stats.observations });
+    }
+    if (entries.length === 0) {
+      return { dashboardLine: '', count: 0, topSuspect: null };
+    }
+
+    // Sort: suspicion desc, then observations desc on tie (more data == more reliable)
+    entries.sort((a, b) => (b.suspicion - a.suspicion) || (b.observations - a.observations));
+
+    const topSuspect = { ...entries[0] };
+    const count = entries.length;
+
+    // Format: "name (suspicion%/obs)" — compact, suited to one dashboard line
+    const fmt = e => `${e.action} (${Math.round(e.suspicion * 100)}%/${e.observations})`;
+    const top = entries.slice(0, 3).map(fmt);
+    const extra = entries.length - top.length;
+
+    let dashboardLine;
+    if (entries.length === 1) {
+      // Single action: no "N suspect actions" prefix — reads naturally
+      dashboardLine = top[0];
+    } else {
+      const head = `${count} suspect actions — ${top.join(', ')}`;
+      dashboardLine = extra > 0 ? `${head} +${extra} more` : head;
+    }
+
+    return { dashboardLine, count, topSuspect };
   }
 
   // ════════════════════════════════════════════════════════

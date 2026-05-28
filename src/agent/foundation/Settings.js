@@ -524,13 +524,24 @@ class Settings {
     clamp('llm.continuation.maxAttempts',         1, 20);
     // v7.9.13: stream-timeout bounds (ms). JSON-only expert settings, so
     // clamp() is the only guard — there is no FIELD_REGISTRY min/max for
-    // these (unlike local/cloudTimeoutMs which are UI-surfaced). Floors
-    // keep a misconfiguration from aborting mid-token; ceilings keep a
-    // typo from disabling the runaway-generation protection entirely.
+    // these. Floors keep a misconfiguration from aborting mid-token;
+    // ceilings keep a typo from disabling the runaway-generation
+    // protection entirely.
     clamp('llm.streamTimeouts.firstChunk',        10000,  600000);
     clamp('llm.streamTimeouts.chunk',             5000,   120000);
     clamp('llm.streamTimeouts.total',             60000,  1800000);
     clamp('llm.streamTimeouts.continuationTotal', 120000, 3600000);
+    // v7.9.14: local/cloud response-timeout bounds (ms). These ARE
+    // FIELD_REGISTRY-surfaced (set-local-timeout / set-cloud-timeout in
+    // Limits-tab, seconds with _scaleMs), but the registry's min/max
+    // only fires in the UI write path — a direct edit to settings.json
+    // would bypass it. clamp() at load is the second gate so the
+    // values are guaranteed in-range however they got there.
+    // Ranges match FIELD_REGISTRY exactly (30s-15min, 60s-15min);
+    // anti-drift guard test asserts the equality, so this comment
+    // and the registry cannot silently diverge.
+    clamp('llm.localTimeoutMs',                   30000,  900000);  // 30s-15min, registry: 30-900
+    clamp('llm.cloudTimeoutMs',                   60000,  900000);  // 60s-15min, registry: 60-900
     // v7.9.5 live-fix: ArchReflect rebuild staleness — 1 min floor (don't
     // rebuild constantly), 1 day ceiling (don't go forever between rebuilds).
     clamp('cognitive.architectureReflection.staleThresholdMs', 60000, 86400000);
