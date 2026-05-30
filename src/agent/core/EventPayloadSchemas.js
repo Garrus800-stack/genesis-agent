@@ -44,6 +44,9 @@ const SCHEMAS = {
   // Agent System
   'agent:status':   { state: 'required', detail: 'optional' },
   'agent:shutdown': { errors: 'optional' },
+  // v7.9.16: emitted (awaited) in shutdown before TO_STOP. sessionId is
+  // required — the FrontierWriter event-buffer flush reads data.sessionId.
+  'session:ending': { sessionId: 'required', durationMs: 'optional', messageCount: 'optional' },
 
   // Chat
   'chat:completed': { message: 'required', response: 'required', intent: 'required', success: 'required' },

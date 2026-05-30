@@ -13,14 +13,14 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 382 JS files |
-| Test Files / Tests | 522 / 8105 (Win baseline) |
-| DI Services | 179 (166 manifest + 13 bootstrap) |
+| Source Modules | 383 JS files |
+| Test Files / Tests | 523 / 8105 (Win baseline) |
+| DI Services | 180 (167 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
 | npm Dependencies | 5 production + 1 optional + 10 dev |
-| Event Types (catalogued) | 491 |
-| Event Schemas | 491 |
+| Event Types (catalogued) | 492 |
+| Event Schemas | 492 |
 | IPC Channels | 68 main ↔ 68 preload |
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
 | Coverage Gates | 80% lines, 76% branches, 78% functions |
@@ -55,7 +55,7 @@ Phase 1: Bootstrap
   └── Register non-manifest instances: rootDir, guard, bus, storage, lang, logger
 
 Phase 2: Manifest
-  └── Register all 166 services from 12 phase files via ContainerManifest (+13 bootstrap = 179 runtime, cognitive default profile)
+  └── Register all 167 services from 12 phase files via ContainerManifest (+13 bootstrap = 180 runtime, cognitive default profile)
       └── Auto-discovery scans src/agent/ → builds filename→directory map
 
 Phase 3: Resolve & Init
@@ -316,7 +316,7 @@ Persistent agency layer: GoalPersistence, FailureTaxonomy, DynamicContextBudget,
 
 Trust and effectors: TrustLevelSystem, EffectorRegistry, WebPerception, SelfSpawner.
 
-**TrustLevelSystem** `v3.0 — frozen v7.9.9` — Three levels: Level 0 SUPERVISED (always ask), Level 1 AUTONOMOUS (ask only on categorically critical actions: DEPLOY, EXTERNAL_API, EMAIL_SEND), Level 2 FULL_AUTONOMY (never ask). The four-level structure that existed through v7.9.6 (Supervised / Assisted / Autonomous / Full) was collapsed in v7.9.7 R1: the ASSISTED slot lacked a clear principle that distinguished it from SUPERVISED in practice, and the migration data showed users rarely settled there. v7.9.8 Fix 1 added migration writeback with `schemaVersion: 3`. v7.9.8 Fix 2 changed the fresh-install default from AUTONOMOUS to SUPERVISED at six call sites. v7.9.9 (A) closed the last two unaligned sites in Settings.js and rerouted the migration table so old ASSISTED (stored 1) buckets to SUPERVISED (new 0) instead of AUTONOMOUS (new 1) — "Ask for risky" was the level a user chose explicitly to limit autonomy, so re-bucketing downward honours the spirit of their choice. After v7.9.9 the trust system is frozen: no future version touches the migration table, the dropdown options, or the default level. The constructor distinguishes between caller-supplied `cfg.level` (already in the 3-level system, range 0..2 passes through) and stored values from `asyncLoad` (potentially 4-level, routes through `_migrateLevel`).
+**TrustLevelSystem** `v3.0 — frozen v7.9.9` — Three levels: Level 0 SUPERVISED (always ask), Level 1 AUTONOMOUS (ask only on categorically critical actions: DEPLOY, EXTERNAL_API, EMAIL_SEND), Level 2 FULL_AUTONOMY (never ask). The four-level structure that existed through v7.9.6 (Supervised / Assisted / Autonomous / Full) was collapsed in v7.9.7 R1: the ASSISTED slot lacked a clear principle that distinguished it from SUPERVISED in practice, and the migration data showed users rarely settled there. v7.9.8 Fix 1 added migration writeback with `schemaVersion: 3`. v7.9.8 Fix 2 changed the fresh-install default from AUTONOMOUS to SUPERVISED at six call sites. v7.9.9 (A) closed the last two unaligned sites in Settings.js and rerouted the migration table so old ASSISTED (stored 1) buckets to SUPERVISED (new 0) instead of AUTONOMOUS (new 1) — "Ask for risky" was the level a user chose explicitly to limit autonomy, so re-bucketing downward honours the spirit of their choice. After v7.9.9 the trust system is frozen — the migration table, the dropdown options, and the default level are settled and remain unchanged. The constructor distinguishes between caller-supplied `cfg.level` (already in the 3-level system, range 0..2 passes through) and stored values from `asyncLoad` (potentially 4-level, routes through `_migrateLevel`).
 
 **EffectorRegistry** `v4.1` — External action system with precondition checking. Built-in effectors: clipboard, notifications, browser, GitHub (issues, PRs, comments). Precondition failures emit `effector:blocked` events.
 
@@ -419,8 +419,8 @@ The EmbeddingService integration is optional. Without an embedding backend (Olla
 
 The EventBus (~600 LOC) is the nervous system of Genesis:
 
-- **491 catalogued event types** in EventTypes.js (1316 LOC) with JSDoc payload docs
-- **491 payload schemas** in EventPayloadSchemas.js (~846 LOC) — full parity since v7.6.x (every catalog entry has a registered schema; v7.6.3 dropped 4 dead entries from both files in lockstep, B1+B2 regression tests in `store-event-catalog.test.js` enforce the link)
+- **492 catalogued event types** in EventTypes.js (1316 LOC) with JSDoc payload docs
+- **492 payload schemas** in EventPayloadSchemas.js (~846 LOC) — full parity since v7.6.x (every catalog entry has a registered schema; v7.6.3 dropped 4 dead entries from both files in lockstep, B1+B2 regression tests in `store-event-catalog.test.js` enforce the link)
 - **Dev-mode validation** — unknown events produce warnings with stack traces
 - **Wildcard prefix-map** (v3.8.0) — O(k) matching instead of O(n)
 - **Ring buffer history** (v4.0.0) — O(1) push instead of O(n) push+slice
@@ -569,5 +569,5 @@ Approximate as of v7.5.6 (numbers shift with each release):
   ─────────────────────────────────────────────
   agent/ total     259 files  ~84,900 LOC
   + UI/kernel       47 files  ~13,800 LOC
-  = src/ total     382 modules ~119,000 LOC
+  = src/ total     383 modules ~119,000 LOC
 ```

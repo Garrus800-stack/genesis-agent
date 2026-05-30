@@ -143,6 +143,34 @@ class SessionPersistence {
   }
 
   /**
+   * v7.9.16: emit session:ending in the shutdown sequence. The shutdown
+   * caller must AWAIT this BEFORE the TO_STOP teardown, so that (a) the
+   * FrontierWriter event-buffers keyed to this event flush their collected
+   * surprise/lesson nodes while their subscription is still alive, and
+   * (b) EventCounter records the session as a significant event. Uses
+   * bus.emit (awaited), not fire-and-forget bus.fire: the shutdown
+   * continues synchronously after this returns, so the dispatch must have
+   * completed before teardown/exit. durationMs is computed fresh —
+   * _getSessionDuration() returns a formatted string, not milliseconds.
+   * Unconditional (every session length) so all buffers flush; the
+   * significance threshold for sessions is an analysis-time concern.
+   * @returns {Promise<void>}
+   */
+  async emitSessionEnding() {
+    try {
+      const started = Date.parse(this.currentSession.startedAt);
+      const durationMs = Number.isFinite(started) ? Math.max(0, Date.now() - started) : 0;
+      await this.bus.emit('session:ending', {
+        sessionId: this._sessionId,
+        durationMs,
+        messageCount: this.currentSession.messageCount,
+      });
+    } catch (e) {
+      _log.debug('[SESSION] emitSessionEnding error (ignored):', e && e.message);
+    }
+  }
+
+  /**
    * Generate session summary using the LLM.
    * Called during shutdown (before the model goes offline).
    */

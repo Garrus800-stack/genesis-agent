@@ -135,6 +135,10 @@ class SelfTrajectory {
     this.lessonsStore = lessonsStore || null;
     /** @type {*} late-bound by the manifest, like ProactiveSelfExpression */
     this.modelBridge = null;
+    /** @type {*} late-bound by the manifest (v7.9.16). When present, commit()
+     *  fills event_count from eventCounter.countSince(previous wallclock_end);
+     *  absent (unit tests, degraded boot) → event_count stays null. */
+    this.eventCounter = null;
     this._clock = clock;
     // Exposed on the instance so the phase-5 chat handler can read the
     // field names WITHOUT a static upward require into this cognitive
@@ -335,6 +339,16 @@ class SelfTrajectory {
     const wallclockEnd = new Date(this._clock.now()).toISOString();
     const cycleId = this.nextCycleId(draft.wallclock_start);
 
+    // v7.9.16: fill event_count from the passive significant-event counter.
+    // The cycle window is derived, not stored: it runs from the previous
+    // entry's wallclock_end (this cycle's start) to now, as a half-open
+    // window (ts > prevEnd) inside countSince. No prior entry → null
+    // boundary → counts all recorded events (the first cycle). eventCounter
+    // absent → event_count stays null (graceful).
+    const _prior = this.readEntries();
+    const _prevEnd = _prior.length ? _prior[_prior.length - 1].wallclock_end : null;
+    const eventCount = this.eventCounter ? this.eventCounter.countSince(_prevEnd) : null;
+
     // author: genesis is the base; garrus is added if there is a
     // garrus_note or any garrus edit in the history.
     const author = ['genesis'];
@@ -348,7 +362,7 @@ class SelfTrajectory {
       schema_version: SCHEMA_VERSION,
       wallclock_start: draft.wallclock_start,
       wallclock_end: wallclockEnd,
-      event_count: null,
+      event_count: eventCount,
       author,
       first_entry: !!draft.first_entry,
       fields: { ...draft.fields },

@@ -22,6 +22,7 @@
 //   /trajectory list [--all]               — list cycles (latest 10 / all)
 //   /trajectory note <cycle_id> <text>     — late note on a committed entry
 //   /trajectory history [cycle_id]         — full edit history of an entry
+//   /trajectory events                     — significant-event distribution (per type + per day)
 //
 // `note` appears twice on purpose: `new note <who>:` writes a note IN
 // the draft during authoring; `note <cycle_id>` appends a LATE note to
@@ -59,7 +60,8 @@ const commandHandlersTrajectory = {
     if (sub === 'list')     return this._trajectoryList(rest.trim());
     if (sub === 'note')     return this._trajectoryLateNote(rest);
     if (sub === 'history')  return this._trajectoryHistory(rest.trim());
-    return 'Unknown subcommand. Use: new | show | list | note | history';
+    if (sub === 'events')   return this._trajectoryEvents();
+    return 'Unknown subcommand. Use: new | show | list | note | history | events';
   },
 
   // ── /trajectory new + nested actions ──────────────────────
@@ -233,13 +235,47 @@ const commandHandlersTrajectory = {
     ].join('\n');
   },
 
+  // ── /trajectory events — significant-event distribution ───
+  // Reads the passive EventCounter (late-bound on SelfTrajectory). Shows
+  // the whole journal: total, per-type counts (busiest first), and the
+  // per-day buckets. Readable from the moment the counter is live — not
+  // gated on a committed entry — so the real per-day distribution is
+  // visible during the (multi-day) first-entry authoring window.
+  _trajectoryEvents() {
+    const ec = this.selfTrajectory.eventCounter;
+    if (!ec || typeof ec.summary !== 'function') {
+      return 'Event counter not available.';
+    }
+    const s = ec.summary();
+    if (!s.total) {
+      return 'No significant events recorded yet. The counter observes goal ' +
+        '(completed/failed/abandoned), lesson, emotional-watchdog, and session events.';
+    }
+    const byType = Object.entries(s.byType)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `  ${k.padEnd(24)} ${v}`).join('\n');
+    const byDay = Object.entries(s.byDay)
+      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+      .map(([d, v]) => `  ${d}  ${v}`).join('\n');
+    const dayCount = Object.keys(s.byDay).length;
+    return [
+      `**Significant events** — ${s.total} recorded across ${dayCount} day(s)`,
+      '',
+      'By type (busiest first):',
+      byType,
+      '',
+      'By day:',
+      byDay,
+    ].join('\n');
+  },
+
   _renderEntry(entry) {
     const start = (entry.wallclock_start || '').replace('T', ' ').slice(0, 16);
     const end = (entry.wallclock_end || '').replace('T', ' ').slice(0, 16);
     const fieldLines = this.selfTrajectory.fieldNames.map(k => `  ${k}: ${entry.fields[k]}`).join('\n');
     const out = [
       `**${entry.cycle_id}**${entry.first_entry ? ' (first entry)' : ''}`,
-      `${start} → ${end} · author: ${this._authorLabel(entry.author)}`,
+      `${start} → ${end} · author: ${this._authorLabel(entry.author)} · events: ${typeof entry.event_count === 'number' ? entry.event_count : '—'}`,
       '',
       fieldLines,
     ];

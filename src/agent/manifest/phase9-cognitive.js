@@ -351,11 +351,27 @@ function phase9(ctx, R) {
           impact: 'Draft prompt omits the most-recalled lessons; draft still works' },
         { prop: 'modelBridge', service: 'model', optional: true,
           impact: 'generateDraft writes a placeholder stub instead of an LLM draft' },
+        { prop: 'eventCounter', service: 'eventCounter', optional: true,
+          impact: 'commit() records event_count as null instead of the per-cycle significant-event count' },
       ],
       factory: (c) => new (R('SelfTrajectory').SelfTrajectory)({
         bus,
         storage: c.resolve('storage'),
         genome: c.resolve('genome'),
+      }),
+    }],
+
+    // v7.9.16: EventCounter — passive significant-event observer that fills
+    // SelfTrajectory's event_count. Append-only journal via the storage
+    // service; no in-memory state (countSince reads on demand). One-way
+    // dependency: selfTrajectory late-binds this, this never references
+    // selfTrajectory. Started in the Phase-9 start sequence, stopped in
+    // TO_STOP. Observes goal/lesson/emotion-watchdog/session events.
+    ['eventCounter', {
+      phase: 9, deps: ['bus', 'storage'], tags: ['cognitive', 'persistent', 'observer'],
+      factory: (c) => new (R('EventCounter').EventCounter)({
+        bus,
+        storage: c.resolve('storage'),
       }),
     }],
 

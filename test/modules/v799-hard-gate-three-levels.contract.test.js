@@ -146,7 +146,7 @@ describe('v799-hard-gate-three-levels', () => {
       'no needs-input even on repeated AUTONOMOUS failures from hard-gate');
   });
 
-  test('DISP-04: FULL_AUTONOMY + high risk + spawn succeeds → decomposed (never asks)', async () => {
+  test('DISP-04: FULL_AUTONOMY + high risk + spawn succeeds → decomposed (proceeds without a user prompt)', async () => {
     const s = makeStubs();
     const loop = makeLoop({
       trustLevel: TRUST_LEVELS.FULL_AUTONOMY,
@@ -161,7 +161,7 @@ describe('v799-hard-gate-three-levels', () => {
       'FULL_AUTONOMY must NEVER emit needs-input');
   });
 
-  test('DISP-05: FULL_AUTONOMY + spawn refused → mark obsolete (never asks)', async () => {
+  test('DISP-05: FULL_AUTONOMY + spawn declined → mark obsolete (proceeds without a user prompt)', async () => {
     const s = makeStubs();
     let obsoleteCalledWith = null;
     const loop = makeLoop({

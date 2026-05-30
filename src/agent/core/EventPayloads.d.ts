@@ -1,7 +1,7 @@
 // ============================================================
 // GENESIS — EventPayloads.d.ts (auto-generated)
-// Generated: 2026-05-17
-// Source: EventPayloadSchemas.js (446 events)
+// Generated: 2026-05-30
+// Source: EventPayloadSchemas.js (462 events)
 //
 // DO NOT EDIT — regenerate with:
 //   node scripts/generate-event-types.js
@@ -12,6 +12,10 @@ export interface EventPayloadMap {
   'agent-loop:started': {
     goalId: any;
     goal?: any;
+  };
+  'agent-loop:starting-pursuit': {
+    goalDescription?: any;
+    goalId?: any;
   };
   'agent-loop:complete': {
     goalId: any;
@@ -54,6 +58,11 @@ export interface EventPayloadMap {
   };
   'agent:shutdown': {
     errors?: any;
+  };
+  'session:ending': {
+    sessionId: any;
+    durationMs?: any;
+    messageCount?: any;
   };
   'chat:completed': {
     message: any;
@@ -187,6 +196,9 @@ export interface EventPayloadMap {
     activity: any;
     insight: any;
   };
+  'idle:goal-balance-break': {
+    stepsTaken: any;
+  };
   'model:ollama-unavailable': {
     error: any;
   };
@@ -227,6 +239,10 @@ export interface EventPayloadMap {
   };
   'verification:complete': {
     result?: any;
+  };
+  'verification:unknown-step-type': {
+    stepType: any;
+    stepDescription?: any;
   };
   'homeostasis:pause-autonomy': Record<string, never>;
   'homeostasis:state-change': {
@@ -634,6 +650,32 @@ export interface EventPayloadMap {
     attempts: any;
     lastError: any;
   };
+  'skill:promoted': {
+    skillName: any;
+    wilsonLB: any;
+    rehearsalCount: any;
+  };
+  'skill:discard-suggested': {
+    skillName: any;
+    reason: any;
+    ageDays: any;
+    rehearsalCount: any;
+    wilsonLB: any;
+  };
+  'skill:discarded': {
+    skillName: any;
+    reason: any;
+  };
+  'skill:rehearsed': {
+    skillName: any;
+    success: any;
+  };
+  'selfnarrative:skill-acquired': {
+    skillName: any;
+    acquisitionContext?: any;
+    description?: any;
+  };
+  'skills:reloaded': Record<string, never>;
   'prompt:strategy-updated': {
     intents: any;
     recommendations: any;
@@ -775,6 +817,7 @@ export interface EventPayloadMap {
     reason: any;
     effectiveModel?: any;
     preferredModel?: any;
+    cluster?: any;
   };
   'model:failover-unavailable': {
     from: any;
@@ -800,6 +843,12 @@ export interface EventPayloadMap {
   'model:cloud-without-fallback': {
     model: any;
     backend: any;
+  };
+  'model:rest-mode-entered': {
+    modelCount: any;
+  };
+  'model:rest-mode-exited': {
+    modelName?: any;
   };
   'model:thinking-trace': {
     text: any;
@@ -1109,6 +1158,27 @@ export interface EventPayloadMap {
     stepIndex?: any;
     stepType?: any;
     subId: any;
+  };
+  'agent-loop:simulation-abort': {
+    goalId?: any;
+    riskScore: any;
+    priorFailures: any;
+    reason?: any;
+  };
+  'agent-loop:no-progress-detected': {
+    goalId: any;
+    stepHash: any;
+    repeatCount: any;
+  };
+  'agent-loop:identical-plan-detected': {
+    goalId: any;
+    planHash: any;
+  };
+  'agent-loop:decompose-on-failure': {
+    goalId: any;
+    stepIndex: any;
+    errorClass: any;
+    strikes: any;
   };
   'memory:fact-stored': {
     key: any;

@@ -56,7 +56,7 @@ describe('v7.9.9 Hard-Gate Abort Emit', () => {
       'v7.9.9 Fix 4 marker must be present in the hard-gate-abort path (pursuit OR Gate helper)');
   });
 
-  test('SRC-04: catch-block uses safeMsg + explicit error field', () => {
+  test('SRC-04: catch clause uses safeMsg + explicit error field', () => {
     const src = fs.readFileSync(PURSUIT_PATH, 'utf8');
     // The catch block must use safeFailureMessage and include error:safeMsg
     // when firing agent-loop:complete.
@@ -69,7 +69,7 @@ describe('v7.9.9 Hard-Gate Abort Emit', () => {
       'catch-block agent-loop:complete must include explicit error field');
   });
 
-  test('SRC-05: catch-block synth goalId for early-fail (Fix 6)', () => {
+  test('SRC-05: catch clause synthesizes goalId for early-fail (Fix 6)', () => {
     const src = fs.readFileSync(PURSUIT_PATH, 'utf8');
     assert(/this\.currentGoalId\s*\|\|\s*`loop_early_/.test(src),
       'catch-block must synth loop_early_<ts> goalId when currentGoalId not yet set');

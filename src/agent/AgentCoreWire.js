@@ -364,6 +364,15 @@ class AgentCoreWire {
     // v7.7.9 Plan: InnerSpeech + PSE must start so subscribers attach.
     start('innerSpeech');
     start('proactiveSelfExpression');
+    // v7.7.9: KindTriggers translates system events into InnerSpeech
+    // thoughts. It was registered and in the TO_STOP teardown list but
+    // never added to this start sequence — so its subscriptions never
+    // attached and the service was inert. Started here from v7.9.16.
+    start('kindTriggers');
+    // v7.9.16: EventCounter — passive significant-event observer; subscribes
+    // to goal/lesson/emotion-watchdog/session events and appends a journal
+    // line per event so SelfTrajectory can fill event_count.
+    start('eventCounter');
 
     // Phase 10: Agency
     start('emotionalSteering');

@@ -214,6 +214,16 @@ const EVENTS = Object.freeze({
     RE_ENTRY_COMPLETE: 'lifecycle:re-entry-complete',
   }),
 
+  // ── Session (v7.9.16) ──────────────────────────────────
+  // Emitted (awaited) in the shutdown sequence before the TO_STOP
+  // teardown: the FrontierWriter event-buffers are keyed to this event
+  // (they flush their collected surprise/lesson nodes here), and
+  // EventCounter records the session as a significant event.
+  SESSION: Object.freeze({
+    /** @payload {{ sessionId: string, durationMs: number, messageCount: number }} */
+    ENDING: 'session:ending',
+  }),
+
   // ── Error Aggregation ──────────────────────────────────
   ERROR_AGG: Object.freeze({
     /** @payload {{ errorRate: number, trend: string, topSources: object[] }} */

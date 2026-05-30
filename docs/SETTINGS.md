@@ -76,7 +76,7 @@ Models tab.
 | IdleMind goal-step balance | `3` | After N consecutive goal-step cycles, IdleMind breaks out to pick a non-goal activity (reflect, journal, dream, calibrate, inhabit). `0` = legacy always-goal-step. *(v7.9.4)* |
 | IdleMind score normalization | `'none'` | Activity-picker score smoothing. `'log'` (reserved) dampens score outliers via `log1p`. *(v7.9.4, opt-in)* |
 | IdleMind recurrence bonus | `false` | If on, activities that haven't run for a long time get a small score boost proportional to the gap. *(v7.9.4, opt-in)* |
-| Trust level | `0` (SUPERVISED) | `0`=Supervised (always ask), `1`=Autonomous (ask only on categorically critical actions: DEPLOY/EXTERNAL_API/EMAIL_SEND), `2`=Full Autonomy (never ask). v7.9.9 froze this three-level structure — no future version touches `TrustLevelSystem`, the migration table, or the default. |
+| Trust level | `0` (SUPERVISED) | `0`=Supervised (always ask), `1`=Autonomous (ask only on categorically critical actions: DEPLOY/EXTERNAL_API/EMAIL_SEND), `2`=Full Autonomy (never ask). v7.9.9 froze this three-level structure — `TrustLevelSystem`, the migration table, and the default are settled and remain unchanged. |
 | IdleMind — idle threshold (minutes) | `10` | How long without user activity before IdleMind starts autonomous thinking. *(default raised from 2 in v7.9.10 after Win-trace evidence)* |
 | IdleMind — think interval (minutes) | `15` | How often IdleMind picks a new activity once idle. *(default raised from 3 in v7.9.10)* |
 | Goal-add mode | `ask` | `always` resume on boot, `never` skip, `ask` prompt. |

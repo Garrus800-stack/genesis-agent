@@ -289,6 +289,18 @@ class AgentCoreHealth {
       }
     });
 
+    // v7.9.16: emit session:ending BEFORE any teardown. Awaited so the
+    // FrontierWriter event-buffers (keyed to this event) flush their
+    // collected nodes while their subscription is still alive, and
+    // EventCounter records the session — both must complete before
+    // TO_STOP tears subscriptions down and the process exits.
+    // Unconditional (every session length); the significance threshold
+    // for sessions is an analysis-time concern, not an emit gate.
+    await safeAsync('sessionEnding', async () => {
+      const sp = c.tryResolve('sessionPersistence');
+      if (sp && typeof sp.emitSessionEnding === 'function') await sp.emitSessionEnding();
+    });
+
     // Stop autonomous services
     try { await c.tryResolve('agentLoop')?.stop(); } catch (_e) { _log.debug('[catch] agentLoop stop:', _e.message); }
 
@@ -413,6 +425,11 @@ class AgentCoreHealth {
       // and planner:complete so no late-arriving events get translated
       // into InnerSpeech thoughts after shutdown began.
       'kindTriggers',
+      // v7.9.16: EventCounter — unsubscribes from the observed
+      // goal/lesson/emotion-watchdog/session events. stop() only detaches
+      // listeners (journal is append-only and already durable), so its
+      // teardown order is independent.
+      'eventCounter',
       // v7.8.9 (koennen-v789 contract): KoennenCandidateLog — unsubscribes
       // agent-loop:started/complete + emotion:shift bus listeners and clears
       // the 30-min koennen-cleanup interval.
