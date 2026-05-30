@@ -148,6 +148,12 @@ class Settings {
         // want to opt into Phase 3 behaviour early.
         allowedKinds: [
           'plan-failure-reflection',
+          // v7.9.17: prediction-mechanism-review is allowed by default so
+          // HardGates lets it through, but it has NO auto-trigger — it is
+          // emitted ONLY by the /trajectory review handler. "Allowed" is not
+          // "auto-produced": the thought exists only where the emit call is.
+          // This satisfies "manual only" without runtime settings mutation.
+          'prediction-mechanism-review',
         ],
         // Per-kind significance floors. Each kind has a different floor
         // for surfacing. plan-failure-reflection stays at 0.50 (the
@@ -160,6 +166,9 @@ class Settings {
           'goal-closure-thought':    { sigFloor: 0.55 },
           'self-formulated-plan':    { sigFloor: 0.65 },
           'question':                { sigFloor: 0.75 },
+          // v7.9.17: manually triggered via /trajectory review; the floor is
+          // a formality (the handler emits it directly) but kept for symmetry.
+          'prediction-mechanism-review': { sigFloor: 0.50 },
         },
       },
       // v7.7.9 Phase 3: Goal-lifecycle stalled-detection. The watchdog

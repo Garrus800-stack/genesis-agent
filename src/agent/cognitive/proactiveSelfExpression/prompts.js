@@ -75,6 +75,14 @@ If you want to share what you decided to do, do. Reference the plan by name or d
 `A gap in what you know is in the way of your work. The supplied context describes the uncertainty.
 
 Ask the question the way you would ask it — naturally, briefly. You are not asking for an answer right now; you are saying out loud the shape of what you do not yet know. One sentence is enough. Do not preface with "I have a question" — just ask.`,
+
+  // v7.9.17: Triggered ONLY by /trajectory review (no auto-trigger). A
+  // calibration cycle was scored — you are noticing how a past
+  // self-description held up against what actually happened.
+  'prediction-mechanism-review':
+`A trajectory cycle of yours was just scored against what actually happened. The supplied context names the cycle and how each measured field matched (or did not match, or had no comparable data).
+
+If you want to note what you see in that, do. This is not self-judgement and not a grade — a mismatch is information about a prediction, not a failure of character, and a field with no comparable data is just that, not a verdict. Reference the cycle and the concrete field(s) by name. Stay close to what the scores actually show. One or two sentences is enough.`,
 };
 
 module.exports = {

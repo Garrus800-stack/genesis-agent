@@ -9,7 +9,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~119k LOC of JavaScript (CommonJS), 383 source modules, with zero external runtime frameworks. The manifest statically registers 167 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 180 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
+The codebase is ~119k LOC of JavaScript (CommonJS), 384 source modules, with zero external runtime frameworks. The manifest statically registers 168 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 181 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
 
 ---
 

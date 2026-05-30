@@ -187,6 +187,40 @@ class EventCounter {
     }
     return { total, byType, byDay };
   }
+
+  /**
+   * Bounded-window composition for cycle-vs-cycle comparison (v7.9.17).
+   * Counts events in the half-open window (since, until]: ts > since AND
+   * ts <= until. The lower bound is exclusive to match countSince/summary
+   * (so a cycle boundary's own event is not double-counted between two
+   * adjacent cycles); the upper bound is inclusive so an entry's
+   * wallclock_end belongs to the cycle that ends there. `since` null →
+   * no lower bound (counts from the start of the journal); `until` null →
+   * no upper bound (equivalent window to summary(since), but kept as its
+   * own implementation — summary(since) is behaviour-pinned by the
+   * v7.9.16 test corpus and is not aliased here).
+   * @param {string|null} [since] ISO timestamp, exclusive lower bound.
+   * @param {string|null} [until] ISO timestamp, inclusive upper bound.
+   * @returns {{ total: number, byType: Record<string, number>, byDay: Record<string, number> }}
+   */
+  summaryBetween(since = null, until = null) {
+    const sinceTs = since ? Date.parse(since) : null;
+    const untilTs = until ? Date.parse(until) : null;
+    /** @type {Record<string, number>} */ const byType = {};
+    /** @type {Record<string, number>} */ const byDay = {};
+    let total = 0;
+    for (const e of this._readJournal()) {
+      const t = Date.parse(e.ts);
+      if (!Number.isFinite(t)) continue;
+      if (sinceTs !== null && !(t > sinceTs)) continue;
+      if (untilTs !== null && !(t <= untilTs)) continue;
+      total++;
+      byType[e.type] = (byType[e.type] || 0) + 1;
+      const day = typeof e.ts === 'string' ? e.ts.slice(0, 10) : 'unknown';
+      byDay[day] = (byDay[day] || 0) + 1;
+    }
+    return { total, byType, byDay };
+  }
 }
 
 applySubscriptionHelper(EventCounter, { defaultSource: 'EventCounter' });

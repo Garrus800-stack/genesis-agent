@@ -96,6 +96,9 @@ const KINDS_REQUIRING_CONCRETE_REF = new Set([
   'plan-failure-reflection',
   'goal-closure-thought',
   'self-formulated-plan',
+  // v7.9.17: a calibration-review thought must name the cycle or a scored
+  // field — it is anchored to a concrete review, not a generic musing.
+  'prediction-mechanism-review',
 ]);
 
 const KIND_IDLE_THOUGHT = 'idle-thought';
@@ -186,6 +189,16 @@ function checkConcreteRef(text, thought) {
     }
     if (typeof refs.closureReason === 'string' && refs.closureReason.length >= 3) {
       candidates.push(refs.closureReason.toLowerCase());
+    }
+    // v7.9.17: calibration-review anchors — the cycle id and the scored
+    // field names. A review thought naturally names at least one of these.
+    if (typeof refs.cycleId === 'string' && refs.cycleId.length >= 2) {
+      candidates.push(refs.cycleId.toLowerCase());
+    }
+    if (Array.isArray(refs.fields)) {
+      for (const f of refs.fields) {
+        if (typeof f === 'string' && f.length >= 4) candidates.push(f.toLowerCase());
+      }
     }
 
     if (candidates.length === 0) {

@@ -23,6 +23,8 @@
 //   /trajectory note <cycle_id> <text>     — late note on a committed entry
 //   /trajectory history [cycle_id]         — full edit history of an entry
 //   /trajectory events                     — significant-event distribution (per type + per day)
+//   /trajectory review                     — score the last cycle (silent calibration) + emit a review thought
+//   /trajectory calibration                — score history + per-field null-rate distribution
 //
 // `note` appears twice on purpose: `new note <who>:` writes a note IN
 // the draft during authoring; `note <cycle_id>` appends a LATE note to
@@ -61,7 +63,9 @@ const commandHandlersTrajectory = {
     if (sub === 'note')     return this._trajectoryLateNote(rest);
     if (sub === 'history')  return this._trajectoryHistory(rest.trim());
     if (sub === 'events')   return this._trajectoryEvents();
-    return 'Unknown subcommand. Use: new | show | list | note | history | events';
+    if (sub === 'review')   return this._trajectoryReview();
+    if (sub === 'calibration' || sub === 'cal') return this._trajectoryCalibration();
+    return 'Unknown subcommand. Use: new | show | list | note | history | events | review | calibration';
   },
 
   // ── /trajectory new + nested actions ──────────────────────
@@ -267,6 +271,101 @@ const commandHandlersTrajectory = {
       'By day:',
       byDay,
     ].join('\n');
+  },
+
+  // ── /trajectory review — score the last cycle (silent calibration) ────
+  // Computes the ternary sign-scores for the two sign-fields of the most
+  // recent committed cycle, appends a calibration line, optionally emits a
+  // manual prediction-mechanism-review thought, and renders the result.
+  _trajectoryReview() {
+    const tc = this.trajectoryCalibration;
+    if (!tc || typeof tc.reviewCycle !== 'function') {
+      return 'Trajectory calibration not available.';
+    }
+    const r = tc.reviewCycle();
+    if (!r.ok) {
+      if (r.error === 'no-entries') return 'No committed cycle to review yet.';
+      if (r.error === 'no-trajectory') return 'SelfTrajectory not available.';
+      return `Could not review: ${r.error || 'unknown'}.`;
+    }
+
+    const fmt = (v) => (v === 1 ? 'matched (+1)' : v === -1 ? 'opposite (−1)' : '— (no score)');
+    const lines = [
+      `**Calibration review — ${r.cycle_id}** (silent; feeds no decision logic)`,
+      '',
+      `  wachstum   expected ${this._dir(r.expected.wachstum)} · actual ${this._dir(r.actual.wachstum)} → ${fmt(r.scores.wachstum)}`,
+      `  schwaeche  expected ${this._dir(r.expected.schwaeche)} · actual ${this._dir(r.actual.schwaeche)} → ${fmt(r.scores.schwaeche)}`,
+    ];
+    if (typeof r.value_drift === 'number') {
+      lines.push(`  value      position drift ${r.value_drift.toFixed(3)} (measured, no threshold)`);
+    }
+    lines.push('');
+    lines.push('Traits, emotion, beziehung, value carry no sign-score (recorded as positions only).');
+
+    // Emit the manual prediction-mechanism-review thought (no auto-trigger
+    // anywhere else). innerSpeech absent → score still rendered, just no
+    // thought surfaced. contextRefs anchor the concrete-ref sanity check.
+    if (this.innerSpeech && typeof this.innerSpeech.emit === 'function') {
+      const scored = Object.entries(r.scores)
+        .filter(([, v]) => v === 1 || v === -1)
+        .map(([f]) => f);
+      const text = `Calibration review of cycle ${r.cycle_id}: ` +
+        `wachstum ${fmt(r.scores.wachstum)}, schwaeche ${fmt(r.scores.schwaeche)}.`;
+      try {
+        this.innerSpeech.emit(text, 'prediction-mechanism-review', {
+          sourceModule: 'CommandHandlersTrajectory',
+          significance: 0.6,
+          contextRefs: { cycleId: r.cycle_id, fields: scored.length ? scored : ['wachstum', 'schwaeche'] },
+        });
+      } catch (_e) { /* emit never blocks the command result */ }
+    }
+
+    return lines.join('\n');
+  },
+
+  // ── /trajectory calibration — score history + per-field null distribution
+  // The dashboard view the observation phase actually needs: the
+  // distribution over cycles, not a single score. The null rate is split
+  // per field on purpose — a high null rate on schwaeche ALONE points at
+  // the capability-buffer source, not at the ternary frame.
+  _trajectoryCalibration() {
+    const tc = this.trajectoryCalibration;
+    if (!tc || typeof tc.getCalibrationHistory !== 'function') {
+      return 'Trajectory calibration not available.';
+    }
+    const hist = tc.getCalibrationHistory();
+    if (!hist.length) {
+      return 'No calibration scores yet. Run /trajectory review after a cycle is committed.';
+    }
+    const dist = tc.getScoreDistribution();
+    const fmt = (v) => (v === 1 ? '+1' : v === -1 ? '−1' : '·');
+
+    const recent = hist.slice(-8).map(rec => {
+      const sc = rec.scores || {};
+      const vd = typeof rec.value_drift === 'number' ? ` value-drift ${rec.value_drift.toFixed(3)}` : '';
+      return `  ${String(rec.cycle_id).padEnd(10)} wachstum ${fmt(sc.wachstum)}  schwaeche ${fmt(sc.schwaeche)}${vd}`;
+    }).join('\n');
+
+    const perField = Object.entries(dist.perField).map(([f, p]) =>
+      `  ${f.padEnd(10)} matched ${p.matched}  opposite ${p.opposite}  null ${p.nulls}  (null-rate ${p.nullRate.toFixed(2)})`
+    ).join('\n');
+
+    return [
+      `**Calibration** — ${dist.cycles} scored cycle(s), silent observation`,
+      '',
+      'Recent (oldest first):',
+      recent,
+      '',
+      'Per-field tally + null-rate:',
+      perField,
+      '',
+      'A high null-rate on schwaeche alone points at the capability-source size, not the frame.',
+    ].join('\n');
+  },
+
+  /** Render a direction value for the review output. */
+  _dir(v) {
+    return v === 1 ? '↑' : v === -1 ? '↓' : v === 0 ? '→' : '∅';
   },
 
   _renderEntry(entry) {

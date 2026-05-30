@@ -65,6 +65,8 @@ class CommandHandlers {
     /** @type {*} */ this.modelBridge = null; // late-bound v7.5.6 — for /model-reset
     /** @type {*} */ this.proactiveSelfExpression = null; // late-bound v7.7.9 Phase 2 — for /quiet, /proactive-status
     /** @type {*} */ this.selfTrajectory = null; // late-bound v7.9.15 — for /trajectory
+    /** @type {*} */ this.trajectoryCalibration = null; // late-bound v7.9.17 — for /trajectory review|calibration
+    /** @type {*} */ this.innerSpeech = null; // late-bound v7.9.17 — emit prediction-mechanism-review from /trajectory review
   }
 
   /** Register all handlers with the orchestrator */

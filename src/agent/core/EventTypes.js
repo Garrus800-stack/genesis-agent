@@ -668,6 +668,16 @@ const EVENTS = Object.freeze({
     GOAL_BALANCE_BREAK: 'idle:goal-balance-break',
   }),
 
+  // ── Self-Trajectory ────────────────────────────────────
+  // Fired (fire-and-forget) at the end of SelfTrajectory.commit, after the
+  // entry is appended to the journal. TrajectoryCalibration subscribes to
+  // classify the entry's expected directions at commit time (model fresh),
+  // independent of the later score-time read.
+  TRAJECTORY: Object.freeze({
+    /** @payload {{ entry: object }} v7.9.17: A trajectory cycle entry was committed */
+    COMMITTED: 'trajectory:committed',
+  }),
+
   // ── Intent Router ──────────────────────────────────────
   INTENT: Object.freeze({
     CLASSIFIED:       'intent:classified',

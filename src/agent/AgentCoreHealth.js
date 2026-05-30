@@ -430,6 +430,10 @@ class AgentCoreHealth {
       // listeners (journal is append-only and already durable), so its
       // teardown order is independent.
       'eventCounter',
+      // v7.9.17: TrajectoryCalibration — unsubscribes from trajectory:committed.
+      // stop() only detaches the listener (the directions/calibration files are
+      // append-only and already durable), so its teardown order is independent.
+      'trajectoryCalibration',
       // v7.8.9 (koennen-v789 contract): KoennenCandidateLog — unsubscribes
       // agent-loop:started/complete + emotion:shift bus listeners and clears
       // the 30-min koennen-cleanup interval.

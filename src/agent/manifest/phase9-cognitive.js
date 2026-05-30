@@ -375,6 +375,31 @@ function phase9(ctx, R) {
       }),
     }],
 
+    // v7.9.17: TrajectoryCalibration — silent reality-check for trajectory
+    // entries. Triggered by trajectory:committed; reads (one-way) the event
+    // journal, the capability profile, the embedding service, the model
+    // (separate classifier), and selfTrajectory entries. SelfTrajectory does
+    // not depend on it. All sources late-bound + optional → graceful.
+    ['trajectoryCalibration', {
+      phase: 9, deps: ['bus', 'storage'], tags: ['cognitive', 'persistent', 'observer'],
+      lateBindings: [
+        { prop: 'model', service: 'model', optional: true,
+          impact: 'expected directions stay null (no separate classifier) — sign-scores cannot be computed' },
+        { prop: 'embeddingService', service: 'embeddingService', optional: true,
+          impact: 'value-position drift stays null (no embedding distance)' },
+        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true,
+          impact: 'schwaeche capability snapshot is empty — schwaeche sign-score stays null' },
+        { prop: 'eventCounter', service: 'eventCounter', optional: true,
+          impact: 'wachstum success-rate trend unavailable — wachstum sign-score stays null' },
+        { prop: 'selfTrajectory', service: 'selfTrajectory', optional: true,
+          impact: 'cannot read cycle boundaries / prior value — review returns no-trajectory' },
+      ],
+      factory: (c) => new (R('TrajectoryCalibration').TrajectoryCalibration)({
+        bus,
+        storage: c.resolve('storage'),
+      }),
+    }],
+
     // v7.8.8: LessonsAutoCapture — extracted bus-listener layer that converts
     // runtime events into lessonsStore.record() calls. Separate lifecycle from
     // the store so the store stays focused on persistence and recall.

@@ -148,6 +148,11 @@ function phase5(ctx, R) {
         // v7.9.15: P5→P9 for /trajectory slash command.
         { prop: 'selfTrajectory', service: 'selfTrajectory', optional: true,
           impact: '/trajectory commands return "SelfTrajectory not available"' },
+        // v7.9.17: P5→P9 for /trajectory review|calibration.
+        { prop: 'trajectoryCalibration', service: 'trajectoryCalibration', optional: true,
+          impact: '/trajectory review|calibration return "calibration not available"' },
+        { prop: 'innerSpeech', service: 'innerSpeech', optional: true,
+          impact: '/trajectory review scores but emits no prediction-mechanism-review thought' },
       ],
       factory: (c) => {
         const { lang } = R('Language');

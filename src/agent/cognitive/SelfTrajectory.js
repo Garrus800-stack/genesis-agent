@@ -41,6 +41,7 @@
 'use strict';
 
 const { NullBus } = require('../core/EventBus');
+const { EVENTS } = require('../core/EventTypes');
 const { createLogger } = require('../core/Logger');
 
 const _log = createLogger('SelfTrajectory');
@@ -375,6 +376,11 @@ class SelfTrajectory {
     this.storage.appendText(JOURNAL_FILE, JSON.stringify(entry) + '\n');
     this.deleteDraft();
     _log.info(`[TRAJECTORY] committed ${cycleId} (first=${entry.first_entry}, author=${author.join('+')})`);
+    // v7.9.17: announce the commit so TrajectoryCalibration can classify the
+    // entry's expected directions now, while the model is fresh. fire() is
+    // fire-and-forget — it never blocks commit, and SelfTrajectory stays
+    // unaware of any listener (the trigger is the bus, not a back-reference).
+    this.bus.fire(EVENTS.TRAJECTORY.COMMITTED, { entry });
     return { ok: true, entry };
   }
 

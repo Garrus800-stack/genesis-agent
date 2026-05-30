@@ -102,6 +102,9 @@ const SCHEMAS = {
   // v7.9.4: Goal-activity balance break (IdleMind switched from goal-step to activity-pick after N steps)
   'idle:goal-balance-break': { stepsTaken: 'required' },
 
+  // v7.9.17: A trajectory cycle entry was committed (TrajectoryCalibration listens)
+  'trajectory:committed': { entry: 'required' },
+
   // Model
   'model:ollama-unavailable': { error: 'required' },
   'model:no-models':          {},
