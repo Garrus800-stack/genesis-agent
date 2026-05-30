@@ -319,7 +319,7 @@ function runChecks() {
                       compare: (got, exp) => got === exp },
         schemas:    { live: '100%',              label: 'badge: schemas',
                       compare: (got, exp) => got === exp },
-        services:   { live: 178,                 label: 'badge: services' },
+        services:   { live: 179,                 label: 'badge: services' },
         phases:     { live: 12,                  label: 'badge: phases' },
         capabilities: { live: '240+',            label: 'badge: capabilities',
                         // "240+" wildcards: match if README shows N+ where N >= 240.

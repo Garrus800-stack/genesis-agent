@@ -325,6 +325,16 @@ class IdleMind {
     }
     this._exitRestMode(); // models are available — clear any prior rest state
     this.thoughtCount++;
+    // v7.9.15: persist the counter the moment it increments, before any of the
+    // early-exit gates below (user-active <60s, homeostasis-block, low-energy)
+    // can return. Pre-fix the only save path was _recordActivity at the end of
+    // a fully-completed cycle, so every skipped cycle incremented thoughtCount
+    // without persisting it — and a short session (idle threshold + a couple of
+    // gated cycles, then close) wrote the stats file zero times, leaving the
+    // counter at 0 on the next boot. The write is debounced and collapses with
+    // the later _recordActivity write into one flush; storage.flush() on a clean
+    // shutdown drains it, and continued idle lets the 1s timer fire on its own.
+    this._saveActivityStats();
 
     // FIX v4.12.8: Skip idle activities when system is under load.
     // On consumer hardware, each LLM call takes 10-30s and blocks the

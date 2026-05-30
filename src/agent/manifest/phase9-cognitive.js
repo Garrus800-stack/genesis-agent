@@ -337,6 +337,28 @@ function phase9(ctx, R) {
       }),
     }],
 
+    // v7.9.15: SelfTrajectory — the collaborative self-trajectory journal.
+    // Identity-persistent (.genesis, via the storage service). genome is an
+    // earlier phase (hard dep); cognitiveSelfModel/lessonsStore/modelBridge
+    // are late-bound (same-phase or late, used only at draft time, graceful
+    // when absent). modelBridge absent → generateDraft writes a stub.
+    ['selfTrajectory', {
+      phase: 9, deps: ['bus', 'storage', 'genome'], tags: ['cognitive', 'identity', 'persistent'],
+      lateBindings: [
+        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true,
+          impact: 'Draft prompt omits the self-observation source; draft still works' },
+        { prop: 'lessonsStore', service: 'lessonsStore', optional: true,
+          impact: 'Draft prompt omits the most-recalled lessons; draft still works' },
+        { prop: 'modelBridge', service: 'model', optional: true,
+          impact: 'generateDraft writes a placeholder stub instead of an LLM draft' },
+      ],
+      factory: (c) => new (R('SelfTrajectory').SelfTrajectory)({
+        bus,
+        storage: c.resolve('storage'),
+        genome: c.resolve('genome'),
+      }),
+    }],
+
     // v7.8.8: LessonsAutoCapture — extracted bus-listener layer that converts
     // runtime events into lessonsStore.record() calls. Separate lifecycle from
     // the store so the store stays focused on persistence and recall.

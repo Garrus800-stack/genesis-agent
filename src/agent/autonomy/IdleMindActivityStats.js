@@ -85,13 +85,16 @@ const activityStatsMixin = {
         // research 4 = 22 stored activities next to "0 thoughts"). Cause
         // was activityCounts on disk + thoughtCount session-only.
         //
-        // Known limitation: thoughtCount is incremented in _think() before
-        // skip-checks (user-active <60s, homeostasis-block, low-energy),
-        // but _saveActivityStats only fires through _recordActivity after
-        // a successful activity run. Skip-cycles therefore increment
-        // without persisting — ~9% drift over a typical session. The
-        // counter is "grossly accurate", not bookkeeping-precise, which
-        // is fine for a dashboard indicator.
+        // v7.9.15: thoughtCount is incremented in _think() before the
+        // skip-checks (user-active <60s, homeostasis-block, low-energy).
+        // _think() now calls _saveActivityStats() right after that
+        // increment, so a skipped cycle still persists the counter and a
+        // short session (idle threshold reached, a couple of gated cycles,
+        // then close) no longer writes the file zero times. The earlier
+        // limitation — save fired only through _recordActivity after a
+        // fully-completed cycle, leaving skip-cycles and short sessions
+        // unpersisted — is closed; this debounced write collapses with the
+        // later _recordActivity write into a single flush.
         thoughtCount: this.thoughtCount || 0,
         activityCounts: Object.fromEntries(this._activityCounts || []),
         activityLog: (this.activityLog || []).slice(-STATS_LOG_BOUND),

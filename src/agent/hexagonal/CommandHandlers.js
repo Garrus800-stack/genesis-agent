@@ -39,6 +39,7 @@ const { commandHandlersArchitecture } = require('./CommandHandlersArchitecture')
 const { commandHandlersSlashHint } = require('./CommandHandlersSlashHint');
 const { commandHandlersOpen } = require('./CommandHandlersOpen');
 const { commandHandlersCleanup } = require('./CommandHandlersCleanup');   // v7.8.4
+const { commandHandlersTrajectory } = require('./CommandHandlersTrajectory'); // v7.9.15
 
 class CommandHandlers {
   constructor({ bus, lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient, coreMemories, genesisDir, skillEffectivenessTracker}) {
@@ -63,6 +64,7 @@ class CommandHandlers {
     /** @type {*} */ this.selfStatementLog = null; // late-bound v7.5.5
     /** @type {*} */ this.modelBridge = null; // late-bound v7.5.6 — for /model-reset
     /** @type {*} */ this.proactiveSelfExpression = null; // late-bound v7.7.9 Phase 2 — for /quiet, /proactive-status
+    /** @type {*} */ this.selfTrajectory = null; // late-bound v7.9.15 — for /trajectory
   }
 
   /** Register all handlers with the orchestrator */
@@ -79,6 +81,7 @@ class CommandHandlers {
     orchestrator.registerHandler('skills-pending', (msg) => this.skillsPending(msg)); // v7.9.0
     orchestrator.registerHandler('skill-info', (msg) => this.skillInfo(msg));    // v7.9.4
     orchestrator.registerHandler('skill-discard', (msg) => this.skillDiscard(msg)); // v7.9.4
+    orchestrator.registerHandler('trajectory', (msg) => this.trajectory(msg)); // v7.9.15
     orchestrator.registerHandler('settings', (msg) => this.handleSettings(msg));
     orchestrator.registerHandler('web-lookup', (msg) => this.webLookup(msg));
     orchestrator.registerHandler('undo', () => this.undo());
@@ -254,6 +257,7 @@ Object.assign(
   commandHandlersSlashHint,   // v7.5.9 ZIP7
   commandHandlersOpen,        // v7.5.9 ZIP8
   commandHandlersCleanup      // v7.8.4
+  , commandHandlersTrajectory // v7.9.15
 );
 
 module.exports = { CommandHandlers };

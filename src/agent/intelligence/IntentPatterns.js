@@ -508,6 +508,13 @@ const INTENT_DEFINITIONS = [
     /(?:^|\s)\/(?:daemon-health-issues|health-issues)(?:\s+\d{1,3})?\s*$/i,
   ], 25, []],
 
+  // v7.9.15: /trajectory new|show|list|note|history — self-trajectory journal.
+  // Single slash-anchored pattern (pure-slash-only); subcommands parsed in the
+  // handler. NOT in SAFE_SLASH_FALLTHROUGH because /trajectory new writes.
+  ['trajectory', [
+    /(?:^|\s)\/(?:trajectory|trajektorie)\b/i,
+  ], 25, []],
+
   ['greeting', [
     /^(hi|hallo|hey|moin|servus|guten (morgen|tag|abend)|hello|good (morning|evening)|bonjour|buenas?)\s*[!.]?$/i,
   ], 5, ['hallo', 'hello', 'hi', 'moin', 'servus']],

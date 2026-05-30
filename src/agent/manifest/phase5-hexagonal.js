@@ -145,6 +145,9 @@ function phase5(ctx, R) {
         // v7.9.0 Phase 2: P5→P9 for /skills-pending slash (koennen-crystallizer-v790 contract).
         { prop: 'skillEffectivenessTracker', service: 'skillEffectivenessTracker', optional: true,
           impact: '/skills-pending shows wilson="—" instead of actual Wilson-LB' },
+        // v7.9.15: P5→P9 for /trajectory slash command.
+        { prop: 'selfTrajectory', service: 'selfTrajectory', optional: true,
+          impact: '/trajectory commands return "SelfTrajectory not available"' },
       ],
       factory: (c) => {
         const { lang } = R('Language');

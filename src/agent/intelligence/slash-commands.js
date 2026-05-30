@@ -209,6 +209,14 @@ const SLASH_COMMANDS = [
     description: 'Show recent health-check issue snapshots from the autonomous daemon. Usage: /daemon-health-issues [N]',
     sinceVersion: 'v7.9.5',
   },
+  // v7.9.15 — Self-trajectory journal. Five subcommands parsed inside the
+  // handler (new|show|list|note|history); pure-slash-only by construction.
+  {
+    name: 'trajectory',
+    aliases: ['trajektorie'],
+    description: 'Self-trajectory journal: /trajectory new|show|list|note|history',
+    sinceVersion: 'v7.9.15',
+  },
 ];
 
 /** All canonical command names (no aliases). */
