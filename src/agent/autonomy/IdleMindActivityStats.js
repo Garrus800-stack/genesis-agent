@@ -34,11 +34,6 @@ const STATS_FILE = 'idle-activity-stats.json';
 const STATS_SCHEMA_VERSION = 1;
 // Bound the on-disk log to the same window the in-memory log uses (20).
 const STATS_LOG_BOUND = 20;
-// Debounce writes to coalesce activity-bursts (a dream cycle may
-// schedule several rapid recordActivity calls). 1000ms is short enough
-// that a crash within seconds still preserves recent stats, long
-// enough to avoid I/O thrash.
-const STATS_WRITE_DEBOUNCE_MS = 1000;
 
 const activityStatsMixin = {
 
@@ -73,7 +68,13 @@ const activityStatsMixin = {
    * storageDir: null).
    */
   _saveActivityStats() {
-    if (!this.storage || typeof this.storage.writeJSONDebounced !== 'function') return;
+    // v7.9.18 (C1): use the synchronous, atomic writeJSON() instead of the
+    // 1s-debounced writeJSONDebounced. The underlying StorageService write is
+    // already atomic+fsync, but the debounce window meant a crash without a
+    // clean shutdown could drop the last increment. Increment frequency is low
+    // (once per idle-thought), so a synchronous write costs nothing and every
+    // counter survives an unclean crash.
+    if (!this.storage || typeof this.storage.writeJSON !== 'function') return;
     try {
       const payload = {
         version: STATS_SCHEMA_VERSION,
@@ -99,7 +100,7 @@ const activityStatsMixin = {
         activityCounts: Object.fromEntries(this._activityCounts || []),
         activityLog: (this.activityLog || []).slice(-STATS_LOG_BOUND),
       };
-      this.storage.writeJSONDebounced(STATS_FILE, payload, STATS_WRITE_DEBOUNCE_MS);
+      this.storage.writeJSON(STATS_FILE, payload);
     } catch (err) {
       // never let persistence failures interrupt the think-loop
       if (typeof this._log?.debug === 'function') {

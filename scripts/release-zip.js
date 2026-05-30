@@ -41,6 +41,7 @@ const EXCLUDE = [
   'sandbox',           // Sandboxed execution artifacts
   'uploads',           // User-uploaded files
   'dist',              // Build artifacts (npm run build recreates)
+  'snapshots',         // v7.9.18 (A1): habitat-local code snapshots — runtime state, never ship
   '.git',              // Git internals
   'coverage',          // Test coverage reports
   '*.log',             // Log files

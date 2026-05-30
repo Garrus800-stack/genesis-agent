@@ -22,10 +22,22 @@ class AgentCoreWire {
   /** @param {import('./AgentCore').AgentCore} core */
   constructor(core) {
     this._core = core;
+    // v7.9.18 (B1): service.start() failures during _startServices are
+    // collected here so BootRecovery can refuse to freeze a degraded boot
+    // as _last_good_boot (A3). Reset at the start of each _startServices run.
+    this._startFailures = [];
   }
 
   get _c()   { return this._core.container; }
   get _bus() { return this._core._bus; }
+
+  /**
+   * v7.9.18 (B1): names of services whose start() threw during the last
+   * _startServices run. Empty array means a clean start. Read by
+   * BootRecovery.postBootSuccess via AgentCore to gate _last_good_boot.
+   * @returns {string[]}
+   */
+  get startFailures() { return this._startFailures || []; }
 
   // ════════════════════════════════════════════════════════
   // EVENT HANDLER WIRING
@@ -296,6 +308,8 @@ class AgentCoreWire {
 
   _startServices() {
     const c = this._c;
+    // v7.9.18 (B1): fresh per-boot tally of service-start failures.
+    this._startFailures = [];
     const settings = c.has('settings') ? c.resolve('settings') : null;
     const bus = c.has('bus') ? c.resolve('bus') : null;
     // v7.7.9 (post-Phase-3c.4): null-check on resolved instance. Some
@@ -311,7 +325,14 @@ class AgentCoreWire {
       const inst = c.resolve(name);
       if (!inst || typeof inst.start !== 'function') return;
       try { inst.start(...args); }
-      catch (err) { _log.warn(`[GENESIS] ${name}.start() failed:`, err.message); }
+      catch (err) {
+        // v7.9.18 (B1): record the failure and surface it at error level.
+        // A failed start() is not a normal state for any service; the
+        // recorded list gates _last_good_boot creation (A3) so a degraded
+        // boot is never frozen as the recovery target.
+        this._startFailures.push(name);
+        _log.error(`[GENESIS] ${name}.start() failed:`, err.message);
+      }
     };
 
     // Phase 5: Core orchestration

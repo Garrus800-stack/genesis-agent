@@ -156,7 +156,10 @@ class AgentCore {
       }
 
       if (this._bootRecovery) {
-        try { this._bootRecovery.postBootSuccess(); }
+        // v7.9.18 (A3): pass the service-start failure list so a degraded
+        // boot is not frozen as _last_good_boot.
+        const startFailures = this._wire ? this._wire.startFailures : [];
+        try { this._bootRecovery.postBootSuccess(startFailures); }
         catch (_e) { _log.debug('[GENESIS] Post-boot recovery:', _e.message); }
       }
 

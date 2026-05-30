@@ -32,9 +32,45 @@ class SnapshotManager {
     this.rootDir = rootDir;
     this.storage = storage;
     this.guard = guard;
-    this._snapshotBase = storage
-      ? path.join(storage.baseDir || path.join(rootDir, '.genesis'), SNAPSHOT_DIR)
-      : path.join(rootDir, '.genesis', SNAPSHOT_DIR);
+    // v7.9.18 (A1): code snapshots are HABITAT, not identity. They must live
+    // beside the code, NOT inside .genesis/ — otherwise a habitat-swap (version
+    // upgrade) carries the old habitat's snapshot into the new identity, and a
+    // crash-recovery can restore old code over new (the v7.9.17 contamination).
+    // Base is now rootDir-local and independent of storage.baseDir (.genesis/).
+    this._snapshotBase = path.join(rootDir, SNAPSHOT_DIR);
+    // Legacy location (pre-v7.9.18): snapshots used to live under .genesis/.
+    // Kept only so migrateIfNeeded() can move a poisoned legacy folder aside.
+    this._legacyBase = path.join(
+      (storage && storage.baseDir) || path.join(rootDir, '.genesis'),
+      SNAPSHOT_DIR
+    );
+  }
+
+  /**
+   * v7.9.18 (A1 migration): move a pre-v7.9.18 .genesis/snapshots/ folder
+   * aside to .genesis/snapshots.deprecated.<timestamp>/ so it can never be
+   * read or restored again, while staying forensically inspectable. Must be
+   * called BEFORE any list()/restore() — BootRecovery invokes it first thing
+   * in preBootCheck. Idempotent: does nothing if no legacy folder exists, or
+   * if the legacy location is the same as the new one.
+   * @returns {{ migrated: boolean, movedTo?: string }}
+   */
+  migrateIfNeeded() {
+    try {
+      if (this._legacyBase === this._snapshotBase) return { migrated: false };
+      if (!fs.existsSync(this._legacyBase)) return { migrated: false };
+      const movedTo = `${this._legacyBase}.deprecated.${Date.now()}`;
+      fs.renameSync(this._legacyBase, movedTo);
+      _log.warn(
+        `[SNAPSHOT] Legacy snapshots moved out of identity layer: ` +
+        `${this._legacyBase} -> ${movedTo} (v7.9.18 A1). ` +
+        `New snapshots live at ${this._snapshotBase}.`
+      );
+      return { migrated: true, movedTo };
+    } catch (err) {
+      _log.error('[SNAPSHOT] Legacy snapshot migration failed:', err.message);
+      return { migrated: false };
+    }
   }
 
   /**
@@ -67,6 +103,11 @@ class SnapshotManager {
       timestamp: Date.now(),
       fileCount,
       hash: this._hashDir(snapshotDir),
+      // v7.9.18 (A2): code-version fingerprint so restore() can refuse a
+      // snapshot from a different habitat version (defense-in-depth on top of
+      // A1). The pre-v7.9.16-over-v7.9.17 contamination would have been a
+      // codeVersion mismatch and been skipped.
+      codeVersion: this._codeVersion(),
     };
     // FIX v5.1.0 (N-3): Atomic write for snapshot metadata.
     atomicWriteFileSync(
@@ -92,6 +133,26 @@ class SnapshotManager {
 
     if (!fs.existsSync(snapshotDir)) {
       throw new Error(`[SNAPSHOT] Snapshot "${safeName}" not found`);
+    }
+
+    // v7.9.18 (A2): refuse to restore a snapshot from a different habitat
+    // version. The pre-v7.9.16-over-v7.9.17 contamination was exactly this:
+    // an older code tree copied over a newer one. Soft skip (no throw) so a
+    // foreign snapshot never bricks the boot — the current code stays live.
+    const current = this._codeVersion();
+    const snapMeta = safeJsonParse(
+      this._readFileSafe(path.join(snapshotDir, '_snapshot.json')),
+      {}
+    );
+    if (snapMeta && snapMeta.codeVersion && current &&
+        snapMeta.codeVersion !== current) {
+      _log.error(
+        `[SNAPSHOT] Restore of "${safeName}" SKIPPED: snapshot codeVersion ` +
+        `${snapMeta.codeVersion} != current ${current}. Refusing to copy a ` +
+        `foreign-version tree over the live habitat (v7.9.18 A2). ` +
+        `Booting with current code.`
+      );
+      return { restored: 0, skipped: true, reason: 'version-mismatch', name: safeName };
     }
 
     // Safety: create auto-snapshot of current state before restoring
@@ -161,6 +222,32 @@ class SnapshotManager {
   }
 
   // ── Internal ─────────────────────────────────────────
+
+  /**
+   * v7.9.18 (A2): current habitat code version, read once from
+   * <rootDir>/package.json and cached. Returns null if unreadable (in which
+   * case the version gate in restore() simply does not fire).
+   * @returns {string|null}
+   */
+  _codeVersion() {
+    if (this.__cv !== undefined) return this.__cv;
+    try {
+      const pkg = safeJsonParse(
+        this._readFileSafe(path.join(this.rootDir, 'package.json')),
+        {}
+      );
+      this.__cv = (pkg && pkg.version) || null;
+    } catch {
+      this.__cv = null;
+    }
+    return this.__cv;
+  }
+
+  /** Read a file as utf-8, or return '' if it does not exist / fails. */
+  _readFileSafe(p) {
+    try { return fs.readFileSync(p, 'utf-8'); }
+    catch { return ''; }
+  }
 
   _copyRecursive(src, dest) {
     let count = 0;

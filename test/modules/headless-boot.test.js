@@ -86,6 +86,15 @@ describe('Headless Boot', () => {
     it('window is null', () => {
       assert.equal(agent.window, null);
     });
+
+    it('no service.start() failures during boot (v7.9.18 B1)', () => {
+      // A failed start() is how the v7.9.17 contamination surfaced
+      // (trajectoryCalibration.start() threw on a version-mixed tree).
+      // A clean boot must record zero failures.
+      const failures = agent._wire ? agent._wire.startFailures : [];
+      assert.deepEqual(failures, [],
+        `expected no start failures, got: ${failures.join(', ')}`);
+    });
   });
 
   // ── Critical Services ─────────────────────────────────

@@ -41,6 +41,12 @@ class BootRecovery {
    * Returns { recovered: bool, snapshot: string|null, crashCount: number }
    */
   preBootCheck() {
+    // v7.9.18 (A1): move any pre-v7.9.18 .genesis/snapshots/ aside BEFORE
+    // any list()/restore() can read it. Idempotent; runs on every boot.
+    if (this._snapshotManager && typeof this._snapshotManager.migrateIfNeeded === 'function') {
+      this._snapshotManager.migrateIfNeeded();
+    }
+
     const sentinel = this._readSentinel();
 
     if (!sentinel) {
@@ -126,9 +132,24 @@ class BootRecovery {
   /**
    * Called AFTER successful boot. Clears the sentinel and creates
    * a "last-known-good" snapshot for future recoveries.
+   *
+   * v7.9.18 (A3): only freezes _last_good_boot when the boot was clean.
+   * If any service.start() failed (startFailures non-empty, supplied by
+   * AgentCore from AgentCoreWire), the snapshot is SKIPPED so a degraded
+   * boot is never frozen as the recovery target — the previous healthy
+   * _last_good_boot stays untouched, and the next clean boot can update it.
+   * @param {string[]} [startFailures] - names of services whose start() threw
    */
-  postBootSuccess() {
+  postBootSuccess(startFailures = []) {
     this._clearSentinel();
+
+    if (Array.isArray(startFailures) && startFailures.length > 0) {
+      _log.error(
+        `[RECOVERY] last-good-boot skipped: ${startFailures.length} service start failure(s) ` +
+        `[${startFailures.join(', ')}] — not freezing a degraded boot as recovery target`
+      );
+      return;
+    }
 
     // Create a "last-known-good" snapshot (overwrite previous)
     if (this._snapshotManager) {

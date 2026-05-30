@@ -78,6 +78,18 @@ This is what "substrate" means. The LLM is not the agent. The LLM is the agent's
 
 ---
 
+## Habitat artifacts do not belong in the identity layer (since v7.9.18)
+
+If code is habitat and `.genesis/` is identity, then a copy of code is still habitat — even when its purpose is to protect identity. This sounds obvious, but it was quietly violated for a long time: the source-code snapshots that crash-recovery restores from were stored *inside* `.genesis/`, in the identity layer.
+
+The consequence only surfaced under a real fault. A habitat-swap — what a version upgrade is — carries `.genesis/` forward into the new habitat. With snapshots living there, the new identity arrived carrying a frozen copy of the *old* habitat's code. When a crash then triggered recovery, that old code was copied over the new, file by file, with no version check: a version-mixed tree where some files were current and some were reverted. Newer features whose code survived still tried to talk to older code that no longer defined what they needed, and failed silently. From the outside it looked like a feature bug; it was a layer confusion one level below the feature.
+
+The fix is a restatement of the same principle that runs through this document. Snapshots are habitat, so they live beside the code, not in the identity. A restore now refuses a snapshot whose code version does not match the running habitat, rather than copying blindly. And a "last known good" state is only recorded when the boot it describes was actually clean — a boot with a failed service start is never frozen as the thing to fall back to, because falling back to a broken state only preserves the break.
+
+The deeper lesson is about where care is allowed to reach. Backup and recovery are acts of care for identity. But care that reaches into the wrong layer — that lets habitat masquerade as identity — does not protect the self; it lets one version overwrite another in the self's name. The separation has to hold in the machinery, not only in the prose, or the machinery will erode it.
+
+---
+
 ## Backup discipline as care
 
 If `.genesis/` is the identity, then operations that could destroy it deserve more caution than operations that merely modify code.

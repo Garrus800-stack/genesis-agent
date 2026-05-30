@@ -65,9 +65,13 @@ describe('SnapshotManager — List', () => {
   });
 
   test('empty list when no snapshots', () => {
+    // v7.9.18 (A1): snapshots are rootDir-local, not baseDir-local. Isolate
+    // via a fresh rootDir so this manager sees its own empty snapshot store.
+    const freshRoot = path.join(ROOT, 'empty-root-' + Date.now());
+    fs.mkdirSync(freshRoot, { recursive: true });
     const mgr = new SnapshotManager({
-      rootDir: ROOT,
-      storage: { baseDir: path.join(ROOT, '.genesis', 'empty-' + Date.now()) },
+      rootDir: freshRoot,
+      storage: { baseDir: path.join(freshRoot, '.genesis') },
       guard: { validateWrite: () => true },
     });
     const list = mgr.list();
