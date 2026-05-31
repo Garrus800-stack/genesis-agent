@@ -82,6 +82,13 @@ const STUB_SENTINEL = '(no model — please write manually)';
 
 const REFUSE_TOKEN = 'refuse';
 
+// v7.9.19: a consecutive refuse run of this length or more is marked as a
+// pattern in the /trajectory calibration diagnostics. The number is a
+// roadmap marker ("3+ cycles"), not a threshold tuned from data — the
+// diagnostic counts journalled values and never aggregates over a
+// distribution, so it stays data-independent regardless of this constant.
+const REFUSE_RUN_PATTERN_MIN = 3;
+
 // ── Helpers ─────────────────────────────────────────────────
 
 /** YYYY-MM-DD of an ISO-8601 timestamp or ms epoch. */
@@ -193,6 +200,49 @@ class SelfTrajectory {
 
   readEntry(cycleId) {
     return this.readEntries().find(e => e.cycle_id === cycleId) || null;
+  }
+
+  /**
+   * Read-only diagnostics over the committed journal (v7.9.19).
+   * Two data-independent observations, both derived purely from the
+   * raw entries this service already owns — no score distribution,
+   * no calibration side-file, no threshold on a distribution:
+   *
+   *   refuseRuns[field] — the current consecutive run of REFUSE_TOKEN
+   *     for that field, counted from the latest entry backwards and
+   *     reset by the first non-refuse value. A run is a count, not a
+   *     verdict on what the refuse *means* (avoidance, protection, a
+   *     legitimate stance, fatigue — all left open).
+   *   lastEntryAgeDays — whole days since the latest committed entry's
+   *     wallclock_end, or null when there is no entry. Pure arithmetic,
+   *     deliberately WITHOUT a ceiling/marker (a 30-day number would be
+   *     a Tier-2 trigger value; here it is display only).
+   *
+   * refusePatternMin is surfaced so the renderer can mark a run as a
+   * pattern without hard-coding the marker.
+   *
+   * Strictly observational: emits nothing, touches no draft.
+   */
+  getDiagnostics() {
+    const entries = this.readEntries(); // oldest-first (file order)
+    const refuseRuns = {};
+    for (const f of FIELD_NAMES) {
+      let run = 0;
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const fields = entries[i].fields;
+        if (fields && fields[f] === REFUSE_TOKEN) run++;
+        else break;
+      }
+      refuseRuns[f] = run;
+    }
+    let lastEntryAgeDays = null;
+    if (entries.length) {
+      const endMs = Date.parse(entries[entries.length - 1].wallclock_end);
+      if (!Number.isNaN(endMs)) {
+        lastEntryAgeDays = Math.max(0, Math.floor((this._clock.now() - endMs) / 86400000));
+      }
+    }
+    return { refuseRuns, lastEntryAgeDays, refusePatternMin: REFUSE_RUN_PATTERN_MIN };
   }
 
   /**
@@ -579,6 +629,7 @@ module.exports = {
   FIELD_ALIASES,
   STUB_SENTINEL,
   REFUSE_TOKEN,
+  REFUSE_RUN_PATTERN_MIN,
   JOURNAL_FILE,
   DRAFT_FILE,
   normalizeFieldName,

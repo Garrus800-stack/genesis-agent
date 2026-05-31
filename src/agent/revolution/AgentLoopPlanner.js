@@ -22,6 +22,7 @@
 const { LIMITS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
 const { buildPlannerStepTypeList } = require('./step-types');
+const { isReadOnlyGoal } = require('./goal-intent');
 const { pickRelevantModules, formatModulePathList, normalizeStepTypes } = require('./plan-context');
 const _log = createLogger('AgentLoopPlanner');
 
@@ -44,6 +45,21 @@ class AgentLoopPlannerDelegate {
    * @param {string} goalDescription
    * @returns {Promise<{ title, steps, successCriteria }>}
    */
+  /**
+   * v7.9.19 (Strang C): delegation is plannable only when the machinery is
+   * wired AND a peer is actually reachable — the same `peer` token the step
+   * executor checks (AgentLoopSteps → ResourceRegistry). This makes the
+   * plan-time gate match the execute-time gate, so neither planner proposes a
+   * DELEGATE step that would block on `missing resources: peer`. No reachable
+   * peer (or no registry) → false.
+   */
+  _computeCanDelegate() {
+    const loop = this.loop;
+    if (!loop.taskDelegation) return false;
+    const rr = loop.resourceRegistry || loop._resourceRegistry;
+    return rr?.isAvailable?.('peer') === true;
+  }
+
   async _planGoal(goalDescription) {
     // v3.5.0: Use FormalPlanner if available (typed actions + simulation)
     if (this.loop.formalPlanner) {
@@ -51,6 +67,13 @@ class AgentLoopPlannerDelegate {
         const formalPlan = await this.loop.formalPlanner.plan(goalDescription, {
           memory: this.loop.memory,
           history: [],
+          // v7.9.19 (Strang C): make the primary planner capability-aware too.
+          // v7.9.19 (Strang E): also pass read-only intent so the planner does
+          // not generate code/file-write steps for an inspect/analysis goal.
+          capabilities: {
+            canDelegate: this._computeCanDelegate(),
+            readOnlyGoal: isReadOnlyGoal(goalDescription) === true,
+          },
         });
         if (formalPlan && formalPlan.steps && formalPlan.steps.length > 0) {
           return formalPlan;
@@ -130,12 +153,20 @@ class AgentLoopPlannerDelegate {
       }
     } catch (err) { _log.debug('[PLANNER] bodySchema enrichment failed:', err.message); }
 
-    // v7.3.5: DELEGATE only if TaskDelegation is wired
-    canDelegate = !!loop.taskDelegation;
+    // v7.3.5: DELEGATE only if TaskDelegation is wired.
+    // v7.9.19 (Strang C): tightened — also requires a reachable peer, so the
+    // fallback planner stops offering DELEGATE when no peer can serve it.
+    canDelegate = this._computeCanDelegate();
+
+    // v7.9.19 (Strang E): a read-only/inspection goal must not be offered
+    // code-generation or code-execution step types. SHELL stays (read-only
+    // commands like listing/reading files and running tests — the successful
+    // field pursuit relied on it); only CODE and SANDBOX are dropped.
+    const readOnlyGoal = isReadOnlyGoal(goalDescription) === true;
 
     // v7.3.5: Step-type list comes from the central catalog (step-types.js).
     // Both planner prompt and executor switch are driven by the same source.
-    const stepTypeList = buildPlannerStepTypeList({ canExecuteCode, canDelegate });
+    const stepTypeList = buildPlannerStepTypeList({ canExecuteCode, canDelegate, readOnlyGoal });
 
     const planPrompt = `You are Genesis, an autonomous AI agent. You need to create an execution plan.
 

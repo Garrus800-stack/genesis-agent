@@ -68,6 +68,12 @@ class FormalPlanner {
    */
   async plan(goalDescription, context = {}) {
     this._stats.plans++;
+    // v7.9.19 (Strang C): capabilities passed by AgentLoopPlanner (canDelegate
+    // reflects real peer reachability). Read by _typifyStep to convert a
+    // DELEGATE step to ANALYZE when delegation is unavailable — so the planner
+    // never commits a step that the executor's resource check would fail.
+    // null when called without capabilities (defensive/tests) → no conversion.
+    this._planCapabilities = context.capabilities || null;
 
     this.bus.fire('planner:started', {
       goal: goalDescription.slice(0, 100),
@@ -287,6 +293,21 @@ class FormalPlanner {
     const recentFiles = this.worldState?.getRecentlyModified()
       .slice(0, 5).map(f => f.path).join(', ') || 'none';
 
+    // v7.9.19 (Strang C): steer the LLM away from step types whose resources
+    // are unavailable. Best-effort (the deterministic guarantee is the
+    // DELEGATE→ANALYZE rewrite in _typifyStep); keeps the canonical-types
+    // block below intact (G3a contract). Empty unless a capability is absent.
+    const _planCaps = context?.capabilities || null;
+    const capabilityNote = (_planCaps && _planCaps.canDelegate === false)
+      ? '\nCURRENT CAPABILITY LIMIT:\n- Peer delegation is UNAVAILABLE (no reachable peers). Do NOT use DELEGATE — analyze or act locally instead.'
+      : '';
+    // v7.9.19 (Strang E): steer the LLM to keep an inspection goal read-only.
+    // Best-effort; the deterministic guarantee is the CODE_GENERATE/WRITE_FILE/
+    // SELF_MODIFY→ANALYZE rewrite in _typifyStep. Canonical-types block intact.
+    const readOnlyNote = (_planCaps && _planCaps.readOnlyGoal === true)
+      ? '\nREAD-ONLY GOAL:\n- This is an inspection/analysis goal. Use ANALYZE, SHELL (read-only commands: list, read, run tests), SEARCH, RUN_TESTS, ASK. Do NOT generate code, write files, or modify source.'
+      : '';
+
     // v7.4.5.fix #27: tell the LLM what OS Genesis runs on and where
     // its working directory is. Without this, the planner generated
     // POSIX commands ("ls", "cat") on Windows, leading to "command
@@ -339,7 +360,7 @@ DO NOT INVENT step types. Common mistakes to avoid:
 - "SELF_MODIFY" is NOT a step type. Self-modification runs through a
   separate pipeline triggered explicitly by the user (slash command).
   Do not include it in plans.
-
+${capabilityNote}${readOnlyNote}
 Respond with JSON only:
 {
   "title": "Short goal title",
@@ -386,7 +407,29 @@ Rules:
   }
 
   _typifyStep(rawStep, index) {
-    const type = this._normalizeType(rawStep.type || rawStep.action || 'ANALYZE');
+    let type = this._normalizeType(rawStep.type || rawStep.action || 'ANALYZE');
+    // v7.9.19 (Strang C): if delegation is unavailable (no reachable peer),
+    // convert a DELEGATE step to ANALYZE rather than commit a step the
+    // executor would block on `missing resources: peer`. Mirrors the
+    // executor's own DELEGATE→ANALYZE fallback (AgentLoopSteps), but at plan
+    // time so an idle-mind goal does not fail on it. Only fires on an explicit
+    // false (capabilities passed); undefined leaves behaviour unchanged.
+    if (type === 'DELEGATE' && this._planCapabilities?.canDelegate === false) {
+      _log.info('[FORMAL-PLANNER] DELEGATE step rewritten to ANALYZE — no reachable peer');
+      type = 'ANALYZE';
+    }
+    // v7.9.19 (Strang E): for a read-only/inspection goal, rewrite a mutating
+    // step (code generation, file write, self-modification) to ANALYZE rather
+    // than commit a write the goal should never make — the field case had an
+    // inspect goal emit CODE/WRITE steps with hallucinated paths. SHELL_EXEC,
+    // RUN_TESTS, SEARCH, ANALYZE, ASK_USER stay: they are how inspection reads,
+    // lists and runs tests. GIT_SNAPSHOT stays (built-in snapshot mechanism).
+    // Mirrors the DELEGATE→ANALYZE rewrite above; only on explicit true.
+    if (this._planCapabilities?.readOnlyGoal === true
+        && (type === 'CODE_GENERATE' || type === 'WRITE_FILE' || type === 'SELF_MODIFY')) {
+      _log.info(`[FORMAL-PLANNER] ${type} step rewritten to ANALYZE — read-only goal`);
+      type = 'ANALYZE';
+    }
     const action = this.actions.get(type) || this.actions.get('ANALYZE');
 
     return {

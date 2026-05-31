@@ -213,15 +213,22 @@ if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
 
 // Use system zip if available, else tar
 try {
-  // Build exclude args for zip
-  const excludeArgs = EXCLUDE.flatMap(e => ['-x', `*/${e}/*`, '-x', `*/${e}`]);
+  // Build exclude args for zip. Patterns must match BOTH a top-level entry
+  // (e.g. node_modules/…) and a nested one (e.g. foo/node_modules/…), because
+  // the archive is built from the repo root with no wrapper folder — the
+  // files land at the archive root, exactly mirroring the original release
+  // layout (no Genesis_vX/ containing directory).
+  const excludeArgs = EXCLUDE.flatMap(e => [
+    '-x', `${e}`, '-x', `${e}/*`,
+    '-x', `*/${e}`, '-x', `*/${e}/*`,
+  ]);
 
   execFileSync('zip', [
     '-r', '-9', zipPath,
-    path.basename(ROOT),
+    '.',
     ...excludeArgs,
   ], {
-    cwd: path.dirname(ROOT),
+    cwd: ROOT,
     stdio: 'pipe',
     encoding: 'utf-8',
   });

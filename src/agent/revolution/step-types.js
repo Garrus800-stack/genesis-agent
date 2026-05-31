@@ -172,11 +172,15 @@ function normalizeStepType(rawType) {
  * @param {boolean} [options.canDelegate=false]   - if true, DELEGATE is listed
  * @returns {string}
  */
-function buildPlannerStepTypeList({ canExecuteCode = true, canDelegate = false } = {}) {
+function buildPlannerStepTypeList({ canExecuteCode = true, canDelegate = false, readOnlyGoal = false } = {}) {
   const order = ['ANALYZE', 'CODE', 'SHELL', 'SANDBOX', 'SEARCH', 'ASK', 'DELEGATE'];
   const lines = [];
   for (const id of order) {
     if (!canExecuteCode && (id === 'SANDBOX' || id === 'SHELL' || id === 'CODE')) continue;
+    // v7.9.19 (Strang E): a read-only/inspection goal drops code generation
+    // (CODE) and code execution (SANDBOX), but keeps SHELL — read-only shell
+    // commands (listing, reading, running tests) are how it inspects.
+    if (readOnlyGoal && (id === 'CODE' || id === 'SANDBOX')) continue;
     if (!canDelegate && id === 'DELEGATE') continue;
     lines.push(`- ${id}: ${STEP_TYPES[id].description}`);
   }

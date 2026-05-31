@@ -89,26 +89,16 @@ async function build() {
     plugins: ciPlugin,
   });
 
-  // 2. Bundle agent entry → dist/agent.js
-  const agentResult = await esbuild.build({
-    ...commonOptions,
-    entryPoints: [path.join(ROOT, 'src', 'agent', 'AgentCore.js')],
-    outfile: path.join(DIST, 'agent.js'),
-    external: commonOptions.external.filter(e => e !== 'acorn'),
-    metafile: true,
-    plugins: ciPlugin,
-  });
+  // (Removed) Agent bundle → dist/agent.js. main.js loads the agent from
+  // source (require('./src/agent/AgentCore')), so dist/agent.js was never
+  // loaded — a dead artifact. Worse, bundling the full agent (entry
+  // AgentCore.js, ~385 modules + acorn inline) was the heaviest, most
+  // failure-prone step, and it ran BETWEEN preload and renderer. If it threw,
+  // the renderer bundle below — the actual UI — never built, leaving a blank
+  // window with no model list. Removing it makes the UI build independent of
+  // a step the runtime doesn't use.
 
-  // Report bundle sizes
-  if (agentResult.metafile) {
-    const outputs = agentResult.metafile.outputs;
-    for (const [file, info] of Object.entries(outputs)) {
-      const sizeKB = Math.round(info.bytes / 1024);
-      console.log(`  ${file}: ${sizeKB}KB (${Object.keys(info.inputs).length} modules)`);
-    }
-  }
-
-  // 3. Bundle renderer → dist/renderer.bundle.js (v3.8.0)
+  // 2. Bundle renderer → dist/renderer.bundle.js (v3.8.0)
   // Browser target — entry is renderer-main.js + 6 modules.
   // The legacy monolithic src/ui/renderer.js was retired in v7.6.0
   // and deleted in v7.7.0. v7.7.5: Monaco moved from CDN to local ESM

@@ -4,7 +4,7 @@
 
 ## Scale
 
-- 384 source modules across 12 boot phases
+- 385 source modules across 12 boot phases
 - 181 DI services (168 manifest + 13 bootstrap)
 - 8105 tests on Windows / 7932 on Linux (passing, 0 failures)
 - 493 events with 493 payload schemas (full parity)
@@ -257,7 +257,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **525 test files** | 8105 tests (Win baseline, v7.9.6), coverage gates: 80% lines, 76% branches, 78% functions |
+| **531 test files** | 8105 tests (Win baseline, v7.9.6), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

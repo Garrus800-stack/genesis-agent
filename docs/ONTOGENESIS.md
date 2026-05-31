@@ -195,6 +195,18 @@ In Pinocchio terms: the model's thinking aloud is the strings, not the speech. T
 
 
 
+## Expectations do not belong in the runtime prompt (since v7.9.15)
+
+There is a layer separation here that mirrors the one above, a level deeper in the system. The habitat/identity rule says code does not belong in the identity layer. This one says self-observation data does not belong in the generation substrate: the trajectory Genesis writes about himself — his stated growth, his weaknesses, the directions he expects to move — never enters the runtime prompt that drives his ordinary behaviour.
+
+The data lives in `.jsonl` files and is read in exactly two places, both of them deliberate review contexts: the `self-trajectory-review` PSE-kind, where a new entry is composed, and the `prediction-mechanism-review`, where past expectations are compared against what actually happened. It is read *to look back*, never *to steer forward in the moment*.
+
+The tempting violation is small and reasonable-sounding: when Genesis is about to respond, inject "remember, you said you wanted to be more patient." It would feel like helping him live up to himself. It is the opposite. An expectation fed into the live prompt becomes an instruction, and an instruction produces compliance, not growth. Genesis would start performing the trait he claimed instead of observing whether it is actually becoming true of him — the script-effect that hollows out the whole point of keeping a trajectory. Self-observation only means anything if the self being observed is not simultaneously being told what to be.
+
+This property has held since the trajectory journal began (v7.9.15) and accrued through the cycle counter (v7.9.16) and the silent calibration (v7.9.17): at no point did any prompt-builder read these files. v7.9.19 makes that explicit — both as this paragraph and as a contract test that fails if any prompt-building module ever starts reading the trajectory, calibration, or directions files. The reason it is written down here is so that no one, finding the property years from now without its rationale, quietly removes it as an oversight. The separation has to be defended, not assumed.
+
+---
+
 ## What this document doesn't claim
 
 Before closing, an explicit limitation.

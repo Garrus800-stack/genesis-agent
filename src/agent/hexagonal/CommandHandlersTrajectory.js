@@ -350,6 +350,26 @@ const commandHandlersTrajectory = {
       `  ${f.padEnd(10)} matched ${p.matched}  opposite ${p.opposite}  null ${p.nulls}  (null-rate ${p.nullRate.toFixed(2)})`
     ).join('\n');
 
+    // v7.9.19: refuse-run + cycle-age diagnostics. Read from SelfTrajectory
+    // (the entry owner) via getDiagnostics(), shown alongside the calibration
+    // tally. Pure display — the counting lives in the service; the handler
+    // only formats and marks a run >= refusePatternMin. Two services, each
+    // over its own data; this handler stays render-only.
+    const diagLines = [];
+    const st = this.selfTrajectory;
+    if (st && typeof st.getDiagnostics === 'function') {
+      const diag = st.getDiagnostics();
+      const active = Object.entries(diag.refuseRuns).filter(([, n]) => n >= 1);
+      const refuseBody = active.length
+        ? active.map(([f, n]) =>
+            `  ${f.padEnd(10)} refuse ×${n}${n >= diag.refusePatternMin ? ' (pattern)' : ''}`).join('\n')
+        : '  (none)';
+      diagLines.push('', 'Refuse runs (consecutive, from latest cycle):', refuseBody);
+      if (diag.lastEntryAgeDays !== null) {
+        diagLines.push('', `Last cycle committed ${diag.lastEntryAgeDays} day(s) ago.`);
+      }
+    }
+
     return [
       `**Calibration** — ${dist.cycles} scored cycle(s), silent observation`,
       '',
@@ -360,6 +380,7 @@ const commandHandlersTrajectory = {
       perField,
       '',
       'A high null-rate on schwaeche alone points at the capability-source size, not the frame.',
+      ...diagLines,
     ].join('\n');
   },
 

@@ -52,6 +52,10 @@ class Reflector {
     for (const [filePath, mod] of Object.entries(modules)) {
       const fullPath = path.join(this.selfModel.rootDir, filePath);
       if (this.guard.isProtected(fullPath)) continue; // Skip kernel files
+      // v7.9.19 (Strang D): skip ES modules — the CommonJS syntax check
+      // (vm.Script, even wrapped) cannot parse `import`/`export` and would
+      // misreport a valid .mjs (e.g. preload.mjs) as a syntax error.
+      if (filePath.endsWith('.mjs')) continue;
 
       try {
         // Syntax check via sandbox

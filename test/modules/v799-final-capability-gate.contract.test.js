@@ -23,19 +23,28 @@ const { describe, test, assert, run } = require('../harness');
 
 const PLAN_PATH = path.join(ROOT, 'src/agent/autonomy/activities/Plan.js');
 const GOALSTACK_PATH = path.join(ROOT, 'src/agent/planning/GoalStack.js');
+// v7.9.19 (Strang E): the verb whitelist + leading-verb helper were hoisted
+// out of Plan.js into the shared revolution/goal-intent module so the planner
+// and the activity share ONE vocabulary. The Stage-A property is unchanged —
+// it now lives in goal-intent and Plan.js imports it. These checks follow it
+// to its real home and additionally pin that Plan.js still wires it in.
+const GOAL_INTENT_PATH = path.join(ROOT, 'src/agent/revolution/goal-intent.js');
 
 describe('v7.9.9 Fix 1 — Plan.js Capability-Gate', () => {
 
   // ── Stage A — Plan.js verb whitelist ─────────────────────────
 
-  test('SRC-01: _ALLOWED_VERBS whitelist constant declared in Plan.js', () => {
+  test('SRC-01: READONLY_VERBS whitelist declared in goal-intent, imported by Plan.js', () => {
+    const gi = fs.readFileSync(GOAL_INTENT_PATH, 'utf8');
+    assert(/const READONLY_VERBS\s*=\s*new Set\(/.test(gi),
+      'READONLY_VERBS Set must be declared in the shared goal-intent module');
     const src = fs.readFileSync(PLAN_PATH, 'utf8');
-    assert(/const _ALLOWED_VERBS\s*=\s*new Set\(/.test(src),
-      '_ALLOWED_VERBS Set must be declared in Plan.js');
+    assert(/require\(['"][^'"]*goal-intent['"]\)/.test(src) && /READONLY_VERBS/.test(src),
+      'Plan.js must import READONLY_VERBS from goal-intent (one shared vocabulary)');
   });
 
   test('SRC-02: whitelist contains the core 14 verbs', () => {
-    const src = fs.readFileSync(PLAN_PATH, 'utf8');
+    const src = fs.readFileSync(GOAL_INTENT_PATH, 'utf8');
     const verbs = [
       'document', 'reflect', 'summarise', 'research', 'test', 'verify',
       'list', 'compare', 'investigate', 'map', 'index', 'explore',
@@ -43,14 +52,14 @@ describe('v7.9.9 Fix 1 — Plan.js Capability-Gate', () => {
     ];
     for (const v of verbs) {
       assert(new RegExp(`'${v}'`).test(src),
-        `_ALLOWED_VERBS must include '${v}'`);
+        `READONLY_VERBS must include '${v}'`);
     }
   });
 
-  test('SRC-03: _extractLeadingVerb helper exists', () => {
-    const src = fs.readFileSync(PLAN_PATH, 'utf8');
-    assert(/function _extractLeadingVerb\(/.test(src),
-      '_extractLeadingVerb helper function must be defined');
+  test('SRC-03: extractLeadingVerb helper exists in goal-intent', () => {
+    const src = fs.readFileSync(GOAL_INTENT_PATH, 'utf8');
+    assert(/function extractLeadingVerb\(/.test(src),
+      'extractLeadingVerb helper function must be defined in goal-intent');
   });
 
   test('SRC-04: prompt explicitly lists allowed verbs', () => {
@@ -118,17 +127,17 @@ describe('v7.9.9 Fix 1 — Plan.js Capability-Gate', () => {
   // ── Runtime behavior tests via require ───────────────────────
 
   test('RUNTIME-01: extractLeadingVerb handles various title formats', () => {
-    // We can't easily extract the helper via require, but we can prove
-    // the source defines it with the right shape via regex.
-    const src = fs.readFileSync(PLAN_PATH, 'utf8');
-    // Helper must lowercase its output, must take title param.
-    const fnMatch = src.match(/function _extractLeadingVerb\(title\)\s*\{[\s\S]*?\n\}/);
-    assert(fnMatch, '_extractLeadingVerb must match expected shape');
-    assert(/\.toLowerCase\(\)/.test(fnMatch[0]),
-      '_extractLeadingVerb must lowercase the extracted verb for case-insensitive match');
-    assert(/^[\[\(\{"'`*]*/.test(fnMatch[0]) ||
-           /\[\\\[\\\(\\\{"'`\*\]\*\(\[A-Za-z\]\+\)/.test(fnMatch[0]),
-      '_extractLeadingVerb must strip leading punctuation/brackets');
+    // v7.9.19 (Strang E): helper now lives in goal-intent and is requireable —
+    // prove behaviour directly rather than by source regex.
+    const { extractLeadingVerb, isReadOnlyGoal } = require(GOAL_INTENT_PATH);
+    assert(extractLeadingVerb('Inspect X') === 'inspect',
+      'extractLeadingVerb must lowercase the extracted verb for case-insensitive match');
+    assert(extractLeadingVerb('[Investigate] Y') === 'investigate',
+      'extractLeadingVerb must strip leading punctuation/brackets');
+    assert(isReadOnlyGoal('Implement Z') === false,
+      'a write verb is not read-only');
+    assert(isReadOnlyGoal('') === null,
+      'no leading verb → null (no intervention)');
   });
 
   test('RUNTIME-02: file sizes stay within reasonable bounds', () => {

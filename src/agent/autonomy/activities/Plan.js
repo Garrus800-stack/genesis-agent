@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createLogger } = require('../../core/Logger');
+const { READONLY_VERBS, extractLeadingVerb } = require('../../revolution/goal-intent');
 const _log = createLogger('IdleMind');
 
 // v7.9.9 Fix 3: extract src-path-like tokens from a goal title/description
@@ -59,6 +60,13 @@ const _STOPWORDS = new Set([
   'enable', 'allow',
 ]);
 
+// v7.9.19 (Strang B): plan-dedup knobs — window for "recent" failures,
+// floor + ratio for "redundant". Rationale in v7919-idlemind-dedup.test.js.
+const FAILURE_RELEVANCE_WINDOW_DAYS = 14;
+const OVERLAP_SKIP_RATIO = 0.6;
+const REDUNDANCY_FLOOR = 2;
+const _TERMINAL_GOAL_STATUS = new Set(['obsolete', 'stalled', 'failed']);
+
 // v7.9.9 Fix 1 (Stage A): allowed leading verbs for IdleMind goals. Closed
 // whitelist — anything outside this set is refused. Catches paraphrased
 // blacklist verbs ("Make X better", "Strengthen Y") that an explicit
@@ -66,18 +74,40 @@ const _STOPWORDS = new Set([
 // verification-capable activities are allowed; code-modification verbs
 // (Improve, Refactor, Implement, Build, Add, Fix, Optimize) are
 // implicitly refused by being absent from this set.
-const _ALLOWED_VERBS = new Set([
-  'document', 'reflect', 'summarise', 'summarize', 'research',
-  'test', 'verify', 'list', 'compare', 'investigate',
-  'map', 'index', 'explore', 'catalog', 'catalogue', 'inspect',
-]);
+// v7.9.19 (Strang E): the verb list and leading-verb extraction now live in
+// the shared revolution/goal-intent module so the planner and this activity
+// use ONE vocabulary. Aliased here to keep the existing usage unchanged.
+const _ALLOWED_VERBS = READONLY_VERBS;
+const _extractLeadingVerb = extractLeadingVerb;
 
-function _extractLeadingVerb(title) {
-  if (!title || typeof title !== 'string') return null;
-  // Strip leading punctuation / brackets, take first alphabetic token.
-  const match = title.trim().match(/^[\[\(\{"'`*]*([A-Za-z]+)/);
-  if (!match) return null;
-  return match[1].toLowerCase();
+// v7.9.19 (Strang B): content-token split (lowercase; drop <4-char tokens
+// and _STOPWORDS). Promoted from run() so the helpers below are testable.
+function _tokenize(s) {
+  return (s || '').toLowerCase()
+    .replace(/[^a-z0-9äöüß]+/g, ' ').split(/\s+/)
+    .filter(t => t.length >= 4 && !_STOPWORDS.has(t));
+}
+
+// v7.9.19 (Strang B): terminal goals within the window — the one shared
+// source for prompt hint AND skip check. g.updated→g.created; undated = out.
+function _recentRelevantFailures(goals, now, windowDays) {
+  const cutoff = now - windowDays * 86400000;
+  return (goals || []).filter(g => {
+    if (!g || !_TERMINAL_GOAL_STATUS.has(g.status)) return false;
+    const t = Date.parse(g.updated || g.created || '');
+    return Number.isFinite(t) && t >= cutoff;
+  });
+}
+
+// v7.9.19 (Strang B): redundant iff >= REDUNDANCY_FLOOR distinct tokens
+// overlap AND overlap/|titleTokens| >= ratio. Returns the count for the log.
+function _overlapRedundant(titleTokens, descTokens, ratio = OVERLAP_SKIP_RATIO) {
+  const descSet = descTokens instanceof Set ? descTokens : new Set(descTokens);
+  let overlap = 0;
+  for (const t of descSet) if (titleTokens.has(t)) overlap++;
+  const size = titleTokens.size || 1;
+  const redundant = overlap >= REDUNDANCY_FLOOR && (overlap / size) >= ratio;
+  return { overlap, redundant };
 }
 
 module.exports = {
@@ -111,10 +141,12 @@ module.exports = {
     // only reference them. Cap at 30 to keep prompt size manageable.
     const realPaths = modules.slice(0, 30).map(m => m.file).join('\n');
 
-    // v7.7.9 (post-burnin P2): show recent failed/obsolete goals so the
-    // LLM doesn't propose the same abstract meta-goal again.
-    const recentFailed = (idleMind.goalStack?.goals || [])
-      .filter(g => ['obsolete', 'stalled', 'failed'].includes(g.status))
+    // v7.7.9 (post-burnin P2): show recent failed/obsolete goals so the LLM
+    // doesn't propose the same one again. v7.9.19 (Strang B): ONE aged list,
+    // shared with the skip check below, so neither is fed a stale failure.
+    const recentFailures = _recentRelevantFailures(
+      idleMind.goalStack?.goals || [], Date.now(), FAILURE_RELEVANCE_WINDOW_DAYS);
+    const recentFailed = recentFailures
       .slice(-5)
       .map(g => `- ${(g.description || '').slice(0, 80)} [${g.status}]`)
       .join('\n');
@@ -146,26 +178,16 @@ module.exports = {
         return thought;
       }
 
-      // v7.7.9 (post-burnin P2): token-overlap check against recently
-      // failed goals. If 2+ tokens overlap with a recent failure → skip.
-      // v7.9.7 P15: tokeniser filters _STOPWORDS to keep only domain-content
-      // tokens — pre-fix two goals matched only on 'activity' and both
-      // synthesised.
-      const _tokenize = (s) => (s || '').toLowerCase()
-        .replace(/[^a-z0-9äöüß]+/g, ' ').split(/\s+/)
-        .filter(t => t.length >= 4 && !_STOPWORDS.has(t));
+      // v7.7.9/v7.9.7 + v7.9.19 (Strang B): skip only a genuine re-run of a
+      // RECENT failure (same aged list as the prompt). See _overlapRedundant.
       const titleTokens = new Set(_tokenize(title));
-      const recentFailedDescs = (idleMind.goalStack?.goals || [])
-        .filter(g => ['obsolete', 'stalled', 'failed'].includes(g.status))
-        .slice(-10)
-        .map(g => g.description || '');
-      let _maxOverlap = 0;
-      for (const desc of recentFailedDescs) {
-        const overlap = _tokenize(desc).filter(t => titleTokens.has(t)).length;
-        if (overlap > _maxOverlap) _maxOverlap = overlap;
+      let _skipOverlap = 0;
+      for (const g of recentFailures.slice(-10)) {
+        const { overlap, redundant } = _overlapRedundant(titleTokens, _tokenize(g.description || ''));
+        if (redundant && overlap > _skipOverlap) _skipOverlap = overlap;
       }
-      if (_maxOverlap >= 2) {
-        _log.info(`[IDLE-MIND] Plan: skipping "${title.slice(0, 50)}" — ${_maxOverlap} tokens overlap with recent failures`);
+      if (_skipOverlap > 0) {
+        _log.info(`[IDLE-MIND] Plan: skipping "${title.slice(0, 50)}" — ${_skipOverlap} tokens overlap with a recent failure`);
         return thought;
       }
 
@@ -207,4 +229,12 @@ module.exports = {
 
     return thought;
   },
+
+  // v7.9.19 (Strang B): pure helpers + constants for the dedup test (not the activity contract).
+  _tokenize,
+  _recentRelevantFailures,
+  _overlapRedundant,
+  FAILURE_RELEVANCE_WINDOW_DAYS,
+  OVERLAP_SKIP_RATIO,
+  REDUNDANCY_FLOOR,
 };

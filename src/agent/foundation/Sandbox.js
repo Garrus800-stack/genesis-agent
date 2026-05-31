@@ -78,10 +78,21 @@ class Sandbox {
   async syntaxCheck(code) {
     const tmpFile = path.join(this.sandboxDir, '_syntax_check.js');
     try {
+      // v7.9.19 (Strang D): parse inside the CommonJS module wrapper, exactly as
+      // Node's loader does — otherwise a valid module with a top-level `return`
+      // (e.g. an early skip-guard in a test) is misread as "Illegal return
+      // statement" under raw vm.Script and the self-repair loop rewrites a
+      // perfectly valid file. A genuine syntax error still throws inside the
+      // wrapper, so real detection is unchanged. The leading shebang is stripped
+      // first (again, exactly as Node's loader does): a `#!` line is legal only
+      // as line 1, so wrapping an un-stripped shebang — now on line 2 — would
+      // falsely fail every CLI or test file that carries one.
+      const stripped = code.replace(/^#![^\r\n]*/, '');
+      const wrapped = '(function (exports, require, module, __filename, __dirname) {\n' + stripped + '\n});';
       const checkCode = `
         const vm = require('vm');
         try {
-          new vm.Script(${JSON.stringify(code)}, { filename: 'check.js' });
+          new vm.Script(${JSON.stringify(wrapped)}, { filename: 'check.js' });
           process.stdout.write(JSON.stringify({ valid: true }));
         } catch (err) {
           process.stdout.write(JSON.stringify({ valid: false, error: err.message }));
