@@ -38,6 +38,14 @@ function makeLoop(overrides = {}) {
   });
 
   loop._fired = fired;
+  // v7.9.20: shell/write/delegate steps now route through loop.approval.request, which
+  // consults trustLevelSystem. These coverage tests exercise step mechanics, not the
+  // approval gate, so give the loop a FULL_AUTONOMY trust system that auto-approves
+  // (otherwise approval.request would wait for a Dashboard click that never comes).
+  loop.trustLevelSystem = {
+    checkApproval: () => ({ approved: true, needsUserApproval: false, reason: 'test-auto-approve' }),
+    getLevel: () => 2,
+  };
   return loop;
 }
 

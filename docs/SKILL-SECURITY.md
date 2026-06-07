@@ -106,11 +106,14 @@ Every skill must include a `skill-manifest.json` validated against `schemas/skil
   "version": "1.0.0",
   "description": "What this skill does",
   "entry": "index.js",
-  "author": "your-name"
+  "author": "your-name",
+  "autonomous": false
 }
 ```
 
 Required fields: `name` (lowercase, alphanumeric + hyphens), `version` (semver), `entry` (must exist in skill directory).
+
+Optional field `autonomous` (boolean, default `false`): when `true`, the skill may be selected by the agent loop during goal pursuit. See Trust Model.
 
 ---
 
@@ -130,6 +133,8 @@ Genesis defends against all of these through defense-in-depth:
 4. **Linux namespaces** (when available) add OS-level isolation
 5. **Timeout + SIGKILL** prevents resource exhaustion
 6. **No persistence** prevents state accumulation across invocations
+
+**Autonomous selection (v7.9.20).** A skill is run autonomously during goal pursuit only when three gates pass: the manifest declares `autonomous: true`, `CapabilityMatcher` scores the step against the skill's capabilities at 0.75 or higher, and the skill's code passes the AST safety scan at selection time. A skill without `autonomous: true` is available only on explicit invocation.
 
 ---
 

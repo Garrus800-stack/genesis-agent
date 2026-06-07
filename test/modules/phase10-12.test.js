@@ -362,13 +362,16 @@ describe('TrustLevelSystem', () => {
     assert(result.approved === true, 'CODE_GENERATE auto-approved at AUTONOMOUS');
   });
 
-  it('should auto-approve high-risk (incl. SELF_MODIFY) at AUTONOMOUS, require approval only for critical', () => {
+  it('should auto-approve high-risk at AUTONOMOUS, require approval for critical (incl. SELF_MODIFY)', () => {
     // v7.9.3 Bug A: AUTONOMOUS auto-approves ['safe','medium','high','blocking'].
-    // Only critical actions (DEPLOY/EXTERNAL_API/EMAIL_SEND) still prompt — matches
-    // the UI dropdown promise "ask only for critical".
+    // v7.9.20 (S): SELF_MODIFY moved 'high' -> 'critical', so it now joins
+    // DEPLOY/EXTERNAL_API/EMAIL_SEND in still prompting at AUTONOMOUS — matching
+    // the UI dropdown promise "ask only for critical". SHELL_EXEC remains 'high'.
     const tls = new TrustLevelSystem({ bus: mockBus, storage: mockStorage, settings: null, config: { level: TRUST_LEVELS.AUTONOMOUS } });
+    const shell = tls.checkApproval('SHELL_EXEC');
+    assert(shell.approved === true, 'SHELL_EXEC (high) auto-approved at AUTONOMOUS');
     const selfMod = tls.checkApproval('SELF_MODIFY');
-    assert(selfMod.approved === true, 'SELF_MODIFY (high) auto-approved at AUTONOMOUS');
+    assert(selfMod.approved === false, 'SELF_MODIFY (critical) needs approval at AUTONOMOUS');
     const deploy = tls.checkApproval('DEPLOY');
     assert(deploy.approved === false, 'DEPLOY (critical) still needs approval at AUTONOMOUS');
   });

@@ -108,6 +108,7 @@ class SkillManager {
       version: s.version,
       description: s.description,
       interface: s.interface,
+      autonomous: s.autonomous === true,   // v7.9.20 (C): skill-step opt-in
     }));
   }
 

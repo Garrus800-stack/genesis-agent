@@ -251,11 +251,12 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     assert(settings.get('mcp.serve.port') === 3580, 'port default mismatch');
   });
 
-  await test('#5 Settings defaults include timeouts.approvalSec=300', () => {
+  await test('#5 Settings defaults include timeouts.approvalSec=0 (no timeout — stay until click)', () => {
     const { Settings } = require('../../src/agent/foundation/Settings');
     const settings = new Settings(tmpDir, null);
-    // v7.9.3 Bug B: bumped from 60s to 300s — prevents premature approval timeouts.
-    assert(settings.get('timeouts.approvalSec') === 300, 'approvalSec default mismatch');
+    // v7.9.3 Bug B: bumped 60s → 300s. v7.9.20: dropped to 0 = no auto-reject,
+    // the Dashboard approval prompt stays until the user clicks (approve/reject).
+    assert(settings.get('timeouts.approvalSec') === 0, 'approvalSec default mismatch');
   });
 
   // ── #6: Manifest wiring ─────────────────────────────────────

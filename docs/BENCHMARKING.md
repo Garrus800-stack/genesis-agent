@@ -8,7 +8,7 @@
 
 | Command | What it does | Duration |
 |---------|-------------|----------|
-| `npm test` | Run all ~8105 tests | ~75s |
+| `npm test` | Run all ~8505 tests | ~75s |
 | `npm run test:ci` | Tests + coverage enforcement (80/76/78) | ~150s |
 | `npm run benchmark:agent --quick` | 3-task capability benchmark | ~2 min |
 | `npm run benchmark:agent:layer:organism` | A/B: full vs without organism | ~5 min |
@@ -22,7 +22,7 @@
 ### Run all tests
 
 ```bash
-npm test                    # Full suite (~8105 tests)
+npm test                    # Full suite (~8505 tests)
 npm run test:new            # Only per-module test files
 npm run test:legacy         # Only monolithic legacy suite
 ```
@@ -227,7 +227,7 @@ npm run benchmark:consciousness:dry       # Dry run (no LLM, measures computatio
 Automated checks for coupling, listener leaks, event catalog completeness, and structural rules:
 
 ```bash
-npm run audit:fitness            # Score out of 120 (12 checks)
+npm run audit:fitness            # Score out of 130 (13 checks)
 npm run audit:fitness:ci         # Exit 1 if score below threshold
 npm run audit:fitness:json       # Machine-readable output
 

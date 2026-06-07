@@ -116,70 +116,18 @@ function cleanupAfterAbort(loop, abortedGoalId, clearGlobalTimeout, NullWorkspac
  * @returns {Promise<{aborted: boolean, action?: string, abortMsg?: string, subId?: string}>}
  */
 async function handleHardGateAbort(loop, cogResult, priorFailures, onProgress, emitFailure, clearTimeout, NullWorkspaceCtor, log, step, stepIndex) {
-  if (!shouldAbortOnRisk(cogResult)) {
-    log.warn(`[AGENT-LOOP] Simulation flagged risk: ${cogResult.reason} (score: ${cogResult.riskScore}) — proceeding anyway`);
-    onProgress({ phase: 'simulation-warning', detail: `Risk flagged: ${cogResult.reason} — proceeding`, risk: cogResult.riskScore });
-    return { aborted: false };
-  }
-  // v7.9.9 final: dedup telemetry per goalId. Pre-fix the simulation-abort
-  // event fired on every pursuit retry — field-test 2026-05-24 showed the
-  // same goal firing the event 3× during a 3-retry sequence with the gate
-  // tripping on every plan regeneration. Dashboard saw it as spam. Track
-  // emitted goalIds in a Set on the loop instance; cleared on goal completion.
-  loop._simulationAbortEmittedGoals ??= new Set();
-  if (!loop._simulationAbortEmittedGoals.has(loop.currentGoalId)) {
-    loop.bus.fire('agent-loop:simulation-abort', {
-      goalId: loop.currentGoalId, riskScore: cogResult.riskScore, priorFailures, reason: cogResult.reason,
-    }, { source: 'AgentLoop' });
-    loop._simulationAbortEmittedGoals.add(loop.currentGoalId);
-  }
-
-  const level = (typeof loop.trustLevelSystem?.getLevel === 'function')
-    ? loop.trustLevelSystem.getLevel()
-    : TRUST_LEVELS.SUPERVISED;
-
-  // SUPERVISED + AUTONOMOUS → warn-only, let TrustLevelSystem.checkApproval handle
-  // step-level asks based on action category. No duplicate ask path here.
-  if (level === TRUST_LEVELS.SUPERVISED || level === TRUST_LEVELS.AUTONOMOUS) {
-    const levelName = level === TRUST_LEVELS.SUPERVISED ? 'SUPERVISED' : 'AUTONOMOUS';
-    log.warn(`[AGENT-LOOP] Simulation HIGH risk: ${cogResult.reason} (score ${cogResult.riskScore}, ${levelName} — TrustLevelSystem handles ask at step level)`);
-    onProgress({ phase: 'simulation-warning', detail: `High risk: ${cogResult.reason} — proceeding (per-action approval via trust level)`, risk: cogResult.riskScore });
-    return { aborted: false };
-  }
-
-  // FULL_AUTONOMY → try decompose, on refusal mark obsolete (NEVER ask).
-  log.warn(`[AGENT-LOOP] Simulation HIGH risk: ${cogResult.reason} (score ${cogResult.riskScore}, FULL_AUTONOMY — attempting decompose)`);
-  onProgress({ phase: 'simulation-abort', detail: `High risk: ${cogResult.reason}`, risk: cogResult.riskScore });
-  const recovery = loop.recovery;
-  if (recovery && typeof recovery._trySpawnObstacleSubgoal === 'function' && step) {
-    const syntheticObstacle = {
-      contextKey: `high-risk-simulation-${(cogResult.reason || 'unknown').slice(0, 30).replace(/\s+/g, '_')}`,
-      subGoalDescription: `Investigate why simulation gives HIGH risk (${cogResult.riskScore.toFixed(2)}) on step ${(stepIndex ?? 0) + 1}: ${cogResult.reason}. Document the risk drivers, then describe a different approach.`,
-    };
-    try {
-      const spawned = await recovery._trySpawnObstacleSubgoal(syntheticObstacle, step, stepIndex ?? 0, onProgress);
-      if (spawned.spawned) {
-        cleanupAfterAbort(loop, loop.currentGoalId, clearTimeout, NullWorkspaceCtor);
-        const abortMsg = `High-risk simulation — decomposed via sub-goal ${spawned.subId} (${cogResult.reason})`;
-        emitFailure(abortMsg);
-        return { aborted: true, action: 'decomposed', subId: spawned.subId, abortMsg };
-      }
-      // Decompose refused → obsolete (FULL_AUTONOMY never asks).
-      if (loop.goalStack && typeof loop.goalStack.markObsolete === 'function' && loop.currentGoalId) {
-        try { loop.goalStack.markObsolete(loop.currentGoalId, `decompose refused (${spawned.reason}) on high-risk simulation: ${cogResult.reason}`); } catch (_e) { /* best-effort */ }
-      }
-      cleanupAfterAbort(loop, loop.currentGoalId, clearTimeout, NullWorkspaceCtor);
-      const abortMsg = `Goal marked obsolete: decompose refused (${spawned.reason}) on high-risk simulation — FULL_AUTONOMY does not ask.`;
-      emitFailure(abortMsg);
-      return { aborted: true, action: 'obsolete', abortMsg };
-    } catch (e) { log.debug('[catch] decompose attempt failed:', e.message); }
-  }
-
-  // Fall-through: decompose path unavailable (no recovery delegate / no step) → legacy hard-abort.
-  cleanupAfterAbort(loop, loop.currentGoalId, clearTimeout, NullWorkspaceCtor);
-  const abortMsg = `High simulation risk (${cogResult.riskScore.toFixed(2)}): ${cogResult.reason}.`;
-  emitFailure(abortMsg);
-  return { aborted: true, action: 'abort', abortMsg };
+  // v7.9.20: simulation-risk is no longer a gate on ANY trust level. The numerical
+  // mental-simulation variance ("HIGH risk N.NN") must never trigger abort, decompose,
+  // or a sub-goal cascade. What asks for approval is decided solely by trust level via
+  // TrustLevelSystem.checkApproval at the step level (SUPERVISED asks for all /
+  // AUTONOMOUS only for critical / FULL_AUTONOMY never) — sim-risk is not a factor.
+  // Field 2026-06: a read-only "Inspect Cognitive Monitor" goal scored 5.78, aborted,
+  // and recursively spawned sub-goals to the depth limit (4 goals, 0 work, 0 F2 nodes).
+  // The trust dispatch + decompose/markObsolete block + simulation-abort telemetry are
+  // gone; the gate always proceeds and only logs a warning.
+  log.warn(`[AGENT-LOOP] Simulation flagged risk: ${cogResult.reason} (score: ${cogResult.riskScore}) — proceeding (sim-risk is not a gate)`);
+  onProgress({ phase: 'simulation-warning', detail: `Risk flagged: ${cogResult.reason} — proceeding`, risk: cogResult.riskScore });
+  return { aborted: false };
 }
 
 const { TRUST_LEVELS } = require('../foundation/TrustLevelSystem');

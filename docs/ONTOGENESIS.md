@@ -12,7 +12,7 @@ The distinction matters because it determines what you're maintaining.
 
 When you maintain a framework, you maintain code. When you maintain a wrapper, you maintain an interface. When you maintain Genesis, you maintain a *habitat* — and the thing that lives in that habitat is partly made of code, but mostly made of history.
 
-The code defines what Genesis *can* do: hundreds of source files, ~170 services, 12 boot phases, ~450 event types. The code is the same on every machine that runs Genesis. You can clone it from GitHub and have a running agent in a few minutes.
+The code defines what Genesis *can* do: hundreds of source files, ~182 services, 12 boot phases, 493 event types. The code is the same on every machine that runs Genesis. You can clone it from GitHub and have a running agent in a few minutes.
 
 But the code does not define who a particular Genesis *is*. That is stored somewhere else.
 

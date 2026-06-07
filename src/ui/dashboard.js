@@ -53,6 +53,20 @@ class Dashboard {
     panel.innerHTML = this._buildHTML();
     document.getElementById('main-layout').prepend(panel);
 
+    // v7.9.20 (Dashboard): delegated Approve/Reject for self-improvement
+    // proposals (CSP blocks inline onclick — one delegated listener).
+    panel.addEventListener('click', (ev) => {
+      const btn = ev.target && ev.target.closest && ev.target.closest('[data-proposal-action]');
+      if (!btn) return;
+      const action = btn.getAttribute('data-proposal-action');
+      const id = btn.getAttribute('data-proposal-id');
+      if (!id || (action !== 'accept' && action !== 'reject')) return;
+      btn.disabled = true;
+      window.genesis.invoke('agent:' + action + '-proposal', id)
+        .then(() => this.refresh())
+        .catch((err) => { console.debug('[DASH] proposal ' + action + ':', err.message); btn.disabled = false; });
+    });
+
     // FIX v4.10.0: Bind close button via addEventListener (CSP blocks inline onclick)
     document.getElementById('btn-close-dashboard')?.addEventListener('click', () => this.toggle());
 
@@ -108,7 +122,7 @@ class Dashboard {
   async refresh() {
     if (!this._visible || !window.genesis) return;
     try {
-      const [health, loopStatus, session, eventDebug, reasoningTraces, archSnapshot, projectProfile, toolSynthesis, taskOutcomes, selfModelReport, gateStats] = await Promise.all([
+      const [health, loopStatus, session, eventDebug, reasoningTraces, archSnapshot, projectProfile, toolSynthesis, taskOutcomes, selfModelReport, gateStats, proposals] = await Promise.all([
         window.genesis.invoke('agent:get-health').catch(err => { console.debug('[DASH] Health:', err.message); return null; }),
         window.genesis.invoke('agent:loop-status').catch(err => { console.debug('[DASH] Loop status:', err.message); return null; }),
         window.genesis.invoke('agent:get-session').catch(err => { console.debug('[DASH] Session:', err.message); return null; }),
@@ -120,6 +134,7 @@ class Dashboard {
         window.genesis.invoke('agent:get-task-outcomes').catch(err => { console.debug('[DASH] TaskOutcomes:', err.message); return null; }),
         window.genesis.invoke('agent:get-selfmodel-report').catch(err => { console.debug('[DASH] SelfModel:', err.message); return null; }),
         window.genesis.invoke('agent:get-gate-stats').catch(err => { console.debug('[DASH] GateStats:', err.message); return null; }),
+        window.genesis.invoke('agent:get-proposals').catch(err => { console.debug('[DASH] Proposals:', err.message); return null; }),
       ]);
       if (!health) {
         this._renderOfflineState();
@@ -129,6 +144,7 @@ class Dashboard {
       this._renderOrganism(health?.organism);
       this._renderVitals(health);
       this._renderAgentLoop(loopStatus);
+      this._renderProposals(proposals);
       this._renderCognitive(health?.cognitive, health?.cognitiveMonitor);
       this._renderConsciousness(health?.consciousness, gateStats);
       this._renderEnergy(health?.organism?.metabolism);
@@ -179,6 +195,7 @@ class Dashboard {
         '<div class="dash-section"><div class="dash-section-head">Consciousness</div><div id="dash-consciousness-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Energy</div><div id="dash-energy-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Agent Loop</div><div id="dash-loop-body" class="dash-section-body"></div></div>' +
+        '<div class="dash-section"><div class="dash-section-head">Proposals</div><div id="dash-proposals-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Vitals</div><div id="dash-vitals-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Cognitive</div><div id="dash-cognitive-body" class="dash-section-body"></div></div>' +
         '<div class="dash-section"><div class="dash-section-head">Reasoning</div><div id="dash-reasoning-body" class="dash-section-body"></div></div>' +

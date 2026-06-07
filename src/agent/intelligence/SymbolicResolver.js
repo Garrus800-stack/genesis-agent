@@ -342,6 +342,22 @@ class SymbolicResolver {
     // Must have an actionable strategy
     if (!lesson.strategy) return null;
 
+    // v7.9.20 (B1): a STRING strategy is not DIRECT-eligible — only an OBJECT
+    // strategy carries something DIRECT can actually apply (`{command,...}` from
+    // LessonsAutoCapture, or the already-filtered `{classification,...}` from
+    // failure reflections). Field trace: a manually-seeded lesson
+    // ("step by step decomposition works best", strategy: 'step-by-step
+    // decomposition', useCount 180, conf 0.99, source 'manual') passed every
+    // existing gate and fired DIRECT on ANALYZE steps — but a string strategy
+    // has no `.command`, so it landed in the non-shell DIRECT branch that
+    // "returns the insight as the analysis", i.e. emitted the boilerplate
+    // insight in place of a real analysis and bypassed _stepAnalyze (so no
+    // agent-loop-analysis node was written). Every in-code lesson producer sets
+    // an OBJECT strategy; only manual/external lessons can be a bare string, so
+    // this gate is surgical. Such a lesson may still GUIDE (directive to the
+    // LLM); it just no longer REPLACES the LLM.
+    if (typeof lesson.strategy === 'string') return null;
+
     // v7.9.7 P1: filter PREDICTION-class lessons. AgentLoopPursuitReflection
     // writes "Goal failed (structural): ..." records with source
     // 'plan-failure-reflection' and strategy.classification ∈ {structural,

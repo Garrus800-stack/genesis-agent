@@ -1,6 +1,7 @@
 {
   "name": "file-search",
   "version": "1.0.0",
+  "autonomous": true,
   "description": "Searches project files by name pattern, content grep, and/or extension filter",
   "entry": "index.js",
   "interface": {

@@ -29,7 +29,7 @@ git clone https://github.com/Garrus800-stack/genesis-agent.git
 cd genesis-agent
 npm install
 npm start          # Launch the Electron app
-npm test           # Run all tests (270 suites, 4567 tests)
+npm test           # Run all tests (547 suites, ~8505 tests)
 ```
 
 ### Useful Commands
@@ -37,7 +37,7 @@ npm test           # Run all tests (270 suites, 4567 tests)
 | Command | Description |
 |---------|-------------|
 | `npm start` | Launch Electron app |
-| `npm test` | Run full test suite (legacy + per-module, 270 suites) |
+| `npm test` | Run full test suite (legacy + per-module, 547 suites) |
 | `npm run test:new` | Run only per-module tests |
 | `npm run test:legacy` | Run only legacy suite |
 | `npm run test:coverage` | Run tests with c8 coverage report |
@@ -281,7 +281,7 @@ run();  // ← MUST be called at end of file
 ### Running Tests
 
 ```bash
-npm test                              # All tests (270 suites, 4567 tests)
+npm test                              # All tests (547 suites, ~8505 tests)
 node test/modules/myservice.test.js   # Single module
 npm run test:new                      # Only per-module tests
 npm run test:coverage                 # With c8 coverage report

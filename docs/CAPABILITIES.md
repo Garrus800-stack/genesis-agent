@@ -4,8 +4,8 @@
 
 ## Scale
 
-- 385 source modules across 12 boot phases
-- 181 DI services (168 manifest + 13 bootstrap)
+- 392 source modules across 12 boot phases
+- 182 DI services (169 manifest + 13 bootstrap)
 - 8105 tests on Windows / 7932 on Linux (passing, 0 failures)
 - 493 events with 493 payload schemas (full parity)
 - Architectural fitness: 127/130
@@ -44,6 +44,8 @@ Genesis can rewrite its own code, but every change passes through multiple safet
 | **Module signing** | HMAC-SHA256 signatures track which modules the agent modified vs. original |
 | **Git snapshots** | Every self-modification is committed; `agent:undo` reverts the last change |
 | **Circuit breaker** `v4.12.8` | 3 consecutive failures → self-modification frozen. User must explicitly reset via `/self-repair-reset`. |
+| **Critical-action approval** `v7.9.20` | `SELF_MODIFY` is a critical action class — auto-applied only at Full Autonomy, and the `selfModifyRequiresConfirmation` setting (default on) requires explicit confirmation even there. |
+| **Outcome tracking** `v7.9.20` | `SelfModOutcomeTracker` watches self-modification results; a file changed three or more times within 14 days records a `self-modification` lesson, and that file is then excluded from new improvement proposals. |
 
 ---
 
@@ -70,6 +72,9 @@ User: "Add a REST API module with tests"
 | **User approval** | Destructive actions pause and ask. Auto-timeout after 60s (safety) |
 | **Global timeout** | 10 min per goal (prevents runaway execution) |
 | **Progress streaming** | Real-time updates to UI: phase, step count, details |
+| **Autonomous skills** `v7.9.20` | A pursuit step can be fulfilled by an autonomous skill when three gates pass: manifest `autonomous: true`, capability match ≥ 0.75, and an AST safety scan of the skill code. |
+| **Self-improvement proposals** `v7.9.20` | Agent-loop analyses become improvement proposals, surfaced as Dashboard cards for approve/reject; an accepted proposal runs through the gated self-modification pipeline. |
+| **Skills in self-image** `v7.9.20` | Skills the agent has grown appear in its capability profile, so its self-model reflects what it can actually do. |
 
 ---
 
@@ -257,7 +262,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **531 test files** | 8105 tests (Win baseline, v7.9.6), coverage gates: 80% lines, 76% branches, 78% functions |
+| **547 test files** | 8105 tests (Win baseline, v7.9.6), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

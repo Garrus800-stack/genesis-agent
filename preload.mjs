@@ -33,6 +33,10 @@ const ALLOWED_INVOKE = [
   'agent:set-settings-batch',
   'agent:get-goals',
   'agent:get-goal-tree',
+  // v7.9.20 (Dashboard): self-improvement proposals
+  'agent:get-proposals',
+  'agent:accept-proposal',
+  'agent:reject-proposal',
   'agent:undo',
   'agent:undo-available',
   'agent:get-lang-strings',

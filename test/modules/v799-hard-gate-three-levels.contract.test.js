@@ -1,17 +1,20 @@
 // ============================================================
-// v7.9.9 (C): hard-gate three-level dispatch contract tests.
+// v7.9.20 (C): simulation-risk is no longer a gate — contract tests.
 //
-// Replaces v799-final-trust-dispatch (which encoded the dropped
-// α2.Fix 4 priorFailures matrix + LiveFixP5 first-attempt path).
+// Replaces the v7.9.9 three-level dispatch contract (SUPERVISED/
+// AUTONOMOUS ask, FULL_AUTONOMY decompose/obsolete). Field 2026-06
+// showed a read-only "Inspect Cognitive Monitor" goal scoring
+// riskScore 5.78 ("HIGH risk"), aborting, and recursively spawning
+// sub-goals to the depth limit — 4 goals, 0 work, 0 F2 nodes.
 //
-// Pin the new simpler behaviour:
-//   shouldAbortOnRisk(cogResult) — no priorFailures param, returns
-//     true iff cogResult.proceed === false AND riskScore >= 5.0.
-//   handleHardGateAbort dispatch:
-//     SUPERVISED    → ask-user
-//     AUTONOMOUS    → ask-user
-//     FULL_AUTONOMY → decompose (refusal → obsolete, NEVER asks)
-//     No TrustLevelSystem → SUPERVISED behaviour (safe default)
+// New contract pinned here:
+//   handleHardGateAbort ALWAYS returns { aborted: false } for
+//   simulation-risk, on EVERY trust level (and with no TrustLevelSystem):
+//     - no abort, no decompose (_trySpawnObstacleSubgoal), no markObsolete
+//     - no agent-loop:simulation-abort telemetry
+//   What asks for approval is decided solely by trust level via
+//   TrustLevelSystem.checkApproval at the STEP level (see Teil D),
+//   not by the numerical simulation variance.
 // ============================================================
 
 'use strict';
@@ -24,10 +27,8 @@ const ROOT = path.join(__dirname, '../..');
 const GATE_PATH = path.join(ROOT, 'src/agent/revolution/AgentLoopPursuitGate.js');
 
 const {
-  shouldAbortOnRisk,
   handleHardGateAbort,
   TRUST_LEVELS,
-  HIGH_RISK_THRESHOLD,
 } = require(GATE_PATH);
 
 // ── Test doubles ───────────────────────────────────────────
@@ -50,7 +51,7 @@ function makeStubs() {
   };
 }
 
-function makeLoop({ trustLevel, bus, spawnReturn = { spawned: false, reason: 'depth-limit' }, hasGoalStack = true }) {
+function makeLoop({ trustLevel, bus, hasGoalStack = true }) {
   return {
     running: true,
     currentGoalId: 'goal_test_001',
@@ -59,167 +60,78 @@ function makeLoop({ trustLevel, bus, spawnReturn = { spawned: false, reason: 'de
     bus,
     trustLevelSystem: trustLevel === undefined ? null : { getLevel: () => trustLevel },
     recovery: {
-      _trySpawnObstacleSubgoal: async () => spawnReturn,
+      _trySpawnObstacleSubgoal: async () => ({ spawned: true, subId: 'x' }),
     },
-    goalStack: hasGoalStack ? {
-      markObsolete: () => {},
-    } : null,
+    goalStack: hasGoalStack ? { markObsolete: () => {} } : null,
   };
 }
 
 describe('v799-hard-gate-three-levels', () => {
 
-  // ── Source-grep contracts (no priorFailures, no first-attempt threshold) ──
+  // ── Source contracts: the abort path is gone ──
 
-  test('SRC-01: shouldAbortOnRisk signature drops priorFailures param', () => {
+  test('SRC-01: handleHardGateAbort has no `return { aborted: true }` path left', () => {
     const src = fs.readFileSync(GATE_PATH, 'utf8');
-    assert(/function shouldAbortOnRisk\(cogResult\)/.test(src),
-      'shouldAbortOnRisk must take only cogResult (no priorFailures)');
+    const block = src.split(/function handleHardGateAbort/)[1] || '';
+    assert(!/return\s*\{\s*aborted:\s*true/.test(block),
+      'handleHardGateAbort must not contain a return { aborted: true } path');
   });
 
-  test('SRC-02: FIRST_ATTEMPT_RISK_THRESHOLD constant removed', () => {
+  test('SRC-02: handleHardGateAbort no longer fires agent-loop:simulation-abort', () => {
     const src = fs.readFileSync(GATE_PATH, 'utf8');
-    assert(!/FIRST_ATTEMPT_RISK_THRESHOLD/.test(src),
-      'v7.9.9 (D): LiveFixP5 constant must be removed');
+    const block = src.split(/function handleHardGateAbort/)[1] || '';
+    assert(!/\.fire\(\s*['"]agent-loop:simulation-abort/.test(block),
+      'handleHardGateAbort must not fire the simulation-abort telemetry event');
   });
 
-  test('SRC-03: only one threshold constant — HIGH_RISK_THRESHOLD = 5.0', () => {
-    const src = fs.readFileSync(GATE_PATH, 'utf8');
-    assert(/const HIGH_RISK_THRESHOLD = 5\.0/.test(src),
-      'HIGH_RISK_THRESHOLD = 5.0 must be present');
-  });
+  // ── handleHardGateAbort proceeds on EVERY level ──
 
-  // ── shouldAbortOnRisk ──────────────────────────────────────
-
-  test('GATE-01: proceed=true → no abort regardless of risk', () => {
-    assert(shouldAbortOnRisk({ proceed: true, riskScore: 9.9 }) === false,
-      'proceed=true must short-circuit to false');
-  });
-
-  test('GATE-02: proceed=false + risk 5.9 → abort (was bypassed pre-v7.9.9)', () => {
-    assert(shouldAbortOnRisk({ proceed: false, riskScore: 5.9 }) === true,
-      'risk 5.9 must abort (no priorFailures gate any more)');
-  });
-
-  test('GATE-03: proceed=false + risk 4.9 → no abort', () => {
-    assert(shouldAbortOnRisk({ proceed: false, riskScore: 4.9 }) === false,
-      'risk below 5.0 must not abort');
-  });
-
-  test('GATE-04: null cogResult → no abort', () => {
-    assert(shouldAbortOnRisk(null) === false,
-      'null cogResult must not abort');
-  });
-
-  // ── handleHardGateAbort: three-branch dispatch ──────────
-
-  test('DISP-01: SUPERVISED + high risk → warn-only (TrustLevelSystem handles step-level asks)', async () => {
-    const s = makeStubs();
-    const loop = makeLoop({ trustLevel: TRUST_LEVELS.SUPERVISED, bus: s.bus });
-    const result = await handleHardGateAbort(loop, { proceed: false, riskScore: 5.9, reason: 'simulation-risk' },
-      0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { type: 'CODE', description: 'x' }, 0);
-    assert(result.aborted === false,
-      `SUPERVISED must warn-only on hard-gate, got aborted=${result.aborted} action=${result.action}`);
-    assert(!s.events.some(e => e.ev === 'agent-loop:needs-input'),
-      'hard-gate must NOT fire needs-input — TrustLevelSystem.checkApproval(stepType) is the single ask channel');
-  });
-
-  test('DISP-02: AUTONOMOUS + high risk → warn-only (no hard-gate spam, ask handled at step level)', async () => {
-    const s = makeStubs();
-    const loop = makeLoop({ trustLevel: TRUST_LEVELS.AUTONOMOUS, bus: s.bus });
-    const result = await handleHardGateAbort(loop, { proceed: false, riskScore: 5.9, reason: 'simulation-risk' },
-      0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { type: 'CODE', description: 'x' }, 0);
-    assert(result.aborted === false,
-      `AUTONOMOUS must NOT abort on hard-gate spam — got aborted=${result.aborted} action=${result.action}`);
-    assert(!s.events.some(e => e.ev === 'agent-loop:needs-input'),
-      'AUTONOMOUS must NEVER emit needs-input from hard-gate (only TrustLevelSystem.checkApproval may)');
-  });
-
-  test('DISP-03: AUTONOMOUS + high risk + many prior failures still warn-only (no escalation via hard-gate)', async () => {
-    const s = makeStubs();
-    const loop = makeLoop({ trustLevel: TRUST_LEVELS.AUTONOMOUS, bus: s.bus });
-    const result = await handleHardGateAbort(loop, { proceed: false, riskScore: 7.0, reason: 'simulation-risk' },
-      5, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { type: 'CODE', description: 'x' }, 0);
-    assert(result.aborted === false,
-      'AUTONOMOUS + 5 prior failures must still warn-only via hard-gate (escalation is per-step, not via gate)');
-    assert(!s.events.some(e => e.ev === 'agent-loop:needs-input'),
-      'no needs-input even on repeated AUTONOMOUS failures from hard-gate');
-  });
-
-  test('DISP-04: FULL_AUTONOMY + high risk + spawn succeeds → decomposed (proceeds without a user prompt)', async () => {
-    const s = makeStubs();
-    const loop = makeLoop({
-      trustLevel: TRUST_LEVELS.FULL_AUTONOMY,
-      bus: s.bus,
-      spawnReturn: { spawned: true, subId: 'sub_x_001' },
+  for (const [name, lvl] of [
+    ['SUPERVISED', 0], ['AUTONOMOUS', 1], ['FULL_AUTONOMY', 2], ['no-TrustLevelSystem', undefined],
+  ]) {
+    test(`PROCEED-${name}: sim-risk 5.78 -> aborted:false, no telemetry, no decompose, no markObsolete`, async () => {
+      const s = makeStubs();
+      let spawnCalled = false, obsoleteCalled = false;
+      const loop = makeLoop({ trustLevel: lvl, bus: s.bus });
+      loop.recovery._trySpawnObstacleSubgoal = async () => { spawnCalled = true; return { spawned: true, subId: 'x' }; };
+      if (loop.goalStack) loop.goalStack.markObsolete = () => { obsoleteCalled = true; };
+      const cog = { proceed: false, reason: 'simulation-risk', riskScore: 5.78 };
+      const res = await handleHardGateAbort(loop, cog, 0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { id: 'step' }, 0);
+      assert(res.aborted === false, `${name}: must proceed (aborted:false), got ${JSON.stringify(res)}`);
+      assert(!spawnCalled, `${name}: must NOT decompose (no _trySpawnObstacleSubgoal)`);
+      assert(!obsoleteCalled, `${name}: must NOT markObsolete`);
+      assert(!s.events.some(e => e.ev === 'agent-loop:simulation-abort'),
+        `${name}: must NOT fire simulation-abort telemetry`);
     });
-    const result = await handleHardGateAbort(loop, { proceed: false, riskScore: 5.9, reason: 'simulation-risk' },
-      0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { type: 'CODE', description: 'x' }, 0);
-    assert(result.action === 'decomposed', `FULL_AUTONOMY must decompose, got ${result.action}`);
-    assert(result.subId === 'sub_x_001', 'subId must propagate');
-    assert(!s.events.some(e => e.ev === 'agent-loop:needs-input'),
-      'FULL_AUTONOMY must NEVER emit needs-input');
-  });
+  }
 
-  test('DISP-05: FULL_AUTONOMY + spawn declined → mark obsolete (proceeds without a user prompt)', async () => {
+  test('PROCEED-under-threshold: proceed=false + risk 4.9 -> aborted:false', async () => {
     const s = makeStubs();
-    let obsoleteCalledWith = null;
-    const loop = makeLoop({
-      trustLevel: TRUST_LEVELS.FULL_AUTONOMY,
-      bus: s.bus,
-      spawnReturn: { spawned: false, reason: 'depth-limit' },
-    });
-    loop.goalStack.markObsolete = (id, reason) => { obsoleteCalledWith = { id, reason }; };
-    const result = await handleHardGateAbort(loop, { proceed: false, riskScore: 5.9, reason: 'simulation-risk' },
-      0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { type: 'CODE', description: 'x' }, 0);
-    assert(result.action === 'obsolete', `expected obsolete, got ${result.action}`);
-    assert(obsoleteCalledWith && obsoleteCalledWith.id === 'goal_test_001',
-      'markObsolete must be called with the goalId');
-    assert(!s.events.some(e => e.ev === 'agent-loop:needs-input'),
-      'FULL_AUTONOMY must NEVER emit needs-input even on decompose refusal');
+    const loop = makeLoop({ trustLevel: 2, bus: s.bus });
+    const cog = { proceed: false, reason: 'simulation-risk', riskScore: 4.9 };
+    const res = await handleHardGateAbort(loop, cog, 0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { id: 'step' }, 0);
+    assert(res.aborted === false, 'low-risk must proceed too');
   });
 
-  test('DISP-06: no TrustLevelSystem → SUPERVISED behaviour (warn-only)', async () => {
+  test('PROCEED-proceed-true: cogResult.proceed === true -> aborted:false', async () => {
     const s = makeStubs();
-    const loop = makeLoop({ trustLevel: undefined, bus: s.bus });
-    loop.trustLevelSystem = null; // explicitly absent
-    const result = await handleHardGateAbort(loop, { proceed: false, riskScore: 5.9, reason: 'simulation-risk' },
-      0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { type: 'CODE', description: 'x' }, 0);
-    assert(result.aborted === false,
-      'missing TrustLevelSystem must default to SUPERVISED behaviour (warn-only)');
-    assert(!s.events.some(e => e.ev === 'agent-loop:needs-input'),
-      'no needs-input from hard-gate when TrustLevelSystem is missing');
+    const loop = makeLoop({ trustLevel: 0, bus: s.bus });
+    const cog = { proceed: true, reason: null, riskScore: 9.9 };
+    const res = await handleHardGateAbort(loop, cog, 0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { id: 'step' }, 0);
+    assert(res.aborted === false, 'proceed=true must never abort');
   });
 
-  test('DISP-07: telemetry simulation-abort event fires at any level when gate triggers', async () => {
+  test('NO-CASCADE: two consecutive high-risk goals -> no sub-goal spawned for either', async () => {
     const s = makeStubs();
-    const loop = makeLoop({ trustLevel: TRUST_LEVELS.AUTONOMOUS, bus: s.bus });
-    await handleHardGateAbort(loop, { proceed: false, riskScore: 5.9, reason: 'simulation-risk' },
-      0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { type: 'CODE', description: 'x' }, 0);
-    assert(s.events.some(e => e.ev === 'agent-loop:simulation-abort'),
-      'simulation-abort telemetry must fire at any trust level so dashboards see the high-risk class');
+    let spawnCount = 0;
+    const loop = makeLoop({ trustLevel: 2, bus: s.bus });
+    loop.recovery._trySpawnObstacleSubgoal = async () => { spawnCount++; return { spawned: true, subId: 'x' }; };
+    const cog = { proceed: false, reason: 'simulation-risk', riskScore: 6.1 };
+    await handleHardGateAbort(loop, cog, 0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { id: 'a' }, 0);
+    loop.currentGoalId = 'goal_test_002';
+    await handleHardGateAbort(loop, cog, 0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { id: 'b' }, 0);
+    assert(spawnCount === 0, `no decompose cascade — _trySpawnObstacleSubgoal must never fire, got ${spawnCount}`);
   });
-
-  test('DISP-08: cogResult.proceed === true → aborted=false even at high risk', async () => {
-    const s = makeStubs();
-    const loop = makeLoop({ trustLevel: TRUST_LEVELS.SUPERVISED, bus: s.bus });
-    const result = await handleHardGateAbort(loop, { proceed: true, riskScore: 9.9, reason: 'flagged but allowed' },
-      0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { type: 'CODE', description: 'x' }, 0);
-    assert(result.aborted === false,
-      'proceed=true must short-circuit even at risk 9.9');
-  });
-
-  test('DISP-09: risk under threshold → aborted=false, no telemetry, no warning event fire', async () => {
-    const s = makeStubs();
-    const loop = makeLoop({ trustLevel: TRUST_LEVELS.AUTONOMOUS, bus: s.bus });
-    const result = await handleHardGateAbort(loop, { proceed: false, riskScore: 3.0, reason: 'low-risk' },
-      0, s.onProgress, s.emitFailure, s.clearTimeout, s.NullWorkspaceCtor, s.log, { type: 'CODE', description: 'x' }, 0);
-    assert(result.aborted === false, 'risk 3.0 must not abort');
-    assert(!s.events.some(e => e.ev === 'agent-loop:simulation-abort'),
-      'risk below threshold must NOT fire simulation-abort telemetry');
-  });
-
-  // ── File-size guard preservation ────────────────────────
 
   test('LOC-01: AgentLoopPursuit.js stays under 700 LOC after (C) simplification', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopPursuit.js'), 'utf8');

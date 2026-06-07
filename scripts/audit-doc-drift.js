@@ -319,7 +319,7 @@ function runChecks() {
                       compare: (got, exp) => got === exp },
         schemas:    { live: '100%',              label: 'badge: schemas',
                       compare: (got, exp) => got === exp },
-        services:   { live: 181,                 label: 'badge: services' },
+        services:   { live: 182,                 label: 'badge: services' }, // v7.9.20: +selfModOutcomeTracker
         phases:     { live: 12,                  label: 'badge: phases' },
         capabilities: { live: '240+',            label: 'badge: capabilities',
                         // "240+" wildcards: match if README shows N+ where N >= 240.
@@ -550,6 +550,31 @@ function runChecks() {
         /\|\s*npm Dependencies\s*\|\s*([^|]+?)\s*\|/, expectedDeps,
         (m) => m[1].trim());
       if (rD) { checked.push(rD); if (!rD.ok) drifts.push(rD); }
+    }
+  }
+
+  // #9 (v7.9.20): README.md's own stats-table copies of the test-file and
+  // dependency counts. The badge block pins README's shields.io badges and
+  // #5/#8 pin the ARCHITECTURE-DEEP-DIVE / CAPABILITIES copies, but README's
+  // own "Test suites | N files" and "Dependencies | …" rows were unpinned and
+  // could drift independently — pin them against the same live values here.
+  {
+    let readme;
+    try { readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf-8'); }
+    catch { readme = null; }
+    if (readme) {
+      const rRTF = check('README.md', readme, 'Test suites file count',
+        /\|\s*Test suites\s*\|\s*(\d+)\s*files,/, TEST_FILES);
+      if (rRTF) { checked.push(rRTF); if (!rRTF.ok) drifts.push(rRTF); }
+
+      const pjR = require(path.join(ROOT, 'package.json'));
+      const expectedDepsR = `${Object.keys(pjR.dependencies || {}).length} production + `
+        + `${Object.keys(pjR.optionalDependencies || {}).length} optional + `
+        + `${Object.keys(pjR.devDependencies || {}).length} dev`;
+      const rRD = check('README.md', readme, 'Dependencies row',
+        /\|\s*Dependencies\s*\|\s*([^|]+?)\s*\|/, expectedDepsR,
+        (m) => m[1].trim());
+      if (rRD) { checked.push(rRD); if (!rRD.ok) drifts.push(rRD); }
     }
   }
 

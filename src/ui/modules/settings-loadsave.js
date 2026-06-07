@@ -98,6 +98,7 @@ async function openSettings() {
     if (s?.daemon?.enabled !== undefined) $('#set-daemon').value = String(s.daemon.enabled);
     if (s?.idleMind?.enabled !== undefined) $('#set-idle').value = String(s.idleMind.enabled);
     if (s?.security?.allowSelfModify !== undefined) $('#set-selfmod').value = String(s.security.allowSelfModify);
+    if (s?.security?.selfModifyRequiresConfirmation !== undefined) $('#set-selfmod-confirm').value = String(s.security.selfModifyRequiresConfirmation);
 
     if (s?.trust?.level !== undefined && $('#set-trust-level')) {
       $('#set-trust-level').value = String(s.trust.level);
@@ -269,6 +270,7 @@ async function saveSettings() {
   sets.push(['daemon.enabled', $('#set-daemon').value === 'true']);
   sets.push(['idleMind.enabled', $('#set-idle').value === 'true']);
   sets.push(['security.allowSelfModify', $('#set-selfmod').value === 'true']);
+  sets.push(['security.selfModifyRequiresConfirmation', $('#set-selfmod-confirm').value === 'true']);
 
   // v7.4.7: Trust, Auto-Resume, MCP-Serve, Approval-Timeout
   const trustLevelEl = $('#set-trust-level');
@@ -288,7 +290,7 @@ async function saveSettings() {
   const approvalTimeoutEl = $('#set-approval-timeout');
   if (approvalTimeoutEl?.value) {
     const t = parseInt(approvalTimeoutEl.value, 10);
-    if (!Number.isNaN(t) && t >= 10 && t <= 3600) sets.push(['timeouts.approvalSec', t]);
+    if (!Number.isNaN(t) && t >= 0 && t <= 3600) sets.push(['timeouts.approvalSec', t]); // v7.9.20: 0 = no timeout
   }
 
   const autoRouteEl = $('#set-auto-route');

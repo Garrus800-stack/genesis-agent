@@ -21,8 +21,8 @@
 
 const { LIMITS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
-const { buildPlannerStepTypeList } = require('./step-types');
-const { isReadOnlyGoal } = require('./goal-intent');
+const { buildPlannerStepTypeList } = require('../core/step-types');
+const { isReadOnlyGoal } = require('../core/goal-intent');
 const { pickRelevantModules, formatModulePathList, normalizeStepTypes } = require('./plan-context');
 const _log = createLogger('AgentLoopPlanner');
 

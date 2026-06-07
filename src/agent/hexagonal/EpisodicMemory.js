@@ -113,6 +113,12 @@ class EpisodicMemory {
       artifacts: data.artifacts || [],
       toolsUsed: data.toolsUsed || [],
       emotionalArc: data.emotionalArc || null,
+      // v7.9.20: carry surprise/emotional weight so DreamCycle prioritises the
+      // emotionally salient episodes (read by DreamCycleAnalysis as
+      // metadata?.surprise || emotionalWeight). Previously never written, so the
+      // read side always saw 0 — a dead feature. Both ends are now wired.
+      metadata: data.metadata || {},
+      emotionalWeight: data.emotionalWeight != null ? data.emotionalWeight : null,
       keyInsights: data.keyInsights || [],
       tags: data.tags || [],
       relatedEpisodes: [],

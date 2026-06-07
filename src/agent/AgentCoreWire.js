@@ -368,6 +368,7 @@ class AgentCoreWire {
 
     // Phase 9: Cognitive Architecture
     start('surpriseAccumulator');
+    start('selfModOutcomeTracker'); // v7.9.20 (O)
     start('selfNarrative');
     // v7.9.7 P3: ReasoningTracer registers eleven event subscriptions in
     // its start() method. Pre-fix the service was constructed in

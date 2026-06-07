@@ -82,7 +82,10 @@ class AgentLoop {
     this.maxConsecutiveErrors = LIMITS.AGENT_LOOP_MAX_ERRORS;
     this.consecutiveErrors = 0;
     this._aborted = false;
-    this._approvalTimeoutMs = approvalTimeoutMs || TIMEOUTS.APPROVAL_DEFAULT;
+    // v7.9.20: nullish (not ||) so approvalTimeoutMs=0 ("no timeout — stay until I click")
+    // survives instead of collapsing back to the default. 0 means the Dashboard
+    // approval entry waits indefinitely for approve()/reject().
+    this._approvalTimeoutMs = approvalTimeoutMs ?? TIMEOUTS.APPROVAL_DEFAULT;
 
     // v7.9.7-fix (P5 high-risk-on-retry): per-goal pursuit attempt counter,
     // incremented at the start of each pursue() call, deleted on success.
@@ -125,6 +128,7 @@ class AgentLoop {
     this.episodicMemory = null;     // EpisodicMemory
     this.metaLearning = null;       // MetaLearning
     this.trustLevelSystem = null;   // EarnedAutonomy (v6.0.7)
+    this.skillManager = null;       // v7.9.20 (C): late-bound skill registry (skill-step gate)
     this._symbolicResolver = null;  // SymbolicResolver (v6.0.8)
     /** @type {*} */ this._failureTaxonomy = null;    // v7.0.5
     /** @type {*} */ this._colonyOrchestrator = null;  // v7.0.3

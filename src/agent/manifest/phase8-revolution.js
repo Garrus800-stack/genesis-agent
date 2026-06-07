@@ -97,7 +97,7 @@ function phase8(ctx, R) {
         tools: c.resolve('tools'), guard, eventStore: c.resolve('eventStore'),
         shellAgent: c.resolve('shellAgent'), selfModPipeline: c.resolve('selfModPipeline'),
         lang: R('Language').lang, storage: c.resolve('storage'), rootDir,
-        approvalTimeoutMs: (c.resolve('settings').get('timeouts.approvalSec') || 60) * 1000,
+        approvalTimeoutMs: (c.resolve('settings').get('timeouts.approvalSec') ?? 0) * 1000, // v7.9.20: ?? + default 0 = no timeout (stay until click)
         strictCognitiveMode: c.resolve('settings').get('cognitive.strictMode') || false,
       }),
     }],

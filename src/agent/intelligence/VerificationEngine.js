@@ -109,7 +109,7 @@ class VerificationEngine {
     let normalizedType = rawType;
     if (rawType !== 'WRITE_FILE') {
       try {
-        const { normalizeStepType } = require('../revolution/step-types');
+        const { normalizeStepType } = require('../core/step-types');
         const n = normalizeStepType(rawType);
         if (n) normalizedType = n;
       } catch (_e) { /* fall through with rawType */ }

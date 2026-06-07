@@ -9,7 +9,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~119k LOC of JavaScript (CommonJS), 385 source modules, with zero external runtime frameworks. The manifest statically registers 168 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 181 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
+The codebase is ~119k LOC of JavaScript (CommonJS), 392 source modules, with zero external runtime frameworks. The manifest statically registers 169 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 182 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
 
 ---
 
@@ -135,7 +135,7 @@ AgentLoop.run(goalDescription)
 
 Step types: `ANALYZE`, `CODE`, `SANDBOX`, `SHELL`, `SEARCH`, `ASK`, `DELEGATE`
 
-**Files:** `src/agent/revolution/AgentLoop.js`, `src/agent/revolution/AgentLoopSteps.js`
+**Files:** `src/agent/revolution/AgentLoop.js`, `src/agent/revolution/AgentLoopSteps.js`, `src/agent/revolution/skill-step.js` (v7.9.20 — an autonomous skill can fulfil a step), `src/agent/autonomy/activities/ProposeImprovements.js` (v7.9.20 — agent-loop analyses become improvement proposals)
 **Events:** `agent-loop:started`, `agent-loop:step-complete`, `agent-loop:complete`, `goal:completed`
 
 ### 3.7 Side Effects

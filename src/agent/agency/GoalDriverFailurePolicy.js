@@ -35,7 +35,7 @@
 'use strict';
 
 const { createLogger } = require('../core/Logger');
-const { isStructuralFailure } = require('./failure-patterns');
+const { isStructuralFailure } = require('../core/failure-patterns');
 const _log = createLogger('GoalDriver');
 
 const failurePolicyMixin = {

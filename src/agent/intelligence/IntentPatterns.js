@@ -320,7 +320,14 @@ const INTENT_DEFINITIONS = [
   // like "öffne es" by looking up the most-recently-installed package.
   ['open-software', [
     /(?:^|\s)\/open\b/i,
-    /(?:öffne|starte?|f[üu]hre)\s+(?:mir\s+)?(?:bitte\s+)?(?:es|das|ihn|sie|[a-z0-9][a-z0-9._-]{1,49})\b/i,
+    // v7.9.20 (S1): require a real app signal — an app keyword or an
+    // executable-looking token — so ordinary "öffne dich mir gegenüber" /
+    // "starte mal eben" no longer bounce. A bare unknown word (no signal) is
+    // deliberately NOT matched (safer default; it falls through to general).
+    // EN parity: open/launch/start/run + English app words. No leading \b:
+    // in ASCII-mode regex \b does not match before the umlaut in "öffne"
+    // (precision comes from the required \s+ and the app-signal, not \b).
+    /(?:öffne|oeffne|starte?|f(?:ü|ue|u)hre?|open|launch|start|run)\s+(?:mir\s+|bitte\s+|das\s+|die\s+|den\s+|the\s+|a\s+)*(?:app|application|anwendung|programm|program|browser|editor|ide|terminal|konsole|console|explorer|notepad|vscode|chrome|firefox|[\w.-]+\.(?:exe|app|sh|bat|cmd|msi|desktop|appimage))\b/i,
   ], 12, ['open', 'öffne', 'starte', 'launch', 'run']],
 
   // Slash-only. Free-text mentions ("was hast du so gedacht?",
@@ -396,11 +403,11 @@ const INTENT_DEFINITIONS = [
     // v7.5.1: slash-trigger (REQUIRED — see SECURITY_REQUIRED_SLASH)
     /(?:^|\s)\/shell-task\b/i,
     /^(?:npm|node|git|yarn|pnpm|pip|cargo|make)\s+/i,
-    /install(?:iere?)?\s+(?:die\s+)?(?:deps|dependencies|abhaengigkeiten|pakete?)/i,
-    /(?:fuehr|start|lauf).*(?:test|build|lint|script)/i,
+    /install(?:iere?)?\s+(?:die\s+|the\s+)?(?:deps|dependencies|abhaengigkeiten|pakete?)/i,
+    /\b(?:f(?:ü|ue|u)hre?|starte?|laufe?|run|execute|build)\s+(?:den\s+|die\s+|das\s+|the\s+|a\s+)?(?:test|build|lint|script|projekt|project)s?\b/i,
     /erstell.*(?:projekt|ordner|verzeichnis|datei)/i,
     /(?:init|setup|scaffold|bootstrap).*(?:projekt|app)/i,
-    /(?:richte|setz).*(?:ein|auf)\b/i,
+    /\b(?:richte|setze?)\s+(?:das\s+|die\s+|den\s+|ein\s+|the\s+)?(?:projekt|project|repo|repository|app|anwendung|umgebung|environment|server|datenbank|database|build)\b/i,
     /(?:richte|setup|einrichten|installiere|baue|build|deploy|teste?)\s+(?:das|dieses|das\s+)?\s*(?:projekt|repo|repository|app|anwendung)/i,
     /(?:fuehr|starte?|run)\s+(?:die\s+)?tests?\s+(?:aus|durch)/i,
     /pip\s+install/i,

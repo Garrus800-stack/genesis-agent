@@ -47,6 +47,7 @@ const ACTIVITY_MODULES = [
   require('./activities/ReadSource'), // v7.3.1
   require('./activities/SkillRehearsal'), // v7.9.4
   require('./activities/Inhabit'),        // v7.9.5
+  require('./activities/ProposeImprovements'), // v7.9.20 (D)
 ];
 const ACTIVITY_BY_NAME = Object.fromEntries(ACTIVITY_MODULES.map(a => [a.name, a]));
 
@@ -125,6 +126,10 @@ class IdleMind {
     this.journalPath = path.join(storageDir, 'journal.jsonl');
     this.planPath = path.join(storageDir, 'plans.json');
     this.plans = this._loadPlans();
+    // v7.9.20 (D): self-improvement proposals (bounded), raised by the
+    // ProposeImprovements activity, decided via the dashboard.
+    this.proposalPath = path.join(storageDir, 'proposals.json');
+    this.proposals = this._loadProposals();
 
     // v7.5.7-fix Phase 2: journal rotation. Default 10MB, keep 3 rotations.
     // Read from settings if available (settings is late-bound — fallback ok).
@@ -652,6 +657,25 @@ class IdleMind {
       atomicWriteFileSync(this.planPath, JSON.stringify(this.plans, null, 2), 'utf-8');
     } catch (err) {
       _log.warn('[IDLE-MIND] Plan sync save failed:', err.message);
+    }
+  }
+
+  // v7.9.20 (D): improvement-proposal persistence (mirrors plans).
+  _loadProposals() {
+    try {
+      if (this.storage) return this.storage.readJSON('proposals.json', []);
+      if (fs.existsSync(this.proposalPath)) return safeJsonParse(fs.readFileSync(this.proposalPath, 'utf-8'), null, 'IdleMind');
+    } catch (err) { _log.debug('[IDLE] Proposal load failed:', err.message); }
+    return [];
+  }
+
+  _saveProposals() {
+    try {
+      if (this.storage) { this.storage.writeJSONDebounced('proposals.json', this.proposals); return; }
+      if (!fs.existsSync(this.storageDir)) fs.mkdirSync(this.storageDir, { recursive: true });
+      atomicWriteFileSync(this.proposalPath, JSON.stringify(this.proposals, null, 2), 'utf-8');
+    } catch (err) {
+      _log.warn('[IDLE-MIND] Proposal save failed:', err.message);
     }
   }
 

@@ -26,7 +26,9 @@ class ApprovalGate {
     this.bus = bus;
     this.trustLevelSystem = trustLevelSystem || null;
     this._parent = parent || null; // v7.2.2: Lazy-read for late-bound services
-    this._timeoutMs = timeoutMs || DEFAULT_TIMEOUT_MS;
+    // v7.9.20: nullish so a passed-in 0 ("no timeout") is preserved. 0 / negative
+    // → no auto-reject timer in request(); the prompt stays until approve()/reject().
+    this._timeoutMs = (timeoutMs == null) ? DEFAULT_TIMEOUT_MS : timeoutMs;
     this._pending = null;
     /** @type {string|null} */ this.currentGoalId = null;
   }
@@ -57,20 +59,22 @@ class ApprovalGate {
     }
 
     return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        this._pending = null;
-        resolve(false);
-      }, this._timeoutMs);
+      // v7.9.20: only arm an auto-reject timer when a positive timeout is configured.
+      // _timeoutMs <= 0 means "stay until the user clicks" — the prompt persists in the
+      // Dashboard indefinitely and resolves only through approve()/reject().
+      const timeout = this._timeoutMs > 0
+        ? setTimeout(() => { this._pending = null; resolve(false); }, this._timeoutMs)
+        : null;
 
       this._pending = {
         action, description,
         resolve: (approved) => {
-          clearTimeout(timeout);
+          if (timeout) clearTimeout(timeout);
           this._pending = null;
           resolve(approved);
         },
         reject: () => {
-          clearTimeout(timeout);
+          if (timeout) clearTimeout(timeout);
           this._pending = null;
           resolve(false);
         },

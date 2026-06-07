@@ -1,6 +1,6 @@
 // @ts-checked-v7.9.7
 // ============================================================
-// GENESIS — agency/failure-patterns.js (v7.9.7)
+// GENESIS — core/failure-patterns.js (v7.9.7)
 //
 // Single source of truth for failure-message pattern matching.
 // Two callers depend on identical classification:

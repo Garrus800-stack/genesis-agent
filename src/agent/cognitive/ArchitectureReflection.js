@@ -80,6 +80,13 @@ class ArchitectureReflection {
     this._lastBuildTs = 0;
     this._buildCount = 0;
     this._staleThresholdMs = (config?.staleThresholdMs) || 300_000;
+    // v7.9.20 (P1): per-file emitter cache. _scanEmitters re-read every .js
+    // under the agent tree (352 files) on every rebuild — fine on SSD, but on
+    // Windows with per-access AV scanning it produced multi-second spikes.
+    // Cache { mtimeMs, pairs } per file and re-read only changed files.
+    // Behaviour-neutral: same result, less I/O.
+    /** @type {Map<string, { mtimeMs: number, pairs: Array<[string,string]> }>} */
+    this._emitterCache = new Map();
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -207,19 +214,32 @@ class ArchitectureReflection {
       }
       if (!entry.name.endsWith('.js') || entry.name.endsWith('.test.js')) continue;
 
-      const code = fs.readFileSync(full, 'utf8');
-      const basename = entry.name.replace('.js', '');
-      let m;
+      // v7.9.20 (P1): mtime cache — skip re-reading unchanged files.
+      let pairs;
+      let mtimeMs = 0;
+      try { mtimeMs = fs.statSync(full).mtimeMs; } catch (_e) { /* read below */ }
+      const cached = this._emitterCache.get(full);
+      if (cached && mtimeMs && cached.mtimeMs === mtimeMs) {
+        pairs = cached.pairs;
+      } else {
+        pairs = [];
+        const code = fs.readFileSync(full, 'utf8');
+        const basename = entry.name.replace('.js', '');
+        let m;
+        while ((m = emitRe.exec(code))) {
+          const event = m[1];
+          const ctx = code.slice(Math.max(0, m.index - 10), m.index + m[0].length + 80);
+          const srcMatch = sourceRe.exec(ctx);
+          pairs.push([event, srcMatch ? srcMatch[1] : basename]);
+        }
+        if (mtimeMs) this._emitterCache.set(full, { mtimeMs, pairs });
+      }
 
-      while ((m = emitRe.exec(code))) {
-        const event = m[1];
+      for (const [event, source] of pairs) {
         if (!this._events.has(event)) {
           this._events.set(event, { emitters: new Set(), listeners: new Set() });
         }
-        // Try to find source in nearby text
-        const ctx = code.slice(Math.max(0, m.index - 10), m.index + m[0].length + 80);
-        const srcMatch = sourceRe.exec(ctx);
-        this._events.get(event).emitters.add(srcMatch ? srcMatch[1] : basename);
+        this._events.get(event).emitters.add(source);
       }
     }
   }

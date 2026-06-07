@@ -57,7 +57,7 @@ const { normalizeStepTypes } = require(
 const { robustJsonParse } = require(
   path.join(ROOT, 'src/agent/core/utils'));
 const { isStructuralFailure, STRUCTURAL_FAILURE_RE } = require(
-  path.join(ROOT, 'src/agent/agency/failure-patterns'));
+  path.join(ROOT, 'src/agent/core/failure-patterns'));
 
 const TRACE_ERROR = "Cannot create property 'description' on string 'Fix syntax error in test file by completing incomplete code blocks'";
 
@@ -457,7 +457,7 @@ test('EXT P3: AgentCoreWire._startServices includes start(reasoningTracer)', () 
 
 test('EXT P4: ASK_USER normalises to ASK', () => {
   const { normalizeStepType } = require(
-    path.join(ROOT, 'src/agent/revolution/step-types'));
+    path.join(ROOT, 'src/agent/core/step-types'));
   assertEqual(normalizeStepType('ASK_USER'), 'ASK');
 });
 
@@ -470,7 +470,7 @@ test('EXT P5: AgentLoop has _pursuitAttempts map for retry tracking', () => {
     'AgentLoop must initialise _pursuitAttempts');
 });
 
-test('EXT P5: AgentLoopPursuitGate hard-gates simulation on retry with high risk', () => {
+test('EXT P5: AgentLoopPursuitGate machinery wired; v7.9.20 gate proceeds (no abort)', () => {
   // v7.9.7-fix (P5/P5b): logic extracted to AgentLoopPursuitGate.js to keep
   // AgentLoopPursuit.js under the 700-LOC File-Size-Guard threshold.
   // v7.9.9 Fix 5: full abort sequence further extracted to handleHardGateAbort
@@ -489,8 +489,8 @@ test('EXT P5: AgentLoopPursuitGate hard-gates simulation on retry with high risk
     path.join(ROOT, 'src/agent/revolution/AgentLoopPursuit.js'), 'utf8');
   assert(/handleHardGateAbort\(this,\s*cogResult/.test(pursuitSrc),
     'pursue() must dispatch to handleHardGateAbort with this and cogResult');
-  assert(/aborting/i.test(pursuitSrc) || /aborting/i.test(gateSrc),
-    'hard-gate path must log an aborting message on high-risk retry');
+  assert(/sim-risk is not a gate/.test(gateSrc),
+    'v7.9.20: gate must log that it proceeds (sim-risk is not a gate), not abort');
 });
 
 // ── P6 — ContinuationLoop max raised ──
@@ -595,9 +595,11 @@ test('EXT P9: _decayTick uses 3x rate when value is in extreme territory', () =>
 
 // ── P15 — extended stopwords on goal-token-overlap ──
 
-test('EXT P15: activities/Plan.js token-overlap uses extended stopword list', () => {
+test('EXT P15: core/goal-intent.js token-overlap uses extended stopword list', () => {
+  // v7.9.20 (§8): _STOPWORDS moved from activities/Plan.js into the shared
+  // core/goal-intent module (Plan.js imports + re-exports the helpers).
   const src = fs.readFileSync(
-    path.join(ROOT, 'src/agent/autonomy/activities/Plan.js'), 'utf8');
+    path.join(ROOT, 'src/agent/core/goal-intent.js'), 'utf8');
   assert(/_STOPWORDS/.test(src), 'must define _STOPWORDS set');
   assert(/'activity'/.test(src), 'activity must be in stopwords (matched both v7.9.7-trace goals)');
   assert(/'error'/.test(src), 'error must be in stopwords (generic goal-word)');
@@ -646,30 +648,39 @@ test('CHAIN: v7.9.8 Win-trace lesson (real recall shape) does not produce DIRECT
 // 0% because the verifier was running against P5-abort error strings).
 // ════════════════════════════════════════════════════════════════
 
-test('EXT2 P5: simulation hard-gate cleans up this.running before returning, preserves attempts counter (v7.9.8)', () => {
-  // v7.9.7-fix (P5b): cleanup centralised in AgentLoopPursuitGate.cleanupAfterAbort.
-  // v7.9.8 Fix 5: counter delete REMOVED so retry-with-high-risk stays gated
-  // across consecutive pursuits (Win trace showed deterministic loss otherwise).
-  // v7.9.9 Fix 5: full abort sequence (including cleanupAfterAbort) lives in
-  // handleHardGateAbort helper — pursue() dispatches to it.
+test('EXT2 P5: v7.9.20 — simulation-risk no longer aborts; handleHardGateAbort always proceeds', async () => {
+  // v7.9.20: simulation-risk is no longer a gate on ANY trust level. A read-only
+  // "Inspect Cognitive Monitor" goal scored 5.78 and cascaded into 4 empty sub-goals.
+  // handleHardGateAbort now always returns { aborted: false } and fires no
+  // simulation-abort telemetry / decompose / markObsolete. The old "clean up before
+  // aborting" invariant is retired together with the abort path itself.
+  const { handleHardGateAbort, TRUST_LEVELS } = require(
+    path.join(ROOT, 'src/agent/revolution/AgentLoopPursuitGate'));
   const gateSrc = fs.readFileSync(
     path.join(ROOT, 'src/agent/revolution/AgentLoopPursuitGate.js'), 'utf8');
-  assert(/loop\.running\s*=\s*false/.test(gateSrc),
-    'cleanupAfterAbort must reset running');
-  assert(/clearGlobalTimeout\(\)/.test(gateSrc),
-    'cleanupAfterAbort must clear the global timeout');
-  assert(!/_pursuitAttempts\.delete\(abortedGoalId\)/.test(gateSrc),
-    'cleanupAfterAbort must NOT delete the attempts counter (v7.9.8 Fix 5)');
-  // The handleHardGateAbort helper must invoke cleanupAfterAbort before returning aborted: true.
   const hardGateBlock = gateSrc.split(/function handleHardGateAbort/)[1] || '';
-  const beforeAbortReturn = hardGateBlock.split(/return\s*\{\s*aborted:\s*true/)[0] || '';
-  assert(/cleanupAfterAbort\(/.test(beforeAbortReturn),
-    'handleHardGateAbort must call cleanupAfterAbort BEFORE returning aborted:true');
+  assert(!/return\s*\{\s*aborted:\s*true/.test(hardGateBlock),
+    'handleHardGateAbort must not return aborted:true any more (sim-risk is not a gate)');
+  const log = { warn() {}, debug() {}, info() {} };
+  for (const lvl of [TRUST_LEVELS.SUPERVISED, TRUST_LEVELS.AUTONOMOUS, TRUST_LEVELS.FULL_AUTONOMY]) {
+    let sideEffect = false;
+    const loop = {
+      currentGoalId: 'g1',
+      bus: { fire() { sideEffect = true; } },
+      trustLevelSystem: { getLevel: () => lvl },
+      recovery: { _trySpawnObstacleSubgoal: async () => { sideEffect = true; return { spawned: true, subId: 's' }; } },
+      goalStack: { markObsolete() { sideEffect = true; } },
+    };
+    const cog = { proceed: false, reason: 'simulation-risk', riskScore: 5.78 };
+    const res = await handleHardGateAbort(loop, cog, 0, () => {}, () => {}, () => {}, function NW() {}, log, { id: 'step' }, 0);
+    assertEqual(res.aborted, false, `level ${lvl}: sim-risk must proceed (aborted:false)`);
+    assert(!sideEffect, `level ${lvl}: no simulation-abort / decompose / markObsolete`);
+  }
 });
 
 test('EXT2 P2: new step-type aliases REFACTOR/IMPLEMENT/FIX/UPDATE/PATCH normalise to CODE', () => {
   const { normalizeStepType } = require(
-    path.join(ROOT, 'src/agent/revolution/step-types'));
+    path.join(ROOT, 'src/agent/core/step-types'));
   for (const t of ['REFACTOR', 'IMPLEMENT', 'INTEGRATE', 'ADD', 'FIX', 'UPDATE', 'PATCH', 'WIRE']) {
     assertEqual(normalizeStepType(t), 'CODE',
       `${t} must normalise to CODE so _buildPathHint fires`);

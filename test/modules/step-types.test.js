@@ -8,7 +8,7 @@ const {
   STEP_TYPE_ALIASES,
   normalizeStepType,
   buildPlannerStepTypeList,
-} = require('../../src/agent/revolution/step-types');
+} = require('../../src/agent/core/step-types');
 
 describe('step-types catalog', () => {
   test('exports the seven canonical step types', () => {

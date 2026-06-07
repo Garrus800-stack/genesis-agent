@@ -217,11 +217,11 @@ track('G5a: reflection helper emits agent:goal-failed-classified', () => {
 });
 
 track('G5b: reflection helper classifies failures by category', () => {
-  // v7.9.7: classifyFailure moved to ../agency/failure-patterns to share
+  // v7.9.7: classifyFailure moved to ../core/failure-patterns to share
   // with GoalDriverFailurePolicy. Check both files for the category strings,
   // then verify the function is callable through its public re-export.
   const reflectionSrc = read('src/agent/revolution/AgentLoopPursuitReflection.js');
-  const helperSrc = read('src/agent/agency/failure-patterns.js');
+  const helperSrc = read('src/agent/core/failure-patterns.js');
   const combinedSrc = reflectionSrc + '\n' + helperSrc;
   for (const cat of ['structural', 'execution', 'external', 'user-action', 'unclassified']) {
     assert.ok(combinedSrc.includes(`'${cat}'`) || combinedSrc.includes(`"${cat}"`),

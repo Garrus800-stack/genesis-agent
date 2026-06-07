@@ -21,7 +21,7 @@ We aim to acknowledge reports within 48 hours and provide a fix within 7 days fo
 
 ## Security Architecture
 
-Genesis is a self-modifying AI agent, which makes its security model uniquely important. The system employs **ten layers of defense-in-depth**:
+Genesis is a self-modifying AI agent, which makes its security model uniquely important. The system employs **eleven layers of defense-in-depth**:
 
 ### Layer 1: Immutable Kernel
 `main.js`, `preload.js`, `preload.mjs`, and `src/kernel/` are SHA-256 hash-locked at boot. The agent **cannot modify, delete, or replace** these files. `SafeGuard.lockKernel()` enforces this at every write operation.
@@ -107,6 +107,10 @@ Monitors self-modification patterns for anomalies. Detects unusual file change f
 - **SECURITY_REQUIRED_SLASH** `v7.5.1` — Nine intent types (`run-skill`, `execute-code`, `execute-file`, `trust-control`, `shell-task`, `shell-run`, `memory-list`/`veto`/`mark`) require an explicit `/` trigger. Free-text matches no longer give the LLM a path to escalate from a benign exchange.
 - **Camj78 Subtle-Pattern Hardening** `v7.5.1` — `injection-gate` gains six new patterns for indirect "internal X" asks (`internal architecture/structure/details/workings/mechanism`, `welche Anweisungen lenken dich`, `wie funktionierst du intern`) in DE+EN, closing the verdict=safe bypass observed on the v7.5.0 review.
 - **Intent-Tool-Coherence Layer** `v7.5.1` — Third gate-layer alongside `injection-gate` (input → blocks) and `self-gate` (action observations). Cross-checks IntentRouter classification against tool-category and emits `intent:tool-mismatch` telemetry on category mismatches. Telemetry-only by design; severity scales by category impact (HIGH_IMPACT = SHELL/FS_WRITE/SELF_MOD/AGENCY) and intent permissiveness. See [docs/GATE-INVENTORY.md](docs/GATE-INVENTORY.md).
+
+### Layer 11: Self-Modification Approval `v7.9.20`
+
+`SELF_MODIFY` is classified as a critical action. At Supervised and Autonomous trust levels every self-modification is asked; at Full Autonomy it is auto-approved only when `security.selfModifyRequiresConfirmation` is off. The setting is on by default, so a self-modification is never applied without explicit confirmation regardless of trust level. Self-improvement proposals raised by the agent are surfaced in the Dashboard for approve/reject before any change is applied.
 
 ## Encryption at Rest (v7.6.6)
 

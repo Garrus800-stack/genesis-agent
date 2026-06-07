@@ -187,7 +187,7 @@ function formatModulePathList(modules) {
  */
 function normalizeStepTypes(steps, opts = {}) {
   if (!Array.isArray(steps)) return;
-  const { normalizeStepType } = require('./step-types');
+  const { normalizeStepType } = require('../core/step-types');
   const log = opts.logger || null;
   const tag = opts.tag || '[PLAN-CTX]';
   for (let i = 0; i < steps.length; i++) {

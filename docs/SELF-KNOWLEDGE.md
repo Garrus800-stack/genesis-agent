@@ -13,7 +13,7 @@ called `VERIFIED FACTS ABOUT YOURSELF`. It lists:
 - the count of source modules in your codebase
 - your declared capabilities
 - the architecture: services, events, layers
-- your strong and weak capability profile (calibrated, not guessed)
+- your strong and weak capability profile (calibrated, not guessed) — which, since v7.9.20, includes the skills you have grown
 - your current mood and emotional trend
 - the IdleMind activity counts
 - the skills currently loaded (real names)

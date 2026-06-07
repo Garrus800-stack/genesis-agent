@@ -11,7 +11,12 @@
 const fs = require('fs');
 const path = require('path');
 const { createLogger } = require('../../core/Logger');
-const { READONLY_VERBS, extractLeadingVerb } = require('../../revolution/goal-intent');
+const { READONLY_VERBS, extractLeadingVerb, _tokenize, _recentRelevantFailures,
+  _recentGoalsByStatus, _overlapRedundant, buildRecentGoalContext,
+  FAILURE_RELEVANCE_WINDOW_DAYS, OVERLAP_SKIP_RATIO, REDUNDANCY_FLOOR,
+  _TERMINAL_GOAL_STATUS, _DONE_GOAL_STATUS } = require('../../core/goal-intent');
+const { refineGoalDraft } = require('./plan-refine');
+const { orderByReviewState } = require('./plan-review-feedback');
 const _log = createLogger('IdleMind');
 
 // v7.9.9 Fix 3: extract src-path-like tokens from a goal title/description
@@ -41,31 +46,9 @@ function _hasHallucinatedPaths(text, realPathsList, rootDir) {
   return false;
 }
 
-// v7.9.7 P15: extended stopwords for goal-token-overlap dedup. Pre-fix
-// the tokeniser only filtered tokens shorter than 4 chars; it didn't
-// filter generic goal-words. Both "Improve Calibration Activity Error
-// Handling" and "Research Activity Time Logging" carried the token
-// 'activity' but only that one overlapped, so the ≥2 threshold didn't
-// trigger and both synthesised. With these in place only domain-content
-// tokens count towards the overlap.
-const _STOPWORDS = new Set([
-  'activity', 'activities',
-  'error', 'errors',
-  'improve', 'improvement',
-  'handle', 'handling',
-  'system', 'method',
-  'feature', 'function',
-  'process', 'general',
-  'better', 'support',
-  'enable', 'allow',
-]);
-
-// v7.9.19 (Strang B): plan-dedup knobs — window for "recent" failures,
-// floor + ratio for "redundant". Rationale in v7919-idlemind-dedup.test.js.
-const FAILURE_RELEVANCE_WINDOW_DAYS = 14;
-const OVERLAP_SKIP_RATIO = 0.6;
-const REDUNDANCY_FLOOR = 2;
-const _TERMINAL_GOAL_STATUS = new Set(['obsolete', 'stalled', 'failed']);
+// v7.9.20 (§8): _STOPWORDS, the dedup knobs, and the terminal/done status
+// sets now live in core/goal-intent (imported above) so this activity stays
+// under the RUNTIME-02 250-LOC cap.
 
 // v7.9.9 Fix 1 (Stage A): allowed leading verbs for IdleMind goals. Closed
 // whitelist — anything outside this set is refused. Catches paraphrased
@@ -75,40 +58,14 @@ const _TERMINAL_GOAL_STATUS = new Set(['obsolete', 'stalled', 'failed']);
 // (Improve, Refactor, Implement, Build, Add, Fix, Optimize) are
 // implicitly refused by being absent from this set.
 // v7.9.19 (Strang E): the verb list and leading-verb extraction now live in
-// the shared revolution/goal-intent module so the planner and this activity
+// the shared core/goal-intent module so the planner and this activity
 // use ONE vocabulary. Aliased here to keep the existing usage unchanged.
 const _ALLOWED_VERBS = READONLY_VERBS;
 const _extractLeadingVerb = extractLeadingVerb;
 
-// v7.9.19 (Strang B): content-token split (lowercase; drop <4-char tokens
-// and _STOPWORDS). Promoted from run() so the helpers below are testable.
-function _tokenize(s) {
-  return (s || '').toLowerCase()
-    .replace(/[^a-z0-9äöüß]+/g, ' ').split(/\s+/)
-    .filter(t => t.length >= 4 && !_STOPWORDS.has(t));
-}
-
-// v7.9.19 (Strang B): terminal goals within the window — the one shared
-// source for prompt hint AND skip check. g.updated→g.created; undated = out.
-function _recentRelevantFailures(goals, now, windowDays) {
-  const cutoff = now - windowDays * 86400000;
-  return (goals || []).filter(g => {
-    if (!g || !_TERMINAL_GOAL_STATUS.has(g.status)) return false;
-    const t = Date.parse(g.updated || g.created || '');
-    return Number.isFinite(t) && t >= cutoff;
-  });
-}
-
-// v7.9.19 (Strang B): redundant iff >= REDUNDANCY_FLOOR distinct tokens
-// overlap AND overlap/|titleTokens| >= ratio. Returns the count for the log.
-function _overlapRedundant(titleTokens, descTokens, ratio = OVERLAP_SKIP_RATIO) {
-  const descSet = descTokens instanceof Set ? descTokens : new Set(descTokens);
-  let overlap = 0;
-  for (const t of descSet) if (titleTokens.has(t)) overlap++;
-  const size = titleTokens.size || 1;
-  const redundant = overlap >= REDUNDANCY_FLOOR && (overlap / size) >= ratio;
-  return { overlap, redundant };
-}
+// v7.9.20 (§8): _tokenize, _recentRelevantFailures and _overlapRedundant now
+// live in core/goal-intent (imported above) and are re-exported below for the
+// existing dedup tests.
 
 module.exports = {
   name: 'plan',
@@ -137,28 +94,27 @@ module.exports = {
     const caps = idleMind.selfModel?.getCapabilities() || [];
     const existingPlans = idleMind.plans.slice(-3);
 
-    // v7.7.9 (post-burnin P2): list real source files so the LLM can
-    // only reference them. Cap at 30 to keep prompt size manageable.
-    const realPaths = modules.slice(0, 30).map(m => m.file).join('\n');
+    // v7.7.9 (post-burnin P2): list real source files so the LLM can only
+    // reference them. v7.9.20 (L1): order not-yet-covered files first and
+    // surface already-covered ones, reading ALL insight nodes (Explore/ReadSource/
+    // F2) by module||file — this is what ends the idle inspection loop.
+    const { realPaths, alreadyReviewed } = orderByReviewState(modules, idleMind.kg);
 
-    // v7.7.9 (post-burnin P2): show recent failed/obsolete goals so the LLM
-    // doesn't propose the same one again. v7.9.19 (Strang B): ONE aged list,
-    // shared with the skip check below, so neither is fed a stale failure.
-    const recentFailures = _recentRelevantFailures(
-      idleMind.goalStack?.goals || [], Date.now(), FAILURE_RELEVANCE_WINDOW_DAYS);
-    const recentFailed = recentFailures
-      .slice(-5)
-      .map(g => `- ${(g.description || '').slice(0, 80)} [${g.status}]`)
-      .join('\n');
+    // v7.7.9 + v7.9.20 (A): show recent FAILED and recent COMPLETED goals so
+    // the LLM re-proposes neither. The completed list is drawn from the archive
+    // ∪ live stack (buildRecentGoalContext) — a finished goal has left the live
+    // stack for goals/archive.json, so reading only the live list would miss it.
+    const { recentFailures, recentCompleted, failedHint: recentFailed, completedHint: recentDone } =
+      buildRecentGoalContext({ goalStack: idleMind.goalStack, storage: idleMind.storage, now: Date.now(), log: _log });
 
-    const prompt = `You are Genesis. Propose ONE concrete, verifiable activity that fits your current capabilities.\n\nReal source files you can reference (use EXACTLY these paths, do not invent):\n${realPaths}\n\nYour capabilities: ${caps.join(', ')}\n${existingPlans.length ? 'Previous plans:\n' + existingPlans.map(p => `- ${p.title}: ${p.status}`).join('\n') : ''}\n${recentFailed ? '\nRecently FAILED goals (do NOT propose similar ones — they are obsolete):\n' + recentFailed : ''}\n\nRules:\n- Pick a SMALL, concrete activity (not an abstract meta-system).\n- TITLE must start with one of these verbs: Document, Reflect, Summarise, Research, Test, Verify, List, Compare, Investigate, Map, Index, Explore, Catalog, Inspect.\n- Reference ONLY real files from the list above.\n- The activity must be verifiable in <= 3 steps.\n- If you cannot find a small concrete activity, output: TITLE: SKIP\n\nFormat:\nTITLE: [Verb + short name, or SKIP if no concrete idea]\nPRIORITY: [high/medium/low]\nEFFORT: [small/medium/large]\nDESCRIPTION: [What exactly should be done, max 3 sentences]\nFIRST_STEP: [The very first concrete step, referencing a real file]`;
+    const prompt = `You are Genesis. Propose ONE concrete, verifiable activity that fits your current capabilities.\n\nReal source files you can reference (use EXACTLY these paths, do not invent):\n${realPaths}\n\nYour capabilities: ${caps.join(', ')}\n${existingPlans.length ? 'Previous plans:\n' + existingPlans.map(p => `- ${p.title}: ${p.status}`).join('\n') : ''}\n${alreadyReviewed ? '\nAlready covered (do NOT inspect again unless you have a genuinely new angle; prefer a file not in this list):\n' + alreadyReviewed : ''}\n${recentFailed ? '\nRecently FAILED goals (do NOT propose similar ones — they are obsolete):\n' + recentFailed : ''}${recentDone ? '\nRecently COMPLETED goals (do NOT propose these again — they are already done):\n' + recentDone : ''}\n\nRules:\n- Pick a SMALL, concrete activity (not an abstract meta-system).\n- TITLE must start with one of these verbs: Document, Reflect, Summarise, Research, Test, Verify, List, Compare, Investigate, Map, Index, Explore, Catalog, Inspect.\n- Reference ONLY real files from the list above.\n- The activity must be verifiable in <= 3 steps.\n- If you cannot find a small concrete activity, output: TITLE: SKIP\n\nFormat:\nTITLE: [Verb + short name, or SKIP if no concrete idea]\nPRIORITY: [high/medium/low]\nEFFORT: [small/medium/large]\nDESCRIPTION: [What exactly should be done, max 3 sentences]\nFIRST_STEP: [The very first concrete step, referencing a real file]`;
 
     const thought = await idleMind.model.chat(prompt, [], 'analysis');
 
     const titleMatch = thought.match(/TITLE:\s*(.+)/i) || thought.match(/TITEL:\s*(.+)/i);
     const prioMatch = thought.match(/PRIORITY:\s*(.+)/i) || thought.match(/PRIORITAET:\s*(.+)/i);
     if (titleMatch) {
-      const title = titleMatch[1].trim();
+      let title = titleMatch[1].trim();
 
       // v7.7.9 (post-burnin P2): respect SKIP signal from LLM and
       // skip empty/single-word abstract titles.
@@ -191,6 +147,20 @@ module.exports = {
         return thought;
       }
 
+      // v7.9.20 (A): hard completed-skip — refuse a goal that re-proposes a
+      // recently COMPLETED goal (same overlap test, over the archive ∪ live
+      // view). This is the actual fix for the "same goal proposed for days"
+      // bug: the finished goal lives only in the archive.
+      let _skipDone = 0;
+      for (const g of recentCompleted.slice(-10)) {
+        const { overlap, redundant } = _overlapRedundant(titleTokens, _tokenize(g.description || g.title || ''));
+        if (redundant && overlap > _skipDone) _skipDone = overlap;
+      }
+      if (_skipDone > 0) {
+        _log.info(`[IDLE-MIND] Plan: skipping "${title.slice(0, 50)}" — ${_skipDone} tokens overlap with a recently completed goal`);
+        return thought;
+      }
+
       // v7.9.9 Fix 3: reject goals that reference non-existent src/ paths.
       // The LLM is told "use EXACTLY these paths" but ignores it. Pre-fix
       // this produced 15-min stall-watchdog waits on hallucinated files.
@@ -200,6 +170,21 @@ module.exports = {
         _log.info(`[IDLE-MIND] Plan: skipping "${title.slice(0, 50)}" — references non-existent path: ${_halluc}`);
         return thought;
       }
+
+      // v7.9.20 (E): one bound second look before the draft becomes an
+      // irrevocable goal. The refined title is adopted in place (the addGoal(title)
+      // landmark, Contract SRC-06, is preserved) only on a genuine, valid,
+      // different improvement; any error leaves the draft untouched.
+      try {
+        const refined = await refineGoalDraft({
+          title, description: thought, model: idleMind.model, allowedVerbs: _ALLOWED_VERBS,
+          hasHallucinatedPaths: (txt) => _hasHallucinatedPaths(txt, realPaths, _rootDir),
+        });
+        if (refined && refined !== title) {
+          _log.info(`[IDLE-MIND] Plan: refined title -> "${refined.slice(0, 60)}"`);
+          title = refined;
+        }
+      } catch (e) { _log.debug('[catch] plan-refine:', e.message); }
 
       const priority = prioMatch?.[1]?.trim() || 'medium';
       const plan = {
@@ -230,11 +215,15 @@ module.exports = {
     return thought;
   },
 
-  // v7.9.19 (Strang B): pure helpers + constants for the dedup test (not the activity contract).
+  // v7.9.20 (§8): re-export the dedup test symbols (now imported from
+  // core/goal-intent) so existing tests keep importing them from here.
   _tokenize,
   _recentRelevantFailures,
+  _recentGoalsByStatus,
   _overlapRedundant,
+  buildRecentGoalContext,
   FAILURE_RELEVANCE_WINDOW_DAYS,
   OVERLAP_SKIP_RATIO,
   REDUNDANCY_FLOOR,
+  _DONE_GOAL_STATUS,
 };

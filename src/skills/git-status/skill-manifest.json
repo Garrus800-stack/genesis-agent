@@ -1,6 +1,7 @@
 {
   "name": "git-status",
   "version": "1.0.0",
+  "autonomous": true,
   "description": "Reports git repository status: branch, changes, recent commits, latest tag",
   "entry": "index.js",
   "interface": {

@@ -103,8 +103,11 @@ class SafeGuard {
   validateWrite(filePath) {
     const resolved = path.resolve(filePath);
 
-    // Rule 1: Cannot write outside project root
-    if (!resolved.startsWith(this.rootDir)) {
+    // Rule 1: Cannot write outside project root.
+    // v7.9.20: compare with a trailing separator so a sibling directory with a
+    // colliding prefix (e.g. <root>-evil/x) does not pass the boundary check.
+    const inRoot = resolved === this.rootDir || resolved.startsWith(this.rootDir + path.sep);
+    if (!inRoot) {
       throw new Error(`[SAFEGUARD] Write outside project root blocked: ${filePath}`);
     }
 
@@ -154,7 +157,9 @@ class SafeGuard {
 
     // Rule 1: Cannot read outside project root (prevents ../ escape
     //         to arbitrary host files — /etc/passwd, ~/.ssh/…).
-    if (!resolved.startsWith(this.rootDir)) {
+    // v7.9.20: trailing-separator compare, same as validateWrite/isProtected.
+    const inRoot = resolved === this.rootDir || resolved.startsWith(this.rootDir + path.sep);
+    if (!inRoot) {
       throw new Error(`[SAFEGUARD] Read outside project root blocked: ${filePath}`);
     }
 

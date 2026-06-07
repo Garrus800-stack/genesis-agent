@@ -17,7 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
-const { VALID_STEP_TYPES, normalizeStepType } = require('./step-types');
+const { VALID_STEP_TYPES, normalizeStepType } = require('../core/step-types');
 const _log = createLogger('HTNPlanner');
 
 class HTNPlanner {

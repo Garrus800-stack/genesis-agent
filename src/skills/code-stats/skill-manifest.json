@@ -1,6 +1,7 @@
 {
   "name": "code-stats",
   "version": "1.0.0",
+  "autonomous": true,
   "description": "Analyzes project code metrics: LOC by extension, largest files, comment ratio, dependency count",
   "entry": "index.js",
   "interface": {

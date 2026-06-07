@@ -14,6 +14,8 @@
 
 'use strict';
 
+const { toPosix } = require('../core/utils');
+
 const selfModelCapabilities = {
 
   // v7.3.0: Capability Honesty — systematic derivation from four signals
@@ -49,7 +51,7 @@ const selfModelCapabilities = {
     // Iterate all source modules
     for (const [filePath, mod] of Object.entries(this.manifest.modules)) {
       // Normalize path separators for cross-platform (Windows uses \)
-      const normalized = filePath.replace(/\\/g, '/');
+      const normalized = toPosix(filePath);
       if (!normalized.startsWith('src/')) continue;
       if (!mod.classes || mod.classes.length === 0) continue;
 
@@ -87,7 +89,7 @@ const selfModelCapabilities = {
 
         detailed.push({
           id,
-          module: filePath.replace(/\\/g, '/'),
+          module: toPosix(filePath),
           class: className,
           category,
           tags: manifestTags,

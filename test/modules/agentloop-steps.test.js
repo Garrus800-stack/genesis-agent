@@ -18,7 +18,7 @@ function mockLoop(overrides = {}) {
     },
     selfModel: { readModule: () => '// mock code' },
     memory: { recall: async () => [] },
-    kg: { search: async () => [], learnFromText: () => {} },
+    kg: { search: async () => [], learnFromText: () => {}, addNode: () => 'id', getNodesByType: () => [] },
     tools: { execute: async () => ({ result: 'ok' }), listTools: () => [] },
     selfMod: null,
     lang: { t: (k) => k },
@@ -64,12 +64,21 @@ describe('AgentLoopSteps', () => {
   });
 
   test('_stepAnalyze stores in KG when available', async () => {
-    let kgCalled = false;
+    // v7.9.20 (F2): ANALYZE now persists a durable insight node via addNode
+    // (language-agnostic), no longer through the DE-first learnFromText.
+    let added = null;
     const d = new AgentLoopStepsDelegate(mockLoop({
-      kg: { search: async () => [], learnFromText: () => { kgCalled = true; } },
+      kg: {
+        search: async () => [],
+        getNodesByType: () => [],
+        addNode: (type, label, props) => { added = { type, label, props }; return 'id'; },
+      },
     }));
-    await d._stepAnalyze({ type: 'ANALYZE', description: 'Analyze' }, '');
-    if (!kgCalled) throw new Error('KG.learnFromText not called');
+    await d._stepAnalyze({ type: 'ANALYZE', description: 'Analyze', target: 'src/agent/x.js' }, '');
+    if (!added) throw new Error('KG.addNode not called');
+    if (added.type !== 'insight' || added.props.type !== 'agent-loop-analysis') {
+      throw new Error('Wrong node type/props: ' + JSON.stringify(added));
+    }
   });
 
   test('_stepDelegate falls back when no taskDelegation', async () => {

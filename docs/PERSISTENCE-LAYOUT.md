@@ -16,6 +16,7 @@ of **this specific installation**:
 - `cost/` — token usage tracking
 - `skill-attempts.json` — record of skills Genesis tried to build (v7.8.1+)
 - `idle-activity-stats.json` — per-activity counts and last-20 activity log for the IdleMind picker; preserves cross-restart history so the repetition-penalty doesn't see a blank slate after a reboot (v7.9.4+)
+- `improvement-proposals.json` — open self-improvement proposals (status `proposed`/`attempted`/`dismissed`) awaiting Dashboard approve/reject (v7.9.20)
 - and more (genome, metabolism, settings overrides, etc.)
 
 This directory **is** the identity of a Genesis instance. Two
@@ -49,6 +50,8 @@ generalize beyond a single project:
   read from the same `~/.genesis-lessons/`. Lesson learned in
   `Genesis_v7_8_0` becomes available in `Genesis_v7_8_1` immediately.
   This is intentional — lessons are shared brain across versions.
+
+Self-modification outcome lessons (category `self-modification`) recorded by `SelfModOutcomeTracker` when a file is changed repeatedly also live here (v7.9.20).
 
 - **Multiple users on one machine:** each user has their own
   `~/.genesis-lessons/`. No cross-contamination.

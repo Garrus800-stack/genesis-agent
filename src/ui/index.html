@@ -225,6 +225,14 @@
             </select>
           </div>
           <div class="setting-group">
+            <label data-i18n="ui.self_mod_confirm">Self-modification confirmation</label>
+            <select id="set-selfmod-confirm" class="setting-input">
+              <option value="true" data-i18n="ui.self_mod_confirm_on">Ask before applying</option>
+              <option value="false" data-i18n="ui.self_mod_confirm_off">Apply without asking</option>
+            </select>
+            <span class="setting-hint" data-i18n="settings.selfmod_confirm_hint">Only takes effect at Full Autonomy &mdash; at &quot;always ask&quot; and &quot;ask only for critical&quot;, self-modification is always confirmed.</span>
+          </div>
+          <div class="setting-group">
             <label data-i18n="ui.trust_level">Trust Level</label>
             <select id="set-trust-level" class="setting-input">
               <option value="0" data-i18n="ui.trust_supervised">Supervised (always ask)</option>

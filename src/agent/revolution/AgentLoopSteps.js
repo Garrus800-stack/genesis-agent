@@ -15,11 +15,13 @@
 
 const { TIMEOUTS, THRESHOLDS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
-const { normalizeStepType, getStepRequirements } = require('./step-types');
+const { normalizeStepType, getStepRequirements } = require('../core/step-types');
 const { _filterImplausibleFilePaths } = require('./PathPlausibility');
 const { extractDeleteTarget } = require('./DeleteCommandHeuristic');
+const { trySkillStep } = require('./skill-step');
 // v7.9.11: Win console codepage handling for SHELL-step fallback
 const { decodeWinConsole } = require('../core/shell/WinConsoleEncoding');
+const { toPosix } = require('../core/utils');
 const path = require('path');
 const fs = require('fs');
 const _log = createLogger('AgentLoopSteps');
@@ -30,6 +32,14 @@ class AgentLoopStepsDelegate {
    */
   constructor(loop) {
     this.loop = loop;
+  }
+
+  // v7.9.20 (C): thin delegate — the triple-gated skill-step logic lives in
+  // skill-step.js so this file stays under the File Size Guard.
+  async _stepHandledBySkill(step, _context) {
+    const skillManager = this.loop && this.loop.skillManager;
+    if (!skillManager) return null;
+    return trySkillStep({ step, skillManager, log: _log });
   }
 
   async _executeStep(step, context, onProgress) {
@@ -214,6 +224,12 @@ class AgentLoopStepsDelegate {
         }
       }
 
+      // v7.9.20 (C): an installed, autonomous, AST-cleared skill may fulfil
+      // this step before the built-in switch. Gate failures fall through.
+      const _skillStepResult = await this._stepHandledBySkill(step, enrichedContext);
+      if (_skillStepResult) {
+        stepResult = { ..._skillStepResult, durationMs: Date.now() - start };
+      } else
       switch (step.type) {
         case 'ANALYZE':
           stepResult = { ...(await this._stepAnalyze(step, enrichedContext)), durationMs: Date.now() - start };
@@ -292,12 +308,52 @@ class AgentLoopStepsDelegate {
 
     const analysis = await loop.model.chat(prompt, [], 'analysis');
 
-    // Store insights in KG
+    // v7.9.20 (F2): consolidation primitive. Write a durable, language-agnostic
+    // insight node DIRECTLY (the way ReadSource does) instead of routing through
+    // learnFromText, whose DE-first patterns drop English code analyses — the
+    // field had 0 agent-loop-analysis nodes despite repeated inspections. Keyed
+    // by the POSIX module path (F1) so the same file has one stable key.
+    // Novelty-gated: a repeat that learns nothing new is not stored, which —
+    // together with L1 reading these nodes — is what ends the inspection loop.
     if (loop.kg && analysis) {
-      loop.kg.learnFromText(analysis, 'agent-loop-analysis');
+      const moduleKey = toPosix(step.target || '');
+      if (this._isNovelAnalysis(loop.kg, moduleKey, analysis)) {
+        const label = moduleKey
+          ? `review: ${moduleKey}: ${analysis.slice(0, 60)}`
+          : `analysis: ${analysis.slice(0, 60)}`;
+        loop.kg.addNode('insight', label, {
+          type: 'agent-loop-analysis',
+          module: moduleKey || null,
+          full: analysis.slice(0, 400),
+        });
+      }
     }
 
     return { output: analysis, error: null };
+  }
+
+  // v7.9.20 (F2): novelty gate for consolidation. Returns false only when an
+  // agent-loop-analysis insight for the SAME module already exists and the new
+  // analysis is substantially the same (token-Jaccard >= 0.8). A first analysis,
+  // a different module, or a genuinely new finding is always novel. Defensive: a
+  // KG without getNodesByType, or no module key, defaults to novel (store it).
+  _isNovelAnalysis(kg, moduleKey, analysis) {
+    if (!moduleKey || typeof kg.getNodesByType !== 'function') return true;
+    let existing;
+    try { existing = kg.getNodesByType('insight') || []; } catch (_e) { return true; }
+    const tok = (s) => new Set(String(s || '').toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || []);
+    const novelTokens = tok(analysis);
+    if (novelTokens.size === 0) return true;
+    for (const n of existing) {
+      const p = (n && n.properties) || {};
+      if (p.type !== 'agent-loop-analysis' || (p.module || '') !== moduleKey) continue;
+      const prev = tok(p.full || (n && n.label) || '');
+      let inter = 0;
+      for (const t of novelTokens) if (prev.has(t)) inter++;
+      const union = novelTokens.size + prev.size - inter;
+      if (union > 0 && inter / union >= 0.8) return false; // substantially the same
+    }
+    return true;
   }
 
   async _stepCode(step, context, onProgress) {
@@ -398,7 +454,7 @@ class AgentLoopStepsDelegate {
         action: 'write-file',
       });
 
-      const approved = await loop._requestApproval(
+      const approved = await loop.approval.request(
         'write-file',
         `Write ${newCode.split('\n').length} lines to ${step.target}`
       );
@@ -499,7 +555,7 @@ class AgentLoopStepsDelegate {
       action: 'shell-command',
     });
 
-    const approved = await loop._requestApproval('shell-command', approvalDetail);
+    const approved = await loop.approval.request('shell-command', approvalDetail);
     if (!approved) {
       return { output: 'User rejected shell command', error: null };
     }
@@ -621,7 +677,7 @@ class AgentLoopStepsDelegate {
     });
 
     // Request approval — user should know work leaves this agent
-    const approved = await loop._requestApproval(
+    const approved = await loop.approval.request(
       'delegate-task',
       `Aufgabe an Peer delegieren: ${step.description.slice(0, 120)}\nSkills: [${requiredSkills.join(', ') || 'allgemein'}]`
     );
@@ -752,6 +808,12 @@ Was this goal achieved? Respond with: SUCCESS or PARTIAL or FAILED, followed by 
     if (loop.episodicMemory) {
       try {
         const success = evaluation.toUpperCase().startsWith('SUCCESS');
+        // v7.9.20: the loop exposes no per-step surprise signal, so derive a
+        // pursuit-level emotional weight from the outcome — a failed pursuit, or
+        // one that hit errors along the way, is the salient episode DreamCycle
+        // should consolidate first. Bounded to [0,1].
+        const errorRate = allResults.length ? errors.length / allResults.length : (errors.length ? 1 : 0);
+        const emotionalWeight = Math.min(1, (success ? 0.2 : 0.6) + 0.3 * errorRate);
         loop.episodicMemory.recordEpisode({
           topic: plan.title || 'Agent goal execution',
           summary: evaluation.slice(0, 200),
@@ -761,6 +823,8 @@ Was this goal achieved? Respond with: SUCCESS or PARTIAL or FAILED, followed by 
             .filter(r => r.target)
             .map(r => ({ type: 'file-modified', path: r.target })),
           tags: this.extractTags(plan.title + ' ' + (plan.successCriteria || '')),
+          emotionalWeight,
+          metadata: { surprise: emotionalWeight },
         });
       } catch (_err) { /* episode recording optional */ }
     }

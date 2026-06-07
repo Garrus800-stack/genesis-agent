@@ -277,6 +277,30 @@ function apply(Dashboard) {
     el.innerHTML = html || '<span class="dash-muted">—</span>';
   };
 
+  // ── v7.9.20: Self-improvement Proposals Panel ───────────
+  // Lists open proposals with Approve/Reject buttons; the click is handled
+  // by a delegated listener in dashboard.js (CSP blocks inline onclick).
+  proto._renderProposals = function(proposals) {
+    var el = this._el('dash-proposals-body');
+    var list = Array.isArray(proposals) ? proposals : [];
+    if (list.length === 0) {
+      el.innerHTML = '<span class="dash-muted">No open proposals</span>';
+      return;
+    }
+    var esc = this._esc.bind(this);
+    el.innerHTML = list.map(function(p) {
+      var id = esc(p.id || '');
+      return '<div class="dash-proposal" data-proposal-id="' + id + '">' +
+        '<div class="dash-proposal-title">' + esc(p.title || '') + '</div>' +
+        (p.file ? '<div class="dash-proposal-file dash-muted">' + esc(p.file) + '</div>' : '') +
+        '<div class="dash-proposal-actions">' +
+          '<button type="button" class="dash-btn" data-proposal-action="accept" data-proposal-id="' + id + '">Approve</button>' +
+          '<button type="button" class="dash-btn" data-proposal-action="reject" data-proposal-id="' + id + '">Reject</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  };
+
   // ── v5.8.0: Energy Panel ────────────────────────────────
   // Metabolism energy gauge + cost/regen rates
 }

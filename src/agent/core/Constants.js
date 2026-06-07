@@ -78,6 +78,10 @@ const TIMEOUTS = {
   EMBEDDING_LOCAL: 5000,
   /** v6.0.1: Embedding service — remote model HTTP timeout (ms) */
   EMBEDDING_REMOTE: 10000,
+  /** v7.9.20: Embedding service — boot-probe HTTP timeout (ms). Longer than
+   *  EMBEDDING_REMOTE so a cold model load does not surface as a probe timeout.
+   *  Used ONLY by the one-time boot probe; steady-state calls stay at EMBEDDING_REMOTE. */
+  EMBEDDING_PROBE: 30000,
   /** v6.0.1: GitHub API HTTP timeout (ms) */
   GITHUB_API: 15000,
   /** v6.0.1: Native tool use — external HTTP call timeout (ms) */

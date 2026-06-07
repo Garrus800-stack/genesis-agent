@@ -178,7 +178,7 @@ test('R4: PROJECT API CONVENTIONS block is in the _stepCode prompt', () => {
 });
 
 test('R4: structural-failure regex recognises "Invalid target path (hallucinated)"', () => {
-  const { isStructuralFailure } = require(path.join(ROOT, 'src/agent/agency/failure-patterns'));
+  const { isStructuralFailure } = require(path.join(ROOT, 'src/agent/core/failure-patterns'));
   assertEqual(isStructuralFailure('Invalid target path (hallucinated): ../../core/Logger'), true,
     'hallucinated-path errors must be classified as structural');
 });

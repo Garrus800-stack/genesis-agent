@@ -26,6 +26,7 @@ const crypto = require('crypto');
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const { toPosix } = require('../core/utils');
 const _log = createLogger('ModuleSigner');
 
 class ModuleSigner {
@@ -196,9 +197,9 @@ class ModuleSigner {
   _relativize(filePath) {
     const abs = path.resolve(filePath);
     if (abs.startsWith(this.rootDir)) {
-      return path.relative(this.rootDir, abs).replace(/\\/g, '/');
+      return toPosix(path.relative(this.rootDir, abs));
     }
-    return filePath.replace(/\\/g, '/');
+    return toPosix(filePath);
   }
 
   _persist() {

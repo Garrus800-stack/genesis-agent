@@ -10,6 +10,11 @@
 // firing agent-loop:complete. GoalDriver got the failure via the
 // result-promise resolve path, but the event handler is the
 // canonical source for the failure-pause counter.
+//
+// v7.9.20 (Teil C): simulation-risk is no longer a gate on any trust
+// level, so the sim-risk abort+emit path is retired (SRC-01 updated).
+// SRC-02..05 still pin the shared _emitFailure helper + catch clause,
+// which remain in use for general pursuit failures.
 // ============================================================
 
 'use strict';
@@ -23,21 +28,22 @@ const PURSUIT_PATH = path.join(ROOT, 'src/agent/revolution/AgentLoopPursuit.js')
 
 describe('v7.9.9 Hard-Gate Abort Emit', () => {
 
-  test('SRC-01: _emitFailure called before hard-gate return (now via handleHardGateAbort helper)', () => {
-    // v7.9.9 Fix 5: hard-gate-abort sequence extracted to AgentLoopPursuitGate.handleHardGateAbort.
-    // The _emitFailure call now lives in the helper. Pursuit dispatches to it.
+  test('SRC-01: v7.9.20 — handleHardGateAbort no longer aborts/emits on sim-risk', () => {
+    // v7.9.20 (Teil C): simulation-risk is no longer a gate on any trust level.
+    // The sim-risk abort path is gone, so there is no emitFailure-before-abort to
+    // pin any more. pursue() still dispatches to the helper and keeps an (inert)
+    // guard so any future aborted:true would still be handled and early-return.
     const pursuitSrc = fs.readFileSync(PURSUIT_PATH, 'utf8');
     const gateSrc = fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopPursuitGate.js'), 'utf8');
-    // Pursuit must dispatch to handleHardGateAbort and early-return on aborted.
     assert(/handleHardGateAbort\(this,\s*cogResult/.test(pursuitSrc),
       'pursue() must dispatch to handleHardGateAbort');
     assert(/_gateResult\.aborted/.test(pursuitSrc) && /return\s*\{\s*success:\s*false/.test(pursuitSrc),
-      'pursue() must early-return success:false when _gateResult.aborted is true');
-    // Helper must call emitFailure before returning aborted: true.
+      'pursue() must keep the aborted guard (early-return success:false)');
     const helperBlock = gateSrc.split(/function handleHardGateAbort/)[1] || '';
-    const beforeAbortReturn = helperBlock.split(/return\s*\{\s*aborted:\s*true/)[0] || '';
-    assert(/emitFailure\(abortMsg\)/.test(beforeAbortReturn) || /emitFailure\(/.test(beforeAbortReturn),
-      'handleHardGateAbort must call emitFailure BEFORE returning aborted:true');
+    assert(!/return\s*\{\s*aborted:\s*true/.test(helperBlock),
+      'handleHardGateAbort must not return aborted:true any more (sim-risk is not a gate)');
+    assert(!/emitFailure\(/.test(helperBlock),
+      'handleHardGateAbort must not emit a failure for sim-risk (it proceeds)');
   });
 
   test('SRC-02: _emitFailure routes through safeFailureMessage', () => {

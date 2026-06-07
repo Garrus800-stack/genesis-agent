@@ -345,7 +345,7 @@ class GoalStack {
       this._unblockDependents(goal.id);
       // Check if parent goal's sub-goals are all done
       if (goal.parentId) this._checkParentCompletion(goal.parentId);
-      this.bus.fire('goal:completed', { id: goal.id, description: goal.description }, { source: 'GoalStack' });
+      this.bus.fire('goal:completed', { id: goal.id, description: goal.description, success: true }, { source: 'GoalStack' });
       return { goalId: goal.id, action: 'completed', description: goal.description };
     }
 
@@ -379,7 +379,7 @@ class GoalStack {
         // Check if goal is now complete
         if (goal.currentStep >= goal.steps.length) {
           goal.status = 'completed';
-          this.bus.fire('goal:completed', { id: goal.id, description: goal.description }, { source: 'GoalStack' });
+          this.bus.fire('goal:completed', { id: goal.id, description: goal.description, success: true }, { source: 'GoalStack' });
         }
       } else {
         // Step failed

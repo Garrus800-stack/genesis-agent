@@ -40,6 +40,7 @@ const { commandHandlersSlashHint } = require('./CommandHandlersSlashHint');
 const { commandHandlersOpen } = require('./CommandHandlersOpen');
 const { commandHandlersCleanup } = require('./CommandHandlersCleanup');   // v7.8.4
 const { commandHandlersTrajectory } = require('./CommandHandlersTrajectory'); // v7.9.15
+const { commandHandlersProposals } = require('./CommandHandlersProposals'); // v7.9.20
 
 class CommandHandlers {
   constructor({ bus, lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient, coreMemories, genesisDir, skillEffectivenessTracker}) {
@@ -260,6 +261,7 @@ Object.assign(
   commandHandlersOpen,        // v7.5.9 ZIP8
   commandHandlersCleanup      // v7.8.4
   , commandHandlersTrajectory // v7.9.15
+  , commandHandlersProposals // v7.9.20
 );
 
 module.exports = { CommandHandlers };

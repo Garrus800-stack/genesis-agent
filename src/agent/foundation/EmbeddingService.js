@@ -48,29 +48,43 @@ class EmbeddingService {
       const models = await this._httpGet(`${this.baseUrl}/api/tags`);
       const names = (models.models || []).map(m => m.name.split(':')[0]);
 
-      // Find first preferred model that's available
+      // v7.9.20: Build an ordered, de-duplicated candidate list instead of
+      // locking onto the first match. Order: (1) exact preferred name, then
+      // (2) substring preferred match, then (3) embed|minilm fallback. Exact
+      // before substring keeps the small, proven nomic-embed-text v1 ahead of a
+      // substring-only nomic-embed-text-v2-moe, so the choice — and therefore
+      // the vector dimension — stays stable from boot to boot.
+      const _seen = new Set();
+      const _candidates = [];
+      const _addCandidate = (name) => {
+        if (name && !_seen.has(name)) { _seen.add(name); _candidates.push(name); }
+      };
       for (const preferred of PREFERRED_MODELS) {
-        if (names.some(n => n.includes(preferred))) {
-          this.model = names.find(n => n.includes(preferred));
-          break;
-        }
+        _addCandidate(names.find(n => n === preferred));
+      }
+      for (const preferred of PREFERRED_MODELS) {
+        _addCandidate(names.find(n => n.includes(preferred)));
+      }
+      for (const n of names) {
+        if (/embed|minilm/i.test(n)) _addCandidate(n);
       }
 
-      // Fallback: any model name containing 'embed' or 'minilm'
-      if (!this.model) {
-        this.model = names.find(n => /embed|minilm/i.test(n));
-      }
-
-      if (this.model) {
-        // Test embedding to get dimensions
-        const test = await this._getEmbedding('test');
+      // v7.9.20: Try each candidate in order with the hardened boot probe.
+      // The first that returns a non-empty vector wins; if none does we fall
+      // through to TF-IDF (this.model is reset to null so getStats()/embed()
+      // never point at a model that did not actually answer).
+      for (const candidate of _candidates) {
+        this.model = candidate;
+        const test = await this._probeEmbedding('test');
         if (test && test.length > 0) {
           this.dimensions = test.length;
           this.available = true;
           _log.info(`[EMBEDDING] ${this.model} ready (${this.dimensions}d)`);
           this.bus.fire('embedding:ready', { model: this.model, dimensions: this.dimensions }, { source: 'EmbeddingService' });
+          break;
         }
       }
+      if (!this.available) this.model = null;
 
       if (!this.available) {
         _log.info('[EMBEDDING] No embedding model found — using TF-IDF fallback. To enable semantic lesson recall: `ollama pull nomic-embed-text` (one-time, ~270 MB, multilingual)');
@@ -172,7 +186,32 @@ class EmbeddingService {
 
   // ── Internal ─────────────────────────────────────────────
 
-  async _getEmbedding(text) {
+  /**
+   * v7.9.20: Boot-only probe. Uses the longer EMBEDDING_PROBE timeout (a cold
+   * model load can exceed EMBEDDING_REMOTE) and, if the GPU attempt fails in the
+   * probe window — timeout OR error — falls back once to a CPU-only (num_gpu:0)
+   * attempt. This rescues a hanging GPU load that surfaces as a timeout rather
+   * than a clean 500. Steady-state embed() never takes this path.
+   */
+  async _probeEmbedding(text) {
+    const vec = await this._getEmbedding(text, TIMEOUTS.EMBEDDING_PROBE);
+    if (vec && vec.length > 0) return vec;
+    try {
+      const truncated = text.slice(0, 2000);
+      const cpuBody = JSON.stringify({
+        model: this.model,
+        prompt: truncated,
+        options: { num_gpu: 0, num_ctx: 2048 },
+      });
+      const data = await this._httpPost(`${this.baseUrl}/api/embeddings`, cpuBody, TIMEOUTS.EMBEDDING_PROBE);
+      return data?.embedding || null;
+    } catch (err) {
+      _log.debug('[EMBED] boot-probe CPU last-resort failed:', err.message);
+      return null;
+    }
+  }
+
+  async _getEmbedding(text, timeoutMs) {
     const truncated = text.slice(0, 2000);
     try {
       // v7.9.3: explicit num_ctx=2048 so we never get the
@@ -185,14 +224,15 @@ class EmbeddingService {
         options: { num_ctx: 2048 },
       });
       try {
-        const data = await this._httpPost(`${this.baseUrl}/api/embeddings`, body);
+        const data = await this._httpPost(`${this.baseUrl}/api/embeddings`, body, timeoutMs);
         return data?.embedding || null;
       } catch (gpuErr) {
         // v7.9.0 fix: on 8GB-VRAM systems nomic-embed-text collides with the
         // loaded chat model — Ollama returns HTTP 500 "model failed to load,
         // resource limitations". Retry once with num_gpu:0 (CPU-only is
         // 200-500ms for nomic-embed-text, acceptable). Other errors (404, etc.)
-        // are not retriable.
+        // are not retriable. A bare timeout is NOT retriable here, so steady-state
+        // latency never doubles on a warm timeout.
         const msg = String(gpuErr.message || '').toLowerCase();
         if (msg.includes('load') || msg.includes('resource') || msg.includes('memory') || msg.includes('500')) {
           _log.debug('[EMBED] GPU embed failed, retrying with num_gpu=0');
@@ -201,7 +241,7 @@ class EmbeddingService {
             prompt: truncated,
             options: { num_gpu: 0, num_ctx: 2048 },
           });
-          const data = await this._httpPost(`${this.baseUrl}/api/embeddings`, cpuBody);
+          const data = await this._httpPost(`${this.baseUrl}/api/embeddings`, cpuBody, timeoutMs);
           return data?.embedding || null;
         }
         throw gpuErr;
@@ -228,7 +268,7 @@ class EmbeddingService {
     });
   }
 
-  _httpPost(urlStr, body) {
+  _httpPost(urlStr, body, timeoutMs) {
     return new Promise((resolve, reject) => {
       const url = new URL(urlStr);
       const req = http.request({
@@ -245,7 +285,7 @@ class EmbeddingService {
           catch (_e) { _log.debug('[catch] JSON parse:', _e.message); reject(new Error('Invalid JSON')); }
         });
       });
-      req.setTimeout(TIMEOUTS.EMBEDDING_REMOTE, () => { req.destroy(); reject(new Error('Timeout')); });
+      req.setTimeout(timeoutMs || TIMEOUTS.EMBEDDING_REMOTE, () => { req.destroy(); reject(new Error('Timeout')); });
       req.on('error', reject);
       req.write(body);
       req.end();

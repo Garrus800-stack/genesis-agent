@@ -321,6 +321,7 @@ class AgentCoreHealth {
       // persist state (sync write) or clear intervals / unsubscribe events.
       'emotionalSteering', 'errorAggregator',
       'dreamCycle', 'selfNarrative', 'schemaStore', 'surpriseAccumulator',
+      'selfModOutcomeTracker', // v7.9.20 (O)
       // v5.2.0: PromptEvolution persists promoted variants + experiment history
       'promptEvolution',
       // v5.3.0 (SA-P5): OnlineLearner — unsubscribes event listeners

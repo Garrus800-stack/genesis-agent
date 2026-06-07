@@ -180,7 +180,7 @@ test('cleanup-verifier contract: _stepShell calls CleanupVerifier before approva
   );
   // Hook uses the imported helper, fires before the shell-command approval.
   const idxHook = src.indexOf('extractDeleteTarget(command, loop.rootDir)');
-  const idxApproval = src.indexOf("_requestApproval('shell-command'");
+  const idxApproval = src.indexOf("approval.request('shell-command'"); // v7.9.20: shell now routes through the real channel
   assert.ok(idxHook > 0, 'hook must call extractDeleteTarget');
   assert.ok(idxApproval > 0, 'shell-command approval must exist');
   assert.ok(idxHook < idxApproval, 'hook must execute before approval prompt');

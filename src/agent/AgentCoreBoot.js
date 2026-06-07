@@ -289,6 +289,11 @@ class AgentCoreBoot {
 
     // Capabilities: tool bootstrap needs multiple services
     for (const name of ['skills', 'shellAgent']) { c.resolve(name); }
+    // v7.9.20: late-bind the skill registry onto selfModel so getCapabilities()
+    // and getCapabilitiesDetailed() include installed skills. Both exist now
+    // (selfModel from phase 1, skills resolved just above). DI only — no
+    // foundation -> capabilities import.
+    selfModel.skillManager = c.resolve('skills');
     const tools = c.resolve('tools');
     tools.registerBuiltins({
       sandbox:   c.resolve('sandbox'),
@@ -491,6 +496,9 @@ class AgentCoreBoot {
     const chat = c.resolve('chatOrchestrator');
     c.resolve('selfModPipeline').registerHandlers(chat);
     c.resolve('commandHandlers').registerHandlers(chat);
+    // v7.9.20 (C): late-bind the skill registry onto the agent loop so an
+    // autonomous, AST-cleared skill can fulfil a pursuit step (skill-step.js).
+    c.resolve('agentLoop').skillManager = c.resolve('skills');
     c.resolve('agentLoop').registerHandlers(chat);
 
     // v5.7.0 SA-P3: Give ArchitectureReflection access to the container

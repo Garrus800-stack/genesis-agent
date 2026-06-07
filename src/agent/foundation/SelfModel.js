@@ -20,7 +20,7 @@ const fs = require('fs');
 const fsp = require('fs').promises;
 const { execFile } = require('child_process');
 const { promisify } = require('util');
-const { safeJsonParse } = require('../core/utils');
+const { safeJsonParse, toPosix } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('SelfModel');
 const execFileAsync = promisify(execFile);
@@ -52,6 +52,11 @@ class SelfModel {
 
     // v7.3.0: Manifest metadata injected by AgentCoreBoot before scan().
     this._manifestMeta = null;
+
+    // v7.9.20: late-bound skill registry (set by AgentCoreBoot once both
+    // selfModel and skills exist). Foundation must never import the
+    // capabilities layer, so this stays a plain DI slot — not a static require.
+    this.skillManager = null;
 
     // v7.3.1: readModule cache — TTL-based, invalidated on hot-reload:success.
     this._readCache = new Map();
@@ -153,9 +158,9 @@ class SelfModel {
 
   getModuleSummary() {
     return Object.entries(this.manifest.modules)
-      .filter(([file]) => file.replace(/\\/g, '/').startsWith('src/'))
+      .filter(([file]) => toPosix(file).startsWith('src/'))
       .map(([file, mod]) => ({
-      file,
+      file: toPosix(file),
       classes: mod.classes,
       functions: mod.functions.length,
       requires: mod.requires,
@@ -164,17 +169,47 @@ class SelfModel {
     }));
   }
 
+  /**
+   * v7.9.20: installed skill names, deduped and defensive. skillManager is a
+   * late-bound DI slot; when absent (early boot / tests) we degrade to none.
+   */
+  _skillCapabilityNames() {
+    try {
+      const skills = (this.skillManager && this.skillManager.listSkills)
+        ? this.skillManager.listSkills() : [];
+      return (skills || []).map(s => s && s.name).filter(Boolean);
+    } catch (_e) { _log.debug('[catch] skill capabilities:', _e.message); return []; }
+  }
+
   getCapabilities() {
-    return this.manifest.capabilities;
+    const base = this.manifest.capabilities || [];
+    const skillNames = this._skillCapabilityNames();
+    if (skillNames.length === 0) return base;
+    // v7.9.20: non-mutating union — installed skills appear as capabilities too.
+    return Array.from(new Set([...base, ...skillNames]));
   }
 
   getCapabilitiesDetailed() {
-    return this.manifest.capabilitiesDetailed || [];
+    const base = this.manifest.capabilitiesDetailed || [];
+    let skills = [];
+    try {
+      skills = (this.skillManager && this.skillManager.listSkills)
+        ? (this.skillManager.listSkills() || []) : [];
+    } catch (_e) { _log.debug('[catch] skill capabilities detailed:', _e.message); skills = []; }
+    if (skills.length === 0) return base;
+    const have = new Set(base.map(c => c && c.id));
+    const extra = [];
+    for (const s of skills) {
+      if (!s || !s.name || have.has(s.name)) continue;
+      have.add(s.name);
+      extra.push({ id: s.name, module: null, class: null, category: 'skill', tags: [], description: s.description || '', keywords: [] });
+    }
+    return extra.length ? [...base, ...extra] : base;
   }
 
   moduleCount() {
     return Object.keys(this.manifest.modules)
-      .filter(p => p.replace(/\\/g, '/').startsWith('src/'))
+      .filter(p => toPosix(p).startsWith('src/'))
       .length;
   }
 

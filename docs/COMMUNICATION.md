@@ -39,7 +39,7 @@ EmotionalState ──emit('emotion:shift')──→ EventBus ──→ PromptBui
 
 Key properties:
 
-- **493 event types** catalogued in `EventTypes.js` (v7.9.19 baseline)
+- **493 event types** catalogued in `EventTypes.js` (v7.9.20 baseline)
 - **493 payload schemas** in `EventPayloadSchemas.js` — full parity since v7.6.x (every catalog entry has a registered schema); dev-mode validation throws on mismatch
 - **Ring buffer history** — last 500 events for debugging
 - **Source tracking** — every event carries `{ source: 'ModuleName' }` for audit
@@ -91,7 +91,7 @@ The Electron renderer (UI) communicates with the Agent (main process) through a 
 
 | Direction | Channels | Examples |
 |-----------|----------|---------|
-| UI → Agent (invoke) | 62 | `agent:chat`, `agent:save-file`, `agent:switch-model`, `agent:get-network-status`, `agent:get-provenance-report`, `agent:model-reset` (v7.5.6) |
+| UI → Agent (invoke) | 67 | `agent:chat`, `agent:save-file`, `agent:switch-model`, `agent:get-network-status`, `agent:get-provenance-report`, `agent:model-reset` (v7.5.6), `agent:get-proposals`, `agent:accept-proposal`, `agent:reject-proposal` (v7.9.20) |
 | UI → Agent (fire-and-forget) | 2 | `agent:request-stream`, `ui:heartbeat` |
 | Agent → UI (push) | 8 | `agent:stream-chunk`, `agent:status-update`, `agent:loop-progress` |
 

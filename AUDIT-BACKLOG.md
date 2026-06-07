@@ -35,6 +35,8 @@ The effective pool size for a given install is therefore: the 7 soft-zero baseli
 
 This is the intended design. Genesis activities are not interchangeable — they exist for specific cognitive functions, and gating them on their preconditions is correct. The "4 activities a day" observation from v7.9.3 reflects an environment-shaped distribution, not a bug.
 
+**Update (v7.9.20):** the IdleMind activity pool gains an 18th activity, `propose-improvements` (Facet D), which turns agent-loop analyses into explicit self-improvement proposals. The earlier concern about hallucinated `SELF_MODIFY` steps is addressed structurally: `SELF_MODIFY` is now a critical action class requiring approval except at Full Autonomy, and self-modification enters through reviewed proposals rather than a free-floating step, so a hallucinated self-modify step no longer reaches the gated pipeline unreviewed.
+
 No code change. Memory item closed.
 
 ---

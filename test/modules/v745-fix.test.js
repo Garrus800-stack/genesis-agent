@@ -257,7 +257,7 @@ function fakeIntervals() {
 
   // ── 4. Step-type aliases (v7.4.5.fix) ────────────────────
   // Legacy goal schemas used SHELL_EXEC; this should normalize.
-  const { normalizeStepType } = require('../../src/agent/revolution/step-types');
+  const { normalizeStepType } = require('../../src/agent/core/step-types');
 
   await test('Step-Type alias: SHELL_EXEC → SHELL', () => {
     assert(normalizeStepType('SHELL_EXEC') === 'SHELL');

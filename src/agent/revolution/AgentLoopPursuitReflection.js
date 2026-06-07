@@ -33,7 +33,7 @@
 
 'use strict';
 
-// v7.9.7: classifyFailure relocated to ../agency/failure-patterns so
+// v7.9.7: classifyFailure relocated to ../core/failure-patterns so
 // the GoalDriver fast-track regex and the lesson-recording classifier
 // share a single source of truth. Pre-fix the two inline regexes drifted
 // — the GoalDriver had "Cannot find module" coverage neither side, the
@@ -44,7 +44,7 @@
 // is imported alongside classifyFailure so any future caller in this
 // file (e.g. a reflection short-circuit) can use the same predicate
 // without re-resolving the module.
-const { classifyFailure, isStructuralFailure } = require('../agency/failure-patterns');
+const { classifyFailure, isStructuralFailure } = require('../core/failure-patterns');
 
 /**
  * Fire the `agent:goal-failed-classified` event.

@@ -219,14 +219,14 @@ test('A3: HardGate still passes other allowed kinds (no regression)', () => {
 
 // ── ACTIVITY_MODULES + Metabolism ───────────────────────────
 
-test('A4: ACTIVITY_MODULES contains 17 entries with inhabit included', () => {
+test('A4: ACTIVITY_MODULES contains 18 entries with inhabit included', () => {
   // Read source directly to avoid pulling IdleMind dependencies into the test.
   const fs = require('fs');
   const src = fs.readFileSync(path.join(ROOT, 'src/agent/autonomy/IdleMind.js'), 'utf8');
   const match = src.match(/const ACTIVITY_MODULES = \[([^\]]+)\];/);
   assert(match, 'ACTIVITY_MODULES array must be present');
   const requires = match[1].match(/require\([^)]+\)/g) || [];
-  assertEqual(requires.length, 17, 'must have exactly 17 activities');
+  assertEqual(requires.length, 18, 'must have exactly 18 activities (v7.9.20: + ProposeImprovements)');
   const hasInhabit = requires.some(r => r.includes("activities/Inhabit"));
   assert(hasInhabit, 'ACTIVITY_MODULES must include Inhabit');
 });

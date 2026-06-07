@@ -161,6 +161,10 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
       shell,
       rootDir: process.cwd(),
       model: { chat: async () => 'echo fallback-was-called' },
+      // v7.9.20: shell-command now routes through loop.approval.request (was the dead
+      // _requestApproval). Provide an auto-approving approval gate so the test exercises
+      // the shell fallback, not the approval prompt.
+      approval: { request: async () => true },
       _requestApproval: async () => true,
     };
 

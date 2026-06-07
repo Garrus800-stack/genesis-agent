@@ -76,7 +76,7 @@ Models tab.
 | IdleMind goal-step balance | `3` | After N consecutive goal-step cycles, IdleMind breaks out to pick a non-goal activity (reflect, journal, dream, calibrate, inhabit). `0` = legacy always-goal-step. *(v7.9.4)* |
 | IdleMind score normalization | `'none'` | Activity-picker score smoothing. `'log'` (reserved) dampens score outliers via `log1p`. *(v7.9.4, opt-in)* |
 | IdleMind recurrence bonus | `false` | If on, activities that haven't run for a long time get a small score boost proportional to the gap. *(v7.9.4, opt-in)* |
-| Trust level | `0` (SUPERVISED) | `0`=Supervised (always ask), `1`=Autonomous (ask only on categorically critical actions: DEPLOY/EXTERNAL_API/EMAIL_SEND), `2`=Full Autonomy (never ask). v7.9.9 froze this three-level structure — `TrustLevelSystem`, the migration table, and the default are settled and remain unchanged. |
+| Trust level | `0` (SUPERVISED) | `0`=Supervised (always ask), `1`=Autonomous (ask only on categorically critical actions: DEPLOY/EXTERNAL_API/EMAIL_SEND/SELF_MODIFY), `2`=Full Autonomy (never ask). v7.9.9 froze this three-level structure — `TrustLevelSystem`, the migration table, and the default are settled and remain unchanged. |
 | IdleMind — idle threshold (minutes) | `10` | How long without user activity before IdleMind starts autonomous thinking. *(default raised from 2 in v7.9.10 after Win-trace evidence)* |
 | IdleMind — think interval (minutes) | `15` | How often IdleMind picks a new activity once idle. *(default raised from 3 in v7.9.10)* |
 | Goal-add mode | `ask` | `always` resume on boot, `never` skip, `ask` prompt. |
@@ -176,6 +176,7 @@ Plus two new slash commands surface daemon work that previously disappeared into
 | Health HTTP port | `9090` | |
 | Peer discovery token | `''` | Set this to enable multicast peer discovery. Empty = disabled (default). |
 | Allow self-modify | `true` | If off, blocks SelfModificationPipeline outright. |
+| Require self-mod confirmation | `true` | When on (default), a self-modification is never applied without explicit confirmation, even at Full Autonomy. When off, self-modification follows the trust level (auto-applied only at Full Autonomy). Setting key: `security.selfModifyRequiresConfirmation`. *(v7.9.20)* |
 | Allow network peers | `true` | If off, blocks PeerNetwork. |
 | Allow file execution | `true` | If off, blocks shell tool. |
 | EventStore max file size (MB) | `50` | Rotation threshold for `events.jsonl`. |
@@ -287,6 +288,7 @@ These are wired to Settings event listeners or read fresh on every use:
 - `daemon.enabled`, `daemon.autoRepair`, `daemon.autoOptimize` — Daemon toggles
 - `idleMind.enabled` — IdleMind toggle
 - `security.allowSelfModify`, `security.allowNetworkPeers`, `security.allowFileExecution`
+- `security.selfModifyRequiresConfirmation` — Require explicit confirmation before any self-modification (v7.9.20)
 - `agency.autoResumeGoals`, `agency.autoRouteByTask`, `agency.negotiateBeforeAdd`
 - `agency.commitSnapshotOnShutdown`, `agency.gitAutoInit`, `agency.gitAutoCommit`
 - `agency.installAuto`, `agency.installFull`, `agency.installScope` (v7.9.3)

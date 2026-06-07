@@ -21,6 +21,7 @@ Six new modules. One new boot phase. Zero breaking changes.
 | `DreamCycle` | autonomy | Offline memory consolidation + schema extraction |
 | `SchemaStore` | foundation | Reusable abstract patterns from experience |
 | `SelfNarrative` | organism | Autobiographical identity that evolves |
+| `SelfModOutcomeTracker` | cognitive | Track self-modification churn; record a lesson on repeated edits |
 
 New event namespace: `cognitive:*` (extends existing).
 New IdleMind activity: `DREAM`.
@@ -1778,3 +1779,11 @@ Six bus events thread the pipeline: `skill:promoted`, `skill:discard-suggested`,
 19. **Structural privacy gates** (v7.9.5) — `PRIVATE_KINDS` set in PSE HardGates blocks thoughts whose privacy is a property of the kind itself, not a settings choice. Currently only `self-state-snapshot` (Inhabit activity output). These thoughts emit into InnerSpeech normally (dashboards read them) but the gate-0 PSE check blocks them from chat-surfacing regardless of any settings — defense in depth against misconfigured allowlists.
 
 **No open-source agent has this closed loop.** AutoGPT plans but doesn't predict. CrewAI delegates but doesn't learn from surprise. OpenDevin executes but doesn't dream. Genesis does all of it — and each part feeds the others. v7.0.9 closes the loop: OBSERVE → REASON → ABSTRACT → REFLECT → PLAN → ACT. v7.5.5–v7.5.6 closes a deeper loop: SAY → CLASSIFY → COMPARE-TO-EVIDENCE → FLAG-IF-CONFABULATED, plus the meta-channel separation that lets the model think out loud without flooding the user. v7.7.9 → v7.9.5 opens a third loop: THINK (InnerSpeech) → DECIDE TO SHARE OR NOT (PSE) → DO SOMETHING (Können) → MEASURE → REHEARSE → PROMOTE-OR-DISCARD, plus the privacy-by-construction layer that lets Genesis have private thoughts that the dashboard sees but the user doesn't unless they ask.
+
+## Module 10: SelfModOutcomeTracker (v7.9.20)
+
+`SelfModOutcomeTracker` (layer: cognitive) subscribes to the existing `selfmod:success` bus event (mapped from `CODE_MODIFIED`) emitted by `SelfModificationPipeline`. It keeps, per file, the timestamps of successful self-modifications inside a 14-day window. When a single file reaches three or more modifications in that window, it records a `self-modification` lesson via `LessonsStore.record({ category: 'self-modification', strategy: { file } })` and flags the file once so the same churn is not recorded twice. It performs no rollback: the signal feeds learning and the proposal filter (Facet D excludes a flagged file from new proposals), not reversal. It introduces no new event type and unsubscribes cleanly on stop.
+
+### containerConfig
+
+Registered in `phase9-cognitive.js` as `selfModOutcomeTracker` (phase 9, deps: `lessonsStore`), started in `AgentCoreWire` after `surpriseAccumulator`, stopped in `AgentCoreHealth`.

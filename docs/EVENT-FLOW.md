@@ -148,6 +148,7 @@ graph TB
         TaskOutcomeTracker["TaskOutcomeTracker"]
         MemoryConsolidator["MemoryConsolidator"]
         TaskRecorder["TaskRecorder"]
+        SelfModOutcomeTracker["SelfModOutcomeTracker"]
         AdaptiveStrategy["AdaptiveStrategy"]
         QuickBenchmark["QuickBenchmark"]
         ArchitectureReflection["ArchitectureReflection"]
@@ -650,6 +651,8 @@ graph TD
     CapGuard -->|"no grant"| block
 ```
 
+Since v7.9.20, `SELF_MODIFY` is a critical action class in the trust matrix: at Supervised and Autonomous it is always asked, at Full Autonomy it is auto-approved only when `security.selfModifyRequiresConfirmation` is off (the default is on, which asks everywhere). The scanner pipeline above is unchanged.
+
 ## Event Flow: Shell Rate Limiting (v3.5.0)
 
 ```mermaid
@@ -680,6 +683,28 @@ graph TD
     execFile -->|"success (await)"| executed
     execFile -->|"failure (await)"| failed
 ```
+
+## Event Flow: Self-Mod Proposal -> Dashboard Confirmation (v7.9.20)
+
+```mermaid
+sequenceDiagram
+    participant IM as IdleMind (propose-improvements)
+    participant FS as improvement-proposals.json
+    participant UI as Dashboard
+    participant CH as CommandHandlersProposals
+    participant SM as SelfModificationPipeline
+
+    IM->>FS: write proposal (status proposed)
+    UI->>CH: agent:get-proposals (2s refresh)
+    CH-->>UI: open proposals
+    UI->>CH: agent:accept-proposal(id)
+    CH->>SM: run gated pipeline
+    SM-->>CH: applied
+    CH->>FS: status attempted
+    Note over UI,CH: agent:reject-proposal(id) -> status dismissed (+ cooldown)
+```
+
+When Genesis is idle, the `propose-improvements` activity turns agent-loop analyses into proposals written to `.genesis/improvement-proposals.json` with status `proposed`. The Dashboard polls `agent:get-proposals` every two seconds and renders each open proposal as a card. Approve invokes `agent:accept-proposal`, which runs the change through the gated self-modification pipeline and marks the proposal `attempted`; Reject invokes `agent:reject-proposal`, which marks it `dismissed` with a cooldown so it is not raised again immediately. A proposal is auto-applied without a card only at Full Autonomy with `selfModifyRequiresConfirmation` off; by default it always waits for a person.
 
 ## Selected Event Catalog
 
@@ -779,6 +804,7 @@ graph TD
 | `idle:consolidate-memory` | IdleMind | MemoryConsolidator |
 | **Safety (v5.5.0–v6.0.1)** | | |
 | `preservation:invariant-violated` | PreservationInvariants | HealthMonitor, EventStore |
+| `selfmod:success` | SelfModificationPipeline | SelfModOutcomeTracker (v7.9.20) |
 | `llm:cost-cap-reached` | CostGuard | LLMPort |
 | `llm:cost-warning` | CostGuard | LLMPort |
 | `backup:exported` | BackupManager | — |

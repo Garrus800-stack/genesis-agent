@@ -259,11 +259,11 @@ test('G2: Replan path normalises step types before splicing into execution loop'
 
 test('G3: GoalDriver hallucination regex matches "Plausibility check failed"', () => {
   // v7.9.7 (B/G): the regex was extracted from GoalDriverFailurePolicy.js
-  // to src/agent/agency/failure-patterns.js as STRUCTURAL_FAILURE_RE, and
+  // to src/agent/core/failure-patterns.js as STRUCTURAL_FAILURE_RE, and
   // both GoalDriverFailurePolicy and AgentLoopPursuitReflection now consume
   // the same helper. Test the behaviour, not the inline literal.
   const { isStructuralFailure } = require(
-    path.join(ROOT, 'src/agent/agency/failure-patterns'));
+    path.join(ROOT, 'src/agent/core/failure-patterns'));
   assert(isStructuralFailure('Plausibility check failed for: file:src/foo/bar.js (path does not exist)'),
     'must match "Plausibility check failed" — the literal Steps.js wording');
   assert(isStructuralFailure('implausible path detected'),

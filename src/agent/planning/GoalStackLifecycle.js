@@ -58,19 +58,26 @@ const goalStackLifecycleMixin = {
    * @returns {boolean} true if the goal was marked completed,
    *   false if it didn't exist or was already terminal.
    */
-  completeGoal(goalId) {
+  completeGoal(goalId, outcome = null) {
     const g = this.goals.find(g => g.id === goalId);
     if (!g || isTerminal(g.status)) return false;
     g.status = 'completed';
     g.completedAt = new Date().toISOString();
     g.updated = g.completedAt;
+    // v7.9.20 (F2/K1): keep a compact outcome on the goal so a completion is
+    // not just a status flip (the field showed completed goals carried no result).
+    if (outcome) g.outcome = typeof outcome === 'string' ? outcome.slice(0, 400) : outcome;
     this._save();
     // Cascading effects (matching the executeNextStep completion path).
     this._unblockDependents(goalId);
     if (g.parentId) this._checkParentCompletion(g.parentId);
     if (this.bus && this.bus.emit) {
+      // v7.9.20 (K1): emit success:true — 'completed' is by definition success
+      // (vs failed/abandoned); CognitiveMonitor reads data.success to score
+      // decision quality and previously saw it undefined → scored every
+      // completed decision as a failure.
       this.bus.fire('goal:completed', {
-        id: g.id, description: g.description,
+        id: g.id, description: g.description, success: true, outcome: g.outcome || null,
       }, { source: 'GoalStack' });
     }
     return true;
@@ -263,7 +270,7 @@ const goalStackLifecycleMixin = {
         g.status = 'completed';
         g.updated = new Date().toISOString();
         changed.push({ id: g.id, from: 'active', to: 'completed', reason: 'all-steps-done-but-status-was-active' });
-        this.bus.fire('goal:completed', { id: g.id, description: g.description, auto: true }, { source: 'GoalStack:review' });
+        this.bus.fire('goal:completed', { id: g.id, description: g.description, auto: true, success: true }, { source: 'GoalStack:review' });
         continue;
       }
 
@@ -341,7 +348,7 @@ const goalStackLifecycleMixin = {
       parent.status = 'completed';
       parent.updated = new Date().toISOString();
       this._save();
-      this.bus.fire('goal:completed', { id: parent.id, description: parent.description, via: 'sub-goals' }, { source: 'GoalStack' });
+      this.bus.fire('goal:completed', { id: parent.id, description: parent.description, via: 'sub-goals', success: true }, { source: 'GoalStack' });
     }
   },
 

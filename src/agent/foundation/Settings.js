@@ -306,7 +306,7 @@ class Settings {
         },
       },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
-      timeouts: { approvalSec: 300, shellMs: 15000, httpMs: 60000, gitMs: 5000 },
+      timeouts: { approvalSec: 0, shellMs: 15000, httpMs: 60000, gitMs: 5000 },
       // v7.9.5 live-fix: shutdown LLM-call protection. Pre-fix, session
       // summary blocked the entire shutdown for as long as the LLM took
       // to respond (observed 80s+ with cloud models). Now: skip if the
@@ -525,7 +525,7 @@ class Settings {
     clamp('daemon.cycleMinutes',                  1, 1440);
     clamp('mcp.serve.port',                       1024, 65535);
     clamp('health.httpPort',                      1024, 65535);
-    clamp('timeouts.approvalSec',                 10, 86400);
+    clamp('timeouts.approvalSec',                  0, 86400);
     // v7.9.5 live-fix: shutdown summary protection
     clamp('shutdown.sessionSummaryMinMs',         0, 86400000);
     clamp('shutdown.sessionSummaryTimeoutMs',     500, 120000);

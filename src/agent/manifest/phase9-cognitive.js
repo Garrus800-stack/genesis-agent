@@ -59,6 +59,20 @@ function phase9(ctx, R) {
       }),
     }],
 
+    // v7.9.20 (O): tracks self-modification outcomes; records a
+    // 'self-modification' lesson on churn so proposals stop touching the file.
+    ['selfModOutcomeTracker', {
+      phase: 9,
+      deps: ['lessonsStore'],
+      tags: ['cognitive', 'learning'],
+      factory: (c) => new (R('SelfModOutcomeTracker').SelfModOutcomeTracker)({
+        bus,
+        lessonsStore: c.resolve('lessonsStore'),
+        config: c.tryResolve('settings')
+          ?.get('cognitive.selfModOutcome') || {},
+      }),
+    }],
+
     // v7.3.7: Storage layer for memory-as-habitat. JournalWriter = append-only
     // stream (3 visibilities); PendingMomentsStore = pinned moments awaiting
     // DreamCycle review. Both before ContextCollector so its late-bindings find them.

@@ -136,7 +136,18 @@ function isValidLabel(label) {
   return true;
 }
 
-module.exports = { robustJsonParse, safeJsonParse, atomicWriteFile, atomicWriteFileSync, _round, swallow, STOP_WORDS, isValidLabel };
+// v7.9.20 (F1): canonical path separator. Normalizes OS-native backslashes to
+// POSIX forward slashes so the same file has ONE stable key on every platform
+// (a goal title, a knowledge-graph key). Idempotent, null-safe, a no-op on
+// Linux. Apply at the SOURCE (e.g. getModuleSummary) so downstream consumers —
+// goals, KG nodes, dedup — never see a Windows backslash. NOT for the inverse
+// operation (backslash → double-backslash escaping in generated code), which is
+// a different transform and stays as-is.
+function toPosix(p) {
+  return typeof p === 'string' ? p.replace(/\\/g, '/') : p;
+}
+
+module.exports = { robustJsonParse, safeJsonParse, atomicWriteFile, atomicWriteFileSync, _round, swallow, STOP_WORDS, isValidLabel, toPosix };
 
 // ── Atomic File Write Utilities (v4.10.0) ─────────────────
 // Write to temp file in same directory, then rename.

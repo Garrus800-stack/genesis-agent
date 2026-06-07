@@ -123,7 +123,7 @@ describe('Rationale and traceability', () => {
 
   test('AgentLoopSteps continues to import normalizeStepType', () => {
     const src = fs.readFileSync(STEPS_PATH, 'utf-8');
-    assert(/require\(['"]\.\/step-types['"]\)/.test(src),
+    assert(/require\(['"][^'"]*step-types['"]\)/.test(src),
       'step-types require must remain — the fix relies on normalizeStepType being available');
   });
 });

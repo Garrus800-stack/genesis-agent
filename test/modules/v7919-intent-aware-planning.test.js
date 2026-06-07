@@ -28,8 +28,8 @@ const { describe, test, assert, assertEqual, run } = require('../harness');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const { READONLY_VERBS, extractLeadingVerb, isReadOnlyGoal } = require(path.join(ROOT, 'src/agent/revolution/goal-intent'));
-const { buildPlannerStepTypeList } = require(path.join(ROOT, 'src/agent/revolution/step-types'));
+const { READONLY_VERBS, extractLeadingVerb, isReadOnlyGoal } = require(path.join(ROOT, 'src/agent/core/goal-intent'));
+const { buildPlannerStepTypeList } = require(path.join(ROOT, 'src/agent/core/step-types'));
 const { FormalPlanner } = require(path.join(ROOT, 'src/agent/revolution/FormalPlanner'));
 
 function makePlanner() {

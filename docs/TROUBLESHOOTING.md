@@ -334,7 +334,7 @@ User-initiated and sub-goal-initiated goals still use the legacy block-and-wait 
 
 **Symptom:** Dashboard or log shows `agent-loop:simulation-abort` with `riskScore >= 5.0`, but Genesis proceeds with the next step without asking. Pre-v7.9.9 this would trigger an approval prompt.
 
-**Why it happens:** Intentional by design. The hard-gate is now a three-branch dispatch. SUPERVISED (level 0): warn-only at hard-gate. Per-step approval still comes from `TrustLevelSystem.checkApproval`, which asks SUPERVISED users about every action class. AUTONOMOUS (level 1): warn-only at hard-gate. Per-step approval comes from `TrustLevelSystem.checkApproval` and only fires for categorically critical action classes (DEPLOY, EXTERNAL_API, EMAIL_SEND). FULL_AUTONOMY (level 2): hard-gate triggers `_trySpawnObstacleSubgoal` or `markObsolete`; never asks.
+**Why it happens:** Intentional by design. The hard-gate is now a three-branch dispatch. SUPERVISED (level 0): warn-only at hard-gate. Per-step approval still comes from `TrustLevelSystem.checkApproval`, which asks SUPERVISED users about every action class. AUTONOMOUS (level 1): warn-only at hard-gate. Per-step approval comes from `TrustLevelSystem.checkApproval` and only fires for categorically critical action classes (DEPLOY, EXTERNAL_API, EMAIL_SEND, SELF_MODIFY). FULL_AUTONOMY (level 2): hard-gate triggers `_trySpawnObstacleSubgoal` or `markObsolete`; never asks.
 
 If you're at AUTONOMOUS and want approval prompts on high-sim-risk steps regardless of action class, lower to SUPERVISED. The decoupling is deliberate: sim-risk is a numerical signal about plan-level coherence; action-class is a categorical signal about an individual action's risk class. Mixing them in earlier iterations produced approval-prompt spam on every retry of high-sim-risk goals.
 
@@ -393,6 +393,16 @@ If you're at AUTONOMOUS and want approval prompts on high-sim-risk steps regardl
 
 ---
 
+## Embedding
+
+### "No embedding model found" / falls back to TF-IDF
+
+**Symptom:** Logs show the embedding service falling back to TF-IDF, or a boot message that no embedding model responded.
+
+**Why it happens:** A model is installed but the boot probe did not get a vector back inside the probe window. The probe tries each candidate model in order (exact preferred name first, then a partial match, then an `embed`/`minilm` fallback) and, per candidate, a CPU last-resort (`num_gpu: 0`) if the GPU attempt times out — at boot only. Steady-state embedding keeps the normal timeout and does no CPU retry.
+
+**Fix:** Pull a small embedding model first (`ollama pull nomic-embed-text`); a warm restart usually succeeds once it is resident. If only a large embedding model is present, a cold first probe can exceed the window — pulling the small model resolves it. The TF-IDF fallback is non-fatal: retrieval still works, just without dense vectors.
+
 ## Self-Modification
 
 ### "Write to protected kernel file blocked"
@@ -402,6 +412,14 @@ If you're at AUTONOMOUS and want approval prompts on high-sim-risk steps regardl
 ### "Write to critical safety file blocked"
 
 **Expected behavior.** Hash-locked files (CodeSafetyScanner, VerificationEngine, Constants, EventBus, Container) cannot be modified by the agent.
+
+### Self-modification applied without asking, or never applied
+
+**Expected behavior (v7.9.20).** `SELF_MODIFY` is a critical action class. At Supervised and Autonomous trust levels it is always asked. At Full Autonomy it is auto-approved only when `security.selfModifyRequiresConfirmation` is off; with the setting on (the default), a self-modification is never applied without explicit confirmation, at any trust level.
+
+### Self-improvement proposals not appearing
+
+**Why it happens:** Proposals appear only after the agent has run an agent-loop analysis and the `propose-improvements` idle activity has turned it into a proposal — there is nothing to show on a fresh install. The Dashboard reads them over IPC; the renderer bundle that serves the panel is produced by `npm install` (its postinstall step), so a normal install already has it.
 
 ### Self-modification produces broken code
 

@@ -816,6 +816,32 @@ const CHANNELS = {
     return agent.container.tryResolve('goalStack')?.getGoalTree() ?? [];
   },
 
+  // v7.9.20 (Dashboard): self-improvement proposals — list/approve/reject.
+  // Rate-limited automatically by the registration loop below.
+  'agent:get-proposals': async () => {
+    if (!agent) return [];
+    const im = agent.container.tryResolve('idleMind');
+    return ((im && im.proposals) || [])
+      .filter(p => p && p.status === 'proposed')
+      .map(p => ({ id: p.id, title: p.title, file: p.file || null, rationale: p.rationale || '' }));
+  },
+
+  'agent:accept-proposal': async (event, id) => {
+    if (!agent) return { ok: false, error: 'Agent not booted' };
+    const ch = agent.container.tryResolve('commandHandlers');
+    if (!ch || typeof ch._acceptProposal !== 'function') return { ok: false, error: 'Proposals unavailable' };
+    const p = await ch._acceptProposal(id);
+    return p ? { ok: true, id: p.id, status: p.status } : { ok: false, error: 'Unknown proposal' };
+  },
+
+  'agent:reject-proposal': async (event, id) => {
+    if (!agent) return { ok: false, error: 'Agent not booted' };
+    const ch = agent.container.tryResolve('commandHandlers');
+    if (!ch || typeof ch._rejectProposal !== 'function') return { ok: false, error: 'Proposals unavailable' };
+    const p = await ch._rejectProposal(id);
+    return p ? { ok: true, id: p.id, status: p.status } : { ok: false, error: 'Unknown proposal' };
+  },
+
   'agent:undo': async () => {
     if (!agent) return { ok: false, error: 'Agent not booted' };
     return agent.undo();

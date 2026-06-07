@@ -447,6 +447,12 @@ Was this goal achieved? Respond with: SUCCESS or PARTIAL or FAILED, followed by 
     if (this.loop.episodicMemory) {
       try {
         const success = evaluation.toUpperCase().startsWith('SUCCESS');
+        // v7.9.20: the loop exposes no per-step surprise signal, so derive a
+        // pursuit-level emotional weight from the outcome — a failed pursuit, or
+        // one that hit errors along the way, is the salient episode DreamCycle
+        // should consolidate first. Bounded to [0,1].
+        const errorRate = allResults.length ? errors.length / allResults.length : (errors.length ? 1 : 0);
+        const emotionalWeight = Math.min(1, (success ? 0.2 : 0.6) + 0.3 * errorRate);
         this.loop.episodicMemory.recordEpisode({
           topic: plan.title || 'Agent goal execution',
           summary: evaluation.slice(0, 200),
@@ -456,6 +462,8 @@ Was this goal achieved? Respond with: SUCCESS or PARTIAL or FAILED, followed by 
             .filter(r => r.target)
             .map(r => ({ type: 'file-modified', path: r.target })),
           tags: this.extractTags(plan.title + ' ' + (plan.successCriteria || '')),
+          emotionalWeight,
+          metadata: { surprise: emotionalWeight },
         });
       } catch (err) { _log.debug('[RECOVERY] Episode recording failed:', err.message); }
     }
@@ -654,7 +662,7 @@ ${step.target ? 'Target: ' + step.target : ''}`;
   _buildPathHint(step) {
     try {
       if (!step) return '';
-      const { normalizeStepType } = require('./step-types');
+      const { normalizeStepType } = require('../core/step-types');
       const canonical = normalizeStepType(step.type) || step.type;
       // Primary gate: CODE-class steps always get the hint.
       const isCodeClass = canonical === 'CODE' || canonical === 'SANDBOX';

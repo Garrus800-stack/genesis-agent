@@ -8,13 +8,13 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.9.19-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.9.20-d4a017?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/tests-8105%20passing-4ade80?style=flat-square" alt="Tests">
-  <img src="https://img.shields.io/badge/fitness-126%2F130-4ade80?style=flat-square" alt="Fitness">
+  <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-385-e0e0e8?style=flat-square" alt="Modules">
-  <img src="https://img.shields.io/badge/services-181-fbbf24?style=flat-square" alt="Services">
+  <img src="https://img.shields.io/badge/modules-392-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/services-182-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
   <img src="https://img.shields.io/badge/events-493-c084fc?style=flat-square" alt="Events">
@@ -89,6 +89,8 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Self-Perception** — Introspection accuracy: verified facts from ArchitectureReflection, SelfModel, CognitiveSelfModel injected into prompt during self-reflect queries — prevents hallucinated metrics. Lesson confirmation loop: recalled lessons correlated with task outcomes (confirmed/contradicted). Research quality gate: Jaccard+specificity scoring before KG write. Frontier-driven GoalSynthesizer: unfinished work, anomalies, and contradicted lessons generate autonomous goals (v7.1.7).
 
+**Self-improvement loop** `v7.9.20` — agent-loop analyses become improvement proposals surfaced as Dashboard cards for approve/reject; `SELF_MODIFY` is a critical action that by default never applies without confirmation; autonomous skills can fulfil pursuit steps behind a triple gate (manifest flag, capability match >= 0.75, AST scan); completed and failed goals are read from the archive so the planner never re-proposes a goal it has already finished; skills the agent grows appear in its capability profile.
+
 > **For the full feature list with version history**, see [CAPABILITIES.md](docs/CAPABILITIES.md).
 
 ---
@@ -147,7 +149,7 @@ Genesis automatically selects the best model: user-preferred → cloud → local
 
 ## Architecture
 
-Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 files). Everything else is fair game for self-modification. Self-Preservation Invariants prevent safety regression during self-modification.
+Twelve layers with clear boundaries — star topology where every layer depends only on core/ and ports/, never on each other. The kernel is immutable. Critical safety files are hash-locked (16 of 41). Everything else is fair game for self-modification. Self-Preservation Invariants prevent safety regression during self-modification.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -423,7 +425,7 @@ npm run test:coverage # With coverage report (c8)
 npm run ci            # Full CI: tests + fitness + event audit + event validation + channels
 ```
 
-All tests run without external dependencies (no Ollama, no API keys, no internet). Tested on Node 22, 24. CI runs on Ubuntu + Windows via GitHub Actions.
+All tests run without external dependencies (no Ollama, no API keys, no internet). Tested on Node 22, 24 across Windows and Linux; run the full gate suite locally with `npm run ci`.
 
 ### Code Metrics by Layer
 
@@ -451,10 +453,10 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Source modules | 376 modules (src/) |
 | Lines of code | ~119k src + ~101k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
-| DI services | 168 manifest + 13 bootstrap = 181 at runtime |
+| DI services | 169 manifest + 13 bootstrap = 182 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 488 files, 8105 tests (coverage gates: 80/76/78, ratchet floor 6014) |
-| Dependencies | 4 production + 1 optional + 10 dev |
+| Test suites | 547 files, 8105 tests (coverage gates: 80/76/78, ratchet floor 6014) |
+| Dependencies | 5 production + 1 optional + 10 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 79 main ↔ 79 preload (rate-limited, all in sync) |
 | Event types | 493 across ~114 namespaces (catalogued in EventTypes.js) |
@@ -467,7 +469,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Safety layers | 10 (kernel lock → hash-lock → AST scan → capability tokens → IPC whitelist → CSP → sandbox → worker isolation → circuit breaker → immune system) + DisclosurePolicy (trust-based information sovereignty) |
 | Trust levels | 4 (supervised → full autonomy) with EarnedAutonomy gate |
 | Languages | EN primary (+ DE, FR, ES via i18n) |
-| Architectural fitness | 126/130 — 0 cross-layer violations, 0 orphans, 0 phantoms, 0 files >700 LOC |
+| Architectural fitness | 127/130 — 0 cross-layer violations, 0 orphans, 0 phantoms, 0 files >700 LOC |
 | TypeScript | TSC clean — 0 errors in agent source (checkJs + strictNullChecks) |
 | CI gates | 18 (architectural-fitness + audit-events + validate-events + validate-channels + validate-service-wiring + validate-intent-wiring + audit-self-gate-coverage + audit-gate-stats-callers + audit-hash-lock-coverage + audit-contracts + audit-doc-drift + audit-doc-language + audit-service-numbers + audit-future-version-refs + audit-raw-settimeout + audit-class-wiring + audit-listener-lifecycle + check-ratchet) |
 
@@ -497,7 +499,7 @@ All persistence goes through `StorageService` (write-queued, atomic JSON writes)
 
 ## Known Limitations
 
-- **Pure JavaScript with TypeScript checking** — `types/core.d.ts` and `types/node.d.ts` provide type declarations. All 237 source files pass `tsc --checkJs` with 0 errors. Type-safety relies on JSDoc annotations, targeted `@ts-ignore` for prototype delegation patterns, and CI enforcement.
+- **Pure JavaScript with TypeScript checking** — `types/core.d.ts` and `types/node.d.ts` provide type declarations. 226 of 384 source files opt into `tsc --checkJs` via a `@ts-check` pragma and pass with 0 errors (`npm run typecheck`). Type-safety relies on JSDoc annotations, targeted `@ts-ignore` for prototype delegation patterns, and CI enforcement.
 - **VM sandbox is not a true sandbox** — `vm.createContext` provides isolation for quick evals but is explicitly NOT security-grade for untrusted code. Untrusted code must use process-mode `execute()` or Linux namespace isolation.
 - **`sandbox: false`** on Electron <35 — CJS preload requires `require()` which is blocked by sandbox:true. `contextIsolation:true` is the primary security boundary. See `preload.mjs` for ESM preload implementation.
 - **Single-instance storage** — StorageService serializes writes but all autonomous systems share the same `.genesis/` directory.
@@ -509,7 +511,7 @@ All persistence goes through `StorageService` (write-queued, atomic JSON writes)
 
 **Production** (3 — all with graceful fallbacks):
 ```json
-{ "acorn": "^8.16.0", "chokidar": "^3.6.0", "tree-kill": "^1.2.2" }
+{ "acorn": "~8.16.0", "chokidar": "~3.6.0", "dompurify": "^3.2.0", "iconv-lite": "^0.6.3", "tree-kill": "~1.2.2" }
 ```
 
 **Optional / Dev** — see [package.json](./package.json) for exact versions and the runtime/build distinction. Optional packages (`cheerio`, `puppeteer`, `monaco-editor`) are loaded behind try/catch and degrade gracefully when absent.

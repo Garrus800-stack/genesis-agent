@@ -24,11 +24,11 @@ const { describe, test, assert, run } = require('../harness');
 const PLAN_PATH = path.join(ROOT, 'src/agent/autonomy/activities/Plan.js');
 const GOALSTACK_PATH = path.join(ROOT, 'src/agent/planning/GoalStack.js');
 // v7.9.19 (Strang E): the verb whitelist + leading-verb helper were hoisted
-// out of Plan.js into the shared revolution/goal-intent module so the planner
+// out of Plan.js into the shared core/goal-intent module so the planner
 // and the activity share ONE vocabulary. The Stage-A property is unchanged —
 // it now lives in goal-intent and Plan.js imports it. These checks follow it
 // to its real home and additionally pin that Plan.js still wires it in.
-const GOAL_INTENT_PATH = path.join(ROOT, 'src/agent/revolution/goal-intent.js');
+const GOAL_INTENT_PATH = path.join(ROOT, 'src/agent/core/goal-intent.js');
 
 describe('v7.9.9 Fix 1 — Plan.js Capability-Gate', () => {
 

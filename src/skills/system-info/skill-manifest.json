@@ -1,6 +1,7 @@
 {
   "name": "system-info",
   "version": "1.0.0",
+  "autonomous": true,
   "description": "Collects system information: OS, CPU, RAM, GPU, Node.js version",
   "entry": "index.js",
   "interface": {

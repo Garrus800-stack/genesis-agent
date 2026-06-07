@@ -433,7 +433,7 @@ check('Cross-Phase Coupling', (r) => {
   const PHASE_MAP = {
     core: 0, foundation: 1, intelligence: 2, capabilities: 3,
     planning: 4, hexagonal: 5, autonomy: 6, organism: 7,
-    revolution: 8, cognitive: 9, consciousness: 13,
+    revolution: 8, cognitive: 9, agency: 10, consciousness: 13,
   };
 
   const srcFiles = walkJs(path.join(SRC, 'agent'));
@@ -441,11 +441,20 @@ check('Cross-Phase Coupling', (r) => {
 
   for (const file of srcFiles) {
     const fromDir = getPhaseDir(file);
-    if (!fromDir || !PHASE_MAP[fromDir]) continue;
+    // v7.9.20: `=== undefined` instead of falsy — phase 0 (core) must be a
+    // valid source, otherwise upward edges originating in core/ are never seen.
+    if (!fromDir || PHASE_MAP[fromDir] === undefined) continue;
     const fromPhase = PHASE_MAP[fromDir];
 
-    const code = readSafe(file);
-    const re = /require\(['"]\.\.\/([^/'"]+)\//g;
+    // v7.9.20: strip block + line comments before matching, so a commented-out
+    // require() (e.g. the dependency-injection doc-comment in core/Container.js)
+    // is not counted as a real edge once core/ is checked as a source.
+    const code = readSafe(file)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    // v7.9.20: (?:\.\./)+ matches multi-level upward requires (../../core/x),
+    // not just single-level — m[1] stays the first directory segment.
+    const re = /require\(['"](?:\.\.\/)+([^/'"]+)\//g;
     let m;
     while ((m = re.exec(code))) {
       const toDir = m[1];

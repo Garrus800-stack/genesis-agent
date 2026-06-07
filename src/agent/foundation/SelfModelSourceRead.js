@@ -23,6 +23,7 @@ const path = require('path');
 const fs = require('fs');
 const fsp = require('fs').promises;
 const { createLogger } = require('../core/Logger');
+const { toPosix } = require('../core/utils');
 const _log = createLogger('SelfModel');
 
 // v7.5.8: Cloud-sync placeholder awareness.
@@ -223,7 +224,7 @@ const selfModelSourceRead = {
       const entries = Object.entries(this.manifest.modules)
         .filter(([_, m]) => m.classes.includes(fileOrName) || m.file.includes(fileOrName));
       if (entries.length > 0) {
-        const prioritized = entries.find(([p]) => p.replace(/\\/g, '/').startsWith('src/')) || entries[0];
+        const prioritized = entries.find(([p]) => toPosix(p).startsWith('src/')) || entries[0];
         filePath = prioritized[0];
       }
     }
@@ -393,7 +394,7 @@ const selfModelSourceRead = {
       const entries = Object.entries(this.manifest.modules)
         .filter(([_, m]) => m.classes.includes(fileOrName) || m.file.includes(fileOrName));
       if (entries.length > 0) {
-        const prioritized = entries.find(([p]) => p.replace(/\\/g, '/').startsWith('src/')) || entries[0];
+        const prioritized = entries.find(([p]) => toPosix(p).startsWith('src/')) || entries[0];
         filePath = prioritized[0];
       }
     }
@@ -449,7 +450,7 @@ const selfModelSourceRead = {
       const entries = Object.entries(this.manifest.modules)
         .filter(([_, m]) => m.classes.includes(fileOrName) || m.file.includes(fileOrName));
       if (entries.length === 0) return null;
-      const prioritized = entries.find(([p]) => p.replace(/\\/g, '/').startsWith('src/')) || entries[0];
+      const prioritized = entries.find(([p]) => toPosix(p).startsWith('src/')) || entries[0];
       filePath = prioritized[0];
     }
 
@@ -458,7 +459,7 @@ const selfModelSourceRead = {
 
     const fileInfo = this.manifest.files[filePath] || {};
     const isCapability = (this.manifest.capabilitiesDetailed || [])
-      .some(c => c.module === filePath.replace(/\\/g, '/'));
+      .some(c => c.module === toPosix(filePath));
 
     return {
       file: filePath,

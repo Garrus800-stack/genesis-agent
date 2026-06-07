@@ -69,7 +69,7 @@ const ACTION_RISK = {
 
   // High risk (auto-execute at AUTONOMOUS+)
   'SHELL_EXEC':    'high',
-  'SELF_MODIFY':   'high',
+  'SELF_MODIFY':   'critical',  // v7.9.20 (S): self-mod is critical — only FULL_AUTONOMY auto-approves
 
   // Critical (always needs approval, except at FULL_AUTONOMY)
   'DEPLOY':        'critical',
@@ -84,6 +84,16 @@ const ACTION_RISK = {
   // an extra approval modal at the supposedly-autonomous levels was a
   // UX bug, not a safeguard. SUPERVISED still gates it.
   'plan-has-issues': 'blocking',
+
+  // v7.9.20: AgentLoopSteps step-action strings (lowercase-hyphen) now route through
+  // ApprovalGate.request → checkApproval, so they must be classified here. Before this,
+  // these steps called the dead _requestApproval (permanently true) and never reached
+  // the trust matrix. Unknown actions default to 'high', which would mis-rate a plain
+  // file write; classify explicitly. Effect per the 3-level definition: AUTONOMOUS+
+  // auto-approve all three, SUPERVISED asks for each.
+  'shell-command':  'high',
+  'write-file':     'medium',
+  'delegate-task':  'medium',
 };
 
 // ── What each level auto-approves ────────────────────────
@@ -314,6 +324,20 @@ class TrustLevelSystem {
    * Get current trust level.
    */
   getLevel() { return this._level; }
+
+  /**
+   * v7.9.20 (S): does self-modification require explicit human confirmation?
+   * Pure read of the security.selfModifyRequiresConfirmation setting (default
+   * true). Combined with checkApproval('SELF_MODIFY') (now 'critical' risk),
+   * this is what lets a proposal skip the human card ONLY at FULL_AUTONOMY with
+   * confirmation explicitly turned off.
+   * @returns {boolean}
+   */
+  selfModRequiresConfirmation() {
+    try {
+      return this.settings?.get?.('security.selfModifyRequiresConfirmation') !== false;
+    } catch (_e) { return true; }
+  }
 
   /**
    * Set trust level (user action).

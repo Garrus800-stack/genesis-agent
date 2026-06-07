@@ -13,9 +13,9 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 385 JS files |
-| Test Files / Tests | 531 / 8105 (Win baseline) |
-| DI Services | 181 (168 manifest + 13 bootstrap) |
+| Source Modules | 392 JS files |
+| Test Files / Tests | 547 / 8105 (Win baseline) |
+| DI Services | 182 (169 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
 | npm Dependencies | 5 production + 1 optional + 10 dev |
@@ -25,7 +25,7 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
 | Coverage Gates | 80% lines, 76% branches, 78% functions |
 | Live Coverage | 83.78% lines · 77.37% branches · 80.49% functions |
-| Fitness Score | 126/130 (100%) |
+| Fitness Score | 127/130 |
 | Circular Dependencies | 0 |
 | Cross-Layer Violations | 0 |
 | @ts-nocheck Files | 0 |
@@ -55,7 +55,7 @@ Phase 1: Bootstrap
   └── Register non-manifest instances: rootDir, guard, bus, storage, lang, logger
 
 Phase 2: Manifest
-  └── Register all 168 services from 12 phase files via ContainerManifest (+13 bootstrap = 181 runtime, cognitive default profile)
+  └── Register all 169 services from 12 phase files via ContainerManifest (+13 bootstrap = 182 runtime, cognitive default profile)
       └── Auto-discovery scans src/agent/ → builds filename→directory map
 
 Phase 3: Resolve & Init
@@ -244,7 +244,7 @@ Goal decomposition: GoalStack (auto-transitions: complete/fail/stall in v7.3.7),
 
 **SchemaStore** (~500 LOC) — Stores abstract patterns extracted by DreamCycle. Keyword-indexed with confidence decay. Modifies expectations and guides planning.
 
-### Phase 5: Hexagonal (23 files, ~7,300 LOC)
+### Phase 5: Hexagonal (24 files, ~7,300 LOC)
 
 Orchestration layer: UnifiedMemory, EpisodicMemory (3-layer decay: Detail/Schema/Feeling, v7.3.7), AdaptiveMemory, ChatOrchestrator + ChatOrchestratorSourceRead + ChatOrchestratorHelpers, SelfModificationPipeline + SelfModificationPipelineModify (v7.4.3 split), LearningService, PeerCrypto, PeerHealth, PeerTransport, PeerNetwork, PeerConsensus, TaskDelegation, CommandHandlers + 6 domain mixins (v7.4.2 split: Code/Shell/Goals/Memory/System/Network).
 
@@ -252,7 +252,7 @@ Orchestration layer: UnifiedMemory, EpisodicMemory (3-layer decay: Detail/Schema
 
 **SelfModificationPipeline** (~450 LOC after v7.4.3 Modify-family extract) — Gate chain: circuit breaker → AwarenessPort coherence (currently inert with NullAwareness default, threshold 0.4) → Metabolism energy → write → verify → snapshot.
 
-### Phase 6: Autonomy (28 files, ~6,070 LOC)
+### Phase 6: Autonomy (31 files, ~6,070 LOC)
 
 Background processes: AutonomousDaemon, IdleMind, HealthMonitor, CognitiveMonitor, ErrorAggregator, HealthServer, ServiceRecovery, DeploymentManager, NetworkSentinel, JournalWriter (v7.3.7), ActiveReferencesPort (v7.3.7), WakeUpRoutine (v7.3.7), and 16 Activities modules (Calibrate, Consolidate, Dream, Explore, Ideate, Improve, Journal, MCPExplore, PickContext, Plan, ReadSource, Reflect, Research, SelfDefine, Study, Tidy).
 
@@ -272,7 +272,7 @@ Biological simulation: EmotionalState, EmotionalSteering, Homeostasis, Homeostas
 
 **HomeostasisEffectors** `v4.12.5` — Wires all homeostasis correction events to real actions: cache pruning, knowledge graph pruning, context budget pressure, and simplified-mode recommendations. Allostatic set-point adaptation shifts thresholds when vitals stay in WARNING for 10+ minutes.
 
-### Phase 8: Revolution (17 files, ~7,240 LOC)
+### Phase 8: Revolution (18 files, ~7,240 LOC)
 
 Autonomous execution: AgentLoop (~830 LOC + 4 delegates: Planner, Steps, Cognition, Recovery — split in v7.3.4), FormalPlanner, HTNPlanner, NativeToolUse, SessionPersistence, ModelRouter, ModuleRegistry, MultiFileRefactor, FailureAnalyzer, VectorMemory, ColonyOrchestrator, EmotionalFrontier, UnfinishedWorkFrontier, GoalSynthesizer (v7.1.7).
 
@@ -288,9 +288,9 @@ Max 20 steps per goal (+10 after user approval), 3 consecutive error limit, 10-m
 
 **AgentLoopRecovery decompose-on-failure** `v7.9.9` — `_repeatedFailures` Map keyed `(goalId, errorClass)` with 1h TTL, consulted at the bottom of `classifyAndRecover`. On the 2nd occurrence of the same error-class for the same goal — across pursuit retries, not within a single pursuit — recovery synthesises an obstacle and routes it through `_trySpawnObstacleSubgoal`. The cross-pursuit keying is the critical detail: pre-fix the key included `stepIndex`, which is unstable across retries (each retry generates a different plan), so the strikes never matched and decompose never fired in production. Goal-lifecycle events clear all entries for that goalId.
 
-### Phase 9: Cognitive (35 files, ~13,200 LOC)
+### Phase 9: Cognitive (36 files, ~13,200 LOC)
 
-Expectation, surprise, learning, self-model, adaptation. The cognitive substrate that makes Genesis self-correcting and self-improving. Includes CognitiveSelfModel (empirical capability tracking with Wilson-score calibration), AdaptiveStrategy (closed-loop self-correction), OnlineLearner (real-time behavioral adaptation), PromptEvolution (A/B prompt optimization), MemoryConsolidator (KG/Lessons hygiene), TaskRecorder (execution replay), CoreMemories (v7.3.7), LessonsStore, GateStats (v7.3.6 — central gate-verdict telemetry), SuspicionFrontier, LessonFrontier, ArchitectureReflection, **SelfStatementLog (v7.5.5 + DE/EN parity in v7.5.6)** — auto-classifies first-person statements (`strukturell` / `versprechen` / `emotional` / `uncertain`), persists to daily JSONL shards, fires `selfstatement:contradiction` when a structural claim lacks verified-data backing.
+Expectation, surprise, learning, self-model, adaptation. The cognitive substrate that makes Genesis self-correcting and self-improving. Includes CognitiveSelfModel (empirical capability tracking with Wilson-score calibration), AdaptiveStrategy (closed-loop self-correction), OnlineLearner (real-time behavioral adaptation), PromptEvolution (A/B prompt optimization), MemoryConsolidator (KG/Lessons hygiene), TaskRecorder (execution replay), CoreMemories (v7.3.7), LessonsStore, GateStats (v7.3.6 — central gate-verdict telemetry), SuspicionFrontier, LessonFrontier, ArchitectureReflection, **SelfStatementLog (v7.5.5 + DE/EN parity in v7.5.6)** — auto-classifies first-person statements (`strukturell` / `versprechen` / `emotional` / `uncertain`), persists to daily JSONL shards, fires `selfstatement:contradiction` when a structural claim lacks verified-data backing. v7.9.20 adds **SelfModOutcomeTracker** (records a `self-modification` lesson when a file is changed repeatedly, and excludes that file from new proposals).
 
 Anticipation and identity: ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle + DreamCyclePhases (v7.3.9 split), SelfNarrative, CognitiveHealthTracker, **ReasoningTracer** — subscribes to `model:thinking-trace` (v7.5.6) to capture reasoning-model internal monologue as `model-reasoning` traces.
 
@@ -569,5 +569,5 @@ Approximate as of v7.5.6 (numbers shift with each release):
   ─────────────────────────────────────────────
   agent/ total     259 files  ~84,900 LOC
   + UI/kernel       47 files  ~13,800 LOC
-  = src/ total     385 modules ~119,000 LOC
+  = src/ total     392 modules ~119,000 LOC
 ```
