@@ -28,6 +28,10 @@ const TIMEOUTS = {
   SEMAPHORE_STARVATION: 5 * 60 * 1000,
   /** FIX v3.5.3: Global timeout for AgentLoop.pursue() (ms) — 10 minutes */
   AGENT_LOOP_GLOBAL: 10 * 60 * 1000,
+  /** v7.9.21: a RUN_TESTS step runs the real suite (npm test) to completion.
+   *  5 min default — must be >= the suite's real runtime and < AGENT_LOOP_GLOBAL;
+   *  tune via `time npm test`. */
+  TEST_RUN_EXEC: 5 * 60 * 1000,
   /** v4.0.0: LLM HTTP connection timeout (ms) — time to establish TCP connection */
   LLM_CONNECT: 15000,
   /** v4.0.0: LLM HTTP response timeout (ms) — max wait for full response.

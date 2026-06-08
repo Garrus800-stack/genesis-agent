@@ -30,6 +30,10 @@
 // and belongs in a dedicated planner-refactor release.
 // ============================================================
 
+// v7.9.21: TIMEOUTS for the test-run default timeout (TEST_RUN_EXEC).
+// core/ -> core/, no cycle (Constants.js requires nothing from here).
+const { TIMEOUTS } = require('./Constants');
+
 /**
  * The complete catalog of step types Genesis knows how to execute.
  * Each entry has an id (the canonical type string used in plan steps),
@@ -129,6 +133,12 @@ const STEP_TYPE_ALIASES = Object.freeze({
   'GIT':           'SHELL',
   'SNAPSHOT':      'SHELL',
   'BACKUP':        'SHELL',
+  // v7.9.21: running the test SUITE is a shell command (npm test), not a
+  // sandbox snippet. RUN_TESTS reaches here from FormalPlanner; SANDBOX would
+  // only run an improvised snippet (a facade), SHELL runs the real suite.
+  'RUN_TESTS':     'SHELL',
+  'RUN_TEST':      'SHELL',
+  'TESTS':         'SHELL',
   // test & verification variants → SANDBOX
   'TEST':          'SANDBOX',
   'VERIFY':        'SANDBOX',
@@ -160,6 +170,41 @@ function normalizeStepType(rawType) {
   if (VALID_STEP_TYPES.has(upper)) return upper;
   if (STEP_TYPE_ALIASES[upper]) return STEP_TYPE_ALIASES[upper];
   return null;
+}
+
+/**
+ * Default command + timeout for raw step types that denote running the test
+ * suite. Keyed by the RAW (pre-normalization) type, because the alias rewrites
+ * RUN_TESTS -> SHELL and the raw type is otherwise lost. applyStepTypeDefaults()
+ * fills these in so a RUN_TESTS step actually runs `npm test` to completion
+ * instead of degrading to a read-only fallback or timing out at the 30s shell
+ * default.
+ */
+const STEP_TYPE_DEFAULTS = Object.freeze({
+  RUN_TESTS: Object.freeze({ command: 'npm test', timeoutMs: TIMEOUTS.TEST_RUN_EXEC }),
+  RUN_TEST:  Object.freeze({ command: 'npm test', timeoutMs: TIMEOUTS.TEST_RUN_EXEC }),
+  TESTS:     Object.freeze({ command: 'npm test', timeoutMs: TIMEOUTS.TEST_RUN_EXEC }),
+});
+
+/**
+ * Apply the default command + timeout for a test-run step. Called at both
+ * normalization choke points (AgentLoopSteps._executeStep and
+ * plan-context.normalizeStepTypes) with the RAW type captured before it is
+ * rewritten to SHELL. For a test-run type: default the command to `npm test`
+ * when none was given, always set the extended timeout, and clear `target` --
+ * a RUN_TESTS `target` is a test-file hint, not a shell command, and _stepShell
+ * resolves `step.target || step.command`.
+ *
+ * @param {object} step - the plan step (mutated in place)
+ * @param {string} rawType - the step type BEFORE normalization
+ */
+function applyStepTypeDefaults(step, rawType) {
+  if (!step || typeof step !== 'object') return;
+  const d = STEP_TYPE_DEFAULTS[String(rawType || '').trim().toUpperCase()];
+  if (!d) return;
+  if (!step.command) step.command = d.command;
+  step.timeoutMs = d.timeoutMs;
+  step.target = null;
 }
 
 /**
@@ -239,4 +284,6 @@ module.exports = {
   normalizeStepType,
   buildPlannerStepTypeList,
   getStepRequirements,
+  STEP_TYPE_DEFAULTS,
+  applyStepTypeDefaults,
 };

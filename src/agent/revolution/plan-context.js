@@ -187,7 +187,7 @@ function formatModulePathList(modules) {
  */
 function normalizeStepTypes(steps, opts = {}) {
   if (!Array.isArray(steps)) return;
-  const { normalizeStepType } = require('../core/step-types');
+  const { normalizeStepType, applyStepTypeDefaults } = require('../core/step-types');
   const log = opts.logger || null;
   const tag = opts.tag || '[PLAN-CTX]';
   for (let i = 0; i < steps.length; i++) {
@@ -210,10 +210,15 @@ function normalizeStepTypes(steps, opts = {}) {
       steps[i] = { type: 'ANALYZE', description: `[was ${kind}] ${asText}`.trim() };
       continue;
     }
+    const _rawType = step.type;
     const normalized = normalizeStepType(step.type);
     if (normalized && normalized !== step.type) {
       if (log) log.info(`${tag} Normalized step type "${step.type}" → "${normalized}"`);
       step.type = normalized;
+      // v7.9.21: covers the AgentLoopPlanner/replan paths, where RUN_TESTS is
+      // rewritten to SHELL here (before the executor sees the raw type), so the
+      // step carries `npm test` + the extended timeout from the start.
+      applyStepTypeDefaults(step, _rawType);
     } else if (!normalized) {
       if (log) log.warn(`${tag} Unknown step type "${step.type}" — falling back to ANALYZE`);
       step.description = `[was ${step.type || '<missing>'}] ${step.description || ''}`.trim();

@@ -514,7 +514,16 @@ class GoalStack {
 
   _save() {
     try {
-      if (this.storage) this.storage.writeJSONDebounced('goals.json', this.goals);
+      // v7.9.21: persist only non-terminal goals. Completed/failed/abandoned
+      // goals live in the archive (GoalPersistence); leaving them in goals.json
+      // grew the file without bound and diverged from goals/active.json. Only
+      // GoalStack reads goals.json, and no reader needs terminal goals after a
+      // restart (boot pickup + getQueue filter active/blocked; the de-dup reads
+      // the archive). In-memory this.goals is left intact so parent-completion
+      // and unblock logic still see terminal children for the session.
+      if (this.storage) {
+        this.storage.writeJSONDebounced('goals.json', this.goals.filter(g => !GoalStack._isTerminal(g.status)));
+      }
     } catch (err) { _log.warn('[GOALS] Save failed:', err.message); }
   }
 

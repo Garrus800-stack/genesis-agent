@@ -15,7 +15,7 @@
 
 const { TIMEOUTS, THRESHOLDS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
-const { normalizeStepType, getStepRequirements } = require('../core/step-types');
+const { normalizeStepType, getStepRequirements, applyStepTypeDefaults } = require('../core/step-types');
 const { _filterImplausibleFilePaths } = require('./PathPlausibility');
 const { extractDeleteTarget } = require('./DeleteCommandHeuristic');
 const { trySkillStep } = require('./skill-step');
@@ -128,10 +128,16 @@ class AgentLoopStepsDelegate {
         // eslint-disable-next-line no-param-reassign
         step = { type: 'ANALYZE', description: `[was ${kind}] ${asText}`.trim() };
       }
+      const _rawType = step.type;
       const normalizedType = normalizeStepType(step.type);
       if (normalizedType && normalizedType !== step.type) {
         _log.debug(`[STEPS] Normalized step type "${step.type}" → "${normalizedType}"`);
         step.type = normalizedType;
+        // v7.9.21: a RUN_TESTS step (e.g. from FormalPlanner, which bypasses
+        // plan-context.normalizeStepTypes and reaches this choke point raw)
+        // becomes SHELL above; fill in `npm test` + the extended timeout so it
+        // runs the real suite instead of degrading or timing out at 30s.
+        applyStepTypeDefaults(step, _rawType);
       } else if (!normalizedType) {
         // v7.7.9 (post-Phase-3b): defensive fallback for steps that arrive
         // with missing/unknown type. Pre-fix shape: a step with type=undefined
@@ -569,7 +575,7 @@ class AgentLoopStepsDelegate {
       // the user got no actual command output. The shell command was
       // either never observed to completion (fire-and-forget) or the
       // output was lost because we returned before resolution.
-      const result = await loop.shell.run(command, { cwd: loop.rootDir, timeout: TIMEOUTS.SHELL_EXEC });
+      const result = await loop.shell.run(command, { cwd: loop.rootDir, timeout: step.timeoutMs || TIMEOUTS.SHELL_EXEC });
       // v7.4.6.fix #28: include command + adapted command in result so
       // Verifier _formatOutputs can show the user what actually ran.
       return {
@@ -602,7 +608,7 @@ class AgentLoopStepsDelegate {
       const isWin = process.platform === 'win32';
       const { stdout } = await execFileAsync(bin, args, {
         cwd: loop.rootDir,
-        timeout: TIMEOUTS.SHELL_EXEC,
+        timeout: step.timeoutMs || TIMEOUTS.SHELL_EXEC,
         // v7.9.11: read raw buffer on Win, decode with detected codepage.
         // Pre-fix utf-8 produced U+FFFD on cp850 output.
         encoding: isWin ? 'buffer' : 'utf-8',

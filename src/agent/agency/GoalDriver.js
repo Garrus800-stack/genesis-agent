@@ -554,7 +554,11 @@ class GoalDriver {
         // already successfully accomplished. completeGoal() exists
         // on GoalStack as of v7.4.5.fix #22.
         if (typeof this.goalStack.completeGoal === 'function') {
-          this.goalStack.completeGoal(goalId);
+          // v7.9.21: pass the pursuit summary as the outcome so a completed
+          // goal records what it accomplished (carried on the goal and the
+          // goal:completed event), not a bare status flip. `result` is the
+          // pursue() return; verifyGoal sets `summary` on every success branch.
+          this.goalStack.completeGoal(goalId, result.summary || null);
         } else if (typeof this.goalStack.setStatus === 'function') {
           // Fallback for older GoalStack versions
           this.goalStack.setStatus(goalId, 'completed');

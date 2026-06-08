@@ -22,6 +22,13 @@ const crypto = require('crypto');
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('SelfModel');
 
+// v7.9.21: directory names the self-model scan never descends into. The
+// named dirs are skipped at any depth. 'snapshots' is handled separately
+// (root-scoped, below): it is SnapshotManager's habitat copy of the source
+// tree (SnapshotManager.SNAPSHOT_DIR), not modelled source — descending it
+// modelled every source module twice.
+const _SCAN_SKIP_DIRS = new Set(['node_modules', 'sandbox', 'dist', 'vendor', '.genesis-backups']);
+
 const selfModelParsing = {
 
   // FIX v3.8.0: Async directory scan — replaces sync _scanDir().
@@ -38,11 +45,12 @@ const selfModelParsing = {
 
     for (const entry of entries) {
       if (entry.name.startsWith('.')) continue;
-      if (entry.name === 'node_modules') continue;
-      if (entry.name === 'sandbox') continue;
-      if (entry.name === 'dist') continue;
-      if (entry.name === 'vendor') continue;        // v7.4.1: skip vendored code (e.g. acorn.js)
-      if (entry.name === '.genesis-backups') continue;
+      if (_SCAN_SKIP_DIRS.has(entry.name)) continue;
+      // v7.9.21: root-scoped skip of SnapshotManager's habitat copy
+      // (<rootDir>/snapshots/, SnapshotManager.SNAPSHOT_DIR). It mirrors the
+      // whole source tree, so descending it modelled every module twice. A
+      // nested dir named 'snapshots' stays (relativeBase === '' only at root).
+      if (relativeBase === '' && entry.name === 'snapshots') continue;
 
       const fullPath = path.join(dir, entry.name);
       const relativePath = path.join(relativeBase, entry.name);
@@ -83,11 +91,12 @@ const selfModelParsing = {
 
     for (const entry of entries) {
       if (entry.name.startsWith('.')) continue;
-      if (entry.name === 'node_modules') continue;
-      if (entry.name === 'sandbox') continue;
-      if (entry.name === 'dist') continue;
-      if (entry.name === 'vendor') continue;        // v7.4.1: skip vendored code (e.g. acorn.js)
-      if (entry.name === '.genesis-backups') continue;
+      if (_SCAN_SKIP_DIRS.has(entry.name)) continue;
+      // v7.9.21: root-scoped skip of SnapshotManager's habitat copy
+      // (<rootDir>/snapshots/, SnapshotManager.SNAPSHOT_DIR). It mirrors the
+      // whole source tree, so descending it modelled every module twice. A
+      // nested dir named 'snapshots' stays (relativeBase === '' only at root).
+      if (relativeBase === '' && entry.name === 'snapshots') continue;
 
       const fullPath = path.join(dir, entry.name);
       const relativePath = path.join(relativeBase, entry.name);
@@ -174,16 +183,24 @@ const selfModelParsing = {
       }
     }
 
-    // Extract requires — skip those inside string literals
-    const lines = code.split('\n');
-    for (const line of lines) {
-      const stripped = line
+    // Extract requires — ignore those inside comments and string literals.
+    // v7.9.21: a require(...) inside a comment was previously captured (the
+    // detection blanked strings but never comments, and the capture ran on the
+    // raw line), so a commented-out require produced a false missing-dependency
+    // and inflated the coupling count. Strip block comments from the whole
+    // source, then strip each line's line-comment while keeping strings intact
+    // (a "//" inside 'http://x' must not truncate the line). Detect on a
+    // string-blanked copy so a require( inside a string is still ignored;
+    // capture on the comment-stripped, string-intact line.
+    const codeNoBlock = code.replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const rawLine of codeNoBlock.split('\n')) {
+      const codePart = rawLine.replace(/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)|\/\/.*$/g, (m, s) => s || '');
+      const detect = codePart
         .replace(/'(?:[^'\\]|\\.)*'/g, "''")
         .replace(/"(?:[^"\\]|\\.)*"/g, '""')
         .replace(/`(?:[^`\\]|\\.)*`/g, '``');
-      if (/\brequire\s*\(/.test(stripped)) {
-        const lineReqs = line.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g);
-        for (const m of lineReqs) info.requires.push(m[1]);
+      if (/\brequire\s*\(/.test(detect)) {
+        for (const m of codePart.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)) info.requires.push(m[1]);
       }
     }
 
