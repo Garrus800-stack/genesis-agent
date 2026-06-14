@@ -316,7 +316,7 @@ class ModelBridge {
       // v7.8.5: log + payload identify the actual answering model.
       _log.warn(`[MODEL] ${label} ${targetBackend} failed, falling back to ${fallback}${fallbackModelName ? ` (${fallbackModelName})` : ''}: ${err.message}`);
       this.bus.fire('model:failover', {
-        from: targetBackend,
+        from: targetBackend || calledModel || 'unknown',
         to: fallback,
         effectiveModel: fallbackModelName,
         preferredModel: calledModel,

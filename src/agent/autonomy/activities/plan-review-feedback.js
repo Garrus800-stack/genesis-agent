@@ -42,8 +42,16 @@ function orderByReviewState(modules, kg) {
   // Stable sort: not-yet-covered files first, original order preserved within groups.
   const ordered = (modules || []).slice().sort((a, b) =>
     (covered.has(a.file) ? 1 : 0) - (covered.has(b.file) ? 1 : 0));
+  // v7.9.22 R1: make "already covered" a structural constraint, not only a prose hint.
+  // When enough uncovered modules exist to fill the offered list, build it from uncovered
+  // modules alone so the planner's "reference ONLY these files" cannot contain a module it
+  // has already inspected. When uncovered files would not fill the list, fall back to the
+  // covered-last ordering so the loop never starves.
+  const OFFER_CAP = 30;
+  const uncovered = ordered.filter(m => !covered.has(m.file));
+  const offered = uncovered.length >= OFFER_CAP ? uncovered.slice(0, OFFER_CAP) : ordered.slice(0, OFFER_CAP);
   return {
-    realPaths: ordered.slice(0, 30).map(m => m.file).join('\n'),
+    realPaths: offered.map(m => m.file).join('\n'),
     alreadyReviewed: [...covered].slice(0, 12).join('\n'),
   };
 }

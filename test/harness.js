@@ -26,6 +26,18 @@ const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
 
+// v7.9.22 H1: track every temp root created via createTestRoot and remove them at
+// the end of a run (and on process exit, so a crashing suite still cleans up) — the
+// createTestRoot docstring already promised this, but no cleanup existed.
+const _testRoots = [];
+function _cleanupTestRoots() {
+  while (_testRoots.length) {
+    const dir = _testRoots.pop();
+    try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 }); } catch (_e) { /* best effort */ }
+  }
+}
+process.on('exit', _cleanupTestRoots);
+
 // ── State ────────────────────────────────────────────────────
 let passed = 0;
 let failed = 0;
@@ -106,6 +118,7 @@ function createTestRoot(label) {
   const id = crypto.randomBytes(4).toString('hex');
   const dir = path.join(os.tmpdir(), `genesis-test-${label || 'suite'}-${id}`);
   fs.mkdirSync(dir, { recursive: true });
+  _testRoots.push(dir);   // v7.9.22 H1: register for cleanup
   return dir;
 }
 
@@ -195,6 +208,7 @@ async function run() {
     process.exit(1);
   }
 
+  _cleanupTestRoots();
   process.exit(failed > 0 ? 1 : 0);
 }
 
@@ -248,6 +262,7 @@ async function runFlat(label) {
     process.exit(1);
   }
 
+  _cleanupTestRoots();
   process.exit(failed > 0 ? 1 : 0);
 }
 

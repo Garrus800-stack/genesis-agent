@@ -141,7 +141,7 @@ class GoalStack {
     this._prioritize();
     this._save();
 
-    this.bus.fire('goal:created', { goalId: goal.id, id: goal.id, description, steps: steps.length, parentId: goal.parentId }, { source: 'GoalStack' });
+    this.bus.fire('goal:created', { id: goal.id, description, steps: steps.length, parentId: goal.parentId }, { source: 'GoalStack' });
     return goal;
   }
 
@@ -422,6 +422,9 @@ class GoalStack {
 
   getActiveGoals() { return this.goals.filter(g => g.status === 'active'); }
   getAll() { return this.goals; }
+  // v7.9.22 Item 1: by-id accessor — repairs the idle-mind hatch and the GoalDriver
+  // primary path, both of which called a getById that did not exist.
+  getById(id) { return this.goals.find(g => g.id === id) || null; }
   _getTopGoal() {
     return this.goals.find(g => g.status === 'active');
   }

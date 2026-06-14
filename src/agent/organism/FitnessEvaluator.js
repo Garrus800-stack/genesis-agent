@@ -135,6 +135,30 @@ class FitnessEvaluator {
         this._lastEvalTimestamp = saved.lastEvalTimestamp;
       }
     } catch { /* first boot */ }
+
+    // v7.9.22 Item 7: recover counters lost to a crash inside the debounce window — only
+    // entries that post-date the last evaluation, so a mature archive/log does not re-fire
+    // the milestone on every reboot. Date.parse() because completedAt is an ISO string and
+    // _lastEvalTimestamp is epoch-ms (a bare > would coerce to NaN). Runs on a first boot too.
+    try {
+      const archive = await this.storage.readJSONAsync('goals/archive.json');
+      if (Array.isArray(archive)) {
+        const since = this._lastEvalTimestamp;
+        const completed = archive.filter(g => g && g.status === 'completed'
+          && Number.isFinite(Date.parse(g.completedAt)) && Date.parse(g.completedAt) > since).length;
+        this._activityCounters.goalCompletions = Math.max(this._activityCounters.goalCompletions, completed);
+      }
+    } catch { /* no archive yet */ }
+    if (this.eventStore && typeof this.eventStore.query === 'function') {
+      try {
+        // assistant-role CHAT_MESSAGE only — the store logs user+assistant per turn, and
+        // interactions++ fires on chat:completed (the assistant write); limit >= milestone.
+        const limit = Math.max(this._milestoneInteractions, 200);
+        const evs = this.eventStore.query({ type: EM.CHAT_MESSAGE.store, since: this._lastEvalTimestamp, limit }) || [];
+        const turns = evs.filter(e => ((e.payload ?? e.data) || {}).role === 'assistant').length;
+        this._activityCounters.interactions = Math.min(Math.max(this._activityCounters.interactions, turns), this._milestoneInteractions);
+      } catch { /* query unsupported */ }
+    }
   }
 
   start() {

@@ -101,7 +101,7 @@ const failoverMixin = {
       ? 'no-chain-configured'
       : 'all-other-backends-unavailable';
     this.bus.fire('model:failover-unavailable', {
-      from: failedBackend,
+      from: failedBackend || 'unknown',
       reason,
       error: err.message,
     }, { source: 'ModelBridge' });

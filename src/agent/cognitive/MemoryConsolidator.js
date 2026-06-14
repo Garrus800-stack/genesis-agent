@@ -404,9 +404,8 @@ class MemoryConsolidator {
   _archiveLessons(lessons) {
     try {
       // Determine archive path
-      const archiveDir = this.storage
-        ? path.join(this.lessonsStore._globalDir, 'archive')
-        : path.join(this.lessonsStore._globalDir, 'archive');
+      // v7.9.22 H3: both ternary branches were identical — collapsed to the single expression.
+      const archiveDir = path.join(this.lessonsStore._globalDir, 'archive');
 
       if (!fs.existsSync(archiveDir)) {
         fs.mkdirSync(archiveDir, { recursive: true });

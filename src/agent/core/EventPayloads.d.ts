@@ -742,15 +742,15 @@ export interface EventPayloadMap {
     insight: any;
   };
   'goal:abandoned': {
-    id?: any;
+    id: any;
     description?: any;
   };
   'goal:created': {
-    goalId: any;
+    id: any;
     description: any;
   };
   'goal:resumed': {
-    goalId?: any;
+    id?: any;
   };
   'shell:plan-complete': {
     task: any;
@@ -973,10 +973,10 @@ export interface EventPayloadMap {
     reason: any;
   };
   'goal:replanned': {
-    goalId?: any;
+    id?: any;
   };
   'goal:unblocked': {
-    goalId?: any;
+    id?: any;
   };
   'goal:step-start': {
     goalId: any;

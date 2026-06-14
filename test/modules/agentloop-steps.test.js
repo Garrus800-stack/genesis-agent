@@ -1,5 +1,6 @@
 const { describe, test, run } = require('../harness');
 const { AgentLoopStepsDelegate } = require('../../src/agent/revolution/AgentLoopSteps');
+const { AgentLoopRecoveryDelegate } = require('../../src/agent/revolution/AgentLoopRecovery');
 
 function mockLoop(overrides = {}) {
   return {
@@ -73,6 +74,8 @@ describe('AgentLoopSteps', () => {
         getNodesByType: () => [],
         addNode: (type, label, props) => { added = { type, label, props }; return 'id'; },
       },
+      // v7.9.22 R1: the store now requires the target to be a module the self-model knows.
+      selfModel: { readModule: () => '// mock code', getFullModel: () => ({ modules: { 'src/agent/x.js': {} } }) },
     }));
     await d._stepAnalyze({ type: 'ANALYZE', description: 'Analyze', target: 'src/agent/x.js' }, '');
     if (!added) throw new Error('KG.addNode not called');
@@ -92,8 +95,8 @@ describe('AgentLoopSteps', () => {
     if (typeof d.attemptRepair !== 'function') throw new Error('Missing');
   });
 
-  test('verifyGoal is a function', () => {
-    const d = new AgentLoopStepsDelegate(mockLoop());
+  test('verifyGoal is a function (now on the Recovery delegate)', () => {
+    const d = new AgentLoopRecoveryDelegate(mockLoop());
     if (typeof d.verifyGoal !== 'function') throw new Error('Missing');
   });
 });

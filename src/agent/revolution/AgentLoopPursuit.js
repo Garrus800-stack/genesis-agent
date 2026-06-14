@@ -93,8 +93,8 @@ const agentLoopPursuitMixin = {
         const _emittedGoalId = this.currentGoalId || `loop_early_${Date.now()}`;
         this.bus.fire('agent-loop:complete', {
           goalId: _emittedGoalId,
-          success: false,
-          steps: this.stepCount,
+          backend: this.model?.activeBackend || 'unknown',
+          success: false, steps: this.stepCount,
           title: (typeof goalDescription === 'string' ? goalDescription : '').slice(0, 100),
           summary: `Failed: ${safeMsg.slice(0, 200)}`,
           error: safeMsg, // v7.9.8 Fix 7: explicit field for GoalDriver primary extraction
@@ -136,7 +136,7 @@ const agentLoopPursuitMixin = {
         }, { source: 'AgentLoop' });
         // v4.12.5-fix: Also emit goal:abandoned for GoalPersistence
         this.bus.fire('goal:abandoned', {
-          goalId: this.currentGoalId,
+          id: this.currentGoalId,
           reason: `Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms)`,
           stepsCompleted: this.stepCount,
         }, { source: 'AgentLoop' });
@@ -411,8 +411,8 @@ const agentLoopPursuitMixin = {
       try {
         this.bus.fire('agent-loop:complete', {
           goalId: failedGoalId,
-          success: false,
-          steps: this.stepCount,
+          backend: this.model?.activeBackend || 'unknown',
+          success: false, steps: this.stepCount,
           title: (typeof goalDescription === 'string' ? goalDescription : '').slice(0, 100),
           summary: `Failed: ${safeMsg.slice(0, 200)}`,
           error: safeMsg, // v7.9.8 Fix 7: explicit field for GoalDriver primary extraction
@@ -596,7 +596,7 @@ const agentLoopPursuitMixin = {
           } else {
             // v4.12.5-fix: Emit goal:abandoned so GoalPersistence can record failure
             this.bus.fire('goal:abandoned', {
-              goalId: this.currentGoalId,
+              id: this.currentGoalId,
               reason: `Max errors at step ${i + 1}: ${result.error}`,
               stepsCompleted: i,
             }, { source: 'AgentLoop' });
@@ -665,6 +665,7 @@ const agentLoopPursuitMixin = {
 
     this.bus.fire('agent-loop:complete', {
       goalId: this.currentGoalId,
+      backend: this.model?.activeBackend || 'unknown',
       success: verification.success,
       steps: this.stepCount,
       title: plan.title,

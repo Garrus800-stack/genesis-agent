@@ -286,10 +286,38 @@ class EventStore {
     }
 
     const events = this._readLog();
+
+    // v7.9.22 Item 2: a crash-restart against the shared append-only log can leave
+    // two benign artifacts that are not tamper — an exact duplicate line, and a
+    // superseded restart-fork orphan (a second instance booted on a tail one event
+    // short, reused an id, and the first instance then flushed its final event, so
+    // two events share a parent with different valid hashes). Tolerate both while
+    // still flagging real tamper. The discriminator is continuation: a restart
+    // leaves a live sibling the chain runs on from — its hash is chained onto by a
+    // later event — whereas tamper is a dead end. Precompute the set of hashes that
+    // are chained onto and the live child of each parent, so a superseded orphan (a
+    // dead leaf whose parent has a different, chained-onto child) is recognised
+    // regardless of which sibling the flush race wrote first.
+    const referenced = new Set(events.map(e => e.prevHash));
+    const liveChildByParent = new Map();
+    for (const e of events) {
+      if (referenced.has(e.hash) && !liveChildByParent.has(e.prevHash)) {
+        liveChildByParent.set(e.prevHash, e.hash);
+      }
+    }
+    const seen = new Set();
+
     let hash = '0000000000000000';
 
     for (const event of events) {
       if (event.id > upToEventId) break;
+
+      const key = event.id + ':' + event.hash;
+      if (seen.has(key)) { continue; } // exact duplicate line
+      const liveSibling = liveChildByParent.get(event.prevHash);
+      if (!referenced.has(event.hash) && liveSibling !== undefined && liveSibling !== event.hash) {
+        continue; // superseded restart-fork orphan — skip before projecting
+      }
 
       // Verify hash chain integrity
       if (event.prevHash !== hash) {
@@ -299,6 +327,7 @@ class EventStore {
       }
 
       this._applyProjections(event);
+      seen.add(key);
       hash = event.hash;
     }
 
@@ -326,9 +355,7 @@ class EventStore {
    */
   verifyIntegrity(opts = {}) {
     const includeRotated = opts.includeRotated !== false;
-    let expectedPrevHash = '0000000000000000';
     const violations = [];
-    let totalEvents = 0;
 
     // Build ordered list of files to scan: oldest rotation first → ... → events.jsonl
     const filesToCheck = [];
@@ -346,38 +373,67 @@ class EventStore {
     }
     if (fs.existsSync(this.logFile)) filesToCheck.push(this.logFile);
 
+    // v7.9.22 Item 2: read the ordered lines across the rotated files and the active
+    // log into one event stream, so the crash-restart-fork discriminator below holds
+    // even where a fork falls on a file boundary.
+    const events = [];
     for (const filePath of filesToCheck) {
       let raw;
       try { raw = fs.readFileSync(filePath, 'utf-8'); }
       catch (_e) { continue; }
-      const lines = raw.split('\n').filter(Boolean);
-      for (const line of lines) {
+      for (const line of raw.split('\n').filter(Boolean)) {
         let event;
         try { event = JSON.parse(line); } catch (_e) { continue; }
         if (!event || typeof event !== 'object') continue;
-
-        if (event.prevHash !== expectedPrevHash) {
-          violations.push({
-            eventId: event.id,
-            file: path.basename(filePath),
-            issue: 'broken-chain',
-            expected: expectedPrevHash,
-            got: event.prevHash,
-          });
-        }
-        const computed = this._computeHash({ ...event, hash: undefined });
-        if (event.hash !== computed) {
-          violations.push({
-            eventId: event.id,
-            file: path.basename(filePath),
-            issue: 'tampered-hash',
-            expected: computed,
-            got: event.hash,
-          });
-        }
-        expectedPrevHash = event.hash;
-        totalEvents++;
+        events.push({ event, file: path.basename(filePath) });
       }
+    }
+
+    // Same discriminator as replay: a superseded restart-fork orphan is a dead leaf
+    // (its hash is chained onto by nothing) whose parent has a different,
+    // chained-onto child; an exact duplicate line repeats an {id, hash}. Both are
+    // tolerated; every other unexpected prevHash is a real broken chain. The
+    // separate hash-recompute check (tampered-hash) is unchanged.
+    const referenced = new Set(events.map(x => x.event.prevHash));
+    const liveChildByParent = new Map();
+    for (const { event: e } of events) {
+      if (referenced.has(e.hash) && !liveChildByParent.has(e.prevHash)) {
+        liveChildByParent.set(e.prevHash, e.hash);
+      }
+    }
+    const seen = new Set();
+
+    let expectedPrevHash = '0000000000000000';
+    let totalEvents = 0;
+    for (const { event, file } of events) {
+      const key = event.id + ':' + event.hash;
+      const liveSibling = liveChildByParent.get(event.prevHash);
+      const isDuplicate = seen.has(key);
+      const isOrphan = !referenced.has(event.hash) && liveSibling !== undefined && liveSibling !== event.hash;
+      if (isDuplicate || isOrphan) { continue; }
+
+      if (event.prevHash !== expectedPrevHash) {
+        violations.push({
+          eventId: event.id,
+          file,
+          issue: 'broken-chain',
+          expected: expectedPrevHash,
+          got: event.prevHash,
+        });
+      }
+      const computed = this._computeHash({ ...event, hash: undefined });
+      if (event.hash !== computed) {
+        violations.push({
+          eventId: event.id,
+          file,
+          issue: 'tampered-hash',
+          expected: computed,
+          got: event.hash,
+        });
+      }
+      expectedPrevHash = event.hash;
+      seen.add(key);
+      totalEvents++;
     }
 
     return { ok: violations.length === 0, violations, totalEvents };

@@ -34,7 +34,7 @@ function spyBus() {
 describe('HotReloader — Constructor & State', () => {
   test('initializes with empty maps', () => {
     const { HotReloader } = require('../../src/agent/capabilities/HotReloader');
-    const hr = new HotReloader('/tmp/test', mockGuard());
+    const hr = new HotReloader(createTestRoot('hotreload'), mockGuard());
     assertEqual(hr.moduleCache.size, 0);
     assertEqual(hr.watchers.size, 0);
     assertEqual(hr.reloadCallbacks.size, 0);
@@ -42,7 +42,7 @@ describe('HotReloader — Constructor & State', () => {
 
   test('uses NullBus when no bus provided', () => {
     const { HotReloader } = require('../../src/agent/capabilities/HotReloader');
-    const hr = new HotReloader('/tmp/test', mockGuard());
+    const hr = new HotReloader(createTestRoot('hotreload'), mockGuard());
     assert(hr.bus !== null, 'bus should fallback to NullBus');
   });
 });

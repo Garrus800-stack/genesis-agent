@@ -509,21 +509,10 @@ class AgentCoreBoot {
     // v7.0.3: Tightened patterns — removed ambiguous "ziel/goal" keywords that
     // caused fuzzy-match collisions with the "goals" intent (goal management).
     // agent-goal should only match explicit autonomous execution requests.
-    c.resolve('intentRouter').register('agent-goal', [
-      /(?:mach|bau|erstell|implementier|refaktor|schreib).*(?:fuer mich|komplett|fertig|ganz|vollstaendig)/i,
-      /(?:kuemmer|sorg).*(?:dich|du).*(?:um|darum)/i,
-      /(?:erledige?|ausfuehr|fuehr).*(?:das|diese?n?|alles|aufgabe|task)/i,
-      /(?:arbeit|work).*(?:autonom|selbststaendig|eigenstaendig|allein)/i,
-      /(?:build|create|implement|refactor|write).*(?:for me|complete|entire|whole)/i,
-      /(?:take care|handle|manage|do).*(?:for me|it all|everything|autonomously)/i,
-      /(?:work|operate|execute).*(?:autonom|independent|on your own)/i,
-      /(?:ich will|i want|i need).*(?:dass du|you to).*(?:komplett|complete|entire|fully)/i,
-    ], 18, [
-      'autonom', 'autonomous', 'eigenstaendig', 'independent',
-      'erledigen', 'handle', 'komplett', 'complete', 'aufgabe',
-      'task', 'implementieren', 'implement',
-      'bauen', 'build', 'erstellen', 'create', 'alleine', 'alone',
-    ]);
+    // v7.9.22 Item 11: patterns + fuzzy keywords single-sourced so the registration test
+    // cannot drift from the producer; the greedy-.* over-match is fixed in that module.
+    const { AGENT_GOAL_PATTERNS, AGENT_GOAL_FUZZY } = require('./autonomy/AgentGoalPatterns');
+    c.resolve('intentRouter').register('agent-goal', AGENT_GOAL_PATTERNS, 18, AGENT_GOAL_FUZZY);
 
     // Delegate event wiring to AgentCoreWire
     wireDelegate._wireEventHandlers();

@@ -6,6 +6,7 @@
 'use strict';
 
 const { describe, test, run } = require('../harness');
+const { createTestRoot } = require('../harness');
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
@@ -55,7 +56,7 @@ describe('v7.6.8 GoalStack lifecycle split', () => {
     const stack = new GoalStack({
       bus: { fire: (e, d) => fires.push({ e, d }), emit: () => {}, on: () => {} },
       storage: { writeJSONDebounced: (n, d) => writes.push({ n, d }), readJSON: () => [] },
-      storageDir: '/tmp',
+      storageDir: createTestRoot('v768'),
     });
     stack.goals.push({ id: 'g1', description: 'test', status: 'active', priority: 'medium', created: new Date().toISOString() });
 
@@ -73,7 +74,7 @@ describe('v7.6.8 GoalStack lifecycle split', () => {
     const stack = new GoalStack({
       bus: { fire: (e, d) => fires.push({ e, d }), emit: () => {}, on: () => {} },
       storage: { writeJSONDebounced: () => {}, readJSON: () => [] },
-      storageDir: '/tmp',
+      storageDir: createTestRoot('v768'),
     });
     stack.goals.push(
       { id: 'parent', description: 'p', status: 'active', priority: 'medium' },
@@ -94,7 +95,7 @@ describe('v7.6.8 GoalStack lifecycle split', () => {
     const stack = new GoalStack({
       bus: { fire: (e, d) => fires.push({ e, d }), emit: () => {}, on: () => {} },
       storage: { writeJSONDebounced: () => {}, readJSON: () => [] },
-      storageDir: '/tmp',
+      storageDir: createTestRoot('v768'),
     });
     stack.goals.push(
       { id: 'a', description: 'a', status: 'active', priority: 'medium' },
@@ -131,7 +132,7 @@ describe('v7.6.8 GoalStack lifecycle split', () => {
     const stack = new GoalStack({
       bus: { fire: () => {}, emit: () => {}, on: () => {} },
       storage: { writeJSONDebounced: () => {}, readJSON: () => [] },
-      storageDir: '/tmp',
+      storageDir: createTestRoot('v768'),
     });
     stack.goals.push(
       { id: 'g1', description: 'one', status: 'active', priority: 'medium' },

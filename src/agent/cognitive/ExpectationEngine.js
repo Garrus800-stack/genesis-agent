@@ -66,7 +66,7 @@ class ExpectationEngine {
     this._calibration = {
       totalPredictions: 0,
       correctPredictions: 0,  // predicted success matched actual success
-      booleanErrors: /** @type {number[]} */ ([]),      // rolling window of |predicted - actual|
+      booleanErrors: /** @type {Array<number|{error:number,weight:number}>} */ ([]),  // rolling window of {|predicted-actual|, confidence-weight}; legacy plain numbers count at weight 1.0
       score: 0.5,             // 0.0 = terrible, 1.0 = perfect
     };
     this._maxCalibrationWindow = 200;
@@ -342,16 +342,28 @@ class ExpectationEngine {
       this._calibration.correctPredictions++;
     }
 
-    // Track prediction error for rolling EMA
+    // Track the prediction error in the rolling window, weighted by the prediction's
+    // confidence (v7.9.22 Item 8): a low-confidence cold-start guess contributes
+    // proportionally less than a confident prediction, so the exposed score reflects
+    // calibration over predictions that claimed knowledge, not cold-start noise. A
+    // non-finite confidence falls to the 0.2 floor — the value the engine assigns its own
+    // guesses — which keeps it counting without letting it dominate.
     const error = Math.abs(expectation.successProb - (outcome.success ? 1 : 0));
-    this._calibration.booleanErrors.push(error);
+    const weight = Number.isFinite(expectation.confidence) ? Math.max(expectation.confidence, 0.2) : 0.2;
+    this._calibration.booleanErrors.push({ error, weight });
     if (this._calibration.booleanErrors.length > this._maxCalibrationWindow) {
       this._calibration.booleanErrors = this._calibration.booleanErrors.slice(-this._maxCalibrationWindow);
     }
 
-    // Calibration score = 1 - average error (0=bad, 1=perfect)
-    const avgError = this._calibration.booleanErrors.reduce((s, e) => s + e, 0) /
-                     this._calibration.booleanErrors.length;
+    // Calibration score = 1 - weighted-average error. Entries persisted by an earlier
+    // version as plain numbers count at weight 1.0, so no migration is needed.
+    let _sumW = 0, _sumWE = 0;
+    for (const _entry of this._calibration.booleanErrors) {
+      const _e = typeof _entry === 'number' ? _entry : _entry.error;
+      const _w = typeof _entry === 'number' ? 1 : _entry.weight;
+      _sumW += _w; _sumWE += _w * _e;
+    }
+    const avgError = _sumW > 0 ? _sumWE / _sumW : 0;
     this._calibration.score = 1 - avgError;
 
     // Periodic calibration event

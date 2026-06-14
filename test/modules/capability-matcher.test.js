@@ -5,6 +5,7 @@
 'use strict';
 
 const { describe, test, assert, assertEqual, run } = require('../harness');
+const { createTestRoot } = require('../harness');
 const CapabilityMatcher = require('../../src/agent/planning/CapabilityMatcher');
 
 const MOCK_CAPS = [
@@ -184,7 +185,7 @@ describe('v7.3.1 — GoalStack: Capability-Gate integration', () => {
         fire: (event, data) => busEvents.push({ event, data }),
         _container: null,
       },
-      storageDir: '/tmp/test-goalstack-' + Date.now(),
+      storageDir: createTestRoot('capmatch'),
       storage: null,
       model: {
         chat: async () => '1. Step one\n2. Step two\n3. Step three',

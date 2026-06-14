@@ -33,6 +33,9 @@ const path = require('path');
 
 const PURSUIT_PATH = path.join(__dirname, '..', '..', 'src/agent/revolution/AgentLoopPursuit.js');
 const IDLEMIND_PATH = path.join(__dirname, '..', '..', 'src/agent/autonomy/IdleMind.js');
+// v7.9.22 (Item 15 split): the insight-only counter increment and novelty formula moved
+// from IdleMind.js into the IdleMindJournal mixin; Bug-2 pins follow the code to its new home.
+const JOURNAL_PATH = path.join(__dirname, '..', '..', 'src/agent/autonomy/IdleMindJournal.js');
 const SETTINGS_PATH = path.join(__dirname, '..', '..', 'src/agent/foundation/Settings.js');
 
 describe('Bug 1a — abort-return includes `error` field for GoalDriver resolve-side', () => {
@@ -96,14 +99,14 @@ describe('Bug 2 — IdleMind insightThoughtCount drives novelty (not bare though
   });
 
   test('insightThoughtCount only incremented for INSIGHT_ACTIVITIES', () => {
-    const src = fs.readFileSync(IDLEMIND_PATH, 'utf-8');
+    const src = fs.readFileSync(JOURNAL_PATH, 'utf-8');
     // The increment must be guarded by isInsight (INSIGHT_ACTIVITIES check).
     assert(/if\s*\(\s*isInsight\s*\)[\s\S]{0,80}?this\.insightThoughtCount\s*=/.test(src),
       'insightThoughtCount must only increment when isInsight is true');
   });
 
   test('novelty formula uses insight-derived count, not raw thoughtCount', () => {
-    const src = fs.readFileSync(IDLEMIND_PATH, 'utf-8');
+    const src = fs.readFileSync(JOURNAL_PATH, 'utf-8');
     // The novelty = Math.max(0.30, 0.85 - 0.05 * ...) line must NOT use
     // thoughtCount directly inside the decay expression — it must use
     // either insightThoughtCount or a derived noveltyCount.

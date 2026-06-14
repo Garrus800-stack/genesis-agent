@@ -45,6 +45,11 @@ const TRUST_LEVELS = Object.freeze({
   FULL_AUTONOMY: 2,
 });
 
+// v7.9.22 Item 13: reverse-map so approval logs show the level name, not only the number.
+const TRUST_LEVEL_NAMES = Object.freeze(
+  Object.fromEntries(Object.entries(TRUST_LEVELS).map(([name, n]) => [n, name]))
+);
+
 // ── Action risk classification ───────────────────────────
 const ACTION_RISK = {
   // Safe actions (always auto-execute except at SUPERVISED)
@@ -296,8 +301,8 @@ class TrustLevelSystem {
       return {
         approved: overrideApproved,
         reason: overrideApproved
-          ? `Action "${actionType}" auto-approved (override at level ${override})`
-          : `Action "${actionType}" needs approval (override requires level ${override}, current: ${level})`,
+          ? `Action "${actionType}" auto-approved (override at level ${override} — ${TRUST_LEVEL_NAMES[override] || 'UNKNOWN'})`
+          : `Action "${actionType}" needs approval (override requires level ${override} — ${TRUST_LEVEL_NAMES[override] || 'UNKNOWN'}, current: ${level} — ${TRUST_LEVEL_NAMES[level] || 'UNKNOWN'})`,
         needsUserApproval: !overrideApproved,
       };
     }
@@ -308,14 +313,14 @@ class TrustLevelSystem {
       this._stats.autoApproved++;
       return {
         approved: true,
-        reason: `Action "${actionType}" (${risk} risk) auto-approved at trust level ${level}`,
+        reason: `Action "${actionType}" (${risk} risk) auto-approved at trust level ${level} (${TRUST_LEVEL_NAMES[level] || 'UNKNOWN'})`,
         needsUserApproval: false,
       };
     }
 
     return {
       approved: false,
-      reason: `Action "${actionType}" (${risk} risk) needs user approval at trust level ${level}`,
+      reason: `Action "${actionType}" (${risk} risk) needs user approval at trust level ${level} (${TRUST_LEVEL_NAMES[level] || 'UNKNOWN'})`,
       needsUserApproval: true,
     };
   }
@@ -436,7 +441,7 @@ class TrustLevelSystem {
   getStatus() {
     return {
       level: this._level,
-      levelName: Object.entries(TRUST_LEVELS).find(([, v]) => v === this._level)?.[0] || 'UNKNOWN',
+      levelName: TRUST_LEVEL_NAMES[this._level] || 'UNKNOWN',
       autoApproves: LEVEL_AUTO_APPROVE[this._level] || [],
       overrides: { ...this._actionOverrides },
       pendingUpgrades: this._pendingUpgrades.length,

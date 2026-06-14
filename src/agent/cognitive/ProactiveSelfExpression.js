@@ -30,6 +30,12 @@
 const { NullBus } = require('../core/EventBus');
 const { runGates } = require('./proactiveSelfExpression/HardGates');
 const { scoreThought } = require('./proactiveSelfExpression/Scoring');
+
+// v7.9.22 Item 10 — solo-relaxation tunables for the publishing gate (see _onCandidate):
+// past an hour with no user message the score bar relaxes from the 0.55 base to 0.35, so
+// extended solo operation is not silenced while minIntervalMs stays intact as the burst guard.
+const SOLO_RELAX_TRIGGER_MS = 60 * 60 * 1000;  // one hour with no user message
+const SOLO_RELAX_THRESHOLD = 0.35;             // relaxed score bar, down from the 0.55 base
 const { runSanity } = require('./proactiveSelfExpression/ContentSanity');
 const { generate } = require('./proactiveSelfExpression/ContentGeneration');
 const { StateStore } = require('./proactiveSelfExpression/StateStore');
@@ -52,6 +58,7 @@ class ProactiveSelfExpression {
     this.eventStore = eventStore || null;
     this.stateStore = new StateStore({ storageDir, storage });
     this.stateStore.load();
+    this._bootTime = Date.now();   // v7.9.22 Item 10: solo measured from boot when no user message is on record
 
     // Late-bound (manifest)
     this.modelBridge = null;
@@ -136,7 +143,14 @@ class ProactiveSelfExpression {
       lastFireOfKindMs,
       dailyCount: state.dailyCount,
     });
-    const threshold = settings.baseThreshold;
+    // v7.9.22 Item 10: relax the score bar in extended solo operation so a long run with
+    // no user is not silenced, while minIntervalMs stays intact as the burst guard. Solo
+    // duration is measured from the last user message, or from process boot when none is on
+    // record (not infinite, so a fresh reboot does not relax mid-day). It only ever lowers.
+    const _soloSinceMs = state.lastUserMessageMs != null ? state.lastUserMessageMs : this._bootTime;
+    const threshold = (now - _soloSinceMs) >= SOLO_RELAX_TRIGGER_MS
+      ? Math.min(settings.baseThreshold, SOLO_RELAX_THRESHOLD)
+      : settings.baseThreshold;
 
     this.bus.fire('agent:self-message-candidate', {
       thoughtId: thought.id,

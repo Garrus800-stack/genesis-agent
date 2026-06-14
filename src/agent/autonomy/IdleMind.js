@@ -175,11 +175,11 @@ class IdleMind {
     }, { source: 'IdleMind' });
   }
 
-
-
   start() {
     if (this.running) return;
     this.running = true;
+    this._subscribeGoalTerminal();   // v7.9.22 Item 4: link plans to terminal goals
+    this._reconcilePreLinkPlans();   // v7.9.22 R2: heal a plan whose link predates Item 4
 
     const tickFn = () => {
       const idleTime = Date.now() - this.lastUserActivity;
@@ -572,7 +572,6 @@ class IdleMind {
     return bestActivity;
   }
 
-
   // ── Activity implementations → IdleMindActivities.js ──
   // (prototype delegation, see bottom of file)
 
@@ -605,262 +604,7 @@ class IdleMind {
     return this._networkCheckCache;
   }
 
-  readJournal(limit = 20) {
-    try {
-      const raw = this.storage
-        ? this.storage.readText('journal.jsonl', '')
-        : (fs.existsSync(this.journalPath) ? fs.readFileSync(this.journalPath, 'utf-8') : '');
-      const lines = raw.split('\n').filter(Boolean);
-      return lines.slice(-limit).map(l => {
-        try { return JSON.parse(l); } catch (err) { return null; }
-      }).filter(Boolean);
-    } catch (err) { _log.debug('[IDLE] Journal read failed:', err.message); return []; }
-  }
-
-  // ── Plans ────────────────────────────────────────────────
-
-  getPlans() { return this.plans; }
-
-  updatePlanStatus(planId, status) {
-    const plan = this.plans.find(p => p.id === planId);
-    if (plan) {
-      plan.status = status;
-      plan.updated = new Date().toISOString();
-      this._savePlans();
-    }
-  }
-
-  _loadPlans() {
-    try {
-      if (this.storage) return this.storage.readJSON('plans.json', []);
-      if (fs.existsSync(this.planPath)) return safeJsonParse(fs.readFileSync(this.planPath, 'utf-8'), null, 'IdleMind');
-    } catch (err) { _log.debug('[IDLE] Plan load failed:', err.message); }
-    return [];
-  }
-
-  _savePlans() {
-    try {
-      if (this.storage) { this.storage.writeJSONDebounced('plans.json', this.plans); return; }
-      if (!fs.existsSync(this.storageDir)) fs.mkdirSync(this.storageDir, { recursive: true });
-      // FIX v5.1.0 (N-3): Atomic write fallback when StorageService unavailable.
-      atomicWriteFileSync(this.planPath, JSON.stringify(this.plans, null, 2), 'utf-8');
-    } catch (err) {
-      _log.warn('[IDLE-MIND] Plan save failed:', err.message);
-    }
-  }
-
-  // FIX v5.5.0 (H-1): Synchronous persist for shutdown path.
-  _savePlansSync() {
-    try {
-      if (this.storage) { this.storage.writeJSON('plans.json', this.plans); return; }
-      if (!fs.existsSync(this.storageDir)) fs.mkdirSync(this.storageDir, { recursive: true });
-      atomicWriteFileSync(this.planPath, JSON.stringify(this.plans, null, 2), 'utf-8');
-    } catch (err) {
-      _log.warn('[IDLE-MIND] Plan sync save failed:', err.message);
-    }
-  }
-
-  // v7.9.20 (D): improvement-proposal persistence (mirrors plans).
-  _loadProposals() {
-    try {
-      if (this.storage) return this.storage.readJSON('proposals.json', []);
-      if (fs.existsSync(this.proposalPath)) return safeJsonParse(fs.readFileSync(this.proposalPath, 'utf-8'), null, 'IdleMind');
-    } catch (err) { _log.debug('[IDLE] Proposal load failed:', err.message); }
-    return [];
-  }
-
-  _saveProposals() {
-    try {
-      if (this.storage) { this.storage.writeJSONDebounced('proposals.json', this.proposals); return; }
-      if (!fs.existsSync(this.storageDir)) fs.mkdirSync(this.storageDir, { recursive: true });
-      atomicWriteFileSync(this.proposalPath, JSON.stringify(this.proposals, null, 2), 'utf-8');
-    } catch (err) {
-      _log.warn('[IDLE-MIND] Proposal save failed:', err.message);
-    }
-  }
-
-  // ── Status ───────────────────────────────────────────────
-
-  getStatus() {
-    let journalCount = 0;
-    try {
-      const raw = this.storage
-        ? this.storage.readText('journal.jsonl', '')
-        : (fs.existsSync(this.journalPath) ? fs.readFileSync(this.journalPath, 'utf-8') : '');
-      journalCount = raw.split('\n').filter(Boolean).length;
-    } catch (err) { _log.debug('[IDLE-MIND] Journal write error:', err.message); }
-    return {
-      running: this.running,
-      idleSince: Date.now() - this.lastUserActivity,
-      isIdle: (Date.now() - this.lastUserActivity) >= this.idleThreshold,
-      thoughtCount: this.thoughtCount,
-      recentActivities: this.activityLog.slice(-5),
-      // v7.9.1: per-type aggregation for the Insights Timeline renderer.
-      activityCounts: Object.fromEntries(this._activityCounts || []),
-      plans: this.plans.length,
-      activeGoals: this.goalStack ? this.goalStack.getActiveGoals().length : 0,
-      totalGoals: this.goalStack ? this.goalStack.getAll().length : 0,
-      journalEntries: journalCount,
-    };
-  }
-
-  /**
-   * v7.4.0: Runtime snapshot for RuntimeStatePort.
-   *
-   * CRITICAL: I/O-free by design. This is NOT a wrapper around
-   * getStatus() — getStatus() does fs.readFileSync on journal.jsonl
-   * at every call, which would block the prompt-build path with
-   * disk-I/O. getRuntimeSnapshot() reads only in-memory fields.
-   *
-   * The LLM sees the latest activity from activityLog (already in
-   * RAM, bounded) and minutesIdle (computed from lastUserActivity
-   * which is updated on every event). journal line-count is
-   * intentionally omitted — if the LLM needs it, a separate tool
-   * call can fetch it.
-   */
-  getRuntimeSnapshot() {
-    const now = Date.now();
-    const idleMs = now - this.lastUserActivity;
-    const minutesIdle = Math.floor(idleMs / 60000);
-    // Latest activity (if any). activityLog is in-memory, bounded.
-    let currentActivity = null;
-    let lastActivityAgo = null;
-    if (this.activityLog.length > 0) {
-      const last = this.activityLog[this.activityLog.length - 1];
-      currentActivity = last.activity || null;
-      lastActivityAgo = Math.floor((now - last.timestamp) / 1000);
-    }
-    return {
-      running: this.running,
-      isIdle: idleMs >= this.idleThreshold,
-      minutesIdle,
-      thoughtCount: this.thoughtCount,
-      currentActivity,
-      lastActivityAgoSeconds: lastActivityAgo,
-    };
-  }
-
-  // v7.3.1: _journal moved from IdleMindActivities.js into IdleMind itself.
-  // Previously attached via prototype-delegation; now lives here as a real
-  // instance method because activities/*.js (Calibrate, Improve) call it
-  // via idleMind._journal(...) rather than through a prototype chain.
-  _journal(activity, content) {
-    const entry = {
-      timestamp: new Date().toISOString(),
-      activity,
-      thought: content.slice(0, 500),
-      thoughtNumber: this.thoughtCount,
-    };
-
-    try {
-      // v7.5.7-fix Phase 2: rotate journal if too large. Check every 50 writes.
-      this._journalRotateCheckCounter = (this._journalRotateCheckCounter || 0) + 1;
-      if (this._journalRotateCheckCounter >= 50) {
-        this._journalRotateCheckCounter = 0;
-        this._rotateJournalIfNeeded();
-      }
-      if (this.storage) {
-        this.storage.appendText('journal.jsonl', JSON.stringify(entry) + '\n');
-      } else {
-        if (!fs.existsSync(this.storageDir)) fs.mkdirSync(this.storageDir, { recursive: true });
-        fs.appendFileSync(this.journalPath, JSON.stringify(entry) + '\n', 'utf-8');
-      }
-    } catch (err) {
-      _log.warn('[IDLE-MIND] Journal write failed:', err.message);
-    }
-
-    if (this.eventStore) {
-      this.eventStore.append('IDLE_THOUGHT', { activity, summary: content.slice(0, 200) }, 'IdleMind');
-    }
-
-    // v7.7.9: Additive emit through InnerSpeech for first-person thought channel.
-    // Existing journal.jsonl + IDLE_THOUGHT writes above are unchanged. This is
-    // a parallel emission for ProactiveSelfExpression and other consumers that
-    // care about first-person thoughts in Genesis's voice. emit() never throws
-    // and never blocks — Genesis is never gated against thinking.
-    if (this.innerSpeech && typeof this.innerSpeech.emit === 'function') {
-      try {
-        // v7.7.9 Phase 3: heuristic significance for idle-thoughts. The PSE
-        // pipeline applies per-kind floors (idle-thought sigFloor 0.70,
-        // novFloor 0.65) — without these heuristics every idle-thought
-        // would pass the kind gate and the per-kind floor would never
-        // fire. Activity-based heuristic:
-        //   - insight activities (reflect/explore/tidy/plan/ideate) →
-        //     significance based on content length + activity weight
-        //   - other activities → fixed baseline (won't pass 0.70 floor)
-        // Novelty: rough proxy — first thought in cycle = 0.8,
-        // decaying as thoughtCount grows in the same idle window.
-        const INSIGHT_ACTIVITIES = new Set(['reflect', 'explore', 'tidy', 'plan', 'ideate']);
-        const isInsight = INSIGHT_ACTIVITIES.has(activity);
-        const contentLen = typeof content === 'string' ? content.length : 0;
-        const lenBoost = Math.min(0.3, contentLen / 800);  // up to +0.3 for 240+ chars
-        const significance = isInsight ? Math.min(0.95, 0.55 + lenBoost) : 0.40;
-        // v7.7.9: novelty decays per insight-thought (not per tick).
-        if (isInsight) this.insightThoughtCount = (this.insightThoughtCount || 0) + 1;
-        const noveltyCount = isInsight ? (this.insightThoughtCount || 1) : 1;
-        const novelty = Math.max(0.30, 0.85 - 0.05 * Math.max(0, noveltyCount - 1));
-
-        this.innerSpeech.emit(content, 'idle-thought', {
-          sourceModule: 'IdleMind',
-          contextRefs: { activity, thoughtNumber: this.thoughtCount },
-          emotionalSnapshot: this._snapshotEmotion(),
-          significance,
-          novelty,
-        });
-      } catch (_e) { /* never let inner-speech failure break idle cycle */ }
-    }
-  }
-
-  /**
-   * v7.7.9: Capture current emotional skalars for inner-speech context.
-   * Returns null if emotionalState is unavailable or throws.
-   * Used by _journal() to attach emotionalSnapshot to InnerSpeech thoughts —
-   * lets Genesis later see WHICH MOOD he was in when a thought arose.
-   */
-  _snapshotEmotion() {
-    if (!this.emotionalState || typeof this.emotionalState.getState !== 'function') return null;
-    try {
-      const s = this.emotionalState.getState();
-      if (!s || typeof s !== 'object') return null;
-      return {
-        curiosity: typeof s.curiosity === 'number' ? s.curiosity : null,
-        satisfaction: typeof s.satisfaction === 'number' ? s.satisfaction : null,
-        frustration: typeof s.frustration === 'number' ? s.frustration : null,
-        energy: typeof s.energy === 'number' ? s.energy : null,
-      };
-    } catch (_e) { return null; }
-  }
-
-  /**
-   * v7.5.7-fix Phase 2: rotate journal.jsonl when it exceeds max size.
-   * Best-effort, swallows errors. Same pattern as EventStore rotation.
-   */
-  _rotateJournalIfNeeded() {
-    if (this._journalMaxFileSizeMB <= 0) return;
-    try {
-      const stat = fs.statSync(this.journalPath);
-      const sizeMB = stat.size / (1024 * 1024);
-      if (sizeMB < this._journalMaxFileSizeMB) return;
-      // Walk backwards: drop the oldest, shift others up by one
-      for (let i = this._journalMaxRotations; i >= 1; i--) {
-        const cur = `${this.journalPath}.${i}`;
-        const next = `${this.journalPath}.${i + 1}`;
-        if (!fs.existsSync(cur)) continue;
-        if (i === this._journalMaxRotations) {
-          try { fs.unlinkSync(cur); } catch (_e) { /* swallow */ }
-        } else {
-          try { fs.renameSync(cur, next); } catch (_e) { /* swallow */ }
-        }
-      }
-      try { fs.renameSync(this.journalPath, `${this.journalPath}.1`); } catch (_e) { /* swallow */ }
-      _log.info(`[IDLE-MIND] Rotated journal.jsonl (was ${sizeMB.toFixed(1)}MB)`);
-    } catch (_err) {
-      // File doesn't exist yet — nothing to rotate
-    }
-  }
 }
-
-
 
 // v7.3.1: Prototype delegation removed. Activity implementations now
 // live as separate modules in ./activities/ and are dispatched through
@@ -872,5 +616,8 @@ class IdleMind {
 // import from activities/Research.js.
 applySubscriptionHelper(IdleMind);
 const { activityStatsMixin } = require('./IdleMindActivityStats'); // v7.9.1
-Object.assign(IdleMind.prototype, activityStatsMixin);
+const { journalMixin } = require('./IdleMindJournal');   // v7.9.22 Item 15
+const { plansMixin } = require('./IdleMindPlans');       // v7.9.22 Items 4 + 15
+const { statusMixin } = require('./IdleMindStatus');     // v7.9.22 Item 15
+Object.assign(IdleMind.prototype, activityStatsMixin, journalMixin, plansMixin, statusMixin);
 module.exports = { IdleMind };

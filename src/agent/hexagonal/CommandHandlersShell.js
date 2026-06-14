@@ -57,6 +57,7 @@ const commandHandlersShell = {
         command: cmd, success: result.ok && !result.blocked,
         error: result.blocked ? 'blocked' : result.stderr?.slice(0, 200) || null,
         platform: process.platform,
+        backend: 'shell',
       }, { source: 'CommandHandlers' });
     }
     const lines = [`**$ ${cmd}**`, ''];

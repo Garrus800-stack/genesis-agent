@@ -4,10 +4,11 @@
 // late-bound via DI, non-mutating, deduped, defensive on absence.
 // ============================================================
 const { describe, test, assert, assertEqual, run } = require('../harness');
+const { createTestRoot } = require('../harness');
 const { SelfModel } = require('../../src/agent/foundation/SelfModel');
 
 function fresh() {
-  const sm = new SelfModel('/tmp/genesis-test', null);
+  const sm = new SelfModel(createTestRoot('selfmodel'), null);
   sm.manifest.capabilities = ['chat', 'self-awareness'];
   sm.manifest.capabilitiesDetailed = [
     { id: 'chat', module: null, class: null, category: 'core', tags: [], description: 'Converse', keywords: [] },

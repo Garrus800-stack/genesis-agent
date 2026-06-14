@@ -13,6 +13,7 @@
 'use strict';
 
 const { describe, test, assert, run } = require('../harness');
+const { createTestRoot } = require('../harness');
 const { GoalStack } = require('../../src/agent/planning/GoalStack');
 
 function makeStack({ bus } = {}) {
@@ -32,7 +33,7 @@ function makeStack({ bus } = {}) {
     bus: mockBus,
     model: null,
     prompts: null,
-    storageDir: '/tmp/test',
+    storageDir: createTestRoot('goal-lifecycle'),
     storage,
   });
   stack._capturedEvents = events;

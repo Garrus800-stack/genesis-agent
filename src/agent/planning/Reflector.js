@@ -8,6 +8,29 @@ const fs = require('fs');
 const path = require('path');
 const { atomicWriteFileSync } = require('../core/utils');
 
+// v7.9.22 Item 6: is the require(<literal>) for `req` lexically inside a try block? A
+// guarded require with a fallback is not a defect, so its missing-dependency issue is
+// informational rather than HIGH. Walks the acorn AST, tracking descent into a try block.
+function _requireIsTryGuarded(ast, req) {
+  let found = false, guarded = false;
+  (function walk(node, inTry) {
+    if (found || !node || typeof node !== 'object') return;
+    if (node.type === 'CallExpression' && node.callee && node.callee.name === 'require'
+        && node.arguments && node.arguments[0] && node.arguments[0].value === req) {
+      found = true; guarded = inTry; return;
+    }
+    for (const k of Object.keys(node)) {
+      if (k === 'type' || k === 'start' || k === 'end' || k === 'loc') continue;
+      const child = node[k];
+      const arr = Array.isArray(child) ? child : [child];
+      for (const c of arr) {
+        if (c && typeof c.type === 'string') walk(c, inTry || (node.type === 'TryStatement' && c === node.block));
+      }
+    }
+  })(ast, false);
+  return found && guarded;
+}
+
 class Reflector {
   constructor(selfModel, model, prompts, sandbox, guard) {
     this.selfModel = selfModel;
@@ -92,9 +115,22 @@ class Reflector {
           const candidates = [resolvedReq, resolvedReq + '.js', resolvedReq + '/index.js'];
           const exists = candidates.some(c => fs.existsSync(c));
           if (!exists) {
+            // v7.9.22 Item 6: a try-guarded require with a fallback is not a defect — rank
+            // it informational; an unguarded missing require stays HIGH (a boot-crash risk).
+            // On no-acorn or a parse failure the severity stays HIGH conservatively.
+            let severity = 'high';
+            try {
+              const { getAcorn } = require('../intelligence/VerificationEngine');
+              const acorn = getAcorn();
+              if (acorn) {
+                const src = fs.readFileSync(path.join(this.selfModel.rootDir, filePath), 'utf-8');
+                const ast = acorn.parse(src, { ecmaVersion: 'latest', allowReturnOutsideFunction: true, allowHashBang: true });
+                if (_requireIsTryGuarded(ast, req)) severity = 'info';
+              }
+            } catch { /* read/parse failed — stay HIGH */ }
             issues.push({
               type: 'missing-dependency',
-              severity: 'high',
+              severity,
               file: filePath,
               detail: `require('${req}') — file not found`,
             });

@@ -22,10 +22,11 @@ function phase7(ctx, R) {
     }],
 
     ['homeostasis', {
-      phase: 7, deps: ['storage', 'emotionalState', 'settings'], tags: ['organism'],
+      phase: 7, deps: ['storage', 'emotionalState', 'settings', 'knowledgeGraph'], tags: ['organism'],
       factory: (c) => new (R('Homeostasis').Homeostasis)({
         bus, storage: c.resolve('storage'), intervals,
         emotionalState: c.resolve('emotionalState'),
+        knowledgeGraph: c.resolve('knowledgeGraph'),
         config: c.resolve('settings').get('organism.homeostasis') || {},
       }),
     }],

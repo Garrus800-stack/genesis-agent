@@ -203,9 +203,12 @@ module.exports = {
         try {
           // v7.3.6 patch: pass triggerSource so Self-Gate can detect reflexivity
           // in the LLM output that produced this goal (e.g. "ich sollte X erstellen").
-          await idleMind.goalStack.addGoal(title, 'idle-mind', priority, {
+          const goal = await idleMind.goalStack.addGoal(title, 'idle-mind', priority, {
             triggerSource: thought.slice(0, 500),
           });
+          // v7.9.22 Item 4: persist the goal<->plan back-link (goal may be null when
+          // addGoal refuses it; the helper guards a falsy id).
+          idleMind._linkGoalToPlan(goal?.id, plan.id);
         } catch (err) {
           _log.warn('[IDLE-MIND] Goal creation failed:', err.message);
         }

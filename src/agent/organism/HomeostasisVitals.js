@@ -172,7 +172,19 @@ const vitals = {
 
     // Track KG size
     this._sub('knowledge:node-added', () => {
-      this.vitals.kgNodeCount.value++;
+      // v7.9.22 Item 5: mirror the real graph size; fall back to the increment only
+      // when no graph is injected.
+      this.vitals.kgNodeCount.value = (this.kg && this.kg.graph && this.kg.graph.nodes)
+        ? this.kg.graph.nodes.size
+        : this.vitals.kgNodeCount.value + 1;
+    }, { source: 'Homeostasis', priority: -10 });
+
+    // v7.9.22 Item 5: KnowledgeGraph fires nodes-pruned with `remaining`; mirror the
+    // real size so the vital decrements on a prune instead of running away.
+    this._sub('knowledge:nodes-pruned', () => {
+      if (this.kg && this.kg.graph && this.kg.graph.nodes) {
+        this.vitals.kgNodeCount.value = this.kg.graph.nodes.size;
+      }
     }, { source: 'Homeostasis', priority: -10 });
 
     // Response to prune requests from self

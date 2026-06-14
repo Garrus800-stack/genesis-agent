@@ -355,9 +355,9 @@ const SCHEMAS = {
   // ── v7.0.1: Schema coverage sweep ──────────────────────
 
   // Goal lifecycle
-  'goal:abandoned':        { id: 'optional', description: 'optional' },
-  'goal:created':          { goalId: 'required', description: 'required' },
-  'goal:resumed':          { goalId: 'optional' },
+  'goal:abandoned':        { id: 'required', description: 'optional' },
+  'goal:created':          { id: 'required', description: 'required' },
+  'goal:resumed':          { id: 'optional' },
 
   // Shell
   'shell:plan-complete':   { task: 'required', success: 'required' },
@@ -452,8 +452,8 @@ const SCHEMAS = {
 
   // Goal extended
   'goal:failed':            { id: 'required', reason: 'required' },
-  'goal:replanned':         { goalId: 'optional' },
-  'goal:unblocked':         { goalId: 'optional' },
+  'goal:replanned':         { id: 'optional' },
+  'goal:unblocked':         { id: 'optional' },
   'goal:step-start':        { goalId: 'required', stepIndex: 'required' },
   'goal:create-file':       { goalId: 'required', path: 'required' },
   'goal:stalled':           { id: 'required', description: 'optional', reason: 'required', blockedAt: 'optional', stalledMinutes: 'optional' },

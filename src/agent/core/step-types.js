@@ -270,7 +270,8 @@ function getStepRequirements(stepType, step = null) {
   const out = [...base];
   // ANALYZE on a file target → also need the file to exist
   if (stepType === 'ANALYZE' && step?.target && typeof step.target === 'string'
-      && (step.target.includes('/') || step.target.includes('\\') || step.target.endsWith('.js') || step.target.endsWith('.json') || step.target.endsWith('.md'))) {
+      && !step.target.includes('*') && !step.target.includes('?')   // v7.9.22 Item 1: a glob is not a file to require
+        && (step.target.includes('/') || step.target.includes('\\') || step.target.endsWith('.js') || step.target.endsWith('.json') || step.target.endsWith('.md'))) {
     out.push(`file:${step.target}`);
   }
   return out;

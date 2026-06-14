@@ -178,7 +178,7 @@ class SelfModificationPipeline {
   /** Record successful modification (resets counter). */
   _recordSuccess(file) {
     this._consecutiveFailures = 0;
-    this.bus.fire('selfmod:success', { file }, { source: 'SelfModPipeline' });
+    this.bus.fire('selfmod:success', { file, backend: this.model?.activeBackend || 'unknown' }, { source: 'SelfModPipeline' });
   }
 
   /** Record failed modification. If threshold reached, freeze. */

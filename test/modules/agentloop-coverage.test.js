@@ -164,26 +164,26 @@ describe('AgentLoopStepsDelegate — _executeStep', () => {
   });
 });
 
-describe('AgentLoopStepsDelegate — extractTags()', () => {
+describe('extractTags() (Recovery delegate)', () => {
   test('extracts tags from text', () => {
-    const { delegate } = (() => { const loop = makeLoop(); return { delegate: loop.steps }; })();
+    const { delegate } = (() => { const loop = makeLoop(); return { delegate: loop.recovery }; })();
     const tags = delegate.extractTags('this is about #performance and #memory optimization');
     assert(Array.isArray(tags));
   });
 
   test('returns empty array for text without tags', () => {
     const loop = makeLoop();
-    const tags = loop.steps.extractTags('no tags here');
+    const tags = loop.recovery.extractTags('no tags here');
     assert(Array.isArray(tags));
   });
 });
 
-describe('AgentLoopStepsDelegate — verifyGoal()', () => {
+describe('verifyGoal() (Recovery delegate)', () => {
   test('returns result object', async () => {
     const loop = makeLoop();
     const plan = { goal: { description: 'test goal' }, steps: [] };
     const results = [{ output: 'done', error: null }];
-    const r = await loop.steps.verifyGoal(plan, results);
+    const r = await loop.recovery.verifyGoal(plan, results);
     assert(typeof r === 'object' || r === undefined || r === null);
   });
 });
@@ -232,7 +232,7 @@ describe('AgentLoopStepsDelegate — attemptRepair()', () => {
 
 // ── AgentLoopSteps — verifyGoal branches ─────────────────────
 
-describe('AgentLoopStepsDelegate — verifyGoal() branches', () => {
+describe('verifyGoal() branches (Recovery delegate)', () => {
   test('returns success via programmatic path when all verified pass', async () => {
     const loop = makeLoop();
     const plan = { title: 'Fix bug', successCriteria: 'Tests pass' };
@@ -240,7 +240,7 @@ describe('AgentLoopStepsDelegate — verifyGoal() branches', () => {
       { output: 'ok', error: null, verification: { status: 'pass' } },
       { output: 'ok', error: null, verification: { status: 'pass' } },
     ];
-    const r = await loop.steps.verifyGoal(plan, results);
+    const r = await loop.recovery.verifyGoal(plan, results);
     assertEqual(r.verificationMethod, 'programmatic');
     assertEqual(r.success, true);
   });
@@ -253,7 +253,7 @@ describe('AgentLoopStepsDelegate — verifyGoal() branches', () => {
       { output: 'ok', error: null },
       { output: 'ok', error: null },
     ];
-    const r = await loop.steps.verifyGoal(plan, results);
+    const r = await loop.recovery.verifyGoal(plan, results);
     assert(r.verificationMethod === 'heuristic' || r.verificationMethod === 'programmatic');
     assertEqual(r.success, true);
   });
@@ -265,7 +265,7 @@ describe('AgentLoopStepsDelegate — verifyGoal() branches', () => {
       { output: '', error: 'test failed', verification: { status: 'fail' } },
       { output: 'ok', error: null },
     ];
-    const r = await loop.steps.verifyGoal(plan, results);
+    const r = await loop.recovery.verifyGoal(plan, results);
     // LLM returns 'mock answer' which doesn't start with SUCCESS
     assert(typeof r.success === 'boolean');
     assert(r.verificationMethod === 'llm-fallback');
@@ -275,7 +275,7 @@ describe('AgentLoopStepsDelegate — verifyGoal() branches', () => {
     const loop = makeLoop();
     const plan = { title: 'Empty plan', successCriteria: null };
     // Empty results: successRate = NaN → falls to LLM
-    const r = await loop.steps.verifyGoal(plan, []);
+    const r = await loop.recovery.verifyGoal(plan, []);
     assert(typeof r.success === 'boolean');
   });
 });

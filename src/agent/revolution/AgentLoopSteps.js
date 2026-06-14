@@ -22,6 +22,7 @@ const { trySkillStep } = require('./skill-step');
 // v7.9.11: Win console codepage handling for SHELL-step fallback
 const { decodeWinConsole } = require('../core/shell/WinConsoleEncoding');
 const { toPosix } = require('../core/utils');
+const { sourceForPrompt, checkSyntaxForPrompt } = require('./AgentLoopGrounding');
 const path = require('path');
 const fs = require('fs');
 const _log = createLogger('AgentLoopSteps');
@@ -310,7 +311,9 @@ class AgentLoopStepsDelegate {
       fileContent = loop.selfModel.readModule(step.target) || '';
     }
 
-    const prompt = `${context}\n\nANALYZE: ${step.description}${fileContent ? '\n\nFile content:\n```\n' + fileContent.slice(0, 3000) + '\n```' : ''}\n\nProvide a concise analysis (max 5 key points). If code changes are needed, describe them specifically.`;
+    // G3a: real parser verdict in front of the model; G1: full source under a budget.
+    const syntax = checkSyntaxForPrompt(loop.verifier, step.target, fileContent);
+    const prompt = `${context}\n\nANALYZE: ${step.description}${fileContent ? '\n\nFile content:\n```\n' + sourceForPrompt(fileContent, 24000) + '\n```' : ''}${syntax.line ? '\n\n' + syntax.line : ''}\n\nProvide a concise analysis (max 5 key points). If code changes are needed, describe them specifically.`;
 
     const analysis = await loop.model.chat(prompt, [], 'analysis');
 
@@ -323,19 +326,39 @@ class AgentLoopStepsDelegate {
     // together with L1 reading these nodes — is what ends the inspection loop.
     if (loop.kg && analysis) {
       const moduleKey = toPosix(step.target || '');
-      if (this._isNovelAnalysis(loop.kg, moduleKey, analysis)) {
-        const label = moduleKey
-          ? `review: ${moduleKey}: ${analysis.slice(0, 60)}`
-          : `analysis: ${analysis.slice(0, 60)}`;
-        loop.kg.addNode('insight', label, {
+      // v7.9.22 R1: attribute coverage only to a real module. A targetless analysis
+      // (moduleKey === '') has no file to mark covered, and an off-list path — the run's
+      // snapshot-copy node under snapshots/_auto_before_restore_… is the witness — names no
+      // module the self-model knows. Both were stored anyway (the novelty gate returns novel
+      // on an empty key, and the store accepts any string), filling the graph with module:null
+      // and phantom-path nodes that orderByReviewState cannot use for real coverage. The
+      // membership test is posix-to-posix because the manifest keys are OS-native.
+      const known = moduleKey && this._moduleIsKnown(loop.selfModel, moduleKey);
+      if (known && this._isNovelAnalysis(loop.kg, moduleKey, analysis)) {
+        loop.kg.addNode('insight', `review: ${moduleKey}: ${analysis.slice(0, 60)}`, {
           type: 'agent-loop-analysis',
-          module: moduleKey || null,
+          module: moduleKey,
           full: analysis.slice(0, 400),
+          syntaxOk: syntax.syntaxOk,   // G3b: verified fact (true|false|null)
+          verified: false,             // G3b: the prose is an unverified opinion
         });
       }
     }
 
     return { output: analysis, error: null };
+  }
+
+  // v7.9.22 R1: posix-to-posix membership against the self-model's manifest module set.
+  // The manifest keys are OS-native while moduleKey is posix, so a naive lookup would
+  // silently miss on Windows; normalise each manifest key before comparing.
+  _moduleIsKnown(selfModel, moduleKeyPosix) {
+    if (!selfModel || typeof selfModel.getFullModel !== 'function') return false;
+    let modules;
+    try { modules = (selfModel.getFullModel() || {}).modules || {}; } catch (_e) { return false; }
+    for (const k of Object.keys(modules)) {
+      if (toPosix(k) === moduleKeyPosix) return true;
+    }
+    return false;
   }
 
   // v7.9.20 (F2): novelty gate for consolidation. Returns false only when an
@@ -383,7 +406,7 @@ class AgentLoopStepsDelegate {
       `  - Storage:      const storage = c.resolve('storage');  // read/writeJSON methods, NOT 'new StorageService(...)'\n` +
       `  - Container:    constructor-injected as 'c' or this.container — never reach into globals.\n`;
 
-    const prompt = `${context}${apiConventions}\nCODE TASK: ${step.description}\n${step.target ? `TARGET FILE: ${step.target}` : ''}${existingCode ? '\n\nExisting code:\n```javascript\n' + existingCode.slice(0, 4000) + '\n```' : ''}\n\nGenerate the complete file content. Respond ONLY with the code inside a single code block.`;
+    const prompt = `${context}${apiConventions}\nCODE TASK: ${step.description}\n${step.target ? `TARGET FILE: ${step.target}` : ''}${existingCode ? '\n\nExisting code:\n```javascript\n' + sourceForPrompt(existingCode, 4000) + '\n```' : ''}\n\nGenerate the complete file content. Respond ONLY with the code inside a single code block.`;
 
     const response = await loop.model.chat(prompt, [], 'code');
 
@@ -768,100 +791,6 @@ If the error is unfixable (e.g., missing dependency, permission denied), say "UN
     };
   }
 
-  /**
-   * Verify whether a goal was achieved based on step results.
-   */
-  async verifyGoal(plan, allResults) {
-    const loop = this.loop;
-    const errors = allResults.filter(r => r.error);
-    const successRate = (allResults.length - errors.length) / allResults.length;
-
-    const verified = allResults.filter(r => r.verification);
-    const programmaticPasses = verified.filter(r => r.verification.status === 'pass').length;
-    const programmaticFails = verified.filter(r => r.verification.status === 'fail').length;
-    const ambiguous = verified.filter(r => r.verification.status === 'ambiguous').length;
-
-    if (verified.length > 0 && programmaticFails === 0 && successRate >= THRESHOLDS.GOAL_SUCCESS_PROGRAMMATIC) {
-      return {
-        success: true,
-        summary: `Goal "${plan.title}" completed. ${allResults.length} steps: ${programmaticPasses} verified, ${ambiguous} ambiguous, ${errors.length} errors. Success rate: ${Math.round(successRate * 100)}%.`,
-        verificationMethod: 'programmatic',
-      };
-    }
-
-    if (successRate >= THRESHOLDS.GOAL_SUCCESS_HEURISTIC && programmaticFails === 0) {
-      return {
-        success: true,
-        summary: `Goal "${plan.title}" completed. ${allResults.length} steps, ${errors.length} errors. Success rate: ${Math.round(successRate * 100)}%.`,
-        verificationMethod: 'heuristic',
-      };
-    }
-
-    const verificationContext = verified.length > 0
-      ? `\nProgrammatic verification: ${programmaticPasses} pass, ${programmaticFails} fail, ${ambiguous} ambiguous`
-      : '';
-
-    const prompt = `Goal: "${plan.title}"
-Success criteria: ${plan.successCriteria || 'All steps complete'}
-Steps completed: ${allResults.length}
-Errors: ${errors.length}
-Error details: ${errors.map(e => e.error).join('; ')}${verificationContext}
-
-Was this goal achieved? Respond with: SUCCESS or PARTIAL or FAILED, followed by a brief explanation.`;
-
-    const evaluation = await loop.model.chat(prompt, [], 'analysis');
-
-    if (loop.episodicMemory) {
-      try {
-        const success = evaluation.toUpperCase().startsWith('SUCCESS');
-        // v7.9.20: the loop exposes no per-step surprise signal, so derive a
-        // pursuit-level emotional weight from the outcome — a failed pursuit, or
-        // one that hit errors along the way, is the salient episode DreamCycle
-        // should consolidate first. Bounded to [0,1].
-        const errorRate = allResults.length ? errors.length / allResults.length : (errors.length ? 1 : 0);
-        const emotionalWeight = Math.min(1, (success ? 0.2 : 0.6) + 0.3 * errorRate);
-        loop.episodicMemory.recordEpisode({
-          topic: plan.title || 'Agent goal execution',
-          summary: evaluation.slice(0, 200),
-          outcome: success ? 'success' : 'failed',
-          toolsUsed: [...new Set(allResults.map(r => r.type).filter(Boolean))],
-          artifacts: allResults
-            .filter(r => r.target)
-            .map(r => ({ type: 'file-modified', path: r.target })),
-          tags: this.extractTags(plan.title + ' ' + (plan.successCriteria || '')),
-          emotionalWeight,
-          metadata: { surprise: emotionalWeight },
-        });
-      } catch (_err) { /* episode recording optional */ }
-    }
-
-    return {
-      success: evaluation.toUpperCase().startsWith('SUCCESS'),
-      summary: evaluation.slice(0, 300),
-      verificationMethod: 'llm-fallback',
-    };
-  }
-
-  /** Extract topic tags from text for episodic memory. */
-  extractTags(text) {
-    const tags = [];
-    const lower = (text || '').toLowerCase();
-    const patterns = [
-      { pattern: /(?:test|spec|jest|mocha)/i, tag: 'testing' },
-      { pattern: /(?:refactor|clean|simplif)/i, tag: 'refactoring' },
-      { pattern: /(?:bug|fix|repair|error)/i, tag: 'bugfix' },
-      { pattern: /(?:feature|add|new|implement)/i, tag: 'feature' },
-      { pattern: /(?:security|auth|encrypt)/i, tag: 'security' },
-      { pattern: /(?:mcp|server|client|transport)/i, tag: 'mcp' },
-      { pattern: /(?:ui|render|display|css)/i, tag: 'ui' },
-      { pattern: /(?:memory|knowledge|embedding)/i, tag: 'memory' },
-      { pattern: /(?:api|endpoint|rest)/i, tag: 'api' },
-    ];
-    for (const { pattern, tag } of patterns) {
-      if (pattern.test(lower)) tags.push(tag);
-    }
-    return tags;
-  }
 }
 
 // v3.8.0: Export delegate class. Legacy bare-function exports removed.

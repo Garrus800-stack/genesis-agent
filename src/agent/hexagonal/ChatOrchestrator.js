@@ -170,7 +170,7 @@ class ChatOrchestrator {
       // "Fehler: ..." and contaminated SelfStatementLog / MetaLearning
       // telemetry. Hard failures throw, are caught below, and emit
       // chat:completed with success: false there.
-      this.bus.fire('chat:completed', { message, response, intent: intent.type, success: true, tokens: Math.ceil((response || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
+      this.bus.fire('chat:completed', { message, response, intent: intent.type, success: true, backend: this.model.activeBackend || 'unknown', tokens: Math.ceil((response || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
       // v7.3.7: Release any active-reference claims made during this turn
       // so DreamCycle Phase 4c stops skipping those episodes.
       if (this.activeRefs && traceId) {
@@ -210,7 +210,7 @@ class ChatOrchestrator {
       // signal. Pre-fix this branch was silent and the success-flag in
       // the try-branch was string-sniffed; together that meant failure
       // telemetry was either missing or wrong.
-      this.bus.fire('chat:completed', { message, response: result.text, intent: result.isSystemMessage ? 'system-error' : 'error', success: false, tokens: Math.ceil((result.text || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
+      this.bus.fire('chat:completed', { message, response: result.text, intent: result.isSystemMessage ? 'system-error' : 'error', success: false, backend: this.model.activeBackend || 'unknown', tokens: Math.ceil((result.text || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
 
       return { text: result.text, intent: result.isSystemMessage ? 'system-error' : 'error' };
     }
@@ -257,7 +257,7 @@ class ChatOrchestrator {
           onChunk(response);
           this.history.push({ role: 'assistant', content: response });
           this._saveHistory();
-          this.bus.fire('chat:completed', { message, response, intent: intent.type, success: true, tokens: Math.ceil((response || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
+          this.bus.fire('chat:completed', { message, response, intent: intent.type, success: true, backend: this.model.activeBackend || 'unknown', tokens: Math.ceil((response || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
           onDone();
           return;
         }
@@ -336,7 +336,7 @@ class ChatOrchestrator {
 
       this.history.push({ role: 'assistant', content: cleanResponse });
       this._saveHistory();
-      this.bus.fire('chat:completed', { message, response: cleanResponse, intent: intent.type, success: true, tokens: Math.ceil((cleanResponse || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
+      this.bus.fire('chat:completed', { message, response: cleanResponse, intent: intent.type, success: true, backend: this.model.activeBackend || 'unknown', tokens: Math.ceil((cleanResponse || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
 
       // v6.0.5: End provenance trace — success
       if (traceId) {

@@ -34,6 +34,7 @@
 'use strict';
 
 const { describe, test, assert, assertEqual, run } = require('../harness');
+const { createTestRoot } = require('../harness');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 
@@ -181,7 +182,7 @@ describe('v7.9.14 (1c) — causal-suspicion chain contract', () => {
       memory: null,
       knowledgeGraph: null,
       eventStore: null,
-      storageDir: '/tmp/v7914-idle-' + Date.now(),
+      storageDir: createTestRoot('v7914-idle'),
       goalStack: null,
       intervals: null,
       storage: null,
@@ -221,7 +222,7 @@ describe('v7.9.14 (1c) — causal-suspicion chain contract', () => {
     const bus = createBus();
     const idle = new IdleMind({
       bus,
-      storageDir: '/tmp/v7914-idle-control-' + Date.now(),
+      storageDir: createTestRoot('v7914-idle-control'),
       model: null, prompts: null, selfModel: null, memory: null,
       knowledgeGraph: null, eventStore: null, goalStack: null,
       intervals: null, storage: null,

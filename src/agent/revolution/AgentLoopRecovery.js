@@ -408,7 +408,7 @@ If the error is unfixable (e.g., missing dependency, permission denied), say "UN
     };
 
     // Programmatic verification available and clean
-    if (verified.length > 0 && programmaticFails === 0 && successRate >= THRESHOLDS.GOAL_SUCCESS_PROGRAMMATIC) {
+    if (programmaticPasses > 0 && programmaticFails === 0 && successRate >= THRESHOLDS.GOAL_SUCCESS_PROGRAMMATIC) {
       const header = [
         `Goal "${plan.title}" completed.`,
         `${allResults.length} steps: ${programmaticPasses} verified, ${ambiguous} ambiguous, ${errors.length} errors.`,
@@ -419,7 +419,7 @@ If the error is unfixable (e.g., missing dependency, permission denied), say "UN
     }
 
     // High success rate without verification data
-    if (successRate >= THRESHOLDS.GOAL_SUCCESS_HEURISTIC && programmaticFails === 0) {
+    if (verified.length === 0 && successRate >= THRESHOLDS.GOAL_SUCCESS_HEURISTIC && programmaticFails === 0) {
       const header = `Goal "${plan.title}" completed. ${allResults.length} steps, ${errors.length} errors. Success rate: ${Math.round(successRate * 100)}%.`;
       return {
         success: true,

@@ -733,6 +733,7 @@ class PlanVerifier {
 }
 
 module.exports = {
+  getAcorn,   // v7.9.22 Item 6: Reflector uses it to rank guarded missing-deps
   VerificationEngine,
   CodeVerifier,
   TestVerifier,

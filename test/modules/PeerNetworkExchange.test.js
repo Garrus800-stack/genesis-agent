@@ -4,6 +4,7 @@
 // ============================================================
 
 const { describe, test, assert, assertEqual, assertRejects, run } = require('../harness');
+const { createTestRoot } = require('../harness');
 const { PeerNetwork } = require('../../src/agent/hexagonal/PeerNetwork');
 
 function makePN(overrides = {}) {
@@ -14,7 +15,7 @@ function makePN(overrides = {}) {
   };
   const skills = {
     loadedSkills: new Map(),
-    skillsDir: '/tmp/genesis-test-skills',
+    skillsDir: createTestRoot('peer-skills'),
     sandbox: { testPatch: async () => ({ success: true }) },
     loadSkills: async () => {},
   };

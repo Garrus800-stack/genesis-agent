@@ -15,6 +15,8 @@
 // ============================================================
 
 const { describe, test, assert, assertEqual, run } = require('../harness');
+const path = require('path');
+const { createTestRoot } = require('../harness');
 const { createBus } = require('../../src/agent/core/EventBus');
 
 // Direct require of each module under test — these are the v7.3.1
@@ -39,6 +41,7 @@ function mockModel() {
 
 function createIdleMindLike(overrides = {}) {
   const bus = createBus();
+  const __actRoot = createTestRoot('activities-idle');   // v7.9.22 H1: cleaned temp root
   const obj = {
     bus,
     model: overrides.model || mockModel(),
@@ -54,8 +57,8 @@ function createIdleMindLike(overrides = {}) {
     thoughtCount: 0,
     eventStore: null,
     storage: null,
-    storageDir: '/tmp/genesis-test-idle',
-    journalPath: '/tmp/genesis-test-idle/journal.jsonl',
+    storageDir: __actRoot,
+    journalPath: path.join(__actRoot, 'journal.jsonl'),
     _genome: overrides._genome || null,
     _savePlans: () => {},
     readJournal: () => overrides.journal || [],

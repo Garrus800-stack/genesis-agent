@@ -6,6 +6,7 @@
 // ============================================================
 
 const { describe, test, assert, assertEqual, run } = require('../harness');
+const { createTestRoot } = require('../harness');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -125,8 +126,7 @@ describe('MemoryConsolidator', () => {
   });
 
   test('consolidate() archives old lessons', async () => {
-    const tmpDir = path.join(os.tmpdir(), `genesis-test-${Date.now()}`);
-    fs.mkdirSync(tmpDir, { recursive: true });
+    const tmpDir = createTestRoot('mc-consolidate');
 
     const bus = mockBus();
     const mc = new MemoryConsolidator({ bus, config: { cooldownMs: 0, archivalAgeDays: 30, archivalMinUseCount: 2 } });
@@ -407,7 +407,7 @@ describe('MemoryConsolidator — _consolidateLessons()', () => {
     const archived = [];
     mc.lessonsStore = {
       getAll: () => [{ id: 'old1', createdAt: oldTs, lastUsed: oldTs, useCount: 0 }],
-      _globalDir: os.tmpdir(),
+      _globalDir: createTestRoot('mc-consol'),
       _lessons: [{ id: 'old1' }],
       get _dirty() { return false; },
       set _dirty(_) {},
@@ -423,8 +423,7 @@ describe('MemoryConsolidator — _archiveLessons()', () => {
   test('writes archive file and removes lessons from store', () => {
     const bus = mockBus();
     const mc = new MemoryConsolidator({ bus });
-    const tmpDir = path.join(os.tmpdir(), `mc-test-${Date.now()}`);
-    fs.mkdirSync(tmpDir, { recursive: true });
+    const tmpDir = createTestRoot('mc-archive');
 
     mc.lessonsStore = {
       _globalDir: tmpDir,
@@ -452,7 +451,11 @@ describe('MemoryConsolidator — _archiveLessons()', () => {
   test('handles write errors gracefully', () => {
     const bus = mockBus();
     const mc = new MemoryConsolidator({ bus });
-    mc.lessonsStore = { _globalDir: '/nonexistent/path/that/cannot/exist' };
+    const root = createTestRoot('mc-writeerr');
+    // Occupy the 'archive' name with a FILE so the archive write hits ENOTDIR — a genuine
+    // failure, unlike /nonexistent which mkdir would just create (and leak).
+    fs.writeFileSync(path.join(root, 'archive'), 'x');
+    mc.lessonsStore = { _globalDir: root };
     mc.storage = null;
     mc._archiveLessons([{ id: 'x' }]); // should not throw
     assert(true);

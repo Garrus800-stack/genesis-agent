@@ -8,12 +8,12 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.9.21-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.9.22-d4a017?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/tests-8105%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-127%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-392-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/modules-397-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-182-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
@@ -455,7 +455,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 169 manifest + 13 bootstrap = 182 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 552 files, 8105 tests (coverage gates: 80/76/78, ratchet floor 6014) |
+| Test suites | 573 files, 8105 tests (coverage gates: 80/76/78, ratchet floor 6014) |
 | Dependencies | 5 production + 1 optional + 10 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 79 main ↔ 79 preload (rate-limited, all in sync) |

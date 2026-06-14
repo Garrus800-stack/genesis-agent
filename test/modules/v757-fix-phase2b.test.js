@@ -157,9 +157,9 @@ test('EventStore: maxFileSizeMB=0 disables rotation', () => {
 // ── IdleMind journal rotation ──────────────────────────────
 
 test('IdleMind: _rotateJournalIfNeeded method exists', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/agent/autonomy/IdleMind.js'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'src/agent/autonomy/IdleMindJournal.js'), 'utf8');
   assert.ok(/_rotateJournalIfNeeded/.test(src),
-    'IdleMind must declare _rotateJournalIfNeeded');
+    'IdleMindJournal must declare _rotateJournalIfNeeded');
 });
 
 test('IdleMind: rotation thresholds in constructor', () => {

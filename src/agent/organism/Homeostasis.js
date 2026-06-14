@@ -34,11 +34,12 @@ const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('Homeostasis');
 
 class Homeostasis {
-  constructor({ bus, storage, intervals, emotionalState, config }) {
+  constructor({ bus, storage, intervals, emotionalState, knowledgeGraph, config }) {
     this.bus = bus || NullBus;
     this.storage = storage || null;
     this._intervals = intervals || null;
     this.emotions = emotionalState || null;
+    this.kg = knowledgeGraph || null;   // v7.9.22 Item 5: read the real graph size
 
     // v3.5.0: Tunable parameters — overridable via Settings.organism.homeostasis
     const cfg = config || {};
@@ -359,6 +360,12 @@ class Homeostasis {
    */
   async asyncLoad() {
     this._load();
+    // v7.9.22 Item 5: KnowledgeGraph deserializes its nodes in its own asyncLoad
+    // (ordered ahead of this one via the deps array) without firing node-added per
+    // node, so seed the vital from the real graph size once the graph is loaded.
+    if (this.kg && this.kg.graph && this.kg.graph.nodes) {
+      this.vitals.kgNodeCount.value = this.kg.graph.nodes.size;
+    }
   }
 
 

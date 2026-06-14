@@ -179,6 +179,25 @@ class SymbolicResolver {
       return this._pass('confidence below guided threshold', stepType);
     }
 
+    // v7.9.22 Item 9: breadth-scaled relevance floor. A genuinely general lesson — a
+    // bare-string strategy, since in-code producers always set a specific object strategy —
+    // clears the 0.75 confidence bar and matches affinity tokens for almost any step because
+    // its breadth is inherent. Gate it on `relevance` (recomputed per step), not by raising
+    // the confidence bar: confidence is capped at 1.0, so a higher bar would silence a
+    // saturated lesson permanently even on steps it fits, and useCount rises on recall (not
+    // application), so a blocked lesson would keep accruing breadth while never firing. The
+    // floor blocks a broad lesson only on the steps it scores low for, and still lets it
+    // guide a step it scores high relevance for. An object-strategy lesson is never gated.
+    if (bestLesson && bestSource === bestLesson && typeof bestLesson.strategy === 'string') {
+      const reach = Math.min((bestLesson.useCount || 0) / 200, 1);   // saturates at 200 recalls
+      const general = bestLesson.category === 'general' ? 1 : 0;     // catch-all bucket widens breadth
+      const breadth = Math.min(1, 0.5 * reach + 0.5 * general);
+      const relevanceFloor = 0.5 * breadth;                          // up to +0.50 for a maximally-broad lesson
+      if ((bestLesson.relevance || 0) < relevanceFloor) {
+        return this._pass('over-general lesson below breadth-scaled relevance floor', stepType);
+      }
+    }
+
     // ── Check for DIRECT eligibility ───────────────────────
     if (bestConf >= this._config.directThreshold && bestLesson) {
       const directResult = this._checkDirect(stepType, bestLesson);

@@ -7,6 +7,7 @@
 // ============================================================
 
 const { describe, test, assert, assertEqual, run } = require('../harness');
+const { createTestRoot } = require('../harness');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -198,7 +199,7 @@ function makeSelfOpt(overrides = {}) {
     },
     memory: overrides.memory || null,
     goalStack: overrides.goalStack || { getAll: () => [], getActiveGoals: () => [] },
-    storageDir: os.tmpdir(),
+    storageDir: createTestRoot('v713'),
     storage: overrides.storage || { readJSON: () => null, writeJSON: () => {}, writeJSONDebounced: () => {} },
   });
 }
@@ -343,7 +344,7 @@ describe('SkillManager — loadSkills()', () => {
   });
 
   test('handles non-existent directory', () => {
-    const sm = new SkillManager('/tmp/nonexistent-skills-' + Date.now(), null, null, null, null);
+    const sm = new SkillManager(createTestRoot('v713-skills1'), null, null, null, null);
     sm.loadSkills(); // Should not throw
     assertEqual(sm.listSkills().length, 0);
   });
@@ -351,7 +352,7 @@ describe('SkillManager — loadSkills()', () => {
 
 describe('SkillManager — executeSkill()', () => {
   test('throws on unknown skill', async () => {
-    const sm = new SkillManager('/tmp/skills-test-' + Date.now(), null, null, null, null);
+    const sm = new SkillManager(createTestRoot('v713-skills2'), null, null, null, null);
     try {
       await sm.executeSkill('nonexistent', {});
       assert(false, 'Should throw');
