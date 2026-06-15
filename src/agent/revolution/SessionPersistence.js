@@ -269,6 +269,23 @@ UNFINISHED: ...`;
     }
   }
 
+  /**
+   * v7.9.23: Conservative heuristic extraction of profile facts from a single user message.
+   * Returns an updates object for updateUserProfile, or null if nothing confident was found.
+   * Intentionally narrow to avoid false positives (e.g. "ich bin müde" must not become a name).
+   */
+  _extractProfileFromMessage(message) {
+    if (typeof message !== 'string' || message.length === 0) return null;
+    const updates = {};
+    const name = message.match(/(?:ich hei(?:ß|ss)e|mein name ist|my name is|i'?m called|call me)\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]{1,30})/);
+    if (name) updates.name = name[1];
+    const interest = message.match(/(?:ich interessiere mich f[üu]r|i'?m interested in|interested in)\s+([^.,;!?\n]{2,40})/i);
+    if (interest) updates.interest = interest[1].trim();
+    const project = message.match(/(?:ich arbeite an|mein projekt(?: hei(?:ß|ss)t| ist)?|i'?m working on|working on)\s+([^.,;!?\n]{2,40})/i);
+    if (project) updates.project = project[1].trim();
+    return Object.keys(updates).length > 0 ? updates : null;
+  }
+
   /** Update user profile from observed patterns */
   updateUserProfile(updates) {
     if (updates.name) this.userProfile.name = updates.name;
@@ -352,6 +369,14 @@ UNFINISHED: ...`;
       if (data?.key === 'user.name' && data?.value) {
         this.updateUserProfile({ name: data.value });
       }
+    }, { source: 'SessionPersistence', priority: -10 });
+
+    // v7.9.23: per-message profile extractor. memory:fact-stored only fires when a fact is
+    // explicitly stored, so the semantic profile stayed empty despite many messages. chat:completed
+    // carries the user message text (user:message only carries { length }).
+    this._sub('chat:completed', (data) => {
+      const updates = this._extractProfileFromMessage(data?.message);
+      if (updates) this.updateUserProfile(updates);
     }, { source: 'SessionPersistence', priority: -10 });
   }
 

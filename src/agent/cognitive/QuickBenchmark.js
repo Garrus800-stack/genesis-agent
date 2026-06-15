@@ -204,7 +204,7 @@ class QuickBenchmark {
       // benchmark-agent.js exports { runBenchmark, TASKS }
       // scripts/ is excluded from TSC (not part of agent runtime).
       // This require is inside try/catch — intentionally optional.
-      return /** @type {any} */ (require('../../scripts/benchmark-agent'));
+      return /** @type {any} */ (require('../../../scripts/benchmark-agent'));
     } catch (err) {
       // Fallback: try relative to project root
       try {

@@ -104,6 +104,25 @@ class StorageService {
   }
 
   /**
+   * v7.9.23: Recompute and persist the stored checksum for a file from its current on-disk content.
+   * No public re-checksum existed (only the private write-time _updateChecksum). The boot integrity
+   * heal needs this after restoring an older backup whose content no longer matches the last-written
+   * checksum — without it the restored file would be flagged corrupt again on the next boot.
+   * @returns {boolean} true if the file existed and the checksum was updated.
+   */
+  recomputeChecksum(filename) {
+    try {
+      const fullPath = this._resolve(filename);
+      if (!fs.existsSync(fullPath)) return false;
+      const content = fs.readFileSync(fullPath, 'utf-8');
+      this._updateChecksum(filename, content);
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  /**
    * v7.1.9: Verify integrity of all .genesis/ JSON files against stored checksums.
    * Called at boot after Phase 1.
    * @returns {{ ok: boolean, verified: number, mismatches: Array, missing: Array }}

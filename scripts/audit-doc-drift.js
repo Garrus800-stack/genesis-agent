@@ -643,25 +643,6 @@ function runChecks() {
     }
   }
 
-  // #11b (v7.8.8): RELEASE_NOTES.md must reflect current package.json version.
-  // The postinstall hook regenerates it on every npm install — this check catches
-  // the case where the regenerator failed silently or was bypassed. Exact match.
-  {
-    let src;
-    try { src = fs.readFileSync(path.join(ROOT, 'RELEASE_NOTES.md'), 'utf-8'); }
-    catch { src = null; }
-    if (src) {
-      // Header pattern: "# Genesis Agent v7.8.8 — ..." or "# Genesis v7.8.8" etc.
-      const m = /Genesis(?:\s+Agent)?\s+v(\d+\.\d+\.\d+)/.exec(src);
-      if (m) {
-        const ok = m[1] === VERSION;
-        const r = { doc: 'RELEASE_NOTES.md', label: 'header-version (exact)', expected: VERSION, actual: m[1], ok };
-        checked.push(r);
-        if (!ok) drifts.push(r);
-      }
-    }
-  }
-
   // #12: SECURITY.md supported-versions table rotation
   {
     let src;

@@ -519,6 +519,10 @@ class AgentCoreHealth {
     }
     this._bus.fire('agent:shutdown', { errors }, { source: 'AgentCore' });
 
+    // v7.9.23: release the single-instance lock — after all flushes and the clean-shutdown log,
+    // before CrashLog stops. Clears the heartbeat and removes the sibling lock file.
+    safe('releaseLock', () => { this._core._bootRecovery?.releaseLock(); });
+
     // v6.0.1: CrashLog — stop last so it captures all shutdown logs
     safe('crashLog', () => { c.tryResolve('crashLog')?.stop(); });
   }

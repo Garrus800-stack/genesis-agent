@@ -1,6 +1,6 @@
 {
   "name": "genesis-agent",
-  "version": "7.9.22",
+  "version": "7.9.23",
   "description": "A self-aware, self-verifying, self-evolving cognitive AI agent. Works with any LLM backend \u2014 Anthropic Claude, OpenAI, or local models via Ollama. It reads its own source code. It fixes its own bugs. It builds its own features. It thinks while you're away. It feels the consequences of its actions. It pursues goals autonomously. It verifies its own output programmatically. It learns what works for its specific model.",
   "main": "main.js",
   "scripts": {
@@ -41,7 +41,7 @@
     "build:ci": "node scripts/build-bundle.js --ci",
     "build:ui": "node scripts/build-bundle.js",
     "build:watch": "node scripts/build-bundle.js --watch",
-    "postinstall": "node scripts/build-bundle.js && node scripts/release-notes.js --file || echo [GENESIS] Optional postinstall step skipped",
+    "postinstall": "node scripts/build-bundle.js || echo [GENESIS] Optional postinstall step skipped",
     "genesis": "node src/kernel/bootstrap.js",
     "typecheck:watch": "tsc --project tsconfig.ci.json --noEmit --watch",
     "audit:events:validate": "node scripts/validate-events.js",
@@ -73,9 +73,6 @@
     "test:e2e": "npx electron test/modules/e2e-electron.test.js",
     "coverage:ratchet": "npm run test:coverage 2>&1 | node scripts/coverage-ratchet.js",
     "coverage:ratchet:dry": "npm run test:coverage 2>&1 | node scripts/coverage-ratchet.js --dry-run",
-    "release:notes": "node scripts/release-notes.js",
-    "release:notes:copy": "node scripts/release-notes.js --copy",
-    "release:notes:file": "node scripts/release-notes.js --file",
     "release:zip": "node scripts/release-zip.js",
     "release:zip:dry": "node scripts/release-zip.js --dry-run",
     "scan:schemas": "node scripts/scan-schemas.js",

@@ -170,6 +170,32 @@ class GenesisBackup {
     }
   }
 
+  /**
+   * v7.9.23: Restore a single file from the most recent backup that contains it. Used by the boot
+   * integrity-heal path after a corrupt file has been quarantined. Synchronous (the boot heal runs
+   * inline) and non-destructive: if no backup has the file, returns { restored: false } and changes
+   * nothing. Returns { restored, from?, filename }.
+   */
+  restoreFile(filename) {
+    const dstResolved = path.resolve(this.genesisDir, filename);
+    if (!dstResolved.startsWith(path.resolve(this.genesisDir))) {
+      return { restored: false, filename, reason: 'path traversal blocked' };
+    }
+    for (const b of this.listBackups()) { // newest first
+      const src = path.join(b.path, filename);
+      try {
+        if (!fs.existsSync(src)) continue;
+        fs.mkdirSync(path.dirname(dstResolved), { recursive: true });
+        fs.copyFileSync(src, dstResolved);
+        _log.info(`[BACKUP] Restored ${filename} from .genesis-backups/${b.name}`);
+        return { restored: true, from: b.name, filename };
+      } catch (err) {
+        _log.warn(`[BACKUP] restoreFile failed for ${filename} from ${b.name}: ${err.message}`);
+      }
+    }
+    return { restored: false, filename };
+  }
+
   // ────────────────────────────────────────────────────────────
   // Internal
   // ────────────────────────────────────────────────────────────

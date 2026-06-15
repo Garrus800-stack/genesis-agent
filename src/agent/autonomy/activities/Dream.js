@@ -21,7 +21,12 @@ module.exports = {
     // Availability gate — dream only runs if age+unprocessed conditions met
     const age = ctx.snap.dreamAge || 0;
     const unprocessed = ctx.snap.dreamUnprocessed || 0;
-    if (age < 30 * 60 * 1000 || unprocessed < 10) return 0;
+    if (age < 30 * 60 * 1000) return 0;
+    // v7.9.23: 10 unprocessed was unreachable at real episode counts (the organism carried
+    // ~6 total), so the dream never fired and the self-narrative stayed empty. Lower the
+    // threshold to 4 and add an age fallback: after 6h with at least one unprocessed episode,
+    // allow the dream regardless. The 30-min minimum-age floor above is unchanged.
+    if (unprocessed < 4 && !(age >= 6 * 60 * 60 * 1000 && unprocessed >= 1)) return 0;
 
     let boost = 1.0;
 

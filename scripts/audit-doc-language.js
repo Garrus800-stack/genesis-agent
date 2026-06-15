@@ -27,7 +27,6 @@
 //     record and skipped.
 //   - README.md: full file content.
 //   - CONTRIBUTING.md: full file content.
-//   - RELEASE_NOTES.md: full file content.
 //   - docs/*.md: every file under docs/, full content, with
 //     a few narrative/historical exemptions.
 //
@@ -178,7 +177,7 @@ function listDocFiles() {
   const files = [];
 
   // Top-level docs
-  for (const name of ['README.md', 'CONTRIBUTING.md', 'RELEASE_NOTES.md']) {
+  for (const name of ['README.md', 'CONTRIBUTING.md']) {
     const p = path.join(REPO_ROOT, name);
     if (fs.existsSync(p)) files.push({ rel: name, content: fs.readFileSync(p, 'utf8') });
   }
@@ -289,7 +288,7 @@ function main() {
     console.log('');
   }
 
-  console.log('  Convention: English-only in CHANGELOG, README, CONTRIBUTING, RELEASE_NOTES,');
+  console.log('  Convention: English-only in CHANGELOG, README, CONTRIBUTING,');
   console.log('  and docs/*.md. Genesis architecture proper-nouns (Hauptstandort, Außenposten,');
   console.log('  Können, Win-Rechner) are whitelisted. Personal names should be replaced with');
   console.log('  "the maintainer", "in field testing", or passive voice.');

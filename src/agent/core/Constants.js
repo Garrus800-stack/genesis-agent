@@ -26,8 +26,18 @@ const TIMEOUTS = {
   DISK_CHECK: 5000,
   /** LLM semaphore queue starvation timeout (ms) — 5 minutes */
   SEMAPHORE_STARVATION: 5 * 60 * 1000,
-  /** FIX v3.5.3: Global timeout for AgentLoop.pursue() (ms) — 10 minutes */
-  AGENT_LOOP_GLOBAL: 10 * 60 * 1000,
+  /** FIX v3.5.3 / v7.9.23: Hard cap for AgentLoop.pursue() (ms) — 30 minutes.
+   *  The effective budget scales with step count (see AGENT_LOOP_BASE/PER_STEP/FLOOR);
+   *  this is the ceiling a single goal may consume. */
+  AGENT_LOOP_GLOBAL: 30 * 60 * 1000,
+  /** v7.9.23: base budget added on top of the per-step allowance (ms) — 60s. */
+  AGENT_LOOP_BASE: 60 * 1000,
+  /** v7.9.23: per-step budget (ms) — 180s, matches LLM_RESPONSE_LOCAL since a step's
+   *  dominant cost is one LLM inference. */
+  AGENT_LOOP_PER_STEP: 180 * 1000,
+  /** v7.9.23: floor so small-step goals keep the previous 10 min — a single RUN_TESTS step
+   *  needs TEST_RUN_EXEC (5 min), so the budget must never drop below the old flat value. */
+  AGENT_LOOP_FLOOR: 10 * 60 * 1000,
   /** v7.9.21: a RUN_TESTS step runs the real suite (npm test) to completion.
    *  5 min default — must be >= the suite's real runtime and < AGENT_LOOP_GLOBAL;
    *  tune via `time npm test`. */
@@ -523,4 +533,12 @@ const ORGANISM = {
   IMMUNE_MAX_MEMORY:                  500,
 };
 
-module.exports = { TIMEOUTS, LIMITS, INTERVALS, PRIORITIES, RATE_LIMIT, WATCHDOG, SHELL, CIRCUIT, SAFETY, PHASE9, PHASE10, PHASE11, PHASE12, THRESHOLDS, ORGANISM };
+// v7.9.23: single-instance lock timings (BootRecovery).
+const LOCK = {
+  /** Heartbeat interval (ms) — the live holder re-stamps the sibling lock file at this cadence. */
+  HEARTBEAT_MS: 5 * 1000,
+  /** Staleness window (ms) — a lock whose last heartbeat is older than this is reclaimable. */
+  STALE_MS: 30 * 1000,
+};
+
+module.exports = { TIMEOUTS, LIMITS, INTERVALS, PRIORITIES, RATE_LIMIT, WATCHDOG, SHELL, CIRCUIT, SAFETY, PHASE9, PHASE10, PHASE11, PHASE12, THRESHOLDS, ORGANISM, LOCK };

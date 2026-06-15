@@ -123,35 +123,22 @@ const agentLoopPursuitMixin = {
     // v5.2.0: wrap goal in correlation scope so every emit/log inherits the goalId.
     const _goalCorrelationId = CorrelationContext.generate('goal');
     return CorrelationContext.run(_goalCorrelationId, async () => {
-    // FIX v3.5.3: global timeout caps unbounded goal execution.
-    const globalTimeout = setTimeout(() => {
-      if (this.running) {
-        _log.warn(`[AGENT-LOOP] Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms) reached — aborting goal`);
-        this._aborted = true;
-        this._cancelToken?.cancel(`Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms)`);
-        this.bus.fire('agent-loop:timeout', {
-          goal: goalDescription.slice(0, 80),
-          steps: this.stepCount,
-          elapsed: TIMEOUTS.AGENT_LOOP_GLOBAL,
-        }, { source: 'AgentLoop' });
-        // v4.12.5-fix: Also emit goal:abandoned for GoalPersistence
-        this.bus.fire('goal:abandoned', {
-          id: this.currentGoalId,
-          reason: `Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms)`,
-          stepsCompleted: this.stepCount,
-        }, { source: 'AgentLoop' });
-        // v7.7.9 (post-Phase-3c.4): reflectIfNeeded covers the timeout
-        // path; see AgentLoopPursuitReflection.reflectIfNeeded for the
-        // dedup contract.
-        reflectIfNeeded(this, {
-          goalId: this.currentGoalId,
-          goalDescription: typeof goalDescription === 'string' ? goalDescription : null,
-          errorMessage: `Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms) reached after ${this.stepCount} steps`,
-          stepsExecuted: this.stepCount,
-        });
-      }
-    }, TIMEOUTS.AGENT_LOOP_GLOBAL);
-    const _clearGlobalTimeout = () => clearTimeout(globalTimeout);
+    // v7.9.23 (FIX v3.5.3): global timeout scales with steps — min(max(FLOOR, BASE+steps×PER_STEP), CAP); re-armed after planning.
+    let globalTimeout = null;
+    let _armedBudgetMs = TIMEOUTS.AGENT_LOOP_GLOBAL;
+    const _timeoutBudget = (n) => Math.min(Math.max(TIMEOUTS.AGENT_LOOP_FLOOR, TIMEOUTS.AGENT_LOOP_BASE + Math.max(0, n || 0) * TIMEOUTS.AGENT_LOOP_PER_STEP), TIMEOUTS.AGENT_LOOP_GLOBAL);
+    const _onGlobalTimeout = () => {
+      if (!this.running) return;
+      _log.warn(`[AGENT-LOOP] Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms) reached — aborting goal (budget ${_armedBudgetMs}ms, ${this.stepCount} steps)`);
+      this._aborted = true;
+      this._cancelToken?.cancel(`Global timeout (${_armedBudgetMs}ms)`);
+      this.bus.fire('agent-loop:timeout', { goal: goalDescription.slice(0, 80), steps: this.stepCount, elapsed: _armedBudgetMs }, { source: 'AgentLoop' });
+      this.bus.fire('goal:abandoned', { id: this.currentGoalId, reason: `Global timeout (${_armedBudgetMs}ms)`, stepsCompleted: this.stepCount }, { source: 'AgentLoop' });
+      reflectIfNeeded(this, { goalId: this.currentGoalId, goalDescription: typeof goalDescription === 'string' ? goalDescription : null, errorMessage: `Global timeout (${_armedBudgetMs}ms) reached after ${this.stepCount} steps`, stepsExecuted: this.stepCount });
+    };
+    const _armGlobalTimeout = (ms) => { if (globalTimeout) clearTimeout(globalTimeout); _armedBudgetMs = ms; globalTimeout = setTimeout(_onGlobalTimeout, ms); };
+    const _clearGlobalTimeout = () => { if (globalTimeout) { clearTimeout(globalTimeout); globalTimeout = null; } };
+    _armGlobalTimeout(_timeoutBudget(_presetGoal?.preGeneratedSteps?.length ?? _presetGoal?.steps?.length ?? 0));
 
     onProgress({ phase: 'planning', detail: 'Decomposing goal into steps...' });
 
@@ -176,6 +163,7 @@ const agentLoopPursuitMixin = {
         _emitFailure(_err);
         return { success: false, error: _err };
       }
+      _armGlobalTimeout(_timeoutBudget(plan.steps.length)); // v7.9.23: rescale to the real plan step count
 
       // v7.9.9 Fix 5: identical-plan detection + forced replan if same as previous attempt.
       if (!this._progressDetector) this._progressDetector = new ProgressDetector({ bus: this.bus });
@@ -351,7 +339,12 @@ const agentLoopPursuitMixin = {
       }
 
       // ── Phase 2: EXECUTE LOOP ─────────────────────────
-      const result = await this._executeLoop(plan, onProgress);
+      // v7.9.23: resume from the last checkpoint. GoalPersistence loads goals/steps/<id>.json on
+      // boot and sets goal.currentStep (last completed step); continue at the next step, seed results.
+      const _resumeFrom = (_presetGoal && Number.isInteger(_presetGoal.currentStep) && _presetGoal.currentStep >= 0) ? _presetGoal.currentStep + 1 : 0;
+      const _seededResults = (_presetGoal && Array.isArray(_presetGoal.results)) ? _presetGoal.results : [];
+      if (_resumeFrom > 0) _log.info(`[AGENT-LOOP] resuming goal ${this.currentGoalId} from step ${_resumeFrom + 1}/${plan.steps.length} (checkpoint)`);
+      const result = await this._executeLoop(plan, onProgress, _resumeFrom, _seededResults);
 
       // FIX v3.5.0: Save goalId before clearing (was always null in the event log)
       const completedGoalId = this.currentGoalId;
@@ -434,12 +427,12 @@ const agentLoopPursuitMixin = {
   // ════════════════════════════════════════════════════════
   // EXECUTION LOOP
   // ════════════════════════════════════════════════════════
-  async _executeLoop(plan, onProgress) {
+  async _executeLoop(plan, onProgress, startIndex = 0, seededResults = []) {
     const steps = plan.steps;
-    let allResults = [];
+    let allResults = Array.isArray(seededResults) ? seededResults.slice() : []; // v7.9.23: resume seed
     this._currentPlan = plan; // v4.12.4: Store for consciousness context access
 
-    for (let i = 0; i < steps.length; i++) {
+    for (let i = Math.min(Math.max(0, startIndex | 0), steps.length); i < steps.length; i++) {
       // v5.2.0: Structured cancellation check (replaces raw _aborted flag check)
       if (this._cancelToken?.isCancelled || this._aborted) {
         // v7.7.9 Phase 3b (bug-1a): include `error` field so GoalDriver

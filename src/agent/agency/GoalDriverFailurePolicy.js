@@ -242,6 +242,45 @@ const failurePolicyMixin = {
         _log.warn(`[DRIVER] pursuit of ${goalId} failed (${entry.count}/${_failureCap + 1}) — backing off ${Math.round(backoffMs/1000)}s: ${(errMsg || '<empty>').slice(0, 80)}`);
       }
     }
+
+    // v7.9.23: persist the failure-burst map so a goal that fails once per session does not reset
+    // its counter on every restart and loop forever. The existing reset window (10/60 min) keeps the
+    // persisted state self-expiring, so stale failures cannot stall a goal indefinitely.
+    this._persistFailureBurst?.();
+  },
+
+  /**
+   * v7.9.23: serialize the in-memory _failureBurst Map to a plain object and persist it
+   * (best-effort, fire-and-forget). Mirrors what GoalPersistence does for goal/step state.
+   */
+  _persistFailureBurst() {
+    if (!this.goalPersistence || typeof this.goalPersistence.saveFailureBurst !== 'function') return;
+    const obj = {};
+    if (this._failureBurst) {
+      for (const [goalId, entry] of this._failureBurst) obj[goalId] = entry;
+    }
+    Promise.resolve(this.goalPersistence.saveFailureBurst(obj)).catch(() => { /* best effort */ });
+  },
+
+  /**
+   * v7.9.23: rehydrate _failureBurst from disk at startup. Entries older than the longest reset
+   * window (60 min, the hallucination window) are dropped so only an active burst survives a restart.
+   */
+  async _loadFailureBurst() {
+    if (!this.goalPersistence || typeof this.goalPersistence.loadFailureBurst !== 'function') return;
+    let obj = {};
+    try { obj = (await this.goalPersistence.loadFailureBurst()) || {}; }
+    catch (_e) { return; }
+    this._failureBurst = this._failureBurst || new Map();
+    const _now = Date.now();
+    const MAX_AGE = 60 * 60_000; // longest existing reset window
+    for (const goalId of Object.keys(obj)) {
+      const entry = obj[goalId];
+      if (entry && typeof entry.count === 'number' && typeof entry.firstAt === 'number'
+          && _now - entry.firstAt <= MAX_AGE) {
+        this._failureBurst.set(goalId, entry);
+      }
+    }
   },
 
 };

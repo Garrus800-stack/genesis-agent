@@ -227,6 +227,27 @@ class GoalPersistence {
   }
 
   /**
+   * v7.9.23: persist the GoalDriver failure-burst map (goalId → { count, firstAt, kind }) so a goal
+   * that fails once per session keeps its counter across restarts instead of resetting forever.
+   */
+  async saveFailureBurst(burst) {
+    try {
+      await this.storage.writeJSON('goals/failure-burst.json', burst || {});
+    } catch (err) {
+      _log.warn('[GOAL-PERSIST] Failure-burst save failed:', err.message);
+    }
+  }
+
+  /** v7.9.23: load the persisted failure-burst map; returns {} when absent. */
+  async loadFailureBurst() {
+    try {
+      return (await this.storage.readJSON('goals/failure-burst.json')) || {};
+    } catch (_e) {
+      return {};
+    }
+  }
+
+  /**
    * Get summary of persisted goals for UI/prompt injection.
    * @returns {object}
    */

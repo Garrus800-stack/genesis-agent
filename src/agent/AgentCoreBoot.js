@@ -269,6 +269,52 @@ class AgentCoreBoot {
         for (const m of integrity.mismatches) {
           _log.warn(`      → ${m.filename}${m.error ? ': ' + m.error : ' (hash mismatch)'}`);
         }
+        // v7.9.23: heal instead of only warning. Per corrupt file: move the corrupt bytes to a
+        // sibling .genesis-quarantine/<ISO>/ (nothing is destroyed), restore the file from the most
+        // recent backup that has it, then recompute its checksum so the restored (older) content is
+        // not re-flagged on the next boot. The degradation is appended directly to the EventStore —
+        // the original only fired a bus event, which is why it never persisted.
+        const _healed = [];
+        const _quarantined = [];
+        try {
+          const _genesisDir = _storage.baseDir;
+          const _rootDir = path.dirname(_genesisDir);
+          const _qStamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const _gb = c.has('genesisBackup') ? c.resolve('genesisBackup') : null;
+          for (const m of integrity.mismatches) {
+            try {
+              const _src = path.resolve(_genesisDir, m.filename);
+              if (_src.startsWith(path.resolve(_genesisDir)) && fs.existsSync(_src)) {
+                const _qTarget = path.join(_rootDir, '.genesis-quarantine', _qStamp, m.filename);
+                fs.mkdirSync(path.dirname(_qTarget), { recursive: true });
+                fs.copyFileSync(_src, _qTarget);
+                fs.unlinkSync(_src);
+                _quarantined.push(m.filename);
+              }
+              if (_gb && typeof _gb.restoreFile === 'function') {
+                const _r = _gb.restoreFile(m.filename);
+                if (_r && _r.restored) {
+                  if (typeof _storage.recomputeChecksum === 'function') _storage.recomputeChecksum(m.filename);
+                  _healed.push(m.filename);
+                }
+              }
+            } catch (_perFile) {
+              _log.warn(`      → heal failed for ${m.filename}: ${_perFile.message}`);
+            }
+          }
+          _log.info(`  [1] Integrity heal: ${_healed.length} restored, ${_quarantined.length} quarantined → .genesis-quarantine/${_qStamp}`);
+        } catch (_healErr) {
+          _log.warn(`  [1] Integrity heal error: ${_healErr.message}`);
+        }
+        try {
+          c.resolve('eventStore').append('HEALTH_DEGRADATION', {
+            service: 'storage',
+            corrupted: integrity.mismatches.map(m => m.filename),
+            restored: _healed,
+            quarantined: _quarantined,
+            reason: `${integrity.mismatches.length} file(s) failed integrity check`,
+          }, 'AgentCoreBoot');
+        } catch (_evErr) { /* event store best-effort */ }
         this._bus.fire('health:degradation', {
           service: 'storage', level: 'warning',
           reason: `${integrity.mismatches.length} file(s) failed integrity check`,
@@ -413,6 +459,12 @@ class AgentCoreBoot {
     // Phase 2 configured with activeModel=null (8192 default). Now we know the real model.
     if (model.activeModel && c.has('context')) {
       c.resolve('context').configureForModel(model.activeModel);
+      // v7.9.23: couple the cognitive token budget to the active model window. ContextManager
+      // computes the usable window here; without this the CognitiveMonitor stayed on its 8192
+      // default (the setter had no caller) and throttled the agent under its real model.
+      if (c.has('cognitiveMonitor')) {
+        c.resolve('cognitiveMonitor').setMaxContextTokens(c.resolve('context').config.maxContextTokens);
+      }
     }
 
     _log.info('  [4-8] All phases resolved');

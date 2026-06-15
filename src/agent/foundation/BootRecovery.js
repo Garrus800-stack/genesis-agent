@@ -19,11 +19,14 @@
 
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { createLogger } = require('../core/Logger');
 const { safeJsonParse } = require('../core/utils');
+const { LOCK } = require('../core/Constants');
 const _log = createLogger('BootRecovery');
 
 const SENTINEL_FILE = 'boot-sentinel.json';
+const LOCK_FILENAME = '.genesis.lock'; // v7.9.23: single-instance lock, sibling of .genesis/
 const MAX_CRASH_RECOVERIES = 3; // After 3 failed recoveries, boot clean
 
 class BootRecovery {
@@ -189,6 +192,97 @@ class BootRecovery {
         fs.unlinkSync(this._sentinelPath);
       }
     } catch (_e) { /* best effort */ }
+  }
+
+  // ── Single-instance lock (v7.9.23) ────────────────────
+  // The lock file lives as a SIBLING of .genesis/ (in rootDir, beside .genesis-backups) so a
+  // GenesisBackup of .genesis/ never captures it. Content: { pid, ts, host }. A live holder keeps the
+  // ts fresh via an unref'd heartbeat. acquireLock() is called from AgentCore BEFORE preBootCheck.
+
+  _lockFilePath() {
+    return this._rootDir ? path.join(this._rootDir, LOCK_FILENAME) : null;
+  }
+
+  /**
+   * Liveness of an existing lock record. The stale check runs FIRST (guards pid reuse): a heartbeat
+   * ts older than LOCK.STALE_MS means the holder is gone regardless of which process now owns that
+   * pid. On a fresh ts a different host cannot be probed, so it is taken as alive; on the same host
+   * the pid is probed (ESRCH = dead, EPERM = alive-but-not-ours, success = alive).
+   */
+  _isLockAlive(held) {
+    if (!held || typeof held.pid !== 'number' || typeof held.ts !== 'number') return false;
+    if (Date.now() - held.ts > LOCK.STALE_MS) return false;
+    if (held.host && held.host !== os.hostname()) return true;
+    try {
+      process.kill(held.pid, 0);
+      return true;
+    } catch (err) {
+      if (err.code === 'ESRCH') return false;
+      return true; // EPERM or unknown → conservatively alive
+    }
+  }
+
+  _writeLock() {
+    const p = this._lockFilePath();
+    if (!p) return;
+    try {
+      fs.writeFileSync(p, JSON.stringify({ pid: process.pid, ts: Date.now(), host: os.hostname() }), 'utf8');
+    } catch (err) {
+      _log.warn('[LOCK] Failed to write lock file:', err.message);
+    }
+  }
+
+  _startHeartbeat() {
+    if (this._heartbeatTimer) return;
+    // Raw setInterval (pre-DI, before IntervalManager exists) — kept unref'd so it never holds the
+    // process open. Exempt in scripts/architectural-fitness.js alongside CrashLog.
+    this._heartbeatTimer = setInterval(() => { this._writeLock(); }, LOCK.HEARTBEAT_MS);
+    if (this._heartbeatTimer && typeof this._heartbeatTimer.unref === 'function') this._heartbeatTimer.unref();
+  }
+
+  /**
+   * Acquire the single-instance lock. Throws an Error tagged { code: 'GENESIS_LOCK_HELD' } when a
+   * live instance already holds it (the caller aborts the boot). A stale or unreadable lock is
+   * reclaimed. No-op when rootDir is unavailable (cannot place a sibling lock).
+   */
+  acquireLock() {
+    const p = this._lockFilePath();
+    if (!p) { _log.debug('[LOCK] No rootDir — single-instance lock skipped'); return; }
+    try {
+      if (fs.existsSync(p)) {
+        const held = safeJsonParse(fs.readFileSync(p, 'utf8'), null);
+        if (this._isLockAlive(held)) {
+          const e = new Error(`Another Genesis instance is already running (pid ${held.pid} on ${held.host}, last beat ${new Date(held.ts).toISOString()}). Refusing to start a second instance.`);
+          e.code = 'GENESIS_LOCK_HELD';
+          throw e;
+        }
+        _log.warn(`[LOCK] Reclaiming stale lock (pid ${held && held.pid}, age ${held ? Math.round((Date.now() - held.ts) / 1000) : '?'}s)`);
+      }
+    } catch (err) {
+      if (err.code === 'GENESIS_LOCK_HELD') throw err;
+      _log.warn('[LOCK] Lock read failed, reclaiming:', err.message);
+    }
+    this._writeLock();
+    this._startHeartbeat();
+    _log.info(`[LOCK] Acquired single-instance lock (pid ${process.pid})`);
+  }
+
+  /** Release the lock: stop the heartbeat and remove the file if it is still ours. */
+  releaseLock() {
+    if (this._heartbeatTimer) {
+      clearInterval(this._heartbeatTimer);
+      this._heartbeatTimer = null;
+    }
+    const p = this._lockFilePath();
+    if (!p) return;
+    try {
+      if (fs.existsSync(p)) {
+        const held = safeJsonParse(fs.readFileSync(p, 'utf8'), null);
+        if (!held || held.pid === process.pid) fs.unlinkSync(p);
+      }
+    } catch (err) {
+      _log.warn('[LOCK] Failed to release lock file:', err.message);
+    }
   }
 }
 

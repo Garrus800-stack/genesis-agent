@@ -120,6 +120,9 @@ class GoalDriver {
 
   async asyncLoad() {
     this._running = true;
+    // v7.9.23: rehydrate the failure-burst counters so a goal that fails once per session keeps
+    // its count across restarts instead of resetting and looping forever (self-expiring via the reset window).
+    this._loadFailureBurst().catch(() => { /* best effort */ });
 
     this._unsubs.push(
       this.bus.on('boot:complete', () => this._onBootComplete()),

@@ -83,12 +83,20 @@ class AgentCore {
       const { SnapshotManager }= require('./capabilities/SnapshotManager');
       const snapshotMgr = new SnapshotManager({ rootDir: this.rootDir, storage: null, guard: this.guard });
       this._bootRecovery = new BootRecovery({ genesisDir: this.genesisDir, snapshotManager: snapshotMgr, rootDir: this.rootDir });
+      // v7.9.23: acquire the single-instance lock BEFORE any boot work. A live holder makes this
+      // throw GENESIS_LOCK_HELD, which is re-thrown below to abort the second instance.
+      this._bootRecovery.acquireLock();
       recoveryResult = this._bootRecovery.preBootCheck();
       if (recoveryResult.recovered) {
         _log.warn(`[GENESIS] Recovered from crash — restored snapshot "${recoveryResult.snapshot}"`);
         this._pushStatus({ state: 'warning', detail: `Crash recovery: restored "${recoveryResult.snapshot}"` });
       }
-    } catch (err) { _log.debug('[GENESIS] Boot recovery init:', err.message); }
+    } catch (err) {
+      // v7.9.23: a held single-instance lock must abort the boot — re-throw it; all other recovery
+      // init failures stay non-fatal (the original behaviour).
+      if (err && err.code === 'GENESIS_LOCK_HELD') throw err;
+      _log.debug('[GENESIS] Boot recovery init:', err.message);
+    }
 
     try {
       const _phaseTimings = [];
@@ -229,7 +237,13 @@ class AgentCore {
   getHealth()         { return this._health.getHealth(); }
   async switchModel(m){
     const r = await this.container.resolve('model').switchTo(m);
-    if (this.container.has('context')) this.container.resolve('context').configureForModel(m);
+    if (this.container.has('context')) {
+      this.container.resolve('context').configureForModel(m);
+      // v7.9.23: keep the cognitive token budget tracking the window across runtime model switches.
+      if (this.container.has('cognitiveMonitor')) {
+        this.container.resolve('cognitiveMonitor').setMaxContextTokens(this.container.resolve('context').config.maxContextTokens);
+      }
+    }
     return r;
   }
   listModels()        { return this.container.resolve('model').availableModels; }

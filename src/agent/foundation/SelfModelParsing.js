@@ -29,6 +29,57 @@ const _log = createLogger('SelfModel');
 // modelled every source module twice.
 const _SCAN_SKIP_DIRS = new Set(['node_modules', 'sandbox', 'dist', 'vendor', '.genesis-backups']);
 
+// v7.9.23: lazy acorn loader (npm, then kernel-vendored fallback) for AST-based require
+// extraction — same dual-path pattern as CodeSafetyScanner / VerificationEngine.
+let _acornMod = null;
+let _acornTried = false;
+function _getAcorn() {
+  if (_acornTried) return _acornMod;
+  _acornTried = true;
+  try { _acornMod = require('acorn'); return _acornMod; } catch (_e) { /* try vendored copy */ }
+  try { _acornMod = require(path.resolve(__dirname, '../../kernel/vendor/acorn.js')); } catch (_e2) { _acornMod = null; }
+  return _acornMod;
+}
+
+// v7.9.23: recursive AST walk collecting require('<string literal>') call targets. Comments are not
+// in the AST and template *text* (quasis) is not a CallExpression, so both are ignored automatically;
+// a require inside a ${...} interpolation is real code and is kept.
+function _collectRequires(root, out) {
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node || typeof node !== 'object') continue;
+    if (node.type === 'CallExpression' && node.callee && node.callee.name === 'require'
+        && Array.isArray(node.arguments) && node.arguments.length === 1) {
+      const arg = node.arguments[0];
+      if (arg && arg.type === 'Literal' && typeof arg.value === 'string') out.push(arg.value);
+    }
+    for (const key in node) {
+      if (key === 'type' || key === 'start' || key === 'end' || key === 'loc' || key === 'range') continue;
+      const val = node[key];
+      if (!val || typeof val !== 'object') continue;
+      if (Array.isArray(val)) { for (const c of val) if (c && typeof c === 'object') stack.push(c); }
+      else stack.push(val);
+    }
+  }
+}
+
+// v7.9.23: regex fallback — the previous line-by-line scan, used only when acorn is unavailable or
+// the source does not parse. Same false-positive profile as before (no regression).
+function _regexExtractRequires(code, out) {
+  const codeNoBlock = code.replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const rawLine of codeNoBlock.split('\n')) {
+    const codePart = rawLine.replace(/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)|\/\/.*$/g, (m, s) => s || '');
+    const detect = codePart
+      .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+      .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+      .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+    if (/\brequire\s*\(/.test(detect)) {
+      for (const m of codePart.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)) out.push(m[1]);
+    }
+  }
+}
+
 const selfModelParsing = {
 
   // FIX v3.8.0: Async directory scan — replaces sync _scanDir().
@@ -183,26 +234,22 @@ const selfModelParsing = {
       }
     }
 
-    // Extract requires — ignore those inside comments and string literals.
-    // v7.9.21: a require(...) inside a comment was previously captured (the
-    // detection blanked strings but never comments, and the capture ran on the
-    // raw line), so a commented-out require produced a false missing-dependency
-    // and inflated the coupling count. Strip block comments from the whole
-    // source, then strip each line's line-comment while keeping strings intact
-    // (a "//" inside 'http://x' must not truncate the line). Detect on a
-    // string-blanked copy so a require( inside a string is still ignored;
-    // capture on the comment-stripped, string-intact line.
-    const codeNoBlock = code.replace(/\/\*[\s\S]*?\*\//g, '');
-    for (const rawLine of codeNoBlock.split('\n')) {
-      const codePart = rawLine.replace(/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)|\/\/.*$/g, (m, s) => s || '');
-      const detect = codePart
-        .replace(/'(?:[^'\\]|\\.)*'/g, "''")
-        .replace(/"(?:[^"\\]|\\.)*"/g, '""')
-        .replace(/`(?:[^`\\]|\\.)*`/g, '``');
-      if (/\brequire\s*\(/.test(detect)) {
-        for (const m of codePart.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)) info.requires.push(m[1]);
-      }
+    // v7.9.23: prefer the acorn AST so a require() that only appears as *text* inside a multi-line
+    // template literal (e.g. the fenced require('./Foo') in ASTDiff's prompt string) is no longer
+    // miscounted as a real dependency — that false positive inflated the coupling count and produced
+    // a spurious daemon-health flag every cycle. The walk keeps requires inside ${...} interpolations
+    // (real code, e.g. CoreMemories loading ./SignificanceDetector) and drops template text. Comments
+    // are not in the AST. On no-acorn or a parse failure, fall back to the previous regex scan.
+    const _acorn = _getAcorn();
+    let _astOk = false;
+    if (_acorn) {
+      try {
+        const _ast = _acorn.parse(code, { ecmaVersion: 'latest', allowReturnOutsideFunction: true, allowHashBang: true });
+        _collectRequires(_ast, info.requires);
+        _astOk = true;
+      } catch (_e) { _astOk = false; }
     }
+    if (!_astOk) _regexExtractRequires(code, info.requires);
 
     // Extract exports
     const expMatch = code.match(/module\.exports\s*=\s*{([^}]+)}/);

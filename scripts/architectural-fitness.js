@@ -576,9 +576,10 @@ check('Raw setInterval Audit', (r) => {
   // IntervalManager itself uses setInterval internally (implementation, not usage).
   // CrashLog: runs before/after IntervalManager lifecycle — kernel-level timer.
   // McpTransport: heartbeat tied to SSE connection lifecycle (F-06) — managed externally.
-  const EXEMPT = ['IntervalManager.js', 'CrashLog.js', 'McpTransport.js'];
+  const EXEMPT = ['IntervalManager.js', 'CrashLog.js', 'McpTransport.js', 'BootRecovery.js'];
   const KNOWN_RAW = 2; // v7.1.1 baseline: 2 modules with raw-only setInterval
-  // Exempt (intentionally raw): CrashLog (pre-DI lifecycle), McpTransport (F-06).
+  // Exempt (intentionally raw): CrashLog (pre-DI lifecycle), McpTransport (F-06),
+  // BootRecovery (v7.9.23: pre-DI single-instance lock heartbeat, unref'd).
   // McpServer migrated to dual IntervalManager/fallback pattern in v7.1.1.
   const raw = [];
 

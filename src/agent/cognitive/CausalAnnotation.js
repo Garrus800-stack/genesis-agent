@@ -62,7 +62,7 @@ const { applySubscriptionHelper } = require('../core/subscription-helper');
 
 class CausalAnnotation {
   /**
-   * @param {{ bus?: object, knowledgeGraph?: object, config?: object }} opts
+   * @param {{ bus?: object, knowledgeGraph?: object, lessonsStore?: object, config?: object }} opts
    */
   constructor({ bus, knowledgeGraph, lessonsStore, config } = {}) {
     this.bus = bus || NullBus;
