@@ -12,6 +12,25 @@
 
 'use strict';
 
+// v7.9.24: set once at boot by FileProcessor when it knows whether real
+// POSIX tools (bash + coreutils, e.g. from Git for Windows' optional Unix
+// tools) are on PATH. When true, adaptCommand skips its POSIX→cmd.exe tool
+// substitutions on Windows so the genuine tools are used instead of being
+// rewritten to non-equivalent cmd builtins (grep→findstr, wc→find /V /C).
+// Default false → behaviour is exactly as before on every host that has
+// not opted in.
+let _unixToolsOnPath = false;
+
+/**
+ * v7.9.24: record whether real POSIX tools are available on PATH. Called
+ * once at boot from FileProcessor._detectRuntimes. Idempotent.
+ *
+ * @param {boolean} available
+ */
+function setUnixToolsOnPath(available) {
+  _unixToolsOnPath = !!available;
+}
+
 /**
  * Resolve the platform-appropriate shell binary and flag.
  *
@@ -111,49 +130,64 @@ function adaptCommand(cmd, platform) {
   if (platform !== 'win32') return cmd;
 
   let out = cmd;
-  // Simple program-name swaps (start of command only)
-  out = out
-    .replace(/^ls\b/, 'dir')
-    .replace(/^cat\s/, 'type ')
-    .replace(/^rm\s+-rf\s/, 'rmdir /s /q ')
-    .replace(/^rm\s/, 'del ')
-    .replace(/^cp\s+-r\s/, 'xcopy /e /i ')
-    .replace(/^cp\s/, 'copy ')
-    .replace(/^mv\s/, 'move ')
-    .replace(/^mkdir\s+-p\s/, 'mkdir ')
-    .replace(/^which\s/, 'where ')
-    .replace(/^touch\s/, 'type nul > ')
-    .replace(/^pwd\b/, 'cd')
-    .replace(/^clear$/, 'cls')
-    .replace(/^echo\s+\$([A-Z_][A-Z0-9_]*)\b/, 'echo %$1%');
 
-  // v7.9.11: convert forward-slash paths to backslashes. Must run AFTER
-  // the program-name swaps above (so `cat src/X.js` first becomes
-  // `type src/X.js`, then `type src\X.js`) and BEFORE the find/grep
-  // rewrites below (those produce literal cmd switches like `/V /C` in
-  // their output, which adaptPaths's _looksLikePath classifier would
-  // correctly skip anyway — but doing the path adapt earlier means we
-  // operate on shorter strings and the order of intent is clearer).
+  // v7.9.24: POSIX program → cmd.exe substitutions are correct only when the
+  // real POSIX tools are NOT on PATH. With Git for Windows' optional Unix
+  // tools installed, ls/cat/grep/wc/sed/... are genuine binaries callable
+  // from cmd.exe; rewriting grep→findstr (different syntax) or `wc -l`→
+  // `find /V /C` (miscounts colon-bearing lines) would corrupt commands that
+  // now work. Skip the tool substitutions when those tools are present. The
+  // cmd.exe-syntax fixes further down (variable %VAR%, path slashes,
+  // /dev/null→NUL) still apply unconditionally — cmd.exe performs variable
+  // expansion, switch parsing and redirection regardless of which external
+  // tools exist.
+  if (!_unixToolsOnPath) {
+    // Simple program-name swaps (start of command only)
+    out = out
+      .replace(/^ls\b/, 'dir')
+      .replace(/^cat\s/, 'type ')
+      .replace(/^rm\s+-rf\s/, 'rmdir /s /q ')
+      .replace(/^rm\s/, 'del ')
+      .replace(/^cp\s+-r\s/, 'xcopy /e /i ')
+      .replace(/^cp\s/, 'copy ')
+      .replace(/^mv\s/, 'move ')
+      .replace(/^mkdir\s+-p\s/, 'mkdir ')
+      .replace(/^which\s/, 'where ')
+      .replace(/^touch\s/, 'type nul > ')
+      .replace(/^pwd\b/, 'cd')
+      .replace(/^clear$/, 'cls');
+
+    // Quote-safe line counting:
+    // `find /C /V ""` → mangled by cmd.exe quote-escaping → reads file `"\"`.
+    // `find /V /C ":"` counts lines NOT containing colon — Windows filenames
+    // cannot contain ':' so this counts all lines correctly.
+    out = out.replace(/\|\s*wc\s+-l\s*$/, '| find /V /C ":"');
+    out = out.replace(/find\s+\/[Cc]\s+\/[Vv]\s+""/g, 'find /V /C ":"');
+    out = out.replace(/find\s+\/[Vv]\s+\/[Cc]\s+""/g, 'find /V /C ":"');
+
+    // LLMs hallucinate other broken find-counter forms — rewrite to canonical:
+    out = out.replace(/\bfind\s+\/[Cc]\s+"[*.]"/g, 'find /V /C ":"');
+    out = out.replace(/\bfind\s+\/[Cc]\s+"\s*"/g, 'find /V /C ":"');
+    out = out.replace(/\bfind\s+\/[Vv]\s+""\s*$/, 'find /V /C ":"');
+    out = out.replace(/\bfind\s+\/count\b[^|&;<>]*$/i, 'find /V /C ":"');
+    out = out.replace(/\bfindstr\s+\/c:"[*.]"/g, 'find /V /C ":"');
+
+    // grep — basic mapping to findstr (not 1:1 but covers common cases)
+    out = out.replace(/\bgrep\s+(-[A-Za-z]+\s+)?/g, 'findstr ');
+  }
+
+  // cmd.exe variable syntax: $VAR → %VAR% (cmd.exe never expands $VAR, even
+  // when POSIX tools are present — echo is a cmd.exe builtin).
+  out = out.replace(/^echo\s+\$([A-Z_][A-Z0-9_]*)\b/, 'echo %$1%');
+
+  // v7.9.11: convert forward-slash paths to backslashes. cmd.exe reads a
+  // leading /foo as a switch (e.g. /agent → /a /g /e /n /t), so argument
+  // paths must use backslashes; this applies whether or not the program name
+  // was substituted above. _looksLikePath skips genuine cmd switches like
+  // the `/V /C` produced by the counter rewrites.
   out = adaptPaths(out);
 
-  // Quote-safe line counting:
-  // `find /C /V ""` → mangled by cmd.exe quote-escaping → reads file `"\"`.
-  // `find /V /C ":"` counts lines NOT containing colon — Windows filenames
-  // cannot contain ':' so this counts all lines correctly.
-  out = out.replace(/\|\s*wc\s+-l\s*$/, '| find /V /C ":"');
-  out = out.replace(/find\s+\/[Cc]\s+\/[Vv]\s+""/g, 'find /V /C ":"');
-  out = out.replace(/find\s+\/[Vv]\s+\/[Cc]\s+""/g, 'find /V /C ":"');
-
-  // LLMs hallucinate other broken find-counter forms — rewrite to canonical:
-  out = out.replace(/\bfind\s+\/[Cc]\s+"[*.]"/g, 'find /V /C ":"');
-  out = out.replace(/\bfind\s+\/[Cc]\s+"\s*"/g, 'find /V /C ":"');
-  out = out.replace(/\bfind\s+\/[Vv]\s+""\s*$/, 'find /V /C ":"');
-  out = out.replace(/\bfind\s+\/count\b[^|&;<>]*$/i, 'find /V /C ":"');
-  out = out.replace(/\bfindstr\s+\/c:"[*.]"/g, 'find /V /C ":"');
-
-  // grep — basic mapping to findstr (not 1:1 but covers common cases)
-  out = out.replace(/\bgrep\s+(-[A-Za-z]+\s+)?/g, 'findstr ');
-  // /dev/null → NUL
+  // /dev/null → NUL (cmd.exe's null device; redirection is cmd.exe's job).
   out = out.replace(/\/dev\/null/g, 'NUL');
 
   return out;
@@ -197,6 +231,7 @@ function parseCommand(cmd, platform) {
 
 module.exports = {
   resolveShell,
+  setUnixToolsOnPath,
   adaptCommand,
   parseTokens,
   parseCommand,

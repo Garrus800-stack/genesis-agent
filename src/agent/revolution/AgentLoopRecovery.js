@@ -63,6 +63,23 @@ class AgentLoopRecoveryDelegate {
       // park the parent. The bestehende _unblockDependents-Pfad
       // reactivates the parent when the sub-goal completes.
       if (taxonomy.strategy === 'spawn_subgoal' && taxonomy.obstacle) {
+        // v7.9.24: a missing system command (e.g. sed/awk/wc on Windows
+        // without Git for Windows) would otherwise spawn an "Install
+        // missing tool: X" sub-goal that FormalPlanner turns into a doomed
+        // `winget install X` step — there is no INSTALL action and the bare
+        // tool name is not a valid package id (sed's id is Git.Git). Route
+        // command-not-found through the install handler instead: it knows
+        // the alias and, in suggest-only mode (the default), returns an
+        // actionable hint WITHOUT installing. Surface it, then let the goal
+        // end on the normal failure path.
+        if (taxonomy.obstacle.type === 'command-not-found') {
+          const hint = await this._suggestInstallForMissingCommand(taxonomy.obstacle, onProgress);
+          if (hint) {
+            return { action: 'none', category: taxonomy.category };
+          }
+          // handler unavailable / no hint → fall through so behaviour
+          // never regresses against the generic sub-goal path below.
+        }
         const spawned = await this._trySpawnObstacleSubgoal(
           taxonomy.obstacle, step, stepIndex, onProgress
         );
@@ -95,6 +112,47 @@ class AgentLoopRecoveryDelegate {
     if (decomposed) return decomposed;
 
     return { action: 'none' };
+  }
+
+  /**
+   * v7.9.24: turn a "command-not-found" obstacle into an actionable install
+   * suggestion instead of a doomed install sub-goal.
+   *
+   * The autonomous loop has no INSTALL action, so a sub-goal "Install
+   * missing tool: sed" is planned by the LLM as a bare `winget install sed`
+   * — which fails because the package id is `Git.Git`, not `sed`. The
+   * install handler already knows that mapping (alias table) and, with
+   * `install.allowAutoInstall` false (the default), returns a suggestion
+   * string WITHOUT installing anything. We surface that via onProgress on
+   * the same channel as every other recovery phase.
+   *
+   * The verb prefix is required: `_extractPackageName` needs an install
+   * verb, otherwise the handler asks "which software?". `obstacle.command`
+   * is the bare tool name (e.g. "sed").
+   *
+   * @param {{type:string, command?:string, contextKey?:string}} obstacle
+   * @param {Function} onProgress
+   * @returns {Promise<string|null>} suggestion text, or null if unavailable
+   */
+  async _suggestInstallForMissingCommand(obstacle, onProgress) {
+    const command = obstacle && obstacle.command;
+    if (!command) return null;
+    let handlers = null;
+    try {
+      handlers = this.loop?.bus?._container?.resolve?.('commandHandlers');
+    } catch (_e) { handlers = null; }
+    if (!handlers || typeof handlers.installSoftware !== 'function') return null;
+    try {
+      const preview = await handlers.installSoftware(`install ${command}`);
+      if (typeof preview !== 'string' || !preview.trim()) return null;
+      const text = `Command "${command}" is not available on this host.\n\n${preview.trim()}`;
+      try {
+        onProgress?.({ phase: 'install-suggestion', command, detail: text });
+      } catch (_e) { /* never let a progress emit break recovery */ }
+      return text;
+    } catch (_e) {
+      return null;
+    }
   }
 
   /**

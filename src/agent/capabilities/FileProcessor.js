@@ -15,6 +15,7 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+const OSAdapter = require('./shell/ShellOSAdapter');
 const _log = createLogger('FileProcessor');
 class FileProcessor {
   constructor(rootDir, sandbox, bus) {
@@ -307,6 +308,14 @@ class FileProcessor {
     if (process.platform !== 'win32') {
       this.runtimes.powershell = await check('pwsh');
     }
+
+    // v7.9.24: tell ShellOSAdapter whether real POSIX tools are on PATH so
+    // adaptCommand stops rewriting POSIX commands to cmd.exe builtins on
+    // Windows once Git for Windows' Unix tools are installed. On non-Windows
+    // adaptCommand is a no-op, so the value is only consulted on win32.
+    try {
+      OSAdapter.setUnixToolsOnPath(!!this.runtimes.bash);
+    } catch (_e) { _log.debug('[catch] setUnixToolsOnPath:', _e.message); }
 
     const available = Object.entries(this.runtimes)
       .filter(([_, v]) => v)

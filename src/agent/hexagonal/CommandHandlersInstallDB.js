@@ -80,6 +80,20 @@ const _BOOTSTRAP_COMMANDS = {
 // Adding entries is safe — direct URLs go to the official vendor.
 // Updating versions is best-effort; many vendors have a "latest"
 // redirect we use where possible.
+// v7.9.24: sed/awk/wc/bash and friends are not standalone Windows
+// packages — they ship inside Git for Windows. The Tier-3 fallback
+// (used only when no package manager is available) points all of them
+// at the same installer, so they share one descriptor instead of
+// repeating the URL.
+const _GIT_BUNDLED_WIN = {
+  win32: {
+    url: 'https://gitforwindows.org/',
+    filename: null,
+    label: 'Git for Windows',
+    note: 'sed/awk/wc/head/tail/cut/uniq/bash sind in Git for Windows enthalten. Öffne den Link und installiere Git for Windows.',
+  },
+};
+
 const _SOFTWARE_DB = {
   'winrar': {
     win32: { url: 'https://www.win-rar.com/fileadmin/winrar-versions/sfxen.exe', filename: 'winrar-installer.exe', label: 'WinRAR' },
@@ -118,6 +132,15 @@ const _SOFTWARE_DB = {
     win32: { url: 'https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.exe', filename: 'vlc-installer.exe', label: 'VLC Media Player' },
     darwin: { url: 'https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-universal.dmg', filename: 'VLC.dmg', label: 'VLC Media Player' },
   },
+  // v7.9.24: Unix text tools — provided by Git for Windows (shared descriptor).
+  'bash': _GIT_BUNDLED_WIN,
+  'sed':  _GIT_BUNDLED_WIN,
+  'awk':  _GIT_BUNDLED_WIN,
+  'wc':   _GIT_BUNDLED_WIN,
+  'head': _GIT_BUNDLED_WIN,
+  'tail': _GIT_BUNDLED_WIN,
+  'cut':  _GIT_BUNDLED_WIN,
+  'uniq': _GIT_BUNDLED_WIN,
 };
 
 // ── PM-specific package-id aliases ────────────────────────────
@@ -143,6 +166,22 @@ const _PACKAGE_ALIASES = {
   'curl':      { apt: 'curl', dnf: 'curl', pacman: 'curl', zypper: 'curl', apk: 'curl', brew: 'curl' },
   'wget':      { apt: 'wget', dnf: 'wget', pacman: 'wget', zypper: 'wget', apk: 'wget', brew: 'wget' },
   'htop':      { apt: 'htop', dnf: 'htop', pacman: 'htop', zypper: 'htop', apk: 'htop', brew: 'htop' },
+  // v7.9.24: Unix coreutils / text tools bundled by Git for Windows. On
+  // Windows these are absent unless Git for Windows is installed; mapping
+  // them to the Git package lets the install handler suggest the right
+  // thing when a model-generated step calls sed/awk/wc/etc. Only Windows
+  // PM keys (winget/choco) — on Linux/macOS these tools are native,
+  // _checkAlreadyInstalled finds them first and the alias never resolves,
+  // so no Unix package keys are needed (mapping sed to a "git" package on
+  // Linux would be wrong).
+  'bash':      { winget: 'Git.Git', choco: 'git' },
+  'sed':       { winget: 'Git.Git', choco: 'git' },
+  'awk':       { winget: 'Git.Git', choco: 'git' },
+  'wc':        { winget: 'Git.Git', choco: 'git' },
+  'head':      { winget: 'Git.Git', choco: 'git' },
+  'tail':      { winget: 'Git.Git', choco: 'git' },
+  'cut':       { winget: 'Git.Git', choco: 'git' },
+  'uniq':      { winget: 'Git.Git', choco: 'git' },
 };
 
 const _PACKAGE_NAME_RE = /^[a-z0-9][a-z0-9._+-]{1,49}$/i;

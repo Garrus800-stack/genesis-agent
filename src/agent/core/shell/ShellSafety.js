@@ -12,6 +12,17 @@
 'use strict';
 
 const path = require('path');
+const { BASE_READ_VERBS } = require('./ShellReadVocabulary');
+
+// Runtime-gate-specific reads on top of the shared base: launch / shell-builtin
+// commands the sandbox treats as non-writing for path-boundary classification
+// (the plan-time guard does not need these). BASE_READ_VERBS + _RUNTIME_READ_EXTRA
+// reproduces the prior inline universalReadVerbs set exactly — behaviour is
+// unchanged; the base is now shared so the two layers cannot drift on it.
+const _RUNTIME_READ_EXTRA = new Set([
+  'less', 'more', 'pwd', 'echo', 'which', 'open', 'xdg-open',
+  'where', 'explorer', 'start', 'cd',
+]);
 
 // ── Blocked patterns per permission tier ────────────────────
 // Frozen so all ShellAgent instances share the same object without
@@ -390,14 +401,11 @@ function _classifyCommandIntent(command, isWindows) {
   const verb = cmd.split(/\s+/)[0]?.toLowerCase() || '';
   // Strip path prefix from verb (e.g. /usr/bin/ls → ls)
   const verbBase = verb.replace(/^.*[\\/]/, '');
-  const universalReadVerbs = [
-    'cat', 'ls', 'find', 'grep', 'head', 'tail', 'wc', 'less', 'more',
-    'pwd', 'echo', 'stat', 'file', 'which', 'open', 'xdg-open',
-    'type', 'dir', 'where', 'findstr', 'explorer', 'start',
-    'tree', 'cd',
-  ];
+  // Read verbs = shared base (one source of truth with the plan-time guard) +
+  // this gate's launch / builtin reads. The union reproduces the prior inline
+  // set exactly, so classification is unchanged.
   void isWindows;
-  if (universalReadVerbs.includes(verbBase)) return 'read';
+  if (BASE_READ_VERBS.has(verbBase) || _RUNTIME_READ_EXTRA.has(verbBase)) return 'read';
   return 'write';
 }
 

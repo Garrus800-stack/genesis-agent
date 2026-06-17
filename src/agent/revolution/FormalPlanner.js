@@ -25,6 +25,7 @@ const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
 const { buildOsContext } = require('../core/EnvironmentContext');
 const { pickRelevantModules, formatModulePathList } = require('./plan-context');
+const { isReadOnlyShellCommand } = require('../core/shell/ShellReadVocabulary');
 const _log = createLogger('FormalPlanner');
 
 class FormalPlanner {
@@ -429,6 +430,30 @@ Rules:
         && (type === 'CODE_GENERATE' || type === 'WRITE_FILE' || type === 'SELF_MODIFY')) {
       _log.info(`[FORMAL-PLANNER] ${type} step rewritten to ANALYZE — read-only goal`);
       type = 'ANALYZE';
+    }
+    // v7.9.19 (Strang E) hardening: the type rewrite above exempts SHELL_EXEC
+    // (inspection reads via shell), but a SHELL_EXEC step can carry a MUTATING
+    // command (field case: "mkdir -p project/src && git init" on an inspect
+    // goal). The exemption never inspects the command string, and at
+    // FULL_AUTONOMY the runtime auto-approves shell — so this is the only
+    // deterministic gate. Fail-closed via the shared read vocabulary: keep
+    // SHELL only if the command is provably read-only.
+    //
+    // The `!= null` term skips the guard only when the step has no command at
+    // all (undefined / null) — a degenerate no-op that cannot mutate; the
+    // v7919-intent-aware-planning fixture { type: 'SHELL', description: 'ls' }
+    // (no command field, readOnlyGoal) must stay SHELL_EXEC. A PRESENT command
+    // — including an empty string "" or any non-string — still reaches
+    // isReadOnlyShellCommand, which returns false for anything not provably a
+    // read, so an empty / malformed command fails closed to ANALYZE. (A truthy
+    // check would short-circuit on "" and wrongly leave it SHELL_EXEC.)
+    if (this._planCapabilities?.readOnlyGoal === true
+        && type === 'SHELL_EXEC'
+        && rawStep.command != null
+        && !isReadOnlyShellCommand(rawStep.command)) {
+      _log.info('[FORMAL-PLANNER] SHELL step rewritten to ANALYZE — read-only goal, non-read command');
+      type = 'ANALYZE';
+      rawStep.command = null;
     }
     const action = this.actions.get(type) || this.actions.get('ANALYZE');
 
