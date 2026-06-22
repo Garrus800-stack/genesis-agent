@@ -174,7 +174,7 @@ class SessionPersistence {
    * Generate session summary using the LLM.
    * Called during shutdown (before the model goes offline).
    */
-  async generateSessionSummary(chatHistory = []) {
+  async generateSessionSummary(chatHistory = [], timeoutMs = 8000) {
     if (this.currentSession.messageCount === 0 && chatHistory.length === 0) {
       return null;
     }
@@ -220,7 +220,17 @@ Format:
 SUMMARY: ...
 UNFINISHED: ...`;
 
-      const response = await this.model.chat(prompt, [], 'analysis');
+      // v7.9.25: race the model call against the shutdown summary budget HERE,
+      // inside the try, so a timeout rejects into the catch below — the
+      // deterministic fallback is written and the checkpoint deleted. Previously
+      // the timeout lived in the AgentCoreHealth caller: when it fired, neither
+      // the real summary nor the fallback was written and the checkpoint was
+      // stranded, resurfacing as a stale recovery on the next boot.
+      const response = await Promise.race([
+        this.model.chat(prompt, [], 'analysis'),
+        new Promise((_resolve, reject) =>
+          setTimeout(() => reject(new Error(`session-summary timeout after ${timeoutMs}ms`)), timeoutMs)),
+      ]);
 
       const summaryMatch = response.match(/SUMMARY:\s*(.+?)(?=UNFINISHED:|$)/is);
       const unfinishedMatch = response.match(/UNFINISHED:\s*(.+?)$/is);

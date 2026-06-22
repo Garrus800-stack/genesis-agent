@@ -26,9 +26,24 @@ const { WriteLock } = require('../core/WriteLock');
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('StorageService');
 
+// v7.9.25: transient filesystem lock codes. Classic Windows case — another handle
+// (AV scanner, search indexer, the fsync just released) briefly holds the target
+// during the atomic rename and the OS returns EPERM/EBUSY/EACCES. A short retry
+// clears it. Everything else is a real error and rethrows immediately.
+const TRANSIENT_FS_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const STORAGE_RENAME_RETRIES = 6;     // attempts inside a retrying rename
+const STORAGE_RENAME_BACKOFF_MS = 25; // 25, 50, 100, 200, 400 ms
+
+/** Block the current thread for `ms` without busy-waiting. Only ever used inside
+ *  the shutdown window, where a brief synchronous wait is acceptable. */
+function _sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.max(0, ms));
+}
+
 class StorageService {
   constructor(baseDir) {
     this.baseDir = baseDir;
+    this._shutdownWindow = false; // v7.9.25: gates blocking sync-write retries
     this._writeQueue = new Map(); // filename → Promise chain
     this._cache = new Map();      // filename → { data, ts }
     this._cacheTTL = 5000;        // 5s cache for reads
@@ -72,7 +87,30 @@ class StorageService {
   _loadChecksums() {
     try {
       const p = path.join(this.baseDir, '_checksums.json');
-      if (fs.existsSync(p)) return new Map(Object.entries(JSON.parse(fs.readFileSync(p, 'utf8'))));
+      if (fs.existsSync(p)) {
+        const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+        // v7.9.25: checksums are stored as a { schema, checksums } envelope.
+        // Older files are a bare { filename: hash } map — detect by the absent
+        // envelope shape and migrate once: drop ephemeral goals/steps entries
+        // whose file is gone. Those checkpoints are deleted on goal completion,
+        // so a lingering checksum is a guaranteed orphan that would otherwise
+        // surface forever as a verifyIntegrity 'missing'. A genuinely missing
+        // critical file (anything outside goals/steps) is kept and stays flagged.
+        const isEnvelope = raw && typeof raw === 'object' && !Array.isArray(raw)
+          && raw.checksums && typeof raw.checksums === 'object';
+        const map = new Map(Object.entries(isEnvelope ? raw.checksums : raw));
+        if (!isEnvelope) {
+          for (const filename of [...map.keys()]) {
+            if (filename.startsWith('goals/steps/')
+              && !fs.existsSync(path.join(this.baseDir, filename))) {
+              map.delete(filename);
+            }
+          }
+          this._checksums = map;
+          this._saveChecksums(); // rewrite once in envelope format, migrated
+        }
+        return map;
+      }
     } catch (_e) { /* regenerate */ }
     return new Map();
   }
@@ -81,7 +119,8 @@ class StorageService {
   _saveChecksums() {
     try {
       const p = path.join(this.baseDir, '_checksums.json');
-      fs.writeFileSync(p, JSON.stringify(Object.fromEntries(this._checksums), null, 2), 'utf8');
+      const envelope = { schema: 1, checksums: Object.fromEntries(this._checksums) };
+      fs.writeFileSync(p, JSON.stringify(envelope, null, 2), 'utf8');
     } catch (_e) { _log.debug('[STORAGE] Checksum save failed:', _e.message); }
   }
 
@@ -242,10 +281,16 @@ class StorageService {
       fs.writeFileSync(tmpPath, json, 'utf-8');
       // FIX v4.10.0: fsync before rename ensures data is on disk
       // FIX v4.13.1: 'r+' required — Windows EPERM on fsync with read-only handle
-      const fd = fs.openSync(tmpPath, 'r+');
-      fs.fsyncSync(fd);
-      fs.closeSync(fd);
-      fs.renameSync(tmpPath, fullPath);
+      // v7.9.25: fd hoisted to its own try/finally so a throwing fsyncSync still
+      // closes it — the descriptor used to be block-scoped in this try and leaked.
+      let fd = null;
+      try {
+        fd = fs.openSync(tmpPath, 'r+');
+        fs.fsyncSync(fd);
+      } finally {
+        if (fd !== null) { try { fs.closeSync(fd); } catch (_e) { /* already closing */ } }
+      }
+      this._renameWithRetrySync(tmpPath, fullPath); // v7.9.25: retry transient locks
       this._cacheSet(filename, data);
       this._updateChecksum(filename, json); // v7.1.9 S-1a
       this._stats.syncWrites++;
@@ -257,6 +302,42 @@ class StorageService {
       ct.writing = false;
     }
   }
+
+  // v7.9.25: retrying atomic rename. Transient FS locks (EPERM/EBUSY/EACCES) are
+  // retried; everything else rethrows immediately. The SYNC variant blocks (and
+  // only briefly) ONLY while a shutdown window is open — outside it a single
+  // attempt is made and a transient failure rethrows, so a normal-operation sync
+  // write never freezes the event loop. The ASYNC variant always retries and
+  // yields the event loop between attempts.
+  _renameWithRetrySync(tmpPath, fullPath) {
+    const maxAttempts = this._shutdownWindow ? STORAGE_RENAME_RETRIES : 1;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        fs.renameSync(tmpPath, fullPath);
+        return;
+      } catch (err) {
+        if (!TRANSIENT_FS_CODES.has(err.code) || attempt >= maxAttempts - 1) throw err;
+        _sleepSync(STORAGE_RENAME_BACKOFF_MS * Math.pow(2, attempt));
+      }
+    }
+  }
+
+  async _renameWithRetryAsync(tmpPath, fullPath) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await fsp.rename(tmpPath, fullPath);
+        return;
+      } catch (err) {
+        if (!TRANSIENT_FS_CODES.has(err.code) || attempt >= STORAGE_RENAME_RETRIES - 1) throw err;
+        await new Promise((r) => setTimeout(r, STORAGE_RENAME_BACKOFF_MS * Math.pow(2, attempt)));
+      }
+    }
+  }
+
+  /** v7.9.25: open/close the shutdown window in which sync writes may block-retry
+   *  transient rename locks. AgentCoreHealth wraps the synchronous teardown burst. */
+  beginShutdownWindow() { this._shutdownWindow = true; }
+  endShutdownWindow() { this._shutdownWindow = false; }
 
   writeText(filename, text) {
     const fullPath = this._resolve(filename);
@@ -322,10 +403,15 @@ class StorageService {
       // FIX v4.13.1 (Audit F-06): fsync before rename ensures data is on disk
       // before the atomic swap — matches the sync path behavior (v4.10.0).
       // Note: 'r+' required — Windows EPERM on fsync with read-only handle.
-      const fh = await fsp.open(tmpPath, 'r+');
-      await fh.sync();
-      await fh.close();
-      await fsp.rename(tmpPath, fullPath);
+      // v7.9.25: handle hoisted so a throwing sync() still closes it.
+      let fh = null;
+      try {
+        fh = await fsp.open(tmpPath, 'r+');
+        await fh.sync();
+      } finally {
+        if (fh) { try { await fh.close(); } catch (_e) { /* already closing */ } }
+      }
+      await this._renameWithRetryAsync(tmpPath, fullPath); // v7.9.25 (non-blocking)
       this._cacheSet(filename, data);
       this._updateChecksum(filename, json); // v7.1.9 S-1a
       this._stats.asyncWrites++;
@@ -455,8 +541,13 @@ class StorageService {
     this._cache.delete(filename);
     try {
       if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+      // v7.9.25: clear the checksum once the file is gone, otherwise
+      // verifyIntegrity reports it forever as a 'missing' orphan (e.g.
+      // goals/steps checkpoints deleted on goal completion). Only re-save
+      // when an entry was actually removed.
+      if (this._checksums.delete(filename)) this._saveChecksums();
       return true;
-    } catch (_e) { _log.debug('[catch] file exists check:', _e.message); return false; }
+    } catch (_e) { _log.debug('[catch] delete:', _e.message); return false; }
   }
 
   list(prefix = '') {

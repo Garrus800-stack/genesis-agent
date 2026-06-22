@@ -62,6 +62,7 @@ class EmotionalState {
     // Tracks when each dimension entered an extreme state.
     // If stuck at extreme for EXTREME_DURATION_MS, forces a
     // partial reset toward baseline. Prevents degenerate prompts.
+    this._watchdogAlertActive = false; // v7.9.25: edge guard — fire watchdog-alert once per stuck episode
     this._extremeSince = {};  // { dimensionName: timestamp | null }
     for (const name of Object.keys(this.dimensions)) {
       this._extremeSince[name] = null;
@@ -469,8 +470,17 @@ class EmotionalState {
       .filter(([, ts]) => ts !== null)
       .map(([name, ts]) => ({ dimension: name, value: Math.round(this.dimensions[name].value * 100) / 100, stuckSince: ts }));
 
+    // v7.9.25: edge-guarded alert. Fire only on the transition INTO the
+    // >=2-stuck state and reset when it clears, so the alert does not re-fire
+    // every CHECK_INTERVAL tick while the same dimensions stay stuck. (The
+    // per-dimension reset above is already self-limiting; the alert was not.)
     if (stuckDims.length >= 2) {
-      this.bus.fire('emotion:watchdog-alert', { stuck: stuckDims }, { source: 'EmotionalState' });
+      if (!this._watchdogAlertActive) {
+        this._watchdogAlertActive = true;
+        this.bus.fire('emotion:watchdog-alert', { stuck: stuckDims }, { source: 'EmotionalState' });
+      }
+    } else {
+      this._watchdogAlertActive = false;
     }
 
     if (resets.length > 0) {

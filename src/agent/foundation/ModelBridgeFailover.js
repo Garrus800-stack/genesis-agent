@@ -88,6 +88,13 @@ const failoverMixin = {
     if (/rate.?limit|429|too many/.test(msg)) return 'rate-limit';
     if (/timeout|timed out|etimedout/.test(msg)) return 'timeout';
     if (/econnrefused|enotfound|eai_again|network|socket hang up|fetch failed/.test(msg)) return 'connection-error';
+    // v7.9.25: a retired/decommissioned model is permanently gone. Classify it
+    // BEFORE auth so a 410 that also mentions keys still gets the sticky model-
+    // retired TTL, not the short auth one. Without this a 410 fell through to
+    // 'other' (no TTL entry), so the dead model was retried first on every call.
+    // The 410 status is matched only in a status/code/http context so an unrelated
+    // "410 tokens" does not trip it.
+    if (/\bretired\b|decommission|(?:status|code|http)[^0-9]{0,5}410\b|\b410\s+gone\b/.test(msg)) return 'model-retired';
     if (/401|403|unauthor|invalid.*key|api.?key/.test(msg)) return 'auth';
     return 'other';
   },

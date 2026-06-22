@@ -275,7 +275,10 @@ class Genome {
     try {
       this.storage.writeJSON(GENOME_FILE, this._persistData());
     } catch (err) {
-      _log.warn('[GENOME] Sync persist failed:', err.message);
+      // v7.9.25: error, not warn. The write path now retries transient locks
+      // inside the shutdown window, so if it still throws the genome was
+      // genuinely lost — that must be visible, not swallowed as a warning.
+      _log.error('[GENOME] Sync persist failed after retries:', err.message);
     }
   }
 

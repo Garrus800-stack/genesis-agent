@@ -40,6 +40,7 @@ const UNAVAILABLE_TTL_MAP = {
   'timeout':                10 * 60 * 1000,        // 10min
   'subscription-required': 24 * 60 * 60 * 1000,    // 24h
   'quota-exhausted':       24 * 60 * 60 * 1000,    // 24h
+  'model-retired':         30 * 24 * 60 * 60 * 1000, // 30d (v7.9.25: 410/retired — effectively permanent, self-heals)
 };
 
 // v7.9.12: failover-cluster detection. A burst of failovers sharing one
@@ -547,6 +548,16 @@ class ModelBridge {
   // v7.8.6: unified dispatch for chat and stream modes. Thin wrappers below
   // preserve positional signature for 5 v7xx source-presence contract tests.
   _dispatch({ mode, backendName, systemPrompt, messages, temp, modelOverride, maxTokens, onChunk, abortSignal, taskType }) {
+    // v7.9.25: fail-soft for an unresolved backend. During the boot window the
+    // active backend can still be null (Phase 2 configures activeModel=null until
+    // the real model resolves). Rather than throw "No model backend configured" —
+    // which the caller turns into a failover WARN on every call until switchTo
+    // lands — fall back to ollama, the always-present local backend, at debug
+    // level. A throw is reserved for genuine misconfiguration: ollama also absent.
+    if (!this.backends[backendName] && this.backends.ollama) {
+      _log.debug(`[MODEL] backend '${backendName}' unresolved — using ollama (boot/teardown window)`);
+      backendName = 'ollama';
+    }
     const model = modelOverride || this._getModelForBackend(backendName);
     const backend = this.backends[backendName];
     if (mode === 'chat') {
@@ -720,4 +731,4 @@ const { contextMixin } = require('./ModelBridgeContext');
 const { continuationMixin } = require('./ModelBridgeContinuation');
 Object.assign(ModelBridge.prototype, availability, discovery, failoverMixin, contextMixin, continuationMixin);
 
-module.exports = { ModelBridge };
+module.exports = { ModelBridge, UNAVAILABLE_TTL_MAP };

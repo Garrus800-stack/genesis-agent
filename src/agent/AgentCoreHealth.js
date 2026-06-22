@@ -272,20 +272,21 @@ class AgentCoreHealth {
       const minSessionMs   = Number(settings?.get?.('shutdown.sessionSummaryMinMs') ?? 60000);
       const timeoutMs      = Number(settings?.get?.('shutdown.sessionSummaryTimeoutMs') ?? 8000);
       const sess = sp.currentSession || {};
-      const tooShort = (Date.now() - (sess.startTime || Date.now())) < minSessionMs;
-      const noContent = (sess.messageCount || 0) === 0 && history.length === 0;
-      if (tooShort && noContent) {
+      // v7.9.25: see shouldSkipSessionSummary — the guard used to read
+      // sess.startTime (a field that does not exist; the real field is the ISO
+      // string startedAt), so elapsed was always 0 and the skip degenerated.
+      if (shouldSkipSessionSummary(sess, history.length, minSessionMs)) {
         _log.debug('[SHUTDOWN] session-summary skipped — session too short, no content');
         return;
       }
-      const summaryPromise = sp.generateSessionSummary(history);
-      const timeoutPromise = new Promise((_, rej) =>
-        setTimeout(() => rej(new Error(`session-summary timeout after ${timeoutMs}ms`)), timeoutMs)
-      );
+      // v7.9.25: the summary bounds its own model call against this budget
+      // (generateSessionSummary races model.chat internally), so on timeout the
+      // deterministic fallback is written and the checkpoint deleted instead of
+      // being stranded. The caller no longer races a parallel timeout.
       try {
-        await Promise.race([summaryPromise, timeoutPromise]);
+        await sp.generateSessionSummary(history, timeoutMs);
       } catch (err) {
-        _log.warn('[SHUTDOWN] session-summary aborted:', err.message);
+        _log.warn('[SHUTDOWN] session-summary failed:', err.message);
       }
     });
 
@@ -449,11 +450,21 @@ class AgentCoreHealth {
       // SkillCrystallizer — no-op stop, lifecycle compliance.
       'skillCrystallizer',
     ];
-    for (const name of TO_STOP) {
-      safe(name, () => { c.tryResolve(name)?.stop(); });
+    // v7.9.25: open the storage shutdown window so the synchronous teardown
+    // writes below (genome._persistSync via genome.stop(), worldState.saveSync,
+    // and any other TO_STOP component's sync persist) may block-retry transient
+    // rename locks (Windows EPERM). Closed in finally so it never stays open.
+    const _storage = c.tryResolve('storage');
+    try {
+      _storage?.beginShutdownWindow();
+      for (const name of TO_STOP) {
+        safe(name, () => { c.tryResolve(name)?.stop(); });
+      }
+      // FIX v5.1.0 (C-1): Use sync write for WorldState on shutdown.
+      safe('worldState', () => { c.tryResolve('worldState')?.saveSync(); });
+    } finally {
+      _storage?.endShutdownWindow();
     }
-    // FIX v5.1.0 (C-1): Use sync write for WorldState on shutdown.
-    safe('worldState', () => { c.tryResolve('worldState')?.saveSync(); });
 
     // Persist critical data
     let history = [];
@@ -602,4 +613,25 @@ class AgentCoreHealth {
   }
 }
 
-module.exports = { AgentCoreHealth };
+/**
+ * v7.9.25: decide whether to skip the shutdown session-summary. A summary is
+ * skipped only for a session that is BOTH too short AND has no content. The
+ * session's age comes from `startedAt`, an ISO-8601 string, so it must be parsed
+ * to a timestamp — reading the non-existent `startTime` (or subtracting the
+ * string directly) silently breaks the comparison. An unparseable startedAt
+ * yields elapsed 0; a session with real content is still not skipped because it
+ * fails the noContent half.
+ * @param {{ startedAt?: string, messageCount?: number }} sess
+ * @param {number} historyLen
+ * @param {number} minSessionMs
+ * @returns {boolean}
+ */
+function shouldSkipSessionSummary(sess, historyLen, minSessionMs) {
+  const startedMs = Date.parse(sess && sess.startedAt);
+  const elapsedMs = Number.isFinite(startedMs) ? (Date.now() - startedMs) : 0;
+  const tooShort = elapsedMs < minSessionMs;
+  const noContent = ((sess && sess.messageCount) || 0) === 0 && historyLen === 0;
+  return tooShort && noContent;
+}
+
+module.exports = { AgentCoreHealth, shouldSkipSessionSummary };
