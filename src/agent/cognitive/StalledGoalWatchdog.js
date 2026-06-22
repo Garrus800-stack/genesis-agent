@@ -69,8 +69,6 @@ class StalledGoalWatchdog {
     this._intervals = intervals;  // optional IntervalManager for coordinated shutdown
 
     // Late-bound (set after manifest wiring):
-    /** @type {*} */ this.innerSpeech = null;
-    /** @type {*} */ this.selfStatementLog = null;
     /** @type {*} */ this.lessonsStore = null;
 
     this._timer = null;
@@ -174,35 +172,26 @@ class StalledGoalWatchdog {
       _log.warn('[STALL-WATCHDOG] failed to set goal status to stalled:', e.message);
     }
 
-    // Step 2: Synthetic plan-failure-reflection.
-    // We call AgentLoopPursuitReflection.recordReflection directly with
-    // classification='external' — same shape a real pursuit-failure would
-    // produce. InnerSpeech.emit fires inside recordReflection, the PSE
-    // pipeline then runs HardGates → Score → Generate → Sanity normally.
-    //
-    // Argument shape matches reflectOnFailure → recordReflection contract:
-    // services dict in arg 0, payload (with innerSpeech inline) in arg 1.
+    // Step 2: record a lesson from the stall. The InnerSpeech / self-statement
+    // narration that used to ride along here is gone — markStalled (above) fires
+    // goal:stalled, and the terminal-outcome narration wired in the AgentLoop
+    // turns that into a truthful "I stalled on the goal …" thought. Here we only
+    // capture the obstacle-resolution lesson.
     try {
       // Lazy require: keeps this module decoupled in tests that don't
       // need the reflection pathway.
       const { recordReflection } = require('../revolution/AgentLoopPursuitReflection');
       recordReflection({
-        bus: this.bus,
         lessonsStore: this.lessonsStore,
-        selfStatementLog: this.selfStatementLog,
       }, {
         goalId: goal.id,
         goalDescription: goal.description || null,
         errorMessage,
         classification: 'external',
         stepsExecuted: typeof goal.stepCount === 'number' ? goal.stepCount : 0,
-        // InnerSpeech is read from payload.innerSpeech inside recordReflection
-        // (see AgentLoopPursuitReflection.js, line 127). Pass it here so the
-        // reflection emit fires when InnerSpeech is wired.
-        innerSpeech: this.innerSpeech,
       });
     } catch (e) {
-      _log.debug('[STALL-WATCHDOG] reflection emit error (ignored):', e.message);
+      _log.debug('[STALL-WATCHDOG] lesson capture error (ignored):', e.message);
     }
 
     _log.warn(`[STALL-WATCHDOG] goal ${goal.id} marked stalled (${stalledMinutes} min blocked on ${resources})`);

@@ -85,7 +85,7 @@ function emitClassifiedEvent(bus, payload) {
  * }} payload
  */
 function recordReflection(services, payload) {
-  const { lessonsStore, selfStatementLog } = services || {};
+  const { lessonsStore } = services || {};
   // v7.9.10: stableClass also admits 'unclassified' when errorMessage carries
   // signal. LLM-generated goal verdicts ("PARTIAL because the critical step
   // failed...", "FAILED. The goal X was not achieved.") never match the
@@ -151,48 +151,14 @@ function recordReflection(services, payload) {
     } catch (_e) { /* lesson optional */ }
   }
 
-  if (selfStatementLog && typeof selfStatementLog.append === 'function') {
-    try {
-      selfStatementLog.append({
-        kind: 'plan-failure-reflection',
-        text: `I gave up the goal "${(payload.goalDescription || '').slice(0, 80)}" — ` +
-              `classification: ${payload.classification}. ` +
-              `Reason: ${String(payload.errorMessage || '').slice(0, 120)}.`,
-        classification: payload.classification,
-        ts: Date.now(),
-      });
-    } catch (_e) { /* self-statement optional */ }
-  }
-
-  // v7.7.9 Phase 2: also emit through InnerSpeech so ProactiveSelfExpression
-  // can decide whether to surface this failure to the user as a self-message.
-  // This is additive — the selfStatementLog write above is unchanged. PSE
-  // applies its own gates/threshold/sanity to decide if the reflection
-  // becomes a chat message; without PSE wired (or with PSE muted), nothing
-  // user-visible happens here.
-  const innerSpeech = payload.innerSpeech;
-  if (innerSpeech && typeof innerSpeech.emit === 'function') {
-    try {
-      const text = `Plan "${(payload.goalDescription || '').slice(0, 80)}" failed — ` +
-                   `classification: ${payload.classification}. ` +
-                   `Error: ${String(payload.errorMessage || '').slice(0, 200)}.`;
-      innerSpeech.emit(text, 'plan-failure-reflection', {
-        sourceModule: 'AgentLoopPursuitReflection',
-        contextRefs: {
-          goalId: payload.goalId || null,
-          goalDescription: payload.goalDescription || null,
-          classification: payload.classification,
-          stepsExecuted: payload.stepsExecuted || 0,
-        },
-        // Significance is high for plan failures by definition — they
-        // represent a goal Genesis decided was worth pursuing, that did
-        // not work. Novelty is moderate (1 - some-recency-decay would be
-        // ideal but we don't have access to a recent-failure cache here).
-        significance: 0.65,
-        novelty: 0.6,
-      });
-    } catch (_e) { /* innerSpeech.emit() never throws but defensive anyway */ }
-  }
+  // v7.9.26: the per-failure "I gave up" self-statement and the InnerSpeech
+  // emit were removed from here. They fired on every pursuit-attempt failure —
+  // before GoalDriver decided to pause, retry, or abandon — so Genesis told
+  // itself it had given up on goals it was still working on. The truthful
+  // narration now hangs off the real terminal events (goal:abandoned /
+  // goal:stalled / goal:obsolete) via wireGoalOutcomeNarration. The lesson
+  // write above stays here: each failed attempt is worth learning from, even
+  // when the goal is later retried rather than abandoned.
 }
 
 /**
@@ -226,14 +192,12 @@ function reflectOnFailure(services, context) {
     });
     recordReflection({
       lessonsStore: services.lessonsStore,
-      selfStatementLog: services.selfStatementLog,
     }, {
       goalId: context.goalId,
       goalDescription: context.goalDescription,
       errorMessage: context.errorMessage,
       classification,
       stepsExecuted: context.stepsExecuted,
-      innerSpeech: services.innerSpeech || null,  // v7.7.9 Phase 2
     });
   } catch (_e) { /* reflection never breaks failure path */ }
 }
@@ -242,8 +206,10 @@ function reflectOnFailure(services, context) {
  * v7.7.9 (post-Phase-3c.4) — convenience wrapper used by every
  * reflectOnFailure call site in AgentLoopPursuit. Centralizes:
  *   - the dedup check (`_reflected` flag on the loop instance)
- *   - the services dict assembly (bus / lessonsStore / selfStatementLog
- *     / innerSpeech) so each call site stays a single line
+ *   - the services dict assembly (bus / lessonsStore) so each call site
+ *     stays a single line. Terminal-outcome narration (the "I gave up" /
+ *     "stalled" / "obsolete" self-statement) is handled separately by
+ *     wireGoalOutcomeNarration, hung off the real goal lifecycle events.
  *   - setting `_reflected=true` after a successful reflection so later
  *     paths skip a duplicate record
  *
@@ -255,8 +221,7 @@ function reflectIfNeeded(loop, payload) {
   if (loop._reflected) return false;
   try {
     reflectOnFailure(
-      { bus: loop.bus, lessonsStore: loop.lessonsStore,
-        selfStatementLog: loop.selfStatementLog, innerSpeech: loop.innerSpeech || null },
+      { bus: loop.bus, lessonsStore: loop.lessonsStore },
       payload
     );
   } catch (_e) { /* reflection optional, never breaks failure path */ }
@@ -280,6 +245,73 @@ function composeFailureMessage(result, stepCount) {
   return result.error || result.summary || `Pursuit ended without success after ${stepCount} steps`;
 }
 
+// ── Terminal-outcome narration (v7.9.26) ─────────────────────
+// A goal's real terminal outcome — abandoned, stalled, or obsolete — is the
+// truthful moment for an "I gave up / I stalled / I marked obsolete" self-
+// statement, not every failed pursuit attempt (which GoalDriver may pause and
+// retry). These hang off the goal lifecycle events fired by GoalStack and
+// AgentLoop, decoupled from the per-attempt reflection above.
+const OUTCOME_NARRATION = {
+  'goal:abandoned': { kind: 'goal-abandoned', phrase: (d) => `I gave up on the goal${d}` },
+  'goal:stalled':   { kind: 'goal-stalled',   phrase: (d) => `I stalled on the goal${d}` },
+  'goal:obsolete':  { kind: 'goal-obsolete',  phrase: (d) => `I marked the goal${d} obsolete` },
+};
+
+/**
+ * Emit the truthful self-statement (and InnerSpeech thought) for one terminal
+ * goal outcome. selfStatementLog / innerSpeech are read from `services` at call
+ * time, so a late-bound provider (e.g. the AgentLoop instance) works.
+ * @param {{selfStatementLog?: *, innerSpeech?: *}} services
+ * @param {string} eventName  one of OUTCOME_NARRATION's keys
+ * @param {{id?: string, description?: string, reason?: string}} payload
+ */
+function narrateGoalOutcome(services, eventName, payload) {
+  const spec = OUTCOME_NARRATION[eventName];
+  if (!spec) return;
+  const desc = String((payload && (payload.description || payload.goalDescription)) || '').slice(0, 80);
+  const reason = String((payload && payload.reason) || '').slice(0, 120);
+  const descPart = desc ? ` "${desc}"` : '';
+  const text = `${spec.phrase(descPart)}${reason ? ` — ${reason}` : ''}.`;
+
+  const selfStatementLog = services && services.selfStatementLog;
+  if (selfStatementLog && typeof selfStatementLog.append === 'function') {
+    try {
+      selfStatementLog.append({ kind: spec.kind, text, ts: Date.now() });
+    } catch (_e) { /* self-statement optional */ }
+  }
+
+  const innerSpeech = services && services.innerSpeech;
+  if (innerSpeech && typeof innerSpeech.emit === 'function') {
+    try {
+      innerSpeech.emit(text, spec.kind, {
+        sourceModule: 'AgentLoopPursuitReflection',
+        contextRefs: { goalId: (payload && payload.id) || null, description: desc || null },
+        significance: 0.65,
+        novelty: 0.6,
+      });
+    } catch (_e) { /* innerSpeech.emit() never throws but defensive anyway */ }
+  }
+}
+
+/**
+ * Subscribe terminal-outcome narration to the goal lifecycle events. Returns an
+ * array of unsubscribe handles. `services` is read lazily inside the handler,
+ * so passing a late-bound object (the AgentLoop) is fine.
+ * @param {{on: Function}} bus
+ * @param {{selfStatementLog?: *, innerSpeech?: *}} services
+ * @returns {Function[]}
+ */
+function wireGoalOutcomeNarration(bus, services) {
+  if (!bus || typeof bus.on !== 'function') return [];
+  const unsubs = [];
+  for (const eventName of Object.keys(OUTCOME_NARRATION)) {
+    unsubs.push(bus.on(eventName, (payload) => {
+      try { narrateGoalOutcome(services, eventName, payload); } catch (_e) { /* never break the bus */ }
+    }));
+  }
+  return unsubs;
+}
+
 module.exports = {
   classifyFailure,
   isStructuralFailure,
@@ -288,4 +320,6 @@ module.exports = {
   reflectOnFailure,
   reflectIfNeeded,
   composeFailureMessage,
+  narrateGoalOutcome,
+  wireGoalOutcomeNarration,
 };

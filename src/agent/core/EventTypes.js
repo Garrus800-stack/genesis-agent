@@ -737,6 +737,9 @@ const EVENTS = Object.freeze({
     /** v7.8.9: emitted when a ContinuationLoop sequence fails (max attempts reached, budget exceeded, or unrecoverable error). */
     /** @payload {{ model: string, attempts: number, reason: string, partialContentLength?: number, durationMs: number }} */
     CONTINUATION_FAILED: 'llm:continuation-failed',
+    /** v7.9.26: emitted once per ContinuationLoop round — per-round telemetry that makes the loop observable (doneReason and growth were previously a runtime black box). */
+    /** @payload {{ model: string, attempt: number, doneReason?: string, partialChars: number, deltaChars: number, verdict: string }} */
+    CONTINUATION_ROUND: 'llm:continuation-round',
   }),
 
   // ── COST (v7.4.5 Baustein B) ──────────────────────────

@@ -93,6 +93,8 @@ class GoalDriver {
 
     /** @type {boolean} */ this._running = false;
     /** @type {boolean} */ this._bootPickupHandled = false;
+    /** @type {boolean} v7.9.26: cost-cap gate — true while the LLM budget cap blocks autonomous pursuit */
+    this._budgetCapped = false;
 
     /** @type {number} */ this.lastActivityAt = Date.now();
 
@@ -140,6 +142,10 @@ class GoalDriver {
       // for non-rate-limit failures are preserved (real failures).
       this.bus.on('llm:budget-auto-reset', () => this._onBudgetReset('auto')),
       this.bus.on('llm:budget-manual-reset', () => this._onBudgetReset('manual')),
+      // v7.9.26: suspend autonomous pursuit while the LLM budget cap blocks calls.
+      // CostGuard fired llm:cost-cap-reached but no one consumed it, so a capped
+      // goal re-picked every 60s instead of waiting for the budget reset.
+      this.bus.on('llm:cost-cap-reached', (data) => this._onBudgetCapped(data)),
     );
 
     // Periodic scan as a safety net (in case an event was missed)
@@ -366,7 +372,17 @@ class GoalDriver {
    */
   _onBudgetReset(kind) {
     if (!this._running) return;
-    if (!this._goalPausedUntil || this._goalPausedUntil.size === 0) return;
+    // v7.9.26: a budget reset lifts the cost-cap gate so autonomous pursuit resumes,
+    // even if no goals are paused (the cap can gate pursuit without any pause entries).
+    const wasCapped = this._budgetCapped;
+    this._budgetCapped = false;
+    if (!this._goalPausedUntil || this._goalPausedUntil.size === 0) {
+      if (wasCapped) {
+        _log.info(`[DRIVER] budget ${kind}-reset — lifting cost-cap gate, resuming pursuit`);
+        this._scanAndMaybePursue();
+      }
+      return;
+    }
     // Iterate goals: any pause that exists because of rate-limit
     // (kind: rate-limit isn't tracked separately; we use a heuristic:
     //  if pause was for ~60s, it was rate-limit; otherwise it was
@@ -383,6 +399,20 @@ class GoalDriver {
       _log.info(`[DRIVER] budget ${kind}-reset — clearing ${cleared.length} paused goal(s) for retry`);
       this._scanAndMaybePursue();
     }
+  }
+
+  /**
+   * v7.9.26: the LLM budget cap (CostGuard session/daily) was reached. Suspend
+   * autonomous pursuit so a blocked goal waits for the reset instead of being
+   * re-picked every 60s. The gate is lifted by _onBudgetReset on the matching
+   * llm:budget-auto-reset / -manual-reset event.
+   * @param {{scope?: string}} data
+   */
+  _onBudgetCapped(data) {
+    if (!this._running) return;
+    if (this._budgetCapped) return;
+    this._budgetCapped = true;
+    _log.info(`[DRIVER] budget cap reached (${data?.scope || 'budget'}) — suspending autonomous pursuit until reset`);
   }
 
   /**
@@ -438,6 +468,9 @@ class GoalDriver {
     // Without this gate, a 'mid-pursuit' user-goal would be picked up
     // immediately, bypassing the ask-mode resume-prompt entirely.
     if (!this._bootPickupHandled) return;
+    // v7.9.26: don't pursue while the LLM budget cap is in effect — wait for the
+    // reset event to lift the gate (see _onBudgetCapped / _onBudgetReset).
+    if (this._budgetCapped) return;
     if (this._currentlyPursuing.size > 0) return;
     // Don't auto-pursue while waiting on a UI resume decision
     if (this._pendingResumePrompt) return;

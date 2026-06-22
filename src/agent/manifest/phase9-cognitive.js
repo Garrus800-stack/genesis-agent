@@ -280,10 +280,10 @@ function phase9(ctx, R) {
       deps: [],
       tags: ['cognitive', 'goals', 'lifecycle'],
       lateBindings: [
-        { prop: 'innerSpeech', service: 'innerSpeech', optional: true,
-          impact: 'No plan-failure-reflection emitted for stalled goals; status transition still happens' },
-        { prop: 'selfStatementLog', service: 'selfStatementLog', optional: true,
-          impact: 'Stalled reflection not appended to log; InnerSpeech path still fires' },
+        // v7.9.26: the watchdog no longer narrates stalls itself — markStalled
+        // fires goal:stalled and the AgentLoop's terminal-outcome narration
+        // turns that into the InnerSpeech / self-statement thought. The watchdog
+        // keeps only the lesson capture.
         { prop: 'lessonsStore', service: 'lessonsStore', optional: true,
           impact: 'No lesson learned from stalled goals' },
       ],

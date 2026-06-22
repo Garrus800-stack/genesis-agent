@@ -76,19 +76,16 @@ function phase8(ctx, R) {
         // Closes the symmetry gap where 'plan-start' was a documented
         // actionType in self-gate.js but had no call site.
         { prop: 'selfGate', service: 'selfGate', optional: true },
-        // v7.7.8: AgentLoopPursuit mixin needs selfStatementLog for the
-        // plan-failure-reflection write. Earlier releases relied on the
-        // value being undefined — `if (selfStatementLog && typeof ...)`
-        // guards already in place — but late-binding it correctly closes
-        // the loop so reflections actually land in the log.
+        // v7.7.8 / v7.9.26: the AgentLoop late-binds selfStatementLog so the
+        // goal-outcome narration (abandoned/stalled/obsolete → "I gave up / I
+        // stalled / I marked obsolete") can write the truthful terminal self-
+        // statement. Read lazily at fire time inside wireGoalOutcomeNarration.
         { prop: 'selfStatementLog', service: 'selfStatementLog', optional: true,
-          impact: 'Plan-failure reflections never written to selfStatementLog' },
-        // v7.7.9 Phase 2: AgentLoopPursuit also forwards plan-failure
-        // reflections to InnerSpeech so PSE can decide whether to surface
-        // them as a self-message. Without this binding, PSE never sees
-        // plan-failure thoughts and the Phase 2 trigger is dead.
+          impact: 'Goal-outcome self-statements never written to selfStatementLog' },
+        // v7.7.9 / v7.9.26: InnerSpeech for the same goal-outcome narration so
+        // PSE can decide whether to surface a terminal outcome as a self-message.
         { prop: 'innerSpeech', service: 'innerSpeech', optional: true,
-          impact: 'PSE plan-failure-reflection trigger inactive; only Phase-2 user-visible behaviour' },
+          impact: 'PSE goal-outcome narration inactive' },
       ],
       factory: (c) => new (R('AgentLoop').AgentLoop)({
         bus, model: c.resolve('llm'), goalStack: c.resolve('goalStack'),

@@ -269,13 +269,15 @@ describe('llm-resilience-v789 contract: ContinuationLoop bus events', () => {
       backend, systemPrompt: 'sys', messages: [],
       options: { modelName: 'mock-model', capability: { status: 'verified-prefill' }, eventBus: bus },
     });
-    assertEqual(log.length, 2, 'two events');
+    // v7.9.26: per-round telemetry now sits between started and complete.
     assertEqual(log[0].name, 'llm:continuation-started', 'started first');
     assertEqual(log[0].payload.model, 'mock-model', 'model in start payload');
     assertEqual(log[0].payload.capability, 'verified-prefill', 'capability in start payload');
-    assertEqual(log[1].name, 'llm:continuation-complete', 'complete second');
-    assertEqual(log[1].payload.attempts, 1, 'attempts in complete payload');
-    assert(log[1].payload.durationMs >= 0, 'durationMs present');
+    const complete = log.filter(e => e.name === 'llm:continuation-complete');
+    assertEqual(complete.length, 1, 'one complete event');
+    assertEqual(complete[0].payload.attempts, 1, 'attempts in complete payload');
+    assert(complete[0].payload.durationMs >= 0, 'durationMs present');
+    assertEqual(log[log.length - 1].name, 'llm:continuation-complete', 'complete is the terminal event');
   });
 
   test('llm-resilience-v789 contract: failure emits started + failed events', async () => {
@@ -291,9 +293,11 @@ describe('llm-resilience-v789 contract: ContinuationLoop bus events', () => {
       },
     });
     assertEqual(log[0].name, 'llm:continuation-started', 'started');
-    assertEqual(log[1].name, 'llm:continuation-failed', 'failed');
-    assertEqual(log[1].payload.reason, 'max-continuations', 'reason given');
-    assertEqual(log[1].payload.partialContentLength, 1, 'partial length recorded');
+    const failed = log.filter(e => e.name === 'llm:continuation-failed');
+    assertEqual(failed.length, 1, 'one failed event');
+    assertEqual(failed[0].payload.reason, 'max-continuations', 'reason given');
+    assertEqual(failed[0].payload.partialContentLength, 1, 'partial length recorded');
+    assertEqual(log[log.length - 1].name, 'llm:continuation-failed', 'failed is the terminal event');
   });
 
 });

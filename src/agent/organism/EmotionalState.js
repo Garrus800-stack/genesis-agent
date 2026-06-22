@@ -166,6 +166,33 @@ class EmotionalState {
           this._adjust('curiosity', +0.05);
         }
       },
+      // v7.9.26: operational failures now register in affect. These terminal
+      // events were missing from the map, so frustration stayed flat through
+      // goal failures and continuation runaways. Bumps are modest; the storm
+      // that would have accumulated them (the budget-cap retry loop) is closed
+      // in GoalDriver, so these arrive sparsely and decay back between failures.
+      'goal:abandoned': () => {
+        this._adjust('frustration', +0.06);
+        this._adjust('energy', -0.03);
+      },
+      'goal:stalled': () => {
+        this._adjust('frustration', +0.05);
+        this._adjust('energy', -0.02);
+      },
+      'goal:obsolete': () => {
+        this._adjust('frustration', +0.04);
+        this._adjust('energy', -0.02);
+      },
+      'llm:continuation-failed': () => {
+        this._adjust('frustration', +0.05);
+        this._adjust('energy', -0.02);
+      },
+      'llm:cost-cap-reached': () => {
+        // Being budget-blocked is a mild thwarting, not a failure — Genesis
+        // notices it is constrained. Edge-triggered upstream, so it fires once.
+        this._adjust('frustration', +0.03);
+        this._adjust('energy', -0.01);
+      },
     };
 
     // v3.8.0: Moved to asyncLoad() — called by Container.bootAll()

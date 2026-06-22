@@ -191,30 +191,28 @@ describe('StalledGoalWatchdog — tick scanning', () => {
 
 // ── InnerSpeech integration ──────────────────────────────
 
-describe('StalledGoalWatchdog — InnerSpeech reflection', () => {
-  test('emits plan-failure-reflection to InnerSpeech when bound', async () => {
+describe('StalledGoalWatchdog — lesson capture on stall', () => {
+  // v7.9.26: the watchdog no longer narrates to InnerSpeech itself. markStalled
+  // fires goal:stalled (asserted above), and the AgentLoop's terminal-outcome
+  // narration turns that into the truthful "I stalled on the goal …" thought
+  // (covered by v7926-inner-speech-truth). The watchdog keeps only the lesson.
+  test('records an obstacle-resolution lesson when a goal stalls', async () => {
     const bus = makeBus();
-    const emitted = [];
-    const innerSpeech = {
-      emit: (text, kind, meta) => { emitted.push({ text, kind, meta }); return { id: 'x' }; },
-    };
+    const recorded = [];
     const blockedAt = new Date(Date.now() - 20 * 60_000).toISOString();
     const gs = makeGoalStack([blockedGoal('g1', 'cognitive load', blockedAt, ['file:logs/x.log'])]);
     const w = new StalledGoalWatchdog({
       bus, goalStack: gs,
       settings: makeSettings({ 'goals.stalledTimeoutMs': 15 * 60_000 }),
     });
-    w.innerSpeech = innerSpeech;
-    w.selfStatementLog = { append: () => true };
+    w.lessonsStore = { record: (l) => recorded.push(l) };
     await w._tick();
-    // recordReflection internally calls innerSpeech.emit
-    assert(emitted.length > 0, 'innerSpeech.emit must be called');
-    const ev = emitted[0];
-    assertEqual(ev.kind, 'plan-failure-reflection');
-    assert(ev.text.length > 0, 'reflection text must be non-empty');
+    assertEqual(gs.goals[0].status, 'stalled', 'goal marked stalled');
+    assert(recorded.length > 0, 'a lesson is captured from the stall');
+    assertEqual(recorded[0].category, 'obstacle-resolution', 'lesson category');
   });
 
-  test('works without InnerSpeech (best-effort, no throw)', async () => {
+  test('works without a lessonsStore (best-effort, no throw)', async () => {
     const bus = makeBus();
     const blockedAt = new Date(Date.now() - 20 * 60_000).toISOString();
     const gs = makeGoalStack([blockedGoal('g1', 'desc', blockedAt)]);
@@ -222,7 +220,7 @@ describe('StalledGoalWatchdog — InnerSpeech reflection', () => {
       bus, goalStack: gs,
       settings: makeSettings({ 'goals.stalledTimeoutMs': 15 * 60_000 }),
     });
-    // innerSpeech not set — should not throw, still transitions status
+    // lessonsStore not set — must not throw, still transitions status
     await w._tick();
     assertEqual(gs.goals[0].status, 'stalled');
   });

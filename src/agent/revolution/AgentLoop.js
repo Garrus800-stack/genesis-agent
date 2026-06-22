@@ -38,6 +38,8 @@ const { AgentLoopStepsDelegate } = require('./AgentLoopSteps');
 const { AgentLoopCognitionDelegate } = require('./AgentLoopCognition');
 // Error recovery, verification, reflection (extracted from AgentLoop)
 const { AgentLoopRecoveryDelegate } = require('./AgentLoopRecovery');
+// v7.9.26: terminal-outcome narration (abandoned/stalled/obsolete → selfStatementLog).
+const { wireGoalOutcomeNarration } = require('./AgentLoopPursuitReflection');
 // Approval lifecycle (extracted from AgentLoop)
 const { ApprovalGate } = require('./ApprovalGate');
 const { createLogger } = require('../core/Logger');
@@ -147,6 +149,14 @@ class AgentLoop {
       parent: this,            // v7.2.2: Lazy-read trustLevelSystem after late-binding
       timeoutMs: this._approvalTimeoutMs,
     });
+
+    // v7.9.26: narrate a goal's real terminal outcome (abandoned / stalled /
+    // obsolete) to selfStatementLog + InnerSpeech. The "I gave up" line used to
+    // fire on every pursuit-attempt failure — before GoalDriver decided to pause,
+    // retry, or abandon — so Genesis told itself it had given up on goals it was
+    // still working on. selfStatementLog / innerSpeech are read lazily at fire
+    // time (late-bound by the container after construction).
+    this._goalOutcomeUnsubs = wireGoalOutcomeNarration(this.bus, this);
   }
 
   // ════════════════════════════════════════════════════════

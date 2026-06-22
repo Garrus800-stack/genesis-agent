@@ -196,6 +196,11 @@ class CostGuard {
     this._sessionBlocked = false;
     this._sessionStart = Date.now();
     _log.info('[COST-GUARD] Session budget reset');
+    // v7.9.26: signal the reset so GoalDriver lifts its cost-cap gate and resumes
+    // paused/suspended goals (symmetry with the hourly reset LLMPort already fires).
+    this.bus.fire('llm:budget-manual-reset', {
+      timestamp: new Date().toISOString(),
+    }, { source: 'CostGuard' });
   }
 
   // ════════════════════════════════════════════════════════════
@@ -211,6 +216,12 @@ class CostGuard {
       this._dailyWarned = false;
       this._dailyBlocked = false;
       this._lastResetDate = today;
+      // v7.9.26: signal the reset so GoalDriver lifts its cost-cap gate at midnight
+      // and a daily-capped goal resumes instead of staying suspended until restart.
+      this.bus.fire('llm:budget-auto-reset', {
+        reason: 'daily token budget reset',
+        triggeredBy: 'cost-guard-daily',
+      }, { source: 'CostGuard' });
     }
   }
 

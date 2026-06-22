@@ -62,8 +62,8 @@ const _log = createLogger('ContinuationLoop');
 // rather than by raising this global default: computeEffectiveMaxContinuations
 // (below) lifts no-prefill/cloud models to CLOUD_NO_PREFILL_FLOOR (10),
 // while local verified-prefill models stay at this 6 where it suffices.
-// The near-cap event (fired at attempts === max-1) remains a clear
-// dashboard signal before runaway-cost.
+// v7.9.26: the llm:continuation-near-cap event was removed in v7.9.9; per-round
+// observability now comes from the llm:continuation-round telemetry below.
 const MAX_CONTINUATIONS_DEFAULT = 6;
 const KEEP_ALIVE_OVERRIDE = '15m';
 // v7.9.10: base backoff between continuation attempts. In offline test mode
@@ -211,12 +211,25 @@ async function runContinuation(args) {
         },
       });
 
+      const deltaChars = result.content.length;
       partial += result.content;
       lastDoneReason = result.doneReason;
       if (typeof result.evalCount === 'number') totalTokens += result.evalCount;
 
       // ── Completeness check ─────────────────────────────
       const completeness = isComplete(partial, lastDoneReason);
+
+      // ── Per-round telemetry (v7.9.26): makes the loop observable ──
+      // doneReason and per-round growth were previously a runtime black box.
+      _emit(eventBus, 'llm:continuation-round', {
+        model: modelName || 'unknown',
+        attempt: attempts,
+        doneReason: lastDoneReason || undefined,
+        partialChars: partial.length,
+        deltaChars,
+        verdict: completeness.complete ? 'complete' : 'incomplete',
+      });
+
       if (completeness.complete) {
         // Success — emit complete event, optional circuit-breaker record.
         const durationMs = Date.now() - startedAt;

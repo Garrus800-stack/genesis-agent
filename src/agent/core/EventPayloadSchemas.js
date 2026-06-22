@@ -628,6 +628,12 @@ const SCHEMAS = {
     model: 'required', attempts: 'required', reason: 'required',
     partialContentLength: 'optional', durationMs: 'required',
   },
+  // v7.9.26: per-round telemetry from ContinuationLoop. Makes the loop
+  // observable — doneReason and per-round growth were a runtime black box.
+  'llm:continuation-round': {
+    model: 'required', attempt: 'required', partialChars: 'required',
+    deltaChars: 'required', doneReason: 'optional', verdict: 'optional',
+  },
 
   // COST (v7.4.5 Baustein B)
   'cost:recorded':          {
