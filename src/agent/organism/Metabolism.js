@@ -96,7 +96,6 @@ class Metabolism {
     this._initEnergyPool();
 
     // ── State ────────────────────────────────────────────
-    this._heapBefore = 0;
     this._lastCallTime = 0;
     this._lastTokenCount = 0;
     this._totalEnergySpent = 0;
@@ -183,41 +182,39 @@ class Metabolism {
   // EVENT HANDLERS
   // ════════════════════════════════════════════════════════════
 
-  _onChatStarting() {
-    // Snapshot heap before the call
-    try {
-      this._heapBefore = process.memoryUsage().heapUsed;
-    } catch { /* memoryUsage unavailable — safe default */ this._heapBefore = 0; }
-  }
-
   _onChatCompleted(data) {
+    // Per-turn accounting (one chat:completed = one user-facing turn).
     this._callCount++;
     this._lastCallTime = Date.now();
     this._lastTokenCount = (data?.tokens || data?.totalTokens || 0);
 
-    // Compute heap delta
-    let heapDeltaMB = 0;
-    try {
-      const heapAfter = process.memoryUsage().heapUsed;
-      heapDeltaMB = (heapAfter - this._heapBefore) / (1024 * 1024);
-    } catch { /* safe */ }
-
-    // Compute real energy cost
-    const cost = this.computeCost(data, heapDeltaMB);
-
-    // EmotionalState already applies a fixed -0.02 in its own
-    // chat:completed handler. We compensate:
-    //   actual adjustment = -cost + baseFallback (to cancel the fixed one)
-    //   net effect = -cost
+    // v7.9.27: the real metabolic cost is now charged per LLM call in
+    // _onLlmCallComplete, so that autonomous reasoning depletes energy too.
+    // EmotionalState still applies a fixed -0.02 in its own chat:completed
+    // handler; left alone that would double-count against the per-call
+    // charge, so cancel it here and let the per-call handler own the
+    // deduction. The other dimensions EmotionalState moves on a turn (the
+    // "thinking" mood) are untouched.
     if (this.emotionalState) {
-      const compensation = this._cost.baseFallback; // +0.02 to cancel the fixed -0.02
-      const netAdjust = compensation - cost;         // positive if cost < 0.02, negative if cost > 0.02
-      if (Math.abs(netAdjust) > 0.001) {
-        this.emotionalState._adjust('energy', netAdjust);
-      }
+      this.emotionalState._adjust('energy', this._cost.baseFallback);
+    }
+  }
+
+  _onLlmCallComplete(data) {
+    // v7.9.27: every LLM call — interactive or autonomous — costs energy.
+    // Energy used to be charged only on chat:completed, so an idle agent
+    // running its own loops spent nothing while its emotional state still
+    // recorded the activity. Charge the real cost here from the call's own
+    // tokens + latency. No per-call heap delta is available (there is no
+    // per-call start snapshot), so heap stays at its floor; tokens (0.50)
+    // and latency (0.30) are the dominant factors anyway.
+    const tokens = (data?.promptTokens || 0) + (data?.responseTokens || 0);
+    const cost = this.computeCost({ tokens, latencyMs: data?.latencyMs }, 0);
+
+    if (this.emotionalState) {
+      this.emotionalState._adjust('energy', -cost);
     }
 
-    // Track costs
     this._totalEnergySpent += cost;
     this._periodEnergySpent += cost;
     this._recentCosts.push(cost);
@@ -233,9 +230,8 @@ class Metabolism {
 
     this.bus.fire('metabolism:cost', {
       cost: Math.round(cost * 1000) / 1000,
-      tokens: data?.tokens || data?.totalTokens || 0,
-      latencyMs: data?.latencyMs || data?.duration || 0,
-      heapDeltaMB: Math.round(heapDeltaMB * 10) / 10,
+      tokens,
+      latencyMs: data?.latencyMs || 0,
     }, { source: 'Metabolism' });
   }
 
@@ -273,12 +269,15 @@ class Metabolism {
   // ════════════════════════════════════════════════════════════
 
   _wireEvents() {
-    // Snapshot before call
-    this._sub('user:message', () => {
-      this._onChatStarting();
-    }, { source: 'Metabolism', priority: -20 });
+    // v7.9.27: real metabolic cost is charged per LLM call (interactive or
+    // autonomous), so energy depletes whenever the agent thinks — not only
+    // on user-facing turns.
+    this._sub('llm:call-complete', (data) => {
+      this._onLlmCallComplete(data);
+    }, { source: 'Metabolism', priority: -15 });
 
-    // Process after call (lower priority so EmotionalState reacts first)
+    // chat:completed stays the per-turn marker: turn accounting and cancelling
+    // EmotionalState's fixed energy dip so a turn isn't charged twice.
     this._sub('chat:completed', (data) => {
       this._onChatCompleted(data);
     }, { source: 'Metabolism', priority: -15 });

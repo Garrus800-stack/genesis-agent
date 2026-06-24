@@ -35,6 +35,10 @@ class ToolRegistry {
     this.historyLimit = 200;
     // v5.7.0 SA-P8: Dynamic tool synthesis (late-bound)
     this._toolSynthesis = null;
+    // v7.9.27: held so execute() can register a just-created skill on demand
+    // (before falling through to synthesis) when refreshSkills has not yet run
+    // for it.
+    this._skillManager = null;
     // v7.5.9 ZIP2 v3 (Bug 4): late-bound trust + settings so file-read /
     // file-list can use the 3-tier sandbox. Keep null when unwired —
     // _resolveProjectPath then falls back to default trust=1.
@@ -64,6 +68,8 @@ class ToolRegistry {
    */
   refreshSkills(skillManager) {
     if (!skillManager || typeof skillManager.listSkills !== 'function') return;
+    // v7.9.27: remember the manager so execute() can re-register on demand.
+    this._skillManager = skillManager;
     const toRemove = [...this.tools.keys()].filter(n => n.startsWith('skill:'));
     for (const name of toRemove) this.tools.delete(name);
     let count = 0;
@@ -88,6 +94,18 @@ class ToolRegistry {
     let tool = this.tools.get(name);
     // FIX v6.1.1: Fallback to skill: prefix (skills registered as "skill:name")
     if (!tool) tool = this.tools.get(`skill:${name}`);
+    // v7.9.27: if a skill of this name exists but isn't registered as a tool yet
+    // (created after the last refreshSkills), register on demand before falling
+    // through to synthesis — so the real skill is used instead of a synthesized
+    // duplicate.
+    if (!tool && this._skillManager && typeof this._skillManager.listSkills === 'function') {
+      try {
+        if (this._skillManager.listSkills().some(s => s.name === name)) {
+          this.refreshSkills(this._skillManager);
+          tool = this.tools.get(`skill:${name}`);
+        }
+      } catch (_e) { /* fall through to synthesis */ }
+    }
     // v5.7.0 SA-P8: Auto-synthesize missing tools
     if (!tool && this._toolSynthesis) {
       try {

@@ -23,6 +23,35 @@ const { STOP_WORDS } = require('../core/utils');
 const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('LearningService');
 
+// v7.9.27: "ich bin X" / "i am X" is ambiguous — a name ("ich bin Daniel") or
+// a role/state ("ich bin Entwickler" / "ich bin müde"). STOP_WORDS already
+// covers filler ("oft", "gut"), but not professions or states, so a role term
+// would otherwise be read as a name. This local set extends that judgement for
+// the self-reference patterns only; STOP_WORDS itself is shared and left as-is.
+const NAME_NEGATIVE = new Set([
+  // roles / occupations (DE)
+  'entwickler', 'entwicklerin', 'programmierer', 'programmiererin', 'designer',
+  'informatiker', 'student', 'studentin', 'schueler', 'schülerin', 'lehrer',
+  'lehrerin', 'ingenieur', 'arzt', 'ärztin', 'aerztin', 'anwalt', 'manager',
+  'berater', 'admin', 'administrator', 'nutzer', 'benutzer', 'mensch', 'mann',
+  'frau', 'kind', 'vater', 'mutter', 'freund', 'freundin', 'chef', 'chefin',
+  'mitarbeiter', 'kunde', 'gast', 'autor', 'künstler', 'kuenstler', 'forscher',
+  // roles / occupations (EN)
+  'developer', 'programmer', 'engineer', 'scientist', 'doctor', 'lawyer',
+  'teacher', 'pupil', 'consultant', 'user', 'human', 'person', 'man', 'woman',
+  'child', 'father', 'mother', 'friend', 'boss', 'employee', 'customer', 'guest',
+  'author', 'artist', 'researcher', 'founder', 'dev',
+  // transient states (DE)
+  'müde', 'muede', 'krank', 'gesund', 'traurig', 'glücklich', 'gluecklich',
+  'hungrig', 'durstig', 'wach', 'fertig', 'bereit', 'beschäftigt', 'gestresst',
+  'entspannt', 'neugierig', 'zufrieden', 'sicher', 'unsicher', 'da', 'zurück',
+  'zurueck', 'online', 'offline', 'weg',
+  // transient states (EN)
+  'tired', 'sick', 'ill', 'healthy', 'sad', 'happy', 'hungry', 'thirsty',
+  'awake', 'ready', 'busy', 'stressed', 'relaxed', 'curious', 'fine', 'okay',
+  'back', 'online', 'offline', 'away', 'done',
+]);
+
 class LearningService {
   constructor({ bus,  memory, knowledgeGraph, eventStore, storageDir, intervals, storage }) {
     this.bus = bus || NullBus;
@@ -291,18 +320,44 @@ class LearningService {
   // DEEPER FACT & PREFERENCE EXTRACTION
   // ════════════════════════════════════════════════════════
 
+  // v7.9.27: decide which slot an "ich bin X" / "i am X" match belongs in.
+  // Returns the storage key, or null to skip. Hard rule lives here: a name
+  // can only ever return 'user.name', a role/state only ever 'user.role' —
+  // the two slots never cross, which is what broke getUserName() before.
+  _selfReferenceKey(value) {
+    const lower = value.toLowerCase();
+    if (STOP_WORDS.has(lower) || value.length < 3) return null;   // filler ("ich bin oft")
+    if (NAME_NEGATIVE.has(lower)) return 'user.role';             // a role or state
+    const known = this.memory?.getUserName?.() || null;
+    if (!known) return 'user.name';                              // first self-introduction
+    if (known.toLowerCase() === lower) return null;              // already on file, no churn
+    // A name is already known and a different "ich bin X" arrived. This is
+    // either a name correction or a role the set above did not list; the two
+    // can't be told apart here without asking, so leave it for the relational
+    // confirm step rather than overwriting an established name.
+    return null;
+  }
+
   _extractFacts(message) {
     for (const { regex, key } of this.factPatterns) {
       const match = message.match(regex);
-      if (match) {
-        const value = match[1].trim();
-        // v7.2.8: Skip stop words for role patterns ("ich bin oft" → skip "oft")
-        if (key === 'user.role' && (STOP_WORDS.has(value.toLowerCase()) || value.length < 3)) continue;
-        this.memory?.learnFact(key, value, 0.85, 'conversation');
-        if (this.kg) {
-          const type = key.startsWith('user.') ? 'preference' : 'fact';
-          this.kg.addNode(type, `${key}: ${value}`, { source: 'conversation', key, value });
-        }
+      if (!match) continue;
+      const value = match[1].trim();
+
+      // v7.9.27: "ich bin X" / "i am X" (the only user.role patterns) used to
+      // route every match to user.role, so a name landed in the role slot and
+      // getUserName() — which reads user.name — never found it. Classify and
+      // route by the result instead.
+      let effectiveKey = key;
+      if (key === 'user.role') {
+        effectiveKey = this._selfReferenceKey(value);
+        if (!effectiveKey) continue;
+      }
+
+      this.memory?.learnFact(effectiveKey, value, 0.85, 'conversation');
+      if (this.kg) {
+        const type = effectiveKey.startsWith('user.') ? 'preference' : 'fact';
+        this.kg.addNode(type, `${effectiveKey}: ${value}`, { source: 'conversation', key: effectiveKey, value });
       }
     }
   }
@@ -338,16 +393,26 @@ class LearningService {
     }
   }
 
-  // FIX v6.1.1: Detect when Genesis admits inability — signal to Daemon for skill creation
+  // FIX v6.1.1: Detect when Genesis admits inability — signal to Daemon for skill creation.
+  // v7.9.27: fire only on real capability limits (access / tool / execution / this
+  // environment), and never when the user's message was subjective (how Genesis
+  // feels, what it prefers, what it thinks). The previous cannotPhrases set logged
+  // every "kann nicht" — including "ich kann nicht sagen, was sich besser anfühlt" —
+  // as a capability gap and pushed it to the daemon as a skill-creation signal.
   _detectCapabilityGap(message, response) {
     if (!response) return;
-    const cannotPhrases = [
-      /(?:kann ich nicht|nicht möglich|habe keinen zugriff|nicht in der lage)/i,
-      /(?:I cannot|not possible|I don't have|unable to|I can't)/i,
-      /(?:nicht unterstützt|not supported|no access to)/i,
+    const capabilityPhrases = [
+      // access / tool availability
+      /(?:habe keinen zugriff|kein zugriff|keinen zugang|no access to|don'?t have access|kein (?:passendes )?tool|no tool|nicht unterstützt|not supported)/i,
+      // execution / runtime ability
+      /(?:kann (?:ich )?nicht ausführen|nicht ausführen|nicht in der lage,? .*(?:auszuführen|zuzugreifen)|unable to (?:execute|run|perform|access)|can'?t (?:execute|run|access)|cannot (?:execute|run|access))/i,
+      // bounded to the current environment
+      /(?:in dieser umgebung|in meiner umgebung|in this environment|from here|von hier aus)/i,
     ];
-    const isAdmission = cannotPhrases.some(p => p.test(response));
-    if (isAdmission && message.length > 10) {
+    const subjectiveMarkers = /anfühlt|fühlst|lieber|meinung|denkst du|empfindest|bevorzugst|ob du|philosoph/i;
+    const isCapabilityGap =
+      capabilityPhrases.some(p => p.test(response)) && !subjectiveMarkers.test(message);
+    if (isCapabilityGap && message.length > 10) {
       this.bus.fire('learning:capability-gap', {
         userRequest: message.slice(0, 200),
         response: response.slice(0, 200),

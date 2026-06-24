@@ -304,7 +304,16 @@ class EventBus {
         removed = true;
       }
     }
-    for (const entry of toDelete) set.delete(entry);
+    for (const entry of toDelete) {
+      set.delete(entry);
+      // v7.9.27: also drop the keyed-dedup index entry. Without this, the
+      // compositeKey lingered in _keyedEntries pointing at an already-removed
+      // listener — a slow leak, and a stale-replace hazard for the next keyed
+      // on() with the same key.
+      if (entry.key && this._keyedEntries) {
+        this._keyedEntries.delete(`${entry.event}::${entry.key}`);
+      }
+    }
 
     if (set.size === 0) {
       this.listeners.delete(event);
@@ -327,7 +336,14 @@ class EventBus {
       for (const entry of set) {
         if (entry.source === source) { toDelete.push(entry); }
       }
-      for (const entry of toDelete) { set.delete(entry); removed++; }
+      for (const entry of toDelete) {
+        set.delete(entry);
+        removed++;
+        // v7.9.27: drop the keyed-dedup index entry too (see off()).
+        if (entry.key && this._keyedEntries) {
+          this._keyedEntries.delete(`${entry.event}::${entry.key}`);
+        }
+      }
       if (set.size === 0) emptyEvents.push(event);
     }
 

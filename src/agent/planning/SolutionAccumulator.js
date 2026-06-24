@@ -49,8 +49,15 @@ class SolutionAccumulator {
       }
     }
 
-    // 2. Error fixes: if message mentions error and response fixes it
-    if (/error|fehler|bug|crash|exception/i.test(message) && !/Fehler:/i.test(response)) {
+    // 2. Error fixes: only when the message actually reports a problem to fix.
+    //    v7.9.27: an error term on its own — e.g. the word "Bug" inside ordinary
+    //    prose — is not a fix. Require a diagnostic/help cue (or a pasted
+    //    code/log block) next to it, the way the code-pattern path above is gated.
+    const reportsError = /\b(?:error|fehler|bug|crash|exception)\b/i.test(message);
+    const looksDiagnostic = /```/.test(message)
+      || /\b(?:fix|fixe|behebe|behoben|beheben|repariere|stack|trace|stacktrace|throw|wirf|wirft|undefined|segfault|errno)\b/i.test(message)
+      || /(?:funktioniert nicht|geht nicht|doesn'?t work|not working|schlaegt fehl|schl\u00e4gt fehl|fails?\b|failing|crashe?s?\b|crasht|abgest\u00fcrzt|abgestuerzt)/i.test(message);
+    if (reportsError && looksDiagnostic && !/Fehler:/i.test(response)) {
       this._addSolution({
         type: 'error-fix',
         problem: message.slice(0, 200),
@@ -59,8 +66,21 @@ class SolutionAccumulator {
       });
     }
 
-    // 3. Workflow patterns: if message involves a sequence of actions
-    if (/dann|then|danach|anschliessend|next/i.test(message)) {
+    // 3. Workflow patterns: a genuine ordered sequence of *actions*.
+    //    v7.9.27: ordinal language on its own is not a procedure. "Erst der
+    //    Plan, dann der Bau" names a principle (noun objects), and a buried
+    //    "und dann umgesetzt" just joins clauses — neither is a workflow to
+    //    replay. A real step DOES something, so require at least two ordinal
+    //    markers that introduce an action: a German infinitive (verb-final,
+    //    sits before the clause break) or an English imperative after the
+    //    marker. Noun-only sequences no longer count.
+    const deSteps = message.match(
+      /\b(?:zuerst|zunaechst|erst|dann|danach|anschliessend|daraufhin|schliesslich|zuletzt)\b[^.,;:!?]*?\b\p{L}+(?:en|eln|ern)(?=\s*(?:[.,;:!?]|$))/giu,
+    ) || [];
+    const enSteps = message.match(
+      /\b(?:first|then|next|afterwards|finally)\b\s+(?!(?:the|a|an)\b)[a-z]+/gi,
+    ) || [];
+    if (deSteps.length + enSteps.length >= 2) {
       this._addSolution({
         type: 'workflow',
         problem: message.slice(0, 200),

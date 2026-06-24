@@ -64,6 +64,10 @@ const _log = createLogger('ContinuationLoop');
 // while local verified-prefill models stay at this 6 where it suffices.
 // v7.9.26: the llm:continuation-near-cap event was removed in v7.9.9; per-round
 // observability now comes from the llm:continuation-round telemetry below.
+// v7.9.27: the llm:continuation-round and -failed events are now persisted by the
+// wire-level continuation-telemetry sink (AgentCoreWire) to
+// .genesis/continuation-telemetry.json — these events were previously emitted but
+// recorded nowhere.
 const MAX_CONTINUATIONS_DEFAULT = 6;
 const KEEP_ALIVE_OVERRIDE = '15m';
 // v7.9.10: base backoff between continuation attempts. In offline test mode
@@ -221,10 +225,13 @@ async function runContinuation(args) {
 
       // ── Per-round telemetry (v7.9.26): makes the loop observable ──
       // doneReason and per-round growth were previously a runtime black box.
+      // v7.9.27: also carry completeness.reason — distinguishes which structural
+      // check kept a round incomplete even when doneReason is 'stop'.
       _emit(eventBus, 'llm:continuation-round', {
         model: modelName || 'unknown',
         attempt: attempts,
         doneReason: lastDoneReason || undefined,
+        reason: completeness.reason,
         partialChars: partial.length,
         deltaChars,
         verdict: completeness.complete ? 'complete' : 'incomplete',

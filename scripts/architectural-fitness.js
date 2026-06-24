@@ -493,6 +493,13 @@ check('EventBus Hygiene', (r) => {
     let m;
     while ((m = emitRe.exec(code))) emitted.add(m[1]);
 
+    // v7.9.27: emit-helper form `_emit(bus, 'event', payload)` — the wrapper
+    // forwards to bus.emit() with a variable name, so the method-call regex
+    // above can't see it. Capture the literal that sits as the second arg
+    // (same blind spot audit-events.js closes via EMIT_HELPER_PATTERN).
+    const emitHelperRe = /(?:\.|\?\.|\b)_emit(?:\?\.)?\s*\(\s*[^,]+,\s*['"`]([^'"`]+)['"`]/g;
+    while ((m = emitHelperRe.exec(code))) emitted.add(m[1]);
+
     // Collect listened events
     const onRe = /\.on\(['"]([^'"]+)['"]/g;
     while ((m = onRe.exec(code))) listened.add(m[1]);

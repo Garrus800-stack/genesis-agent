@@ -276,6 +276,15 @@ function classifyToolSource(toolName, toolInput) {
   // Skill: third-party plugin code, treat like mcp.
   if (/^skill:/.test(name)) return 'mcp';
 
+  // v7.9.27: Genesis's own introspection tools read its self-model and runtime
+  // state — internal by definition. Without this they fell through to 'unknown'
+  // and were injection-scanned, so the word "routine" in a self-report tripped
+  // the urgency heuristic and Genesis flagged its own introspection as a
+  // prompt-injection attempt, blocking self-inspection.
+  if (/^self[-_]?inspect|introspect|self[-_]?model|self[-_]?state/.test(name)) {
+    return 'file:internal';
+  }
+
   return 'unknown';
 }
 

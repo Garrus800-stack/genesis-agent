@@ -136,6 +136,12 @@ class SymbolicResolver {
       'handle', 'handling', 'system', 'method', 'feature', 'function',
       'process', 'general', 'better', 'support', 'enable', 'allow',
       'with', 'from', 'into', 'goal', 'failed', 'add', 'check',
+      // v7.9.27: generic introspection / meta verbs over-matched — a lesson
+      // about "inspect wiring" lent its goal-affinity to almost any review or
+      // config step. These carry no subject, so they no longer count toward
+      // the affinity overlap; only the actual subject tokens do.
+      'inspect', 'inspection', 'wiring', 'wire', 'config', 'configuration',
+      'verify', 'review', 'analyze', 'examine', 'trace',
     ]);
     return new Set(String(s || '').toLowerCase()
       .replace(/[^a-z0-9äöüß]+/g, ' ').split(/\s+/)

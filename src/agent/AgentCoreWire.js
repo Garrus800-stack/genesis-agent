@@ -62,16 +62,24 @@ class AgentCoreWire {
 
     // Reasoning solve
     bus.on('reasoning:solve', async (data) => {
-      return c.resolve('reasoning').solve(data.task, {
-        history:   data.history || [],
-        memory:    c.resolve('memory'),
-        selfModel: c.resolve('selfModel'),
-        // v7.9.4: chat-identity-threading — caller-provided full system
-        // prompt (built via PromptBuilder by ChatOrchestrator). Read by
-        // ReasoningEngine._buildContextualPrompt(); when present, the
-        // legacy mini-prompt is skipped and Genesis-identity is preserved.
-        systemPrompt: data.systemPrompt || null,
-      });
+      // v7.9.27: wrapped symmetrically with web:search below. This was
+      // fire-and-forget — a reject in reasoning.solve() surfaced as an
+      // unhandled rejection instead of a null result the caller can branch on.
+      try {
+        return await c.resolve('reasoning').solve(data.task, {
+          history:   data.history || [],
+          memory:    c.resolve('memory'),
+          selfModel: c.resolve('selfModel'),
+          // v7.9.4: chat-identity-threading — caller-provided full system
+          // prompt (built via PromptBuilder by ChatOrchestrator). Read by
+          // ReasoningEngine._buildContextualPrompt(); when present, the
+          // legacy mini-prompt is skipped and Genesis-identity is preserved.
+          systemPrompt: data.systemPrompt || null,
+        });
+      } catch (err) {
+        _log.debug('[REASONING:SOLVE] Failed:', err.message);
+        return null;
+      }
     }, { source: 'AgentCore' });
 
     // Web search
@@ -129,6 +137,55 @@ class AgentCoreWire {
         source: 'ChatOrchestrator',
       }, { source: 'AgentCore:relay' });
     }, { source: 'AgentCore:wire', priority: -20 });
+
+    // v7.9.27: register a just-created skill as a tool the moment the daemon
+    // writes it. createSkill() persists to src/skills/ and loads it, but
+    // ToolRegistry only learned about skills on koennen-promotion — so a fresh
+    // skill stayed invisible to execute() and got shadowed by a synthesized
+    // duplicate. This relay closes that gap; boot does the same for shipped skills.
+    bus.on('daemon:skill-created', () => {
+      try {
+        if (c.has('tools') && c.has('skills')) {
+          c.resolve('tools').refreshSkills(c.resolve('skills'));
+        }
+      } catch (err) {
+        _log.debug('[SKILL:CREATED] refreshSkills failed:', err.message);
+      }
+    }, { source: 'AgentCore:wire' });
+
+    // v7.9.27: persist LLM continuation telemetry. ContinuationLoop fires
+    // llm:continuation-round / -failed, but nothing recorded them — events.jsonl
+    // held zero continuation entries, so kimi running to the continuation cap
+    // was invisible. This sink writes the real per-round signal (doneReason,
+    // deltaChars, verdict) plus the failure reason to
+    // .genesis/continuation-telemetry.json, making the continuation behaviour
+    // observable. deltaChars (not tokens): the -round payload carries no token
+    // count.
+    const _recordContinuation = (event, data) => {
+      if (!c.has('storage')) return;
+      try {
+        const store = c.resolve('storage');
+        const file  = 'continuation-telemetry.json';
+        const cur   = store.readJSON(file, { records: [] });
+        if (!Array.isArray(cur.records)) cur.records = [];
+        cur.records.push({
+          ts:         Date.now(),
+          event,
+          model:      data?.model || 'unknown',
+          attempt:    data?.attempt ?? data?.attempts ?? null,
+          doneReason: data?.doneReason ?? null,
+          reason:     data?.reason ?? null,
+          deltaChars: data?.deltaChars ?? null,
+          verdict:    data?.verdict ?? null,
+        });
+        if (cur.records.length > 500) cur.records = cur.records.slice(-500);
+        store.writeJSON(file, cur);
+      } catch (err) {
+        _log.debug('[CONTINUATION:SINK] persist failed:', err.message);
+      }
+    };
+    bus.on('llm:continuation-round',  (data) => _recordContinuation('round',  data), { source: 'AgentCore:wire' });
+    bus.on('llm:continuation-failed', (data) => _recordContinuation('failed', data), { source: 'AgentCore:wire' });
 
     // v7.3.2: CoreMemories subscribes to chat:completed, user:message,
     // hot-reload:success. Late-binding happens at container-wire; here we

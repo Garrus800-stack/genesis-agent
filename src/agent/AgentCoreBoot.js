@@ -403,6 +403,14 @@ class AgentCoreBoot {
         bootErrors.map(e => `${e.name}: ${e.error}`).join('; '));
     }
 
+    // v7.9.27: merge async boot/asyncLoad failures into the degraded set before
+    // signalling. They were logged but never reached boot:degraded, so a service
+    // that failed its async boot phase (as opposed to failing to resolve) was
+    // invisible to every boot:degraded consumer.
+    for (const e of bootErrors) {
+      if (!degraded.includes(e.name)) degraded.push(e.name);
+    }
+
     if (degraded.length > 0) {
       _log.warn(`  [BOOT] ${degraded.length} non-essential service(s) degraded: ${degraded.join(', ')}`);
       this._bus.fire('boot:degraded', { services: degraded, count: degraded.length }, { source: 'AgentCore' });
@@ -410,6 +418,13 @@ class AgentCoreBoot {
 
     // Post-bootAll capability log
     const skills = c.resolve('skills');
+    // v7.9.27: register every persisted skill as a skill:<name> tool at boot.
+    // refreshSkills previously ran only on koennen-promotion, so the four
+    // shipped skills (and any the daemon had created) sat in loadedSkills but
+    // were not resolvable as tools. execute('file-search') then fell through to
+    // tool-synthesis, which auto-generated a broken duplicate whose stdout/return
+    // mismatch surfaced as "[object Object]" and shadowed the real skill.
+    tools.refreshSkills(skills);
     const mcp    = c.has('mcpClient') ? c.resolve('mcpClient') : null;
     _log.info(`  [+] Skills: ${skills.listSkills().length}, Tools: ${tools.listTools().length}`);
     if (mcp) {

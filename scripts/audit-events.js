@@ -74,6 +74,14 @@ const SUB_PATTERN  = /(?:\.|\?\.)on(?:\?\.)?\s*\(\s*['"`]([^'"`]+)['"`]/g;
 //   plus alias-only form `_sub('e', ...)` if it ever appears at module scope.
 const SUB_HELPER_PATTERN = /(?:\.|\?\.|\b)_sub(?:\?\.)?\s*\(\s*['"`]([^'"`]+)['"`]/g;
 
+// v7.9.27: emit-helper pattern. ContinuationLoop emits its continuation
+// telemetry through `_emit(bus, 'event', payload)` — the wrapper body calls
+// bus.emit() with a *variable* event name, so EMIT_PATTERN can't see the
+// literal. The literal lives at the call site as the second argument. Mirrors
+// SUB_HELPER_PATTERN on the emit side. Without it, the new continuation-round /
+// -failed listeners read as "listeners without emitters" under --strict.
+const EMIT_HELPER_PATTERN = /(?:\.|\?\.|\b)_emit(?:\?\.)?\s*\(\s*[^,]+,\s*['"`]([^'"`]+)['"`]/g;
+
 // v7.6.7 Track B: array-literal status-bridge pattern. AgentCoreWire's
 // STATUS_BRIDGE iterates `[{ event: 'name', ... }, ...]` then subscribes via
 // `bus.on(mapping.event, ...)` in a loop. The bus.on call uses a runtime
@@ -141,6 +149,14 @@ function scanFile(filePath) {
     // Reset lastIndex for each line
     EMIT_PATTERN.lastIndex = 0;
     while ((m = EMIT_PATTERN.exec(line)) !== null) {
+      const event = m[1];
+      if (!emitters.has(event)) emitters.set(event, []);
+      emitters.get(event).push({ file: relPath, line: i + 1 });
+    }
+
+    // v7.9.27: emit-helper `_emit(bus, 'event', ...)` form (see ContinuationLoop)
+    EMIT_HELPER_PATTERN.lastIndex = 0;
+    while ((m = EMIT_HELPER_PATTERN.exec(line)) !== null) {
       const event = m[1];
       if (!emitters.has(event)) emitters.set(event, []);
       emitters.get(event).push({ file: relPath, line: i + 1 });

@@ -506,7 +506,7 @@ describe('AgentLoopRecovery.verifyGoal', () => {
     assert(outcome.summary.includes('Build REST API'));
   });
 
-  test('programmatic: includes ambiguous count in summary', async () => {
+  test('programmatic: reports verified + unverified counts honestly', async () => {
     const r = new AgentLoopRecoveryDelegate(mockLoop());
     const results = [
       { verification: { status: 'pass' } },
@@ -516,7 +516,10 @@ describe('AgentLoopRecovery.verifyGoal', () => {
     const outcome = await r.verifyGoal(mockPlan(), results);
     assertEqual(outcome.success, true);
     assertEqual(outcome.verificationMethod, 'programmatic');
-    assert(outcome.summary.includes('ambiguous'));
+    assert(outcome.summary.includes('2 verified'));
+    assert(outcome.summary.includes('unverified'));
+    assert(outcome.summary.includes('Verification: 2/3'));
+    assert(!/Success rate/i.test(outcome.summary));
   });
 
   test('falls through to LLM when any programmatic fail', async () => {
@@ -533,13 +536,14 @@ describe('AgentLoopRecovery.verifyGoal', () => {
     assertEqual(outcome.success, false);
   });
 
-  test('heuristic: succeeds with 100% success and no verifications', async () => {
+  test('heuristic: succeeds and reports that no steps were verified', async () => {
     const r = new AgentLoopRecoveryDelegate(mockLoop());
     const results = Array(5).fill({ output: 'ok' });
     const outcome = await r.verifyGoal(mockPlan(), results);
     assertEqual(outcome.success, true);
     assertEqual(outcome.verificationMethod, 'heuristic');
-    assert(outcome.summary.includes('100%'));
+    assert(outcome.summary.includes('none programmatically verified'));
+    assert(!/Success rate/i.test(outcome.summary));
   });
 
   test('heuristic: falls through to LLM when success rate < 0.8', async () => {
@@ -664,7 +668,7 @@ describe('AgentLoopRecovery.verifyGoal', () => {
     assert(promptSeen.includes('Programmatic verification'));
   });
 
-  test('programmatic: success rate shown in summary', async () => {
+  test('programmatic: verification coverage shown in summary', async () => {
     const r = new AgentLoopRecoveryDelegate(mockLoop());
     const results = [
       { verification: { status: 'pass' } },
@@ -672,7 +676,8 @@ describe('AgentLoopRecovery.verifyGoal', () => {
       { verification: { status: 'pass' } },
     ];
     const outcome = await r.verifyGoal(mockPlan(), results);
-    assert(outcome.summary.includes('100%'));
+    assert(outcome.summary.includes('Verification: 3/3'));
+    assert(!/Success rate/i.test(outcome.summary));
   });
 });
 

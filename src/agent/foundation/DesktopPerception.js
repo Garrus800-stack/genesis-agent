@@ -125,6 +125,12 @@ class DesktopPerception {
           '**/node_modules/**',
           '**/.git/**',
           '**/.genesis/**',
+          // v7.9.27: rotating backup and snapshot dirs are written by Genesis
+          // itself (GenesisBackup, snapshots). Watching them raised EBUSY on
+          // Windows during a backup write and fed self-authored churn back in as
+          // external file-change events.
+          '**/.genesis-backups/**',
+          '**/snapshots/**',
           '**/*.log',
           '**/sandbox/**',
         ],

@@ -45,7 +45,7 @@ describe('SolutionAccumulator', () => {
 
   test('_extract captures error fixes', () => {
     const sa = make();
-    sa._extract({ message: 'I have a bug in my application', response: 'Check for null.', intent: 'general' });
+    sa._extract({ message: 'I get a crash in my application, how do I fix it?', response: 'Check for null.', intent: 'general' });
     assert(sa.solutions.find(s => s.type === 'error-fix'));
   });
 

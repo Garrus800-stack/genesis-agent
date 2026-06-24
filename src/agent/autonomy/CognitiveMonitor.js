@@ -47,6 +47,10 @@ class CognitiveMonitor {
     this._circularityThreshold = cfg.circularityThreshold || 0.75;
     this._maxReasoningHistory = cfg.maxReasoningHistory || 50;
     this._analyzeIntervalMs = cfg.analyzeIntervalMs || 60000;
+    // v7.9.27: token-budget warning threshold is now configurable, matching the
+    // neighbouring limits above. The bare 0.85 literal was the only hardcoded
+    // one in this block.
+    this._tokenWarnThreshold = cfg.tokenWarnThreshold || 0.85;
 
     // ── Runtime State ─────────────────────────────────
 
@@ -232,7 +236,7 @@ class CognitiveMonitor {
 
     const usage = estimatedTokens / this._maxContextTokens;
 
-    if (usage > 0.85) {
+    if (usage > this._tokenWarnThreshold) {
       this._tokenUsage.warningCount++;
       this._tokenUsage.lastWarningAt = Date.now();
       this.bus.fire('cognitive:token-budget-warning', {

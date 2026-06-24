@@ -66,7 +66,7 @@ class Sandbox {
     } else {
       try {
         for (const file of fs.readdirSync(this.sandboxDir)) {
-          if (file.startsWith('exec_') || file.startsWith('_syntax')) {
+          if (file.startsWith('exec_') || file.startsWith('_syntax') || file.startsWith('_testpatch')) {
             this._cleanFile(path.join(this.sandboxDir, file));
           }
         }
@@ -76,7 +76,16 @@ class Sandbox {
 
   // v3.5.0: Fully async — no longer blocks main thread
   async syntaxCheck(code) {
-    const tmpFile = path.join(this.sandboxDir, '_syntax_check.js');
+    // v7.9.27: unique temp file per call. The fixed name (_syntax_check.js)
+    // collided when concurrent callers (daemon health check, self-repair
+    // Reflector, HTNPlanner, MultiFileRefactor, tool-synthesis validation) ran
+    // syntaxCheck() on the shared singleton Sandbox — one caller's cleanup
+    // deleted the file mid-exec of another, producing a spurious
+    // MODULE_NOT_FOUND reported as a high-severity syntax error on valid code.
+    const tmpFile = path.join(
+      this.sandboxDir,
+      `_syntax_check_${process.pid}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.js`,
+    );
     try {
       // v7.9.19 (Strang D): parse inside the CommonJS module wrapper, exactly as
       // Node's loader does — otherwise a valid module with a top-level `return`
@@ -223,7 +232,17 @@ class Sandbox {
     const syntax = await this.syntaxCheck(newCode);
     if (!syntax.valid) return { success: false, error: `Syntax error: ${syntax.error}`, phase: 'syntax' };
 
-    const sandboxFile = path.join(this.sandboxDir, path.basename(filePath));
+    // v7.9.27: unique temp file per call. testPatch previously wrote to
+    // path.basename(filePath) — SkillManager, PluginRegistry and
+    // PeerNetworkExchange all pass "index.js", so concurrent testPatch() calls
+    // collided on sandbox/index.js (one caller's _cleanFile deleting another's
+    // module mid-require), plus require-cache staleness when the path was reused.
+    // The require below uses the absolute sandboxFile path, so the name is free;
+    // the original basename is kept as a suffix for readable diagnostics.
+    const sandboxFile = path.join(
+      this.sandboxDir,
+      `_testpatch_${process.pid}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${path.basename(filePath)}`,
+    );
     fs.writeFileSync(sandboxFile, newCode, 'utf-8');
 
     const requireTest = await this.execute(`

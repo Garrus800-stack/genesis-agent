@@ -469,8 +469,8 @@ If the error is unfixable (e.g., missing dependency, permission denied), say "UN
     if (programmaticPasses > 0 && programmaticFails === 0 && successRate >= THRESHOLDS.GOAL_SUCCESS_PROGRAMMATIC) {
       const header = [
         `Goal "${plan.title}" completed.`,
-        `${allResults.length} steps: ${programmaticPasses} verified, ${ambiguous} ambiguous, ${errors.length} errors.`,
-        `Success rate: ${Math.round(successRate * 100)}%.`,
+        `${allResults.length} steps: ${programmaticPasses} verified, ${ambiguous} ran without error (unverified), ${errors.length} errors.`,
+        `Verification: ${programmaticPasses}/${allResults.length} steps programmatically verified.`,
       ].join(' ');
       const summary = header + _formatOutputs();
       return { success: true, summary, verificationMethod: 'programmatic' };
@@ -478,7 +478,7 @@ If the error is unfixable (e.g., missing dependency, permission denied), say "UN
 
     // High success rate without verification data
     if (verified.length === 0 && successRate >= THRESHOLDS.GOAL_SUCCESS_HEURISTIC && programmaticFails === 0) {
-      const header = `Goal "${plan.title}" completed. ${allResults.length} steps, ${errors.length} errors. Success rate: ${Math.round(successRate * 100)}%.`;
+      const header = `Goal "${plan.title}" completed. ${allResults.length} steps ran, ${errors.length} errors, none programmatically verified.`;
       return {
         success: true,
         summary: header + _formatOutputs(),
