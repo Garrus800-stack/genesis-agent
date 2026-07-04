@@ -1,7 +1,7 @@
 // ============================================================
 // GENESIS — test/modules/v790-followup-fixes.contract.test.js
 // Contract tests for the v7.9.0 follow-up fixes that surfaced
-// from Garrus's first real-world run (12:21–12:45 log):
+// from Alex's first real-world run (12:21–12:45 log):
 //   A) /settings <path>           — GET form (path-only)
 //   A) /settings <path> <value>   — whitespace SET form
 //   B) /affect-trail               — explains when boundaries appear

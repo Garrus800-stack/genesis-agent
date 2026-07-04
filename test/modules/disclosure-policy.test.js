@@ -27,8 +27,8 @@ describe('DisclosurePolicy', () => {
   });
 
   it('accepts ownerName config', () => {
-    const dp = new DisclosurePolicy({ bus: mockBus(), config: { ownerName: 'Daniel' } });
-    assert.strictEqual(dp._ownerName, 'Daniel');
+    const dp = new DisclosurePolicy({ bus: mockBus(), config: { ownerName: 'Alex' } });
+    assert.strictEqual(dp._ownerName, 'Alex');
   });
 
   // ── Interlocutor mapping ───────────────────────────────

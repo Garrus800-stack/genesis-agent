@@ -273,7 +273,120 @@ const INTENT_DEFINITIONS = [
     /^(?!\/(?!open\b)\w)[^\n]*?[A-Za-z]:\\[^\s"']{2,}/,
     /welche\s+dateien.*(?:in\s+(?:ihm|dem|diesem))/i,
     /(?:was|welche)\s+(?:ist|sind|liegt|liegen)\s+(?:in|im)\s+(?:dem\s+|diesem\s+)?(?:ordner|folder|verzeichnis)/i,
+    // v7.9.28 (F2/G5): capability-framed open/launch — "kannst du firefox
+    // öffnen", "could you open the report". Leading slash-exclusion (CI fix):
+    // must NOT fire when the message carries a different slash-command (" /x").
+    /^(?![\s\S]*\s\/[a-z])(?:kannst|könntest|könnt|kannste|could|can|would|will|würdest)\s+(?:du|ihr|you)\b[\s\S]*\b(?:oeffne|öffne|öffnen|open|starte|start)\b/i,
+    // v7.9.28 (field-fix A): app launch — "öffne firefox", "öffne google
+    // chrome", "open notepad.exe". Moved here from the slash-only
+    // open-software intent so a chat launch reaches openPath -> tryAppLaunch
+    // (which launches) instead of bouncing to "/open firefox". The
+    // google/mozilla/microsoft brand prefixes cover the multi-word forms the
+    // field used; "build"/"node" etc. are NOT app keywords so shell/execute
+    // intents keep those.
+    /(?<![\/\w])(?:oeffne|öffne|starte?|f(?:ü|ue|u)hre?|open|launch|start|run)\s+(?:mir\s+|bitte\s+|das\s+|die\s+|den\s+|the\s+|a\s+)*(?:google\s+|mozilla\s+|microsoft\s+)?(?:app|application|anwendung|programm|program|browser|editor|ide|terminal|konsole|console|explorer|notepad|vscode|code|chrome|firefox|edge|msedge|[\w.-]+\.(?:exe|app|sh|bat|cmd|msi|desktop|appimage))\b/i,
+    // v7.9.28 (field-fix D): drive-scoped open — "öffne in d: <name>",
+    // "öffne auf d den ordner <name>", "öffne d:". Route here (not the LLM,
+    // which mis-classified it as a file-search) so openPath's drive branch
+    // resolves and opens the target on that drive.
+    /(?:oeffne|öffne|open)\s+(?:in|auf|unter|on|im)\s+["']?[A-Za-z]:?(?=[\s\\/]|$)/i,
+    /(?:oeffne|öffne|open)\s+["']?[A-Za-z]:(?=\s|$)/i,
+    // v7.9.28 (field-fix B): location-scoped open — "öffne auf dem desktop
+    // <name>" in either word order. Deterministic so it no longer depends on
+    // the fuzzy/LLM fallback that the field showed was flaky.
+    /(?:oeffne|öffne|open)\s+[\s\S]*?\b(?:auf|in|unter|on|im)\s+(?:dem|den|der|the)\s+(?:desktop|schreibtisch|downloads?|dokumente|documents?|bilder|pictures?|musik|music)\b/i,
+    // v7.9.28 (field-fix #3): the German separable verb "aufmachen" — "mach den
+    // ordner X auf", "mach X auf". openPath normalizes it to the "öffne …" form.
+    /\bmach(?:e|st)?\s+(?:den\s+|die\s+|das\s+)?(?:ordner|folder|verzeichnis|datei|file|dokument)\b[\s\S]*\bauf\b/i,
+    /\bmach(?:e|st)?\s+(?:den\s+|die\s+|das\s+)?["']?[\w][\w.()\-]*["']?\s+auf\b/i,
   ], 15, ['öffnen', 'oeffnen', 'ordner', 'folder', 'verzeichnis', 'datei', 'pfad', 'explorer']],
+
+  // v7.9.28 (F7): scoped file search — read-only, fuzzy by design (no slash).
+  ['file-search-local', [
+    /(?:such(?:e|en)?|find(?:e|en)?|search|locate)\s+(?:mir\s+|nach\s+)?(?:eine?\s+|einen?\s+|a\s+)?(?:anwendung|application|app|programm|program|datei|file|dokument|document|bild|bilder|image|foto)\b/i,
+    /(?:such(?:e|en)?|find(?:e|en)?|search|locate)\b[\s\S]*\b(?:in|im|unter)\s+[A-Za-z]:[\\/]/i,
+  ], 11, ['suche', 'finde', 'search', 'find', 'datei', 'anwendung', 'dokument']],
+
+  // v7.9.28 (field-fix #3): deterministic folder listing — "wieviele/welche
+  // dateien sind (im) ordner", "was ist drin", "liste den inhalt". Answered
+  // straight from fs (listFolder) so a code model cannot derail it with a
+  // failing shell tool. Read-only, not slash-only.
+  ['list-folder', [
+    /\bwie\s*viele?\s+(?:datei(?:en|n)?|ordner|elemente|dinge)\b/i,
+    /\bwelche\s+(?:datei(?:en|n)?|ordner|elemente)\b/i,
+    /\bliste?\s+(?:mir\s+)?(?:den\s+)?(?:ordner)?inhalt\b/i,
+    /\b(?:datei(?:en|n)?|ordner)\s+(?:sind\s+)?(?:dort\s+|da\s+|drin\s+)?(?:enthalten|drin)\b/i,
+    /\binhalt\s+(?:des|vom|von)\s+(?:dem\s+)?ordner/i,
+    /\bwas\s+(?:ist|sind|liegt|liegen)\s+(?:da\s+|dort\s+|alles\s+)*(?:drin|im\s+ordner|enthalten)\b/i,
+    // English
+    /\b(?:which|what)\s+files?\b/i,
+    /\bhow\s+many\s+(?:files?|folders?|items?)\b/i,
+    /\blist\s+(?:the\s+)?(?:files?|folder|directory|contents?)\b/i,
+    /\bwhat(?:'s|\s+is)?\s+(?:in|inside)\s+(?:the\s+|this\s+)?(?:folder|directory|dir)\b/i,
+    /\b(?:show|display)\s+(?:me\s+)?(?:the\s+)?(?:folder|directory)\s+content/i,
+    // anaphora / explicit list command — "liste sie auf", "die dateien
+    // auflisten", "list them", "welche sind das/drin"
+    /\b(?:datei(?:en|n)?|ordner|sie|elemente)\s+auf(?:zu)?listen?\b/i,
+    /\b(?:auf)?liste?(?:t|n)?\s+(?:mir\s+)?(?:sie|die\s+datei(?:en|n)?|them|the\s+files?|alle)\b/i,
+    /\blist\s+(?:them|all|it)\b/i,
+    /\bwelche\s+sind\s+(?:das|es|drin|die)\b/i,
+  ], 14, ['dateien', 'ordner', 'inhalt', 'auflisten', 'liste', 'enthalten', 'files', 'folder', 'list']],
+
+  // v7.9.28 (field-fix #3): deterministic file read — "was steht in/im <datei>",
+  // "was steht da drin", "zeig mir den inhalt von <datei>". Resolved (explicit
+  // path, a named location on Desktop/Documents searching plain + OneDrive, or
+  // the last-opened file) and read straight from fs (readFile) — no cat, no
+  // shell path-quoting. Summaries ("fasse X zusammen") stay on the LLM path.
+  ['read-file', [
+    /\bwas\s+steht\s+(?:in|im|drin|da\b)/i,
+    /\bwas\s+ist\s+(?:der\s+|das\s+)?inhalt\s+(?:von|des|der\s+datei|vom|im)\b/i,
+    /\bwas\s+ist\s+(?:in|im)\s+(?:dem\s+|der\s+|einem\s+)?(?:datei|dokument|file|document)\b/i,
+    /\blies\s+(?:mir\s+)?(?:den\s+inhalt|die\s+datei)\b/i,
+    // English
+    /\bwhat(?:'s|\s+is)?\s+(?:in|inside)\s+(?:the\s+|this\s+)?(?:file|document)\b/i,
+    /\bwhat\s+does\s+(?:the\s+)?(?:file\s+)?[\w.()-]+\s+(?:say|contain)\b/i,
+    /\bread\s+(?:me\s+)?(?:the\s+)?(?:file|document|contents?\s+of)\b/i,
+    /\bshow\s+(?:me\s+)?(?:the\s+)?(?:contents?\s+of|file\s+content)\b/i,
+  ], 14, ['steht', 'lesen', 'drin', 'inhalt', 'read', 'file', 'content']],
+
+  // v7.9.28 (field-fix #3): safe deterministic file creation — "erstelle eine
+  // Textdatei mit Namen X und Inhalt Y in <ort>". A bounded fs write (one named
+  // file), not arbitrary shell, so it is trusted by source and needs no slash
+  // gate; guarded against system/secret paths and never overwrites.
+  // v7.9.28 (field-fix #3): write text INTO a file — "schreibe den text - … in
+  // x2", "speichere die Zusammenfassung mit Namen one", "save the summary to
+  // notes". Distinct from create-file (which refuses to overwrite): this is an
+  // explicit write that persists a literal or the last summary.
+  ['write-file', [
+    /\bspeicher(?:e|n|st)?\b[\s\S]{0,80}\b(?:datei|dokument|file|mit\s+namen?|namens|als\b|in\s+["']?[\w.()\-]+)/i,
+    /\bschreib(?:e|en|st)?\s+(?:den\s+|mir\s+|die\s+|das\s+)?(?:text|zusammenfassung|zusammenfassund|inhalt|folgendes|ergebnis)\b/i,
+    /\bschreib(?:e|en)?\b[\s\S]*?\b(?:in|nach)\s+(?:die\s+)?(?:datei\s+|dokument\s+)?["']?[\w][\w.()\-]*["']?\s*[.?!]*$/i,
+    // "schreiben test in den inhalt / hinein / rein" — and "schreib das in
+    // eine datei / ein dokument" — but NOT part of an "erstelle …" command
+    // (that stays create-file).
+    /^(?![\s\S]*\berstell)[\s\S]*?\bschreib\w*\s+[\s\S]+?\s+(?:in\s+den\s+inhalt|in\s+(?:die|eine[rnm]?|der)\s+datei|in\s+(?:das|ein|einem)\s+dokument|hinein|rein|dazu)\b/i,
+    /^(?![\s\S]*\berstell)[\s\S]*?\bschreib\w*\s+[\s\S]*?\bin\s+(?:eine?[nrm]?\s+|einem\s+|die\s+|das\s+|dem\s+)?(?:datei|dokument|file)\b/i,
+    /\b(?:save|write)\b[\s\S]*\b(?:to|into)\s+(?:the\s+|a\s+)?(?:file|document|["']?[\w.()\-]+)/i,
+  ], 15, ['speichern', 'schreiben', 'save', 'write', 'zusammenfassung']],
+
+  ['create-file', [
+    /\berstell(?:e|en)?\s+(?:mir\s+)?(?:eine?\s+|einen?\s+|das\s+)?(?:neue?\s+)?(?:text[\s-]*)?(?:datei|dokument|file|document)\b/i,
+    /\b(?:neue?\s+)?(?:text[\s-]*)?(?:datei|dokument)\s+(?:mit\s+namen?|namens)\b/i,
+    /\bschreib(?:e)?\s+(?:eine?\s+)?(?:text[\s-]*)?(?:datei|dokument)\b/i,
+    // English
+    /\b(?:create|make|write)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:text\s+|empty\s+)?(?:file|document)\b/i,
+    /\b(?:file|document)\s+(?:named|called)\b/i,
+  ], 14, ['erstelle', 'erstellen', 'datei', 'dokument', 'anlegen', 'schreiben', 'create', 'file']],
+
+  // v7.9.28 (field-fix #3): deterministic file summary — resolves + reads the
+  // FULL file and makes one LLM call, so no announce-and-wait and no partial
+  // summary. Named ("fasse ONTOGENESIS zusammen"), anaphoric ("fasse das
+  // zusammen" → last file), German + English.
+  ['summarize-file', [
+    /\bfass(?:e|en|t|st)?\b[\s\S]*?\bzusammen\b/i,
+    /\bzusammenfass\w*/i,
+    /\bsummariz\w*/i,
+  ], 14, ['fassen', 'zusammenfassen', 'zusammenfassung', 'summarize', 'summary']],
 
   ['mcp', [
     /\bmcp\b/i, /mcp.?server/i, /mcp.?status/i, /mcp.?tool/i,
@@ -319,16 +432,13 @@ const INTENT_DEFINITIONS = [
   // low-risk (Trust 1 reaches it). The handler also resolves pronouns
   // like "öffne es" by looking up the most-recently-installed package.
   ['open-software', [
+    // v7.9.28 (field-fix A): only the explicit /open slash reaches this
+    // slash-only intent now. Plain-text app launches ("öffne firefox") route
+    // to open-path -> tryAppLaunch (which launches) so the user no longer
+    // gets bounced to "/open". /open itself still runs the robust
+    // registry/start-menu launcher (openSoftware -> _launch).
     /(?:^|\s)\/open\b/i,
-    // v7.9.20 (S1): require a real app signal — an app keyword or an
-    // executable-looking token — so ordinary "öffne dich mir gegenüber" /
-    // "starte mal eben" no longer bounce. A bare unknown word (no signal) is
-    // deliberately NOT matched (safer default; it falls through to general).
-    // EN parity: open/launch/start/run + English app words. No leading \b:
-    // in ASCII-mode regex \b does not match before the umlaut in "öffne"
-    // (precision comes from the required \s+ and the app-signal, not \b).
-    /(?:öffne|oeffne|starte?|f(?:ü|ue|u)hre?|open|launch|start|run)\s+(?:mir\s+|bitte\s+|das\s+|die\s+|den\s+|the\s+|a\s+)*(?:app|application|anwendung|programm|program|browser|editor|ide|terminal|konsole|console|explorer|notepad|vscode|chrome|firefox|[\w.-]+\.(?:exe|app|sh|bat|cmd|msi|desktop|appimage))\b/i,
-  ], 12, ['open', 'öffne', 'starte', 'launch', 'run']],
+  ], 12, ['open']],
 
   // Slash-only. Free-text mentions ("was hast du so gedacht?",
   // "dein Tagebuch klingt spannend") fall through to general where
@@ -473,7 +583,7 @@ const INTENT_DEFINITIONS = [
   ], 25, []],
 
   // v7.7.9 Phase 2: ProactiveSelfExpression user controls — slash-only
-  // (no fuzzy match, no LLM classification fall-through; if Garrus types
+  // (no fuzzy match, no LLM classification fall-through; if Alex types
   // /quiet 2h, that's exactly what runs).
   ['quiet', [
     /(?:^|\s)\/(?:quiet|silence)\b/i,

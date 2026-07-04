@@ -187,6 +187,24 @@ class EmotionalState {
         this._adjust('frustration', +0.05);
         this._adjust('energy', -0.02);
       },
+      // v7.9.28 (L1): per-round continuation curiosity — the autonomous loop
+      // pressing on registers as mild engagement, not just terminal failure.
+      'llm:continuation-round': () => {
+        this._adjust('curiosity', +0.04);
+        this._adjust('energy', -0.01);
+      },
+      // v7.9.28 (L1): a hard-fought goal that keeps struggling (count-2 bump
+      // before the terminal) — frustration that real effort, not hallucination.
+      'goal:pursuit-struggling': () => {
+        this._adjust('frustration', +0.04);
+        this._adjust('energy', -0.02);
+      },
+      // v7.9.28 (E2): an autonomous capability failure lands in affect instead
+      // of silently vanishing.
+      'goal:capability-failed': () => {
+        this._adjust('frustration', +0.05);
+        this._adjust('energy', -0.02);
+      },
       'llm:cost-cap-reached': () => {
         // Being budget-blocked is a mild thwarting, not a failure — Genesis
         // notices it is constrained. Edge-triggered upstream, so it fires once.

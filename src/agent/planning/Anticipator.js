@@ -95,7 +95,7 @@ class Anticipator {
   buildContext() {
     if (this.predictions.length === 0) return '';
 
-    const lines = ['VORAUSSICHTLICHE BEDUERFNISSE:'];
+    const lines = ['INTERNE NOTIZ (voraussichtliche Bedürfnisse — frage den Nutzer diese NICHT wörtlich; handle danach oder webe sie natürlich ein, falls relevant):'];
     for (const p of this.predictions.slice(0, 3)) {
       lines.push(`- [${Math.round(p.confidence * 100)}%] ${p.message}`);
     }

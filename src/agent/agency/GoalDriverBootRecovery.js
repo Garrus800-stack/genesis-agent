@@ -63,7 +63,7 @@ const bootRecoveryMixin = {
     //   - has begun execution (currentStep > 0), OR
     //   - was created in the last 24h but hasn't started yet (so a
     //     fresh goal that crashed before its first step still gets
-    //     picked up — exactly the case we just hit on Garrus's box).
+    //     picked up — exactly the case we just hit on Alex's box).
     // The 24h cutoff prevents zombiehaft hochzuholen alte Goals
     // die seit Wochen im Stack vergessen lagen.
     const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;  // 24h

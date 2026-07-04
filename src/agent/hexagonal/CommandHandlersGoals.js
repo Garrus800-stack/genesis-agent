@@ -276,7 +276,7 @@ const commandHandlersGoals = {
   // v7.8.9 (koennen-v789 contract): /affect-trail [n] — show recent
   // AgentLoop boundaries with affect snapshot, gate-pass status, current θ,
   // and overall pass-rate statistics. Surfaces the calibration data for
-  // v7.9.0 — Garrus can inspect what kinds of trajectories Genesis is
+  // v7.9.0 — Alex can inspect what kinds of trajectories Genesis is
   // tagging as skill-candidates and tune EmotionalState reactivity if
   // affect varies too little.
   async affectTrail(message) {

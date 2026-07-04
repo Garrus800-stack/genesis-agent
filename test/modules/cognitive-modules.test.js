@@ -63,8 +63,8 @@ test('MockMemory stores episodes', async () => {
 
 test('MockMemory semantic operations', () => {
   const mem = new MockMemory();
-  mem.addSemantic('user.name', 'Garrus', 'test');
-  assert(mem.getSemantic('user.name') === 'Garrus');
+  mem.addSemantic('user.name', 'Alex', 'test');
+  assert(mem.getSemantic('user.name') === 'Alex');
   assert(mem.getSemantic('nonexistent') === null);
 });
 

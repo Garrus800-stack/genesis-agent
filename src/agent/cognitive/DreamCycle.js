@@ -342,7 +342,7 @@ class DreamCycle {
 
     // ── v7.3.7 Phase 6: CYCLE-REPORT-ENTRY ──────────────────
     // Write a short summary of this cycle to the shared journal so
-    // Garrus can see what happened overnight and Genesis has a
+    // Alex can see what happened overnight and Genesis has a
     // readable trail for the wake-up routine next boot.
     try {
       await this._dreamPhaseCycleReport(report);

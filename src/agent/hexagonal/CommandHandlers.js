@@ -41,6 +41,7 @@ const { commandHandlersOpen } = require('./CommandHandlersOpen');
 const { commandHandlersCleanup } = require('./CommandHandlersCleanup');   // v7.8.4
 const { commandHandlersTrajectory } = require('./CommandHandlersTrajectory'); // v7.9.15
 const { commandHandlersProposals } = require('./CommandHandlersProposals'); // v7.9.20
+const { commandHandlersFileView } = require('./CommandHandlersFileView'); // v7.9.28 field-fix #3
 
 class CommandHandlers {
   constructor({ bus, lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient, coreMemories, genesisDir, skillEffectivenessTracker}) {
@@ -102,6 +103,12 @@ class CommandHandlers {
     orchestrator.registerHandler('trust-control', (msg) => this.trustControl(msg));
     // v6.0.2: Open folder/file in OS file explorer
     orchestrator.registerHandler('open-path', (msg) => this.openPath(msg));
+    orchestrator.registerHandler('file-search-local', (msg) => this.scopedSearch(msg));
+    orchestrator.registerHandler('list-folder', (msg) => this.listFolder(msg));   // v7.9.28 field-fix #3
+    orchestrator.registerHandler('read-file', (msg) => this.readFile(msg));       // v7.9.28 field-fix #3
+    orchestrator.registerHandler('create-file', (msg) => this.createFile(msg));   // v7.9.28 field-fix #3
+    orchestrator.registerHandler('summarize-file', (msg) => this.summarizeFile(msg)); // v7.9.28 field-fix #3
+    orchestrator.registerHandler('write-file', (msg) => this.writeFile(msg));      // v7.9.28 field-fix #3
     // v7.3.2: Core Memory controls
     orchestrator.registerHandler('memory-mark', (msg) => this.memoryMark(msg));
     orchestrator.registerHandler('memory-list', (msg) => this.memoryList(msg));
@@ -230,7 +237,7 @@ class CommandHandlers {
     return this.proactiveSelfExpression.setMute(arg);
   }
 
-  // /proactive-status — debug output for Garrus. Surfaces the
+  // /proactive-status — debug output for Alex. Surfaces the
   // suppression log so attempted-but-blocked candidates are visible.
   async proactiveStatus() {
     if (!this.proactiveSelfExpression || typeof this.proactiveSelfExpression.getStatus !== 'function') {
@@ -262,6 +269,7 @@ Object.assign(
   commandHandlersCleanup      // v7.8.4
   , commandHandlersTrajectory // v7.9.15
   , commandHandlersProposals // v7.9.20
+  , commandHandlersFileView // v7.9.28 field-fix #3
 );
 
 module.exports = { CommandHandlers };

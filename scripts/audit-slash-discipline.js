@@ -126,6 +126,7 @@ function statusFor(name, kind, inSec) {
 // can re-check the rationale.
 const FUZZY_BY_DESIGN = {
   greeting:        'Conversational small-talk; matching slash would break chat UX entirely.',
+  'file-search-local': 'Read-only scoped file search (v7.9.28 F7) — "suche eine Anwendung in C:/Tools". Natural-language UX; FileSearchSkill is read-only with its own depth/skip guards. Slash would be theatre.',
   retry:           'Repeats last user command; cannot escalate beyond what was already allowed.',
   'project-scan':  'Read-only inspection of working directory; no write/exec consequence.',
   'web-lookup':    'Read-only web fetch; result returned to user, not executed.',
@@ -133,6 +134,11 @@ const FUZZY_BY_DESIGN = {
   undo:            'Reverts last action via git revert HEAD; rollback is itself a safety operation.',
   'open-path':     'Conversational UX — user says "öffne den Ordner X" and Genesis opens it. Forcing slash would break natural-language interaction. Path-existence + sandbox checks (v7.5.6 ShellSafety) provide real safety; slash would be theatre.',
   mcp:             'Conversational UX — user says "verbinde mit MCP-Server" naturally. Connection itself triggers explicit Genesis prompts (server-name, transport, scope), so an injected request would still surface for review. Slash-only would force dual-form interaction.',
+  'list-folder':   'Read-only folder listing (v7.9.28 field-fix #3) — "wieviele dateien sind im ordner". Reads directory entries straight from fs, no write/exec; guarded against system/secret paths. Slash would be theatre.',
+  'read-file':     'Read-only file read (v7.9.28 field-fix #3) — "was steht in <datei>". Returns file content to the user via fs; no write/exec; guarded against system/secret paths. Slash would be theatre.',
+  'create-file':   'Bounded single-file write (v7.9.28 field-fix #3) — "erstelle eine Textdatei mit Namen X und Inhalt Y". NOT arbitrary shell: writes exactly one named file via fs, guarded against system/secret paths, never overwrites an existing file. Trusted by source (observed content is rewritten to general by RuntimeGuard and never reaches this intent); slash would force dual-form interaction for a routine, safe create.',
+  'summarize-file': 'Read-only file summary (v7.9.28 field-fix #3) — "fasse ONTOGENESIS zusammen". Resolves + reads one file via fs and makes a single LLM summarization call; no write/exec, guarded against system/secret paths, falls back to the source-read path on any failure. Slash would be theatre for a routine, safe read.',
+  'write-file':    'Bounded single-file write (v7.9.28 field-fix #3) — "schreibe die Zusammenfassung in Datei X". Writes one named file via fs (literal text or the last generated summary), guarded against system/secret paths; overwrites only on an explicit write command. Trusted by source (observed content is rewritten to general by RuntimeGuard and never reaches this intent); slash would force dual-form interaction for a routine save.',
 };
 
 const source = fs.readFileSync(PATTERNS_FILE, 'utf8');

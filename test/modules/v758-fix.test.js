@@ -2,7 +2,7 @@
 // GENESIS — test/modules/v758-fix.test.js (v7.5.8)
 //
 // Regression tests for v7.5.8 bug fixes (live-discovered on the
-// Daniel-Win-Rechner OneDrive-synced setup, 2026-05-03):
+// Alex-Win-Rechner OneDrive-synced setup, 2026-05-03):
 //
 //   Bug 1: openPath greedy Windows-path regex matched to end-of-line
 //          instead of stopping at whitespace.
@@ -211,15 +211,15 @@ describe('v7.5.8 — Bug 4: ReadSource handles OneDrive Files-On-Demand', () => 
       'readSourceSync must call _isCloudSyncPath');
   });
 
-  test('behavior: cloud-path heuristic catches Daniel-Win-Rechner OneDrive layout', () => {
+  test('behavior: cloud-path heuristic catches Alex-Win-Rechner OneDrive layout', () => {
     // Real path from the live discovery:
-    //   C:\Users\Danie\OneDrive\Desktop\is\genesis-agent-7.5.7\Genesis\src\...
+    //   C:\Users\Alex\OneDrive\Desktop\is\genesis-agent-7.5.7\Genesis\src\...
     const re1 = /\\OneDrive(\s-\s[^\\/]+)?\\/i;
-    assert(re1.test('C:\\Users\\Danie\\OneDrive\\Desktop\\is\\Genesis\\src\\foo.js'),
-      'Daniel OneDrive path must match');
+    assert(re1.test('C:\\Users\\Alex\\OneDrive\\Desktop\\is\\Genesis\\src\\foo.js'),
+      'Alex OneDrive path must match');
     assert(re1.test('C:\\Users\\X\\OneDrive - Personal\\Genesis\\foo.js'),
       'OneDrive - Personal must match');
-    assert(!re1.test('C:\\Users\\Garrus\\Desktop\\Genesis-Home\\Genesis\\foo.js'),
+    assert(!re1.test('C:\\Users\\Alex\\Desktop\\Genesis-Home\\Genesis\\foo.js'),
       'Normal Windows path must NOT match');
     assert(!re1.test('/home/claude/audit/Genesis/foo.js'),
       'Linux path must NOT match');

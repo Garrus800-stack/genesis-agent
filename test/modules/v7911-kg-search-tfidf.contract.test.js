@@ -3,7 +3,7 @@
 // GENESIS — test/modules/v7911-kg-search-tfidf.contract.test.js
 //
 // v7.9.11: KG search uses TF-IDF + file-token-boost. Verified
-// against Garrus's Win field-trace 2026-05-25 nodes.
+// against Alex's Win field-trace 2026-05-25 nodes.
 // ============================================================
 
 'use strict';

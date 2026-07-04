@@ -138,6 +138,7 @@ class ShellAgent {
       platform: this.platform,
       trustLevel: _trustLevel,
       settings: this.settings,
+      origin: opts.origin,
     });
     if (!sandboxCheck.ok) {
       const sbResult = {

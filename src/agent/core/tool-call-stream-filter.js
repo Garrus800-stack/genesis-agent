@@ -1,99 +1,95 @@
 // ============================================================
-// GENESIS — tool-call-stream-filter.js (v7.3.4)
+// GENESIS — tool-call-stream-filter.js (v7.3.4, generalized v7.9.28)
 //
-// Pure, stateful filter that strips <tool_call>...</tool_call>
-// blocks out of a streamed LLM response. The raw markup is
-// preserved in the caller's fullResponse (needed by the tool
-// execution loop); this filter only shapes what reaches the UI.
+// Pure, stateful filter that strips tool-call blocks out of a
+// streamed LLM response so the raw markup never reaches the UI.
+// The raw text is preserved in the caller's fullResponse (the
+// tool-execution loop parses it); this filter only shapes the
+// stream shown to the user.
 //
-// Extracted from ChatOrchestrator.handleStream in v7.3.4 to
-// make it unit-testable in isolation. Previously the test file
-// replicated the state-machine logic inline, so tests verified
-// the test's copy instead of the production code. This module
-// is the single source of truth; the test calls this function.
+// v7.9.28: generalized from a single <tool_call> pair to a list
+// of fixed open/close pairs. A model that emits the Anthropic XML
+// form <function_calls><invoke ...></function_calls> used to show
+// the raw markup in chat (the parser executed it afterward, but it
+// looked broken). Stripping the whole <function_calls> block also
+// covers the <invoke>/<parameter> tags nested inside it.
+//
+// NOTE: bare <tool>...</tool> is intentionally NOT a block — it is
+// ordinary text and must pass through unchanged.
 //
 // ── Usage ────────────────────────────────────────────────────
-//
 //   const { createToolCallStreamFilter } = require('../core/tool-call-stream-filter');
-//
 //   const filter = createToolCallStreamFilter();
-//   const filteredOnChunk = (chunk) => {
-//     const out = filter.push(chunk);
-//     if (out) realOnChunk(out);
-//   };
-//   // ... after stream ends ...
-//   const tail = filter.flush();
-//   if (tail) realOnChunk(tail);
-//
-// The filter is a small object holding three fields:
-//   - inToolCall  : boolean — are we currently inside a block?
-//   - buffer      : string  — lookahead bytes not yet decided
-//   - push(chunk) : returns filtered output for this chunk
-//   - flush()     : returns final safe tail at end of stream
-//
-// Tags split across chunk boundaries are handled by retaining
-// the last 11 or 12 characters of the buffer (the lengths of
-// '<tool_call>' and '</tool_call>' respectively) until a full
-// tag either appears or cannot possibly appear.
+//   const filteredOnChunk = (chunk) => { const out = filter.push(chunk); if (out) realOnChunk(out); };
+//   const tail = filter.flush(); if (tail) realOnChunk(tail);
 // ============================================================
 
-const OPEN_TAG = '<tool_call>';
-const CLOSE_TAG = '</tool_call>';
-const OPEN_LEN = OPEN_TAG.length;   // 11
-const CLOSE_LEN = CLOSE_TAG.length; // 12
+// Fixed open/close tag pairs to strip. Matching picks the earliest
+// open found in the buffer.
+const BLOCKS = [
+  { open: '<tool_call>', close: '</tool_call>' },
+  { open: '<function_calls>', close: '</function_calls>' },
+];
+// Longest open tag — how many trailing chars to retain as lookahead
+// so an open tag split across chunk boundaries is still detected.
+const MAX_OPEN = BLOCKS.reduce((m, b) => Math.max(m, b.open.length), 0);
 
 /**
- * Create a new filter instance. The returned object is stateful
- * and should not be shared across concurrent streams.
- *
+ * Create a new filter instance. Stateful; do not share across streams.
  * @returns {{ push(chunk: string): string, flush(): string, get inToolCall(): boolean }}
  */
 function createToolCallStreamFilter() {
-  const state = { inToolCall: false, buffer: '' };
+  // closeTag === null → outside any block. Otherwise it holds the close
+  // tag we are currently scanning for.
+  const state = { closeTag: null, buffer: '' };
 
   function push(chunk) {
     if (!chunk) return '';
     state.buffer += chunk;
     let out = '';
     while (state.buffer.length > 0) {
-      if (!state.inToolCall) {
-        const openIdx = state.buffer.indexOf(OPEN_TAG);
-        if (openIdx === -1) {
-          // No open tag seen. We might be mid-tag (e.g. "<tool_" waiting for
-          // "call>"). Keep the last OPEN_LEN-1 characters as lookahead so a
-          // tag that spans the chunk boundary can still be detected.
-          if (state.buffer.length > OPEN_LEN) {
-            out += state.buffer.slice(0, -OPEN_LEN);
-            state.buffer = state.buffer.slice(-OPEN_LEN);
+      if (state.closeTag === null) {
+        // Find the earliest complete open tag across all block types.
+        let bestIdx = -1;
+        let bestBlock = null;
+        for (const b of BLOCKS) {
+          const i = state.buffer.indexOf(b.open);
+          if (i !== -1 && (bestIdx === -1 || i < bestIdx)) { bestIdx = i; bestBlock = b; }
+        }
+        if (bestIdx === -1) {
+          // No complete open tag. Keep a MAX_OPEN tail as lookahead for a
+          // tag that spans the chunk boundary; emit everything before it.
+          if (state.buffer.length > MAX_OPEN) {
+            out += state.buffer.slice(0, -MAX_OPEN);
+            state.buffer = state.buffer.slice(-MAX_OPEN);
           }
           break;
         }
-        out += state.buffer.slice(0, openIdx);
-        state.buffer = state.buffer.slice(openIdx + OPEN_LEN);
-        state.inToolCall = true;
+        out += state.buffer.slice(0, bestIdx);
+        state.buffer = state.buffer.slice(bestIdx + bestBlock.open.length);
+        state.closeTag = bestBlock.close;
       } else {
-        const closeIdx = state.buffer.indexOf(CLOSE_TAG);
+        const closeIdx = state.buffer.indexOf(state.closeTag);
         if (closeIdx === -1) {
-          // Still inside a tool_call block, no close yet. Drop everything
-          // except a CLOSE_LEN tail as lookahead for the closing tag.
-          if (state.buffer.length > CLOSE_LEN) {
-            state.buffer = state.buffer.slice(-CLOSE_LEN);
+          // Still inside a block, no close yet. Drop everything except a
+          // close-tag-length tail as lookahead for the closing tag.
+          if (state.buffer.length > state.closeTag.length) {
+            state.buffer = state.buffer.slice(-state.closeTag.length);
           }
           break;
         }
-        state.buffer = state.buffer.slice(closeIdx + CLOSE_LEN);
-        state.inToolCall = false;
+        state.buffer = state.buffer.slice(closeIdx + state.closeTag.length);
+        state.closeTag = null;
       }
     }
     return out;
   }
 
   function flush() {
-    // End of stream. If we ended outside a tool_call block, whatever is
-    // still buffered is safe to emit (it cannot possibly be the start of
-    // a tag now). If we ended inside a tool_call block, the stream was
-    // truncated mid-call — drop the dangling bytes silently.
-    if (!state.inToolCall && state.buffer.length > 0) {
+    // End of stream. Outside a block → whatever is buffered is safe to emit
+    // (it cannot be the start of a tag now). Inside a block → the stream was
+    // truncated mid-call; drop the dangling bytes silently.
+    if (state.closeTag === null && state.buffer.length > 0) {
       const tail = state.buffer;
       state.buffer = '';
       return tail;
@@ -104,7 +100,7 @@ function createToolCallStreamFilter() {
   return {
     push,
     flush,
-    get inToolCall() { return state.inToolCall; },
+    get inToolCall() { return state.closeTag !== null; },
   };
 }
 

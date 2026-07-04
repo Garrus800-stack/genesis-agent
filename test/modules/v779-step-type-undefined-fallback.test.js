@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // v7.7.9 (post-Phase-3b) — step-type undefined fallback
 //
-// Live-Befund 2026-05-12 burn-in (Garrus, Win): the goal "Automated Error
+// Live-Befund 2026-05-12 burn-in (Alex, Win): the goal "Automated Error
 // Lesson Generation" produced a plan whose first 3 steps were ANALYZE
 // but steps 4–9 had type=undefined. AgentLoopSteps.js:
 //
@@ -114,7 +114,7 @@ describe('Rationale and traceability', () => {
     const elseIfIdx = src.search(/else\s+if\s*\(\s*!\s*normalizedType\s*\)/);
     assert(elseIfIdx > -1, 'expected else-if branch locatable');
     const window = src.slice(elseIfIdx, elseIfIdx + 2500);
-    // We want some Phase-3b / 2026-05-12 / live-Befund / Garrus reference
+    // We want some Phase-3b / 2026-05-12 / live-Befund / Alex reference
     // to make the fix self-documenting in source review.
     assert(/Phase[\s-]*3b|2026-05-12|live-Befund|burn-in/i.test(window) ||
            /post-Phase-3b/i.test(window),

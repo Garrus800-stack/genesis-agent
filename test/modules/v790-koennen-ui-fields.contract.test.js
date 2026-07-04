@@ -3,7 +3,7 @@
 // Contract: v7.9.0 Phase 2 Können settings UI fields are registered
 // in FIELD_REGISTRY (settings-defaults.js) and visible in the GUI
 // (index.html). Without this, the toggles only work via the
-// /settings slash and Garrus has to remember the dotted paths.
+// /settings slash and Alex has to remember the dotted paths.
 // ============================================================
 
 'use strict';

@@ -145,9 +145,9 @@ async function main() {
     const tmp = path.join(__dirname, '..', '..', '.genesis-test-api');
     if (!fs.existsSync(tmp)) fs.mkdirSync(tmp, { recursive: true });
     const mem = new ConversationMemory(tmp, NullBus, new MockStorage());
-    mem.learnFact('user.name', 'Garrus');
-    assert(mem.getUserName() === 'Garrus', 'getUserName()');
-    assert(mem.getSemantic('user.name') === 'Garrus', 'getSemantic()');
+    mem.learnFact('user.name', 'Alex');
+    assert(mem.getUserName() === 'Alex', 'getUserName()');
+    assert(mem.getSemantic('user.name') === 'Alex', 'getSemantic()');
     assert(mem.getSemantic('missing', 'def') === 'def', 'getSemantic() default');
     try { fs.rmSync(tmp, { recursive: true }); } catch {}
   }

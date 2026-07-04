@@ -531,14 +531,14 @@ describe('dashboard.js — _renderMemory', () => {
     }, {
       sessionHistory: 15,
       currentSession: { messageCount: 8, duration: '12m' },
-      userProfile: { name: 'Garrus' },
+      userProfile: { name: 'Alex' },
     });
     const html = elements['dash-memory-body'].innerHTML;
     assert(html.includes('42'), 'Facts count');
     assert(html.includes('128'), 'KG nodes');
     assert(html.includes('nomic'), 'Embedding model');
     assert(html.includes('768'), 'Dimensions');
-    assert(html.includes('Garrus'), 'User name');
+    assert(html.includes('Alex'), 'User name');
     assert(html.includes('8 msgs'), 'Session messages');
   });
 });

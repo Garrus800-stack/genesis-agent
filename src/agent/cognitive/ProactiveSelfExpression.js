@@ -301,7 +301,7 @@ class ProactiveSelfExpression {
     return `Quiet for ~${min} minutes.`;
   }
 
-  /** /proactive-status — debug output for Garrus. */
+  /** /proactive-status — debug output for Alex. */
   getStatus() {
     const settings = this._settings();
     const now = Date.now();

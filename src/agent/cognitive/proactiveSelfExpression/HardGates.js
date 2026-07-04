@@ -77,7 +77,7 @@ function runGates(thought, state, settings) {
       }
     }
 
-    // 4. User-activity cooldown — if Garrus just spoke, give him space.
+    // 4. User-activity cooldown — if Alex just spoke, give him space.
     const cooldown = typeof settings.userActivityCooldownMs === 'number'
       ? settings.userActivityCooldownMs : 10 * 60 * 1000;
     if (typeof state.lastUserMessageMs === 'number') {

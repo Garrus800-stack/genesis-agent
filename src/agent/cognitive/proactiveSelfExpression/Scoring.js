@@ -2,11 +2,11 @@
 // GENESIS — proactiveSelfExpression/Scoring.js (v7.7.9 Phase 2)
 //
 // Score a candidate thought from InnerSpeech: would publishing it as a
-// self-initiated chat message be worth Garrus's attention right now?
+// self-initiated chat message be worth Alex's attention right now?
 //
 // The score is a weighted sum of internal signals only. By design,
-// nothing here is a function of user reactions — no "did Garrus reply
-// to the last self-message", no "is Garrus typing", no engagement-
+// nothing here is a function of user reactions — no "did Alex reply
+// to the last self-message", no "is Alex typing", no engagement-
 // optimizer term. The CI guard (v779-anti-pattern-guard) enforces this
 // at file-content level: words like `replied`, `engagement`, `retention`,
 // `dwell`, `session_length` cause the build to fail.

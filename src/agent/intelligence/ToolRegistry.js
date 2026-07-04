@@ -23,6 +23,7 @@ const { createLogger } = require('../core/Logger');
 const { _resolveFileWithVariants } = require('../foundation/SelfModelSourceRead');
 // v7.9.11: Win console codepage handling for shell/git output decoding
 const { decodeWinConsole } = require('../core/shell/WinConsoleEncoding');
+const { adaptCommand } = require('../capabilities/shell/ShellOSAdapter');
 const _log = createLogger('ToolRegistry');
 
 class ToolRegistry {
@@ -194,49 +195,145 @@ ${header}
 ${descriptions.join('\n\n')}`;
   }
 
+  /**
+   * v7.9.28: normalize ANY plausible tool-call object into { name, input },
+   * regardless of which field names the model used. This is the future-proof
+   * core — instead of a regex per model, one mapper covers the common shapes:
+   *   name:     name | tool | tool_name | function.name
+   *   input:    input | arguments | args | parameters | params
+   * Handles the OpenAI nesting { type:'function', function:{ name, arguments } }
+   * and an `arguments` value that is itself a JSON string. Returns null if no
+   * usable name is present.
+   */
+  _normalizeToolCall(obj) {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+    const fn = (obj.function && typeof obj.function === 'object' && !Array.isArray(obj.function)) ? obj.function : obj;
+    let name;
+    for (const k of ['name', 'tool', 'tool_name']) {
+      if (typeof fn[k] === 'string' && fn[k].trim()) { name = fn[k].trim(); break; }
+      if (typeof obj[k] === 'string' && obj[k].trim()) { name = obj[k].trim(); break; }
+    }
+    if (!name) return null;
+    let input;
+    for (const k of ['input', 'arguments', 'args', 'parameters', 'params']) {
+      if (fn[k] !== undefined) { input = fn[k]; break; }
+      if (obj[k] !== undefined) { input = obj[k]; break; }
+    }
+    if (typeof input === 'string') { try { input = JSON.parse(input); } catch (_e) { input = {}; } }
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) input = {};
+    return { name, input };
+  }
+
+  /**
+   * v7.9.28: return the top-level balanced {...} substrings of text, respecting
+   * quoted strings. Used to find bare (un-fenced) JSON tool calls without
+   * greedily mangling nested braces.
+   */
+  _findJsonObjectSpans(text) {
+    const spans = [];
+    let depth = 0; let start = -1; let inStr = false; let esc = false; let quote = '';
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inStr) {
+        if (esc) esc = false; else if (c === '\\') esc = true; else if (c === quote) inStr = false;
+        continue;
+      }
+      if (c === '"' || c === "'") { inStr = true; quote = c; continue; }
+      if (c === '{') { if (depth === 0) start = i; depth++; } else if (c === '}') {
+        if (depth > 0) { depth--; if (depth === 0 && start >= 0) { spans.push(text.slice(start, i + 1)); start = -1; } }
+      }
+    }
+    return spans;
+  }
+
   parseToolCalls(response) {
     const toolCalls = [];
     let text = response;
-
-    // Format 1: <tool_call>{...}</tool_call> (canonical)
-    const tagRegex = /<tool_call>\s*(\{[\s\S]*?\})\s*<\/tool_call>/g;
     let match;
+
+    // Format 1: <tool_call>{...}</tool_call> (canonical) — flexible fields.
+    const tagRegex = /<tool_call>\s*(\{[\s\S]*?\})\s*<\/tool_call>/g;
     while ((match = tagRegex.exec(response))) {
-      try {
-        const parsed = this._robustJsonParse(match[1]);
-        if (parsed?.name) toolCalls.push({ name: parsed.name, input: parsed.input || {} });
-      } catch (_err) { /* skip invalid */ }
+      try { const n = this._normalizeToolCall(this._robustJsonParse(match[1])); if (n) toolCalls.push(n); } catch (_err) { /* skip */ }
     }
     text = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '');
 
-    // v7.5.9 ZIP1 Phase 0.1: Format 2 — markdown-fence variant.
-    // Some models emit ```tool_call ... ``` instead of XML tags.
-    // Accept it and convert internally.
+    // Format 2: ```tool_call ... ``` markdown-fence variant — flexible fields.
     const fenceRegex = /```tool_call\s*\n?([\s\S]*?)```/g;
     while ((match = fenceRegex.exec(response))) {
-      try {
-        const parsed = this._robustJsonParse(match[1].trim());
-        if (parsed?.name) toolCalls.push({ name: parsed.name, input: parsed.input || {} });
-      } catch (_err) { /* skip */ }
+      try { const n = this._normalizeToolCall(this._robustJsonParse(match[1].trim())); if (n) toolCalls.push(n); } catch (_err) { /* skip */ }
     }
     text = text.replace(/```tool_call\s*\n?[\s\S]*?```/g, '');
 
-    // v7.5.9 ZIP1 Phase 0.1: Format 3 — bare JSON-fence with registered tool name.
-    // Strict: object must have `name` field that matches a registered tool,
-    // and `input` field. Anything else (e.g. JSON in a code example) is
-    // ignored to prevent false-positives.
-    if (toolCalls.length === 0) {
-      const jsonFenceRegex = /```(?:json)?\s*\n?(\{[\s\S]*?\})\s*```/g;
-      while ((match = jsonFenceRegex.exec(response))) {
+    // Format 4 (v7.9.28): Anthropic-style XML — <function_calls><invoke name="X">
+    // <parameter name="k">v</parameter></invoke></function_calls>. Bare or antml:.
+    const invokeRegex = /<(?:antml:)?invoke\s+name=["']([^"']+)["']\s*>([\s\S]*?)<\/(?:antml:)?invoke>/gi;
+    while ((match = invokeRegex.exec(response))) {
+      const name = match[1].trim();
+      const input = {};
+      const paramRegex = /<(?:antml:)?parameter\s+name=["']([^"']+)["']\s*>([\s\S]*?)<\/(?:antml:)?parameter>/gi;
+      let pm;
+      while ((pm = paramRegex.exec(match[2]))) {
+        const key = pm[1].trim();
+        let val = pm[2].replace(/^\r?\n/, '').replace(/\r?\n$/, '');
+        try { const j = JSON.parse(val.trim()); if (j !== null && typeof j !== 'string') val = j; else if (j === null) val = null; } catch (_e) { /* keep raw */ }
+        input[key] = val;
+      }
+      if (name) toolCalls.push({ name, input });
+    }
+    text = text
+      .replace(/<(?:antml:)?function_calls>[\s\S]*?<\/(?:antml:)?function_calls>/gi, '')
+      .replace(/<(?:antml:)?invoke\s+name=["'][^"']+["']\s*>[\s\S]*?<\/(?:antml:)?invoke>/gi, '');
+
+    // Format 5 (v7.9.28): <tool name="X">{args}</tool> and <tool_use name="X">…</tool_use>.
+    // The inner JSON is the arguments object directly (or wraps input/arguments).
+    const namedTagRegex = /<(tool|tool_use)\s+name=["']([^"']+)["']\s*>([\s\S]*?)<\/\1>/gi;
+    while ((match = namedTagRegex.exec(response))) {
+      const name = match[2].trim();
+      let input = {};
+      const inner = match[3].trim();
+      if (inner) {
         try {
-          const parsed = this._robustJsonParse(match[1].trim());
-          if (parsed?.name && typeof parsed.name === 'string'
-              && this.tools.has(parsed.name)
-              && 'input' in parsed) {
-            toolCalls.push({ name: parsed.name, input: parsed.input || {} });
-            text = text.replace(match[0], '');
+          const j = this._robustJsonParse(inner);
+          if (j && typeof j === 'object') {
+            const wrapped = this._normalizeToolCall(j);
+            input = (wrapped && Object.keys(wrapped.input).length) ? wrapped.input
+              : (j.input || j.arguments || j.args || j.parameters || j.params || j);
+            if (typeof input !== 'object' || input === null) input = {};
           }
-        } catch (_err) { /* skip */ }
+        } catch (_e) { /* no args */ }
+      }
+      if (name) toolCalls.push({ name, input });
+    }
+    text = text.replace(/<(tool|tool_use)\s+name=["'][^"']+["']\s*>[\s\S]*?<\/\1>/gi, '');
+
+    // Format 6 (v7.9.28): generalized JSON tool calls. Flexible field names, so a
+    // model emitting yet another JSON shape (e.g.
+    // {"tool_type":"function","tool":"system-info","arguments":{}}) still runs.
+    // Scans fenced and bare top-level JSON. To avoid false-positives, a candidate
+    // is accepted only if it carries a tool marker (tool_type / type:function /
+    // a function object / a tool field) OR its normalized name is a registered
+    // tool. Only runs when nothing was parsed above.
+    if (toolCalls.length === 0) {
+      const seen = new Set();
+      const candidates = [];
+      const jf = /```(?:json|tool|function)?\s*\n?(\{[\s\S]*?\})\s*```/g;
+      while ((match = jf.exec(text))) candidates.push(match[1]);
+      for (const span of this._findJsonObjectSpans(text)) candidates.push(span);
+      for (const cand of candidates) {
+        const key = cand.trim();
+        if (seen.has(key)) continue; seen.add(key);
+        let parsed;
+        try { parsed = this._robustJsonParse(key); } catch (_e) { continue; }
+        const norm = this._normalizeToolCall(parsed);
+        if (!norm) continue;
+        const marker = parsed && (parsed.tool_type !== undefined || parsed.type === 'function'
+          || (parsed.function && typeof parsed.function === 'object')
+          || typeof parsed.tool === 'string' || typeof parsed.tool_name === 'string');
+        if (marker || (this.tools && this.tools.has && this.tools.has(norm.name))) {
+          toolCalls.push(norm);
+          text = text.split(cand).join('');
+        }
       }
     }
 
@@ -469,13 +566,21 @@ ${descriptions.join('\n\n')}`;
       try {
         const cwd = input.cwd ? path.resolve(rootDir, input.cwd) : rootDir;
         const isWin = process.platform === 'win32';
+        // v7.9.28: adapt the command for the host OS before running. The model
+        // emits Unix commands (cat/ls/grep + forward-slash paths) by default;
+        // on Windows cmd.exe those fail ("cat" is not a command), so the model
+        // wrongly concludes files don't exist and loops. adaptCommand rewrites
+        // cat→type, grep→findstr, /path→\path, etc., and is a no-op on Linux
+        // and when real Unix tools are on PATH (Git for Windows). The raw
+        // blocklist above already ran, so destructive commands are still caught.
+        const runCmd = adaptCommand(cmd, process.platform);
         const shell = isWin ? 'cmd.exe' : '/bin/sh';
         const shellFlag = isWin ? '/c' : '-c';
         // v7.9.11: read raw buffer on Win, decode with detected codepage.
         // Pre-fix `encoding: 'utf-8'` mistook cp850/cp1252 bytes for UTF-8
         // → U+FFFD replacement noise in DE-Win cmd.exe output ("f�r
         // Datentr�ger"). Linux/Mac unchanged.
-        const { stdout } = await execFileAsync(shell, [shellFlag, cmd], {
+        const { stdout } = await execFileAsync(shell, [shellFlag, runCmd], {
           cwd, encoding: isWin ? 'buffer' : 'utf-8',
           timeout: TIMEOUTS.SANDBOX_EXEC, maxBuffer: 512 * 1024,
           windowsHide: true,

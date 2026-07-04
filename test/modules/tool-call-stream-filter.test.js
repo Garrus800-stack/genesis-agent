@@ -87,6 +87,32 @@ describe('tool-call-stream-filter', () => {
     const out = filter.push('');
     if (out !== '') throw new Error('got: ' + JSON.stringify(out));
   });
+
+  // v7.9.28: the XML <function_calls> block must also be stripped from the stream.
+  test('complete <function_calls> block is removed', () => {
+    const input = 'lead <function_calls>\n<invoke name="file-list">\n<parameter name="dir">src</parameter>\n</invoke>\n</function_calls> tail';
+    const { output, inToolCall } = runFilter([input]);
+    if (output !== 'lead  tail') throw new Error('got: ' + JSON.stringify(output));
+    if (inToolCall) throw new Error('should have left the block state');
+  });
+
+  test('<function_calls> streamed token-by-token is removed', () => {
+    const full = 'x<function_calls><invoke name="shell"><parameter name="command">dir</parameter></invoke></function_calls>y';
+    const { output } = runFilter(full.split(''));
+    if (output !== 'xy') throw new Error('got: ' + JSON.stringify(output));
+  });
+
+  test('<function_calls> with CRLF line endings is removed', () => {
+    const input = 'a\r\n<function_calls>\r\n<invoke name="x">\r\n</invoke>\r\n</function_calls>\r\nb';
+    const { output } = runFilter([input]);
+    if (/function_calls|invoke/.test(output)) throw new Error('got: ' + JSON.stringify(output));
+    if (!/a/.test(output) || !/b/.test(output)) throw new Error('lost surrounding text: ' + JSON.stringify(output));
+  });
+
+  test('<function_calls> open tag split across chunks is removed', () => {
+    const { output } = runFilter(['keep<functi', 'on_calls><invoke name="x"></invoke></function_calls>tail']);
+    if (output !== 'keeptail') throw new Error('got: ' + JSON.stringify(output));
+  });
 });
 
 run();

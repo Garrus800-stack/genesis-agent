@@ -39,9 +39,9 @@ describe('SessionPersistence', () => {
 
   test('buildBootContext includes user name if set', () => {
     const sp = create();
-    sp.userProfile.name = 'Garrus';
+    sp.userProfile.name = 'Alex';
     const ctx = sp.buildBootContext();
-    assert(ctx.includes('Garrus'), 'should include user name');
+    assert(ctx.includes('Alex'), 'should include user name');
   });
 
   test('buildBootContext includes previous session', () => {
@@ -57,8 +57,8 @@ describe('SessionPersistence', () => {
 
   test('updateUserProfile sets name', () => {
     const sp = create();
-    sp.updateUserProfile({ name: 'Garrus' });
-    assertEqual(sp.userProfile.name, 'Garrus');
+    sp.updateUserProfile({ name: 'Alex' });
+    assertEqual(sp.userProfile.name, 'Alex');
   });
 
   test('updateUserProfile adds interests (dedup)', () => {

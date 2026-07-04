@@ -7,7 +7,7 @@
 //  - _isCloudModelName detects :cloud and -cloud suffixes
 //  - model:cloud-without-fallback is a registered event
 //
-// Live motivation: Garrus's qwen3-coder-next:cloud got 403 every few
+// Live motivation: Alex's qwen3-coder-next:cloud got 403 every few
 // minutes from Ollama because the model was Pro-gated. Pre-fix Genesis
 // classified it as 'auth' (1h TTL) and retried hourly. With the fix it's
 // classified as 'subscription-required' (24h TTL) and Genesis stops

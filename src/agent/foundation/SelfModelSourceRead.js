@@ -28,8 +28,8 @@ const _log = createLogger('SelfModel');
 
 // v7.5.8: Cloud-sync placeholder awareness.
 //
-// Live-Befund (2026-05-03 Daniel-Win-Rechner): Genesis copy in
-// `C:\Users\Danie\OneDrive\Desktop\...\Genesis\` triggered a 30s+ hang
+// Live-Befund (2026-05-03 Alex-Win-Rechner): Genesis copy in
+// `C:\Users\Alex\OneDrive\Desktop\...\Genesis\` triggered a 30s+ hang
 // when ReadSource (idle-time) picked a file that was a OneDrive
 // Files-On-Demand placeholder (`fs.existsSync` returns true, but reading
 // the file forces an implicit cloud download). The hang blocked the
@@ -67,7 +67,7 @@ function _readFileWithTimeout(fullPath, timeoutMs) {
 
 // v7.5.8 Hotfix: Filename-Resolution with variants.
 //
-// Live-Befund (2026-05-03 Garrus-Win-Rechner): User asked Genesis to
+// Live-Befund (2026-05-03 Alex-Win-Rechner): User asked Genesis to
 // summarise "die readme" / "die ONTOGENESIS". The LLM passed those
 // strings through to read-source as-is; resolveFile saw `<rootDir>/readme`
 // (no extension) and `<rootDir>/ONTOGENESIS` (no extension, wrong dir),
@@ -301,7 +301,7 @@ const selfModelSourceRead = {
 
     // Validate via SafeGuard
     try {
-      this.guard.validateRead(absPath);
+      this.guard.validateRead(absPath, { origin: opts.origin });
     } catch (_err) {
       return null;
     }
@@ -495,4 +495,76 @@ const selfModelSourceRead = {
   },
 };
 
-module.exports = { selfModelSourceRead, _resolveFileWithVariants };
+
+// ── v7.9.28 large-file + recursive-find helpers ───────────────────────────
+
+/**
+ * Structural extract of a large document so a summary covers the WHOLE file
+ * instead of being cut off at the read budget (field fix). Collects every
+ * markdown/section heading plus the first lines under it; falls back to a
+ * head+tail elision when the document has no headings.
+ */
+function _extractLargeFile(fullText, maxChars = 18000) {
+  const text = String(fullText || '');
+  const lines = text.split('\n');
+  const out = [`[GROSSE DATEI: ${text.length} Zeichen, ${lines.length} Zeilen. Struktureller Auszug — fasse das GESAMTE Dokument aus dieser Gliederung zusammen, nicht nur den Anfang.]`, ''];
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    if (/^#{1,6}\s/.test(ln) || /^={3,}\s*$/.test(ln) || /^-{3,}\s*$/.test(ln)) {
+      out.push(ln);
+      let added = 0;
+      for (let j = i + 1; j < lines.length && added < 2; j++) {
+        if (/^#{1,6}\s/.test(lines[j])) break;
+        if (lines[j].trim()) { out.push(lines[j].slice(0, 240)); added++; }
+      }
+    }
+    if (out.join('\n').length > maxChars) break;
+  }
+  if (out.length <= 2) {
+    const headN = Math.floor(maxChars * 0.6);
+    const tailN = Math.floor(maxChars * 0.3);
+    return text.slice(0, headN) + '\n\n[... Mitte ausgelassen ...]\n\n' + text.slice(-tailN);
+  }
+  return out.join('\n').slice(0, maxChars);
+}
+
+/**
+ * Recursive project search as the FINAL name-resolution stage (replaces the
+ * docs/-only special-case as the catch-all). Walks the tree (maxDepth 10),
+ * skipping habitat/build dirs. Single hit → that path; multiple → exact
+ * filename first, then the shallowest path. Returns null when nothing matches.
+ */
+function _recursiveFind(rootDir, name, maxDepth = 10) {
+  const fsx = require('fs');
+  const p = require('path');
+  const target = String(name || '').toLowerCase().trim();
+  if (!target) return null;
+  const targetBase = target.replace(/\.[^.]+$/, '');
+  const skip = new Set(['.genesis', '.genesis-backups', 'snapshots', 'node_modules', 'sandbox', '.git', 'dist']);
+  const hits = [];
+  (function walk(dir, depth) {
+    if (depth > maxDepth || hits.length > 60) return;
+    let entries;
+    try { entries = fsx.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.isDirectory()) {
+        if (skip.has(e.name)) continue;
+        walk(p.join(dir, e.name), depth + 1);
+      } else {
+        const en = e.name.toLowerCase();
+        const enBase = en.replace(/\.[^.]+$/, '');
+        if (en === target || enBase === targetBase || en === `${target}.md` || en === `${target}.txt`) {
+          hits.push(p.join(dir, e.name));
+        }
+      }
+    }
+  })(rootDir, 0);
+  if (hits.length === 0) return null;
+  if (hits.length === 1) return hits[0];
+  const exact = hits.filter((h) => p.basename(h).toLowerCase() === target);
+  const pool = exact.length ? exact : hits;
+  pool.sort((a, b) => a.split(p.sep).length - b.split(p.sep).length);
+  return pool[0];
+}
+
+module.exports = { selfModelSourceRead, _resolveFileWithVariants, _extractLargeFile, _recursiveFind };

@@ -7,7 +7,7 @@
 // also consults a local fuzzy classifier and an LLM, both of which
 // route "kannst du mir deine settings geben" → settings semantically.
 //
-// Garrus caught this live on Windows after the v7.3.6 release.
+// Alex caught this live on Windows after the v7.3.6 release.
 // This test locks the fix: no slash-command intent may be returned
 // from classifyAsync() unless the user's message contains a '/'.
 // ============================================================

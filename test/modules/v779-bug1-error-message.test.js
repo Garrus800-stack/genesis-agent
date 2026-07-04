@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // v7.7.9 Phase 3 — Bug 1 regression test
 //
-// Live-Befund (Garrus, 2026-05-10): the pursuit-failure log showed
+// Live-Befund (Alex, 2026-05-10): the pursuit-failure log showed
 //   "pursuit of goal_..._1 failed (1/6) — backing off 5s: <empty>"
 // which means agent-loop:complete was fired with success=false but
 // an empty summary. The downstream chain (GoalDriverFailurePolicy →

@@ -10,7 +10,7 @@
 // (cp850 on DE Windows, cp437 on EN Windows, cp1252 sometimes, etc.).
 // Node's `encoding: 'utf-8'` on execFile mistakes those bytes for
 // UTF-8 → replacement-character noise like "Die Syntax f\u0307r den
-// Dateinamen ist falsch" (verified in Garrus's Win field-trace
+// Dateinamen ist falsch" (verified in Alex's Win field-trace
 // 2026-05-25). After this module: read raw Buffer, decode with the
 // detected codepage.
 //

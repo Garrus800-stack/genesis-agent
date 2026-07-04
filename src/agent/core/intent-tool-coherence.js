@@ -21,7 +21,7 @@
 //
 // This module records intent↔tool mismatches as telemetry. Like
 // self-gate, the design is descriptive, not prescriptive: actions
-// always proceed; gateStats and an event give Genesis (and Garrus)
+// always proceed; gateStats and an event give Genesis (and Alex)
 // a way to see how often the LLM reaches for tools that don't fit
 // the classified intent. If a category later proves consistently
 // noisy, that's a signal — not an automatic block.

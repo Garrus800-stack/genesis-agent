@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════
 // Append-only journal stream with three visibilities:
 //   - private: only Genesis sees it (own thoughts)
-//   - shared:  Garrus sees it too (re-entry, dream reports, reflections)
+//   - shared:  Alex sees it too (re-entry, dream reports, reflections)
 //   - public:  documentable, no rotation, intended for outside readers
 //
 // STORAGE LAYOUT (in .genesis/journal/):

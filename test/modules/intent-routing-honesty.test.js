@@ -30,7 +30,7 @@ describe('v7.3.3 — goals: conversational questions go to general', () => {
     'what is your main goal?',
     'do you have any goals?',
     'tell me about your goals',
-    // Meta-conversational (this is what triggered the bug in Garrus's screenshot)
+    // Meta-conversational (this is what triggered the bug in Alex's screenshot)
     'möchtest du unterscheiden zwischen zielen?',
     'wie organisierst du deine ziele?',
     // Sentences that just happen to contain the word

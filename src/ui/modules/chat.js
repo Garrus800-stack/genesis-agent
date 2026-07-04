@@ -226,8 +226,11 @@ function attachCodeButtons(messageEl) {
         }
       } else if (action === 'run') {
         window.genesis.invoke('agent:run-in-sandbox', code).then(result => {
-          const output = result?.output || result?.error || JSON.stringify(result);
-          addMessage('agent', '```\n' + output + '\n```', 'sandbox');
+          let msg;
+          if (result && result.error) msg = '❌\n```\n' + result.error + '\n```';
+          else if (result && typeof result.output === 'string' && result.output.trim() !== '') msg = '```\n' + result.output + '\n```';
+          else msg = t('ui.sandbox_no_output');
+          addMessage('agent', msg, 'sandbox');
         }).catch(err => addMessage('agent', '❌ ' + err.message, 'error'));
       }
     });

@@ -10,7 +10,7 @@
 //   (b) self-inspect, self-reflect, self-modify, self-repair,
 //       daemon, peer, clone, create-skill, analyze-code
 //       → matched ALSO on keywords/imperatives, breaking chat flow
-//          (Garrus: "es nervt im Chat, es bringt ihn durcheinander")
+//          (Alex: "es nervt im Chat, es bringt ihn durcheinander")
 //
 // v7.3.6 #1 moves group (b) to slash-only, matching the rule
 // already in place for group (a): the handler triggers if and
@@ -26,7 +26,7 @@
 //   "show me the modules"                         ← imperative
 //   "Der Struktur halber..."                      ← keyword
 //
-// Garrus explicit: "in Satz kann ich / machen dann soll er das
+// Alex explicit: "in Satz kann ich / machen dann soll er das
 // erkennen". That is exactly Variant A.
 // ============================================================
 
@@ -157,7 +157,7 @@ const SLASH_COMMANDS = [
   //        no adaptive learning from this signal — it's user sovereignty.
   // /proactive-status shows current settings, last-message info, daily
   //        count, mute state, and the last 10 suppressed candidates with
-  //        their reason — so Garrus can see what was attempted but blocked.
+  //        their reason — so Alex can see what was attempted but blocked.
   {
     name: 'quiet',
     aliases: ['silence'],

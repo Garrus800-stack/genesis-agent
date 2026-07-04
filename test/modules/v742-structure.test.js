@@ -21,7 +21,7 @@ const { CommandHandlers } = require('../../src/agent/hexagonal/CommandHandlers')
 
 const HEXAGONAL_DIR = path.resolve(__dirname, '../../src/agent/hexagonal');
 
-// All 22 methods that must be reachable on CommandHandlers instances
+// All 23 methods that must be reachable on CommandHandlers instances
 // (23 including constructor; constructor is class-level, not prototype)
 const ALL_METHOD_NAMES = [
   // Core
@@ -29,7 +29,7 @@ const ALL_METHOD_NAMES = [
   // Code/Skill
   'executeCode', 'executeFile', 'analyzeCode', 'runSkill',
   // Shell & File
-  'shellTask', 'shellRun', 'projectScan', 'openPath',
+  'shellTask', 'shellRun', 'projectScan', 'openPath', 'scopedSearch',
   // Goals/Plans
   'plans', 'goals', 'journal',
   // CoreMemories
@@ -52,6 +52,7 @@ const METHOD_HOME = {
   'shellRun':          'CommandHandlersShell.js',
   'projectScan':       'CommandHandlersShell.js',
   'openPath':          'CommandHandlersShell.js',
+  'scopedSearch':      'CommandHandlersShell.js',
   'plans':             'CommandHandlersGoals.js',
   'goals':             'CommandHandlersGoals.js',
   'journal':           'CommandHandlersGoals.js',
@@ -78,7 +79,7 @@ function makeHandler() {
 
 describe('v7.4.2 Baustein D — CommandHandlers split structure', () => {
 
-  it('all 22 method names are reachable on an instance', () => {
+  it('all 23 method names are reachable on an instance', () => {
     const ch = makeHandler();
     for (const name of ALL_METHOD_NAMES) {
       assert.strictEqual(
@@ -223,7 +224,7 @@ describe('v7.4.2 Baustein D — CommandHandlers split structure', () => {
     const { commandHandlersNetwork } = require('../../src/agent/hexagonal/CommandHandlersNetwork');
 
     assert.strictEqual(Object.keys(commandHandlersCode).length, 4, 'Code mixin: 4 methods expected');
-    assert.strictEqual(Object.keys(commandHandlersShell).length, 4, 'Shell mixin: 4 methods expected');
+    assert.strictEqual(Object.keys(commandHandlersShell).length, 5, 'Shell mixin: 5 methods expected (+scopedSearch v7.9.28 F7)');
     // v7.5.0: Goals mixin grew from 3 → 10 methods. The 3 public handlers
     // (journal, plans, goals) are unchanged. Added 7 private helpers
     // for the slash-subcommand parser + negotiate-before-add flow:
@@ -248,6 +249,6 @@ describe('v7.4.2 Baustein D — CommandHandlers split structure', () => {
     // checks only existed as logged counts — the slashes surface them.
     assert.strictEqual(Object.keys(commandHandlersSystem).length, 6, 'System mixin: 6 methods expected (3 base + 3 v7.9.5 daemon visibility)');
     assert.strictEqual(Object.keys(commandHandlersNetwork).length, 3, 'Network mixin: 3 methods expected');
-    // Total: 4+4+14+3+6+3 = 34 in mixins + registerHandlers + undo = 36
+    // Total: 5+4+14+3+6+3 = 35 in mixins + registerHandlers + undo = 37
   });
 });

@@ -2,7 +2,7 @@
 // ============================================================
 // Test: v7.9.2 contract — root-cause fix for the goal-reject loop
 //
-// Live-run 2026-05-17 (Garrus-Win) re-pickup loop root cause:
+// Live-run 2026-05-17 (Alex-Win) re-pickup loop root cause:
 // GoalDriverFailurePolicy and StalledGoalWatchdog called
 // goalStack.setStatus / goalStack.updateGoal — methods that
 // never existed on the real goalStack. Both typeof-checks

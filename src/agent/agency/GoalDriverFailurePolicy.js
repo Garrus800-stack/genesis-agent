@@ -133,7 +133,7 @@ const failurePolicyMixin = {
       }, pauseMs + 100);
       this._failurePauseTimers.set(goalId, _t2);
       // v7.5.8 hotfix: stall on FIRST user-rejection, not after 3 strikes.
-      // Live-Befund (Garrus-Win, 2026-05-03): a goal was re-picked 4×
+      // Live-Befund (Alex-Win, 2026-05-03): a goal was re-picked 4×
       // after explicit user rejection because the threshold was 3 and
       // the goal-driver scan loop kept retrying. When the user explicitly
       // rejects a plan ("Failed: User rejected plan with blockers"), the
@@ -215,7 +215,7 @@ const failurePolicyMixin = {
         // the full context — setStatus/updateGoal never existed, the
         // typeof-checks always failed, status stayed 'active'. This was
         // the exact path that produced the live-run re-pickup loop
-        // (Garrus-Win, 2026-05-17). markStalled and markObsolete are
+        // (Alex-Win, 2026-05-17). markStalled and markObsolete are
         // the real methods and fire their respective events.
         const reason = `${entry.count} consecutive failures: ${(errMsg || '<empty>').slice(0, 100)}`;
         try {
@@ -229,6 +229,11 @@ const failurePolicyMixin = {
         }
         this._failureBurst.delete(goalId);
       } else {
+        // v7.9.28 (L1): count-2 struggling bump BEFORE the terminal — a hard-
+        // fought failure (real struggle, not hallucination) registers in affect.
+        if (entry.count === 2 && !_isHallucination && this.bus?.fire) {
+          this.bus.fire('goal:pursuit-struggling', { id: goalId, count: entry.count }, { source: 'GoalDriver' });
+        }
         const backoffMs = backoffSchedule[entry.count - 1];
         this._goalPausedUntil.set(goalId, _now + backoffMs);
         // v7.6.5 (raw-settimeout phase 2): tracked per-goalId.

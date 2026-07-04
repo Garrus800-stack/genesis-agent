@@ -224,6 +224,21 @@ class ConversationMemory {
         this.db = { ...this.db, ...loaded };
       }
     } catch (err) { _log.warn('[MEMORY] Failed to load, starting fresh:', err.message); }
+
+    // v7.9.28 (A1): one-time migration — an earlier classifier sometimes stored
+    // a name under user.role ("ich bin Alex" → role:"Alex"). If user.role
+    // holds a likely name and user.name is empty, move it to user.name.
+    try {
+      const sem = this.db.semantic;
+      if (sem && sem['user.role'] && sem['user.role'].value && !(sem['user.name'] && sem['user.name'].value)) {
+        const { isLikelyName } = require('./name-classification');
+        if (isLikelyName(sem['user.role'].value)) {
+          sem['user.name'] = { ...sem['user.role'] };
+          delete sem['user.role'];
+        }
+      }
+    } catch (e) { _log.debug('[MEMORY] A1 name-migration skipped:', e.message); }
+
     this.db.meta.lastAccess = new Date().toISOString();
   }
 

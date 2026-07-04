@@ -653,7 +653,7 @@ parallel reads + appends to succeed even during `cp -r`; the EBUSY
 only surfaces on Windows where file locks are exclusive. The Genesis
 test suite runs on Linux primarily; CI never saw the failure mode.
 
-**Why fixed now and not deferred:** Garrus' policy — no release with a
+**Why fixed now and not deferred:** Alex' policy — no release with a
 known data-loss bug, regardless of how rare or obscure. Self-modifying
 agents that lose entries from their own event log are exactly the
 class of system where silent corruption compounds invisibly.

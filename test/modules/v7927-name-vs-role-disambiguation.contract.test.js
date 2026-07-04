@@ -2,7 +2,7 @@
 // v7.9.27 — name vs. role disambiguation in fact extraction.
 //
 // "ich bin X" / "i am X" were the only user.role patterns and every match
-// went to user.role. So "ich bin Daniel" stored user.role = "Daniel", and
+// went to user.role. So "ich bin Alex" stored user.role = "Alex", and
 // getUserName() — which reads user.name — returned null: the agent never
 // learned the user's name. Self-reference matches are now classified. A
 // name routes to user.name, a role/state ("Entwickler", "müde") to
@@ -35,15 +35,15 @@ function makeLS(memory) {
 describe('v7.9.27 — name vs. role disambiguation', () => {
   test('a self-introduction stores the name in user.name, not user.role', () => {
     const mem = fakeMemory();
-    makeLS(mem)._extractFacts('Hallo Genesis, ich bin Daniel.');
-    assertEqual(mem.semantic['user.name']?.value, 'Daniel');
+    makeLS(mem)._extractFacts('Hallo Genesis, ich bin Alex.');
+    assertEqual(mem.semantic['user.name']?.value, 'Alex');
     assert(!mem.semantic['user.role'], 'name must not land in user.role');
   });
 
   test('getUserName() now finds the introduced name', () => {
     const mem = fakeMemory();
-    makeLS(mem)._extractFacts('ich bin Daniel');
-    assertEqual(mem.getUserName(), 'Daniel');
+    makeLS(mem)._extractFacts('ich bin Alex');
+    assertEqual(mem.getUserName(), 'Alex');
   });
 
   test('a profession is still stored as user.role', () => {
@@ -67,16 +67,16 @@ describe('v7.9.27 — name vs. role disambiguation', () => {
   });
 
   test('once the name is known, a role still records without clobbering it', () => {
-    const mem = fakeMemory({ 'user.name': 'Daniel' });
+    const mem = fakeMemory({ 'user.name': 'Alex' });
     makeLS(mem)._extractFacts('ich bin Entwickler');
-    assertEqual(mem.semantic['user.name']?.value, 'Daniel', 'established name is preserved');
+    assertEqual(mem.semantic['user.name']?.value, 'Alex', 'established name is preserved');
     assertEqual(mem.semantic['user.role']?.value, 'Entwickler');
   });
 
   test('repeating the known name causes no churn', () => {
-    const mem = fakeMemory({ 'user.name': 'Daniel' });
-    makeLS(mem)._extractFacts('ich bin Daniel');
-    assertEqual(mem.semantic['user.name']?.value, 'Daniel');
+    const mem = fakeMemory({ 'user.name': 'Alex' });
+    makeLS(mem)._extractFacts('ich bin Alex');
+    assertEqual(mem.semantic['user.name']?.value, 'Alex');
     assert(!mem.semantic['user.role'], 'the name is not duplicated into user.role');
   });
 

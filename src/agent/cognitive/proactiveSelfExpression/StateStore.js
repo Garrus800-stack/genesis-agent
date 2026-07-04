@@ -6,7 +6,7 @@
 //   - mutedUntilMs (/quiet)
 //   - dailyCount (resets at local midnight)
 //   - suppressionLog (last 50 suppressed candidates, surfaced via
-//     /proactive-status — Garrus needs to see what Genesis tried to
+//     /proactive-status — Alex needs to see what Genesis tried to
 //     say but didn't get through)
 //
 // Persistence: single JSON file at .genesis/proactive-self-expression.state.json.

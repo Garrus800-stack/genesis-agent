@@ -19,9 +19,9 @@ function createMockCM(overrides = {}) {
     },
     {
       recallEpisodes: (q) => [{ summary: 'past context', topics: ['test'], timestamp: '2025-01-01T00:00:00Z' }],
-      searchFacts: (q) => [{ key: 'user.name', value: 'Garrus' }],
+      searchFacts: (q) => [{ key: 'user.name', value: 'Alex' }],
       recallPattern: (q) => null,
-      db: { semantic: { 'user.name': { value: 'Garrus', confidence: 0.9 } } },
+      db: { semantic: { 'user.name': { value: 'Alex', confidence: 0.9 } } },
     }
   );
 }

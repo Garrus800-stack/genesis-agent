@@ -57,7 +57,7 @@ class SkillManager {
       if (isCloudSyncPath(this.skillsDir)) {
         _log.warn(`[SKILLS] skillsDir is under a cloud-sync root (${this.skillsDir}) — skill loads may hang on Files-On-Demand placeholders`);
       }
-      this._loadFromDir(this.skillsDir, null);
+      this._loadFromDir(this.skillsDir, null, true);
     }
 
     // Source 2 (v7.9.4): promoted Können skills under koennenDir.
@@ -65,7 +65,7 @@ class SkillManager {
     // Pending/rehearsing/quarantined/discarded ones stay on disk but
     // are not in loadedSkills.
     if (this.koennenDir && fs.existsSync(this.koennenDir)) {
-      this._loadFromDir(this.koennenDir, (manifest) => manifest.status === 'promoted');
+      this._loadFromDir(this.koennenDir, (manifest) => manifest.status === 'promoted', false);
     }
 
     _log.info(`[SKILLS] Loaded ${this.loadedSkills.size} skills`);
@@ -77,9 +77,13 @@ class SkillManager {
    * @param {string} dir - Directory to scan for skill subdirectories
    * @param {Function|null} filter - Optional manifest filter; receives
    *   parsed manifest object, returns true to include, false to skip
+   * @param {boolean} [trusted=false] - true only for first-party built-in
+   *   skills shipped under skillsDir. A trusted skill whose manifest declares
+   *   "sandbox": false runs natively (in-process); generated/Können skills are
+   *   NEVER trusted, so their manifest can't opt them out of the VM sandbox.
    * @private
    */
-  _loadFromDir(dir, filter) {
+  _loadFromDir(dir, filter, trusted = false) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
 
@@ -94,6 +98,7 @@ class SkillManager {
           ...manifest,
           dir: path.join(dir, entry.name),
           loaded: true,
+          _trusted: trusted === true,
         });
       } catch (err) {
         _log.warn(`[SKILLS] Failed to load skill ${entry.name}: ${err.message}`);
@@ -140,11 +145,21 @@ class SkillManager {
     let success = false;
 
     try {
-      result = await this.sandbox.execute(execCode, {
-        allowRequire: true,
-        // FIX v6.1.1: Skills need read access to project files (fs path restrictions still enforced)
-        env: { GENESIS_SANDBOX_ALLOW_READ_ROOT: this.sandbox?.rootDir || process.cwd() },
-      });
+      if (skill._trusted === true && skill.sandbox === false) {
+        // Trusted first-party skill that opts out of sandboxing (e.g. git-status,
+        // system-info) — run it in-process. The VM sandbox blocks the
+        // child_process/fs these skills legitimately need, which previously made
+        // them fail with "child process not allowed" and dead-ended the agent
+        // loop. Only src/skills/ built-ins are _trusted, so a generated skill
+        // cannot escape the sandbox by declaring "sandbox": false.
+        result = await this._runSkillNative(entryPath, input);
+      } else {
+        result = await this.sandbox.execute(execCode, {
+          allowRequire: true,
+          // FIX v6.1.1: Skills need read access to project files (fs path restrictions still enforced)
+          env: { GENESIS_SANDBOX_ALLOW_READ_ROOT: this.sandbox?.rootDir || process.cwd() },
+        });
+      }
       // v7.9.4: sandbox.execute returns { output, error, duration, ... }.
       // success = no execution error.
       success = !result.error;
@@ -259,7 +274,7 @@ class SkillManager {
       ${code}
       const _exported = Object.values(module.exports || {});
       const _direct = typeof module.exports === 'function' ? module.exports : null;
-      const _input = ${JSON.stringify(input)};
+      const _input = ${JSON.stringify({ cwd: this.sandbox?.rootDir, ...input })};
       let _result;
       // 1. Class with execute() on prototype
       const _SkillClass = _exported.find(v =>
@@ -292,6 +307,39 @@ class SkillManager {
       }
       console.log(JSON.stringify(_result));
     `;
+  }
+
+  /**
+   * v7.9.28: run a TRUSTED first-party skill in-process (not in the VM sandbox).
+   * Mirrors the four export shapes _buildExecCode accepts. Only reached for
+   * skills marked _trusted (loaded from the built-in skillsDir) whose manifest
+   * declares "sandbox": false — these legitimately need child_process/fs that
+   * the sandbox blocks. Returns the same { output, error, duration } shape as
+   * sandbox.execute so downstream success/telemetry logic is unchanged.
+   */
+  async _runSkillNative(entryPath, input) {
+    let mod;
+    try { delete require.cache[require.resolve(entryPath)]; } catch { /* fresh load best-effort */ }
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    mod = require(entryPath);
+    const _input = { cwd: this.sandbox?.rootDir || process.cwd(), ...input };
+    const exported = Object.values(mod || {});
+    const direct = typeof mod === 'function' ? mod : null;
+    let out;
+    const SkillClass = exported.find((v) => typeof v === 'function' && v.prototype && typeof v.prototype.execute === 'function');
+    if (SkillClass) {
+      out = await new SkillClass().execute(_input);
+    } else {
+      const objWithExecute = exported.find((v) => v && typeof v === 'object' && typeof v.execute === 'function');
+      if (objWithExecute) out = await objWithExecute.execute(_input);
+      else if (direct && typeof direct === 'function') out = await direct(_input);
+      else {
+        const plainFn = exported.find((v) => typeof v === 'function' && (!v.prototype || typeof v.prototype.execute !== 'function'));
+        if (plainFn) out = await plainFn(_input);
+        else throw new Error('Skill has no callable export (expected: class with execute(), plain function, or object with execute())');
+      }
+    }
+    return { output: typeof out === 'string' ? out : JSON.stringify(out), error: null, duration: 0, mode: 'native' };
   }
 
   /**

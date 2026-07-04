@@ -61,22 +61,39 @@ const dreamCyclePhases = {
       const decision = await this._askPinDecision(moment);
 
       if (decision === 'elevate' && this.coreMemories) {
-        try {
-          const coreMem = await this.coreMemories.markAsSignificant({
-            summary: moment.summary,
-            type: 'other',
-            userNote: 'pin-review-elevated',
-          });
-          if (coreMem && this.episodicMemory) {
-            this.episodicMemory.setProtected(moment.episodeId, true);
-            this.episodicMemory.setLinkedCoreMemoryId(moment.episodeId, coreMem.id);
+        // v7.9.28 (L4): elevation to a CoreMemory is a high-impact, self-shaping
+        // act. Gate it behind confirmation (default on) — propose and wait
+        // rather than self-elevate, unless the moment is already confirmed.
+        const _reqConfirm = this.settings?.get?.('memory.requireElevationConfirmation');
+        const _confirmEnabled = _reqConfirm === undefined ? true : !!_reqConfirm;
+        const _elevationAllowed = !_confirmEnabled || moment.elevationConfirmed === true;
+        if (!_elevationAllowed) {
+          try {
+            if (typeof this.coreMemories.markElevationProposed === 'function') {
+              await this.coreMemories.markElevationProposed({ momentId: moment.id, episodeId: moment.episodeId, summary: moment.summary });
+            }
+            if (this.bus?.fire) {
+              this.bus.fire('memory:elevation-proposed', { episodeId: moment.episodeId, momentId: moment.id, summary: moment.summary }, { source: 'DreamCycle' });
+            }
+          } catch (e) { _log.debug('[DREAM] elevation-proposed skipped:', e.message); }
+        } else {
+          try {
+            const coreMem = await this.coreMemories.markAsSignificant({
+              summary: moment.summary,
+              type: 'other',
+              userNote: 'pin-review-elevated',
+            });
+            if (coreMem && this.episodicMemory) {
+              this.episodicMemory.setProtected(moment.episodeId, true);
+              this.episodicMemory.setLinkedCoreMemoryId(moment.episodeId, coreMem.id);
+            }
+            this.bus.fire('memory:self-elevated', {
+              episodeId: moment.episodeId,
+              reason: 'pin-review-elevate',
+            }, { source: 'DreamCycle' });
+          } catch (e) {
+            _log.warn('[DREAM] elevate failed for', moment.id, '—', e.message);
           }
-          this.bus.fire('memory:self-elevated', {
-            episodeId: moment.episodeId,
-            reason: 'pin-review-elevate',
-          }, { source: 'DreamCycle' });
-        } catch (e) {
-          _log.warn('[DREAM] elevate failed for', moment.id, '—', e.message);
         }
       } else if (decision === 'let_fade') {
         this.bus.fire('memory:self-released', {

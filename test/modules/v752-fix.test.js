@@ -320,7 +320,7 @@ describe('v7.5.2/C · User-Chat-Schutz', () => {
     assertEqual(bridge._routingStats.autoRouted, 0);
   });
 
-  test('C5: ChatOrchestrator sets _userChat=true at all 4 sites', () => {
+  test('C5: ChatOrchestrator protects every user-facing model call from auto-routing', () => {
     const orchSrc = fs.readFileSync(
       path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8');
     const helpersSrc = fs.readFileSync(
@@ -332,9 +332,11 @@ describe('v7.5.2/C · User-Chat-Schutz', () => {
     const orchOccurrences = (orchSrc.match(/_userChat:\s*true/g) || []).length;
     assert(orchOccurrences >= 3,
       `ChatOrchestrator should have 3 _userChat:true occurrences (streamChat + 2 chat), got ${orchOccurrences}`);
+    // v7.9.28: the tool-loop synthesis AND the false-stop nudge are both
+    // user-facing model calls, so both are protected — at least 2 occurrences.
     const helpersOccurrences = (helpersSrc.match(/_userChat:\s*true/g) || []).length;
-    assertEqual(helpersOccurrences, 1,
-      'ChatOrchestratorHelpers should have 1 _userChat:true (synthesis)');
+    assert(helpersOccurrences >= 2,
+      `ChatOrchestratorHelpers should protect both user-facing calls (synthesis + false-stop nudge) with _userChat:true, got ${helpersOccurrences}`);
   });
 });
 

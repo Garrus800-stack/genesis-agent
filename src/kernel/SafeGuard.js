@@ -12,6 +12,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { createLogger } = require('../agent/core/Logger');
+const SourceTrust = require('../agent/core/SourceTrust');
+const { _isCriticalSystemPath, _isSecretFile } = require('../agent/core/shell/ShellSafety');
 
 const _log = createLogger('SafeGuard');
 
@@ -152,15 +154,31 @@ class SafeGuard {
    * @returns {true} on success
    * @throws Error when read would escape root or hit blacklisted paths
    */
-  validateRead(filePath) {
+  validateRead(filePath, opts = {}) {
     const resolved = path.resolve(filePath);
-
-    // Rule 1: Cannot read outside project root (prevents ../ escape
-    //         to arbitrary host files — /etc/passwd, ~/.ssh/…).
-    // v7.9.20: trailing-separator compare, same as validateWrite/isProtected.
     const inRoot = resolved === this.rootDir || resolved.startsWith(this.rootDir + path.sep);
+
+    // Rule 1: Cannot read outside project root (prevents ../ escape to
+    //         arbitrary host files — /etc/passwd, ~/.ssh/…).
+    // v7.9.28 (F0): a USER_CHAT origin lifts Rule 1 (the human named the path
+    //         in chat), but ONLY behind the absolute system/secret blocks,
+    //         which always remain. In-root reads are unchanged.
     if (!inRoot) {
-      throw new Error(`[SAFEGUARD] Read outside project root blocked: ${filePath}`);
+      if (SourceTrust.mayRunDirectly(opts.origin)) {
+        const absLower = resolved.toLowerCase();
+        const isWindows = process.platform === 'win32';
+        const sysHit = _isCriticalSystemPath(absLower, isWindows);
+        if (sysHit) {
+          throw new Error(`[SAFEGUARD] Read of critical system path blocked (${sysHit}): ${filePath}`);
+        }
+        const secretHit = _isSecretFile(absLower);
+        if (secretHit) {
+          throw new Error(`[SAFEGUARD] Read of secret file blocked (${secretHit}): ${filePath}`);
+        }
+        // lifted — fall through to Rule 2
+      } else {
+        throw new Error(`[SAFEGUARD] Read outside project root blocked: ${filePath}`);
+      }
     }
 
     // Rule 2: Blacklist — infrastructure paths that should never be

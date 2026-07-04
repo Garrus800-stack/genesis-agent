@@ -48,23 +48,23 @@ describe('#5 Branch-Coverage — _identity', () => {
 
   test('_identity prepends user name when user.name in memory (with identity)', () => {
     const richCtx = ctx({
-      memory: { db: { semantic: { 'user.name': { value: 'Garrus' } } } },
+      memory: { db: { semantic: { 'user.name': { value: 'Alex' } } } },
       _storage: {
         readJSON: () => ({ name: 'Genesis', text: 'core text here' }),
       },
     });
     const out = sections._identity.call(richCtx);
-    assert(/Du sprichst mit Garrus/.test(out),
+    assert(/Du sprichst mit Alex/.test(out),
       `expected userName line, got:\n${out}`);
   });
 
   test('_identity prepends user name in fallback path (no identity)', () => {
     const richCtx = ctx({
-      memory: { db: { semantic: { 'user.name': { value: 'Garrus' } } } },
+      memory: { db: { semantic: { 'user.name': { value: 'Alex' } } } },
       // _storage.readJSON returns null → fallback path
     });
     const out = sections._identity.call(richCtx);
-    assert(/Du sprichst mit Garrus/.test(out),
+    assert(/Du sprichst mit Alex/.test(out),
       `expected userName line in fallback, got:\n${out}`);
   });
 

@@ -20,7 +20,7 @@ const searchMethods = {
   // v7.9.11: TF-IDF scoring + file-token boost. Pre-fix every query word
   // scored equally (+2 text, +3 label), so a generic idea-node that
   // happened to contain a common word outranked a specific insight node
-  // referencing a named file. Garrus Win-trace 2026-05-25 showed 2 of 5
+  // referencing a named file. Alex Win-trace 2026-05-25 showed 2 of 5
   // top results being irrelevant for the query "references to Reflect.js
   // in the codebase". Now rare tokens (file names, specific identifiers)
   // get inverse-document-frequency weighting, and when the query

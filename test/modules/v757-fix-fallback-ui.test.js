@@ -7,7 +7,7 @@
 // exposed as pure helpers (fbAdd / fbRemove / fbMove / fbIsCloud) so it
 // can be tested without a DOM.
 //
-// Live motivation: Garrus saw the old <select multiple> dialog with 24
+// Live motivation: Alex saw the old <select multiple> dialog with 24
 // installed Ollama models and could not tell whether "marked" meant
 // "selected" — a documented usability failure that prevented the
 // fallback-chain from being configurable in practice. After live 403s
@@ -169,10 +169,10 @@ test('fbIsCloud: handles non-string / null safely', () => {
   assert(fbIsCloud({}) === false);
 });
 
-// ── Integration: simulate Garrus's flow ──────────────────────────
+// ── Integration: simulate Alex's flow ──────────────────────────
 
-test('integration: Garrus configures a 4-model fallback chain', () => {
-  // Start: empty chain, available models include Garrus's actual installed list
+test('integration: Alex configures a 4-model fallback chain', () => {
+  // Start: empty chain, available models include Alex's actual installed list
   let chain = [];
   // 1. Add primary fallback (local coder)
   chain = fbAdd(chain, 'qwen3-coder-next:q4_K_M');

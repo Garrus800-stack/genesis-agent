@@ -129,18 +129,17 @@ const sections = {
       // Trait bleibt unangetastet; er darf weiterhin tief fragen, nur
       // ohne rhetorische Ankündigung ("darf ich tiefer fragen?").
       'Kündige Tiefe nicht an — stell die Frage einfach, wenn sie drückt.',
-      // v7.5.9 ZIP 15a: Plan-Cards. When the user asks for a multi-step
-      // plan, an approach, or "what would you do step by step", emit a
-      // <plan>…</plan> block — the UI renders it as a structured card
-      // with numbered steps. Format:
+      // v7.5.9 ZIP 15a: Plan-Cards. v7.9.28: planning is allowed, but it must
+      // RUN TO COMPLETION. The field showed a compliant code model plan, do one
+      // step, then stop and ask "shall I proceed?" — leaving the user to prompt
+      // "weiter" over and over. So: a <plan> card is fine for genuinely
+      // multi-step work, but the model then carries it out step by step on its
+      // own, without pausing after each step to ask permission. Format:
       //   <plan title="Brief title">
       //   - First concrete step
       //   - Second concrete step
-      //   - Third concrete step
       //   </plan>
-      // Use it for genuinely multi-step intentions (3+ concrete actions),
-      // not for single-sentence answers or open-ended discussions.
-      'Bei mehrstufigen Aufgaben (3+ konkrete Schritte) nutze einen <plan title="…">…</plan> Block mit Schritten als "- ..."-Zeilen — die UI zeigt das als strukturierte Plan-Card.',
+      'Bei genuin mehrstufiger Arbeit darfst du vorab einen <plan title="…">…</plan> Block zeigen ("- ..."-Zeilen; die UI rendert ihn als Plan-Card) — setze ihn dann aber selbstständig Schritt für Schritt bis zur Fertigstellung um, ohne nach jedem Schritt "soll ich weitermachen?" zu fragen oder auf ein "weiter" zu warten. Bei einer konkreten Arbeitsanweisung ("baue X", "erstelle Y", "fix Z") arbeite direkt bis zum Ende und frag nicht um Erlaubnis. Nur wenn dir echte Information fehlt, die nur der Nutzer hat, frag gezielt nach.',
     ].join('\n');
     if (this.promptEvolution) {
       return this.promptEvolution.getSection('formatting', defaultText).text;

@@ -18,7 +18,7 @@
 // English: the model bridge is multilingual but trained primarily on
 // English. The static blocks (A, C) are in English so the model
 // receives consistent intent. Genesis answers in whatever language
-// the conversation has been using (typically German with Garrus).
+// the conversation has been using (typically German with Alex).
 // ============================================================
 
 'use strict';

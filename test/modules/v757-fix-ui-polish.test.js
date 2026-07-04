@@ -7,7 +7,7 @@
 //  - main.js installs a webContents 'context-menu' handler
 //  - The handler distinguishes editable / selection / empty cases
 //
-// Live motivation: Garrus saw model names truncated to "mistral-…" /
+// Live motivation: Alex saw model names truncated to "mistral-…" /
 // "mannix/d…" in the 440px-wide settings modal — similar prefixes were
 // indistinguishable. Plus: Genesis chat had no mouse-context-menu, only
 // Ctrl+C/V worked, which is unintuitive on Windows.
@@ -123,7 +123,7 @@ test('context-menu handler offers selectAll', () => {
     'must offer selectAll role');
 });
 
-test('context-menu strings are German (target audience: Garrus)', () => {
+test('context-menu strings are German (target audience: Alex)', () => {
   const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
   // The user uses Genesis in German; menu items should be German too.
   assert.ok(/Kopieren/.test(main), 'menu must include Kopieren');

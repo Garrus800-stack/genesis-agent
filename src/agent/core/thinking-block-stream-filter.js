@@ -45,6 +45,7 @@ function _findEarliest(text, patterns) {
  */
 function createThinkingBlockStreamFilter() {
   let inside = false;
+  let everOpened = false;
   let buffer = '';
   let reasoning = '';
 
@@ -62,17 +63,30 @@ function createThinkingBlockStreamFilter() {
         if (!inside) {
           const open = _findEarliest(buffer, _OPEN_PATTERNS);
           if (open.idx === -1) {
-            // No open tag yet. Keep the last MAX_OPEN_LEN chars in case
-            // the open tag straddles the next chunk boundary.
-            if (buffer.length > _MAX_OPEN_LEN) {
-              out += buffer.slice(0, -_MAX_OPEN_LEN);
-              buffer = buffer.slice(-_MAX_OPEN_LEN);
+            // v7.9.28 (F6): a close tag while NOT inside a block (no open
+            // precedes it) is orphan noise — strip it instead of leaking the
+            // stray </think> downstream. The model sometimes emits a lone
+            // close after an unmarked reasoning span.
+            const orphan = _findEarliest(buffer, _CLOSE_PATTERNS);
+            if (orphan.idx !== -1) {
+              out += buffer.slice(0, orphan.idx);
+              buffer = buffer.slice(orphan.idx + orphan.tag.length);
+              continue;
+            }
+            // Keep a boundary tail in case a tag straddles the next chunk. When
+            // no block has opened yet, the tail must also cover the (longer)
+            // close tag so a straddling orphan close isn't emitted early.
+            const _keep = everOpened ? _MAX_OPEN_LEN : Math.max(_MAX_OPEN_LEN, _MAX_CLOSE_LEN);
+            if (buffer.length > _keep) {
+              out += buffer.slice(0, -_keep);
+              buffer = buffer.slice(-_keep);
             }
             break;
           }
           out += buffer.slice(0, open.idx);
           buffer = buffer.slice(open.idx + open.tag.length);
           inside = true;
+          everOpened = true;
         } else {
           const close = _findEarliest(buffer, _CLOSE_PATTERNS);
           if (close.idx === -1) {
@@ -104,8 +118,10 @@ function createThinkingBlockStreamFilter() {
         buffer = '';
         return '';
       }
-      const tail = buffer;
+      let tail = buffer;
       buffer = '';
+      // v7.9.28 (F6): drop a trailing orphan close tag held for boundary-check.
+      tail = tail.replace(/<\/think(?:ing)?>/gi, '');
       return tail;
     },
 

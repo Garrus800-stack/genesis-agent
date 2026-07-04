@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // v7.7.9 Phase 3 — Bug 3 regression test
 //
-// Live-Befund (Garrus, 2026-05-10): step blocked — missing resources:
+// Live-Befund (Alex, 2026-05-10): step blocked — missing resources:
 //   file:logs\self-statement.log
 // The path "logs\self-statement.log" does not exist in the codebase
 // (correct path is .genesis/self-statement-log/). The LLM hallucinated.

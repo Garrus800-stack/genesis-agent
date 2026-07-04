@@ -490,6 +490,8 @@ const EVENTS = Object.freeze({
     STEP_START:  'goal:step-start',
     CREATE_FILE: 'goal:create-file',
     ABANDONED:   'goal:abandoned',
+    PURSUIT_STRUGGLING: 'goal:pursuit-struggling',
+    CAPABILITY_FAILED:  'goal:capability-failed',
     /** v7.3.1: Capability-gate blocked a duplicate goal proposal */
     /** @payload {{ goalId: string, matchScore: number, matchedCapability: string, source: string }} */
     BLOCKED_AS_DUPLICATE: 'goal:blocked-as-duplicate',
@@ -828,6 +830,7 @@ const EVENTS = Object.freeze({
     /** v7.3.7: DreamCycle elevated a pinned episode after pin-review window */
     /** @payload {{ episodeId: string, reason: string }} */
     SELF_ELEVATED:  'memory:self-elevated',
+    ELEVATION_PROPOSED: 'memory:elevation-proposed',
     /** v7.3.7: Pinned episode let_fade after pin-review — back to normal decay */
     /** @payload {{ episodeId: string }} */
     SELF_RELEASED:  'memory:self-released',
@@ -1098,6 +1101,7 @@ const EVENTS = Object.freeze({
     SYNTHESIZED:       'tool:synthesized',
     /** @payload {{ description: string }} */
     SYNTHESIS_FAILED:  'tool:synthesis-failed',
+    PRECHECK_MISSING:  'tool:precheck-missing',
     // v7.5.9 ZIP1 Phase 0.3: emitted when LLM signaled tool intent
     // ("Tools ausführen...", "let me use ...") but emitted no parseable
     // tool_call block. ChatOrchestrator issues exactly one corrective

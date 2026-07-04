@@ -333,8 +333,8 @@ class ChatOrchestrator {
       // v7.5.1: pass intent.type so intent-tool-coherence can cross-check
       // tool-category against the IntentRouter classification.
       cleanResponse = await _h._processToolLoop(cleanResponse, onChunk, message, intent.type);
-
       this.history.push({ role: 'assistant', content: cleanResponse });
+      require('./LastDocStore').rememberOutput(cleanResponse); // v7.9.28: enable "speichere es"
       this._saveHistory();
       this.bus.fire('chat:completed', { message, response: cleanResponse, intent: intent.type, success: true, backend: this.model.activeBackend || 'unknown', tokens: Math.ceil((cleanResponse || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
 
@@ -579,7 +579,7 @@ class ChatOrchestrator {
 
           // Feed results back to LLM for next response
           history.push({ role: 'assistant', content: response });
-          history.push({ role: 'user', content: `Tool results:\n${toolResults.join('\n')}\n\nContinue based on these results. Do NOT repeat the tool calls.` });
+          history.push({ role: 'user', content: `Tool results:\n${toolResults.join('\n')}\n\nContinue based on these results. Do NOT repeat the tool calls. Respond in the same language the user used in their message above, regardless of the language of these tool results.` });
           raw = await this.model.chat(ctx.system, history, 'chat', { _userChat: true });  // v7.5.2
           stripped = stripThinkingBlocks(raw);
           if (stripped.reasoning) reasoningParts.push(stripped.reasoning);

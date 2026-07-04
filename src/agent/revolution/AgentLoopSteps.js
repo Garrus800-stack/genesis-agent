@@ -231,6 +231,27 @@ class AgentLoopStepsDelegate {
         }
       }
 
+      // v7.9.28 (Baustein C): proactive tool precheck — for a SHELL step, if the
+      // tool it invokes is not on PATH, surface a missing-tool signal BEFORE the
+      // step fails so the existing reactive install/recovery path can act. Best-
+      // effort + deduped per loop; never blocks the step.
+      if (step.type === 'SHELL' && (step.command || step.target)) {
+        try {
+          const { extractToolFromShellStep, checkToolAvailable } = require('./ToolPrecheck');
+          const _tool = extractToolFromShellStep(step.command || step.target);
+          if (_tool) {
+            this.__precheckedTools = this.__precheckedTools || new Set();
+            if (!this.__precheckedTools.has(_tool)) {
+              this.__precheckedTools.add(_tool);
+              const _available = await checkToolAvailable(_tool);
+              if (!_available && loop.bus?.fire) {
+                loop.bus.fire('tool:precheck-missing', { tool: _tool, step: step.description || step.command || _tool }, { source: 'AgentLoopSteps' });
+              }
+            }
+          }
+        } catch (e) { _log.debug('[STEPS] tool precheck skipped:', e.message); }
+      }
+
       // v7.9.20 (C): an installed, autonomous, AST-cleared skill may fulfil
       // this step before the built-in switch. Gate failures fall through.
       const _skillStepResult = await this._stepHandledBySkill(step, enrichedContext);

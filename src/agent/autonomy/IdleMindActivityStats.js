@@ -81,7 +81,7 @@ const activityStatsMixin = {
         lastUpdated: Date.now(),
         // v7.9.11: persist thoughtCount alongside activityCounts. Pre-fix
         // the dashboard showed "0 thoughts · idle 24min" next to stored
-        // activity counts in double digits (Garrus's Win field-trace
+        // activity counts in double digits (Alex's Win field-trace
         // 2026-05-25 showed explore 5 · ideate 5 · reflect 4 · plan 4 ·
         // research 4 = 22 stored activities next to "0 thoughts"). Cause
         // was activityCounts on disk + thoughtCount session-only.

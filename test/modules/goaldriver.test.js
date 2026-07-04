@@ -178,7 +178,7 @@ async function runTests() {
   });
 
   // v7.4.5.1: Fresh user-goal that crashed before its first step still
-  // gets surfaced — Garrus's live-test scenario.
+  // gets surfaced — Alex's live-test scenario.
   await test('boot pickup: fresh user-goal at currentStep=0 still gets prompted (24h window)', async () => {
     const bus = new EventBus({ verbose: false });
     const stack = makeStack([

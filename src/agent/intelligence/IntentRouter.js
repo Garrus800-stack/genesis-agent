@@ -124,6 +124,11 @@ class IntentRouter {
   _isCodeGenRequest(message) {
     // Only trigger if the message does NOT mention "skill" explicitly
     if (/\bskill\b/i.test(message)) return false;
+    // v7.9.28 (field-fix #3): an explicit "create a file named X" / "erstelle
+    // eine datei namens X" is a file-creation command handled by create-file —
+    // even when the filename collides with a codegen keyword like "test", "api"
+    // or "server" (which otherwise made the guard steal the request to general).
+    if (/\b(?:datei|dokument|file|document)\s+(?:mit\s+namen?|namens|named|called)\b/i.test(message)) return false;
 
     return /\b(?:write|create|generate|build|implement|code|make)\b.*\b(?:function|class|component|module|script|program|api|endpoint|server|handler|middleware|route|hook|test|util)\b/i.test(message)
         || /\b(?:schreib|erstell|bau|implementier|generier|programmier)\b.*\b(?:funktion|klasse|komponente|modul|script|programm|server|handler|test)\b/i.test(message);
@@ -155,7 +160,7 @@ class IntentRouter {
     // v7.9.9 (B): Extended introduction — greeting prefix followed by narrative
     // identity or relational framing, with no action verb. Catches patterns the
     // pure-greeting regex above misses because text continues after the greeting:
-    //   "Hallo Genesis, ich bin Daniel. Ich muss dir Status geben..."
+    //   "Hallo Genesis, ich bin Alex. Ich muss dir Status geben..."
     //   "Hi Genesis, du bist ein autonomer Agent..."
     // Pre-fix these classified as goals; FormalPlanner decomposed them into
     // multi-step code-modification plans. Now they route as general chat.
@@ -249,10 +254,43 @@ class IntentRouter {
       }
     }
 
+    // v7.9.28 (F2/G5): a capability-framed COMMAND ("kannst du firefox öffnen",
+    // "could you open the report") is an action request, not chat. Return null
+    // so it falls through to the action patterns instead of being answered as a
+    // conversational question. JS \b is ASCII-only and does NOT match before an
+    // umlaut-initial verb (öffne), so the verb test uses (?:^|\s).
+    const isCapabilityCommand =
+      /(?:kannst|könntest|könnt|kannste|could|can|would|will|würdest)\s+(?:du|ihr|you)\b/i.test(trimmed)
+      && /(?:^|\s)(?:oeffne|öffne|öffnen|open|starte|start|zeig|show|lies|read|lesen|mach|führ|fuehr|run|execute|liste|list|auflist|suche|such|find|fass|zusammenfass|summariz|erstell|create|schreib|write|speicher|save)/i.test(trimmed);
+    if (isCapabilityCommand) return null;
+
+    // v7.9.28 (field-fix #3): a file/folder-view request phrased as a question
+    // ("welche dateien sind im ordner", "was steht in dem dokument x1",
+    // "which files are in the folder", "how many files") is an ACTION command,
+    // not conversational chat. The question-word check below matched "welche "
+    // / "was " and short-circuited these to general-chat, so the deterministic
+    // list-folder / read-file handlers never ran and the model fell back to a
+    // shell command that failed on the OneDrive path. "wieviele" happened to
+    // escape only because it has no space after "wie". Return null (both
+    // languages) so these fall through to the action patterns.
+    const isFileViewCommand =
+      /^\s*(?:welche|wie\s*viele?|wieviel|which|how\s+many)\s+(?:datei|ordner|elemente|dinge|files?|folders?|items?)/i.test(trimmed)
+      || /\bwas\s+steht\s+(?:in|im|drin|da\b)/i.test(trimmed)
+      || /\bwas\s+ist\s+(?:in|im)\s+(?:dem\s+|der\s+|einem\s+|the\s+|this\s+)?(?:datei|dokument|file|document)\b/i.test(trimmed)
+      || /\bwas\s+ist\s+(?:der\s+|das\s+)?inhalt\b/i.test(trimmed)
+      || /^\s*(?:liste?|list)\s+(?:mir\s+|the\s+)?(?:den\s+)?(?:ordner)?(?:inhalt|dateien|files?|folder|directory|contents?)/i.test(trimmed)
+      || /^\s*(?:which|what)\s+files?\b/i.test(trimmed)
+      || /\bwhat(?:'s|\s+is)?\s+(?:in|inside)\s+(?:the\s+|this\s+)?(?:folder|directory|dir|file|document)\b/i.test(trimmed)
+      || /^\s*(?:read|show)\s+(?:me\s+)?(?:the\s+)?(?:file|document|contents?\s+of|folder|directory)\b/i.test(trimmed)
+      || /^\s*(?:zeig|lies)\b[\s\S]*\b(?:drin|da|inhalt|es)\b/i.test(trimmed)
+      || /^\s*welche\s+sind\s+(?:das|es|drin|die)\b/i.test(trimmed)
+      || /\b(?:datei(?:en|n)?|ordner|sie)\s+auf(?:zu)?listen?\b/i.test(trimmed);
+    if (isFileViewCommand) return null;
+
     const hasQuestionWord = /^(wie|was|warum|wieso|wer|wann|wo|welche?s?)\s/i.test(trimmed);
     // Action-verb regex: leading \b, but no trailing \b — we want
     // "erstelle", "erstellen", "baue", "baust" to all match via stem.
-    const hasActionVerb = /\b(erstell|baue|fix|deploy|starte|führe\s+aus|run\s|execute|compile|push|commit)/i.test(trimmed);
+    const hasActionVerb = /\b(erstell|baue|fix|deploy|starte|führe\s+aus|run\s|execute|compile|push|commit)|(?:^|\s)(?:fass|zusammenfass|summariz|lies|lesen|auflist|schreib|write|speicher|save)/i.test(trimmed);
     const endsWithQuestion = /\?$/.test(trimmed);
 
     if (hasQuestionWord && !hasActionVerb) {
@@ -328,14 +366,19 @@ class IntentRouter {
   // ── Phase 1: Regex ────────────────────────────────────────
 
   _regexClassify(message) {
+    // v7.9.28 (field-fix #3): explicit "create a file named X" / "erstelle eine
+    // datei namens X" is create-file, never code-gen — even when X collides with
+    // a codegen keyword (api, server, app, test). Checked before both code-gen
+    // guards below so the filename does not steal the request to general.
+    const _isNamedFileCreate = /\b(?:datei|dokument|file|document)\s+(?:mit\s+namen?|namens|named|called)\b/i.test(message);
     // v6.0.5: Code-generation guard — "Write a function/class/component" is CHAT,
     // not create-skill. Without this, the LLM fallback misclassifies code requests
     // as skill creation, which creates empty skill files instead of generating code.
-    if (/^(?:write|create|build|implement|make|generate|code)\s+(?:a|an|me|the)\s+(?:\w+\s+)*(?:function|class|component|module|script|program|endpoint|route|handler|api|server|app|algorithm|method)/i.test(message)) {
+    if (!_isNamedFileCreate && /^(?:write|create|build|implement|make|generate|code)\s+(?:a|an|me|the)\s+(?:\w+\s+)*(?:function|class|component|module|script|program|endpoint|route|handler|api|server|app|algorithm|method)/i.test(message)) {
       return { type: 'general', confidence: 0.95, match: 'code-gen-request' };
     }
     // German equivalent
-    if (/^(?:schreib|erstell|bau|implementier|generier|programmier)\s+(?:eine?n?|mir|die|das)\s+(?:\w+\s+)*(?:funktion|klasse|komponente|modul|skript|programm|endpunkt|route|handler|api|server|app|algorithmus|methode)/i.test(message)) {
+    if (!_isNamedFileCreate && /^(?:schreib|erstell|bau|implementier|generier|programmier)\s+(?:eine?n?|mir|die|das)\s+(?:\w+\s+)*(?:funktion|klasse|komponente|modul|skript|programm|endpunkt|route|handler|api|server|app|algorithmus|methode)/i.test(message)) {
       return { type: 'general', confidence: 0.95, match: 'code-gen-request-de' };
     }
 

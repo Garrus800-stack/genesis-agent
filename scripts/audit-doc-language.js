@@ -5,7 +5,7 @@
 // Catches two classes of discipline violation in the project's
 // English documentation:
 //
-//   1. Personal names (Daniel, Garrus, Camj78, …) that should
+//   1. Personal maintainer names that should
 //      not appear in CHANGELOG/README/CONTRIBUTING/docs. The
 //      maintainer-name convention is "the maintainer" / "in
 //      field testing" / passive voice — narrative-only files
@@ -73,10 +73,10 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 // engineering pattern identifier, not a personal name. It
 // appears in GATE-INVENTORY.md and SECURITY.md as a security
 // pattern reference and that usage is intended.
-const PERSONAL_NAMES = [
-  'Daniel',
-  'Garrus',
-];
+// v7.9.28: the maintainer's real name was anonymized out of the repo, so this
+// name denylist is intentionally empty. The German-word check below stays active.
+// Add names here to re-enable personal-name detection in English docs.
+const PERSONAL_NAMES = [];
 
 // Genesis architecture proper-nouns that ARE allowed in English text.
 // Compound tokens (Whitelist-Word-EnglishPart) are also allowed via

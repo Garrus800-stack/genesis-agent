@@ -58,7 +58,7 @@ describe('v7.6.3 S1 — classifyToolSource heuristic', () => {
     assert(classifyToolSource('file-read', { path: '/home/garrus/Documents/notes.md' }) === 'file:user');
     assert(classifyToolSource('file-read', { path: '/home/garrus/Desktop/file.csv' }) === 'file:user');
     assert(classifyToolSource('file-read', { path: '/mnt/user-data/uploads/photo.jpg' }) === 'file:user');
-    assert(classifyToolSource('file-read', { path: 'C:\\Users\\Garrus\\Downloads\\foo.txt' }) === 'file:user');
+    assert(classifyToolSource('file-read', { path: 'C:\\Users\\Alex\\Downloads\\foo.txt' }) === 'file:user');
   });
 
   test('injection-gate contract: file-read of project source → file:internal', () => {

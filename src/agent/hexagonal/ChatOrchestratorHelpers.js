@@ -9,6 +9,7 @@ const { scanForInjection, formatGateResponse, formatWarnAnnotation, classifyTool
 const { verifyToolClaims, formatVerificationNote } = require('../core/tool-call-verification');
 const { recordCoherenceCheck } = require('../core/intent-tool-coherence');
 const { stripThinkingBlocks } = require('../core/thinking-block-stream-filter');
+const { extractReadOnlyShellCommands } = require('../core/shell/shell-fence-extract');
 const _log = createLogger('ChatOrchestrator');
 
 
@@ -23,6 +24,8 @@ const helpers = {
   async _processToolLoop(response, onChunk, userMessage, intentType = 'general') {
     let fullText = response;
     let lastCallSignature = null;
+    let nudges = 0; // v7.9.28: bounded false-stop recoveries (see loop break)
+    let shellRuns = 0; // v7.9.28: bounded read-only shell-fence executions
     // v7.3.5: Accumulate every tool call fired across rounds, for the
     // post-loop verification check (commit 7).
     const allToolCalls = [];
@@ -68,8 +71,43 @@ const helpers = {
     } catch (err) { /* best effort — null system prompt is still better than nothing */ }
 
     for (let round = 0; round < this.maxToolRounds; round++) {
-      const { text, toolCalls } = this.tools.parseToolCalls(fullText);
-      if (toolCalls.length === 0) break;
+      let { text, toolCalls } = this.tools.parseToolCalls(fullText);
+      if (toolCalls.length === 0) {
+        // v7.9.28: some models write shell commands as ```bash fences instead of
+        // tool calls, so nothing ran and they looped. Run the READ-ONLY ones via
+        // the shell tool (OS-adapted → cat→type on Windows); write/destructive
+        // ones are rejected and stay a shown block. Bounded by shellRuns + rounds.
+        const fenceCmds = (shellRuns < 3 && round < this.maxToolRounds - 1)
+          ? extractReadOnlyShellCommands(text) : [];
+        if (fenceCmds.length) {
+          shellRuns++;
+          toolCalls = fenceCmds.map((command) => ({ name: 'shell', input: { command } }));
+          // fall through to execution below (gate + dedup + synthesis apply)
+        } else {
+        // v7.9.28: false-stop recovery. A capable model often does ONE tool
+        // round, then narrates the next step ("Next, I'll read ARCHITECTURE.md",
+        // "Ich schaue mir jetzt …") and emits no tool call — so the loop ended
+        // after one round and the user had to re-send the request each step.
+        // If the text clearly announces a next action (rather than delivering a
+        // final answer), nudge the model once to actually perform it. Bounded by
+        // a nudge cap AND the round budget, so it cannot run away.
+        const announcesNext = /\b(?:next[,]?\s+i(?:'ll| will)|i(?:'ll| will)\s+(?:now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|implement|write|start|proceed|continue|locate)|let me\s+(?:first\s+|now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|start|locate)|als\s+n[äa]chstes|ich\s+(?:schaue|lese|pr[üu]fe|erkunde|sehe|beginne|baue|erstelle|starte|werde|inspiziere|untersuche))/i.test(text || '');
+        if (announcesNext && nudges < 3 && round < this.maxToolRounds - 1) {
+          nudges++;
+          try {
+            const rawNudge = await this.model.chat(
+              systemPrompt || 'You are Genesis. Respond in the user\'s language.',
+              [{ role: 'user', content: `You are carrying out: "${String(userMessage || '').slice(0, 400)}"\n\nYou just said you would continue:\n"${String(text).slice(0, 400)}"\n\n— but you emitted no tool call, so nothing happened. Perform that step NOW: emit the tool call. If you already have enough context, produce the FINAL result in full (the requested code and files). Do not describe what you will do — do it.` }],
+              'chat',
+              { _userChat: true }
+            );
+            const { clean: nudge } = stripThinkingBlocks(rawNudge);
+            if (nudge && nudge.trim()) { onChunk('\n' + nudge); fullText = text + '\n\n' + nudge; continue; }
+          } catch (_e) { /* nudge best-effort — fall through to break */ }
+        }
+        break;
+        }
+      }
 
       // v7.3.6 #11 — Multi-Round Gate Re-Check.
       // The initial preCheck at line 30-45 caught block-verdict + tools in the
@@ -210,9 +248,15 @@ const helpers = {
         return `[${r.name}]: ${JSON.stringify(r.result).slice(0, 500)}`;
       }).join('\n');
 
-      // Synthesize with tool results — now WITH system prompt and conversation context
+      // Synthesize with tool results — now WITH system prompt and conversation
+      // context. v7.9.28: the prompt drives CONTINUATION, not a narrated stop.
+      // The old "summarize the results and respond to the user" steered the
+      // model into "I inspected… Next, I'll read…" and then it emitted no tool
+      // call, so the loop ended after one round and the user had to re-send.
+      // Now it is framed as carrying out the task: emit the next tool call, or
+      // deliver the finished result — do not merely describe the next step.
       const synthesisMessages = [
-        { role: 'user', content: `Previous response:\n${text.slice(0, 1500)}\n\nTool results (round ${round + 1}):\n${resultSummary}\n\nSummarize the tool results and respond to the user. Use additional tools if needed.` },
+        { role: 'user', content: `You are carrying out this request: "${String(userMessage || '').slice(0, 500)}"\n\nYour previous step:\n${text.slice(0, 1500)}\n\nTool results (round ${round + 1} of ${this.maxToolRounds}):\n${resultSummary}\n\nContinue the task now. If it is not yet complete, emit the NEXT tool call to make progress — do NOT merely describe what you will do next. If you already have what you need, produce the final result in full (e.g. the requested code and files). Only stop to ask the user if you genuinely need information that only they can provide.` },
       ];
 
       const rawSynthesis = await this.model.chat(

@@ -23,34 +23,12 @@ const { STOP_WORDS } = require('../core/utils');
 const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('LearningService');
 
-// v7.9.27: "ich bin X" / "i am X" is ambiguous — a name ("ich bin Daniel") or
+// v7.9.27: "ich bin X" / "i am X" is ambiguous — a name ("ich bin Alex") or
 // a role/state ("ich bin Entwickler" / "ich bin müde"). STOP_WORDS already
 // covers filler ("oft", "gut"), but not professions or states, so a role term
 // would otherwise be read as a name. This local set extends that judgement for
 // the self-reference patterns only; STOP_WORDS itself is shared and left as-is.
-const NAME_NEGATIVE = new Set([
-  // roles / occupations (DE)
-  'entwickler', 'entwicklerin', 'programmierer', 'programmiererin', 'designer',
-  'informatiker', 'student', 'studentin', 'schueler', 'schülerin', 'lehrer',
-  'lehrerin', 'ingenieur', 'arzt', 'ärztin', 'aerztin', 'anwalt', 'manager',
-  'berater', 'admin', 'administrator', 'nutzer', 'benutzer', 'mensch', 'mann',
-  'frau', 'kind', 'vater', 'mutter', 'freund', 'freundin', 'chef', 'chefin',
-  'mitarbeiter', 'kunde', 'gast', 'autor', 'künstler', 'kuenstler', 'forscher',
-  // roles / occupations (EN)
-  'developer', 'programmer', 'engineer', 'scientist', 'doctor', 'lawyer',
-  'teacher', 'pupil', 'consultant', 'user', 'human', 'person', 'man', 'woman',
-  'child', 'father', 'mother', 'friend', 'boss', 'employee', 'customer', 'guest',
-  'author', 'artist', 'researcher', 'founder', 'dev',
-  // transient states (DE)
-  'müde', 'muede', 'krank', 'gesund', 'traurig', 'glücklich', 'gluecklich',
-  'hungrig', 'durstig', 'wach', 'fertig', 'bereit', 'beschäftigt', 'gestresst',
-  'entspannt', 'neugierig', 'zufrieden', 'sicher', 'unsicher', 'da', 'zurück',
-  'zurueck', 'online', 'offline', 'weg',
-  // transient states (EN)
-  'tired', 'sick', 'ill', 'healthy', 'sad', 'happy', 'hungry', 'thirsty',
-  'awake', 'ready', 'busy', 'stressed', 'relaxed', 'curious', 'fine', 'okay',
-  'back', 'online', 'offline', 'away', 'done',
-]);
+const { NAME_NEGATIVE } = require('../foundation/name-classification');
 
 class LearningService {
   constructor({ bus,  memory, knowledgeGraph, eventStore, storageDir, intervals, storage }) {

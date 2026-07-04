@@ -40,7 +40,7 @@ describe('SAFE_SLASH_FALLTHROUGH set', () => {
 });
 
 describe('enforceSlashDiscipline — friendly-chat regression', () => {
-  // The exact message Garrus sent that triggered the original bug:
+  // The exact message Alex sent that triggered the original bug:
   const friendlyChat = 'na, läuft alles, oder hast was auf dem herzen';
 
   test('proactive-status mis-classification on friendly chat → silent general fallthrough', () => {

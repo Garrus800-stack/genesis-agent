@@ -81,10 +81,10 @@ describe('PromptBuilderSections: Identity', () => {
 
   test('returns personalized identity with user name', () => {
     const builder = createBuilder({
-      memory: { db: { semantic: { 'user.name': { value: 'Garrus' } } } },
+      memory: { db: { semantic: { 'user.name': { value: 'Alex' } } } },
     });
     const result = builder._identity();
-    assert(result.includes('Garrus'), 'should include user name');
+    assert(result.includes('Alex'), 'should include user name');
   });
 });
 

@@ -715,6 +715,11 @@ class AutonomousDaemon {
     };
     this.gapAttempts.set(gapId, updated);
     this._saveSkillAttempts();
+    // v7.9.28 (E2): a skill failure that triggers lockout is an autonomous
+    // capability failure — surface it to affect instead of letting it vanish.
+    if (updated.lockoutUntil > 0 && this.bus?.fire) {
+      this.bus.fire('goal:capability-failed', { topic: String(gapId), reason: String(reason || 'lockout') }, { source: 'AutonomousDaemon' });
+    }
   }
 
   // ── Public API ───────────────────────────────────────────

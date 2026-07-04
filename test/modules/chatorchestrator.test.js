@@ -233,6 +233,45 @@ async function runAsync() {
     assert(round <= 3, `Expected dedup to break loop, ran ${round} rounds`);
   });
 
+  await test('_processToolLoop nudges past a false stop (model narrates next step, emits no tool call)', async () => {
+    // Round 1 has a tool call; the synthesis then narrates "Next, I'll read …"
+    // with no tool call. The false-stop recovery must re-prompt and let the
+    // model finish, instead of ending the turn after one round.
+    const mocks = createMocks();
+    let phase = 0;
+    mocks.tools.parseToolCalls = (text) => {
+      if (/INSPECT/.test(text) && !/DONE_BUILT/.test(text)) return { text: 'inspecting', toolCalls: [{ name: 'file-list', input: { dir: 'src' } }] };
+      return { text, toolCalls: [] };
+    };
+    let chatCalls = 0;
+    mocks.model.chat = async (sys, msgs) => {
+      chatCalls++;
+      const content = msgs.map((m) => m.content).join(' ');
+      if (/Tool results/.test(content) && phase === 0) { phase = 1; return "I inspected. Next, I'll read ARCHITECTURE.md to fit conventions."; }
+      if (/emitted no tool call/i.test(content) || /Perform that step NOW/i.test(content)) return 'Finished: DONE_BUILT ```js\nconst x=1;\n```';
+      return 'ok';
+    };
+    const co = new ChatOrchestrator(mocks);
+    const result = await co._processToolLoop('INSPECT', () => {}, 'Build a REST API module for Genesis with tests', 'general');
+    assert(/DONE_BUILT/.test(result), 'model continued past the false stop and produced the build');
+    assert(chatCalls >= 2, 'the model was actually nudged (synthesis + nudge)');
+  });
+
+  await test('_processToolLoop does NOT nudge when the model delivers a real result', async () => {
+    const mocks = createMocks();
+    mocks.tools.parseToolCalls = (text) => (/INSPECT/.test(text) && !/const y/.test(text))
+      ? { text: 'inspecting', toolCalls: [{ name: 'file-list', input: {} }] }
+      : { text, toolCalls: [] };
+    mocks.model.chat = async (sys, msgs) => {
+      const content = msgs.map((m) => m.content).join(' ');
+      if (/Tool results/.test(content)) return 'Done. Here is the code: ```js\nconst y=2;\n```';
+      return 'ok';
+    };
+    const co = new ChatOrchestrator(mocks);
+    const result = await co._processToolLoop('INSPECT', () => {}, 'build X', 'general');
+    assert(/const y/.test(result) && !/emitted no tool call/.test(result), 'delivered result, no needless nudge');
+  });
+
   // ── Code Block Extraction ─────────────────────────────────
 
   await test('_extractCodeBlocks finds code in response', () => {

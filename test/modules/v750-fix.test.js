@@ -115,7 +115,7 @@ const ROOT = path.join(__dirname, '..', '..');
   });
 
   await test('B4: explanation containing /goal /goal still routes (slash present)', () => {
-    // This is the v7.4.9 case where Garrus wrote "Du hast /goal add/list/cancel/clear"
+    // This is the v7.4.9 case where Alex wrote "Du hast /goal add/list/cancel/clear"
     // explaining slash-commands. With slash-discipline the routing IS to goals
     // (slash present), but the new subcommand parser handles the malformed
     // form gracefully without destructive action.

@@ -37,7 +37,7 @@ const { isCloudSyncPath, readFileWithTimeout, safeReadFileForBoot, CLOUD_SYNC_PA
 // ── Windows OneDrive ──────────────────────────────────────
 
 test('Windows: \\OneDrive\\ root is cloud-sync', () => {
-  assert.strictEqual(isCloudSyncPath('C:\\Users\\Garrus\\OneDrive\\Desktop\\Genesis'), true);
+  assert.strictEqual(isCloudSyncPath('C:\\Users\\Alex\\OneDrive\\Desktop\\Genesis'), true);
 });
 
 test('Windows: OneDrive - Personal variant', () => {

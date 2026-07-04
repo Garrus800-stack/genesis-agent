@@ -157,9 +157,9 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
 
   await test('Windows full path is preserved', async () => {
     const ctx = makeMockCtx();
-    await commandHandlersShell.openPath.call(ctx, 'öffne C:\\Users\\Garrus\\Desktop');
+    await commandHandlersShell.openPath.call(ctx, 'öffne C:\\Users\\Alex\\Desktop');
     const opened = extractedPath(ctx._calls[0]);
-    assertEqual(opened, 'C:\\Users\\Garrus\\Desktop');
+    assertEqual(opened, 'C:\\Users\\Alex\\Desktop');
   });
 
   await test('Windows path with trailing punctuation is stripped', async () => {

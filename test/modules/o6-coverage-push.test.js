@@ -28,13 +28,13 @@ describe('O-6: _identity fallback', () => {
 
   test('fallback with userName prepends anrede', () => {
     const ctx = {
-      memory: { db: { semantic: { 'user.name': { value: 'Garrus' } } } },
+      memory: { db: { semantic: { 'user.name': { value: 'Alex' } } } },
       selfModel: null,
       model: null,
       _storage: { readJSON: () => null },
     };
     const out = sections._identity.call(ctx);
-    if (!out.startsWith('Du sprichst mit Garrus.')) throw new Error('userName not used');
+    if (!out.startsWith('Du sprichst mit Alex.')) throw new Error('userName not used');
   });
 
   test('self-identity present uses its text', () => {

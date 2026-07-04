@@ -32,7 +32,7 @@ function mockIdleMind(storage, llmResponse) {
       activeModel: 'test-model',
     },
     selfModel: { manifest: { version: '7.3.2' } },
-    memory: { getUserName: () => 'Garrus' },
+    memory: { getUserName: () => 'Alex' },
     kg: { getStats: () => ({ nodes: 10, edges: 5 }) },
     lessonsStore: {
       getStats: () => ({ totalLessons: 3 }),
@@ -53,7 +53,7 @@ describe('v7.3.2 — SelfDefine preserves coreMemories on rewrite', () => {
     // Seed identity with 2 existing core memories
     storage.writeJSON('self-identity.json', {
       name: 'Genesis',
-      operator: 'Garrus',
+      operator: 'Alex',
       version: '7.3.2',
       revision: 5,
       coreMemories: [

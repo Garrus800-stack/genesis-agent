@@ -6,7 +6,7 @@
 // paths to backslashes on Windows. cmd switches (/V, /C, /e etc.)
 // and quoted strings stay intact.
 //
-// Reproduces Garrus's Win field-trace 2026-05-25 scenario where
+// Reproduces Alex's Win field-trace 2026-05-25 scenario where
 // `cat src/agent/X.js` adapted to `type src/agent/X.js` and cmd.exe
 // interpreted `/agent` as switches `/a /g /e /n /t`, producing
 // "Die Syntax für den Dateinamen ist falsch".

@@ -68,7 +68,7 @@ describe('v7.3.7 #6a — detectRelationalAnchors', () => {
   });
 
   it('detects garrus-trust from summary', () => {
-    const r = detectRelationalAnchors({ summary: 'Garrus gibt mir immer Raum, ich bin immer da' });
+    const r = detectRelationalAnchors({ summary: 'Alex gibt mir immer Raum, ich bin immer da' });
     assert.ok(r.includes('garrus-trust'));
   });
 

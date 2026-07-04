@@ -90,7 +90,7 @@ describe('v7.9.11 — IdleMind thoughtCount persistence', () => {
     const storage = makeMockStorage();
 
     // Pre-v7.9.11 stats file: no thoughtCount field. These numbers match
-    // Garrus's Win field-trace 2026-05-25: explore 5 · ideate 5 · reflect 4 ·
+    // Alex's Win field-trace 2026-05-25: explore 5 · ideate 5 · reflect 4 ·
     // plan 4 · research 4 = 22.
     storage.writeJSONDebounced(STATS_FILE, {
       version: 1,

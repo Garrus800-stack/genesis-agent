@@ -476,7 +476,7 @@ class TrustLevelSystem {
         // from "raw 4-level value still needing migration". Without this
         // marker, a stored level=2 is ambiguous (could be old-AUTONOMOUS=2
         // wanting migration to new-1, or new-FULL_AUTONOMY=2 wanting to
-        // stay put). Garrus' Win-trace symptom — FULL stays as FULL after
+        // stay put). Alex' Win-trace symptom — FULL stays as FULL after
         // first boot then quietly drops to AUTONOMOUS on every subsequent
         // boot — came from re-migrating a 2 that was already in the new
         // schema.

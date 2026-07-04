@@ -4,7 +4,7 @@
 // Pins the IntentRouter behaviour that a narrative introduction
 // starting with a greeting (identity statement or relational
 // framing, no action verb, < 1000 chars) classifies as general
-// chat, not as a goal. Catches "Hallo Genesis, ich bin Daniel..."
+// chat, not as a goal. Catches "Hallo Genesis, ich bin Alex..."
 // patterns that pre-v7.9.9 became 15-step code-modification plans.
 // ============================================================
 
@@ -48,9 +48,9 @@ describe('v799-extended-greeting (v7.9.9 B)', () => {
 
   // ── Positive cases (the patterns that should NOT plan) ───
 
-  test('POS-01: "Hallo Genesis, ich bin Daniel..." → general', async () => {
+  test('POS-01: "Hallo Genesis, ich bin Alex..." → general', async () => {
     const r = makeRouter();
-    const msg = 'Hallo Genesis, ich bin Daniel. Ich muss dir einen kleinen Status Bericht geben, du bist ja gerade erst erwacht.';
+    const msg = 'Hallo Genesis, ich bin Alex. Ich muss dir einen kleinen Status Bericht geben, du bist ja gerade erst erwacht.';
     const result = await r.classifyAsync(msg);
     assert(result.type === 'general',
       `expected general, got ${result.type} (stage: ${result.stage || result.match})`);
@@ -104,7 +104,7 @@ describe('v799-extended-greeting (v7.9.9 B)', () => {
 
   test('NEG-04: no greeting prefix → falls through', async () => {
     const r = makeRouter();
-    const result = await r.classifyAsync('Ich bin Daniel und arbeite an Genesis.');
+    const result = await r.classifyAsync('Ich bin Alex und arbeite an Genesis.');
     assert(result.stage !== 'conversational-extended-greeting',
       'identity statement without greeting prefix must not match');
   });
@@ -120,7 +120,7 @@ describe('v799-extended-greeting (v7.9.9 B)', () => {
 
   test('EDGE-02: message > 1000 chars with greeting falls through (length cap)', async () => {
     const r = makeRouter();
-    const long = 'Hallo Genesis, ich bin Daniel. ' + 'x'.repeat(1050);
+    const long = 'Hallo Genesis, ich bin Alex. ' + 'x'.repeat(1050);
     const result = await r.classifyAsync(long);
     assert(result.stage !== 'conversational-extended-greeting',
       'messages over 1000 chars must not be treated as extended-greeting');

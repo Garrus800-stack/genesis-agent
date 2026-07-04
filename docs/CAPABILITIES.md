@@ -4,10 +4,10 @@
 
 ## Scale
 
-- 398 source modules across 12 boot phases
+- 405 source modules across 12 boot phases
 - 182 DI services (169 manifest + 13 bootstrap)
 - 8661 tests on Windows / 7932 on Linux (passing, 0 failures)
-- 494 events with 494 payload schemas (full parity)
+- 498 events with 498 payload schemas (full parity)
 - Architectural fitness: 127/130
 - 18 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
 
@@ -211,6 +211,7 @@ The former Consciousness Layer (AttentionalGate, PhenomenalField, TemporalSelf, 
 |---|---|
 | **Sandbox** | Execute JavaScript in an isolated VM or Linux namespace sandbox |
 | **ShellAgent** | Run shell commands with safety classification (read/write/system tiers) |
+| **Deterministic file ops** `v7.9.28` | List a folder, read/create/write/summarise a file straight through the filesystem (no shell echo, no Unix-only utilities) from natural chat in German or English. A name given without a path resolves across Desktop/Documents/Downloads (incl. OneDrive-redirected) and the drive roots; a summary reads the whole document in one model call; whatever was last produced (a drawing, diagram, or answer) can be saved with "save it". |
 | **FileProcessor** | Import, read, analyze, execute files |
 | **CodeAnalyzer** | AST-based analysis of JavaScript files |
 | **WebFetcher** | Fetch web content, npm search |
@@ -262,7 +263,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **603 test files** | 8661 tests (Win baseline, v7.9.24), coverage gates: 80% lines, 76% branches, 78% functions |
+| **610 test files** | 8661 tests (Win baseline, v7.9.24), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

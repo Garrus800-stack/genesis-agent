@@ -13,6 +13,7 @@
 
 const path = require('path');
 const { BASE_READ_VERBS } = require('./ShellReadVocabulary');
+const SourceTrust = require('../SourceTrust');
 
 // Runtime-gate-specific reads on top of the shared base: launch / shell-builtin
 // commands the sandbox treats as non-writing for path-boundary classification
@@ -253,6 +254,11 @@ function checkRootDirSandbox(command, rootDir, opts = {}) {
       };
     }
 
+    // (b2) USER_CHAT origin lifts the scope schranke (v7.9.28, F0) — the human
+    // named this path in chat. Behind the absolute system/secret blocks above,
+    // which always remain. Trust does NOT widen scope (G1); the axis is source.
+    if (SourceTrust.mayRunDirectly(opts.origin)) continue;
+
     // (c) Trust-gated: outside rootDir but in user-home safe-area.
     const userHomeMatch = _isUserHomeSafeArea(abs, isWindows);
     if (userHomeMatch && (allowUserHome !== false) && readScope !== 'project') {
@@ -396,6 +402,10 @@ function _classifyCommandIntent(command, isWindows) {
   // user-home areas that are normally off-limits for writes.
   if (/^cmd\s+\/c\s+start\s+/i.test(cmd)) return 'launch';
   if (/^(open|xdg-open)\s+/i.test(cmd)) return 'launch';
+  // v7.9.28 (G2): explorer "<path>" and bare `start "" "<name>"` are launches,
+  // not writes — so the sandbox can permit shortcut/folder targets in user-home.
+  if (/^explorer\s+/i.test(cmd)) return 'launch';
+  if (/^start\s+/i.test(cmd)) return 'launch';
 
   // First whitespace-bounded token = primary verb.
   const verb = cmd.split(/\s+/)[0]?.toLowerCase() || '';
@@ -465,6 +475,8 @@ function checkRateLimit(state, tier, limits, windowMs) {
 }
 
 module.exports = {
+  _isCriticalSystemPath,
+  _isSecretFile,
   BLOCKED_PATTERNS,
   sanitizeCommand,
   checkRootDirSandbox,

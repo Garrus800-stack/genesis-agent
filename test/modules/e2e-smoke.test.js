@@ -163,7 +163,7 @@ describe('E2E — PeerConsensus Bidirectional Sync', () => {
     a.recordMutation('settings', 'theme', 'dark');
     a.recordMutation('settings', 'lang', 'de');
     b.recordMutation('settings', 'font', 'monospace');
-    b.recordMutation('knowledge', 'user', { subject: 'user', relation: 'name', object: 'Garrus' });
+    b.recordMutation('knowledge', 'user', { subject: 'user', relation: 'name', object: 'Alex' });
 
     // Bidirectional sync
     const payloadA = a.buildSyncPayload({});

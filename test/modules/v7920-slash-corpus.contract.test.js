@@ -28,20 +28,28 @@ const CONVERSATION = [
   'lass uns über den Build reden',
 ];
 
-// (b) MUST be slash-only — genuine requests (no slash → hint)
+// (b) MUST be slash-only — genuine shell/install requests (no slash → hint)
 const REQUESTS = [
   'installiere firefox',
   'install the dependencies',
   'führe die tests aus',
   'starte den build',
-  'öffne den browser',
-  'open notepad.exe',
   'run the lint script',
   'npm install express',
   'git status',
-  'öffne den editor',
   'lade firefox runter',
   'build the project',
+];
+
+// (c) v7.9.28 (field-fix A): plain-text app launches route to open-path ->
+// tryAppLaunch (which launches) instead of the slash-only open-software
+// intent. The user asked that "öffne firefox" no longer bounce to "/open".
+const APP_LAUNCH = [
+  'öffne den browser',
+  'open notepad.exe',
+  'öffne den editor',
+  'öffne firefox',
+  'öffne google chrome',
 ];
 
 let passed = 0, failed = 0;
@@ -62,6 +70,13 @@ for (const s of REQUESTS) {
   if (!ok) { missed++; console.log('    \u274c missed real request ['+t+']: ' + s); }
 }
 check('(b) zero missed real requests ('+missed+'/'+REQUESTS.length+')', missed === 0);
+
+let appMissed = 0;
+for (const s of APP_LAUNCH) {
+  const t = r.classify(s).type;
+  if (t !== 'open-path') { appMissed++; console.log('    ❌ app-launch not open-path ['+t+']: ' + s); }
+}
+check('(c) app launches route to open-path ('+appMissed+'/'+APP_LAUNCH.length+')', appMissed === 0);
 
 console.log('\n    ' + passed + ' passed \u00b7 ' + failed + ' failed \u00b7 v7.9.20 slash corpus');
 process.exit(failed > 0 ? 1 : 0);

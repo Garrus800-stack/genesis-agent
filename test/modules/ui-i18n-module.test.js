@@ -63,7 +63,7 @@ test('A1: t() interpolates {{var}} placeholders (v7.7.0 fix)', async () => {
   };
   global.document = createMiniDOM().doc;
   await loadI18n();
-  assert.strictEqual(t('ui.test', { name: 'Garrus' }), 'Hello Garrus!',
+  assert.strictEqual(t('ui.test', { name: 'Alex' }), 'Hello Alex!',
     '{{var}} must substitute');
 });
 

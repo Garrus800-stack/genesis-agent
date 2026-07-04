@@ -195,9 +195,9 @@ test('contract: home-relative path in history — "öffne das" after "~/Document
   );
 });
 
-test('contract: Windows path in history — "öffne das" after "C:\\Users\\Garrus\\Desktop" is NOT vague', () => {
+test('contract: Windows path in history — "öffne das" after "C:\\Users\\Alex\\Desktop" is NOT vague', () => {
   assert.strictEqual(
-    detectVagueReference('öffne das', [{ role: 'user', content: 'C:\\Users\\Garrus\\Desktop' }]),
+    detectVagueReference('öffne das', [{ role: 'user', content: 'C:\\Users\\Alex\\Desktop' }]),
     null
   );
 });

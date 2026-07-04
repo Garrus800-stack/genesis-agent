@@ -223,6 +223,7 @@ const SCHEMAS = {
   // v5.7.0 SA-P8: Tool Synthesis
   'tool:synthesized':        { name: 'required', description: 'required', attempt: 'required' },
   'tool:synthesis-failed':   { description: 'required' },
+  'tool:precheck-missing':   { tool: 'required', step: 'optional' },
   // v7.5.9 ZIP1 Phase 0.3
   'tool-use:reprompt-needed': { round: 'required', excerpt: 'required' },
 
@@ -356,6 +357,8 @@ const SCHEMAS = {
 
   // Goal lifecycle
   'goal:abandoned':        { id: 'required', description: 'optional' },
+  'goal:pursuit-struggling': { id: 'optional', count: 'optional' },
+  'goal:capability-failed':  { topic: 'optional', reason: 'optional' },
   'goal:created':          { id: 'required', description: 'required' },
   'goal:resumed':          { id: 'optional' },
 
@@ -522,6 +525,7 @@ const SCHEMAS = {
   'memory:transition-heuristic-fallback': { coreMemoryId: 'required', fromLayer: 'required', toLayer: 'required', reason: 'required' },
   'memory:layer-overflow':  { layer: 'required', count: 'required', pendingTransitions: 'optional' },
   'memory:self-elevated':   { episodeId: 'required', reason: 'required' },
+  'memory:elevation-proposed': { episodeId: 'optional', momentId: 'optional', summary: 'optional' },
   'memory:self-released':   { episodeId: 'required' },
   'memory:marked':          { id: 'required', episodeId: 'required', timestamp: 'optional', triggerContext: 'optional' },
 

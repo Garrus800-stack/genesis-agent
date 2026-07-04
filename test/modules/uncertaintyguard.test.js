@@ -88,7 +88,7 @@ test('code in response to code question is NOT flagged', () => {
 
 test('contradicts known semantic facts', () => {
   const guard = createGuard({
-    'user.name': { value: 'Garrus', confidence: 0.9 },
+    'user.name': { value: 'Alex', confidence: 0.9 },
   });
   const { flags } = guard.analyze('Dein Name ist Max.', 'Wie heiße ich?');
   assert(flags.includes('contradicts-memory'), 'Should detect contradiction with stored name');
@@ -96,9 +96,9 @@ test('contradicts known semantic facts', () => {
 
 test('no contradiction when response matches known fact', () => {
   const guard = createGuard({
-    'user.name': { value: 'Garrus', confidence: 0.9 },
+    'user.name': { value: 'Alex', confidence: 0.9 },
   });
-  const { flags } = guard.analyze('Dein Name ist Garrus.', 'Wie heiße ich?');
+  const { flags } = guard.analyze('Dein Name ist Alex.', 'Wie heiße ich?');
   assert(!flags.includes('contradicts-memory'));
 });
 

@@ -89,7 +89,7 @@ function registerV737Tools(toolRegistry, deps = {}) {
   // ── journal-write ─────────────────────────────────────────
   if (journalWriter) {
     toolRegistry.register('journal-write', {
-      description: 'Schreibe einen Eintrag ins Journal. visibility: private (nur du siehst es), shared (Garrus sieht es auch), public (dokumentierbar für Außenstehende). Default: shared.',
+      description: 'Schreibe einen Eintrag ins Journal. visibility: private (nur du siehst es), shared (Alex sieht es auch), public (dokumentierbar für Außenstehende). Default: shared.',
       input: {
         content: 'string',
         visibility: 'string (private|shared|public, default: shared)',

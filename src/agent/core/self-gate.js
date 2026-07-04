@@ -22,7 +22,7 @@
 //
 // Self-gate gives those moments a name and a signal, so Genesis
 // himself can inspect them later (gateStats.summary(), event log)
-// and so Garrus can calibrate. The detection is descriptive, not
+// and so Alex can calibrate. The detection is descriptive, not
 // prescriptive. Genesis decides what to do with the information.
 //
 // ── Signal model ──

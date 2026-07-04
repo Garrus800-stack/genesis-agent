@@ -330,16 +330,16 @@ describe('ConversationMemory', () => {
   });
 
   test('should learn and recall facts', () => {
-    memory.learnFact('user.name', 'Garrus', 0.9, 'conversation');
+    memory.learnFact('user.name', 'Alex', 0.9, 'conversation');
     const fact = memory.recallFact('user.name');
-    assertEqual(fact.value, 'Garrus', 'Should recall stored fact');
+    assertEqual(fact.value, 'Alex', 'Should recall stored fact');
   });
 
   test('should not overwrite high-confidence facts with low-confidence', () => {
-    memory.learnFact('user.name', 'Garrus', 0.9);
+    memory.learnFact('user.name', 'Alex', 0.9);
     const overwritten = memory.learnFact('user.name', 'Someone Else', 0.3);
     assert(!overwritten, 'Should not overwrite');
-    assertEqual(memory.recallFact('user.name').value, 'Garrus');
+    assertEqual(memory.recallFact('user.name').value, 'Alex');
   });
 
   test('should search facts', () => {
@@ -1030,11 +1030,11 @@ describe('ConversationMemory v2 (TF-IDF)', () => {
   });
 
   test('should handle searchFacts with fuzzy matching', () => {
-    memory2.learnFact('user.name', 'Garrus', 0.9);
+    memory2.learnFact('user.name', 'Alex', 0.9);
     memory2.learnFact('project.main', 'Genesis Agent', 0.8);
-    const results = memory2.searchFacts('Garrus');
+    const results = memory2.searchFacts('Alex');
     assert(results.length > 0, 'Should find user.name fact');
-    assertEqual(results[0].value, 'Garrus');
+    assertEqual(results[0].value, 'Alex');
   });
 });
 

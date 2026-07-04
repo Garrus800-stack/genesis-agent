@@ -38,7 +38,7 @@ function createMockUM(overrides = {}) {
       ],
       db: {
         semantic: overrides.semantic || {
-          'user.name': { value: 'Garrus', confidence: 0.9, learned: '2025-01-01' },
+          'user.name': { value: 'Alex', confidence: 0.9, learned: '2025-01-01' },
           'user.language': { value: 'German', confidence: 0.8, learned: '2025-01-01' },
           'project.name': { value: 'Genesis', confidence: 0.95, learned: '2025-01-15' },
         },
@@ -111,7 +111,7 @@ async function runAsync() {
 
   await test('recall with sources=["semantic"] returns only facts', async () => {
     const um = createMockUM();
-    const results = await um.recall('Garrus', { sources: ['semantic'] });
+    const results = await um.recall('Alex', { sources: ['semantic'] });
     assert(results.length > 0, 'Should find semantic facts');
     assert(results.every(r => r.source === 'semantic'));
   });
@@ -120,7 +120,7 @@ async function runAsync() {
 
   await test('_searchSemanticFacts finds matching keys', () => {
     const um = createMockUM();
-    const results = um._searchSemanticFacts('name Garrus');
+    const results = um._searchSemanticFacts('name Alex');
     assert(results.length > 0, 'Should find name fact');
     assert(results.some(r => r.key === 'user.name'));
   });

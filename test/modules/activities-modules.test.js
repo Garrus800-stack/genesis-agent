@@ -319,15 +319,15 @@ describe('v7.3.2 — MCPExplore activity', () => {
 describe('v7.3.2 — SelfDefine._validateSelfIdentity', () => {
   test('accepts valid identity', () => {
     const result = SelfDefine._validateSelfIdentity({
-      name: 'Genesis', operator: 'Daniel',
-      text: 'Ich bin Genesis. Ich arbeite mit Daniel.',
+      name: 'Genesis', operator: 'Alex',
+      text: 'Ich bin Genesis. Ich arbeite mit Alex.',
     });
     assert(result.valid, 'should be valid');
   });
 
   test('rejects self-negation', () => {
     const result = SelfDefine._validateSelfIdentity({
-      name: 'Genesis', operator: 'Daniel',
+      name: 'Genesis', operator: 'Alex',
       text: 'Ich bin kein Agent und existiere nicht.',
     });
     assert(!result.valid, 'should reject');
@@ -336,7 +336,7 @@ describe('v7.3.2 — SelfDefine._validateSelfIdentity', () => {
 
   test('rejects too long text', () => {
     const result = SelfDefine._validateSelfIdentity({
-      name: 'Genesis', operator: 'Daniel',
+      name: 'Genesis', operator: 'Alex',
       text: ('word ').repeat(600),
     });
     assert(!result.valid, 'should reject');

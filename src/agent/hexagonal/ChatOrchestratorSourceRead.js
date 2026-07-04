@@ -18,7 +18,49 @@
 const fs = require('fs');
 const path = require('path');
 const { createLogger } = require('../core/Logger');
+const SourceTrust = require('../core/SourceTrust');
+const { setLastDoc, getLastDoc } = require('./LastDocStore');
+const { _isCriticalSystemPath, _isSecretFile } = require('../core/shell/ShellSafety');
 const _log = createLogger('ChatOrchestrator');
+
+/**
+ * Read a resolved file and attach it as authoritative source content. Large
+ * files (>20 KB) get a full-document structural extract so the summary covers
+ * the WHOLE file instead of being cut off at the read budget (v7.9.28 field
+ * fix). Remembers the file as last-doc for anaphoric follow-ups. Returns true
+ * when content was attached.
+ */
+function _readAndAttachFile(self, resolved, rootDir) {
+  const fsx = require('fs');
+  const relPath = path.relative(rootDir, resolved);
+  const inRoot = resolved === rootDir || resolved.startsWith(rootDir + path.sep);
+  const label = inRoot ? relPath : resolved;
+  let sizeBytes = 0;
+  try { sizeBytes = fsx.statSync(resolved).size; } catch { /* missing */ }
+  // v7.9.28 (field-fix F1): full-attach up to 50000 chars. The old 20000
+  // cut-off fed the model only headings for a 24KB doc (ONTOGENESIS.md), so it
+  // answered from generic knowledge. deepseek has ~48000 usable tokens.
+  if (inRoot && sizeBytes > 50000) {
+    try {
+      const { _extractLargeFile } = require('../foundation/SelfModelSourceRead');
+      const full = fsx.readFileSync(resolved, 'utf8');
+      self.promptBuilder.attachSourceContent({ content: _extractLargeFile(full, 40000), label: `${label} (Gesamt-Auszug)` });
+      try { setLastDoc(resolved, 'file'); } catch { /* ignore */ }
+      self._lastSourceReadAttempted = true;
+      return true;
+    } catch (e) { _log.debug('[CHAT] large-file extract failed:', e.message); }
+  }
+  if (self.selfModel?.readSourceSync) {
+    const content = self.selfModel.readSourceSync(relPath, { bus: self.bus, origin: SourceTrust.USER_CHAT });
+    if (content) {
+      self.promptBuilder.attachSourceContent({ content, label });
+      try { setLastDoc(resolved, 'file'); } catch { /* ignore */ }
+      self._lastSourceReadAttempted = true;
+      return true;
+    }
+  }
+  return false;
+}
 
 const sourceRead = {
 
@@ -55,6 +97,45 @@ const sourceRead = {
     // becomes "[ONTOGENESIS.md](http://ONTOGENESIS.md)". Strip those
     // before pattern-matching so the regex still sees the bare filename.
     const lowerStripped = lower.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
+
+    // v7.9.28 (F4): anaphoric follow-up — "fasse es/das zusammen", "lies es",
+    // "fasse die datei zusammen" → the last file the user opened or read.
+    if (/^(?:f?ass(?:e|t)?|lies|read|summ\w*|zeig(?:e)?(?:\s+mir)?|show)\s+(?:mir\s+)?(?:es|das|die\s+datei|den\s+inhalt|sie|it|that|the\s+file|the\s+whole\s+thing)\b/i.test(lowerStripped)) {
+      try {
+        const last = getLastDoc();
+        if (last && last.kind === 'file' && _readAndAttachFile(this, last.path, rootDir)) return;
+      } catch (e) { _log.debug('[CHAT] anaphora read failed:', e.message); }
+    }
+
+    // v7.9.28 (field): folder listing — "wieviele dateien sind drin", "liste
+    // den inhalt", "was ist in <ordner>" → list the last-opened folder, or a
+    // path named in the message. Listed via fs, guarded against system/secret.
+    // v7.9.28 (field-fix C): also match "welche dateien … (dort) enthalten" and
+    // tolerate the misspelling "datein" — the field showed these returned empty.
+    if (/\b(?:wie\s*viele?\s+(?:datei(?:en|n)?|ordner|elemente)|welche\s+(?:datei(?:en|n)?|ordner|elemente)|liste?\s+(?:mir\s+)?(?:den\s+)?inhalt|was\s+(?:ist|sind|liegt|liegen)\s+(?:da\s+|dort\s+|alles\s+)*(?:drin|enthalten)|(?:datei(?:en|n)?|ordner)\s+(?:sind\s+)?(?:dort\s+|da\s+)?enthalten|list\s+(?:the\s+)?(?:files|contents?)|how\s+many\s+files|inhalt\s+(?:des|vom|von)\s+ordner)/i.test(lowerStripped)) {
+      try {
+        const { extractPathAfterKeyword } = require('./PathExtractVocab');
+        let folder = extractPathAfterKeyword(message);
+        if (!folder) { const last = getLastDoc(); if (last && last.kind === 'folder') folder = last.path; }
+        if (folder) {
+          const absLower = String(folder).toLowerCase();
+          if (!_isCriticalSystemPath(absLower, process.platform === 'win32') && !_isSecretFile(absLower)) {
+            const fsx = require('fs');
+            const entries = fsx.readdirSync(folder, { withFileTypes: true });
+            const files = entries.filter((e) => e.isFile()).map((e) => e.name);
+            const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+            const listing = [
+              `Ordner: ${folder}`,
+              `Dateien (${files.length}): ${files.slice(0, 200).join(', ') || '(keine)'}`,
+              `Unterordner (${dirs.length}): ${dirs.slice(0, 100).join(', ') || '(keine)'}`,
+            ].join('\n');
+            this.promptBuilder.attachSourceContent({ content: listing, label: `Ordner-Inhalt: ${folder}` });
+            this._lastSourceReadAttempted = true;
+            return;
+          }
+        }
+      } catch (e) { _log.debug('[CHAT] folder listing failed:', e.message); }
+    }
 
     // Pattern 1: "was hat sich geändert" / "was ist neu" → CHANGELOG.md
     if (/was\s+(hat\s+sich|ist\s+neu|gibt.*neu)/.test(lower)) {
@@ -105,24 +186,17 @@ const sourceRead = {
           ? requestedName
           : path.join(rootDir, requestedName);
         const resolved = _resolveFileWithVariants(candidate, rootDir);
-        if (resolved) {
-          // Use the source-read tool path to honor budget + caching.
-          if (this.selfModel?.readSourceSync) {
-            const relPath = path.relative(rootDir, resolved);
-            const content = this.selfModel.readSourceSync(relPath, { bus: this.bus });
-            if (content) {
-              this.promptBuilder.attachSourceContent({
-                content,
-                label: relPath,
-              });
-              this._lastSourceReadAttempted = true;
-              return;
-            }
-          }
-        }
-        // No match found — leave a hint so the LLM doesn't confabulate.
+        if (resolved && _readAndAttachFile(this, resolved, rootDir)) return;
+
+        // v7.9.28: variant-resolution missed — try a recursive project search
+        // as the FINAL resolution stage (covers files anywhere, not just docs/).
+        const { _recursiveFind } = require('../foundation/SelfModelSourceRead');
+        const recHit = _recursiveFind(rootDir, requestedName);
+        if (recHit && _readAndAttachFile(this, recHit, rootDir)) return;
+
+        // Still nothing — hint so the LLM neither asks for a path nor confabulates.
         this.promptBuilder.attachSourceContent({
-          content: `[Note: file "${requestedName}" not found in project. Available top-level files include README.md, CHANGELOG.md, AUDIT-BACKLOG.md, package.json. The docs/ directory contains ONTOGENESIS.md and others.]`,
+          content: `[Hinweis: Datei "${requestedName}" wurde im Projekt nicht gefunden. Frage NICHT nach dem Pfad und ERFINDE keinen Inhalt — sage dem Nutzer, dass die Datei nicht gefunden wurde.]`,
           label: 'file-not-found',
         });
         this._lastSourceReadAttempted = true;

@@ -120,13 +120,13 @@ const LIMITS = {
   /** Max consecutive errors before AgentLoop pauses */
   AGENT_LOOP_MAX_ERRORS: 3,
   /** Max plan steps from FormalPlanner */
-  PLAN_MAX_STEPS: 8,
+  PLAN_MAX_STEPS: 20,   // v7.9.28: was 8 — but AGENT_LOOP_MAX_STEPS is 20, so a plan was truncated to 8 steps while the loop could execute 20. That silently dropped the tail of any goal needing more than 8 steps. Now the plan can be as long as the loop runs it.
   /** Max chat history messages in memory */
   CHAT_HISTORY_MAX: 40,
   /** Max chat messages persisted to disk */
   CHAT_HISTORY_PERSISTED: 20,
   /** Max tool-call→synthesize rounds per message */
-  CHAT_MAX_TOOL_ROUNDS: 3,
+  CHAT_MAX_TOOL_ROUNDS: 12,   // v7.9.28: was 3, then 8. The real terminators are the model emitting no more tool calls (task done) and duplicate-call detection; this number is only a runaway guard, so it is set generously (12) so a large multi-step plan finishes in one turn instead of being cut off and forcing repeated "weiter". A task that genuinely needs more continues on the next message with a fresh budget.
   /** EventBus history buffer size */
   EVENTBUS_HISTORY: 500,
   /** EventBus stats Map max entries — evicts oldest beyond this */
