@@ -90,9 +90,14 @@ const helpers = {
         // after one round and the user had to re-send the request each step.
         // If the text clearly announces a next action (rather than delivering a
         // final answer), nudge the model once to actually perform it. Bounded by
-        // a nudge cap AND the round budget, so it cannot run away.
-        const announcesNext = /\b(?:next[,]?\s+i(?:'ll| will)|i(?:'ll| will)\s+(?:now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|implement|write|start|proceed|continue|locate)|let me\s+(?:first\s+|now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|start|locate)|als\s+n[äa]chstes|ich\s+(?:schaue|lese|pr[üu]fe|erkunde|sehe|beginne|baue|erstelle|starte|werde|inspiziere|untersuche))/i.test(text || '');
-        if (announcesNext && nudges < 3 && round < this.maxToolRounds - 1) {
+        // a nudge cap AND the round budget, so it cannot run away. v7.9.28 fix:
+        // it fires ONLY once a tool has already run this turn (a real agentic
+        // context) — a purely conversational turn never triggers it — and the
+        // German set no longer includes the ubiquitous "werde"/"sehe", which had
+        // matched an ordinary reply like "ich werde …" and re-drove it, so the
+        // same answer was emitted several times.
+        const announcesNext = /\b(?:next[,]?\s+i(?:'ll| will)|i(?:'ll| will)\s+(?:now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|implement|write|start|proceed|continue|locate)|let me\s+(?:first\s+|now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|start|locate)|als\s+n[äa]chstes|ich\s+(?:schaue|lese|pr[üu]fe|erkunde|beginne|baue|erstelle|starte|inspiziere|untersuche))/i.test(text || '');
+        if (announcesNext && allToolCalls.length > 0 && nudges < 3 && round < this.maxToolRounds - 1) {
           nudges++;
           try {
             const rawNudge = await this.model.chat(
@@ -658,40 +663,8 @@ const helpers = {
     return line;
   },
 
-  // v7.8.0: capture a lesson when a tool call fails because the
-  // referenced path/command doesn't exist. Records into LessonsStore
-  // as obstacle-resolution so AgentLoopPlanner sees it next time.
-  // Best-effort, swallows all errors — never blocks a tool result.
-  _captureNotFoundLesson(toolName, requestedPath) {
-    try {
-      const lessonsStore = this._lessonsStore || this.lessonsStore;
-      if (!lessonsStore || typeof lessonsStore.record !== 'function') return;
-      if (!requestedPath || requestedPath === '<unknown>') return;
-      lessonsStore.record({
-        category: 'obstacle-resolution',
-        insight: `Tool '${toolName}' was called with path '${String(requestedPath).slice(0, 120)}' which does not exist. Check the path before referencing it; use file-list on the parent dir to verify.`,
-        evidence: { confidence: 0.6, sampleSize: 1, surprise: 0.5 },
-        tags: ['tool-failure', 'path-not-found', toolName],
-        source: 'tool-failure',
-      });
-    } catch (_e) { /* best-effort */ }
-  },
-
-  _captureUnknownCmdLesson(cmd) {
-    try {
-      const lessonsStore = this._lessonsStore || this.lessonsStore;
-      if (!lessonsStore || typeof lessonsStore.record !== 'function') return;
-      if (!cmd) return;
-      lessonsStore.record({
-        category: 'obstacle-resolution',
-        insight: `Shell command '${String(cmd).slice(0, 60)}' was not found on this system. Different OSes have different commands — verify availability before using.`,
-        evidence: { confidence: 0.6, sampleSize: 1, surprise: 0.5 },
-        tags: ['tool-failure', 'unknown-command', cmd],
-        source: 'tool-failure',
-      });
-    } catch (_e) { /* best-effort */ }
-  },
-
 };
+
+Object.assign(helpers, require('./ChatOrchestratorLessons').chatOrchestratorLessons); // v7.9.29 (hygiene)
 
 module.exports = { helpers };

@@ -20,6 +20,7 @@ const { describe, test, run, assert, assertEqual } = require('../harness');
 
 const ROOT = path.join(__dirname, '../..');
 const STEPS_PATH = path.join(ROOT, 'src/agent/revolution/AgentLoopSteps.js');
+const CODE_PATH = path.join(ROOT, 'src/agent/revolution/AgentLoopStepsCode.js'); // v7.9.29 (hygiene #9)
 
 const { ApprovalGate } = require(path.join(ROOT, 'src/agent/revolution/ApprovalGate'));
 const { TrustLevelSystem, TRUST_LEVELS } = require(path.join(ROOT, 'src/agent/foundation/TrustLevelSystem'));
@@ -36,7 +37,7 @@ describe('v7920-approval-repair', () => {
   // ── Routing: shell/write/delegate go through the real channel ──
 
   test('ROUTE-01: shell/write/delegate call loop.approval.request (not the dead _requestApproval)', () => {
-    const src = fs.readFileSync(STEPS_PATH, 'utf8');
+    const src = (fs.readFileSync(STEPS_PATH, 'utf8') + fs.readFileSync(CODE_PATH, 'utf8'));
     assert(/loop\.approval\.request\(\s*'shell-command'/.test(src), 'shell must use approval.request');
     assert(/loop\.approval\.request\(\s*\n?\s*'write-file'/.test(src), 'write must use approval.request');
     assert(/loop\.approval\.request\(\s*\n?\s*'delegate-task'/.test(src), 'delegate must use approval.request');
@@ -45,7 +46,7 @@ describe('v7920-approval-repair', () => {
   });
 
   test('ROUTE-02: user-input stays on _requestApproval (separate needs-input path)', () => {
-    const src = fs.readFileSync(STEPS_PATH, 'utf8');
+    const src = (fs.readFileSync(STEPS_PATH, 'utf8') + fs.readFileSync(CODE_PATH, 'utf8'));
     assert(/_requestApproval\(\s*'user-input'/.test(src),
       'user-input must keep _requestApproval (needs a real answer, would double-fire via approval.request)');
   });

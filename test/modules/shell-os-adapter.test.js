@@ -2,7 +2,7 @@
 // Test: ShellOSAdapter — pure OS adaptation functions (v7.5.4)
 
 const { describe, test, assert, assertEqual, run } = require('../harness');
-const OSAdapter = require('../../src/agent/capabilities/shell/ShellOSAdapter');
+const OSAdapter = require('../../src/agent/core/shell/ShellOSAdapter');
 
 describe('ShellOSAdapter — resolveShell', () => {
 

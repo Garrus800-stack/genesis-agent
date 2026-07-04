@@ -15,7 +15,7 @@
 'use strict';
 
 const { describe, test, assertEqual, run } = require('../harness');
-const { adaptCommand } = require('../../src/agent/capabilities/shell/ShellOSAdapter');
+const { adaptCommand } = require('../../src/agent/core/shell/ShellOSAdapter');
 
 describe('v7.9.11 — ShellOSAdapter forward-slash path conversion', () => {
 

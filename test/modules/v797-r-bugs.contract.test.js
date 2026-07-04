@@ -168,7 +168,7 @@ test('R3.2: GoalDriverFailurePolicy uses 60-min reset window for structural fail
 // ── R4: _stepCode pre-flight check for hallucinated paths ───
 
 test('R4: PROJECT API CONVENTIONS block is in the _stepCode prompt', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopSteps.js'), 'utf8');
+  const src = (fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopSteps.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopStepsCode.js'), 'utf8'));
   assert(/PROJECT API CONVENTIONS/.test(src),
     '_stepCode prompt must include PROJECT API CONVENTIONS block');
   assert(/createLogger/.test(src),
@@ -184,7 +184,7 @@ test('R4: structural-failure regex recognises "Invalid target path (hallucinated
 });
 
 test('R4: _stepCode contains the pre-flight require-resolution scan', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopSteps.js'), 'utf8');
+  const src = (fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopSteps.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'src/agent/revolution/AgentLoopStepsCode.js'), 'utf8'));
   assert(/Invalid target path \(hallucinated\)/.test(src),
     '_stepCode must emit "Invalid target path (hallucinated)" when a require path doesn\'t resolve');
 });

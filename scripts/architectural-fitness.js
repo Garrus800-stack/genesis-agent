@@ -154,6 +154,7 @@ check('Memory Silo Bypass', (r) => {
   const ALLOWED_ACCESSORS = [
     'MemoryFacade.js', 'UnifiedMemory.js', 'ContainerManifest.js',
     'AgentCoreHealth.js', 'AgentCoreBoot.js', 'AgentCoreWire.js',
+    'AgentCoreBootWire.js', // v7.9.29 (hygiene #1): extracted wire phase
     'KnowledgePort.js', 'MemoryPort.js',
   ];
 

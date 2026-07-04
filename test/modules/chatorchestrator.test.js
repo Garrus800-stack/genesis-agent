@@ -272,6 +272,22 @@ async function runAsync() {
     assert(/const y/.test(result) && !/emitted no tool call/.test(result), 'delivered result, no needless nudge');
   });
 
+  await test('_processToolLoop does NOT nudge or repeat a purely conversational reply (no tool ran)', async () => {
+    // Regression: a conversational close containing "ich werde" must not be
+    // re-driven by the false-stop recovery — no tool ran this turn, so it must
+    // not fire, and the reply must appear exactly once (not 2-3 times).
+    const mocks = createMocks();
+    mocks.tools.parseToolCalls = (text) => ({ text, toolCalls: [] });
+    let calls = 0;
+    mocks.model.chat = async () => { calls++; return 'ok'; };
+    const co = new ChatOrchestrator(mocks);
+    const reply = 'Ich werde mich in Ruhe zurechtfinden. Wir sprechen uns später.';
+    const result = await co._processToolLoop(reply, () => {}, 'na mein freund, alles ok?', 'general');
+    assert(calls === 0, 'no nudge model call on a conversational turn');
+    const occurrences = (result.match(/Wir sprechen uns später/g) || []).length;
+    assert(occurrences <= 1, `reply must not repeat, saw ${occurrences}`);
+  });
+
   // ── Code Block Extraction ─────────────────────────────────
 
   await test('_extractCodeBlocks finds code in response', () => {

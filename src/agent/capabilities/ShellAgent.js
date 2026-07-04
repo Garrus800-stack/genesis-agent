@@ -29,7 +29,7 @@ const { createLogger } = require('../core/Logger');
 const { decodeWinConsole } = require('../core/shell/WinConsoleEncoding');
 // v7.5.4: extracted helpers
 const Safety = require('../core/shell/ShellSafety');
-const OSAdapter = require('./shell/ShellOSAdapter');
+const OSAdapter = require('../core/shell/ShellOSAdapter');
 const { ShellPlanner } = require('./shell/ShellPlanner');
 const _log = createLogger('ShellAgent');
 class ShellAgent {

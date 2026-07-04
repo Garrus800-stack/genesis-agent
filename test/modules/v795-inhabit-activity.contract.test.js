@@ -248,7 +248,7 @@ test('A5: Settings tree contains organism.inhabit with default values', () => {
   // Settings has a complex constructor. We just verify the default tree
   // by reading the source — it's a static literal.
   const fs = require('fs');
-  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+  const src = (fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsPersistence.js'), 'utf8'));
   assert(/inhabit:\s*\{/.test(src), 'organism.inhabit block must exist in default tree');
   assert(/enabled:\s*true/.test(src), 'organism.inhabit.enabled default must be true');
   assert(/cooldownMinutes:\s*15/.test(src), 'cooldownMinutes default must be 15');

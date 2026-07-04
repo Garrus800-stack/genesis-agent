@@ -342,11 +342,21 @@ const INTENT_DEFINITIONS = [
     /\bwas\s+ist\s+(?:der\s+|das\s+)?inhalt\s+(?:von|des|der\s+datei|vom|im)\b/i,
     /\bwas\s+ist\s+(?:in|im)\s+(?:dem\s+|der\s+|einem\s+)?(?:datei|dokument|file|document)\b/i,
     /\blies\s+(?:mir\s+)?(?:den\s+inhalt|die\s+datei)\b/i,
+    // v7.9.29 (Teil B): direct read of a NAMED file — "lies X.md", "schau (dir)
+    // X.md an", "zeig mir X.md". Scoped to a filename WITH an extension so a
+    // bare "schau dir das an" / "zeig mir das" (no file) does NOT match and
+    // falls through to general. Resolution + graceful null-fallthrough live in
+    // the readFile handler.
+    /\blies\s+(?:mir\s+)?(?:die\s+datei\s+)?["']?[\w][\w.()\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    /\bschau(?:e|st)?\s+(?:dir\s+)?(?:mal\s+)?(?:die\s+datei\s+)?["']?[\w][\w.()\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    /\bzeig(?:e|st)?\s+(?:mir\s+)?(?:die\s+datei\s+)?["']?[\w][\w.()\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
     // English
     /\bwhat(?:'s|\s+is)?\s+(?:in|inside)\s+(?:the\s+|this\s+)?(?:file|document)\b/i,
     /\bwhat\s+does\s+(?:the\s+)?(?:file\s+)?[\w.()-]+\s+(?:say|contain)\b/i,
     /\bread\s+(?:me\s+)?(?:the\s+)?(?:file|document|contents?\s+of)\b/i,
     /\bshow\s+(?:me\s+)?(?:the\s+)?(?:contents?\s+of|file\s+content)\b/i,
+    /(?<!(?:did|have)\s+you\s+)\bread\s+(?:me\s+)?(?:the\s+file\s+)?["']?[\w][\w.()\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    /\bshow\s+(?:me\s+)?(?:the\s+file\s+)?["']?[\w][\w.()\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
   ], 14, ['steht', 'lesen', 'drin', 'inhalt', 'read', 'file', 'content']],
 
   // v7.9.28 (field-fix #3): safe deterministic file creation — "erstelle eine

@@ -24,6 +24,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const { describe, test, assert, run } = require('../harness');
 
 const RECOVERY_PATH = path.join(ROOT, 'src/agent/revolution/AgentLoopRecovery.js');
+const OBSTACLES_PATH = path.join(ROOT, 'src/agent/revolution/AgentLoopObstacles.js'); // v7.9.29 (hygiene #7): moved methods
 const EVENT_TYPES_PATH = path.join(ROOT, 'src/agent/core/EventTypes.js');
 const EVENT_SCHEMAS_PATH = path.join(ROOT, 'src/agent/core/EventPayloadSchemas.js');
 
@@ -64,7 +65,7 @@ describe('v7.9.9 Fix 3 — Decompose-on-Failure Activation', () => {
   });
 
   test('SRC-03: _tryDecomposeOnRepeatedFailure method body has correct shape', () => {
-    const src = fs.readFileSync(RECOVERY_PATH, 'utf8');
+    const src = fs.readFileSync(OBSTACLES_PATH, 'utf8');
     const idx = src.search(/_tryDecomposeOnRepeatedFailure\(step, result, stepIndex, onProgress\)\s*\{/);
     assert(idx > 0, '_tryDecomposeOnRepeatedFailure method must be defined');
     const block = src.slice(idx, idx + 2500);
@@ -83,7 +84,7 @@ describe('v7.9.9 Fix 3 — Decompose-on-Failure Activation', () => {
   });
 
   test('SRC-04: _sweepRepeatedFailures method exists with TTL-based eviction', () => {
-    const src = fs.readFileSync(RECOVERY_PATH, 'utf8');
+    const src = fs.readFileSync(OBSTACLES_PATH, 'utf8');
     const idx = src.search(/_sweepRepeatedFailures\(\)\s*\{/);
     assert(idx > 0, '_sweepRepeatedFailures method must exist');
     const block = src.slice(idx, idx + 600);

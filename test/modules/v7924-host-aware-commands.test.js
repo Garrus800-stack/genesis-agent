@@ -8,7 +8,7 @@
 //      suggestion instead of a doomed sub-goal.
 
 const { describe, test, assert, assertEqual, run } = require('../harness');
-const OSAdapter = require('../../src/agent/capabilities/shell/ShellOSAdapter');
+const OSAdapter = require('../../src/agent/core/shell/ShellOSAdapter');
 const DB = require('../../src/agent/hexagonal/CommandHandlersInstallDB');
 const Detect = require('../../src/agent/hexagonal/CommandHandlersInstallDetect');
 const { AgentLoopRecoveryDelegate } = require('../../src/agent/revolution/AgentLoopRecovery');

@@ -38,7 +38,7 @@ function test(name, fn) {
 
 test('step-reporting contract: AgentLoopSteps _stepCode output has no "test passed" claim', () => {
   const src = fs.readFileSync(
-    path.join(__dirname, '..', '..', 'src/agent/revolution/AgentLoopSteps.js'),
+    path.join(__dirname, '..', '..', 'src/agent/revolution/AgentLoopStepsCode.js'),
     'utf-8'
   );
   // _stepCode is the method that writes files (CODE step type).
@@ -58,7 +58,7 @@ test('step-reporting contract: AgentLoopSteps _stepCode output has no "test pass
 
 test('step-reporting contract: _stepCode still reports lines written (neutral output)', () => {
   const src = fs.readFileSync(
-    path.join(__dirname, '..', '..', 'src/agent/revolution/AgentLoopSteps.js'),
+    path.join(__dirname, '..', '..', 'src/agent/revolution/AgentLoopStepsCode.js'),
     'utf-8'
   );
   // The neutral output must still mention "Code written" + lines, so

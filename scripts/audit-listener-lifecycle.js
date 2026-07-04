@@ -63,6 +63,7 @@ const WHITELIST = {
   'organism/OrganismEvents.js':       'fan-out wire — pure event-forwarder, no per-instance state',
   'autonomy/AutonomyEvents.js':       'fan-out wire — pure event-forwarder, no per-instance state',
   'manifest/phase9-cognitive.js':     'manifest-time DI wire',
+  'manifest/phase9-cognitive-b.js':   'manifest-time DI wire (v7.9.29 hygiene #10 split)',
   'core/EventBus.js':                 'EventBus is the bus itself; internal self-registrations are intentional',
   // Note: subscription-helper.js itself uses bus.on inside a closure but
   // returns the unsub — that is the cleanup mechanism, not a leak.

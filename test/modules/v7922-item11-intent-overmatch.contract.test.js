@@ -40,7 +40,10 @@ test('the fuzzy keyword list drops the high-frequency casual words', () => {
   assert.ok(AGENT_GOAL_FUZZY.includes('autonom'), 'kept the strong keywords');
 });
 test('the producer imports the shared arrays (no drift)', () => {
-  const boot = fs.readFileSync(path.join(ROOT, 'src/agent/AgentCoreBoot.js'), 'utf8');
+  // v7.9.29 (hygiene #1): the agent-goal registration moved with the wire phase
+  // into AgentCoreBootWire.js — that is now the producer that must import the
+  // shared arrays so they cannot drift from IntentPatterns.
+  const boot = fs.readFileSync(path.join(ROOT, 'src/agent/AgentCoreBootWire.js'), 'utf8');
   assert.ok(/AGENT_GOAL_PATTERNS/.test(boot) && /AGENT_GOAL_FUZZY/.test(boot), 'producer uses the shared module');
 });
 

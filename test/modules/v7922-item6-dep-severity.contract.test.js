@@ -38,7 +38,7 @@ describe('v7.9.22 Item 6 — missing-dependency severity by try-guard', () => {
   });
 
   test('the syntax-only repair filter is unchanged in AutonomousDaemon (static)', () => {
-    const src = SRC('src/agent/autonomy/AutonomousDaemon.js');
+    const src = SRC('src/agent/autonomy/AutonomousDaemon.js') + SRC('src/agent/autonomy/AutonomousDaemonActivities.js'); // v7.9.29 (hygiene #8): activities moved
     assert(/filter\(\s*i\s*=>\s*i\.type\s*===\s*'syntax'\s*\)/.test(src), 'daemon still repairs only syntax issues');
   });
 });

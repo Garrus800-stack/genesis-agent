@@ -15,7 +15,7 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
-const OSAdapter = require('./shell/ShellOSAdapter');
+const OSAdapter = require('../core/shell/ShellOSAdapter');
 const _log = createLogger('FileProcessor');
 class FileProcessor {
   constructor(rootDir, sandbox, bus) {

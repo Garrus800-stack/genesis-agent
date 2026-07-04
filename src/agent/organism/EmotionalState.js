@@ -28,6 +28,8 @@ const { createLogger } = require('../core/Logger');
 const { applySubscriptionHelper } = require('../core/subscription-helper');
 const _log = createLogger('EmotionalState');
 
+const { emotionalStateHistoryMixin } = require('./EmotionalStateHistory'); // v7.9.29 (hygiene #5)
+
 class EmotionalState {
   constructor({ bus, storage, intervals, config }) {
     this.bus = bus || NullBus;
@@ -650,71 +652,11 @@ class EmotionalState {
    * Returns the raw _moodHistory array (read-only copy).
    * @returns {Array<{ curiosity: number, satisfaction: number, frustration: number, energy: number, loneliness: number, mood: string, ts: number }>}
    */
-  exportMoodHistory() {
-    return [...this._moodHistory];
-  }
-
-  /**
-   * Find emotional peaks: dimensions that spiked > threshold above baseline.
-   * Convenience wrapper used by EmotionalFrontier.writeImprint().
-   * @param {number} threshold - Minimum deviation from baseline (default 0.3)
-   * @returns {Array<{ dim: string, value: number, baseline: number, ts: number }>}
-   */
-  getPeaks(threshold = 0.3) {
-    const peaks = [];
-    for (const [dimName, dimConfig] of Object.entries(this.dimensions)) {
-      const baseline = dimConfig.baseline;
-      let maxValue = baseline;
-      let maxTs = 0;
-
-      for (const snapshot of this._moodHistory) {
-        const val = snapshot[dimName];
-        if (typeof val === 'number' && (val - baseline) > threshold && val > maxValue) {
-          maxValue = val;
-          maxTs = snapshot.ts || 0;
-        }
-      }
-
-      if (maxValue > baseline + threshold) {
-        peaks.push({ dim: dimName, value: maxValue, baseline, ts: maxTs });
-      }
-    }
-    return peaks.sort((a, b) => (b.value - b.baseline) - (a.value - a.baseline));
-  }
-
-  /**
-   * Find sustained emotional states: dimensions above threshold for > ratio of history.
-   * @param {number} threshold - Value threshold (default 0.6)
-   * @param {number} ratio - Minimum ratio of snapshots above threshold (default 0.6)
-   * @returns {Array<{ dim: string, avg: number, ratio: number }>}
-   */
-  getSustained(threshold = 0.6, ratio = 0.6) {
-    if (this._moodHistory.length < 5) return [];
-    const sustained = [];
-
-    for (const dimName of Object.keys(this.dimensions)) {
-      let aboveCount = 0, total = 0;
-      for (const snapshot of this._moodHistory) {
-        const val = snapshot[dimName];
-        if (typeof val === 'number') {
-          if (val > threshold) aboveCount++;
-          total += val;
-        }
-      }
-      const r = aboveCount / this._moodHistory.length;
-      if (r >= ratio) {
-        sustained.push({
-          dim: dimName,
-          avg: Math.round((total / this._moodHistory.length) * 1000) / 1000,
-          ratio: Math.round(r * 100) / 100,
-        });
-      }
-    }
-    return sustained;
-  }
 }
 
 // v7.3.6 patch: apply subscription-helper mixin
 applySubscriptionHelper(EmotionalState, { defaultSource: 'EmotionalState' });
+
+Object.assign(EmotionalState.prototype, emotionalStateHistoryMixin); // v7.9.29 (hygiene #5)
 
 module.exports = { EmotionalState };

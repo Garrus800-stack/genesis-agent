@@ -92,6 +92,10 @@ const sourceRead = {
     const lower = message.toLowerCase();
     const rootDir = this._rootDir();
 
+    // v7.9.29 (Teil B, #5): "did/have you read X" / "hattest du X gelesen" asks
+    // about the past, not a read now — keep on general for an honest answer.
+    if (/\b(?:did|have)\s+you\b[\s\S]{0,40}?\bread\b|\b(?:hattest|hast)\s+du\b[\s\S]{0,60}?\b(?:gelesen|angesehen|angeschaut)\b/i.test(lower)) return;
+
     // v7.5.9 ZIP2 v3 (Bug 5 companion): some chat UIs auto-convert
     // filename mentions into markdown-link syntax — e.g. "ONTOGENESIS.md"
     // becomes "[ONTOGENESIS.md](http://ONTOGENESIS.md)". Strip those

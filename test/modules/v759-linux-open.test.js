@@ -164,10 +164,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     // CAN verify the expansion logic by reading the source — making
     // sure the fix is actually present and not silently reverted.
     const fs = require('fs');
-    const src = fs.readFileSync(
-      require('path').join(__dirname, '../../src/agent/intelligence/ToolRegistry.js'),
-      'utf-8'
-    );
+    const src = (fs.readFileSync(require('path').join(__dirname, '../../src/agent/intelligence/ToolRegistry.js'), 'utf-8') + fs.readFileSync(require('path').join(__dirname, '../../src/agent/intelligence/ToolRegistryBuiltins.js'), 'utf-8'));
     assert(/expand leading "~"/i.test(src) && /homedir\(\)/.test(src),
       '~ expansion comment + os.homedir() call missing in ToolRegistry.js');
   });

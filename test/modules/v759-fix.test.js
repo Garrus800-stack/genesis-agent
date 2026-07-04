@@ -265,13 +265,13 @@ describe('v7.5.9 live-fix — open-path catches natural folder phrasings', () =>
 describe('v7.5.9 live-fix — file-read tool gets filename-variant resolution', () => {
 
   test('source-presence: file-read tool imports _resolveFileWithVariants', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/ToolRegistry.js'), 'utf8');
+    const src = (fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/ToolRegistry.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/ToolRegistryBuiltins.js'), 'utf8'));
     assert(/_resolveFileWithVariants.*SelfModelSourceRead/s.test(src),
       'must import _resolveFileWithVariants from SelfModelSourceRead');
   });
 
   test('source-presence: file-read calls variant resolver on missing file', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/ToolRegistry.js'), 'utf8');
+    const src = (fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/ToolRegistry.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/ToolRegistryBuiltins.js'), 'utf8'));
     const idx = src.indexOf("this.register('file-read'");
     const slice = src.slice(idx, idx + 2000);
     assert(/_resolveFileWithVariants\(filePath, rootDir\)/.test(slice),

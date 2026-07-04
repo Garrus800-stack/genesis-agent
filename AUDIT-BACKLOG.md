@@ -10,6 +10,11 @@ Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHAN
 
 ## Open backlog (added in v7.8.5)
 
+### v7.9.29 read-source path — fall-through phrasings (low-priority)
+
+The v7.9.29 read-path fix routes the common named-file phrasings — read, view, or show a file, in German and English — to the deterministic file-read handler. Phrasings that do not match those patterns still reach the general chat path, where a shell command the model writes in a code fence is not auto-executed; this is the residual of the behaviour the deterministic handlers were introduced to replace. Low-priority: the common cases are covered, and this is a monitor item for future field traces to decide whether further phrasings warrant their own deterministic route.
+
+
 ### v7.9.5 live-trace items deferred from v7.9.6
 
 Two observations from the v7.9.5 outpost trace that were not addressed in the v7.9.6 closeout because they need their own focused investigation:

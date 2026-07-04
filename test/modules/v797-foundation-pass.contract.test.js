@@ -265,8 +265,8 @@ test('C1: _recordActivity is called regardless of result truthiness', () => {
 // ── Bug E: health-check splits actionable from informational ──
 
 test('E1: health-check separates actionable from informational issues', () => {
-  const src = fs.readFileSync(
-    path.join(ROOT, 'src/agent/autonomy/AutonomousDaemon.js'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'src/agent/autonomy/AutonomousDaemon.js'), 'utf8') +
+    fs.readFileSync(path.join(ROOT, 'src/agent/autonomy/AutonomousDaemonActivities.js'), 'utf8'); // v7.9.29 (hygiene #8): _healthCheck moved
   assert(/actionableIssues/.test(src),
     'AutonomousDaemon must compute an actionableIssues list');
   assert(/informationalIssues/.test(src),
@@ -276,8 +276,8 @@ test('E1: health-check separates actionable from informational issues', () => {
 });
 
 test('E2: actionable is syntax-only, matching what reflector.repair can actually fix', () => {
-  const src = fs.readFileSync(
-    path.join(ROOT, 'src/agent/autonomy/AutonomousDaemon.js'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'src/agent/autonomy/AutonomousDaemon.js'), 'utf8') +
+    fs.readFileSync(path.join(ROOT, 'src/agent/autonomy/AutonomousDaemonActivities.js'), 'utf8'); // v7.9.29 (hygiene #8)
   // The split filter must specifically include 'syntax' and exclude others
   // (since reflector.repair only handles syntax, and missing-dependency
   // explicitly returns fixed: false).
