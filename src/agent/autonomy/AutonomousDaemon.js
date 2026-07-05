@@ -64,6 +64,11 @@ class AutonomousDaemon {
       logLevel: 'info',                // 'debug' | 'info' | 'warn'
       // v7.8.1: lockout config
       skillLockoutMs: 7 * 24 * 60 * 60 * 1000,  // 7 days after 2 failures
+      // v7.9.31 (AP-1, E6): desired-capability catalog — a list of
+      // { name, skill } entries, curated via settings
+      // (daemon.desiredCapabilities). Ships EMPTY: without a curated
+      // wishlist, only user-request gaps drive autonomous skill building.
+      desiredCapabilities: [],
     };
 
     // Capability gap tracker
@@ -345,20 +350,21 @@ class AutonomousDaemon {
 
   /** Check for commonly desired capabilities not yet available */
   _checkDesiredCapabilities() {
+    // v7.9.31 (AP-1, E6+S2): the catalog lives in settings
+    // (daemon.desiredCapabilities, default []) instead of a hardcoded
+    // list, and coverage counts a loaded skill OR a maturing candidate —
+    // a pending candidate must not re-open its gap every cycle while it
+    // rehearses. Quarantined and discarded candidates do NOT cover; their
+    // gap re-opens and the rebuild runs as the next generation, with the
+    // skill-build lockout still pacing repeated failures.
     const currentCaps = this.selfModel.getCapabilities();
-    // v7.7.9 Phase 1c: each gap now carries its expected skill name —
-    // the same name the check() looks for. _attemptSkillBuilds passes
-    // this to createSkill so the loaded skill lands under that name and
-    // the gap stops re-detecting next cycle.
-    const DESIRED = [
-      { name: 'web-access',         skill: 'web-search',  check: () => currentCaps.includes('web-access')      || this.skills?.loadedSkills?.has('web-search') },
-      { name: 'file-management',    skill: 'file-manager', check: () => currentCaps.includes('file-management') || this.skills?.loadedSkills?.has('file-manager') },
-      { name: 'scheduling',         skill: 'scheduler',   check: () => this.skills?.loadedSkills?.has('scheduler') },
-      { name: 'data-visualization', skill: 'chart-gen',   check: () => this.skills?.loadedSkills?.has('chart-gen') },
-    ];
-
-    return DESIRED
-      .filter(d => !d.check())
+    const catalog = Array.isArray(this.config.desiredCapabilities)
+      ? this.config.desiredCapabilities
+      : [];
+    return catalog
+      .filter(d => d && d.name && d.skill)
+      .filter(d => !(currentCaps.includes(d.name)
+        || this.skills?.hasSkillOrCandidate?.(d.skill)))
       .map(d => ({ id: `gap:${d.name}`, topic: d.name, expectedSkill: d.skill, type: 'missing-capability' }));
   }
 
@@ -422,13 +428,13 @@ class AutonomousDaemon {
         // picks names freely and gap-detection re-fires every cycle.
         const result = await this.skills.createSkill(description, {
           desiredName: gap.expectedSkill || null,
+          origin: 'daemon-gap', // v7.9.31 (AP-1): routes into the maturation pipeline
         });
         if (result.includes('✅')) {
           built++;
           // success: reset the lockout entry
           this.gapAttempts.delete(gap.id);
           this._saveSkillAttempts();
-          this.bus.fire('daemon:skill-created', { skill: gap.topic, reason: 'capability-gap' }, { source: 'AutonomousDaemon' });
         } else {
           this._recordSkillFailure(gap.id, next, 'build-failed');
         }

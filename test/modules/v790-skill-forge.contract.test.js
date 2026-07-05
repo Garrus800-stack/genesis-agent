@@ -88,8 +88,11 @@ function makePromptsStub() {
 
 function makeSkillManager({ model, sandbox, codeSafety, prompts, bus, skillsDir }) {
   const tmpDir = skillsDir || fs.mkdtempSync(path.join(os.tmpdir(), 'forge-test-'));
-  // Positional constructor: (skillsDir, sandbox, model, prompts, guard)
-  const mgr = new SkillManager(tmpDir, sandbox, model, prompts, null);
+  // Positional constructor: (skillsDir, sandbox, model, prompts, guard, opts).
+  // v7.9.31 (AP-1): the forge persists its product as a maturing candidate
+  // into koennenDir — the harness must provide one.
+  const koennenDir = path.join(tmpDir, 'koennen');
+  const mgr = new SkillManager(tmpDir, sandbox, model, prompts, null, { koennenDir });
   mgr._codeSafety = codeSafety;
   mgr.bus = bus;
   return { mgr, tmpDir };

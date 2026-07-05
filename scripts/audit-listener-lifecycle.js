@@ -137,6 +137,24 @@ function buildMixinHostMap(allFiles) {
       const hostClass = m[1];
       const argNames = m[2].split(',').map(s => s.trim()).filter(Boolean);
       for (const argName of argNames) {
+        // v7.9.31: tolerate the inline form
+        // `Object.assign(X.prototype, require('./Y').mixin)` — resolve the
+        // path straight from the expression, and never feed a non-identifier
+        // into the RegExp constructor below (that used to crash the audit).
+        const inline = argName.match(/require\((['"])([^'"]+)\1\)(?:\s*\.\s*(\w+))?/);
+        if (inline) {
+          if (inline[2].startsWith('.')) {
+            const resolvedInline = path.resolve(path.dirname(hostFile), inline[2]);
+            for (const cand of [resolvedInline + '.js', resolvedInline]) {
+              if (fs.existsSync(cand) && allFiles.includes(cand)) {
+                map.set(cand, { hostFile, hostClass, mixinExportName: inline[3] || 'mixin' });
+                break;
+              }
+            }
+          }
+          continue;
+        }
+        if (!/^\w+$/.test(argName)) continue;
         // Find the require() that brings in argName: const { x } = require('./Y')
         // or const { x: argName } = require('./Y'). We resolve the file path.
         const importRe = new RegExp(`(?:const|let|var)\\s*\\{[^}]*\\b(\\w+)(?:\\s*:\\s*${argName.replace(/[$()*+.?[\\\]^{|}]/g, '\\\\$&')})?[^}]*\\}\\s*=\\s*require\\(['"]([^'"]+)['"]\\)`, 'g');

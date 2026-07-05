@@ -25,8 +25,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const { atomicWriteFileSync, safeJsonParse } = require('../../core/utils');
+const { safeJsonParse } = require('../../core/utils');
+const { recordRehearsalOutcome } = require('../../capabilities/SkillManagerKoennenIntake');
+const { TRUST_LEVELS } = require('../../foundation/TrustLevelSystem');
 const { createLogger } = require('../../core/Logger');
 const _log = createLogger('SkillRehearsal');
 
@@ -64,7 +65,11 @@ module.exports = {
     const tracker = idleMind.effectivenessTracker;
     if (!sm || !tracker || !sm.koennenDir) return null;
 
-    const target = _pickRehearsalTarget(sm.koennenDir);
+    // v7.9.31 (AP-1, S8): the first-approval gate below needs the live
+    // trust level; missing system defaults to SUPERVISED (0).
+    const trustLevel = idleMind._trustLevelSystem?.getLevel?.() ?? 0;
+
+    const target = _pickRehearsalTarget(sm.koennenDir, trustLevel);
     if (!target) return null;
 
     const input = await _generateRehearsalInput(target, idleMind);
@@ -115,7 +120,7 @@ function _countPending(koennenDir) {
 /**
  * Pick the skill with fewest rehearsals (oldest as tiebreaker).
  */
-function _pickRehearsalTarget(koennenDir) {
+function _pickRehearsalTarget(koennenDir, trustLevel = 0) {
   let entries;
   try {
     entries = fs.readdirSync(koennenDir, { withFileTypes: true });
@@ -134,6 +139,25 @@ function _pickRehearsalTarget(koennenDir) {
       if (!m) continue;
       const status = m.status || 'pending';
       if (status !== 'pending' && status !== 'rehearsing') continue;
+
+      // v7.9.31 (AP-1, S8) — first-approval gate. Nothing synthesized runs
+      // autonomously before a human-initiated or human-approved first
+      // execution: a daemon-gap candidate needs an explicit grant below
+      // FULL_AUTONOMY, and a denied grant blocks autonomy for good (user
+      // runs still mature it); a user-slash candidate's premiere belongs
+      // to the human who ordered it. Crystallizer candidates (no origin)
+      // keep their pre-existing, ungated rehearsal behavior.
+      const ko = m.koennen || {};
+      const runsSoFar = ko.rehearsalCount || 0;
+      // An explicit denial blocks autonomous rehearsal for ANY candidate,
+      // regardless of origin — a user-driven /run-skill still matures it.
+      if (ko.autonomy === 'denied') continue;
+      if (ko.origin === 'daemon-gap') {
+        if (runsSoFar === 0 && ko.autonomy !== 'granted'
+          && trustLevel < TRUST_LEVELS.FULL_AUTONOMY) continue;
+      } else if (ko.origin === 'user-slash') {
+        if (runsSoFar === 0) continue;
+      }
       candidates.push({
         name: m.name,
         dir,
@@ -199,38 +223,12 @@ async function _generateRehearsalInput(target, idleMind) {
  * After rehearsal: increment count, add input hash, transition status.
  */
 function _updateAfterRehearsal(target, input, _success) {
-  try {
-    // Re-read from disk in case another actor (PromotionEvaluator) touched it.
-    const fresh = safeJsonParse(fs.readFileSync(target.manifestPath, 'utf-8'), null, 'SkillRehearsal');
-    if (!fresh) return;
-
-    fresh.koennen = fresh.koennen || {};
-    fresh.koennen.rehearsalCount = (fresh.koennen.rehearsalCount || 0) + 1;
-
-    // Distinct-input tracking — sha256 hash, capped at 50 entries.
-    const inputHash = crypto.createHash('sha256')
-      .update(JSON.stringify(input))
-      .digest('hex')
-      .slice(0, 16);
-    if (!Array.isArray(fresh.koennen.rehearsedInputHashes)) {
-      fresh.koennen.rehearsedInputHashes = [];
-    }
-    if (!fresh.koennen.rehearsedInputHashes.includes(inputHash)) {
-      fresh.koennen.rehearsedInputHashes.push(inputHash);
-      if (fresh.koennen.rehearsedInputHashes.length > 50) {
-        fresh.koennen.rehearsedInputHashes = fresh.koennen.rehearsedInputHashes.slice(-50);
-      }
-    }
-
-    // Transition pending → rehearsing on first rehearsal.
-    if (fresh.status === 'pending' && fresh.koennen.rehearsalCount === 1) {
-      fresh.status = 'rehearsing';
-    }
-
-    atomicWriteFileSync(target.manifestPath, JSON.stringify(fresh, null, 2), 'utf-8');
-  } catch (err) {
-    _log.warn(`[REHEARSAL] manifest update failed: ${err.message}`);
-  }
+  // v7.9.31 (AP-1, S7): the bump vocabulary lives in ONE shared place —
+  // a user-driven /run-skill and an autonomous rehearsal mature a
+  // candidate through the identical write (counter, distinct-input hash,
+  // pending → rehearsing flip). No second bump path may exist.
+  const res = recordRehearsalOutcome(target.manifestPath, input);
+  if (!res) _log.warn('[REHEARSAL] manifest update failed');
 }
 
 function _fireRehearsedEvent(bus, skillName, success) {

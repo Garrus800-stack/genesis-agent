@@ -7,8 +7,8 @@
 //   S4  identical tool calls within one response collapse to one
 //   S5  /run-skill lines the prompt teaches become executable
 //   S7  a test-boot's leftover sentinel is not a phantom crash
-// (S3 mandatory-origin is deferred — larger scope than the plan
-//  estimated; it threads origin through internal ShellAgent paths.)
+// (S3 mandatory-origin shipped in v7.9.30 as well — its contracts
+//  live in v7930-shell-origin tests and the ShellAgent suites.)
 // ============================================================
 
 'use strict';

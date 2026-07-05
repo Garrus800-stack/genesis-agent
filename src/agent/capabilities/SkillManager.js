@@ -10,6 +10,7 @@ const path = require('path');
 const { safeJsonParse, atomicWriteFileSync } = require('../core/utils');
 const { createLogger } = require('../core/Logger');
 const { isCloudSyncPath } = require('../foundation/CloudSyncSafety');
+const { mixin: koennenIntakeMixin } = require('./SkillManagerKoennenIntake');
 const _log = createLogger('SkillManager');
 
 class SkillManager {
@@ -417,6 +418,15 @@ class SkillManager {
       ? opts.maxAttempts
       : 3;
 
+    // v7.9.31 (AP-1): intake collision rule — when the target name is already
+    // a loaded tool or a maturing candidate, answer without forging (saves the
+    // whole LLM iteration); a quarantined/discarded name is archived here and
+    // the forge proceeds as the next generation.
+    if (desiredName) {
+      const collisionEarly = this._candidateCollisionResponse(desiredName);
+      if (collisionEarly) return collisionEarly;
+    }
+
     // v7.9.0 final: iteration loop with error feedback (Voyager pattern).
     // The configured model stays configured — no auto-routing. Errors from
     // parser / safety / sandbox flow back into the next prompt so the LLM
@@ -447,7 +457,7 @@ class SkillManager {
       const response = await this.model.chat(prompt, [], 'code');
 
       const result = await this._runForgeAttempt({
-        response, description, desiredName, attempt,
+        response, description, desiredName, attempt, origin: opts.origin,
       });
 
       if (result.ok) {
@@ -478,7 +488,7 @@ class SkillManager {
    * { ok: false, lastError, lastCode } on failure (feeds next iteration).
    * @private
    */
-  async _runForgeAttempt({ response, description, desiredName, attempt }) {
+  async _runForgeAttempt({ response, description, desiredName, attempt, origin }) {
     // Step 1: Extract manifest and code — with fallback strategies.
     // Order matters: the LLM often emits a closed ```json manifest fence
     // FIRST and an unclosed ```javascript code fence SECOND (truncated
@@ -568,7 +578,6 @@ class SkillManager {
 
     const skillCode = codeMatch[1].trim();
     const skillName = manifest.name || 'new-skill';
-    const skillDir = path.join(this.skillsDir, skillName);
 
     // FIX v5.1.0 (DI-1): CodeSafety via port lateBinding (this._codeSafety)
     const safety = this._codeSafety.scanCode(skillCode, `skills/${skillName}/index.js`);
@@ -594,59 +603,11 @@ class SkillManager {
       };
     }
 
-    // Step 4: Install
-    return this._installForgedSkill(manifest, skillCode, skillName, skillDir, attempt);
-  }
-
-  /**
-   * Write a verified skill to disk and reload the registry.
-   * Returns { ok: true, skillName, message } on success or
-   * { ok: false, lastError, lastCode } on install-time failure (rare).
-   * @private
-   */
-  async _installForgedSkill(manifest, skillCode, skillName, skillDir, attempts) {
-    // FIX v4.10.0 (Audit P1-03b): Path traversal protection + SafeGuard validation.
-    // manifest.entry and skillName come from LLM output — must be sanitized.
-    const safeEntry = path.basename(manifest.entry || 'index.js');
-    const manifestPath = path.join(skillDir, 'skill-manifest.json');
-    const codePath = path.join(skillDir, safeEntry);
-
-    // Verify paths resolve inside skillsDir
-    const skillsDirResolved = path.resolve(this.skillsDir);
-    if (!path.resolve(manifestPath).startsWith(skillsDirResolved + path.sep)) {
-      return { ok: false, lastError: `path traversal blocked: ${manifestPath}`, lastCode: skillCode };
-    }
-    if (!path.resolve(codePath).startsWith(skillsDirResolved + path.sep)) {
-      return { ok: false, lastError: `path traversal blocked: ${codePath}`, lastCode: skillCode };
-    }
-
-    // SafeGuard validation (blocks kernel, critical files, node_modules, .git)
-    if (this.guard) {
-      try {
-        this.guard.validateWrite(manifestPath);
-        this.guard.validateWrite(codePath);
-      } catch (err) {
-        return { ok: false, lastError: `SafeGuard blocked: ${err.message}`, lastCode: skillCode };
-      }
-    }
-
-    if (!fs.existsSync(skillDir)) {
-      fs.mkdirSync(skillDir, { recursive: true });
-    }
-
-    // FIX v5.1.0 (N-3): Atomic writes for skill installation.
-    atomicWriteFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
-    atomicWriteFileSync(codePath, skillCode, 'utf-8');
-
-    // Reload skills
-    await this.loadSkills();
-
-    const attemptNote = attempts > 1 ? `\n**Attempts:** ${attempts}` : '';
-    return {
-      ok: true,
-      skillName,
-      message: `✅ Skill "${skillName}" erstellt und installiert!\n\n**Beschreibung:** ${manifest.description}${attemptNote}\n**Interface:** ${JSON.stringify(manifest.interface, null, 2)}\n**Test:** Bestanden`,
-    };
+    // Step 4: persist as a maturing candidate (v7.9.31, AP-1) — the forge
+    // no longer installs into the live registry; promotion does that.
+    return this._installCandidateSkill(manifest, skillCode, skillName, {
+      origin, description, attempts: attempt,
+    });
   }
 
   /** Remove a skill */
@@ -667,5 +628,9 @@ class SkillManager {
     await this.loadSkills();
   }
 }
+
+// v7.9.31 (AP-1): Koennen-intake mixin — candidate installer, coverage
+// predicate, generation path, and the shared rehearsal-outcome vocabulary.
+Object.assign(SkillManager.prototype, koennenIntakeMixin);
 
 module.exports = { SkillManager };

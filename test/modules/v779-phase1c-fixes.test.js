@@ -186,27 +186,41 @@ function skillManagerStub({ llmManifestName = null } = {}) {
   };
   const fakeCodeSafety = { scanCode: () => ({ safe: true, issues: [] }) };
 
-  // SkillManager(skillsDir, sandbox, model, prompts, guard)
-  const sm = new SkillManager(tmpDir, fakeSandbox, fakeLLM, fakePrompts, null);
+  // SkillManager(skillsDir, sandbox, model, prompts, guard, opts).
+  // v7.9.31 (AP-1): createSkill persists a maturing candidate into koennenDir.
+  const sm = new SkillManager(tmpDir, fakeSandbox, fakeLLM, fakePrompts, null, {
+    koennenDir: path.join(tmpDir, 'koennen'),
+  });
   sm._codeSafety = fakeCodeSafety;
   return sm;
+}
+
+// v7.9.31 (AP-1): the forge contract changed — a created skill lands as a
+// PENDING CANDIDATE under koennenDir (not in the live registry). These
+// helpers read the new target.
+function candidateNames(sm) {
+  if (!fs.existsSync(sm.koennenDir)) return [];
+  return fs.readdirSync(sm.koennenDir)
+    .filter(d => fs.existsSync(path.join(sm.koennenDir, d, 'skill-manifest.json')));
 }
 
 describe('F3 — SkillManager.createSkill respects desiredName', () => {
   test('without desiredName: uses LLM-chosen name', async () => {
     const sm = skillManagerStub({ llmManifestName: 'llm-picked-name' });
     const result = await sm.createSkill('do something');
-    const names = sm.listSkills().map(s => s.name);
+    const names = candidateNames(sm);
     assert(names.includes('llm-picked-name'),
-      `expected 'llm-picked-name' in [${names.join(', ')}], result was: ${result}`);
+      `expected candidate 'llm-picked-name' in [${names.join(', ')}], result was: ${result}`);
+    assert(!sm.listSkills().some(x => x.name === 'llm-picked-name'),
+      'a fresh candidate must NOT be loaded into the live registry');
   });
 
   test('with desiredName: overrides LLM choice', async () => {
     const sm = skillManagerStub({ llmManifestName: 'llm-different-name' });
     await sm.createSkill('do something', { desiredName: 'web-search' });
-    const names = sm.listSkills().map(s => s.name);
+    const names = candidateNames(sm);
     assert(names.includes('web-search'),
-      `expected 'web-search' in [${names.join(', ')}]`);
+      `expected candidate 'web-search' in [${names.join(', ')}]`);
     assert(!names.includes('llm-different-name'),
       'LLM-picked name must have been overridden');
   });
@@ -224,11 +238,13 @@ describe('F3 — SkillManager.createSkill respects desiredName', () => {
       run: () => ({ ok: true }),
       testPatch: async () => ({ success: true }),
     };
-    const sm = new SkillManager(tmpDir, fakeSandbox, fakeLLM, fakePrompts, null);
+    const sm = new SkillManager(tmpDir, fakeSandbox, fakeLLM, fakePrompts, null, {
+      koennenDir: path.join(tmpDir, 'koennen'),
+    });
     sm._codeSafety = { scanCode: () => ({ safe: true, issues: [] }) };
     await sm.createSkill('do something', { desiredName: 'scheduler' });
-    const names = sm.listSkills().map(s => s.name);
-    assert(names.includes('scheduler'), `expected 'scheduler' in [${names.join(', ')}]`);
+    const names = candidateNames(sm);
+    assert(names.includes('scheduler'), `expected candidate 'scheduler' in [${names.join(', ')}]`);
   });
 });
 

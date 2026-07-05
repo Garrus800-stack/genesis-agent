@@ -108,6 +108,35 @@ const commandHandlersCode = {
       // for EVERY case, free-text included. The not-found case instead
       // suggests the nearest installed skill via CapabilityMatcher.
       if (err.message && err.message.includes('not found') && this.skillManager) {
+        // v7.9.31 (AP-1, S7): a maturing candidate runs on demand — a
+        // user-driven /run-skill executes it straight from koennenDir and
+        // counts as a rehearsal through the ONE shared bump vocabulary, so
+        // human-initiated runs mature a candidate exactly like autonomous
+        // rehearsals do. Quarantined and discarded candidates do NOT run;
+        // they fall through to the normal not-found suggestion below.
+        try {
+          const candidateStatus = this.skillManager._candidateStatus?.(skillName);
+          if (candidateStatus === 'pending' || candidateStatus === 'rehearsing') {
+            const path = require('path');
+            const candDir = path.join(this.skillManager.koennenDir, skillName);
+            const result = await this.skillManager.executeSkillByManifest(
+              skillName, candDir, skillInput, { source: 'user-run' },
+            );
+            const mat = this.skillManager.recordRehearsalOutcome(
+              path.join(candDir, 'skill-manifest.json'), skillInput,
+            );
+            const output = result.output || result.result || result;
+            const head = result.error
+              ? `⚠️ Candidate skill "${skillName}" error: ${result.error}`
+              : `✅ Candidate skill "${skillName}" result:\n\`\`\`json\n${JSON.stringify(output, null, 2)}\n\`\`\``;
+            const matLine = mat
+              ? `\n\n🌱 Maturing: rehearsals ${mat.rehearsalCount} · distinct inputs ${mat.distinctInputs} · status ${mat.status} — \`/skills-pending\` shows promotion progress.`
+              : '';
+            return head + matLine;
+          }
+        } catch (_candErr) {
+          // A broken candidate must not block the suggestion path.
+        }
         try {
           const skills = this.skillManager.listSkills();
           let suggestion = null;

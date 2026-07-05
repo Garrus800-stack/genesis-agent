@@ -194,8 +194,9 @@ const SCHEMAS = {
   // main.js bridges to the renderer; see preload.js ALLOWED_RECEIVE.
   'chat:self-message-appended':     { role: 'required', content: 'required', timestamp: 'required', initiatedBy: 'required', selfMeta: 'optional' },
 
-  // Daemon
-  'daemon:skill-created':    { skill: 'required', reason: 'required' },
+  // Koennen intake (v7.9.31, AP-1) — fired by the SkillManager intake when
+  // a forged skill lands as a maturing candidate (replaces daemon:skill-created).
+  'skill:candidate-created': { skillName: 'required', origin: 'required', generation: 'required' },
 
   // Install handler (v7.6.0 — emitted from CommandHandlersInstall after a
   // successful Tier-1 install. path is null when post-install verification
@@ -839,7 +840,7 @@ const SCHEMAS = {
   'store:MODEL_FAILOVER':       { id: 'required', type: 'required', payload: 'required' },
   'store:MULTI_FILE_REFACTOR':  { id: 'required', type: 'required', payload: 'required' },
   'store:SHELL_PLAN_EXECUTED':  { id: 'required', type: 'required', payload: 'required' },
-  'store:SKILL_CREATED':        { id: 'required', type: 'required', payload: 'required' },
+  'store:SKILL_CANDIDATE_CREATED': { id: 'required', type: 'required', payload: 'required' },
   'store:SURPRISE_NOVEL':      { id: 'required', type: 'required', payload: 'required' },
   'store:SYSTEM_BOOT':          { id: 'required', type: 'required', payload: 'required' },
   'store:SYSTEM_SHUTDOWN':      { id: 'required', type: 'required', payload: 'required' },

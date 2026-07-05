@@ -417,7 +417,9 @@ const EVENTS = Object.freeze({
     CYCLE_COMPLETE: 'daemon:cycle-complete',
     SUGGESTIONS:   'daemon:suggestions',
     AUTO_REPAIR:   'daemon:auto-repair',
-    SKILL_CREATED: 'daemon:skill-created',
+    // v7.9.31 (AP-1): a forged skill lands as a maturing candidate; the
+    // SkillManager intake fires this (replaces daemon:skill-created).
+    SKILL_CANDIDATE_CREATED: 'skill:candidate-created',
     // V7-4A: External control channel
     CONTROL_LISTENING:    'daemon:control-listening',
     CONTROL_CLOSED:       'daemon:control-closed',
@@ -1071,7 +1073,7 @@ const EVENTS = Object.freeze({
     /** v7.5.7: Emitted by SelfStatementLog._fireActivityHint when Genesis claims an ongoing activity (1st-person present-progressive) but goalStack snapshot at chat-completed shows zero active goals. Soft signal — confidence 0.6, intentionally not "contradiction". Catches the "ich beschäftige mich mit X" confabulation pattern observed in v7.5.x live tests. */
     SELF_STATEMENT_ACTIVITY_HINT: 'store:SELF_STATEMENT_ACTIVITY_HINT',
     SHELL_PLAN_EXECUTED: 'store:SHELL_PLAN_EXECUTED',
-    SKILL_CREATED:       'store:SKILL_CREATED',
+    SKILL_CANDIDATE_CREATED: 'store:SKILL_CANDIDATE_CREATED',
     SURPRISE_NOVEL:      'store:SURPRISE_NOVEL',
     SYSTEM_BOOT:         'store:SYSTEM_BOOT',
     SYSTEM_SHUTDOWN:     'store:SYSTEM_SHUTDOWN',
@@ -1502,7 +1504,7 @@ const EVENT_STORE_BUS_MAP = Object.freeze({
   SYSTEM_SHUTDOWN:      { store: 'SYSTEM_SHUTDOWN',       bus: 'agent:shutdown' },
   INTENT_CLASSIFIED:    { store: 'INTENT_CLASSIFIED',    bus: 'intent:classified' },
   MCP_TOOL_CALL:        { store: 'MCP_TOOL_CALL',        bus: 'mcp:tool-call' },
-  SKILL_CREATED:        { store: 'SKILL_CREATED',        bus: 'daemon:skill-created' },
+  SKILL_CANDIDATE_CREATED: { store: 'SKILL_CANDIDATE_CREATED', bus: 'skill:candidate-created' },
 });
 
 module.exports = { EVENTS, EVENT_STORE_BUS_MAP };

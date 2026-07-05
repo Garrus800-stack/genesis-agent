@@ -252,24 +252,58 @@ describe('AutonomousDaemon — _analyzeFailurePatterns()', () => {
 });
 
 describe('AutonomousDaemon — _checkDesiredCapabilities()', () => {
-  test('returns missing capabilities when selfModel reports empty caps', () => {
-    const { daemon } = create({
-      selfModel: { getCapabilities: () => [] },
-    });
+  // v7.9.31 (AP-1, E6+S2): the catalog lives in settings and ships EMPTY;
+  // coverage counts a loaded skill OR a maturing candidate.
+  test('ships with an EMPTY catalog: no gaps without curation', () => {
+    const { daemon } = create({ selfModel: { getCapabilities: () => [] } });
     daemon.skills = null;
     const gaps = daemon._checkDesiredCapabilities();
     assert(Array.isArray(gaps));
-    assert(gaps.length > 0);
-    assert(gaps.every(g => g.type === 'missing-capability'));
+    assertEqual(gaps.length, 0);
   });
 
-  test('returns empty array when all desired caps present via skills', () => {
+  test('curated catalog: reports missing capabilities as gaps', () => {
+    const { daemon } = create({ selfModel: { getCapabilities: () => [] } });
+    daemon.skills = null;
+    daemon.config.desiredCapabilities = [
+      { name: 'web-access', skill: 'web-search' },
+      { name: 'scheduling', skill: 'scheduler' },
+    ];
+    const gaps = daemon._checkDesiredCapabilities();
+    assertEqual(gaps.length, 2);
+    assert(gaps.every(g => g.type === 'missing-capability'));
+    assertEqual(gaps[0].expectedSkill, 'web-search');
+  });
+
+  test('a maturing candidate covers its gap — no loaded skill required', () => {
+    const { daemon } = create({ selfModel: { getCapabilities: () => [] } });
+    daemon.skills = {
+      loadedSkills: new Map(),
+      hasSkillOrCandidate: (n) => n === 'scheduler',
+    };
+    daemon.config.desiredCapabilities = [
+      { name: 'scheduling', skill: 'scheduler' },
+      { name: 'data-visualization', skill: 'chart-gen' },
+    ];
+    const gaps = daemon._checkDesiredCapabilities();
+    assertEqual(gaps.length, 1);
+    assertEqual(gaps[0].topic, 'data-visualization');
+  });
+
+  test('returns empty array when all desired caps present via caps or predicate', () => {
     const { daemon } = create({
       selfModel: { getCapabilities: () => ['web-access', 'file-management'] },
     });
     daemon.skills = {
       loadedSkills: new Map([['scheduler', true], ['chart-gen', true]]),
+      hasSkillOrCandidate: (n) => n === 'scheduler' || n === 'chart-gen',
     };
+    daemon.config.desiredCapabilities = [
+      { name: 'web-access', skill: 'web-search' },
+      { name: 'file-management', skill: 'file-manager' },
+      { name: 'scheduling', skill: 'scheduler' },
+      { name: 'data-visualization', skill: 'chart-gen' },
+    ];
     const gaps = daemon._checkDesiredCapabilities();
     assertEqual(gaps.length, 0);
   });

@@ -322,12 +322,22 @@ const commandHandlersGoals = {
   // Können skills grouped by status (promoted, rehearsing, pending,
   // quarantined, discarded). Replaces the v7.9.0 single-status view.
   // Built-in skills (src/skills/) are listed separately at top.
-  skillsPending(_message) {
+  skillsPending(message) {
     const fs = require('fs');
     const path = require('path');
 
     const genesisDir = this._genesisDir || '.genesis';
     const pendingDir = path.join(genesisDir, 'koennen', 'skills-pending');
+
+    // v7.9.31 (AP-1, S11): sub-actions. `approve <name>` grants a
+    // daemon-gap candidate its autonomous first run; `deny <name>` blocks
+    // autonomous rehearsal for good — a user-driven /run-skill still
+    // matures the candidate either way. The decision lands in the manifest
+    // as koennen.autonomy and is read by the rehearsal gate.
+    const sub = typeof message === 'string'
+      ? message.match(/\/skills-pending\s+(approve|deny)\s+([\w-]+)/i)
+      : null;
+    if (sub) return this._skillsPendingDecision(sub[1].toLowerCase(), sub[2], pendingDir);
 
     const tracker = this.skillEffectivenessTracker || null;
     const sm = this.skillManager || null;
@@ -374,6 +384,7 @@ const commandHandlersGoals = {
         groups.pending.push({
           name: e.name, runs: 0, lb: '—', rehearsals: 0, distinct: 0,
           manifest: { koennen: {} }, desc: '(no description)',
+          origin: 'crystallizer', autonomy: null,
         });
         continue;
       }
@@ -389,7 +400,9 @@ const commandHandlersGoals = {
         ? new Set(manifest.koennen.rehearsedInputHashes).size : 0;
       const desc = manifest.description || '(no description)';
 
-      groups[status].push({ name: e.name, runs, lb, rehearsals, distinct, manifest, desc });
+      const origin = (manifest.koennen && manifest.koennen.origin) || 'crystallizer';
+      const autonomy = (manifest.koennen && manifest.koennen.autonomy) || null;
+      groups[status].push({ name: e.name, runs, lb, rehearsals, distinct, manifest, desc, origin, autonomy });
     }
 
     const totalKoennen = Object.values(groups).reduce((s, arr) => s + arr.length, 0);
@@ -410,7 +423,10 @@ const commandHandlersGoals = {
     if (groups.rehearsing.length > 0) {
       out.push(`\n**Rehearsing** (${groups.rehearsing.length}):`);
       for (const s of groups.rehearsing) {
-        out.push(`  ○ ${s.name} — Wilson ${s.lb}, ${s.rehearsals} rehearsals, ${s.distinct} distinct inputs`);
+        out.push(`  ○ ${s.name} — Wilson ${s.lb}, ${s.rehearsals} rehearsals, ${s.distinct} distinct inputs [${s.origin}]`);
+        if (s.autonomy === 'denied') {
+          out.push(`      ⛔ autonomous rehearsal denied — /run-skill ${s.name} still matures it`);
+        }
       }
     }
     if (groups.pending.length > 0) {
@@ -420,7 +436,12 @@ const commandHandlersGoals = {
           ? new Date(s.manifest.koennen.crystallizedAt).toISOString().slice(0, 10) : '—';
         // Include the description (or "(no description)" stub) so malformed
         // manifests still render a visible row per the v7.9.0 contract.
-        out.push(`  · ${s.name} — ${s.desc} (crystallized ${cAt})`);
+        out.push(`  · ${s.name} — ${s.desc} (crystallized ${cAt}) [${s.origin}]`);
+        if (s.origin === 'daemon-gap' && !s.autonomy) {
+          out.push(`      ⏳ awaiting first-run approval — /skills-pending approve ${s.name} (Full Autonomy rehearses without asking)`);
+        } else if (s.autonomy === 'denied') {
+          out.push(`      ⛔ autonomous rehearsal denied — /run-skill ${s.name} still matures it`);
+        }
       }
     }
     if (groups.quarantined.length > 0) {
@@ -439,6 +460,46 @@ const commandHandlersGoals = {
     }
 
     return out.join('\n');
+  },
+
+  // v7.9.31 (AP-1, S11): write an approval decision into a maturing
+  // candidate's manifest. `approve` is meaningful for daemon-gap candidates
+  // (grants the autonomous first run below Full Autonomy); `deny` blocks
+  // autonomous rehearsal for ANY candidate — user-driven /run-skill keeps
+  // maturing it either way.
+  _skillsPendingDecision(action, name, pendingDir) {
+    const fs = require('fs');
+    const path = require('path');
+    const manifestPath = path.join(pendingDir, name, 'skill-manifest.json');
+    if (!fs.existsSync(manifestPath)) {
+      return `❌ No maturing candidate named "${name}" found. \`/skills-pending\` lists all candidates.`;
+    }
+    let m;
+    try { m = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); }
+    catch { return `❌ Candidate "${name}" has a malformed manifest — cannot record a decision.`; }
+    const status = m.status || 'pending';
+    if (status !== 'pending' && status !== 'rehearsing') {
+      return `❌ "${name}" is ${status} — approval decisions apply to maturing candidates only.`;
+    }
+    m.koennen = m.koennen || {};
+    if (action === 'approve') {
+      if (m.koennen.origin !== 'daemon-gap') {
+        return `ℹ️ "${name}" needs no approval — ${m.koennen.origin === 'user-slash'
+          ? 'your first /run-skill IS its supervised premiere'
+          : 'crystallizer candidates rehearse without approval'}. Nothing to grant.`;
+      }
+      m.koennen.autonomy = 'granted';
+    } else {
+      m.koennen.autonomy = 'denied';
+    }
+    try {
+      fs.writeFileSync(manifestPath, JSON.stringify(m, null, 2), 'utf-8');
+    } catch (err) {
+      return `❌ Could not write the decision: ${err.message}`;
+    }
+    return action === 'approve'
+      ? `✅ "${name}" approved — it may now rehearse autonomously. \`/skills-pending\` shows its progress.`
+      : `⛔ "${name}" denied — it will not rehearse autonomously. \`/run-skill ${name}\` still matures it under your supervision.`;
   },
 
   // v7.9.4 (koennen-promotion-v794 contract): /skill-info <name> — show

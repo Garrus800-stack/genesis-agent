@@ -381,7 +381,7 @@ Antworte ehrlich und spezifisch in der Sprache des Users. Keine Modullisten.`;
   async createSkill(message) {
     this.bus.fire('agent:status', { state: 'creating-skill' }, { source: 'SelfModPipeline' });
 
-    const result = await this.skills.createSkill(message);
+    const result = await this.skills.createSkill(message, { origin: 'user-slash' }); // v7.9.31 (AP-1)
 
     // v5.9.1: Store message for retry if skill creation failed
     if (result.includes('⚠️') || result.includes('❌') || result.includes('failed') || result.includes('blocked')) {
@@ -406,7 +406,7 @@ Antworte ehrlich und spezifisch in der Sprache des Users. Keine Modullisten.`;
           }, (input) => this.skills.executeSkill(sk.name, input), 'skill');
         }
       }
-      this.eventStore?.append('SKILL_CREATED', { name: result.match(/"([^"]+)"/)?.[1] || 'unknown' }, 'SelfModPipeline');
+      this.eventStore?.append('SKILL_CANDIDATE_CREATED', { name: result.match(/"([^"]+)"/)?.[1] || 'unknown' }, 'SelfModPipeline');
     }
 
     this.bus.fire('agent:status', { state: 'ready' }, { source: 'SelfModPipeline' });

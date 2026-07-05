@@ -138,18 +138,28 @@ class AgentCoreWire {
       }, { source: 'AgentCore:relay' });
     }, { source: 'AgentCore:wire', priority: -20 });
 
-    // v7.9.27: register a just-created skill as a tool the moment the daemon
-    // writes it. createSkill() persists to src/skills/ and loads it, but
-    // ToolRegistry only learned about skills on koennen-promotion — so a fresh
-    // skill stayed invisible to execute() and got shadowed by a synthesized
-    // duplicate. This relay closes that gap; boot does the same for shipped skills.
-    bus.on('daemon:skill-created', () => {
+    // v7.9.31 (AP-1): a forged skill now lands as a maturing candidate, not
+    // a loaded tool — there is nothing to refresh at creation time. The
+    // moment that matters for the registry is promotion (listener below);
+    // this trace keeps candidate births visible in the log.
+    bus.on('skill:candidate-created', (d) => {
+      _log.debug(`[KOENNEN] candidate created: ${d?.skillName} (${d?.origin}, gen ${d?.generation})`);
+    }, { source: 'AgentCore:wire' });
+
+    // v7.9.31 (AP-1, E1): promotion makes the skill a live tool WITHOUT a
+    // reboot — reload the koennen sources and refresh the tool registry.
+    // This also closes the parallel-copy window: the name resolves as a
+    // tool the moment skill:promoted fires, so tool synthesis never
+    // rebuilds a promoted skill under a synthesized duplicate.
+    bus.on('skill:promoted', async () => {
       try {
         if (c.has('tools') && c.has('skills')) {
-          c.resolve('tools').refreshSkills(c.resolve('skills'));
+          const skills = c.resolve('skills');
+          await skills.loadSkills();
+          c.resolve('tools').refreshSkills(skills);
         }
       } catch (err) {
-        _log.debug('[SKILL:CREATED] refreshSkills failed:', err.message);
+        _log.debug('[SKILL:PROMOTED] live registration failed:', err.message);
       }
     }, { source: 'AgentCore:wire' });
 

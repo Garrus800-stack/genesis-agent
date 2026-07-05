@@ -36,6 +36,14 @@ function phase6(ctx, R) {
         if (typeof cycleMin === 'number' && cycleMin > 0 && dm.config) {
           dm.config.cycleInterval = cycleMin * 60 * 1000;
         }
+        // v7.9.31 (AP-1, E6): desired-capability catalog from settings —
+        // daemon.desiredCapabilities is a list of { name, skill } entries.
+        // Absent or malformed → empty catalog (only user-request gaps
+        // drive autonomous skill building).
+        const desired = settings?.get?.('daemon.desiredCapabilities');
+        if (Array.isArray(desired) && dm.config) {
+          dm.config.desiredCapabilities = desired;
+        }
         return dm;
       },
     }],
