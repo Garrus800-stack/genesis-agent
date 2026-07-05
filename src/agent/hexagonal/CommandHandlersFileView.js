@@ -289,6 +289,14 @@ const commandHandlersFileView = {
     if (stat.isDirectory()) {
       return `\`${target}\` ist ein Ordner, keine Datei. Sag „liste sie auf" für die Dateien darin.`;
     }
+    // v7.9.30: re-check the symlink-resolved target so an in-root link named
+    // innocently cannot read a secret/system file through it (audit §4.2).
+    try {
+      const realLower = fs.realpathSync(target).toLowerCase();
+      if (_isCriticalSystemPath(realLower, process.platform === 'win32') || _isSecretFile(realLower)) {
+        return 'Diese Datei ist geschützt und kann nicht gelesen werden.';
+      }
+    } catch { /* realpath failed → the earlier name-based check stands */ }
     let content;
     try { content = fs.readFileSync(target, 'utf8'); } catch (e) { return `Konnte die Datei nicht lesen: ${e.message}`; }
     try { setLastDoc(target, 'file'); } catch { /* ignore */ }

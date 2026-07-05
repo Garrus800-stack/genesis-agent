@@ -102,12 +102,12 @@ describe('v7.5.8 — Bug 3: Slash-discipline requires slash-command position', (
     path.join(ROOT, 'src/agent/intelligence/IntentPatterns')
   );
 
-  test('source-presence: pattern is /(?:^|\\s)\\/word/, not includes("/")', () => {
+  test('source-presence: pattern is /^\\s*\\/word/ (v7.9.30 start-anchor), not includes("/")', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/IntentPatterns.js'), 'utf8');
     assert(!/message\.includes\(\s*['"]\/['"]\s*\)/.test(src),
       'pre-fix message.includes("/") must be removed');
-    assert(/\(\?:\^\|\\s\)\\\/\[a-z\]\[\\w-\]\*\\b/.test(src),
-      'new strict slash-command-position pattern missing');
+    assert(/\^\\s\*\\\/\[a-z\]\[\\w-\]\*\\b/.test(src),
+      'new start-anchored slash-command-position pattern missing');
   });
 
   test('behavior: "/self-modify do X" passes slash-discipline', () => {
@@ -116,10 +116,13 @@ describe('v7.5.8 — Bug 3: Slash-discipline requires slash-command position', (
     assertEqual(res.type, 'self-modify', 'slash-cmd at start must pass');
   });
 
-  test('behavior: " /self-modify" (after space) passes slash-discipline', () => {
+  test('behavior: "please /self-modify" (slash after free text) rewrites to general (v7.9.30 S2)', () => {
     const verdict = { type: 'self-modify', confidence: 0.9 };
     const res = enforceSlashDiscipline(verdict, 'please /self-modify the loop');
-    assertEqual(res.type, 'self-modify', 'slash-cmd after space must pass');
+    // v7.9.30 (S2): a slash command after free text is no longer a command —
+    // it rewrites to general and runs via the slash-hint. Only a slash that
+    // STARTS the message (optionally after whitespace) counts as a command.
+    assertEqual(res.type, 'general', 'slash after free text now rewrites to general');
   });
 
   test('behavior: date "03/05/2026" in message does NOT pass slash-discipline', () => {

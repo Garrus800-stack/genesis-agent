@@ -74,7 +74,11 @@ function indexExports() {
     const blockRe = /module\.exports\s*=\s*\{([^}]+)\}/gs;
     let bm;
     while ((bm = blockRe.exec(src)) !== null) {
-      for (const part of bm[1].split(',')) {
+      // v7.9.29: strip line and block comments before the comma-split, so an
+      // inline comment carrying a colon next to an export name cannot swallow
+      // the name that shares its comma segment.
+      const cleanBlock = bm[1].replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+      for (const part of cleanBlock.split(',')) {
         const trimmed = part.trim();
         if (!trimmed) continue;
         const name = trimmed.split(':')[0].trim();

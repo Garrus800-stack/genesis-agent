@@ -1190,7 +1190,7 @@ describe('PeerNetwork v2 (Security)', () => {
 const { ShellAgent } = require('../src/agent/capabilities/ShellAgent');
 
 describe('ShellAgent', () => {
-  const shell = new ShellAgent({
+  const shell = new ShellAgent({ defaultOrigin: 'test',
     model: null, memory: null, knowledgeGraph: null,
     eventStore: null, sandbox: null, guard: null,
     rootDir: TEST_ROOT,

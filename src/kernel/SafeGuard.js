@@ -21,6 +21,10 @@ class SafeGuard {
   constructor(protectedPaths, rootDir) {
     this.protectedPaths = protectedPaths.map(p => path.resolve(p));
     this.rootDir = path.resolve(rootDir);
+    // v7.9.30: canonicalise the root so a project dir under a symlink
+    // (/private/tmp on macOS, cloud-sync mounts) does not throw legit in-root
+    // reads once realpath resolution is added to validateRead below.
+    this.realRootDir = (() => { try { return fs.realpathSync(this.rootDir); } catch { return this.rootDir; } })();
     this.kernelHashes = new Map();
     // v3.5.4: Separate map for critical agent files (hash-locked but not in kernel dir)
     this.criticalHashes = new Map();
@@ -156,7 +160,14 @@ class SafeGuard {
    */
   validateRead(filePath, opts = {}) {
     const resolved = path.resolve(filePath);
-    const inRoot = resolved === this.rootDir || resolved.startsWith(this.rootDir + path.sep);
+    // v7.9.30: resolve symlinks so an in-root link pointing outside is judged
+    // by its real target (closes the symlink read-escape); fall back to the
+    // canonicalised parent for not-yet-existing paths so in-root reads/creates
+    // stay portable under a symlinked root.
+    let real;
+    try { real = fs.realpathSync(resolved); }
+    catch { try { real = path.join(fs.realpathSync(path.dirname(resolved)), path.basename(resolved)); } catch { real = resolved; } }
+    const inRoot = real === this.realRootDir || real.startsWith(this.realRootDir + path.sep);
 
     // Rule 1: Cannot read outside project root (prevents ../ escape to
     //         arbitrary host files — /etc/passwd, ~/.ssh/…).
@@ -165,7 +176,7 @@ class SafeGuard {
     //         which always remain. In-root reads are unchanged.
     if (!inRoot) {
       if (SourceTrust.mayRunDirectly(opts.origin)) {
-        const absLower = resolved.toLowerCase();
+        const absLower = real.toLowerCase();
         const isWindows = process.platform === 'win32';
         const sysHit = _isCriticalSystemPath(absLower, isWindows);
         if (sysHit) {
@@ -184,10 +195,10 @@ class SafeGuard {
     // Rule 2: Blacklist — infrastructure paths that should never be
     //         read during chat-context source access, even though
     //         they live inside the project root.
-    if (resolved.includes('.git' + path.sep) || resolved.endsWith(path.sep + '.git')) {
+    if (real.includes('.git' + path.sep) || real.endsWith(path.sep + '.git')) {
       throw new Error(`[SAFEGUARD] Read of .git internals blocked: ${filePath}`);
     }
-    if (resolved.includes('node_modules' + path.sep)) {
+    if (real.includes('node_modules' + path.sep)) {
       throw new Error(`[SAFEGUARD] Read of node_modules blocked: ${filePath}`);
     }
 

@@ -29,11 +29,12 @@ const { createLogger } = require('../core/Logger');
 const { decodeWinConsole } = require('../core/shell/WinConsoleEncoding');
 // v7.5.4: extracted helpers
 const Safety = require('../core/shell/ShellSafety');
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): mandatory origin
 const OSAdapter = require('../core/shell/ShellOSAdapter');
 const { ShellPlanner } = require('./shell/ShellPlanner');
 const _log = createLogger('ShellAgent');
 class ShellAgent {
-  constructor({ lang, bus,  model, memory, knowledgeGraph, eventStore, sandbox, guard, rootDir}) {
+  constructor({ lang, bus,  model, memory, knowledgeGraph, eventStore, sandbox, guard, rootDir, defaultOrigin}) {
     this.lang = lang || { t: (k) => k, detect: () => {}, current: 'en' };
     this.bus = bus || NullBus;
     this.model = model;
@@ -42,6 +43,10 @@ class ShellAgent {
     this.eventStore = eventStore;
     this.sandbox = sandbox;
     this.guard = guard;
+    // v7.9.30 (S3): a fallback origin for callers that don't declare one.
+    // Production leaves this unset, so an undeclared external call is blocked;
+    // test harnesses set it to SourceTrust.TEST.
+    this.defaultOrigin = defaultOrigin;
     this.rootDir = rootDir;
 
     // v7.5.4: shell binary, flag, platform info from OSAdapter
@@ -129,6 +134,19 @@ class ShellAgent {
       return { ok: false, result: { ok: false, stdout: '', stderr: `[SHELL] ${sanitized.error}`, exitCode: -1, duration: 0, blocked: true } };
     }
     command = sanitized.command;
+
+    // v7.9.30 (S3): origin is mandatory. Resolve the caller's origin (or the
+    // instance default), and block if it is missing or unknown — a forgotten
+    // call site, or a future silent path like the run-skill shell fallback
+    // removed in S1, fails here instead of running unprovenanced. This is also
+    // the sweep-verifier: an un-updated call site surfaces at once as blocked.
+    const origin = opts.origin || this.defaultOrigin;
+    if (!SourceTrust.isKnownOrigin(origin)) {
+      const result = { ok: false, stdout: '', stderr: '[SHELL] Origin required — execution without a declared origin is not permitted', exitCode: -1, duration: 0, blocked: true, originBlock: true };
+      if (!silent) this.bus.fire('shell:blocked', { command, tier, reason: 'missing-origin' }, { source: 'ShellAgent' });
+      return { ok: false, result };
+    }
+    opts = { ...opts, origin }; // thread the resolved origin downstream
 
     // rootDir sandbox: reject absolute paths outside rootDir, recursive scans
     // v7.5.9 ZIP2 Phase 1: pass trustLevel + settings so the 3-tier sandbox
@@ -327,7 +345,7 @@ class ShellAgent {
   // v7.5.4: _salvageStepsFromText moved to ShellPlanner; plan() below
   // delegates plan generation to it and runs the resulting steps.
 
-  async plan(task, cwd = this.rootDir) {
+  async plan(task, cwd = this.rootDir, opts = {}) {
     // v7.5.4: Plan generation delegated to ShellPlanner.
     // shell:planning event is now emitted by the planner (source: 'ShellPlanner').
     // ShellAgent retains step execution + bookkeeping (KG, eventStore) below.
@@ -359,7 +377,7 @@ class ShellAgent {
       }
 
       this.bus.fire('shell:step', { step: i + 1, total: steps.length, cmd: step.cmd.slice(0, 80) }, { source: 'ShellAgent' });
-      const result = await this.run(step.cmd, { cwd, timeout: TIMEOUTS.TIMEOUT_MS });
+      const result = await this.run(step.cmd, { cwd, timeout: TIMEOUTS.TIMEOUT_MS, origin: opts.origin }); // v7.9.30 (S3)
       results.push({ step: i + 1, cmd: step.cmd, description: step.description, ...result });
       if (!result.ok && step.critical) allOk = false;
     }
@@ -492,14 +510,14 @@ class ShellAgent {
     const project = await this.scanProject(cwd);
     const testCmd = project.scripts?.test;
     if (!testCmd) return { ok: false, stderr: this.lang.t('agent.no_test_cmd'), exitCode: -1 };
-    return this.run(testCmd, { cwd, timeout: TIMEOUTS.TEST_INSTALL });
+    return this.run(testCmd, { cwd, timeout: TIMEOUTS.TEST_INSTALL, origin: SourceTrust.AGENT_LOOP });
   }
 
   async installDeps(cwd = this.rootDir) {
     const project = await this.scanProject(cwd);
     const installCmd = project.scripts?.install;
     if (!installCmd) return { ok: false, stderr: this.lang.t('agent.no_install_cmd'), exitCode: -1 };
-    return this.run(installCmd, { cwd, timeout: TIMEOUTS.TEST_INSTALL });
+    return this.run(installCmd, { cwd, timeout: TIMEOUTS.TEST_INSTALL, origin: SourceTrust.AGENT_LOOP });
   }
 
   search(pattern, cwd = this.rootDir, opts = {}) {
@@ -511,7 +529,7 @@ class ShellAgent {
     const cmd = this.isWindows
       ? `findstr /s /n /i "${safePattern}" ${safeFilePattern}`
       : `grep -rn --include="${safeFilePattern}" -F -- "${safePattern}" . 2>/dev/null | head -${parseInt(maxResults) || 50}`;
-    return this.run(cmd, { cwd, timeout: TIMEOUTS.SANDBOX_EXEC });
+    return this.run(cmd, { cwd, timeout: TIMEOUTS.SANDBOX_EXEC, origin: opts.origin || SourceTrust.AGENT_LOOP });
   }
 
   findTodos(cwd = this.rootDir) {
@@ -524,7 +542,7 @@ class ShellAgent {
     const cmd = this.isWindows
       ? `powershell -NoProfile -Command "(Get-ChildItem -LiteralPath '${safeDir.replace(/'/g, "''")}' -Recurse | Measure-Object -Sum Length).Sum / 1MB"`
       : `du -sh -- "${safeDir}" 2>/dev/null | cut -f1`;
-    return this.run(cmd, { timeout: TIMEOUTS.COMMAND_EXEC });
+    return this.run(cmd, { timeout: TIMEOUTS.COMMAND_EXEC, origin: SourceTrust.AGENT_LOOP });
   }
 
   // ── PERMISSION MANAGEMENT ─────────────────────────────────

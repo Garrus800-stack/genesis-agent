@@ -134,6 +134,8 @@ app.whenReady().then(async () => {
     'scripts/validate-events.js',
     'scripts/validate-intent-wiring.js',
     'scripts/validate-service-wiring.js',
+    'scripts/audit-tool-selftest.js',
+    'scripts/check-stale-refs.js',
   ]);
 
   // Phase 2: Create window

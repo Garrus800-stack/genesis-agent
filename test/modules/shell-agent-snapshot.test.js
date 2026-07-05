@@ -31,7 +31,7 @@ function create(overrides = {}) {
   return {
     bus,
     events,
-    shell: new ShellAgent({
+    shell: new ShellAgent({ defaultOrigin: 'test',
       bus,
       model: null,
       memory: null,

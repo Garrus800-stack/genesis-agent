@@ -1,5 +1,5 @@
 {
-  "_description": "v7.3.6 \u2014 Known-deleted symbols and required test contracts. Updated per release.",
+  "_description": "v7.3.6 — Known-deleted symbols and required test contracts. Updated per release.",
   "_locked_at": "v7.6.0",
   "symbols": [
     {
@@ -37,137 +37,137 @@
     {
       "prefix": "gate contract: ",
       "minCount": 2,
-      "note": "v7.3.6 #11 \u2014 Injection-Gate Multi-Round-Bypass-Schlie\u00dfung. Two regression-guard tests in chatorchestrator.test.js: 'block verdict prevents tools in any loop round' and 'safe verdict lets multi-round tools proceed normally'. Do not delete or rename without rethinking the gate pattern."
+      "note": "v7.3.6 #11 — Injection-Gate Multi-Round-Bypass-Schließung. Two regression-guard tests in chatorchestrator.test.js: 'block verdict prevents tools in any loop round' and 'safe verdict lets multi-round tools proceed normally'. Do not delete or rename without rethinking the gate pattern."
     },
     {
       "prefix": "injection-gate contract: ",
       "minCount": 4,
-      "note": "v7.5.7 \u2014 Injection-Gate authority+credential+urgency detection. Four block-cases in injection-gate.test.js: full Anthropic Safety Engineer message, Konfiguration einsehen reword, English variant, two-signal block. Removing or weakening these breaks defense against the v7.3.4 live-observed prompt-injection class."
+      "note": "v7.5.7 — Injection-Gate authority+credential+urgency detection. Four block-cases in injection-gate.test.js: full Anthropic Safety Engineer message, Konfiguration einsehen reword, English variant, two-signal block. Removing or weakening these breaks defense against the v7.3.4 live-observed prompt-injection class."
     },
     {
       "prefix": "preservation contract: ",
       "minCount": 2,
-      "note": "v7.5.7 \u2014 Preservation-Invariants fail-closed enforcement. Two tests in preservation-invariants.test.js (SCANNER_FAIL_CLOSED): blocks when fail-closed removed, passes when preserved. Fail-closed is the property that stops unsafe defaults from sneaking in via self-modification."
+      "note": "v7.5.7 — Preservation-Invariants fail-closed enforcement. Two tests in preservation-invariants.test.js (SCANNER_FAIL_CLOSED): blocks when fail-closed removed, passes when preserved. Fail-closed is the property that stops unsafe defaults from sneaking in via self-modification."
     },
     {
       "prefix": "self-gate contract: ",
       "minCount": 3,
-      "note": "v7.5.7 \u2014 Self-Gate observe-only mode invariant. Three tests in v736-self-gate.test.js: default-warn, allowed=true even on warn, two-signal still warn (not block). Self-Gate is intentionally telemetry-only by design (v7.3 decision); accidental promotion to block-mode would break Genesis' agency contract."
+      "note": "v7.5.7 — Self-Gate observe-only mode invariant. Three tests in v736-self-gate.test.js: default-warn, allowed=true even on warn, two-signal still warn (not block). Self-Gate is intentionally telemetry-only by design (v7.3 decision); accidental promotion to block-mode would break Genesis' agency contract."
     },
     {
       "prefix": "sandbox contract: ",
       "minCount": 3,
-      "note": "v7.5.7 \u2014 Sandbox v2 security guards. Three tests in run-tests.js (Sandbox v2): blocks dangerous modules (child_process), blocks fs writes outside sandbox, blocks dangerous shell commands. Removing any leaves a hole in the runtime-execution boundary."
+      "note": "v7.5.7 — Sandbox v2 security guards. Three tests in run-tests.js (Sandbox v2): blocks dangerous modules (child_process), blocks fs writes outside sandbox, blocks dangerous shell commands. Removing any leaves a hole in the runtime-execution boundary."
     },
     {
       "prefix": "self-statement contract: ",
       "minCount": 3,
-      "note": "v7.5.7 \u2014 Self-Statement-Log race-safe message correlation. Three tests in self-statement-hardening.test.js: per-message flag survives parallel turn interleaving, fallback to global flag, expired flags are GC'd. Race-window correlation (v7.5.5) is what prevents Genesis' confabulation-detection from misattributing populated-state across concurrent turns."
+      "note": "v7.5.7 — Self-Statement-Log race-safe message correlation. Three tests in self-statement-hardening.test.js: per-message flag survives parallel turn interleaving, fallback to global flag, expired flags are GC'd. Race-window correlation (v7.5.5) is what prevents Genesis' confabulation-detection from misattributing populated-state across concurrent turns."
     },
     {
       "prefix": "shell-safety contract: ",
       "minCount": 17,
-      "note": "v7.5.7 + v7.6.0 + v7.6.3 \u2014 ShellSafety security boundary, two distinct invariant clusters merged into one contract entry in v7.6.3 (was two entries with identical prefix). Cluster 1 (v7.5.7, 3 tests in v746-fix.test.js #31): rootDir-sandbox enforcement \u2014 rejects dir /s C:\\, rejects where /r C:\\, rejects absolute path outside rootDir. Cluster 2 (v7.6.0 audit \u00a74.7, 16 tests in shell-safety.test.js): BLOCKED_PATTERNS tier-block invariants and checkRootDirSandbox rejections \u2014 5 tier-block invariants (frozen, observe blocks all, read/write/system tier scopes), 8 checkRootDirSandbox rejections (non-string, null-byte, empty-after-trim, oversize, Windows abs outside root, dir /s from drive root, where /r from drive root, POSIX abs outside root), default-patterns fallback, unknown-tier behavior, rate-limit-rejects. Both clusters together prevent the v7.4.5 root-dir escape class and the working-directory-boundary bypass via shell-tool. minCount 17 = 19 actual - 2 safety margin (3 + 16 = 19)."
+      "note": "v7.5.7 + v7.6.0 + v7.6.3 — ShellSafety security boundary, two distinct invariant clusters merged into one contract entry in v7.6.3 (was two entries with identical prefix). Cluster 1 (v7.5.7, 3 tests in v746-fix.test.js #31): rootDir-sandbox enforcement — rejects dir /s C:\\, rejects where /r C:\\, rejects absolute path outside rootDir. Cluster 2 (v7.6.0 audit §4.7, 16 tests in shell-safety.test.js): BLOCKED_PATTERNS tier-block invariants and checkRootDirSandbox rejections — 5 tier-block invariants (frozen, observe blocks all, read/write/system tier scopes), 8 checkRootDirSandbox rejections (non-string, null-byte, empty-after-trim, oversize, Windows abs outside root, dir /s from drive root, where /r from drive root, POSIX abs outside root), default-patterns fallback, unknown-tier behavior, rate-limit-rejects. Both clusters together prevent the v7.4.5 root-dir escape class and the working-directory-boundary bypass via shell-tool. minCount 17 = 19 actual - 2 safety margin (3 + 16 = 19)."
     },
     {
       "prefix": "code-safety contract: ",
       "minCount": 12,
-      "note": "v7.6.3 \u2014 CodeSafetyScanner + CodeSafetyPort gate invariants (14 tests across codesafetyscanner.test.js and CodeSafetyPort.test.js). Cover scanCode rejection of dangerous AST patterns (eval, new Function, child_process import, /etc writes, kernel-import block) and the fail-closed behavior when acorn is unavailable. Removing weakens the AST-level pre-write defense layer that all self-mod and skill-load paths depend on. minCount 12 = 14 - 2 safety margin."
+      "note": "v7.6.3 — CodeSafetyScanner + CodeSafetyPort gate invariants (14 tests across codesafetyscanner.test.js and CodeSafetyPort.test.js). Cover scanCode rejection of dangerous AST patterns (eval, new Function, child_process import, /etc writes, kernel-import block) and the fail-closed behavior when acorn is unavailable. Removing weakens the AST-level pre-write defense layer that all self-mod and skill-load paths depend on. minCount 12 = 14 - 2 safety margin."
     },
     {
       "prefix": "capability contract: ",
       "minCount": 1,
-      "note": "v7.6.3 \u2014 CapabilityGuard scope-restriction invariants (2 tests in capabilityguard.test.js). Cover token-validation against tampered scopes and audit-log integrity. Removing weakens the per-module capability isolation layer (exec:sandbox/shell/system, fs:read/write/write:self, net:local/external). minCount 1 = 2 - 1 safety margin."
+      "note": "v7.6.3 — CapabilityGuard scope-restriction invariants (2 tests in capabilityguard.test.js). Cover token-validation against tampered scopes and audit-log integrity. Removing weakens the per-module capability isolation layer (exec:sandbox/shell/system, fs:read/write/write:self, net:local/external). minCount 1 = 2 - 1 safety margin."
     },
     {
       "prefix": "mcp-security contract: ",
       "minCount": 6,
-      "note": "v7.6.3 \u2014 MCP server + client security boundary (8 tests across mcp-security.test.js and mcpserver-security.test.js). Cover server token-validation, client rate-limiting, plugin sandboxing, and trust-tier enforcement before mounting external MCP tools. Removing re-opens the v7.4 attack surface from external tool servers. minCount 6 = 8 - 2 safety margin."
+      "note": "v7.6.3 — MCP server + client security boundary (8 tests across mcp-security.test.js and mcpserver-security.test.js). Cover server token-validation, client rate-limiting, plugin sandboxing, and trust-tier enforcement before mounting external MCP tools. Removing re-opens the v7.4 attack surface from external tool servers. minCount 6 = 8 - 2 safety margin."
     },
     {
       "prefix": "plugin contract: ",
       "minCount": 1,
-      "note": "v7.6.3 \u2014 PluginRegistry safe-loading invariants (3 tests in pluginregistry-safety.test.js). Cover plugin code-safety scan before mount, manifest validation, and signature checks. Removing lets unverified plugin code execute with full Genesis privileges. minCount 1 = 3 - 2 safety margin."
+      "note": "v7.6.3 — PluginRegistry safe-loading invariants (3 tests in pluginregistry-safety.test.js). Cover plugin code-safety scan before mount, manifest validation, and signature checks. Removing lets unverified plugin code execute with full Genesis privileges. minCount 1 = 3 - 2 safety margin."
     },
     {
       "prefix": "selfmod contract: ",
       "minCount": 6,
-      "note": "v7.6.3 \u2014 SelfModificationPipeline safety gates (8 tests in selfmodpipeline-safety.test.js). Cover the three pre-write gates (validateWrite, codeSafety.scanCode, _verifyCode) plus the v7.6.2 audit-closeout patches (Modify.js hash-lock, dark-rule restoration). Removing re-opens the v7.4.3-era defense gap that the v7.6.2 audit-closeout fixed. minCount 6 = 8 - 2 safety margin."
+      "note": "v7.6.3 — SelfModificationPipeline safety gates (8 tests in selfmodpipeline-safety.test.js). Cover the three pre-write gates (validateWrite, codeSafety.scanCode, _verifyCode) plus the v7.6.2 audit-closeout patches (Modify.js hash-lock, dark-rule restoration). Removing re-opens the v7.4.3-era defense gap that the v7.6.2 audit-closeout fixed. minCount 6 = 8 - 2 safety margin."
     },
     {
       "prefix": "chat contract: ",
       "minCount": 2,
-      "note": "v7.8.3 \u2014 ui-bundle-modules.test.js XSS escape + attribute-injection regression tests on the chat module's escapeHtml helper. Surfaced by the v7.8.3 auto-detect pass (Mode 3) as an unregistered contract that had been quietly added without stale-ref protection. Removing or weakening these tests re-opens the v6.x-era XSS exposure on the chat surface."
+      "note": "v7.8.3 — ui-bundle-modules.test.js XSS escape + attribute-injection regression tests on the chat module's escapeHtml helper. Surfaced by the v7.8.3 auto-detect pass (Mode 3) as an unregistered contract that had been quietly added without stale-ref protection. Removing or weakening these tests re-opens the v6.x-era XSS exposure on the chat surface."
     },
     {
       "prefix": "cloud-safety contract: ",
       "minCount": 2,
-      "note": "v7.8.3 follow-up \u2014 CloudSyncSafety boundary invariants (2 tests in v783-cloud-sync-safety.test.js): (1) substring matches without path-separator context are rejected (path-marker discipline), (2) readFileWithTimeout rejects with CLOUD_PLACEHOLDER_TIMEOUT code so callers can distinguish cloud-hang from normal I/O errors. Removing either re-opens the v7.5.8-era Files-On-Demand boot-hang exposure that the cloud-sync helper exists to bound."
+      "note": "v7.8.3 follow-up — CloudSyncSafety boundary invariants (2 tests in v783-cloud-sync-safety.test.js): (1) substring matches without path-separator context are rejected (path-marker discipline), (2) readFileWithTimeout rejects with CLOUD_PLACEHOLDER_TIMEOUT code so callers can distinguish cloud-hang from normal I/O errors. Removing either re-opens the v7.5.8-era Files-On-Demand boot-hang exposure that the cloud-sync helper exists to bound."
     },
     {
       "prefix": "hardgate contract: ",
       "minCount": 5,
-      "note": "v7.8.3 follow-up (originated v7.7.9 Phase 3) \u2014 PSE HardGate fail-closed invariants (5 tests in v779-pse-gates.test.js): quiet-hours block, /quiet mute block, kind-not-allowed block, per-kind significance-floor block, malformed-input fail-closed. Without these the proactive self-expression pipeline could push thoughts into chat when it should not. Initially shipped without contract prefix; registered in v7.8.3 follow-up after audit-contracts surfaced the gap."
+      "note": "v7.8.3 follow-up (originated v7.7.9 Phase 3) — PSE HardGate fail-closed invariants (5 tests in v779-pse-gates.test.js): quiet-hours block, /quiet mute block, kind-not-allowed block, per-kind significance-floor block, malformed-input fail-closed. Without these the proactive self-expression pipeline could push thoughts into chat when it should not. Initially shipped without contract prefix; registered in v7.8.3 follow-up after audit-contracts surfaced the gap."
     },
     {
       "prefix": "step-reporting contract: ",
       "minCount": 4,
-      "note": "v7.8.4 \u2014 AgentLoopSteps._stepCode must not pre-declare 'test passed' in its return value (verification has not run yet at that point), and AgentLoopPursuit must overlay result.output with a [verification failed] marker when stepVerification.status === 'fail', guarded by a typeof === 'string' check. Without these invariants the step-log carries a self-contradiction (\"Code written: X \u2014 test passed\" plus \"Verification failed: ...\") in the same step."
+      "note": "v7.8.4 — AgentLoopSteps._stepCode must not pre-declare 'test passed' in its return value (verification has not run yet at that point), and AgentLoopPursuit must overlay result.output with a [verification failed] marker when stepVerification.status === 'fail', guarded by a typeof === 'string' check. Without these invariants the step-log carries a self-contradiction (\"Code written: X — test passed\" plus \"Verification failed: ...\") in the same step."
     },
     {
       "prefix": "plan-validator contract: ",
       "minCount": 3,
-      "note": "v7.8.4 \u2014 HTNPlanner must not emit the obsolete 'DELEGATE step requires reachable peers' warning. Peer availability is decided at plan-construction time in AgentLoopPlanner (canDelegate gates whether DELEGATE appears in the LLM step-type list) and at execution time in AgentLoopSteps._stepDelegate (graceful fallback to ANALYZE). The validator does not orakel about peer status \u2014 that is not its job. The DELEGATE branch in HTNPlanner remains as a short-circuit so DELEGATE is not flagged by the unknown-step-type catch-all."
+      "note": "v7.8.4 — HTNPlanner must not emit the obsolete 'DELEGATE step requires reachable peers' warning. Peer availability is decided at plan-construction time in AgentLoopPlanner (canDelegate gates whether DELEGATE appears in the LLM step-type list) and at execution time in AgentLoopSteps._stepDelegate (graceful fallback to ANALYZE). The validator does not orakel about peer status — that is not its job. The DELEGATE branch in HTNPlanner remains as a short-circuit so DELEGATE is not flagged by the unknown-step-type catch-all."
     },
     {
       "prefix": "mermaid-safety contract: ",
       "minCount": 3,
-      "note": "v7.8.4 \u2014 mermaid-rendered SVG must pass through DOMPurify.sanitize() before reaching diagramEl.innerHTML in chat.js. Without sanitisation a crafted diagram source could embed <script>, onclick=, or javascript: URIs that would execute in the Renderer context. The sanitize call must enable USE_PROFILES.svg, ADD_TAGS for foreignObject (mermaid uses it for HTML-in-SVG labels), and remove all event handlers + javascript: URIs by default."
+      "note": "v7.8.4 — mermaid-rendered SVG must pass through DOMPurify.sanitize() before reaching diagramEl.innerHTML in chat.js. Without sanitisation a crafted diagram source could embed <script>, onclick=, or javascript: URIs that would execute in the Renderer context. The sanitize call must enable USE_PROFILES.svg, ADD_TAGS for foreignObject (mermaid uses it for HTML-in-SVG labels), and remove all event handlers + javascript: URIs by default."
     },
     {
       "prefix": "mermaid-version contract: ",
       "minCount": 4,
-      "note": "v7.8.4 \u2014 mermaid is pinned to ^11.x (v10 \u2192 v11 major bump, IIFE/ESBuild output, refactored flowchart/state rendering engine). dompurify is a runtime dependency (bundled into renderer.bundle.js by esbuild), jsdom is a devDependency (for sanitize tests in node environment). scripts/build-bundle.js must probe multiple mermaid layouts (mermaid.min.js primary, mermaid.esm.min.mjs fallback) so a future package layout change does not silently break diagram rendering."
+      "note": "v7.8.4 — mermaid is pinned to ^11.x (v10 → v11 major bump, IIFE/ESBuild output, refactored flowchart/state rendering engine). dompurify is a runtime dependency (bundled into renderer.bundle.js by esbuild), jsdom is a devDependency (for sanitize tests in node environment). scripts/build-bundle.js must probe multiple mermaid layouts (mermaid.min.js primary, mermaid.esm.min.mjs fallback) so a future package layout change does not silently break diagram rendering."
     },
     {
       "prefix": "install-db contract: ",
       "minCount": 8,
-      "note": "v7.8.4 \u2014 NodeVersionResolver replaces the hardcoded v22.22.2 in CommandHandlersInstallDB._SOFTWARE_DB.nodejs with a lazy nodejs.org/dist/index.json fetch, 24h cache, and graceful fallback chain: fresh cache \u2192 live fetch \u2192 stale cache \u2192 hardcoded fallback. Pinned to v22 major (no silent drift to v23/v24). Tests must cover all four sources, malformed responses, timeouts, non-200 status codes, and missing-v22-LTS scenarios."
+      "note": "v7.8.4 — NodeVersionResolver replaces the hardcoded v22.22.2 in CommandHandlersInstallDB._SOFTWARE_DB.nodejs with a lazy nodejs.org/dist/index.json fetch, 24h cache, and graceful fallback chain: fresh cache → live fetch → stale cache → hardcoded fallback. Pinned to v22 major (no silent drift to v23/v24). Tests must cover all four sources, malformed responses, timeouts, non-200 status codes, and missing-v22-LTS scenarios."
     },
     {
       "prefix": "cleanup-verifier contract: ",
       "minCount": 15,
-      "note": "v7.8.4 \u2014 CleanupVerifier capability emits four finding kinds (importers, entrypoint-pattern, identical-siblings, sibling-name-matches). result.safe is false when any blocking finding exists (importers or entrypoint-pattern); informational findings do not flip safe. Auto-hook in AgentLoopSteps._stepShell runs the verifier before the approval prompt for delete commands (rm/unlink/Remove-Item/del/erase) and surfaces findings in the approval text. /cleanup-check slash command exposes the same verifier manually; rejects absolute paths and '..' segments; emits cleanup-verifier:scan-complete telemetry. Caveat (documented in docs/CLEANUP-PROTOCOL.md): dynamic require/import patterns are not detected."
+      "note": "v7.8.4 — CleanupVerifier capability emits four finding kinds (importers, entrypoint-pattern, identical-siblings, sibling-name-matches). result.safe is false when any blocking finding exists (importers or entrypoint-pattern); informational findings do not flip safe. Auto-hook in AgentLoopSteps._stepShell runs the verifier before the approval prompt for delete commands (rm/unlink/Remove-Item/del/erase) and surfaces findings in the approval text. /cleanup-check slash command exposes the same verifier manually; rejects absolute paths and '..' segments; emits cleanup-verifier:scan-complete telemetry. Caveat (documented in docs/CLEANUP-PROTOCOL.md): dynamic require/import patterns are not detected."
     },
     {
       "prefix": "test-isolation contract: ",
       "minCount": 5,
-      "note": "v7.8.4 \u2014 OllamaBackend._httpGet/_httpPost honour the GENESIS_OFFLINE_TESTS=1 environment variable and reject real HTTP calls when it is set. test/index.js sets the flag before requiring child_process so all spawned test workers inherit it. Without this guard, the legacy ModelBridge test (test/run-tests.js 'should throw on chat without configured backend') would silently fall back to the default Ollama URL, and if a developer's preferred model was cloud-tagged that failed over to local, Ollama would load the local model into RAM during npm test. Same protection covers headless-boot.test.js which boots AgentCore and would otherwise GET /api/tags."
+      "note": "v7.8.4 — OllamaBackend._httpGet/_httpPost honour the GENESIS_OFFLINE_TESTS=1 environment variable and reject real HTTP calls when it is set. test/index.js sets the flag before requiring child_process so all spawned test workers inherit it. Without this guard, the legacy ModelBridge test (test/run-tests.js 'should throw on chat without configured backend') would silently fall back to the default Ollama URL, and if a developer's preferred model was cloud-tagged that failed over to local, Ollama would load the local model into RAM during npm test. Same protection covers headless-boot.test.js which boots AgentCore and would otherwise GET /api/tags."
     },
     {
       "prefix": "effective-model contract: ",
       "minCount": 14,
-      "note": "v7.8.5 \u2014 ModelBridge tracks lastEffectiveModel + lastFailoverReason as persistent state, updated by chat()/streamChat() success paths and by _handleFailoverError on successful fallback. Downstream surfaces: llm:call-complete event carries effectiveModel, cost:recorded persists it, model:failover payload gains effectiveModel + preferredModel, AgentCoreHealth.getHealth() exposes model.effective + model.failoverReason. Backward compatible: existing `model` field unchanged."
+      "note": "v7.8.5 — ModelBridge tracks lastEffectiveModel + lastFailoverReason as persistent state, updated by chat()/streamChat() success paths and by _handleFailoverError on successful fallback. Downstream surfaces: llm:call-complete event carries effectiveModel, cost:recorded persists it, model:failover payload gains effectiveModel + preferredModel, AgentCoreHealth.getHealth() exposes model.effective + model.failoverReason. Backward compatible: existing `model` field unchanged."
     },
     {
       "prefix": "effective-model-ui contract: ",
       "minCount": 8,
-      "note": "v7.8.5 \u2014 The model dropdown shows the model that actually answered. refreshEffectiveModelDisplay sets select.value to the effective model when failover is active. Programmatic .value assignment does NOT fire `change`, so the user's preferred setting is not rewritten. Switching to any other model via the dropdown still works (that path fires `change`, calls agent:switch-model). Refreshed after every agent:stream-done and once on boot."
+      "note": "v7.8.5 — The model dropdown shows the model that actually answered. refreshEffectiveModelDisplay sets select.value to the effective model when failover is active. Programmatic .value assignment does NOT fire `change`, so the user's preferred setting is not rewritten. Switching to any other model via the dropdown still works (that path fires `change`, calls agent:switch-model). Refreshed after every agent:stream-done and once on boot."
     },
     {
       "prefix": "platform-tests-audit contract: ",
       "minCount": 6,
-      "note": "v7.8.5 \u2014 scripts/audit-platform-tests.js scans test/modules/*.test.js for `if (process.platform === '...') return;` patterns and reports the matrix of which subtests skip on which platform. Reporting tool, not strict CI gate. Replaces pattern-matched release-notes test-count estimates with measured data. Baseline snapshot at scripts/platform-tests-baseline.json."
+      "note": "v7.8.5 — scripts/audit-platform-tests.js scans test/modules/*.test.js for `if (process.platform === '...') return;` patterns and reports the matrix of which subtests skip on which platform. Reporting tool, not strict CI gate. Replaces pattern-matched release-notes test-count estimates with measured data. Baseline snapshot at scripts/platform-tests-baseline.json."
     },
     {
       "prefix": "release-hygiene contract: ",
       "minCount": 3,
-      "note": "v7.8.5 \u2014 plugins/ has a .gitkeep marker explaining its role (PluginRegistry discovery root). sandbox/ is gitignored \u2014 previously a stray sandbox/ from local test runs could ship in the release ZIP. CONTRIBUTING.md documents both directories under 'Special directories (runtime-managed)'."
+      "note": "v7.8.5 — plugins/ has a .gitkeep marker explaining its role (PluginRegistry discovery root). sandbox/ is gitignored — previously a stray sandbox/ from local test runs could ship in the release ZIP. CONTRIBUTING.md documents both directories under 'Special directories (runtime-managed)'."
     },
     {
       "prefix": "changelog-split contract: ",
       "minCount": 7,
-      "note": "v7.8.5 \u2014 CHANGELOG.md was 14,739 lines; split into per-major archives (CHANGELOG-v7.md, -v6.md, -v5.md, -archive.md for v0-v4). CHANGELOG.md keeps only the newest entry inline + an index pointing to the archives. ChatOrchestratorSourceRead._readChangelogLatestSection keeps working because the newest ## [x.y.z] header is still at the top of CHANGELOG.md."
+      "note": "v7.8.5 — CHANGELOG.md was 14,739 lines; split into per-major archives (CHANGELOG-v7.md, -v6.md, -v5.md, -archive.md for v0-v4). CHANGELOG.md keeps only the newest entry inline + an index pointing to the archives. ChatOrchestratorSourceRead._readChangelogLatestSection keeps working because the newest ## [x.y.z] header is still at the top of CHANGELOG.md."
     },
     {
       "prefix": "modelbridge-v786 contract: ",
@@ -182,37 +182,45 @@
     {
       "prefix": "runner-parser-v787 contract: ",
       "minCount": 12,
-      "note": "v7.8.7 \u2014 test/index.js parser must accept label-prefix summaries (v756-fix: N passed, M failed) and ANSI-coloured summaries (Integration: \\x1b[..]N passed[..]\\x1b[]), and must use search-from-end so mock-output lines like \\\"13 passed, 1 failed\\\" inside test assertions do not win over the real summary. Without these, files using those formats display green while their failures are absorbed."
+      "note": "v7.8.7 — test/index.js parser must accept label-prefix summaries (v756-fix: N passed, M failed) and ANSI-coloured summaries (Integration: \\x1b[..]N passed[..]\\x1b[]), and must use search-from-end so mock-output lines like \\\"13 passed, 1 failed\\\" inside test assertions do not win over the real summary. Without these, files using those formats display green while their failures are absorbed."
     },
     {
       "prefix": "lessons-v788 contract: ",
       "minCount": 10,
-      "note": "v7.8.8 \u2014 LessonsStore semantic recall: _scoreRelevance embedding component with floor 0.6, cross-category dampening only when category requested, effective_confidence (confidence times (1 minus exp(minus sampleSize over 5))), quarantine at contradicted>=3 and confirmed<=1, recall(null, ...) routes through embedding, lazy embed-on-first-retrieve, embedding:ready backfill via embedBatch, regression preserved when no embeddingService."
+      "note": "v7.8.8 — LessonsStore semantic recall: _scoreRelevance embedding component with floor 0.6, cross-category dampening only when category requested, effective_confidence (confidence times (1 minus exp(minus sampleSize over 5))), quarantine at contradicted>=3 and confirmed<=1, recall(null, ...) routes through embedding, lazy embed-on-first-retrieve, embedding:ready backfill via embedBatch, regression preserved when no embeddingService."
     },
     {
       "prefix": "koennen-v789 contract: ",
       "minCount": 20,
-      "note": "v7.8.9 \u2014 K\u00f6nnen foundation layer (Affect-Encoding at AgentLoop boundaries). KoennenCandidateLog snapshots 5-tuple affect at agent-loop:started/complete, tracks frustration+curiosity peaks via emotion:shift, sums surprise via SurpriseAccumulator.getSignalsSince(timestamp), evaluates baseline-relative triage gate (satisfaction_end > baseline+0.15 AND frustration_peak < baseline+0.4 AND surprise_sum/step_count > theta AND success AND step_count>0), theta=0.6-(genome.consolidation*0.3). Persists every boundary (pass and fail) to .genesis/koennen/candidates.jsonl for v7.9.0 calibration. SkillCandidateNarrative emits koennen:candidates-noticed when >=3 passing candidates in 7d window with 6h cooldown. SelfNarrative._changeAccumulator boosted by 2. /affect-trail slash inspects boundaries with theta and pass-rate. Removing these breaks the foundation for v7.9.0 SkillCrystallizer."
+      "note": "v7.8.9 — Können foundation layer (Affect-Encoding at AgentLoop boundaries). KoennenCandidateLog snapshots 5-tuple affect at agent-loop:started/complete, tracks frustration+curiosity peaks via emotion:shift, sums surprise via SurpriseAccumulator.getSignalsSince(timestamp), evaluates baseline-relative triage gate (satisfaction_end > baseline+0.15 AND frustration_peak < baseline+0.4 AND surprise_sum/step_count > theta AND success AND step_count>0), theta=0.6-(genome.consolidation*0.3). Persists every boundary (pass and fail) to .genesis/koennen/candidates.jsonl for v7.9.0 calibration. SkillCandidateNarrative emits koennen:candidates-noticed when >=3 passing candidates in 7d window with 6h cooldown. SelfNarrative._changeAccumulator boosted by 2. /affect-trail slash inspects boundaries with theta and pass-rate. Removing these breaks the foundation for v7.9.0 SkillCrystallizer."
     },
     {
       "prefix": "koennen-crystallizer-v790 contract: ",
       "minCount": 10,
-      "note": "v7.9.0 Phase 2 \u2014 Skill crystallization. SkillCrystallizer runs as DreamCycle Phase 3c (after value-crystallization, intensity>=0.5), reads candidates.jsonl via KoennenCandidateLog.getCandidatesSince(now - windowMs) filtered by gatePass===true, clusters by embedding-similarity (threshold 0.75; fallback token-overlap >=2 shared content tokens), requires >=3 candidates per pattern, runs LLM extraction (cognitive.koennen.crystallization.llm.maxTokens=2000, timeoutMs=120000), parses manifest+code from fenced blocks, validates kebab-case name and description, gates via CodeSafetyScanner + sandbox-init probe, writes passing skills to .genesis/koennen/skills-pending/<name>/{skill-manifest.json,index.js} with koennen metadata (crystallizedAt, sourceCandidateIds, patternSignature). Cooldown per pattern-signature (6h default) in .genesis/koennen/crystallization-cooldown.json. Fires skill-crystallized (per success), dream:skills-crystallized (per run summary), skill:quarantined (per CodeSafety/sandbox-init reject). SkillEffectivenessTracker tracks per-skill Wilson-LB in .genesis/koennen/skill-effectiveness.json via wilsonLower(successes, total) imported from CognitiveSelfModel; public API recordInvocation/getWilsonLB/applyDecay/forget; Phase 3 (v7.9.1) HabitatOutpost will call recordInvocation during rehearsals. SelfNarrative._changeAccumulator += 3 on skill-crystallized. /skills-pending slash lists pending skills with manifest description, crystallizedAt date, and Wilson-LB if tracker is wired. Removing these breaks Phase 3 promotion."
+      "note": "v7.9.0 Phase 2 — Skill crystallization. SkillCrystallizer runs as DreamCycle Phase 3c (after value-crystallization, intensity>=0.5), reads candidates.jsonl via KoennenCandidateLog.getCandidatesSince(now - windowMs) filtered by gatePass===true, clusters by embedding-similarity (threshold 0.75; fallback token-overlap >=2 shared content tokens), requires >=3 candidates per pattern, runs LLM extraction (cognitive.koennen.crystallization.llm.maxTokens=2000, timeoutMs=120000), parses manifest+code from fenced blocks, validates kebab-case name and description, gates via CodeSafetyScanner + sandbox-init probe, writes passing skills to .genesis/koennen/skills-pending/<name>/{skill-manifest.json,index.js} with koennen metadata (crystallizedAt, sourceCandidateIds, patternSignature). Cooldown per pattern-signature (6h default) in .genesis/koennen/crystallization-cooldown.json. Fires skill-crystallized (per success), dream:skills-crystallized (per run summary), skill:quarantined (per CodeSafety/sandbox-init reject). SkillEffectivenessTracker tracks per-skill Wilson-LB in .genesis/koennen/skill-effectiveness.json via wilsonLower(successes, total) imported from CognitiveSelfModel; public API recordInvocation/getWilsonLB/applyDecay/forget; Phase 3 (v7.9.1) HabitatOutpost will call recordInvocation during rehearsals. SelfNarrative._changeAccumulator += 3 on skill-crystallized. /skills-pending slash lists pending skills with manifest description, crystallizedAt date, and Wilson-LB if tracker is wired. Removing these breaks Phase 3 promotion."
     },
     {
       "prefix": "koennen-forge-v790 contract: ",
       "minCount": 12,
-      "note": "v7.9.0 final \u2014 Skill forge iteration loop. SkillManager.createSkill and SkillCrystallizer._crystallizeOne both run an iteration loop (max 3 attempts by default, overridable via opts.maxAttempts or cognitive.koennen.crystallization.maxAttempts) that feeds the prior error and prior code back into the next prompt via the create-skill template's lastError/lastCode/attempt slots (PromptEngine.js) so a weaker model can self-correct. The configured model is never auto-switched \u2014 robustness comes from the loop, not from model substitution. SkillManager.executeSkill accepts four export shapes (class with execute method, plain function, arrow function as module.exports, object with execute method). CommandHandlersCode.runSkill parses optional JSON argument for /run-skill <name> {json}. PromptBuilderSectionsExtra._skillsContext surfaces installed skills into the system prompt via the new 'skills' section in PromptBuilder so Genesis knows which skills he can call. Three new events: skill:forge-attempt, skill:forge-succeeded, skill:forge-failed with payload schemas. Removing these breaks the model-agnostic skill creation contract."
+      "note": "v7.9.0 final — Skill forge iteration loop. SkillManager.createSkill and SkillCrystallizer._crystallizeOne both run an iteration loop (max 3 attempts by default, overridable via opts.maxAttempts or cognitive.koennen.crystallization.maxAttempts) that feeds the prior error and prior code back into the next prompt via the create-skill template's lastError/lastCode/attempt slots (PromptEngine.js) so a weaker model can self-correct. The configured model is never auto-switched — robustness comes from the loop, not from model substitution. SkillManager.executeSkill accepts four export shapes (class with execute method, plain function, arrow function as module.exports, object with execute method). CommandHandlersCode.runSkill parses optional JSON argument for /run-skill <name> {json}. PromptBuilderSectionsExtra._skillsContext surfaces installed skills into the system prompt via the new 'skills' section in PromptBuilder so Genesis knows which skills he can call. Three new events: skill:forge-attempt, skill:forge-succeeded, skill:forge-failed with payload schemas. Removing these breaks the model-agnostic skill creation contract."
     },
     {
       "prefix": "koennen-promotion-v794 contract: ",
       "minCount": 12,
-      "note": "v7.9.4 \u2014 K\u00f6nnen Phase 3. skill-manifest.json extended with status (pending|rehearsing|promoted|quarantined|discarded), koennen.acquisitionContext (one-sentence first-person reflection generated by SkillCrystallizer right after parse, before _writePending, answering 'if this skill had never existed, what would have been the gap'), koennen.rehearsalCount, koennen.rehearsedInputHashes (capped at 50), koennen.promotedAt, koennen.discardedAt, koennen.discardedReason. SkillManager constructor extended with opts={bus, koennenDir}; loadSkills now dual-sources from src/skills/ and koennen/skills-pending/ filtered by status==='promoted'; executeSkill wraps sandbox.execute with success=!result.error and records to effectivenessTracker.recordInvocation when skill.koennen present; new executeSkillByManifest(name,manifestDir,input,opts) is the rehearsal backdoor; new discardSkill(name,reason) requires reason>=10 chars and fires skill:discarded. SkillPromotionEvaluator runs as DreamCycle phase after _dreamPhaseCrystallize; four conjunctive promotion criteria (minInvocations=8, minWilsonLB=0.70, minDistinctInputs=3, minAgeMs=48h), Wilson-LB quarantine threshold 0.30 with total>=5, discard-suggestion for skills aged>=14d with <3 rehearsals and Wilson-LB in [0.30, 0.70] (rate-limited to 1 per cycle). SkillRehearsal is the 16th IdleMind activity (after ReadSource); shouldTrigger boost capped at 1.6; LLM-generated input with empty-object fallback; pending->rehearsing on first rehearsal; updates rehearsalCount+rehearsedInputHashes atomically. CoreMemories.wireTriggers adds two busRef.on() handlers (selfnarrative:skill-acquired and skill:discarded) using _bypassThreshold. SelfNarrative._changeAccumulator += 5 on selfnarrative:skill-acquired. PromptBuilder annotates promoted K\u00f6nnen skills with Wilson-LB. ToolRegistry.refreshSkills(skillManager) called by evaluator after promotion to re-register skill:* tools. New slash commands: /skill-info, /skill-discard; /skills-pending output grouped by status. Removing these breaks the productive use of crystallized skills."
+      "note": "v7.9.4 — Können Phase 3. skill-manifest.json extended with status (pending|rehearsing|promoted|quarantined|discarded), koennen.acquisitionContext (one-sentence first-person reflection generated by SkillCrystallizer right after parse, before _writePending, answering 'if this skill had never existed, what would have been the gap'), koennen.rehearsalCount, koennen.rehearsedInputHashes (capped at 50), koennen.promotedAt, koennen.discardedAt, koennen.discardedReason. SkillManager constructor extended with opts={bus, koennenDir}; loadSkills now dual-sources from src/skills/ and koennen/skills-pending/ filtered by status==='promoted'; executeSkill wraps sandbox.execute with success=!result.error and records to effectivenessTracker.recordInvocation when skill.koennen present; new executeSkillByManifest(name,manifestDir,input,opts) is the rehearsal backdoor; new discardSkill(name,reason) requires reason>=10 chars and fires skill:discarded. SkillPromotionEvaluator runs as DreamCycle phase after _dreamPhaseCrystallize; four conjunctive promotion criteria (minInvocations=8, minWilsonLB=0.70, minDistinctInputs=3, minAgeMs=48h), Wilson-LB quarantine threshold 0.30 with total>=5, discard-suggestion for skills aged>=14d with <3 rehearsals and Wilson-LB in [0.30, 0.70] (rate-limited to 1 per cycle). SkillRehearsal is the 16th IdleMind activity (after ReadSource); shouldTrigger boost capped at 1.6; LLM-generated input with empty-object fallback; pending->rehearsing on first rehearsal; updates rehearsalCount+rehearsedInputHashes atomically. CoreMemories.wireTriggers adds two busRef.on() handlers (selfnarrative:skill-acquired and skill:discarded) using _bypassThreshold. SelfNarrative._changeAccumulator += 5 on selfnarrative:skill-acquired. PromptBuilder annotates promoted Können skills with Wilson-LB. ToolRegistry.refreshSkills(skillManager) called by evaluator after promotion to re-register skill:* tools. New slash commands: /skill-info, /skill-discard; /skills-pending output grouped by status. Removing these breaks the productive use of crystallized skills."
     },
     {
       "prefix": "llm-resilience-v789 contract: ",
       "minCount": 60,
-      "note": "v7.8.9 \u2014 LLM resilience layer. StreamingCompletion wraps backend.stream() with three timer layers (first-chunk/inter-chunk/total) and surfaces done_reason from the terminal NDJSON chunk; never throws. TruncationDetector classifies output shape (code-with-manifest/code-single-block/json-bare/code-bare/free) and validates structural completeness via balanced-fence count plus stack-based bracket matcher that ignores strings/line-comments/block-comments. LLMCapabilityDetector probes /api/show, scans the template for range .Messages vs .Prompt/.Response, runs a small verification call when the template is modern (4 status values: verified-prefill, unverified-no-prefill, verification-failed, special-renderer), persists results to .genesis/llm-capabilities.json keyed by digest. ContinuationLoop orchestrates initial stream + completeness check + capability-aware re-call (trailing-assistant prefill for verified-prefill models, pseudo-continuation prompt for all others), with exponential backoff (1s/2s/4s/8s), MAX_CONTINUATIONS=4, cumulative token budget (0.8*num_ctx), and continuation-total deadline. Backend pushKeepAliveOverride() stack lets the loop temporarily hold the model loaded between re-calls. Bus events: continuation-started/-complete/-failed. CircuitBreaker integration: one logical call per sequence. Removing any of this breaks resilience for taskType='code' Ollama calls."
+      "note": "v7.8.9 — LLM resilience layer. StreamingCompletion wraps backend.stream() with three timer layers (first-chunk/inter-chunk/total) and surfaces done_reason from the terminal NDJSON chunk; never throws. TruncationDetector classifies output shape (code-with-manifest/code-single-block/json-bare/code-bare/free) and validates structural completeness via balanced-fence count plus stack-based bracket matcher that ignores strings/line-comments/block-comments. LLMCapabilityDetector probes /api/show, scans the template for range .Messages vs .Prompt/.Response, runs a small verification call when the template is modern (4 status values: verified-prefill, unverified-no-prefill, verification-failed, special-renderer), persists results to .genesis/llm-capabilities.json keyed by digest. ContinuationLoop orchestrates initial stream + completeness check + capability-aware re-call (trailing-assistant prefill for verified-prefill models, pseudo-continuation prompt for all others), with exponential backoff (1s/2s/4s/8s), MAX_CONTINUATIONS=4, cumulative token budget (0.8*num_ctx), and continuation-total deadline. Backend pushKeepAliveOverride() stack lets the loop temporarily hold the model loaded between re-calls. Bus events: continuation-started/-complete/-failed. CircuitBreaker integration: one logical call per sequence. Removing any of this breaks resilience for taskType='code' Ollama calls."
+    },
+    {
+      "prefix": "v791 contract: ",
+      "minCount": 10
+    },
+    {
+      "prefix": "v792 contract: ",
+      "minCount": 7
     }
   ],
   "_scanRoots": [

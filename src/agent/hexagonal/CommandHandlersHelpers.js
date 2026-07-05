@@ -20,6 +20,7 @@
 // ============================================================
 
 'use strict';
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): origin
 
 /**
  * Check whether a file or directory exists at the given path.
@@ -33,7 +34,7 @@ async function fileExists(shell, filePath) {
   if (!shell) return false;
   if (process.platform === 'win32') {
     try {
-      const r = await shell.run(`if exist "${filePath}" echo FOUND`, { tier: 'read' });
+      const r = await shell.run(`if exist "${filePath}" echo FOUND`, { tier: 'read', origin: SourceTrust.USER_CHAT });
       return /FOUND/.test(r.stdout || '');
     } catch { return false; }
   }

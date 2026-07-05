@@ -19,6 +19,7 @@
 // ============================================================
 
 'use strict';
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): origin
 
 const { _KNOWN_WIN_APPS } = require('./CommandHandlersInstallDB');
 
@@ -51,7 +52,7 @@ async function resolveWin(name, ctx) {
   // was actually there.
   try {
     const cmd = `reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "${name}" /d 2>nul | findstr /I "InstallLocation"`;
-    const r = await shell.run(cmd, { tier: 'read', timeout: 8000 });
+    const r = await shell.run(cmd, { tier: 'read', timeout: 8000, origin: SourceTrust.USER_CHAT });
     if (r.stdout && r.stdout.trim()) {
       const m = r.stdout.match(/REG_SZ\s+(.+?)$/im);
       if (m && m[1]) {
@@ -78,7 +79,7 @@ async function resolveWin(name, ctx) {
   for (const root of startMenuRoots) {
     try {
       const cmd = `dir /b /s /a-d "${root}\\${lower}.lnk" 2>nul`;
-      const r = await shell.run(cmd, { tier: 'read' });
+      const r = await shell.run(cmd, { tier: 'read', origin: SourceTrust.USER_CHAT });
       if (r.stdout && r.stdout.trim()) {
         const first = r.stdout.trim().split('\n')[0].trim();
         if (first && /\.lnk$/i.test(first) && /[\\\/]/.test(first)) {

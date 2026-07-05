@@ -291,7 +291,7 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '9007 passing',      label: 'badge: tests',
+        tests:      { live: '9026 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
                       // v7.9.24: re-baselined to the measured Windows full-suite passing
@@ -417,7 +417,7 @@ function runChecks() {
       //   minus 6 v790-koennen-narrative-and-slash tests rewritten for the new status-grouped
       //   /skills-pending output, plus the v742-structure update for goals-mixin LOC and count
       //   to accommodate the two new skill* slash handlers).
-      const TESTS_WIN_BASELINE = 9007;
+      const TESTS_WIN_BASELINE = 9026;
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -457,7 +457,7 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 9007;
+  const TESTS_WIN = 9026;
   // v7.7.7: TEST_FILES is now dynamic — counts *.test.js under test/ at audit-time.
   // This closes the drift-blind tautology where the constant was pinned and the
   // doc was pinned to the same constant — drift would never be detected. With

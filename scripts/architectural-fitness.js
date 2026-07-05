@@ -731,6 +731,7 @@ check('File Size Guard', (r) => {
     ...walkJs(path.join(SRC, 'ui')),
   ];
   const overWarn = [];
+  const approaching = []; // v7.9.30: 650-700 LOC informational pre-warn (does not affect score)
   const overFail = [];
   const capViolations = [];
 
@@ -751,6 +752,8 @@ check('File Size Guard', (r) => {
       overFail.push({ file: relPath(file), lines });
     } else if (lines > WARN_THRESHOLD) {
       overWarn.push({ file: relPath(file), lines });
+    } else if (lines >= 650) {
+      approaching.push({ file: relPath(file), lines });
     }
   }
 
@@ -772,6 +775,9 @@ check('File Size Guard', (r) => {
   } else {
     r.score = 10;
     r.details.push(`All ${srcFiles.length} source files under ${WARN_THRESHOLD} LOC (or within cap).`);
+    if (approaching.length > 0) {
+      r.details.push(`Approaching limit (>=650 LOC, informational, ${approaching.length}): ` + approaching.sort((a,b)=>b.lines-a.lines).map(x => `${x.file} ${x.lines}`).join(', '));
+    }
   }
 
   if (overWarn.length > 0 || overFail.length > 0 || capViolations.length > 0) {

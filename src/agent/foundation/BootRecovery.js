@@ -58,6 +58,17 @@ class BootRecovery {
       return { recovered: false, snapshot: null, crashCount: 0 };
     }
 
+    // v7.9.30 (S7): a sentinel tagged from a test-boot — or ANY boot currently
+    // running under test — is not a crash. Clear it quietly and start clean,
+    // so the test harness never surfaces a phantom "Crash detected! — crash
+    // #1" from a prior test-boot's un-cleaned sentinel. Production
+    // crash-recovery is untouched: a real crash outside test still trips below.
+    if (sentinel.test === true || process.env.NODE_ENV === 'test' || process.env.GENESIS_TEST) {
+      _log.info('[RECOVERY] Test-boot sentinel — clean start (not a crash)');
+      this._writeSentinel({ phase: 'booting', ts: Date.now(), crashCount: 0 });
+      return { recovered: false, snapshot: null, crashCount: 0 };
+    }
+
     // Sentinel exists → last boot didn't complete
     const crashCount = (sentinel.crashCount || 0) + 1;
     _log.warn(`[RECOVERY] Crash detected! Boot sentinel from ${new Date(sentinel.ts).toISOString()} — crash #${crashCount}`);
@@ -179,6 +190,12 @@ class BootRecovery {
 
   _writeSentinel(data) {
     try {
+      // v7.9.30 (S7): tag sentinels written under test, so a leftover from a
+      // test-boot that didn't tear down cleanly is not misread as a crash on
+      // the next boot.
+      if ((process.env.NODE_ENV === 'test' || process.env.GENESIS_TEST) && data && data.test === undefined) {
+        data = { ...data, test: true };
+      }
       fs.mkdirSync(path.dirname(this._sentinelPath), { recursive: true });
       fs.writeFileSync(this._sentinelPath, JSON.stringify(data, null, 2));
     } catch (err) {

@@ -35,6 +35,7 @@
 // ============================================================
 
 'use strict';
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): origin
 
 const fs = require('fs');
 const path = require('path');
@@ -75,7 +76,7 @@ const CommandHandlersInstallDetect = {
       : [`which ${lower}`];
     for (const probe of probes) {
       try {
-        const result = await this.shell.run(probe, { tier: 'read' });
+        const result = await this.shell.run(probe, { tier: 'read', origin: SourceTrust.USER_CHAT });
         if ((result.ok !== false) && (result.exitCode === 0 || result.exitCode === undefined) && result.stdout) {
           const firstLine = result.stdout.trim().split('\n')[0];
           if (firstLine && firstLine.length > 2 && await this._fileExistsCheck(firstLine)) {
@@ -120,7 +121,7 @@ const CommandHandlersInstallDetect = {
     // nothing was actually there.
     try {
       const cmd = `reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall" /s /f "${lower}" /d 2>nul | findstr /I "InstallLocation"`;
-      const r = await this.shell.run(cmd, { tier: 'read', timeout: 8000 });
+      const r = await this.shell.run(cmd, { tier: 'read', timeout: 8000, origin: SourceTrust.USER_CHAT });
       if (r.stdout && r.stdout.trim()) {
         const match = r.stdout.match(/REG_SZ\s+(.+?)$/im);
         if (match && match[1]) {
@@ -136,7 +137,7 @@ const CommandHandlersInstallDetect = {
             }
             // Generic fallback inside dir.
             try {
-              const lr = await this.shell.run(`dir /b "${dir}\\*.exe" 2>nul`, { tier: 'read' });
+              const lr = await this.shell.run(`dir /b "${dir}\\*.exe" 2>nul`, { tier: 'read', origin: SourceTrust.USER_CHAT });
               if (lr.stdout && lr.stdout.trim()) {
                 const first = lr.stdout.trim().split('\n')[0].trim();
                 if (first) {
@@ -168,7 +169,7 @@ const CommandHandlersInstallDetect = {
     for (const root of startMenuRoots) {
       try {
         const cmd = `dir /b /s /a-d "${root}\\${lower}.lnk" 2>nul`;
-        const r = await this.shell.run(cmd, { tier: 'read' });
+        const r = await this.shell.run(cmd, { tier: 'read', origin: SourceTrust.USER_CHAT });
         if (r.stdout && r.stdout.trim()) {
           const first = r.stdout.trim().split('\n')[0].trim();
           // Only accept if the result actually looks like a .lnk file path —
@@ -199,7 +200,7 @@ const CommandHandlersInstallDetect = {
 
   async _pmAvailable(pm) {
     try {
-      const r = await this.shell.run(pm.detect, { tier: 'read' });
+      const r = await this.shell.run(pm.detect, { tier: 'read', origin: SourceTrust.USER_CHAT });
       return r.exitCode === 0 || r.code === 0;
     } catch { return false; }
   },

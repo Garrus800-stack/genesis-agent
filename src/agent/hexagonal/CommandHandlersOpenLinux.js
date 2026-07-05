@@ -23,6 +23,7 @@
 // ============================================================
 
 'use strict';
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): origin
 
 const os = require('os');
 const path = require('path');
@@ -66,14 +67,14 @@ async function resolveLinux(name, ctx) {
     try {
       // Look for <name>.desktop and *<name>*.desktop (case-insensitive).
       const cmd = `ls "${root}" 2>/dev/null | grep -i "${name}" | grep -i "\\.desktop$" | head -1`;
-      const r = await shell.run(cmd, { tier: 'read' });
+      const r = await shell.run(cmd, { tier: 'read', origin: SourceTrust.USER_CHAT });
       if (r.stdout && r.stdout.trim()) {
         const file = r.stdout.trim().split('\n')[0].trim();
         const fullPath = `${root}/${file}`;
         if (await fileExists(fullPath)) {
           // Read the Exec= line and use that binary.
           const execCmd = `grep -m 1 "^Exec=" "${fullPath}" | cut -d= -f2- | awk '{print $1}'`;
-          const er = await shell.run(execCmd, { tier: 'read' });
+          const er = await shell.run(execCmd, { tier: 'read', origin: SourceTrust.USER_CHAT });
           if (er.stdout && er.stdout.trim()) {
             const exe = er.stdout.trim();
             // Exec might be a bare name or absolute path.
@@ -82,7 +83,7 @@ async function resolveLinux(name, ctx) {
             }
             // Bare name — re-probe via command -v.
             try {
-              const cv = await shell.run(`command -v ${exe}`, { tier: 'read' });
+              const cv = await shell.run(`command -v ${exe}`, { tier: 'read', origin: SourceTrust.USER_CHAT });
               if (cv.stdout && cv.stdout.trim()) {
                 const resolvedExe = cv.stdout.trim().split('\n')[0].trim();
                 if (await fileExists(resolvedExe)) {

@@ -21,6 +21,7 @@
 // ============================================================
 
 'use strict';
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): origin
 
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('CommandHandlersOpen');
@@ -91,7 +92,7 @@ const CommandHandlersOpen = {
     _log.info(`[OPEN] launching: ${launchCmd}  (via=${resolved.via})`);
 
     try {
-      const r = await this.shell.run(launchCmd, { tier: 'write', timeout: 5000 });
+      const r = await this.shell.run(launchCmd, { tier: 'write', timeout: 5000, origin: SourceTrust.USER_CHAT });
       if (r.ok === false || (r.exitCode !== 0 && r.exitCode !== undefined)) {
         const errMsg = (r.stderr || '').trim() || 'unbekannter Fehler';
         return `**${name}** konnte nicht gestartet werden: ${errMsg}\n\nVersuchter Pfad: \`${resolved.path}\``;
@@ -133,7 +134,7 @@ const CommandHandlersOpen = {
       : [`command -v ${name}`, `which ${name}`];
     for (const probe of probes) {
       try {
-        const r = await this.shell.run(probe, { tier: 'read' });
+        const r = await this.shell.run(probe, { tier: 'read', origin: SourceTrust.USER_CHAT });
         if ((r.ok !== false) && (r.exitCode === 0 || r.exitCode === undefined) && r.stdout) {
           const firstLine = r.stdout.trim().split('\n')[0].trim();
           if (firstLine && await this._fileExists(firstLine)) {
@@ -165,7 +166,7 @@ const CommandHandlersOpen = {
       if (await this._fileExists(candidate)) return candidate;
     }
     try {
-      const r = await this.shell.run(`dir /b "${dir}\\*.exe" 2>nul`, { tier: 'read' });
+      const r = await this.shell.run(`dir /b "${dir}\\*.exe" 2>nul`, { tier: 'read', origin: SourceTrust.USER_CHAT });
       if (r.stdout && r.stdout.trim()) {
         const first = r.stdout.trim().split('\n')[0].trim();
         if (first) {

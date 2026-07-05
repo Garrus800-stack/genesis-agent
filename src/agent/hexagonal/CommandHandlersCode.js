@@ -16,6 +16,8 @@
 
 'use strict';
 
+const CapabilityMatcher = require('../planning/CapabilityMatcher');
+
 const commandHandlersCode = {
 
   async executeCode(message) {
@@ -51,9 +53,9 @@ const commandHandlersCode = {
     // "run-skill" right next to the slash, and the legacy `[\w-]+-skill`
     // pattern would greedily match that as the skill name — then
     // executeSkill("run-skill", {}) throws "not found" and the catch
-    // below falls through to shellRun(message), which executes the
-    // entire chat input ("/run-skill random-hex-color") in PowerShell
-    // and surfaces "command not found" to the user. Handle the slash
+    // below USED TO fall through to shellRun(message) (removed in v7.9.30),
+    // which executed the entire chat input in PowerShell and surfaced
+    // "command not found" to the user. Handle the slash
     // form explicitly first so the actual argument is the name.
     // v7.9.0 final: also parse optional JSON argument so skills that
     // need input (e.g. slugify needs a text) become callable.
@@ -99,13 +101,37 @@ const commandHandlersCode = {
       const output = result.output || result.result || result;
       return `✅ Skill "${skillName}" result:\n\`\`\`json\n${JSON.stringify(output, null, 2)}\n\`\`\``;
     } catch (err) {
-      // v7.9.0: NEVER fall back to shellRun for slash-form commands —
-      // the legacy "skill not found → try as shell" path was for
-      // free-text imperatives like "run my-tool". Slash commands are
-      // explicit and should return a clean error, not execute the
-      // user's chat input as a shell command (security + UX).
-      if (!isSlashCommand && err.message?.includes('not found') && this.shell) {
-        return this.shellRun(message);
+      // v7.9.30: the legacy "skill not found → try as shell" fallback is
+      // gone. A not-found skill NEVER executes the chat input as a shell
+      // command — the v7.9.0 reasoning that slash commands should return a
+      // clean error rather than run the chat text (security + UX) now holds
+      // for EVERY case, free-text included. The not-found case instead
+      // suggests the nearest installed skill via CapabilityMatcher.
+      if (err.message && err.message.includes('not found') && this.skillManager) {
+        try {
+          const skills = this.skillManager.listSkills();
+          let suggestion = null;
+          // Semantic match — good when the user describes intent rather than a name.
+          const near = CapabilityMatcher.match(skillName, skills);
+          if (near && near.matched && near.decision !== 'pass' && near.matched.name !== skillName) {
+            suggestion = near.matched.name;
+          }
+          // Name-similarity — TF-IDF is weak on name typos ("systeminfo" →
+          // "system-info"), so fall back to character-level overlap, which
+          // catches them reliably.
+          if (!suggestion) {
+            let best = null, bestScore = 0;
+            for (const sk of skills) {
+              if (!sk || !sk.name || sk.name === skillName) continue;
+              const sim = CapabilityMatcher.fuzzyOverlap(skillName, sk.name);
+              if (sim > bestScore) { bestScore = sim; best = sk.name; }
+            }
+            if (best && bestScore >= 0.7) suggestion = best;
+          }
+          if (suggestion) {
+            return `❌ Skill "${skillName}" not found. Did you mean "${suggestion}"?\n\nUsage: /run-skill ${suggestion} [JSON-object]`;
+          }
+        } catch (_e) { /* suggestion is best-effort */ }
       }
       return `❌ Skill "${skillName}" failed: ${err.message}`;
     }

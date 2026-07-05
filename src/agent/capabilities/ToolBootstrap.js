@@ -1,3 +1,4 @@
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): origin
 // @ts-checked-v5.7
 // ============================================================
 // GENESIS — ToolBootstrap.js
@@ -106,7 +107,7 @@ class ToolBootstrap {
         input: { task: 'string', cwd: 'string?' },
         output: { summary: 'string' },
       }, async (input) => {
-        const result = await shell.plan(input.task, input.cwd || undefined);
+        const result = await shell.plan(input.task, input.cwd || undefined, { origin: SourceTrust.TOOL_LOOP });
         return { summary: result.summary || 'No output' };
       }, 'shell');
 
@@ -115,7 +116,7 @@ class ToolBootstrap {
         input: { command: 'string', cwd: 'string?' },
         output: { stdout: 'string', stderr: 'string', exitCode: 'number' },
       }, (input) => {
-        const result = shell.run(input.command, { cwd: input.cwd });
+        const result = shell.run(input.command, { cwd: input.cwd, origin: SourceTrust.TOOL_LOOP });
         return { stdout: result.stdout || '', stderr: result.stderr || '', exitCode: result.exitCode || 0 };
       }, 'shell');
     }

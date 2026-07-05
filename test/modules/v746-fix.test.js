@@ -69,7 +69,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const lang = { t: (k, v) => k };
     const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
-    const agent = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: '/tmp' });
+    const agent = new ShellAgent({ defaultOrigin: 'test', lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: '/tmp' });
     agent.isWindows = true;
     const adapted = agent._adaptCommand('ls | wc -l');
     assert(adapted.includes('find /V /C ":"'), `expected /V /C ":" in adapted command, got: ${adapted}`);
@@ -80,7 +80,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const lang = { t: (k) => k };
     const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
-    const agent = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: '/tmp' });
+    const agent = new ShellAgent({ defaultOrigin: 'test', lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: '/tmp' });
     agent.isWindows = true;
     const adapted1 = agent._adaptCommand('dir /b *.js | find /C /V ""');
     assert(adapted1.includes('find /V /C ":"'), `case 1: expected fixed pattern, got: ${adapted1}`);
@@ -92,7 +92,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const lang = { t: (k) => k };
     const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
-    const agent = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: '/tmp' });
+    const agent = new ShellAgent({ defaultOrigin: 'test', lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: '/tmp' });
     agent.isWindows = false;
     const adapted = agent._adaptCommand('ls | wc -l');
     assert(adapted === 'ls | wc -l', `non-Windows must be pass-through, got: ${adapted}`);
@@ -128,7 +128,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const lang = { t: (k) => k };
     const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
-    const agent = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: process.cwd() });
+    const agent = new ShellAgent({ defaultOrigin: 'test', lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: process.cwd() });
     const result = await agent.run('ls', { tier: 'read', silent: true });
     assert(result.ok === true, `expected ok=true, got: ${JSON.stringify(result).slice(0,200)}`);
     assert(typeof result.stdout === 'string' && result.stdout.length > 0,
@@ -141,7 +141,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const lang = { t: (k) => k };
     const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
-    const agent = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: process.cwd() });
+    const agent = new ShellAgent({ defaultOrigin: 'test', lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: process.cwd() });
     const result = await agent.run('this-binary-definitely-does-not-exist-xyz123', { tier: 'read', silent: true });
     assert(result.ok === false, `expected ok=false, got: ${JSON.stringify(result).slice(0,200)}`);
     assert(typeof result.stderr === 'string' && result.stderr.length > 0,
@@ -155,7 +155,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { AgentLoopStepsDelegate } = require('../../src/agent/revolution/AgentLoopSteps');
     const lang = { t: (k) => k };
     const bus = { emit() {}, on() {}, fire(...args) { return this.emit ? this.emit(...args) : undefined; } };
-    const shell = new ShellAgent({ lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: process.cwd() });
+    const shell = new ShellAgent({ defaultOrigin: 'test', lang, bus, model: null, memory: null, knowledgeGraph: null, eventStore: null, sandbox: null, guard: null, rootDir: process.cwd() });
 
     const fakeLoop = {
       shell,
@@ -286,7 +286,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
     const { ShellAgent } = require('../../src/agent/capabilities/ShellAgent');
     const { NullBus } = require('../../src/agent/core/EventBus');
     const fakeLang = { t: (k, args) => `${k}: ${JSON.stringify(args || {})}` };
-    const agent = new ShellAgent({
+    const agent = new ShellAgent({ defaultOrigin: 'test',
       lang: fakeLang,
       bus: NullBus,
       rootDir: 'C:\\Users\\Genesis\\project',

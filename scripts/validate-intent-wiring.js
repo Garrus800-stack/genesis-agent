@@ -49,9 +49,12 @@ for (const m of irContent.matchAll(/\['([\w-]+)',\s*\[/g)) {
 // 'general' is implicit (default fallback)
 definitions.add('general');
 
-// Dynamic registrations via intentRouter.register() in AgentCoreBoot
-const bootPath = path.join(ROOT, 'src', 'agent', 'AgentCoreBoot.js');
-if (fs.existsSync(bootPath)) {
+// Dynamic registrations via intentRouter.register() in the boot wiring.
+// v7.9.29: the register() calls moved from AgentCoreBoot.js into the extracted
+// AgentCoreBootWire.js — scan both so the hygiene split does not blind this check.
+for (const bootFile of ['AgentCoreBoot.js', 'AgentCoreBootWire.js']) {
+  const bootPath = path.join(ROOT, 'src', 'agent', bootFile);
+  if (!fs.existsSync(bootPath)) continue;
   const bootContent = fs.readFileSync(bootPath, 'utf8');
   for (const m of bootContent.matchAll(/intentRouter.*\.register\('([\w-]+)'/g)) {
     definitions.add(m[1]);

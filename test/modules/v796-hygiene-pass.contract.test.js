@@ -15,9 +15,9 @@
 //        German tokens), with the documented filters.
 //   - D: audit-service-numbers.js exists and reads live values
 //        rather than hardcoded baselines.
-//   - E: lockCritical includes the 20 CI gate scripts plus
+//   - E: lockCritical includes the 22 CI gate scripts plus
 //        architectural-fitness, on top of the 21 source-file
-//        locks. Total = 41.
+//        locks. Total = 43.
 //   - F: package.json `ci` script invokes both new audits in
 //        strict mode (Block B closeout).
 // ============================================================
@@ -163,7 +163,7 @@ test('D3: audit-service-numbers reads live values, not hardcoded baselines', () 
 
 // ── E: lockCritical expanded to cover CI gate scripts ─────────
 
-test('E1: lockCritical includes all 20 CI gate scripts plus architectural-fitness', () => {
+test('E1: lockCritical includes all 22 CI gate scripts plus architectural-fitness', () => {
   const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
   const block = /lockCritical\(\[([\s\S]*?)\]\)/.exec(main);
   assert(block, 'lockCritical block must exist in main.js');
@@ -190,6 +190,8 @@ test('E1: lockCritical includes all 20 CI gate scripts plus architectural-fitnes
     'scripts/validate-events.js',
     'scripts/validate-intent-wiring.js',
     'scripts/validate-service-wiring.js',
+    'scripts/audit-tool-selftest.js',
+    'scripts/check-stale-refs.js',
   ];
 
   for (const s of requiredScripts) {
@@ -198,23 +200,23 @@ test('E1: lockCritical includes all 20 CI gate scripts plus architectural-fitnes
   }
 });
 
-test('E2: total hash-locked count is 41 (21 source files + 20 CI scripts)', () => {
+test('E2: total hash-locked count is 43 (21 source files + 22 CI scripts)', () => {
   const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
   const block = /lockCritical\(\[([\s\S]*?)\]\)/.exec(main);
   const body = block[1];
   const entries = body.split('\n').filter(l => /^\s*['"](src|scripts)\//.test(l));
-  assertEqual(entries.length, 41,
-    'Expected 41 hash-locked entries (21 src + 20 scripts/) — the v7.9.6 audit-closeout added the 20 CI gate scripts');
+  assertEqual(entries.length, 43,
+    'Expected 43 hash-locked entries (21 src + 22 scripts/) — v7.9.6 added 20 CI gate scripts, v7.9.30 added audit-tool-selftest + check-stale-refs');
 });
 
 // ── F: CI script invokes both new audits ──────────────────────
 
-test('F1: `npm run ci` invokes 18 CI gates total (16 prior + 2 new)', () => {
+test('F1: `npm run ci` invokes 20 CI gates total (18 prior + 2 new)', () => {
   const pkg = require(path.join(ROOT, 'package.json'));
   const ci = pkg.scripts.ci || '';
   const matches = ci.match(/node scripts\/[a-z-]+\.js/g) || [];
-  assertEqual(matches.length, 18,
-    'package.json `ci` script must call 18 gate scripts after v7.9.6 (added audit-doc-language + audit-service-numbers)');
+  assertEqual(matches.length, 20,
+    'package.json `ci` script must call 20 gate scripts after v7.9.30 (added audit-tool-selftest + check-stale-refs)');
 });
 
 // ── G: Pursuit-loop fixes from v7.9.5 outpost trace ───────────

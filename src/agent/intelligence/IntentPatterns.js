@@ -101,7 +101,15 @@ function enforceSlashDiscipline(result, message) {
   // position (start-of-message or after whitespace, followed by a word).
   // The per-intent patterns then decide WHICH slash-command was meant;
   // this guard only decides whether ANY slash-command is allowed at all.
-  if (typeof message === 'string' && /(?:^|\s)\/[a-z][\w-]*\b/i.test(message)) return result;
+  // v7.9.30 (4th narrowing): anchor to the START of the message, not any
+  // whitespace boundary. An embedded /command after free text (a pasted log
+  // line, a question with a copied /run-skill line) no longer counts as a
+  // slash-command — it rewrites to general. This closes the whole
+  // SECURITY_REQUIRED_SLASH class in one place: the incident message
+  // ("kannst du was sehen ... /run-skill system-info") that reached shellRun
+  // via run-skill would now never route there. A genuine command still
+  // starts the message ("/run-skill x", "  /shell-task dir").
+  if (typeof message === 'string' && /^\s*\/[a-z][\w-]*\b/i.test(message)) return result;
   // v7.5.9 B1: narrow exception for execute-code — a message starting with
   // a fenced code block (```...```) is a documented alternate trigger
   // (user pasted runnable code, explicit content). This is intentionally
@@ -347,16 +355,18 @@ const INTENT_DEFINITIONS = [
     // bare "schau dir das an" / "zeig mir das" (no file) does NOT match and
     // falls through to general. Resolution + graceful null-fallthrough live in
     // the readFile handler.
-    /\blies\s+(?:mir\s+)?(?:die\s+datei\s+)?["']?[\w][\w.()\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
-    /\bschau(?:e|st)?\s+(?:dir\s+)?(?:mal\s+)?(?:die\s+datei\s+)?["']?[\w][\w.()\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
-    /\bzeig(?:e|st)?\s+(?:mir\s+)?(?:die\s+datei\s+)?["']?[\w][\w.()\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    /\blies\s+(?:mir\s+)?(?:die\s+datei\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    /\bschau(?:e|st)?\s+(?:dir\s+)?(?:mal\s+)?(?:die\s+datei\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    /\bzeig(?:e|st)?\s+(?:mir\s+)?(?:die\s+datei\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    // v7.9.30 (Teil B ext): verb-postposed — "kannst du mir README.md zeigen".
+    /[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\s+(?:zeigen|anzeigen|lesen|öffnen|aufmachen)\b/i,
     // English
     /\bwhat(?:'s|\s+is)?\s+(?:in|inside)\s+(?:the\s+|this\s+)?(?:file|document)\b/i,
     /\bwhat\s+does\s+(?:the\s+)?(?:file\s+)?[\w.()-]+\s+(?:say|contain)\b/i,
     /\bread\s+(?:me\s+)?(?:the\s+)?(?:file|document|contents?\s+of)\b/i,
     /\bshow\s+(?:me\s+)?(?:the\s+)?(?:contents?\s+of|file\s+content)\b/i,
-    /(?<!(?:did|have)\s+you\s+)\bread\s+(?:me\s+)?(?:the\s+file\s+)?["']?[\w][\w.()\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
-    /\bshow\s+(?:me\s+)?(?:the\s+file\s+)?["']?[\w][\w.()\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    /(?<!(?:did|have)\s+you\s+)\bread\s+(?:me\s+)?(?:the\s+file\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    /\bshow\s+(?:me\s+)?(?:the\s+file\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
   ], 14, ['steht', 'lesen', 'drin', 'inhalt', 'read', 'file', 'content']],
 
   // v7.9.28 (field-fix #3): safe deterministic file creation — "erstelle eine

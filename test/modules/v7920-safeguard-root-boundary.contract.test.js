@@ -51,7 +51,7 @@ test('validateWrite still rejects a clearly outside path', () => {
 });
 
 test('source uses trailing-separator boundary compare in both guards', () => {
-  const re = /resolved === this\.rootDir \|\| resolved\.startsWith\(this\.rootDir \+ path\.sep\)/g;
+  const re = /\.startsWith\(this\.\w*[Rr]oot\w*\s*\+\s*path\.sep\)/g; // v7.9.30: matches resolved/rootDir and real/realRootDir
   const matches = SAFEGUARD_SRC.match(re) || [];
   assert.ok(matches.length >= 2, `expected >=2 trailing-sep compares, found ${matches.length}`);
 });

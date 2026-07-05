@@ -17,6 +17,7 @@
 // ============================================================
 
 'use strict';
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): origin
 
 // v7.8.3 follow-up: app-launch logic + regex/sets extracted to
 // hexagonal/OpenPathAppLaunch.js so this mixin stays compact.
@@ -37,7 +38,7 @@ const commandHandlersShell = {
     const dirMatch = message.match(/(?:in|im|fuer|for)\s+(?:verzeichnis|ordner|dir|directory)?\s*['"]?([^\s'"]+)['"]?/i);
     const cwd = dirMatch ? dirMatch[1] : undefined;
 
-    const result = await this.shell.plan(task, cwd);
+    const result = await this.shell.plan(task, cwd, { origin: SourceTrust.USER_CHAT });
     return result.summary;
   },
 
@@ -62,7 +63,7 @@ const commandHandlersShell = {
 
     if (!cmd) return this.lang.t('agent.no_command');
 
-    const result = await this.shell.run(cmd);
+    const result = await this.shell.run(cmd, { origin: SourceTrust.USER_CHAT });
     // FIX v6.1.1: Emit outcome for learning systems (LessonsStore, SymbolicResolver)
     if (this.bus) {
       this.bus.fire('shell:outcome', {

@@ -4,12 +4,12 @@
 
 ## Scale
 
-- 416 source modules across 12 boot phases
+- 417 source modules across 12 boot phases
 - 182 DI services (169 manifest + 13 bootstrap)
-- 9007 tests on Windows / 9006 on Linux (passing, 0 failures)
+- 9026 tests on Windows / 9025 on Linux (passing, 0 failures)
 - 498 events with 498 payload schemas (full parity)
 - Architectural fitness: 127/130
-- 18 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
+- 20 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
 
 
 ---
@@ -37,7 +37,7 @@ Genesis can rewrite its own code, but every change passes through multiple safet
 | Layer | Mechanism |
 |---|---|
 | **Immutable kernel** | `main.js`, `preload.mjs`, `src/kernel/` — agent cannot write to these |
-| **Hash-locked files** | SHA-256 locks on 41 critical files (21 source files: kernel + safety scanners + sandbox + DI container + self-mod pipeline + approval gate + plugin/skill/peer-exchange registries; 20 CI gate scripts: all audit-* + validate-* + architectural-fitness; full list in `main.js` `lockCritical([...])`, drift-checked by `scripts/audit-hash-lock-coverage.js` since v7.6.2) — agent cannot weaken its own safety checks or audit gates |
+| **Hash-locked files** | SHA-256 locks on 43 critical files (21 source files: kernel + safety scanners + sandbox + DI container + self-mod pipeline + approval gate + plugin/skill/peer-exchange registries; 22 CI gate scripts: all audit-* + validate-* + check-stale-refs + architectural-fitness; full list in `main.js` `lockCritical([...])`, drift-checked by `scripts/audit-hash-lock-coverage.js` since v7.6.2) — agent cannot weaken its own safety checks or audit gates |
 | **AST code scanner** | Every generated code file is parsed into an AST and checked against 20+ rules (eval, Function, kernel circumvention, Electron security flags, system directory writes, etc.) |
 | **Verification engine** | Programmatic post-execution checks (file exists? tests pass? syntax valid?) |
 | **Sandbox execution** | Code runs in a VM2 sandbox with frozen prototypes, or Linux namespace isolation (PID/Net/Mount/IPC) |
@@ -263,7 +263,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **612 test files** | 9007 tests (Win baseline, v7.9.29), coverage gates: 80% lines, 76% branches, 78% functions |
+| **613 test files** | 9026 tests (Win baseline, v7.9.30), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

@@ -71,26 +71,6 @@ describe('v7.3.1 — CapabilityMatcher: keyword extraction', () => {
   });
 });
 
-describe('v7.3.1 — CapabilityMatcher: Jaccard', () => {
-  test('identical sets → 1.0', () => {
-    assertEqual(CapabilityMatcher.jaccard(['a', 'b'], ['a', 'b']), 1);
-  });
-
-  test('no overlap → 0', () => {
-    assertEqual(CapabilityMatcher.jaccard(['a', 'b'], ['c', 'd']), 0);
-  });
-
-  test('partial overlap', () => {
-    // {a,b,c} ∩ {b,c,d} = {b,c} = 2; ∪ = {a,b,c,d} = 4 → 2/4 = 0.5
-    assertEqual(CapabilityMatcher.jaccard(['a', 'b', 'c'], ['b', 'c', 'd']), 0.5);
-  });
-
-  test('empty inputs → 0', () => {
-    assertEqual(CapabilityMatcher.jaccard([], ['a']), 0);
-    assertEqual(CapabilityMatcher.jaccard(['a'], []), 0);
-  });
-});
-
 describe('v7.3.1 — CapabilityMatcher: match (the real test)', () => {
   test('"Implement Homeostatic Throttling" → matches homeostasis (Stemmed+Prefix)', () => {
     // Short goal text has low Jaccard due to few tokens. Real-world goals

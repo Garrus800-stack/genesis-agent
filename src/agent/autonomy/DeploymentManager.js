@@ -14,6 +14,7 @@
 // ============================================================
 
 'use strict';
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): origin
 
 const { createLogger } = require('../core/Logger');
 const { TIMEOUTS } = require('../core/Constants');
@@ -279,7 +280,7 @@ class DeploymentManager {
     // External deploy via shell commands
     if (options.commands?.length && this.shell) {
       for (const cmd of options.commands) {
-        await this.shell.run(cmd);
+        await this.shell.run(cmd, { origin: SourceTrust.AGENT_LOOP });
       }
     }
   }
@@ -305,7 +306,7 @@ class DeploymentManager {
 
     for (let i = 0; i < commands.length; i++) {
       _log.info(`[DEPLOY] Rolling step ${i + 1}/${commands.length}`);
-      if (this.shell) await this.shell.run(commands[i]);
+      if (this.shell) await this.shell.run(commands[i], { origin: SourceTrust.AGENT_LOOP });
       if (i < commands.length - 1) {
         await this._healthCheck(target, 1, healthOpts);
       }
@@ -351,7 +352,7 @@ class DeploymentManager {
       } else if (opts.healthCommand && this.shell) {
         // Shell-based health check (e.g. curl, docker inspect)
         try {
-          await this.shell.run(opts.healthCommand);
+          await this.shell.run(opts.healthCommand, { origin: SourceTrust.AGENT_LOOP });
         } catch (err) {
           throw new Error(`Shell health check ${i + 1}/${checks} failed: ${err.message}`);
         }

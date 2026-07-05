@@ -366,7 +366,7 @@ describe('koennen-crystallizer-v790 contract: LLMCapabilityDetector v7.9.0 follo
     assert(result.includes('failed') || result.includes('❌'));
   });
 
-  test('koennen-crystallizer-v790 contract: free-text "run my-tool" still has shell fallback', async () => {
+  test('koennen-crystallizer-v790 contract: free-text not-found returns clean error, shell is NEVER called (v7.9.30)', async () => {
     let shellCalled = false;
     const handler = Object.create(commandHandlersCode);
     handler.skillManager = {
@@ -375,8 +375,12 @@ describe('koennen-crystallizer-v790 contract: LLMCapabilityDetector v7.9.0 follo
     };
     handler.shell = { run: () => { shellCalled = true; return 'shell ran'; } };
     handler.shellRun = (msg) => { shellCalled = true; return `shell: ${msg}`; };
-    await handler.runSkill('run my-tool');
-    assertEqual(shellCalled, true, 'free-text path keeps legacy shell fallback');
+    const res = await handler.runSkill('run my-tool');
+    // v7.9.30 contract reversal: the legacy shell fallback is gone. A
+    // not-found skill returns a clean error and NEVER executes the chat
+    // input as a shell command (security + UX).
+    assertEqual(shellCalled, false, 'not-found must NEVER fall back to shell');
+    assertEqual(/failed|not found/i.test(String(res)), true, 'not-found returns a clean error, not a shell execution');
   });
 });
 

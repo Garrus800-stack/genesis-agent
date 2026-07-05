@@ -10,6 +10,7 @@ const { verifyToolClaims, formatVerificationNote } = require('../core/tool-call-
 const { recordCoherenceCheck } = require('../core/intent-tool-coherence');
 const { stripThinkingBlocks } = require('../core/thinking-block-stream-filter');
 const { extractReadOnlyShellCommands } = require('../core/shell/shell-fence-extract');
+const { extractSlashSkillCalls, dedupeToolCalls } = require('../core/shell/slash-skill-extract'); // v7.9.30 (S5/S4)
 const _log = createLogger('ChatOrchestrator');
 
 
@@ -26,6 +27,7 @@ const helpers = {
     let lastCallSignature = null;
     let nudges = 0; // v7.9.28: bounded false-stop recoveries (see loop break)
     let shellRuns = 0; // v7.9.28: bounded read-only shell-fence executions
+    let dedupNote = ''; // v7.9.30 (S4): carried into synthesis when duplicates collapse
     // v7.3.5: Accumulate every tool call fired across rounds, for the
     // post-loop verification check (commit 7).
     const allToolCalls = [];
@@ -77,12 +79,17 @@ const helpers = {
         // tool calls, so nothing ran and they looped. Run the READ-ONLY ones via
         // the shell tool (OS-adapted → cat→type on Windows); write/destructive
         // ones are rejected and stay a shown block. Bounded by shellRuns + rounds.
+        // v7.9.30 (S5): the prompt teaches /run-skill <name> [{json}] — make
+        // those model-emitted lines executable (Befund 3), so a model following
+        // the taught format runs instead of emitting text nothing reacts to.
+        // Same round budget as fences; both feed the same toolCalls list.
+        const slashSkills = (round < this.maxToolRounds - 1) ? extractSlashSkillCalls(text) : [];
         const fenceCmds = (shellRuns < 3 && round < this.maxToolRounds - 1)
           ? extractReadOnlyShellCommands(text) : [];
-        if (fenceCmds.length) {
-          shellRuns++;
-          toolCalls = fenceCmds.map((command) => ({ name: 'shell', input: { command } }));
-          // fall through to execution below (gate + dedup + synthesis apply)
+        if (slashSkills.length || fenceCmds.length) {
+          if (fenceCmds.length) shellRuns++;
+          toolCalls = [...slashSkills, ...fenceCmds.map((command) => ({ name: 'shell', input: { command } }))];
+          // fall through to execution below (S4 dedup + gate + synthesis apply)
         } else {
         // v7.9.28: false-stop recovery. A capable model often does ONE tool
         // round, then narrates the next step ("Next, I'll read ARCHITECTURE.md",
@@ -141,7 +148,24 @@ const helpers = {
         break;
       }
 
-      // Detect repeated identical tool calls (LLM stuck in a loop)
+      // v7.9.30 (S4): collapse identical tool calls within THIS response to a
+      // single execution (Befund 2). This sits at the unified point — after
+      // the primary-parser, fence, and slash channels have all merged into
+      // toolCalls — so it also covers the primary-channel <tool_call>
+      // repetition, which skips the length===0 branch above (the exact
+      // reproduced case). Complementary to the cross-round callSignature below;
+      // the follow-on gates (allToolCalls / the nudge, callSignature) then run
+      // on the deduped list, so a stuttering model produces exactly one run.
+      if (toolCalls.length > 1) {
+        const { calls: dedupedCalls, collapsed } = dedupeToolCalls(toolCalls);
+        if (collapsed > 0) {
+          toolCalls = dedupedCalls;
+          onChunk(`\n\n_${collapsed} doppelte Aufrufe zusammengefasst_\n`);
+          dedupNote = `\n\n(Note: ${collapsed} duplicate tool call(s) in your message were collapsed to a single execution — the result below is complete; do not re-issue them.)`;
+        }
+      }
+
+      // Detect repeated identical tool calls across ROUNDS (LLM stuck in a loop)
       const callSignature = toolCalls.map(tc => `${tc.name}:${JSON.stringify(tc.input)}`).sort().join('|');
       if (callSignature === lastCallSignature) {
         _log.debug('[CHAT] Duplicate tool calls detected, breaking loop at round', round + 1);
@@ -261,7 +285,7 @@ const helpers = {
       // Now it is framed as carrying out the task: emit the next tool call, or
       // deliver the finished result — do not merely describe the next step.
       const synthesisMessages = [
-        { role: 'user', content: `You are carrying out this request: "${String(userMessage || '').slice(0, 500)}"\n\nYour previous step:\n${text.slice(0, 1500)}\n\nTool results (round ${round + 1} of ${this.maxToolRounds}):\n${resultSummary}\n\nContinue the task now. If it is not yet complete, emit the NEXT tool call to make progress — do NOT merely describe what you will do next. If you already have what you need, produce the final result in full (e.g. the requested code and files). Only stop to ask the user if you genuinely need information that only they can provide.` },
+        { role: 'user', content: `You are carrying out this request: "${String(userMessage || '').slice(0, 500)}"\n\nYour previous step:\n${text.slice(0, 1500)}\n\nTool results (round ${round + 1} of ${this.maxToolRounds}):\n${resultSummary}${dedupNote}\n\nContinue the task now. If it is not yet complete, emit the NEXT tool call to make progress — do NOT merely describe what you will do next. If you already have what you need, produce the final result in full (e.g. the requested code and files). Only stop to ask the user if you genuinely need information that only they can provide.` },
       ];
 
       const rawSynthesis = await this.model.chat(

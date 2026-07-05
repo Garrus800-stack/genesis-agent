@@ -10,7 +10,7 @@ function create(overrides = {}) {
   const bus = createBus();
   return {
     bus,
-    shell: new ShellAgent({
+    shell: new ShellAgent({ defaultOrigin: 'test',
       bus,
       model: null,
       memory: null,

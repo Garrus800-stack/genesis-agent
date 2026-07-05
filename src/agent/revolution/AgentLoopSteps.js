@@ -1,3 +1,4 @@
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): origin
 // @ts-checked-v5.7
 // ============================================================
 // GENESIS — AgentLoopSteps.js (v3.8.0 — Composition Delegate)
@@ -73,7 +74,7 @@ class AgentLoopStepsDelegate {
           // Execute the known command if available
           if (lesson.strategy?.command && step.type === 'SHELL' && loop.shell) {
             try {
-              const shellResult = await loop.shell.run(lesson.strategy.command);
+              const shellResult = await loop.shell.run(lesson.strategy.command, { origin: SourceTrust.AGENT_LOOP });
               loop._symbolicResolver.recordOutcome('direct', lesson.id, !shellResult.error);
               return { output: shellResult.output || output, error: shellResult.error || null, durationMs: Date.now() - start, symbolic: 'direct' };
             } catch (err) {
@@ -479,7 +480,7 @@ class AgentLoopStepsDelegate {
       // the user got no actual command output. The shell command was
       // either never observed to completion (fire-and-forget) or the
       // output was lost because we returned before resolution.
-      const result = await loop.shell.run(command, { cwd: loop.rootDir, timeout: step.timeoutMs || TIMEOUTS.SHELL_EXEC });
+      const result = await loop.shell.run(command, { cwd: loop.rootDir, timeout: step.timeoutMs || TIMEOUTS.SHELL_EXEC, origin: SourceTrust.AGENT_LOOP });
       // v7.4.6.fix #28: include command + adapted command in result so
       // Verifier _formatOutputs can show the user what actually ran.
       return {

@@ -441,6 +441,14 @@ const RESERVED_TELEMETRY_ONLY = new Set([
   'skill:forge-attempt',
   'skill:forge-succeeded',
   'skill:forge-failed',
+  // v7.9.30 (S3) security-audit telemetry — fired when a shell command is
+  // refused (dangerous pattern, scope, or the new mandatory-origin gate).
+  // It is an audit trail of blocked commands: the caller sees the block via
+  // the run() return value (blocked:true), the dashboard/audit layer can
+  // subscribe later, but the event itself is fire-and-trace with no backend
+  // handler. The S3 origin gate added a third emit site, crossing the
+  // "frequently emitted" threshold; this classifies it correctly.
+  'shell:blocked',
 ]);
 
 // Dynamic event patterns that won't have static matches

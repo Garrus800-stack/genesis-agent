@@ -355,6 +355,12 @@ function _isSecretFile(absLower) {
   // known secret filenames
   if (/[\\/](id_rsa|id_ed25519|id_ecdsa|id_dsa)(\.pub)?$/i.test(absLower)) return 'ssh-key';
   if (/[\\/]credentials$/i.test(absLower) && /[\\/]\.aws[\\/]/i.test(absLower)) return 'aws-credentials';
+  // v7.9.30: additional credential/cert formats (audit v7.9.29 §4.3; .npmrc is covered by _isCriticalSystemPath)
+  if (/\.(crt|cer)$/i.test(absLower)) return 'cert';
+  if (/\.(jks|keystore)$/i.test(absLower)) return 'keystore';
+  if (/[\\/]known_hosts$/i.test(absLower)) return 'known_hosts';
+  if (/[\\/]\.netrc$/i.test(absLower)) return '.netrc';
+  if (/[\\/]\.pgpass$/i.test(absLower)) return '.pgpass';
   return null;
 }
 

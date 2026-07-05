@@ -83,19 +83,6 @@ function extractKeywords(text) {
   return [...new Set(tokens)].filter(w => w.length >= 3);
 }
 
-/**
- * Jaccard similarity: |A ∩ B| / |A ∪ B|.
- * Returns 0 if either set is empty.
- */
-function jaccard(setA, setB) {
-  if (setA.length === 0 || setB.length === 0) return 0;
-  const a = new Set(setA);
-  const b = new Set(setB);
-  let intersection = 0;
-  for (const x of a) if (b.has(x)) intersection++;
-  const union = a.size + b.size - intersection;
-  return union === 0 ? 0 : intersection / union;
-}
 
 /**
  * Common-prefix ratio: how much of the shorter word is a prefix of the
@@ -254,12 +241,12 @@ function validateNovelOverride(novel) {
  *   { decision: 'grey',  reason: <failure-cause>    } — LLM unavailable / broken / unparseable / timed out
  *
  * The caller decides what to do with 'grey' (usually: fall back to the
- * existing jaccard-based thresholds).
+ * existing similarity-based thresholds).
  *
  * @param {object} params
  * @param {string} params.description   - The new goal's description
  * @param {object|null} params.matched  - The existing capability (description, name, keywords)
- * @param {number} params.score         - The jaccard score that put us in grey zone
+ * @param {number} params.score         - The similarity score that put us in grey zone
  * @param {object|null} params.model    - LLM adapter with .chat(prompt, msgs?, role?)
  * @param {number} [params.timeoutMs=5000]
  * @returns {Promise<{decision: 'block'|'pass'|'grey', reason: string}>}
@@ -326,7 +313,6 @@ async function resolveGreyWithLLM({ description, matched, score, model, timeoutM
 module.exports = {
   match,
   extractKeywords,
-  jaccard,
   fuzzyOverlap,
   prefixSimilarity,
   stem,

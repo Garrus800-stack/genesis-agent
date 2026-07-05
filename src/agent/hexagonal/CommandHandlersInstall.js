@@ -55,6 +55,7 @@
 // ============================================================
 
 'use strict';
+const SourceTrust = require('../core/SourceTrust'); // v7.9.30 (S3): origin
 
 const fs = require('fs');
 const path = require('path');
@@ -181,7 +182,7 @@ const CommandHandlersInstall = {
 
       _log.info(`[INSTALL] Tier 1: ${cmdForExec}`);
       try {
-        const result = await this.shell.run(cmdForExec, { tier: 'write' });
+        const result = await this.shell.run(cmdForExec, { tier: 'write', origin: SourceTrust.USER_CHAT });
         // v7.5.9 Linux-fix: detect "sudo -n" failure (no cached credential).
         // sudo writes "a password is required" or "a terminal is required"
         // to stderr and exits with code 1.
@@ -300,10 +301,10 @@ const CommandHandlersInstall = {
       }
       _log.info(`[INSTALL] Tier 2 bootstrap attempt: ${pmName}`);
       try {
-        const result = await this.shell.run(bs.cmd, { tier: 'write', timeout: 120000 });
+        const result = await this.shell.run(bs.cmd, { tier: 'write', timeout: 120000, origin: SourceTrust.USER_CHAT });
         if (result.exitCode === 0 || result.code === 0) {
           // Verify it's actually now available.
-          const verify = await this.shell.run(`${pmName} --version`, { tier: 'read' });
+          const verify = await this.shell.run(`${pmName} --version`, { tier: 'read', origin: SourceTrust.USER_CHAT });
           if (verify.exitCode === 0 || verify.code === 0) {
             return { installed: true, pmName };
           }
@@ -388,7 +389,7 @@ const CommandHandlersInstall = {
 
       const downloadCmd = this._buildDownloadCommand(variant.url, targetFile);
       _log.info(`[INSTALL] Tier 3: downloading ${variant.url}`);
-      const dl = await this.shell.run(downloadCmd, { tier: 'write', timeout: 300000 });
+      const dl = await this.shell.run(downloadCmd, { tier: 'write', timeout: 300000, origin: SourceTrust.USER_CHAT });
       if ((dl.exitCode !== 0 && dl.code !== 0) || !fs.existsSync(targetFile)) {
         return [
           leadIn,
@@ -403,7 +404,7 @@ const CommandHandlersInstall = {
       // Auto-launch installer.
       const launchCmd = this._buildLaunchCommand(targetFile);
       _log.info(`[INSTALL] Tier 3: launching ${targetFile}`);
-      await this.shell.run(launchCmd, { tier: 'write', timeout: 5000 }).catch(() => {});
+      await this.shell.run(launchCmd, { tier: 'write', timeout: 5000, origin: SourceTrust.USER_CHAT }).catch(() => {});
 
       return [
         `**${variant.label}** heruntergeladen und Installer gestartet ✅`,
