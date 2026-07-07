@@ -13,9 +13,9 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 418 JS files |
-| Test Files / Tests | 615 / 9053 (Win baseline) |
-| DI Services | 182 (169 manifest + 13 bootstrap) |
+| Source Modules | 419 JS files |
+| Test Files / Tests | 616 / 9090 (Win baseline) |
+| DI Services | 183 (170 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
 | npm Dependencies | 5 production + 1 optional + 10 dev |
@@ -55,7 +55,7 @@ Phase 1: Bootstrap
   └── Register non-manifest instances: rootDir, guard, bus, storage, lang, logger
 
 Phase 2: Manifest
-  └── Register all 169 services from 12 phase files via ContainerManifest (+13 bootstrap = 182 runtime, cognitive default profile)
+  └── Register all 170 services from 12 phase files via ContainerManifest (+13 bootstrap = 183 runtime, cognitive default profile)
       └── Auto-discovery scans src/agent/ → builds filename→directory map
 
 Phase 3: Resolve & Init
@@ -288,13 +288,15 @@ Max 20 steps per goal (+10 after user approval), 3 consecutive error limit, 10-m
 
 **AgentLoopRecovery decompose-on-failure** `v7.9.9` — `_repeatedFailures` Map keyed `(goalId, errorClass)` with 1h TTL, consulted at the bottom of `classifyAndRecover`. On the 2nd occurrence of the same error-class for the same goal — across pursuit retries, not within a single pursuit — recovery synthesises an obstacle and routes it through `_trySpawnObstacleSubgoal`. The cross-pursuit keying is the critical detail: pre-fix the key included `stepIndex`, which is unstable across retries (each retry generates a different plan), so the strikes never matched and decompose never fired in production. Goal-lifecycle events clear all entries for that goalId.
 
-### Phase 9: Cognitive (36 files, ~13,200 LOC)
+### Phase 9: Cognitive (50 files)
 
 Expectation, surprise, learning, self-model, adaptation. The cognitive substrate that makes Genesis self-correcting and self-improving. Includes CognitiveSelfModel (empirical capability tracking with Wilson-score calibration), AdaptiveStrategy (closed-loop self-correction), OnlineLearner (real-time behavioral adaptation), PromptEvolution (A/B prompt optimization), MemoryConsolidator (KG/Lessons hygiene), TaskRecorder (execution replay), CoreMemories (v7.3.7), LessonsStore, GateStats (v7.3.6 — central gate-verdict telemetry), SuspicionFrontier, LessonFrontier, ArchitectureReflection, **SelfStatementLog (v7.5.5 + DE/EN parity in v7.5.6)** — auto-classifies first-person statements (`strukturell` / `versprechen` / `emotional` / `uncertain`), persists to daily JSONL shards, fires `selfstatement:contradiction` when a structural claim lacks verified-data backing. v7.9.20 adds **SelfModOutcomeTracker** (records a `self-modification` lesson when a file is changed repeatedly, and excludes that file from new proposals).
 
 Anticipation and identity: ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle + DreamCyclePhases (v7.3.9 split), SelfNarrative, CognitiveHealthTracker, **ReasoningTracer** — subscribes to `model:thinking-trace` (v7.5.6) to capture reasoning-model internal monologue as `model-reasoning` traces.
 
 **Fully optional.** All late-bindings use `optional: true`. All hooks check for null. Genesis v3.8 behavior is 100% preserved without Phase 9.
+
+**Observation layer (v7.9.16 → v7.9.33).** Three passive observers share one design: pure bus listeners wired via `applySubscriptionHelper`, append-only persistence, no reads on the runtime path. `EventCounter` (v7.9.16) journals significant events so SelfTrajectory's `event_count` comes from real distribution data. `TrajectoryCalibration` (v7.9.17) silently reality-checks committed trajectory entries. `ChangeRegister` (v7.9.33) witnesses what Genesis loses — both KG prune paths, schema prunes, memory releases, consolidations — and is the first listener `fitness:evaluated` ever had. Slash surfaces: `/trajectory`, `/changes`.
 
 ### Phase 10: Agency (6 services)
 
@@ -569,5 +571,5 @@ Approximate as of v7.5.6 (numbers shift with each release):
   ─────────────────────────────────────────────
   agent/ total     259 files  ~84,900 LOC
   + UI/kernel       47 files  ~13,800 LOC
-  = src/ total     418 modules ~119,000 LOC
+  = src/ total     419 modules ~119,000 LOC
 ```

@@ -152,7 +152,11 @@ const indexMethods = {
 
     // Remove the lowest-scoring schemas
     const toRemove = scored.slice(0, this._schemas.length - this._maxSchemas);
+    // v7.9.33 (S3): collect up to 20 names so the register can witness
+    // which schemata fell, not only how many.
+    const examples = [];
     for (const { schema } of toRemove) {
+      if (examples.length < 20 && schema && schema.name) examples.push(String(schema.name).slice(0, 80));
       const idx = this._schemas.indexOf(schema);
       if (idx >= 0) {
         this._schemas.splice(idx, 1);
@@ -164,6 +168,7 @@ const indexMethods = {
     this.bus.fire('schema:pruned', {
       removed: toRemove.length,
       remaining: this._schemas.length,
+      examples,
     }, { source: 'SchemaStore' });
   },
 

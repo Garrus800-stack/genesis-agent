@@ -462,6 +462,7 @@ class AgentCoreWire {
     // to goal/lesson/emotion-watchdog/session events and appends a journal
     // line per event so SelfTrajectory can fill event_count.
     start('eventCounter');
+    start('changeRegister'); // v7.9.33 (S8): the change witness
     // v7.9.17: TrajectoryCalibration — silent reality-check; subscribes to
     // trajectory:committed to classify expected directions at commit time.
     // Must start so its subscription attaches (same lesson as kindTriggers).

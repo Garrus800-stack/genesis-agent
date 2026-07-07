@@ -391,6 +391,21 @@ function phase9(ctx, R) {
       }),
     }],
 
+    // v7.9.33 (AP-2, S8): ChangeRegister — the change witness. Passive
+    // sibling of EventCounter: subscribes six sources (both KG prune
+    // paths, schema prune, two memory releases, consolidation) plus the
+    // first-ever listener on fitness:evaluated; one append-only line per
+    // event into change-register.jsonl, never pruned, never read on the
+    // runtime path (slash-only). Started in the Phase-9 start sequence,
+    // stopped in TO_STOP.
+    ['changeRegister', {
+      phase: 9, deps: ['bus', 'storage'], tags: ['cognitive', 'persistent', 'observer'],
+      factory: (c) => new (R('ChangeRegister').ChangeRegister)({
+        bus,
+        storage: c.resolve('storage'),
+      }),
+    }],
+
     // v7.9.17: TrajectoryCalibration — silent reality-check for trajectory
     // entries. Triggered by trajectory:committed; reads (one-way) the event
     // journal, the capability profile, the embedding service, the model

@@ -4,9 +4,9 @@
 
 ## Scale
 
-- 418 source modules across 12 boot phases
-- 182 DI services (169 manifest + 13 bootstrap)
-- 9053 tests on Windows / 9052 on Linux (passing, 0 failures)
+- 419 source modules across 12 boot phases
+- 183 DI services (170 manifest + 13 bootstrap)
+- 9090 tests on Windows / 9089 on Linux (passing, 0 failures)
 - 498 events with 498 payload schemas (full parity)
 - Architectural fitness: 127/130
 - 20 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
@@ -263,7 +263,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **615 test files** | 9053 tests (Win baseline, v7.9.31), coverage gates: 80% lines, 76% branches, 78% functions |
+| **616 test files** | 9090 tests (Win baseline, v7.9.33), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |
@@ -465,3 +465,12 @@ Network resilience, intelligence pipeline validation, and codebase consolidation
 | **Coverage push** | Function coverage 69.6% → 80.0% (+10.4pp over v6.0.5). 355 new tests in v7.0.0. Ratchet 75/70/70 → 81/76/80. |
 
 ---
+
+
+## 23. Change Witness (v7.9.33)
+
+| Feature | What it does |
+|---|---|
+| **ChangeRegister** | A passive Phase-9 observer that writes one append-only line per change event into `.genesis/change-register.jsonl` — never pruned, never read on the runtime path. Six sources: both knowledge-graph prune paths (cap eviction and the previously silent stale sweep, tagged by cause), schema pruning, two memory releases, and episode consolidation — each carrying up to twenty identities or a label so a line stays readable after the memory behind it decays. |
+| **Fitness listening post** | The register is the first listener `fitness:evaluated` has ever had: pure record with a derived baseline field (`self` / `peer`), no reaction, no threshold. Long silences are expected — the evaluator is milestone-driven. |
+| **CLI: /changes [n]** | Human-readable tail of the register, grouped by kind (default 20, max 100), with an honest answer on an empty journal. |

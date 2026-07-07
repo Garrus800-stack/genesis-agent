@@ -555,7 +555,7 @@ Start with `node cli.js` for the interactive REPL. Available commands:
 | `/budget` | CostGuard token budget status |
 | `/export` | Export all Genesis data as .tar.gz |
 | `/import <path>` | Import data from backup |
-| `/crashlog` | View recent crash log entries |
+| `/crashlog` | View recent flight-recorder entries (`flight-recorder.log`, formerly `crash.log` — migrated automatically since v7.9.32) |
 | `/update` | Check for new Genesis versions |
 | `/adapt` | Run one meta-cognitive adaptation cycle |
 | `/adaptations` | Show adaptation history (✓ confirmed, ✗ rolled back, ⏳ pending) |
@@ -566,6 +566,14 @@ Start with `node cli.js` for the interactive REPL. Available commands:
 | `/selfmodel` | Capability profile, backend strength map, detected biases |
 | `/models` | Available models with quality scores |
 | `/model <n>` | Switch to model by number (auto-saved) |
+| `/quiet` | Toggle proactive self-expression quiet mode |
+| `/proactive-status` | Show proactive-expression gate status and counters |
+| `/skill-info <n>` | Inspect one Können skill: status, maturity, rehearsal stats (v7.9.4) |
+| `/skill-discard <n>` | Discard a pending/quarantined skill candidate (v7.9.4) |
+| `/daemon-suggestions` | Show the daemon's open improvement suggestions (v7.9.5) |
+| `/daemon-health-issues` | Show health issues the daemon has surfaced (v7.9.5) |
+| `/trajectory [new\|list\|review\|calibration]` | Self-trajectory cycles: create, list, review, calibration view (v7.9.15+) |
+| `/changes [n]` | Read the change register — losses, consolidations, fitness lines (v7.9.33) |
 | `/quit` | Shut down gracefully |
 
 ---

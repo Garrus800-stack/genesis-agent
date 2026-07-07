@@ -554,6 +554,9 @@ class CoreMemories {
         id: coreMemoryId,
         reason,
         releasedAt: cm.releaseTrail.releasedAt,
+        // v7.9.33 (S4): a released memory may decay later — carry the label
+        // so the register line stays readable on its own.
+        label: cm.summary ? String(cm.summary).slice(0, 80) : null,
       }, { source: 'CoreMemories' });
     }
 

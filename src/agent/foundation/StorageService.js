@@ -355,18 +355,25 @@ class StorageService {
     }
   }
 
-  appendText(filename, text) {
+  appendText(filename, text, { fsync = true } = {}) {
     const fullPath = this._resolve(filename);
     const dir = path.dirname(fullPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.appendFileSync(fullPath, text, 'utf-8');
     // v7.0.2: fsync after append — ensures complete lines on disk before returning.
     // Without this, a crash during flush can leave half-written JSONL lines.
-    try {
-      const fd = fs.openSync(fullPath, 'r+');
-      fs.fsyncSync(fd);
-      fs.closeSync(fd);
-    } catch (_e) { /* best effort — file may be read-only or locked */ }
+    // v7.9.33 (S11): opt-out for hot-path witnesses. fsync:false keeps the
+    // synchronous ordered append (line is in the OS buffer, order intact)
+    // and only leaves the OS-flush crash window open — coherent for events
+    // whose own subject persists debounced anyway. Default stays true; no
+    // existing caller changes behaviour.
+    if (fsync) {
+      try {
+        const fd = fs.openSync(fullPath, 'r+');
+        fs.fsyncSync(fd);
+        fs.closeSync(fd);
+      } catch (_e) { /* best effort — file may be read-only or locked */ }
+    }
     this._stats.syncWrites++;
   }
 

@@ -199,6 +199,10 @@ app.whenReady().then(async () => {
     minHeight: 600,
     backgroundColor: '#0a0a0f',
     title: 'Genesis',
+    // v7.9.33: the Genesis mark (docs/mark.svg) as window/taskbar icon.
+    // build/icon.ico is also electron-builder's conventional buildResources
+    // path, so packaged builds pick it up without extra configuration.
+    icon: path.join(__dirname, 'build', 'icon.ico'),
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

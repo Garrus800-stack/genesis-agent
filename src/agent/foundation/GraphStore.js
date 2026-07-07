@@ -383,8 +383,8 @@ class GraphStore {
    * @returns {number} count of pruned nodes
    */
   pruneNodes(maxNodes) {
-    if (!maxNodes || maxNodes <= 0) return 0;
-    if (this.nodes.size <= maxNodes) return 0;
+    if (!maxNodes || maxNodes <= 0) return { count: 0, examples: [] };
+    if (this.nodes.size <= maxNodes) return { count: 0, examples: [] };
 
     // Score nodes: lower = more prune-worthy.
     // Combine recency (accessed) and usage (accessCount).
@@ -400,9 +400,20 @@ class GraphStore {
     scored.sort((a, b) => a.score - b.score); // ascending → lowest first
     const toRemove = scored.slice(0, this.nodes.size - maxNodes).map(s => s.id);
 
+    // v7.9.33 (S2′): the removal loop is the one place the full node
+    // objects are in hand — collect up to 20 identities so the change
+    // register can witness WHAT was lost, not only how many.
+    const examples = [];
     for (const id of toRemove) {
       const node = this.nodes.get(id);
       if (!node) continue;
+      if (examples.length < 20) {
+        examples.push({
+          id,
+          label: node.label ? String(node.label).slice(0, 80) : null,
+          type: node.type ?? null,
+        });
+      }
       // Remove edges connected to this node
       const edgeIds = this.neighborIndex.get(id);
       if (edgeIds) {
@@ -430,7 +441,7 @@ class GraphStore {
       }
       this.nodes.delete(id);
     }
-    return toRemove.length;
+    return { count: toRemove.length, examples };
   }
 
   // ── Serialization ─────────────────────────────────────

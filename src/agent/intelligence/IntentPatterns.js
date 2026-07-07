@@ -624,6 +624,13 @@ const INTENT_DEFINITIONS = [
     /(?:^|\s)\/skills-pending\b/i,
   ], 25, []],
 
+  // v7.9.33 (AP-2, S7): /changes [n] — read the change register (losses,
+  // consolidations, fitness lines). Slash-only per pattern; the v7.9.30
+  // slash discipline (start anchor in classifyAsync) applies.
+  ['changes', [
+    /(?:^|\s)\/changes\b/i,
+  ], 25, []],
+
   // v7.9.4 (koennen-promotion-v794 contract): /skill-info <name> shows
   // the full biography (acquisitionContext) of one skill.
   ['skill-info', [

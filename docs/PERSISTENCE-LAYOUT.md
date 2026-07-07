@@ -17,6 +17,13 @@ of **this specific installation**:
 - `skill-attempts.json` — record of skills Genesis tried to build (v7.8.1+)
 - `idle-activity-stats.json` — per-activity counts and last-20 activity log for the IdleMind picker; preserves cross-restart history so the repetition-penalty doesn't see a blank slate after a reboot (v7.9.4+)
 - `improvement-proposals.json` — open self-improvement proposals (status `proposed`/`attempted`/`dismissed`) awaiting Dashboard approve/reject (v7.9.20)
+- `journal.jsonl` — Genesis's own journal entries, one line per entry
+- `events.jsonl` — the EventStore operations log: hash-chained, id-sequenced, **rotating** (bounded integrity log, not a permanent archive)
+- `self-trajectory.jsonl` + `self-trajectory-events.jsonl` + `self-trajectory-calibration.jsonl` + `self-trajectory-directions.jsonl` — the trajectory family (v7.9.15–17): cycle entries, the significant-event journal the EventCounter appends, calibration verdicts, and direction notes
+- `pending-moments.jsonl` — moments marked significant, awaiting the dream-cycle pin review (elevate / let fade)
+- `daemon-suggestions.jsonl` + `daemon-health-issues.jsonl` — daemon visibility surfaces read by `/daemon-suggestions` and `/daemon-health-issues`
+- `change-register.jsonl` — the change witness (v7.9.33): one append-only line per loss or change across six sources (both KG prune paths, schema prune, two memory releases, consolidation) plus every fitness evaluation. **Never pruned, never rotated** — this file is deliberately permanent; readable via `/changes`
+- `flight-recorder.log` — crash/error ring buffer (renamed from `crash.log` in v7.9.32, migrated automatically); inspect via `/crashlog`
 - and more (genome, metabolism, settings overrides, etc.)
 
 This directory **is** the identity of a Genesis instance. Two

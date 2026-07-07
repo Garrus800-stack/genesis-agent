@@ -112,6 +112,12 @@ Monitors self-modification patterns for anomalies. Detects unusual file change f
 
 `SELF_MODIFY` is classified as a critical action. At Supervised and Autonomous trust levels every self-modification is asked; at Full Autonomy it is auto-approved only when `security.selfModifyRequiresConfirmation` is off. The setting is on by default, so a self-modification is never applied without explicit confirmation regardless of trust level. Self-improvement proposals raised by the agent are surfaced in the Dashboard for approve/reject before any change is applied.
 
+## Shell Origin Enforcement & Hardening (v7.9.30)
+
+Every shell execution entering `ShellAgent` must declare a known origin (`USER_CHAT`, `TOOL_LOOP`, `AGENT_LOOP`, `TEST` — `core/SourceTrust.js`). A missing or unknown origin is blocked before validation (`shell:blocked`, reason `missing-origin`). The origin is the axis that separates the two execution worlds: a command the user states directly in chat runs on the strength of its source (absolute system-path and secret-file blocks still apply), while idle/autonomous execution stays gated by trust level, sandbox scope, and the category-based approval channel.
+
+The same release extended the always-blocked secret set (netrc, known-hosts, PostgreSQL credentials, keystores, certificates — one central set in the ShellSafety layer), added a symlink-realpath boundary so links cannot escape the sandbox root, introduced `audit-tool-selftest` as a CI gate, and locked 43 critical files with boot-time hash verification.
+
 ## Encryption at Rest (v7.6.6)
 
 Two values in `.genesis/settings.json` are encrypted with AES-256-GCM

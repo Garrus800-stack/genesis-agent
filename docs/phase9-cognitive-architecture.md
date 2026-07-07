@@ -1787,3 +1787,12 @@ Six bus events thread the pipeline: `skill:promoted`, `skill:discard-suggested`,
 ### containerConfig
 
 Registered in `phase9-cognitive.js` as `selfModOutcomeTracker` (phase 9, deps: `lessonsStore`), started in `AgentCoreWire` after `surpriseAccumulator`, stopped in `AgentCoreHealth`.
+
+
+## Module 11: Observation Layer — EventCounter & TrajectoryCalibration (v7.9.16 – v7.9.17)
+
+The trajectory work introduced a design family Phase 9 now leans on: **passive observers**. `EventCounter` subscribes to seven significant-event types (goal outcomes, lessons, emotion-watchdog signals, session end with `durationMs`) and appends one fsync'd line per event to `self-trajectory-events.jsonl` — no in-memory counter, no cache invalidation, the journal *is* the state. `TrajectoryCalibration` triggers on `trajectory:committed` and silently reality-checks each entry against the event journal and the capability profile, writing verdicts to its own journal. Both follow the same lifecycle contract: `applySubscriptionHelper(Class, { defaultSource })` after the class definition provides `_sub`/`_unsubAll`, subscriptions are made in `start()` and torn down in `stop()`, and record failures are caught and logged, never propagated.
+
+## Module 12: ChangeRegister — The Change Witness (v7.9.33)
+
+Genesis changes — graph, memory, schemata, fitness — but until v7.9.33 no organ held on to *what* changed. The ChangeRegister is the EventCounter's sibling: six sources translate one-to-one into append-only lines in `.genesis/change-register.jsonl`, a file that is deliberately **never pruned**. Both knowledge-graph prune paths report with up to twenty node identities and a `cause` tag (`cap` vs. `stale` — the stale sweep, previously the largest silent loss path with three production callers, fires for the first time). Schema prunes carry the names of what fell; the two memory releases and the consolidation carry a label so a line stays readable after the memory behind it decays. The register is also the first listener `fitness:evaluated` has ever had — pure record, deriving a `baseline` field, reacting to nothing. Durability is staged by event weight: everything deliberate keeps the full fsync guarantee, only the hot-path cap eviction writes ordered-but-unfsynced (the graph itself persists debounced, so harder would be false precision). Read access exists solely through `/changes` — a source-pinned guardrail keeps register contents out of every PromptBuilder and out of the identity summary.

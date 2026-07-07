@@ -122,6 +122,10 @@ philosophy (something declared must be wired) one layer up.
 | 13 | `audit-class-wiring --strict`       | v7.6.3 | Late-binding `R('ClassName').ClassName` calls in `manifest/phase*.js` must resolve to a `src/agent/**/ClassName.js` with matching named export. 150 R() calls covered; 0 offenders.                                                |
 | 14 | `audit-listener-lifecycle --strict` | **v7.6.4** | Modules registering ≥2 `bus.on(...)` listeners under `src/agent/` must have a teardown path: per-field `_unsub<X>` + `_unsub<X>?.()` in stop(), array-push `this._unsubs.push(bus.on(...))` + iterate-or-clear, `applySubscriptionHelper(this)` mixin, or `bus.off(...)` calls. Mixin-files merged into a host class via `Object.assign(Host.prototype, ...)` are checked through the host. Baseline 0 (10 leak-risk findings closed in v7.6.4 — six migrated, four were audit false-positives reclassified as clean by audit-script extensions). |
 | 15 | `check-ratchet --skip-tests`        | v7.5.x | Test count, fitness score, schema mismatches, broken links — all must stay above floor                                                                                                                                                 |
+| 16 | `audit-tool-selftest --strict`      | v7.9.30 | Registered tools must pass their own self-test declarations at audit time — catches tool wiring that would fail at first live call |
+| 17 | `audit-future-version-refs --strict`| v7.9.x  | Docs and plans must not reference future versions ("v7.x.y+", "coming later") — every shipped artifact describes only the current state |
+| 18 | `audit-service-numbers --strict`    | v7.9.33 | Documented service counts (six doc sites) must match the live manifest+runtime counts |
+| 19 | `check-stale-refs`                  | v7.5.x  | Locked contract prefixes in `stale-refs.json` must still resolve — protects event/test shapes against silent drift |
 
 The `ci:full` script wraps these 14 audit scripts plus `npm test`,
 `tsc --project tsconfig.ci.json --noEmit`, and `build-bundle.js --ci`.

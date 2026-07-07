@@ -49,9 +49,11 @@ class KnowledgeGraph {
     // v7.5.7-fix Phase 2: prune if over cap. Best-effort, never throws.
     if (this._maxNodes > 0 && this.graph.nodes.size > this._maxNodes) {
       try {
-        const pruned = this.graph.pruneNodes(this._maxNodes);
+        // v7.9.33 (S2′): pruneNodes now returns { count, examples } so the
+        // register can witness identities; cause tags the path.
+        const { count: pruned, examples } = this.graph.pruneNodes(this._maxNodes);
         if (pruned > 0) {
-          this.bus.fire('knowledge:nodes-pruned', { count: pruned, remaining: this.graph.nodes.size }, { source: 'KnowledgeGraph' });
+          this.bus.fire('knowledge:nodes-pruned', { count: pruned, remaining: this.graph.nodes.size, examples, cause: 'cap' }, { source: 'KnowledgeGraph' });
         }
       } catch (_e) { /* swallow — pruning is opportunistic */ }
     }
@@ -96,15 +98,32 @@ class KnowledgeGraph {
     const now = Date.now();
     const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
     const toRemove = [];
+    // v7.9.33 (S2′): this sweep was the largest silent loss path in the
+    // system (three production callers: Tidy, HomeostasisEffectors,
+    // MemoryConsolidator). The node objects are in hand right here —
+    // collect identities and fire the same nodes-pruned event the cap
+    // path fires, tagged cause:'stale'. Numeric return stays (callers
+    // rely on it).
+    const examples = [];
     for (const [id, node] of this.graph.nodes) {
       if (node.accessCount === 0 && (now - node.created) > maxAgeMs) {
         toRemove.push(id);
+        if (examples.length < 20) {
+          examples.push({
+            id,
+            label: node.label ? String(node.label).slice(0, 80) : null,
+            type: node.type ?? null,
+          });
+        }
       }
     }
     for (const id of toRemove) {
       this.graph.removeNode(id);
     }
-    if (toRemove.length > 0) this._save();
+    if (toRemove.length > 0) {
+      this._save();
+      this.bus.fire('knowledge:nodes-pruned', { count: toRemove.length, remaining: this.graph.nodes.size, examples, cause: 'stale' }, { source: 'KnowledgeGraph' });
+    }
     return toRemove.length;
   }
 

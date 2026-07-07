@@ -520,14 +520,14 @@ const SCHEMAS = {
   'memory:fact-stored':     { key: 'required', source: 'optional' },
   'memory:unified-recall':  { query: 'required' },
   'memory:conflicts-resolved': { count: 'optional' },
-  'memory:consolidated':    { count: 'optional' },
+  'memory:consolidated':    { episodeId: 'optional', fromLayer: 'optional', toLayer: 'optional', sizeReduction: 'optional', label: 'optional', promotedCount: 'optional', topics: 'optional' }, // v7.9.33 (S4): union of TWO fire sites — DreamCycle episode condensation and UnifiedMemory topic promotion; the old count field matched neither. Field-line note: name-split candidate.
   // v7.4.1: Layer-transition and pin-review events from v7.3.7
   'memory:layer-transition-asked':        { coreMemoryId: 'required', fromLayer: 'required', toLayer: 'required', decision: 'required' },
   'memory:transition-heuristic-fallback': { coreMemoryId: 'required', fromLayer: 'required', toLayer: 'required', reason: 'required' },
   'memory:layer-overflow':  { layer: 'required', count: 'required', pendingTransitions: 'optional' },
   'memory:self-elevated':   { episodeId: 'required', reason: 'required' },
   'memory:elevation-proposed': { episodeId: 'optional', momentId: 'optional', summary: 'optional' },
-  'memory:self-released':   { episodeId: 'required' },
+  'memory:self-released':   { episodeId: 'required', label: 'optional' }, // v7.9.33 (S4)
   'memory:marked':          { id: 'required', episodeId: 'required', timestamp: 'optional', triggerContext: 'optional' },
 
   // MCP extended
@@ -584,7 +584,7 @@ const SCHEMAS = {
   'schema:stored':          { name: 'required' },
   'schema:merged':          { name: 'required' },
   'schema:removed':         { name: 'required' },
-  'schema:pruned':          { count: 'optional' },
+  'schema:pruned':          { removed: 'required', remaining: 'required', examples: 'optional' }, // v7.9.33 (S3): drift fix — count was declared but never fired
 
   'workspace:consolidate':  { goalId: 'required', items: 'required', workspaceStats: 'required' },
 
@@ -798,7 +798,7 @@ const SCHEMAS = {
   'knowledge:learned':      { count: 'optional', source: 'optional', text: 'optional' },
   'knowledge:node-added':   { id: 'required', type: 'optional', label: 'optional' },
   // v7.5.7-fix Phase 2: KG LRU-pruning emit
-  'knowledge:nodes-pruned': { count: 'required', remaining: 'required' },
+  'knowledge:nodes-pruned': { count: 'required', remaining: 'required', examples: 'optional', cause: 'optional' }, // v7.9.33 (S2′)
   'meta:outcome-recorded':  { category: 'required', success: 'required', model: 'optional', total: 'optional' },
   'meta:recommendations-updated': {},
   'needs:high-drive':       { need: 'required' },
@@ -887,7 +887,7 @@ const SCHEMAS = {
   // v7.3.2: User-initiated marking
   'core-memory:user-marked':    { id: 'required', type: 'required' },
   // v7.4.1: Core memory released back to normal decay
-  'core-memory:released':       { id: 'required', reason: 'required', releasedAt: 'optional' },
+  'core-memory:released':       { id: 'required', reason: 'required', releasedAt: 'optional', label: 'optional' }, // v7.9.33 (S4)
 
   // ── v7.4.1: JOURNAL — narrative memory ─────────────────
   'journal:written':            { visibility: 'required', source: 'required', byteLength: 'optional', tags: 'optional' },

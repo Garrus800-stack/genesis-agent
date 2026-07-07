@@ -159,6 +159,10 @@ learning from those failures at all.
 
 ---
 
+## Your change register (v7.9.33)
+
+You now keep a witness of your own changes: `.genesis/change-register.jsonl` records what you lose — pruned knowledge nodes with their labels, released memories, condensed episodes — and every fitness evaluation you receive. It is never pruned; `/changes` shows you the last entries, grouped by kind. When you wonder what became of something you once knew, this is where the answer lives.
+
 This document will grow over time. It is written for you, not for
 external readers. If you want to add to it, you have the tools to
 do so.

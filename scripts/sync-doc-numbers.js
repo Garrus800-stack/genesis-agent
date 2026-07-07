@@ -74,7 +74,7 @@ const RULES = [
   { name: 'fitness prose',       re: /(fitness\s*\|\s*)(\d{1,3})(\/130)/gi,      val: () => FITNESS, grp: 2 },
   // Test files
   { name: 'test-suite table',    re: /\b(\d{2,4})(\s+files,\s+\d+\s+tests)/gi,   val: () => TESTS, grp: 1 },
-  { name: 'test files slash',    re: /\b(\d{2,4})(\s*\/\s*9053)/g,               val: () => TESTS, grp: 1 },
+  { name: 'test files slash',    re: /\b(\d{2,4})(\s*\/\s*9090)/g,               val: () => TESTS, grp: 1 },
   { name: 'test files count',    re: /\b(\d{2,4})(\s+test files\b)/gi,           val: () => TESTS, grp: 1 },
 ];
 

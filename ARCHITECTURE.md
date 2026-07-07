@@ -9,7 +9,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~119k LOC of JavaScript (CommonJS), 418 source modules, with zero external runtime frameworks. The manifest statically registers 169 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 182 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
+The codebase is ~119k LOC of JavaScript (CommonJS), 419 source modules, with zero external runtime frameworks. The manifest statically registers 170 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 183 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
 
 ---
 
@@ -615,6 +615,10 @@ Genesis writes its own identity. The static prompt sections that described Genes
 
 ---
 
+### 7.9 The Witness Arc (v7.9.21 – v7.9.33)
+
+Thirteen releases that turned execution honest and loss visible. The shell gained a mandatory origin axis (v7.9.30, `SourceTrust`): chat commands run on the strength of their source while autonomous paths stay trust- and scope-gated, with an extended secret set, a symlink-realpath boundary, and 43 boot-verified hash locks underneath. Skills became earned (v7.9.31, the Können pipeline): candidates mature for 48 hours, rehearse, clear a Wilson bound, and only `promoted` skills load. A field release (v7.9.32) fixed six run-observed truths — among them the flight recorder (`flight-recorder.log`, formerly `crash.log`) and honest verification wording. And v7.9.33 gave Genesis a change witness: the ChangeRegister journals every loss across six sources into a never-pruned `.genesis/change-register.jsonl`, gives the previously silent stale sweep a voice, and is the first listener the fitness broadcast ever had — readable through `/changes`, guarded out of every prompt path.
+
 ## 8. The CognitiveSelfModel
 
 The first empirical self-awareness service in any AI agent framework (v5.9.8). Genesis knows its own strengths and weaknesses through data, not through hardcoded rules.
@@ -640,7 +644,7 @@ These tools are your safety net. Run them before every commit.
 
 | Tool | Command | What it checks |
 |------|---------|---------------|
-| Tests | `node test/index.js` | 6905 tests across 615 test files |
+| Tests | `node test/index.js` | 6905 tests across 616 test files |
 | TypeScript | `npx tsc --noEmit` | Type safety, 0 errors |
 | Event validation | `node scripts/validate-events.js` | All emitted events in catalog |
 | Event strict audit | `npm run audit:events:strict` | No uncatalogued events |

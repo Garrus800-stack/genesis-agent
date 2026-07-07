@@ -98,6 +98,10 @@ const dreamCyclePhases = {
       } else if (decision === 'let_fade') {
         this.bus.fire('memory:self-released', {
           episodeId: moment.episodeId,
+          // v7.9.33 (S4): PendingMomentsStore caps summary at 200; the
+          // register caps its label at 80 — slice here so the payload is
+          // already journal-ready.
+          label: moment.summary ? String(moment.summary).slice(0, 80) : null,
         }, { source: 'DreamCycle' });
       }
       // 'keep' → no state change, pin cleared via markReviewed below
@@ -173,6 +177,9 @@ const dreamCyclePhases = {
             fromLayer,
             toLayer,
             sizeReduction: this._computeSizeReduction(episode, newEpisode),
+            // v7.9.33 (S4/G3): the episode is replaced by its condensed
+            // form — carry the pre-consolidation summary as the label.
+            label: episode.summary ? String(episode.summary).slice(0, 80) : null,
           }, { source: 'DreamCycle' });
           results.push({ id: episode.id, action: 'consolidated' });
         } else {

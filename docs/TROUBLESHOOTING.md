@@ -551,7 +551,7 @@ Use these in the CLI REPL (`node cli.js`) for quick diagnostics:
 | Command | When to use |
 |---|---|
 | `/health` | Check service health, memory, uptime |
-| `/crashlog` | View the last crash log entries (ring buffer, last 1000 entries) |
+| `/crashlog` | View the last flight-recorder entries (`flight-recorder.log`, ring buffer, last 1000 entries; formerly `crash.log`, migrated automatically since v7.9.32) |
 | `/budget` | Check CostGuard token budget — are autonomous LLM calls being blocked? |
 | `/replays` | Review task execution recordings — find where a goal went wrong |
 | `/adaptations` | Check if the Meta-Cognitive Loop has adapted (and whether adaptations helped) |

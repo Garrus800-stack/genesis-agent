@@ -884,6 +884,55 @@ Tool-Call-Verification and Self-Gate).
 | `read-source:called` | SelfModel.readSourceSync | Dashboard (planned) | Fires on every successful source-read during a chat turn. Payload: `{ path, bytes, turnId? }`. Turn IDs propagate from ChatOrchestrator via `startReadSourceTurn(traceId)`. |
 | `read-source:soft-limit` | SelfModel.readSourceSync | Dashboard (planned) | Fires when `turnCount` crosses `softPerTurn` (5) within a single chat turn. Telemetry only — the read succeeds. Payload: `{ turnCount, softLimit, hardLimit, turnId? }`. |
 
+## Additions v7.9.21 – v7.9.33
+
+Thirteen releases added the origin axis, the Können maturity chain, and the change witness. The emitter/consumer truths:
+
+| Event | Emitter | Consumers | Notes |
+|---|---|---|---|
+| `shell:blocked` (`missing-origin`) | ShellAgent `_validateAndPrepare` (v7.9.30) | EventStore, telemetry | Every shell entry must declare a known `SourceTrust` origin (`USER_CHAT` / `TOOL_LOOP` / `AGENT_LOOP` / `TEST`); missing or unknown origins are blocked before validation. |
+| `skill:candidate-created` | SkillManager intake (v7.9.31) | UI, ChangeLog surfaces | Announces a maturing Können candidate; replaces the retired `daemon:skill-created`. |
+| `skill:forged` → `skill:rehearsed` → `skill:promoted` / `skill:discarded` | SkillCrystallizer / SkillRehearsal / SkillPromotionEvaluator (v7.8.9–v7.9.31) | SelfNarrative, CoreMemories, UI | The maturity chain: 48 h minimum age via `crystallizedAt`, deduplicated rehearsals, Wilson lower-bound promotion; only `promoted` loads. |
+| `goal:capability-failed` | GoalDriver failure path (v7.9.28) | EmotionalState (reactivity map), EventCounter surfaces | A pursuit failing on a missing capability — feeds the affect loop without coupling modules. |
+| `session:ending` | revolution/SessionPersistence, AgentCoreHealth (awaited, pre-teardown) | **EventCounter** (journals with `durationMs`) | The wall-clock signal the trajectory and calibration layers analyse. |
+| `trajectory:committed` | SelfTrajectory (v7.9.15) | **TrajectoryCalibration** (silent reality-check) | One-way: SelfTrajectory never references the calibrator. |
+| `knowledge:nodes-pruned` | KnowledgeGraph — **two paths** (v7.9.33): cap eviction in `addNode`, and the stale sweep in `pruneStale` (previously silent; three production callers) | HomeostasisVitals (reads live graph size), **ChangeRegister** | Payload now `{ count, remaining, examples ≤ 20, cause: 'cap' \| 'stale' }` — one event per prune call, never one per node. |
+| `schema:pruned` | SchemaStoreIndex (enriched v7.9.33) | **ChangeRegister** | `{ removed, remaining, examples }` — the declared-but-never-fired `count` drift was corrected. |
+| `core-memory:released` / `memory:self-released` | CoreMemories `release()` / DreamCycle pin-review | **ChangeRegister** | Both carry an optional `label` (v7.9.33) so a journal line stays readable after the memory decays. |
+| `memory:consolidated` | **Two fire sites**: DreamCycle episode condensation `{ episodeId, fromLayer, toLayer, sizeReduction, label }` and UnifiedMemory topic promotion `{ promotedCount, topics }` | **ChangeRegister** (condensation only — promotion is ascent, deliberately unrecorded) | The schema declares the honest union of both shapes; the old `count` field matched neither. |
+| `fitness:evaluated` | FitnessEvaluator (milestone-driven: 25 goal completions or 100 interactions) | **ChangeRegister** — the first listener this event has ever had (v7.9.33) | Record-only: `{ score, belowMedian, archival, baseline: self \| peer \| null }`. Long silences are the expected field finding. |
+
+### The change witness (v7.9.33)
+
+```mermaid
+graph LR
+    subgraph SOURCES["Six change sources"]
+        KGCAP["KnowledgeGraph<br/>cap eviction<br/>(cause: cap)"]
+        KGSTALE["KnowledgeGraph<br/>stale sweep<br/>(cause: stale)"]
+        SCHEMA["SchemaStoreIndex<br/>schema:pruned"]
+        CMREL["CoreMemories<br/>core-memory:released"]
+        SELFREL["DreamCycle<br/>memory:self-released"]
+        CONSOL["DreamCycle<br/>memory:consolidated"]
+    end
+    FIT["FitnessEvaluator<br/>fitness:evaluated<br/>(first-ever listener)"]
+    PROMO["UnifiedMemory<br/>topic promotion"]
+
+    KGCAP -->|"ordered append<br/>(no fsync — hot path)"| REG["ChangeRegister<br/>one line per event"]
+    KGSTALE -->|"fsync"| REG
+    SCHEMA -->|"fsync"| REG
+    CMREL -->|"fsync"| REG
+    SELFREL -->|"fsync"| REG
+    CONSOL -->|"fsync"| REG
+    FIT -->|"fsync"| REG
+    PROMO -.->|"ascent, deliberately<br/>unrecorded"| REG
+
+    REG --> FILE[(".genesis/<br/>change-register.jsonl<br/>never pruned")]
+    FILE --> SLASH["/changes [n]<br/>grouped by kind"]
+    REG -.->|"source-pinned guardrails:<br/>never PromptBuilder,<br/>never identity summary"| X(( ))
+```
+
+The witness is a pure translator — no state, no cache, no reaction. Durability is staged by event weight: only the hot-path cap eviction skips the fsync (the graph itself persists debounced, so a harder witness line would be false precision); every deliberate change keeps the full crash-safe guarantee.
+
 Listeners on most of these are not yet wired in production — they
 serve as bus-level instrumentation for anyone debugging gate
 behaviour.

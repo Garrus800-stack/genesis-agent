@@ -140,6 +140,79 @@ const commandHandlersMemory = {
     return `Noted. The moment stays in the log but is no longer treated as part of my identity.`;
   },
 
+  // v7.9.33 (AP-2, S7): /changes [n] — read the change register. Reads the
+  // journal file directly via this._genesisDir (exactly how skillsPending
+  // reads its folder — no service binding, never on the runtime path).
+  async changes(message) {
+    const fs = require('fs');
+    const path = require('path');
+    const genesisDir = this._genesisDir || '.genesis';
+    const file = path.join(genesisDir, 'change-register.jsonl');
+
+    const m = String(message || '').match(/\/changes\s+(\d{1,3})/i);
+    const limit = Math.min(m ? parseInt(m[1], 10) : 20, 100);
+
+    let lines = [];
+    try {
+      if (fs.existsSync(file)) {
+        lines = fs.readFileSync(file, 'utf-8').split('\n').filter(Boolean);
+      }
+    } catch (_e) { /* unreadable → treated as empty */ }
+
+    if (lines.length === 0) {
+      return this.lang.current === 'de'
+        ? 'Noch keine Wandel-Einträge — das Register beginnt mit dem ersten Wandel oder der ersten Fitness-Evaluation.'
+        : 'No change entries yet — the register begins with the first change or the first fitness evaluation.';
+    }
+
+    const tail = lines.slice(-limit).map(l => {
+      try { return JSON.parse(l); } catch (_e) { return null; }
+    }).filter(Boolean);
+
+    const groups = new Map();
+    for (const e of tail) {
+      const k = e.kind || 'unknown';
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(e);
+    }
+
+    const fmt = (e) => {
+      const ts = (e.ts || '').replace('T', ' ').slice(0, 16);
+      switch (e.kind) {
+        case 'kg-pruned': {
+          const ex = Array.isArray(e.examples) && e.examples.length
+            ? ' — ' + e.examples.slice(0, 3).map(x => x.label || x.id).join(' · ') + (e.examples.length > 3 ? ' …' : '')
+            : '';
+          return `  ${ts} · ${e.count} node(s) [${e.cause}] · ${e.remaining} remain${ex}`;
+        }
+        case 'schema-pruned': {
+          const ex = Array.isArray(e.examples) && e.examples.length ? ' — ' + e.examples.slice(0, 3).join(' · ') : '';
+          return `  ${ts} · ${e.removed} schema(ta) · ${e.remaining} remain${ex}`;
+        }
+        case 'core-memory-released':
+          return `  ${ts} · ${e.id} (${e.reason})${e.label ? ' — „' + e.label + '“' : ''}`;
+        case 'memory-self-released':
+          return `  ${ts} · ${e.episodeId}${e.label ? ' — „' + e.label + '“' : ''}`;
+        case 'memory-consolidated':
+          return `  ${ts} · ${e.episodeId} L${e.from}→L${e.to}${e.label ? ' — „' + e.label + '“' : ''}`;
+        case 'fitness':
+          return `  ${ts} · score ${typeof e.score === 'number' ? e.score.toFixed(3) : e.score} · baseline ${e.baseline ?? '—'}${e.belowMedian ? ' · below' : ''}${e.archival ? ' · archival!' : ''}`;
+        default:
+          return `  ${ts} · ${JSON.stringify(e).slice(0, 100)}`;
+      }
+    };
+
+    const title = this.lang.current === 'de'
+      ? `Wandel-Register — letzte ${tail.length} Einträge:`
+      : `Change register — last ${tail.length} entries:`;
+    const out = [title];
+    for (const [k, es] of groups) {
+      out.push(`\n${k} (${es.length}):`);
+      for (const e of es) out.push(fmt(e));
+    }
+    return out.join('\n');
+  },
+
 };
 
 module.exports = { commandHandlersMemory };

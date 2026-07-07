@@ -173,21 +173,26 @@ test('ModelBridge: switchTo does NOT unload non-Ollama backends', async () => {
 
 // ── GraphStore.pruneNodes ──────────────────────────────────
 
+// v7.9.33 (AP-2, S2′): pruneNodes now returns { count, examples } so the
+// change register can witness identities. The two no-op pins below follow
+// the extended contract — no test drops, the block now documents it.
 test('GraphStore.pruneNodes: no-op when below maxNodes', () => {
   const { GraphStore } = require(path.join(ROOT, 'src/agent/foundation/GraphStore'));
   const g = new GraphStore();
   for (let i = 0; i < 3; i++) g.addNode('concept', `node-${i}`);
   const removed = g.pruneNodes(10);
-  assert.strictEqual(removed, 0);
+  assert.strictEqual(removed.count, 0);
+  assert.deepStrictEqual(removed.examples, []);
   assert.strictEqual(g.nodes.size, 3);
 });
 
-test('GraphStore.pruneNodes: returns 0 when maxNodes is 0 (unlimited)', () => {
+test('GraphStore.pruneNodes: returns count 0 when maxNodes is 0 (unlimited)', () => {
   const { GraphStore } = require(path.join(ROOT, 'src/agent/foundation/GraphStore'));
   const g = new GraphStore();
   for (let i = 0; i < 100; i++) g.addNode('concept', `node-${i}`);
   const removed = g.pruneNodes(0);
-  assert.strictEqual(removed, 0);
+  assert.strictEqual(removed.count, 0);
+  assert.deepStrictEqual(removed.examples, []);
   assert.strictEqual(g.nodes.size, 100);
 });
 
@@ -201,7 +206,9 @@ test('GraphStore.pruneNodes: prunes excess nodes, keeps high-access ones', () =>
     for (let n = 0; n < 5; n++) g.getNode(ids[i]); // increments accessCount
   }
   const removed = g.pruneNodes(5);
-  assert.strictEqual(removed, 5);
+  // v7.9.33 (S2′): object contract — count carries the number.
+  assert.strictEqual(removed.count, 5);
+  assert.strictEqual(removed.examples.length, 5);
   assert.strictEqual(g.nodes.size, 5);
   // The high-access nodes should still be there
   for (let i = 7; i < 10; i++) {

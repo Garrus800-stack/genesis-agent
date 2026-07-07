@@ -59,6 +59,7 @@ const METHOD_HOME = {
   'memoryMark':        'CommandHandlersMemory.js',
   'memoryList':        'CommandHandlersMemory.js',
   'memoryVeto':        'CommandHandlersMemory.js',
+  'changes':           'CommandHandlersMemory.js', // v7.9.33 (AP-2, S7)
   'handleSettings':    'CommandHandlersSystem.js',
   'daemonControl':     'CommandHandlersSystem.js',
   'trustControl':      'CommandHandlersSystem.js',
@@ -240,7 +241,7 @@ describe('v7.4.2 Baustein D — CommandHandlers split structure', () => {
     // / what he has built".
     // Domain-integrity is preserved — all helpers are goal-domain only.
     assert.strictEqual(Object.keys(commandHandlersGoals).length, 15, 'Goals mixin: 15 methods expected (3 public + 7 v7.5.0 helpers + 1 v7.8.9 affectTrail + 1 v7.9.0 skillsPending + 2 v7.9.4 skillInfo/skillDiscard + 1 v7.9.31 _skillsPendingDecision)');
-    assert.strictEqual(Object.keys(commandHandlersMemory).length, 3, 'Memory mixin: 3 methods expected');
+    assert.strictEqual(Object.keys(commandHandlersMemory).length, 4 /* v7.9.33: +changes */, 'Memory mixin: 3 methods expected');
     // v7.9.5 live-fix: System mixin grew from 3 → 6 methods. Added
     // daemonSuggestions + daemonHealthIssues (public slash handlers for
     // /daemon-suggestions and /daemon-health-issues) plus _readDaemonJsonl

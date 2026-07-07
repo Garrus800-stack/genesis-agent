@@ -77,6 +77,7 @@ Models tab.
 | IdleMind score normalization | `'none'` | Activity-picker score smoothing. `'log'` (reserved) dampens score outliers via `log1p`. *(v7.9.4, opt-in)* |
 | IdleMind recurrence bonus | `false` | If on, activities that haven't run for a long time get a small score boost proportional to the gap. *(v7.9.4, opt-in)* |
 | Trust level | `0` (SUPERVISED) | `0`=Supervised (always ask), `1`=Autonomous (ask only on categorically critical actions: DEPLOY/EXTERNAL_API/EMAIL_SEND/SELF_MODIFY), `2`=Full Autonomy (never ask). v7.9.9 froze this three-level structure — `TrustLevelSystem`, the migration table, and the default are settled and remain unchanged. |
+| Sandbox read scope | `user-home` | Second key of the two-key rule for broad filesystem reach: `sandbox.readScope` is **never derived from the trust level** — it defaults to `user-home` and must be set to `permissive` explicitly. Full reach requires *both* `readScope=permissive` *and* trust ≥ 2; absolute system-path and secret-file blocks apply at every level. Setting key: `sandbox.readScope`. |
 | IdleMind — idle threshold (minutes) | `10` | How long without user activity before IdleMind starts autonomous thinking. *(default raised from 2 in v7.9.10 after Win-trace evidence)* |
 | IdleMind — think interval (minutes) | `15` | How often IdleMind picks a new activity once idle. *(default raised from 3 in v7.9.10)* |
 | Goal-add mode | `ask` | `always` resume on boot, `never` skip, `ask` prompt. |

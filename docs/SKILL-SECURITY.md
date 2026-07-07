@@ -83,7 +83,9 @@ If the scanner detects any of these patterns, the skill is **blocked before exec
 4. **Use allowed modules** — `path.join()`, `crypto.createHash()`, `os.hostname()`, etc.
 5. **Throw errors** — Caught and displayed gracefully to the user
 
-## What Your Skill CANNOT Do
+## Sandbox Boundaries (enforced)
+
+Each of the following is actively blocked by the sandbox layer:
 
 1. **Read/write files outside the sandbox** — `fs` is path-restricted. Skills can only read/write inside their sandbox directory. The user's disk is not accessible
 2. **Make network requests** — No `http`, `https`, `net`, `dns`. You cannot phone home
@@ -137,6 +139,10 @@ Genesis defends against all of these through defense-in-depth:
 **Autonomous selection (v7.9.20).** A skill is run autonomously during goal pursuit only when three gates pass: the manifest declares `autonomous: true`, `CapabilityMatcher` scores the step against the skill's capabilities at 0.75 or higher, and the skill's code passes the AST safety scan at selection time. A skill without `autonomous: true` is available only on explicit invocation.
 
 ---
+
+## Können Pipeline: Forged-Skill Security (v7.9.27 – v7.9.31)
+
+Skills Genesis forges for itself pass through a maturity pipeline before they can act. `SkillCrystallizer` writes every extracted candidate as `status: pending`; a sandbox init test gates the path to life (`_sandboxInitTest` — a candidate that fails initialization is rejected with reason `sandbox-init`). Only skills with `status: promoted` are ever loaded by the `SkillManager`. Promotion itself is earned, not granted: a candidate matures for at least 48 hours (`crystallizedAt` timestamp), rehearses against deduplicated inputs, and must clear a Wilson lower-bound success threshold. Quarantine and discard are first-class states, and the whole surface is inspectable: `/skills-pending` groups every skill by status, `/skill-info <n>` shows maturity and rehearsal stats, `/skill-discard <n>` removes a candidate. Trust interplay stays conservative — forged skills execute inside the same sandbox and origin rules as every other shell path.
 
 ## Reporting Security Issues
 

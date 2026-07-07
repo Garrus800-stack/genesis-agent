@@ -183,6 +183,12 @@ const SLASH_COMMANDS = [
     sinceVersion: 'v7.9.0',
   },
   {
+    name: 'changes',
+    aliases: [],
+    description: 'Show the change register: losses, consolidations, and fitness lines (last N entries, default 20, max 100)',
+    sinceVersion: 'v7.9.33',
+  },
+  {
     name: 'skill-info',
     aliases: ['skill-bio'],
     description: 'Show full info about one skill including its acquisition biography',
