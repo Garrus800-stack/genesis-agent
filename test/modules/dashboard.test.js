@@ -488,7 +488,8 @@ describe('dashboard.js — _renderCognitive', () => {
     }, null);
     const html = elements['dash-cognitive-body'].innerHTML;
     assert(html.includes('Verifications'), 'Verifier section shown');
-    assert(html.includes('80% pass'), 'Pass rate calculated');
+    // v7.9.32 (F4b): the stat states coverage, not a failure rate.
+    assert(html.includes('8/10 programmatically verified'), 'Coverage stated');
   });
 
   test('renders world state and meta-learning', () => {

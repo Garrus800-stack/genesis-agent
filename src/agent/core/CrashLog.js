@@ -3,7 +3,7 @@
 // GENESIS — CrashLog.js (v6.0.1)
 //
 // Rotating file-based error/warn log for crash reporting.
-// Ring buffer of the last N entries written to ~/.genesis/crash.log.
+// Ring buffer of the last N entries written to ~/.genesis/flight-recorder.log.
 //
 // When a user reports a bug, this file contains the last 1000
 // warn/error entries with timestamps, module names, and stack
@@ -12,7 +12,7 @@
 // Architecture:
 //   Logger._logSink → CrashLog.capture(entry)
 //   CrashLog writes to disk on flush interval (5s) or on error
-//   File rotates at 500KB → crash.log.1 (keeps 1 old file)
+//   File rotates at 500KB → flight-recorder.log.1 (keeps 1 old file)
 //
 // CLI: /crashlog — show last 20 entries
 // IPC: agent:get-crash-log — returns recent entries
@@ -32,8 +32,18 @@ class CrashLog {
    * @param {string} genesisDir - Path to ~/.genesis/
    */
   constructor(genesisDir) {
-    this._logPath = path.join(genesisDir, 'crash.log');
-    this._rotatedPath = path.join(genesisDir, 'crash.log.1');
+    // v7.9.32 (F5): the file is a rotating error/warn ring buffer — a
+    // flight recorder — not a crash log; the old name misled (first live
+    // run held one peer note and one pursuit warn under a clean shutdown).
+    this._logPath = path.join(genesisDir, 'flight-recorder.log');
+    this._rotatedPath = path.join(genesisDir, 'flight-recorder.log.1');
+    // One-time migration keeps history and the .1 rotation companion.
+    try {
+      const _legacy = path.join(genesisDir, 'crash.log');
+      if (fs.existsSync(_legacy) && !fs.existsSync(this._logPath)) fs.renameSync(_legacy, this._logPath);
+      const _legacy1 = _legacy + '.1';
+      if (fs.existsSync(_legacy1) && !fs.existsSync(this._rotatedPath)) fs.renameSync(_legacy1, this._rotatedPath);
+    } catch (_e) { /* best effort — a locked file just keeps its old name */ }
     /** @type {Array<{ ts: string, level: string, module: string, msg: string, stack?: string }>} */
     this._buffer = [];
     this._dirty = false;

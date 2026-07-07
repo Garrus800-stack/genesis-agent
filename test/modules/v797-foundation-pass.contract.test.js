@@ -555,14 +555,23 @@ test('EXT P7: causal:promoted dedups per key (no event spam)', () => {
 test('EXT P8: Reflector raised line threshold 300→500', () => {
   const src = fs.readFileSync(
     path.join(ROOT, 'src/agent/planning/Reflector.js'), 'utf8');
-  assert(/fileInfo\.lines\s*>\s*500/.test(src),
+  // v7.9.32 (F3): threshold lives in a named constant bound to the fitness
+  // convention; the pin follows the constant and keeps the P8 lower bound.
+  assert(/fileInfo\.lines\s*>\s*OPTIMIZE_LOC_THRESHOLD/.test(src),
+    'line check must use the named constant');
+  const loc = src.match(/OPTIMIZE_LOC_THRESHOLD = (\d+)/);
+  assert(loc && Number(loc[1]) > 500,
     'line-count threshold must be > 500 (was 300, too loose)');
 });
 
 test('EXT P8: Reflector raised requires threshold 6→10', () => {
   const src = fs.readFileSync(
     path.join(ROOT, 'src/agent/planning/Reflector.js'), 'utf8');
-  assert(/mod\.requires\.length\s*>\s*10/.test(src),
+  // v7.9.32 (F3): see above — constant-bound, lower bound preserved.
+  assert(/mod\.requires\.length\s*>\s*OPTIMIZE_DEP_THRESHOLD/.test(src),
+    'requires check must use the named constant');
+  const dep = src.match(/OPTIMIZE_DEP_THRESHOLD = (\d+)/);
+  assert(dep && Number(dep[1]) > 10,
     'requires threshold must be > 10 (was 6, too loose)');
 });
 

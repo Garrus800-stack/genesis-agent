@@ -490,7 +490,10 @@ check('EventBus Hygiene', (r) => {
     const code = readSafe(file);
 
     // Collect emitted events (emit, fire, AND request — bus.request() is a named event too)
-    const emitRe = /\.(?:emit|fire|request)\(['"]([^'"]+)['"]/g;
+    // v7.9.32 (F1): tolerate optional chaining between method and paren —
+    // `bus?.fire?.('e', …)` (13 call sites across five modules) previously
+    // slipped past this pattern and surfaced as a phantom listener.
+    const emitRe = /\.(?:emit|fire|request)(?:\?\.)?\(['"]([^'"]+)['"]/g;
     let m;
     while ((m = emitRe.exec(code))) emitted.add(m[1]);
 

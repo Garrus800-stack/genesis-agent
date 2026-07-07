@@ -115,8 +115,10 @@ describe('CrashLog', () => {
     cl.start();
     cl.capture({ level: 'error', module: 'E', args: ['disk-test'], format: 'human' });
     // Error triggers immediate flush
-    const logPath = path.join(dir, 'crash.log');
-    if (!fs.existsSync(logPath)) throw new Error('crash.log should exist after error');
+    // v7.9.32 (F5): file renamed to flight-recorder.log (name truth);
+    // the loads-existing test below doubles as the migration proof.
+    const logPath = path.join(dir, 'flight-recorder.log');
+    if (!fs.existsSync(logPath)) throw new Error('flight-recorder.log should exist after error');
     const content = fs.readFileSync(logPath, 'utf8');
     if (!content.includes('disk-test')) throw new Error('crash.log should contain entry');
     cl.stop();

@@ -259,6 +259,11 @@ If the error is unfixable (e.g., missing dependency, permission denied), say "UN
         else if (typeof r.summary === 'string') out = r.summary;
         else if (typeof r.text === 'string') out = r.text;
         else if (r.output != null) out = JSON.stringify(r.output);
+        // v7.9.32 (F4a): SEARCH-style results are arrays of graph nodes; the
+        // raw JSON (properties.full included) used to flood the chat report
+        // (live trace 2026-07-05). Render them as a capped label list — the
+        // report is for reading, the graph is for querying.
+        out = _condenseNodeArray(out);
         out = out.trim().slice(0, 600);
         const errMsg = r.error ? String(r.error).trim().slice(0, 200) : '';
         // Build the per-step block. Always show the description (so the
@@ -562,4 +567,25 @@ ${step.target ? 'Target: ' + step.target : ''}`;
 
 Object.assign(AgentLoopRecoveryDelegate.prototype, agentLoopObstaclesMixin); // v7.9.29 (hygiene #7)
 
-module.exports = { AgentLoopRecoveryDelegate };
+
+// v7.9.32 (F4a): if a step output is (or stringifies to) an array of KG
+// node hits, condense it to a short label list. Anything else passes
+// through untouched.
+function _condenseNodeArray(out) {
+  if (typeof out !== 'string' || !out.startsWith('[')) return out;
+  if (!out.includes('"node"') && !out.includes('"label"')) return out;
+  try {
+    const arr = JSON.parse(out);
+    if (!Array.isArray(arr) || arr.length === 0) return out;
+    const labels = arr.map(x => {
+      const n = x && (x.node || x);
+      return (n && (n.label || n.id)) ? String(n.label || n.id) : null;
+    }).filter(Boolean);
+    if (labels.length === 0) return out;
+    const head = labels.slice(0, 5).join(' · ');
+    const rest = labels.length > 5 ? ` … +${labels.length - 5} more` : '';
+    return `${labels.length} graph hits: ${head}${rest}`;
+  } catch (_e) { return out; }
+}
+
+module.exports = { AgentLoopRecoveryDelegate , _condenseNodeArray};

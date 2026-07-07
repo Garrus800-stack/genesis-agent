@@ -35,6 +35,7 @@
 'use strict';
 
 const { createLogger } = require('../core/Logger');
+const { _TERMINAL_GOAL_STATUS, _DONE_GOAL_STATUS } = require('../core/goal-intent');
 const { isStructuralFailure } = require('../core/failure-patterns');
 const _log = createLogger('GoalDriver');
 
@@ -68,6 +69,19 @@ const failurePolicyMixin = {
     // burst-counter slot. Drop them immediately — the real goal-id (if
     // any) is handled by a second _applyFailurePause call.
     if (goalId.startsWith('loop_early_')) return;
+
+    // v7.9.32 (F2c): message truth. Pursuit may abandon on max-errors
+    // before the driver's failure path runs (live trace 2026-07-05:
+    // goal:abandoned at .411, a "backing off" line at .534) — a backoff
+    // promise for a goal that already left the live stack contradicts the
+    // event. Vocabulary note: core/goal-intent keeps completed in its own
+    // _DONE set and does not know 'abandoned' yet (field-line candidate);
+    // we union locally rather than widening the shared set in a field fix.
+    const _st = goal && goal.status;
+    if (_st && (_TERMINAL_GOAL_STATUS.has(_st) || _DONE_GOAL_STATUS.has(_st) || _st === 'abandoned')) {
+      _log.info(`[DRIVER] pursuit of ${goalId} ended (${_st}) — no backoff scheduled`);
+      return;
+    }
 
     const _now = Date.now();
     this._failureBurst = this._failureBurst || new Map();

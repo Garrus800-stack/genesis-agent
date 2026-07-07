@@ -272,7 +272,14 @@ function getStepRequirements(stepType, step = null) {
   if (stepType === 'ANALYZE' && step?.target && typeof step.target === 'string'
       && !step.target.includes('*') && !step.target.includes('?')   // v7.9.22 Item 1: a glob is not a file to require
         && (step.target.includes('/') || step.target.includes('\\') || step.target.endsWith('.js') || step.target.endsWith('.json') || step.target.endsWith('.md'))) {
-    out.push(`file:${step.target}`);
+    // v7.9.32 (F2a): models sometimes emit a comma-separated list in one
+    // target; a single salad token defeated PathPlausibility and killed a
+    // goal whose paths all existed (live trace 2026-07-05). Split here at
+    // the producer so every consumer inherits the fix.
+    const targets = step.target.includes(',')
+      ? step.target.split(/[\s,]+/).filter(Boolean)
+      : [step.target];
+    for (const t of targets) out.push(`file:${t}`);
   }
   return out;
 }

@@ -95,8 +95,10 @@ function apply(Dashboard) {
       var v = cognitive.verifier;
       var total = (v.pass || 0) + (v.fail || 0) + (v.ambiguous || 0);
       if (total > 0) {
-        var passRate = ((v.pass || 0) / total * 100).toFixed(0);
-        parts.push('<div class="dash-stat"><span>Verifications</span><span>' + total + ' (' + passRate + '% pass)</span></div>');
+        // v7.9.32 (F4b): this stat measures COVERAGE (how many steps got a
+        // programmatic verdict), not a failure rate — "7% pass" on a clean
+        // run read like an alarm (live trace 2026-07-05).
+        parts.push('<div class="dash-stat"><span>Verifications</span><span>' + (v.pass || 0) + '/' + total + ' programmatically verified</span></div>');
       }
     }
 

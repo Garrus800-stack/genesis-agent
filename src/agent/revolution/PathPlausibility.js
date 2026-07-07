@@ -38,39 +38,51 @@ function _filterImplausibleFilePaths(missingTokens, rootDir) {
   const out = [];
   const norm = (p) => p.replace(/[\\/]+/g, path.sep);
   const root = norm(rootDir || process.cwd());
-  for (const token of missingTokens) {
-    if (typeof token !== 'string' || !token.startsWith('file:')) continue;
-    const raw = token.slice('file:'.length).trim();
-    if (!raw) { out.push(token); continue; }
-    const p = norm(raw);
+
+  // Judge a single path string against rules (a)–(c) above.
+  const plausibleOne = (rawPath) => {
+    const p = norm(rawPath);
     // (a) exact match exists
     try {
       if (path.isAbsolute(p)) {
-        if (fs.existsSync(p)) continue;
+        if (fs.existsSync(p)) return true;
       } else {
         const abs = path.resolve(root, p);
-        if (fs.existsSync(abs)) continue;
+        if (fs.existsSync(abs)) return true;
       }
     } catch (_e) { /* fs error → treat as not-exists */ }
     // (b) relative path: parent must exist under root
     if (!path.isAbsolute(p)) {
       try {
         const candidate = path.resolve(root, path.dirname(p));
-        if (fs.existsSync(candidate)) continue;
+        if (fs.existsSync(candidate)) return true;
       } catch (_e) { /* */ }
-      out.push(token);
-      continue;
+      return false;
     }
     // (c) absolute path: must be inside root, tmp, or home
     const normP = path.normalize(p);
     const normRoot = path.normalize(root);
     const inRoot = normP.toLowerCase().startsWith(normRoot.toLowerCase() + path.sep) ||
                    normP.toLowerCase() === normRoot.toLowerCase();
-    if (inRoot) continue;
+    if (inRoot) return true;
     const tmp = (process.env.TMPDIR || process.env.TEMP || '/tmp');
     const home = (process.env.HOME || process.env.USERPROFILE || '');
-    if (tmp && normP.toLowerCase().startsWith(path.normalize(tmp).toLowerCase())) continue;
-    if (home && normP.toLowerCase().startsWith(path.normalize(home).toLowerCase())) continue;
+    if (tmp && normP.toLowerCase().startsWith(path.normalize(tmp).toLowerCase())) return true;
+    if (home && normP.toLowerCase().startsWith(path.normalize(home).toLowerCase())) return true;
+    return false;
+  };
+
+  for (const token of missingTokens) {
+    if (typeof token !== 'string' || !token.startsWith('file:')) continue;
+    const raw = token.slice('file:'.length).trim();
+    if (!raw) { out.push(token); continue; }
+    // v7.9.32 (F2b): defensive net — if the raw value carries a comma it is
+    // a list that slipped through as one token (producer-side split exists
+    // since this release, but tokens may arrive from older plans or other
+    // producers). Judge the parts; the token is plausible as soon as ONE
+    // part is. Live fixture from the 2026-07-05 trace pins this.
+    const parts = raw.includes(',') ? raw.split(/[\s,]+/).filter(Boolean) : [raw];
+    if (parts.some(plausibleOne)) continue;
     out.push(token);
   }
   return out;

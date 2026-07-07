@@ -8,6 +8,15 @@ const fs = require('fs');
 const path = require('path');
 const { atomicWriteFileSync } = require('../core/utils');
 
+
+// v7.9.32 (F3): thresholds bound to the house structure convention. The
+// fitness file-guard warns at 700 LOC (scripts/architectural-fitness.js,
+// WARN_THRESHOLD) — the first live run produced 140 self-complaints against
+// a 130/130-clean tree because this analyzer judged by 500/10. Two
+// self-assessment organs, one truth; a cross-pin contract keeps the LOC
+// values equal.
+const OPTIMIZE_LOC_THRESHOLD = 700;   // == fitness WARN_THRESHOLD
+const OPTIMIZE_DEP_THRESHOLD = 15;
 // v7.9.22 Item 6: is the require(<literal>) for `req` lexically inside a try block? A
 // guarded require with a fallback is not a defect, so its missing-dependency issue is
 // informational rather than HIGH. Walks the acorn AST, tracking descent into a try block.
@@ -245,12 +254,12 @@ class Reflector {
       if (this.guard.isProtected(path.join(this.selfModel.rootDir, filePath))) continue;
 
       // Large modules might benefit from splitting.
-      // v7.9.7 P8: raised threshold 300→500. Pre-fix flagged 372 of
+      // v7.9.7 P8: raised threshold 300→500. v7.9.32 (F3): 500→700. Pre-fix flagged 372 of
       // 377 modules — useful as a measurement, meaningless as a
       // feedback signal because nothing in Genesis can act differently
       // when "almost every module" is flagged.
       const fileInfo = this.selfModel.getFullModel().files[filePath];
-      if (fileInfo && fileInfo.lines > 500) {
+      if (fileInfo && fileInfo.lines > OPTIMIZE_LOC_THRESHOLD) {
         const key = `${filePath}::complexity`;
         if (!this._emittedSuggestions.has(key)) {
           this._emittedSuggestions.add(key);
@@ -263,8 +272,8 @@ class Reflector {
       }
 
       // Many dependencies might indicate tight coupling.
-      // v7.9.7 P8: raised threshold 6→10.
-      if (mod.requires && mod.requires.length > 10) {
+      // v7.9.7 P8: raised threshold 6→10. v7.9.32 (F3): 10→15.
+      if (mod.requires && mod.requires.length > OPTIMIZE_DEP_THRESHOLD) {
         const key = `${filePath}::coupling`;
         if (!this._emittedSuggestions.has(key)) {
           this._emittedSuggestions.add(key);
