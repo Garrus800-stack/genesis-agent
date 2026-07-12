@@ -115,6 +115,14 @@ class ProactiveSelfExpression {
 
   // ── Pipeline ─────────────────────────────────────────────
 
+  /**
+   * v7.9.36: A user decline silences a kind for a window (concern: 30 days).
+   * Public seam for the ConcernMonitor — PSE stays the keeper of its store.
+   */
+  declineKind(kind, untilMs) {
+    try { this.stateStore.setDeclinedUntil(kind, untilMs); } catch (_e) { /* best-effort */ }
+  }
+
   async _onCandidate(thought) {
     if (!thought || !thought.kind) return;
     const settings = this._settings();
@@ -127,6 +135,9 @@ class ProactiveSelfExpression {
       lastUserMessageMs: this._lastUserMessageMs(),
       mutedUntilMs: this.stateStore.getMutedUntilMs(),
       dailyCount: this.stateStore.getDailyCount(now),
+      // v7.9.36: per-kind frequency truth for gate 6.5 (wallclock cap + decline)
+      lastKindFireMs: this.stateStore.getLastSelfMessageOfKindMs(thought.kind),
+      kindDeclinedUntilMs: this.stateStore.getDeclinedUntilMs?.(thought.kind) ?? null,
     };
 
     // 1. Hard gates.

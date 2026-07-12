@@ -149,6 +149,9 @@ class Settings {
         // want to opt into Phase 3 behaviour early.
         allowedKinds: [
           'plan-failure-reflection',
+          // v7.9.36: allowed ≠ auto-trigger — concern is emitted ONLY by the
+          // ConcernMonitor (same contract as prediction-mechanism-review).
+          'concern',
           // v7.9.17: prediction-mechanism-review is allowed by default so
           // HardGates lets it through, but it has NO auto-trigger — it is
           // emitted ONLY by the /trajectory review handler. "Allowed" is not
@@ -161,6 +164,19 @@ class Settings {
         // Phase 2 default). idle-thought needs 0.70 + nov 0.65 — most
         // frequent trigger source, must be substantial to publish.
         // question needs 0.75 — the most invasive kind.
+        // v7.9.36: generic per-kind wallclock caps (gate 6.5); concern ≤ 1/7d.
+        perKindWallclockCaps: {
+          concern: 604800000,
+        },
+        // v7.9.36: ConcernMonitor thresholds (two-source rule; see the monitor).
+        concern: {
+          hoursFloor: 20,          // >= total session hours in the 7-day window
+          nightFloor: 3,           // OR >= sessions starting after nightHour
+          nightHour: 23,
+          patienceFloor: 0.35,     // chat signal: patience below AND …
+          satisfactionFloor: 0.40, // … satisfaction below
+          declineWindowMs: 2592000000, // 30 days of silence after 'not needed'
+        },
         perKindFloors: {
           'plan-failure-reflection': { sigFloor: 0.50 },
           'idle-thought':            { sigFloor: 0.70, novFloor: 0.65 },

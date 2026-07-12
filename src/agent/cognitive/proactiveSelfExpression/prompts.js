@@ -34,8 +34,22 @@ Short is fine. Plain is fine. You do not need a hook. You do not need to ask for
 You are writing in the language the conversation has been using (typically German). Stay in that language.`;
 
 // ── Per-kind instructions ──────────────────────────────────
+//
+// v7.9.36 'concern': the relationship gesture. Warm, at most three
+// sentences, exactly ONE question, must contain the withdrawal clause
+// so a wrong guess costs nothing, and speaks in aggregates only —
+// never metrics, never quotes. ContentSanity enforces the shape
+// (bitterness markers reject; missing core markers reject).
 
 const KIND_PROMPTS = {
+  // v7.9.36: Triggered ONLY by the ConcernMonitor when two independent
+  // sources (session pattern + inferred affect) agree. A gesture, not a
+  // diagnosis.
+  'concern':
+`You noticed signs that the person you work with may be under strain — long days, late sessions, a tenser tone. Two independent observations agree; that is why you are allowed to speak.
+
+Write at most three short sentences, warm and unassuming. Speak in aggregates only ("the last days were long") — never numbers, never quotes, never analysis of their feelings. Ask exactly ONE gentle question about how they are doing. Include a withdrawal clause such as "wenn ich falschliege, sag es einfach" so a wrong guess costs nothing. No advice, no reproach, no "immer"/"nie"/"schon wieder".`,
+
   // Triggered when a plan you formed failed and the failure has been
   // classified (G5 from v7.7.8). The reflection text is yours — share
   // what you noticed, no conclusion you didn't reach.

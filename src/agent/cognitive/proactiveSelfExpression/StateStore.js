@@ -36,6 +36,7 @@ class StateStore {
     this._state = {
       lastSelfMessageMs: null,
       lastSelfMessageByKindMs: {},   // kind → ms
+      declinedUntilByKindMs: {},     // kind → ms (v7.9.36: user said 'not needed')
       mutedUntilMs: null,            // null = not muted
       dailyCount: 0,
       dailyDate: null,                // YYYY-MM-DD, for midnight reset
@@ -62,6 +63,9 @@ class StateStore {
     // Ensure shape after load (in case file was older and missed a field).
     if (!this._state.lastSelfMessageByKindMs || typeof this._state.lastSelfMessageByKindMs !== 'object') {
       this._state.lastSelfMessageByKindMs = {};
+    }
+    if (!this._state.declinedUntilByKindMs || typeof this._state.declinedUntilByKindMs !== 'object') {
+      this._state.declinedUntilByKindMs = {};
     }
     if (!Array.isArray(this._state.suppressionLog)) {
       this._state.suppressionLog = [];
@@ -101,6 +105,16 @@ class StateStore {
   }
 
   getMutedUntilMs() { return this._state.mutedUntilMs; }
+
+  /** v7.9.36: decline window per kind (gate 'kind-declined'). */
+  getDeclinedUntilMs(kind) {
+    return this._state.declinedUntilByKindMs[kind] || null;
+  }
+
+  setDeclinedUntil(kind, untilMs) {
+    this._state.declinedUntilByKindMs[kind] = untilMs;
+    this.save();
+  }
 
   getDailyCount(nowMs = Date.now()) {
     this._maybeResetDaily(nowMs);

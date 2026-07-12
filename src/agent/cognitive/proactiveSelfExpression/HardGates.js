@@ -41,11 +41,11 @@ const PRIVATE_KINDS = new Set([
  *
  * @param {object} thought
  * @param {object} state — { now, lastSelfMessageMs, lastUserMessageMs,
- *                           dailyCount, mutedUntilMs, allowedKinds,
- *                           perKindFloor: { [kind]: { sigFloor, novFloor }? } }
+ *                           dailyCount, mutedUntilMs,
+ *                           lastKindFireMs, kindDeclinedUntilMs (v7.9.36) }
  * @param {object} settings — { enabled, minIntervalMs, quietHours,
  *                              userActivityCooldownMs, dailyVolumeSoftCap,
- *                              perKindFloors }
+ *                              perKindFloors, perKindWallclockCaps (v7.9.36) }
  * @returns {{ ok: boolean, reason?: string, detail?: string }}
  */
 function runGates(thought, state, settings) {
@@ -96,6 +96,23 @@ function runGates(thought, state, settings) {
     const allowed = Array.isArray(settings.allowedKinds) ? settings.allowedKinds : [];
     if (allowed.length > 0 && !allowed.includes(thought.kind)) {
       return { ok: false, reason: 'kind-not-allowed', detail: thought.kind };
+    }
+
+    // 6.5 (v7.9.36): Per-kind wallclock cap — generic frequency ceiling per
+    // kind (e.g. concern: once per 7 days), checked between "is this kind
+    // allowed at all" and the quality floors. A user decline extends the
+    // silence via kindDeclinedUntilMs (set through PSE.declineKind) with its
+    // own reason so the suppression log tells respect from rate limiting.
+    if (typeof state.kindDeclinedUntilMs === 'number' && state.kindDeclinedUntilMs > (state.now || Date.now())) {
+      const leftH = Math.round((state.kindDeclinedUntilMs - (state.now || Date.now())) / 3600000);
+      return { ok: false, reason: 'kind-declined', detail: `${thought.kind} declined for ~${leftH}h more` };
+    }
+    const kindCap = (settings.perKindWallclockCaps || {})[thought.kind];
+    if (typeof kindCap === 'number' && kindCap > 0 && typeof state.lastKindFireMs === 'number') {
+      const sinceKind = (state.now || Date.now()) - state.lastKindFireMs;
+      if (sinceKind < kindCap) {
+        return { ok: false, reason: 'kind-wallclock-cap', detail: `${Math.round(sinceKind / 3600000)}h since last ${thought.kind} < ${Math.round(kindCap / 3600000)}h` };
+      }
     }
 
     // 7. Per-kind floor (significance / novelty thresholds).

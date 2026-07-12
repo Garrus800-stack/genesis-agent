@@ -99,8 +99,10 @@ itself to surface to you proactively.
 | `proactive.minIntervalMs` | `1800000` (30 min) | Minimum quiet gap between two proactive self-messages. |
 | `proactive.userActivityCooldownMs` | `600000` (10 min) | After you send a message, PSE stays silent for this window. |
 | `proactive.quietHours.start` / `.end` | `'22:00'` / `'07:00'` | Local-time quiet hours. Wrap-around supported. |
-| `proactive.allowedKinds` | `['plan-failure-reflection']` | Allowlist of thought-kinds that may surface. `self-state-snapshot` is **structurally private** and blocked at the gate regardless of this list (v7.9.5). |
+| `proactive.allowedKinds` | `['plan-failure-reflection', 'concern']` | Allowlist of thought-kinds that may surface. `self-state-snapshot` is **structurally private** and blocked at the gate regardless of this list (v7.9.5). |
 | `proactive.perKindFloors.*` | varies | Per-kind significance/novelty thresholds. Each kind has its own floor. |
+| `proactive.perKindWallclockCaps` | `{ concern: 604800000 }` | v7.9.36 (gate 6.5): minimum wallclock distance between deliveries per kind — concern at most once per seven days, whatever the scores. |
+| `proactive.concern.*` | see below | v7.9.36 ConcernMonitor thresholds. `hoursFloor` 20 / `nightFloor` 3 (starting ≥ `nightHour` 23) for the journal source; `patienceFloor` 0.35 AND `satisfactionFloor` 0.40 for the chat-model source — both sources must fire. `declineWindowMs` (30 days) silences the kind after a "not needed"; `concern` is in `allowedKinds`, but allowed is not auto-trigger — only the monitor emits it. |
 | `proactive.dailyVolumeSoftCap` | `8` | Soft cap on daily self-messages. Hard stop at 2× this value. |
 | `proactive.goals.stalledTimeoutMs` | `900000` (15 min) | StalledGoalWatchdog converts blocked goals to failure-reflections after this. |
 | `proactive.goals.stalledWatchdogTickMs` | `60000` (1 min) | How often the watchdog scans. |

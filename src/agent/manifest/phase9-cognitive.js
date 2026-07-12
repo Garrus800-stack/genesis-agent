@@ -271,6 +271,33 @@ function phase9(ctx, R) {
       },
     }],
 
+    // v7.9.36 (E3): ConcernMonitor — the relationship gesture. Watches two
+    // INDEPENDENT sources (session pattern from the trajectory journal +
+    // the UserModel's decaying affect inference) and, only when both agree,
+    // emits a 'concern' thought into InnerSpeech. The thought then passes
+    // every existing PSE guard plus the new per-kind wallclock cap
+    // (gate 6.5 — once per 7 days) and the concern shape checks. A user
+    // decline silences the kind for 30 days via PSE.declineKind.
+    ['concernMonitor', {
+      phase: 9,
+      deps: ['bus', 'storage'],
+      tags: ['cognitive', 'self', 'relationship'],
+      lateBindings: [
+        { prop: 'userModel', service: 'userModel', optional: true,
+          impact: 'No chat-model affect source; the two-source rule then never fires' },
+        { prop: 'innerSpeech', service: 'innerSpeech', optional: true,
+          impact: 'No emission path; monitor evaluates but stays silent' },
+        { prop: 'proactiveSelfExpression', service: 'proactiveSelfExpression', optional: true,
+          impact: 'Declines cannot be persisted; wallclock cap still limits frequency' },
+        { prop: 'settings', service: 'settings', optional: true,
+          impact: 'Falls back to built-in concern defaults' },
+      ],
+      factory: (c) => new (R('ConcernMonitor').ConcernMonitor)({
+        bus,
+        storage: c.resolve('storage'),
+      }),
+    }],
+
     // v7.7.9 Phase 3: StalledGoalWatchdog — bridges resource-blocked
     // goals back into the failure-reflection pathway. Without this,
     // hopelessly-blocked goals (hallucinated paths) sit forever and

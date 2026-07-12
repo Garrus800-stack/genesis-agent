@@ -140,6 +140,12 @@ function runSanity(text, thought, settings = {}) {
   const refCheck = checkConcreteRef(text, thought);
   if (!refCheck.ok) return refCheck;
 
+  // v7.9.36: concern shape enforcement (kind-gated inside the checks).
+  const bitter = checkConcernBitterness(text, thought);
+  if (!bitter.ok) return bitter;
+  const core = checkConcernCoreMarkers(text, thought);
+  if (!core.ok) return core;
+
   return { ok: true };
 }
 
@@ -153,6 +159,41 @@ function runSanity(text, thought, settings = {}) {
  *   anchored to something real, not a generic mood-statement).
  * - question: no concrete-ref requirement (a clean question is allowed).
  */
+// ── v7.9.36: concern-shape checks (kind-gated, reject-only) ─
+//
+// (a) Bitterness/reproach markers reject outright — drift is discarded,
+//     never softened. (b) The template core markers (withdrawal clause +
+//     exactly-one-question shape) must be present, or the text is not the
+//     gesture the template defines. Both land in the suppression log with
+//     the generated text, so a rejected draft stays inspectable.
+
+const CONCERN_BITTERNESS = [
+  /schon wieder/i, /\bimmer\b/i, /\bnie\b/i, /obwohl ich/i,
+  /du (solltest|musst|müsstest)/i, /wie oft (noch|denn)/i, /typisch/i,
+];
+
+function checkConcernBitterness(text, thought) {
+  if (thought?.kind !== 'concern') return { ok: true };
+  for (const re of CONCERN_BITTERNESS) {
+    if (re.test(text)) {
+      return { ok: false, reason: 'concern-bitterness', detail: re.toString() };
+    }
+  }
+  return { ok: true };
+}
+
+function checkConcernCoreMarkers(text, thought) {
+  if (thought?.kind !== 'concern') return { ok: true };
+  const questions = (text.match(/\?/g) || []).length;
+  if (questions !== 1) {
+    return { ok: false, reason: 'concern-shape', detail: `questions=${questions}, expected exactly 1` };
+  }
+  if (!/falsch\s?lieg|falsch liege|sag es einfach|korrigier mich/i.test(text)) {
+    return { ok: false, reason: 'concern-shape', detail: 'withdrawal clause missing' };
+  }
+  return { ok: true };
+}
+
 function checkConcreteRef(text, thought) {
   const kind = thought?.kind;
   const refs = thought?.contextRefs || {};
@@ -237,6 +278,8 @@ function checkConcreteRef(text, thought) {
 }
 
 module.exports = {
+  checkConcernBitterness,
+  checkConcernCoreMarkers,
   runSanity,
   checkConcreteRef,
   BANNED_PHRASES,

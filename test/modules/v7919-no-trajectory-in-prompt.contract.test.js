@@ -37,6 +37,7 @@ const ALLOWED = [
   'src/agent/cognitive/EventCounter.js',
   'src/agent/cognitive/SelfTrajectory.js',
   'src/agent/cognitive/TrajectoryCalibration.js',
+  'src/agent/cognitive/ConcernMonitor.js', // v7.9.36: journal-only session-pattern reader (E3) — still never a prompt path
 ].sort();
 
 // A non-exhaustive denylist of known runtime-prompt builders. None of

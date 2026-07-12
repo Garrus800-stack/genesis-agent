@@ -39,7 +39,7 @@ EmotionalState ──emit('emotion:shift')──→ EventBus ──→ PromptBui
 
 Key properties:
 
-- **498 event types** catalogued in `EventTypes.js` (v7.9.35 baseline)
+- **498 event types** catalogued in `EventTypes.js` (v7.9.36 baseline)
 - **498 payload schemas** in `EventPayloadSchemas.js` — full parity since v7.6.x (every catalog entry has a registered schema); dev-mode validation throws on mismatch
 - **Ring buffer history** — last 500 events for debugging
 - **Source tracking** — every event carries `{ source: 'ModuleName' }` for audit
@@ -51,6 +51,8 @@ New v7.5.6 events: `model:marked-unavailable`, `model:unavailable-cleared`, `mod
 New v7.7.9 events (InnerSpeech + PSE): `inner-speech:emitted`, `inner-speech:overflowed`, `pse:gate-blocked`, `pse:scored`, `pse:surfaced`. The InnerSpeech events thread the ring buffer; the PSE events let `/proactive-status` surface suppression reasons without digging into raw structures.
 
 New v7.8.9–v7.9.4 events (Können maturity chain): `skill:candidate-extracted`, `skill:forged`, `skill:promoted`, `skill:discard-suggested`, `skill:discarded`, `skill:rehearsed`, `selfnarrative:skill-acquired`, `skills:reloaded`. The `koennen-promotion-v794` contract prefix in `stale-refs.json` locks the shapes against silent drift. v7.9.31 adds `skill:candidate-created` — the SkillManager intake announcing a maturing candidate (replaces the retired `daemon:skill-created`).
+
+New v7.9.36 kind (concern): the ConcernMonitor emits a `concern` thought into InnerSpeech only when two independent sources agree (journal session pattern + user-model affect); the PSE pipeline applies all existing guards plus the new generic per-kind wallclock cap (gate 6.5, concern ≤ 1/7d) and a 30-day decline window with its own suppression reasons (`kind-wallclock-cap`, `kind-declined`) — respect stays distinguishable from rate limiting in `/proactive-status`.
 
 New v7.9.34 consumer (pre-wake continuity): `session:ending` gains a third listener — PreSleep, the WakeUpRoutine's mirror, writes `.genesis/continuity-anchor.json` inside the awaited emit (10 s box, atomic + fsync); the WakeUpRoutine reads it at the next boot as its fourth context source. Journal-only by decision — never the runtime prompt.
 
