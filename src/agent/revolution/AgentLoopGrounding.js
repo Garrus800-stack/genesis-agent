@@ -46,4 +46,19 @@ function checkSyntaxForPrompt(verifier, target, content) {
   return unverifiable;
 }
 
-module.exports = { sourceForPrompt, checkSyntaxForPrompt };
+// v7.9.37 (R2): is a required resource structurally unreachable? Field 16: an
+// investigate child asked for 'peer' in a habitat with 0 peers and discovery
+// disabled — it can never become available, so the goal parked for 2 hours.
+// 'peer' is unreachable when there is no peer network, or none connected and
+// discovery off. Non-peer resources are legitimate waits (return false).
+function structurallyUnreachableResources(missing, loop) {
+  const peerUnreachable = () => {
+    try {
+      const pn = loop?.bus?._container?.resolve?.('peerNetwork');
+      return ((pn?.getPeerCount?.() ?? pn?.peers?.size ?? 0) === 0) && !pn?.discoveryEnabled;
+    } catch (_e) { return true; }
+  };
+  return (missing || []).filter((res) => (res === 'peer' || res === 'peers') && peerUnreachable());
+}
+
+module.exports = { sourceForPrompt, checkSyntaxForPrompt, structurallyUnreachableResources };

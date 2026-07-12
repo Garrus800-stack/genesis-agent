@@ -171,6 +171,11 @@ class IdleMind {
     // v7.9.12: when a model recovers, leave rest-mode immediately instead of
     // waiting for the next think interval. _exitRestMode is idempotent, so a
     // cleared event for a model we weren't resting on is a harmless no-op.
+    // v7.9.37 pass 3 (R2): the session cost cap is a model-independent block —
+    // treat it exactly like "no usable model": enter rest mode instead of
+    // hammering LLM activities every cycle (field 09.07.: 19 explore WARNs
+    // in a 15-min beat against the closed CostGuard).
+    this._sub('llm:cost-cap-reached', () => { this._costCapped = true; }, { source: 'IdleMind' });
     this._sub('model:unavailable-cleared', (data) => {
       this._exitRestMode(data?.modelName);
     }, { source: 'IdleMind' });
@@ -288,6 +293,7 @@ class IdleMind {
    * @private
    */
   _exitRestMode(modelName) {
+    if (this._costCapped) return; // v7.9.37 pass 3 (R2): session cap outlives model recovery
     if (!this._inRestMode) return;
     this._inRestMode = false;
     try {
@@ -325,7 +331,7 @@ class IdleMind {
     // models are marked, looping LLM-backed activities would only produce
     // failures and accumulate frustration; instead we idle until a model
     // recovers (model:unavailable-cleared → _exitRestMode).
-    if (this.model?.areAllModelsUnavailable?.()) {
+    if (this.model?.areAllModelsUnavailable?.() || this._costCapped) {
       this._enterRestMode();
       return;
     }
@@ -414,6 +420,11 @@ class IdleMind {
 
     // PRIORITY 2: Needs-driven + emotion-weighted activity selection
     const activity = this._pickActivity();
+    // v7.9.37 pass 3 (R3): skip an activity still under its fail penalty.
+    if (this._failPenaltyUntil?.get(activity) > Date.now()) {
+      _log.debug(`[IDLE-MIND] ${activity} under fail-penalty — skipping this cycle`);
+      return;
+    }
 
     this.bus.fire('idle:thinking', { activity, thought: this.thoughtCount }, { source: 'IdleMind' });
 
@@ -460,6 +471,14 @@ class IdleMind {
       }
     } catch (err) {
       _log.warn(`[IDLE-MIND] ${activity} failed:`, err.message);
+      // v7.9.37 pass 3 (R5): failures become visible in the stats …
+      try { this._bumpFailedRun(activity); } catch (_e) { /* best-effort */ }
+      // … and (R3) a rate/budget signature parks the activity for ~4 cycles
+      // instead of retrying on the very next tick.
+      if (/rate.?limit|budget|cost cap/i.test(err.message || '')) {
+        if (!this._failPenaltyUntil) this._failPenaltyUntil = new Map();
+        this._failPenaltyUntil.set(activity, Date.now() + 20 * 60 * 1000);
+      }
     }
     } finally { this._thinking = false; }
   }

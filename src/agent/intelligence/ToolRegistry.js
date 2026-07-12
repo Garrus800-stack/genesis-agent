@@ -365,6 +365,13 @@ ${descriptions.join('\n\n')}`;
       /\b(?:calling|aufruf|nutze)\s+(?:tool|werkzeug)\s*[:\-]/i,
       /\btool[_\-]?call\s*[:\-]/i,
       /\bführe\s+(?:das\s+)?tool\b/i,
+      // v7.9.37 pass 6 (S-F): field 11.07. — announce-loop rounds 2/3 carried
+      // no tool word at all ("Ich schaue mich jetzt um."). Exactly that idiom.
+      /\bschaue?\s+mich\s+(?:jetzt\s+)?um\b/i,
+      /\b(?:taking|having)\s+a\s+look\s+around\b/i,
+      // v7.9.37 (R1): slash commands written as prose lines are announces —
+      // hard list of real commands, so /home/... paths never false-positive.
+      /^\s*\/(?:read-source|run-skill|open|shell|file-list|file-read|goals?|self|memory|architecture|help)\b/im,
     ];
     for (const p of patterns) {
       if (p.test(response)) return true;

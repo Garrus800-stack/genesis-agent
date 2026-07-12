@@ -27,6 +27,7 @@
 // Fixed open/close tag pairs to strip. Matching picks the earliest
 // open found in the buffer.
 const BLOCKS = [
+  { open: '<tool_calls>', close: '</tool_calls>' }, // v7.9.37 (Z1): deepseek-v4-pro emits a plural wrapper with empty hulls — field 14 showed nine of them raw in the bubble
   { open: '<tool_call>', close: '</tool_call>' },
   { open: '<function_calls>', close: '</function_calls>' },
 ];

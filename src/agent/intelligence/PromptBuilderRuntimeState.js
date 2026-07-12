@@ -70,6 +70,14 @@ const runtimeStateSection = {
       if (s.model)      parts.push(`Modell: ${s.model}`);
       if (s.backend)    parts.push(`(${s.backend})`);
       if (s.trustLevel) parts.push(`· Trust: ${s.trustLevel}`);
+      // v7.9.37 pass 4 (V2): full autonomy means act, don't ask.
+      if (/FULL|^2$/i.test(String(s.trustLevel))) {
+        dataLines.push('Volle Autonomie: Beende Antworten NICHT mit Erlaubnisfragen ("Soll ich…?"). Sag, was du als Nächstes tust — und tu es. Frage nur, wenn die Entscheidung wirklich dem Nutzer gehört.');
+        // v7.9.37 (W2): the old rule QUOTED the announce phrase as a negative
+        // example — the model learned to parrot it (field 11.07.: 15×). Never
+        // teach the phrase; forbid the pattern, including slash lines.
+        dataLines.push('Schreibe Werkzeug-Absichten NIEMALS als Text und NIEMALS als /slash-Zeile in deine Antwort — sende ausschließlich den tool_call-Block im SELBEN Zug. Jede /slash-Zeile in deinem Antworttext ist ein Fehler und wird nicht ausgeführt. Nach Tool-Ergebnissen endet jede Antwort mit einem Ergebnis-Satz.');
+      }
       if (s.language)   parts.push(`· Sprache: ${s.language}`);
       if (parts.length > 0) dataLines.push(parts.join(' '));
     }

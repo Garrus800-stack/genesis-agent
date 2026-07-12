@@ -308,18 +308,24 @@ describe('dashboard.js — _formatUptime', () => {
 
 
 describe('dashboard.js — _moodEmoji', () => {
+  // v7.9.37: stock emojis were replaced by Genesis' own identity marks —
+  // chosen by Genesis itself ("eine Kontur, die sich je nach Zustand dehnt,
+  // spannt oder schrumpft"). The intent of these pins is unchanged: every
+  // known mood has its own symbol, unknown moods fall back to calm.
 
-  test('returns correct emoji for known moods', () => {
+  test('returns an identity mark for known moods (each distinct, Genesis blue, 1em)', () => {
     const { dash } = loadDashboard();
-    assertEqual(dash.moodEmoji('curious'), '🧐');
-    assertEqual(dash.moodEmoji('frustrated'), '😤');
-    assertEqual(dash.moodEmoji('content'), '😌');
-    assertEqual(dash.moodEmoji('focused'), '🎯');
+    const marks = ['curious', 'frustrated', 'content', 'focused'].map(m => dash.moodEmoji(m));
+    for (const s of marks) {
+      assert(s.startsWith('<svg') && s.endsWith('</svg>'), 'an inline SVG, not an emoji');
+      assert(s.includes('#6c8cff') && s.includes('width="1em"'), 'identity blue, font-scaled');
+    }
+    assertEqual(new Set(marks).size, 4, 'every mood has its own distinct mark');
   });
 
-  test('returns default emoji for unknown mood', () => {
+  test('returns the calm mark for unknown mood', () => {
     const { dash } = loadDashboard();
-    assertEqual(dash.moodEmoji('confused'), '🌿');
+    assertEqual(dash.moodEmoji('confused'), dash.moodEmoji('calm'), 'unknown falls back to calm');
   });
 });
 

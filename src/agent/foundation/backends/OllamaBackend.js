@@ -19,6 +19,10 @@ const _log = createLogger('OllamaBackend');
 class OllamaBackend {
   /** @param {{ baseUrl?: string, keepAlive?: string|number, localTimeoutMs?: number, cloudTimeoutMs?: number }} [opts] */
   constructor({ baseUrl, keepAlive, localTimeoutMs, cloudTimeoutMs } = {}) {
+    // v7.9.37 pass 4 (C1/C2): real model context via /api/show (cached),
+    // honest num_predict default. Config injected by the bridge (settings).
+    this._ctxCache = new Map();           // modelName → context tokens
+    this._ctxConfig = { numCtxCap: 65536, maxTokensDefault: 0 }; // 0 = derive from ctx
     this.name = 'Ollama';
     this.type = 'ollama';
     this.baseUrl = baseUrl || 'http://127.0.0.1:11434';
@@ -143,6 +147,54 @@ class OllamaBackend {
   }
 
   /** Non-streaming chat */
+  /** v7.9.37 pass 4 (C1): bridge injects caps/defaults from settings. */
+  setContextConfig({ numCtxCap, maxTokensDefault } = {}) {
+    if (Number.isFinite(numCtxCap) && numCtxCap > 0) this._ctxConfig.numCtxCap = numCtxCap;
+    if (Number.isFinite(maxTokensDefault)) this._ctxConfig.maxTokensDefault = maxTokensDefault;
+  }
+
+  /** POST /api/show — returns raw show payload or null (best-effort). */
+  async _fetchShow(modelName) {
+    try {
+      return await this._httpPost(`${this.baseUrl}/api/show`, { model: modelName }, {}, 15000);
+    } catch (_e) { return null; }
+  }
+
+  /**
+   * v7.9.37 pass 4 (C1): effective num_ctx for a model. Truth source is
+   * /api/show model_info["<family>.context_length"] (covers every model,
+   * cloud included); fallback: a num_ctx line in `parameters`; last resort
+   * the old 8192. Result capped by settings llm.numCtxCap and cached.
+   * The field run 2026-07-10 showed 48k prompts sent with num_ctx:8192 —
+   * the server truncated the head (identity included) on every large call.
+   */
+  async _ctxFor(modelName) {
+    if (/embed|minilm/i.test(modelName)) return 2048; // trained-context guard (v7.9.3)
+    if (this._ctxCache.has(modelName)) return this._ctxCache.get(modelName);
+    let ctx = 0;
+    const show = await this._fetchShow(modelName);
+    if (show && show.model_info && typeof show.model_info === 'object') {
+      for (const [k, v] of Object.entries(show.model_info)) {
+        if (k.endsWith('.context_length') && Number.isFinite(v) && v > 0) { ctx = v; break; }
+      }
+    }
+    if (!ctx && show && typeof show.parameters === 'string') {
+      const m = show.parameters.match(/num_ctx\s+(\d+)/);
+      if (m) ctx = parseInt(m[1], 10);
+    }
+    if (!ctx) ctx = 8192;
+    ctx = Math.min(ctx, this._ctxConfig.numCtxCap);
+    this._ctxCache.set(modelName, ctx);
+    return ctx;
+  }
+
+  /** v7.9.37 pass 4 (C2): honest response budget instead of server roulette. */
+  _predictFor(maxTokens, ctxSize) {
+    if (typeof maxTokens === 'number' && maxTokens > 0) return maxTokens;
+    if (this._ctxConfig.maxTokensDefault > 0) return this._ctxConfig.maxTokensDefault;
+    return Math.min(8192, Math.floor(ctxSize / 4));
+  }
+
   async chat(systemPrompt, messages, temperature, modelName, maxTokens) {
     const ollamaMessages = [];
 
@@ -159,11 +211,8 @@ class OllamaBackend {
       }
     }
 
-    // v7.9.3: num_ctx is model-aware. Embedding/small-context models (nomic-
-    // embed-text trained at 2048, all-minilm at 512) silently truncate when
-    // sent 8192 and log [WARN] "requested context size too large for model".
-    // For chat models 8192 stays the right default.
-    const ctxSize = /embed|minilm/i.test(modelName) ? 2048 : 8192;
+    // v7.9.37 pass 4 (C1): real window via /api/show (see _ctxFor).
+    const ctxSize = await this._ctxFor(modelName);
     const body = {
       model: modelName,
       messages: ollamaMessages,
@@ -171,9 +220,8 @@ class OllamaBackend {
       options: {
         temperature,
         num_ctx: ctxSize,
-        // v7.5.1: optional per-call max-token cap (used by dream/wakeup paths
-        // for short one-word answers; saves cost on cloud-Ollama setups).
-        ...(maxTokens ? { num_predict: maxTokens } : {}),
+        // v7.5.1 cap; v7.9.37 pass 4 (C2): always explicit — no server default.
+        num_predict: this._predictFor(maxTokens, ctxSize),
       },
       // v7.5.7-fix Phase 2: respect configured keep_alive (null = Ollama default).
       // v7.8.9: route through _effectiveKeepAlive() so ContinuationLoop's
@@ -206,8 +254,8 @@ class OllamaBackend {
       ollamaMessages.push({ role: m.role, content: m.content });
     }
 
-    // v7.9.3: same model-aware num_ctx as chat() — see comment there.
-    const ctxSize = /embed|minilm/i.test(modelName) ? 2048 : 8192;
+    // v7.9.37 pass 4 (C1): same real-window resolution as chat().
+    const ctxSize = await this._ctxFor(modelName);
     const body = {
       model: modelName,
       messages: ollamaMessages,
@@ -220,7 +268,7 @@ class OllamaBackend {
         return eff != null ? { keep_alive: eff } : {};
       })()),
     };
-    if (typeof maxTokens === 'number' && maxTokens > 0) body.options.num_predict = maxTokens;
+    body.options.num_predict = this._predictFor(maxTokens, ctxSize); // (C2)
 
     return new Promise((resolve, reject) => {
       const url = new URL(`${this.baseUrl}/api/chat`);

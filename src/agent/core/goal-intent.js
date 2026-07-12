@@ -70,8 +70,13 @@ const _STOPWORDS = new Set([
 const FAILURE_RELEVANCE_WINDOW_DAYS = 14;
 const OVERLAP_SKIP_RATIO = 0.6;
 const REDUNDANCY_FLOOR = 2;
-// Failed/abandoned terminal states (live stack).
-const _TERMINAL_GOAL_STATUS = new Set(['obsolete', 'stalled', 'failed']);
+// Failed/abandoned terminal states (live stack + archive).
+// v7.9.37 (field, F1): 'abandoned' joins the shared set. v7.9.32 deliberately
+// union-ed it locally in FailurePolicy only ("field-fix minimalism") — but the
+// dedup fences here consume the same set, and the field showed the gap: an
+// abandoned goal appeared in NEITHER prompt list and was re-proposed 3h later
+// (duplicate "Inspect Health Monitor Self-Reporting Mechanism", 2026-07-07).
+const _TERMINAL_GOAL_STATUS = new Set(['obsolete', 'stalled', 'failed', 'abandoned']);
 // v7.9.20 (A): a COMPLETED goal is terminal too — it has left the live stack
 // for goals/archive.json and must not be re-proposed.
 const _DONE_GOAL_STATUS = new Set(['completed']);

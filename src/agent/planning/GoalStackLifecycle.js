@@ -84,6 +84,9 @@ const goalStackLifecycleMixin = {
   },
 
   abandonGoal(goalId) {
+    // v7.9.37 (V-D): a terminal child must release its dependents/parent —
+    // field 11.07.: parents stayed blocked forever after the child failed.
+    this._unblockDependents(goalId);
     const g = this.goals.find(g => g.id === goalId);
     if (!g || isTerminal(g.status)) return false;
     g.status = 'abandoned'; g.updated = new Date().toISOString(); this._save();

@@ -38,6 +38,11 @@ const { OpenAIBackend } = require('./backends/OpenAIBackend');
 const UNAVAILABLE_TTL_MAP = {
   'auth':                  60 * 60 * 1000,         // 1h
   'rate-limit':            60 * 60 * 1000,         // 60min (v7.9.12, was 5min)
+  // v7.9.37 pass 3: a model that needed 10 continuations and still failed is
+  // drip-feeding rate-limited fragments — retrying it burns tokens for parts.
+  'continuation-exhausted': 30 * 60 * 1000,        // 30min
+  // v7.9.37 pass 4 (B3): two first-chunk timeouts in 10min — stop paying per step.
+  'stream-timeout':         15 * 60 * 1000,        // 15min
   'timeout':                10 * 60 * 1000,        // 10min
   'subscription-required': 24 * 60 * 60 * 1000,    // 24h
   'quota-exhausted':       24 * 60 * 60 * 1000,    // 24h
@@ -259,7 +264,7 @@ class ModelBridge {
     if (fallback) {
       const fallbackModelName = this._fallbackModel?.name || null;
       // v7.8.5: log + payload identify the actual answering model.
-      _log.warn(`[MODEL] ${label} ${targetBackend} failed, falling back to ${fallback}${fallbackModelName ? ` (${fallbackModelName})` : ''}: ${err.message}`);
+      _log.warn(`[MODEL] ${label} model "${calledModel || '?'}" failed → "${fallbackModelName || fallback}" (backend ${fallback}): ${err.message}`); // v7.9.37 pass 4 (B4)
       this.bus.fire('model:failover', {
         from: targetBackend || calledModel || 'unknown',
         to: fallback,
@@ -291,6 +296,19 @@ class ModelBridge {
       this.lastEffectiveModel = fallbackModelName;
       this.lastEffectiveBackend = fallback;
       this.lastFailoverReason = reason;
+      return result;
+    }
+    // v7.9.37 pass 3 (R1b): chain exhausted — degrade once to the best usable
+    // model (boot auto-select mechanism); settings stay untouched.
+    const _deg = this._pickDegradedLocal?.();
+    if (_deg) {
+      _log.info(`[BRIDGE] DEGRADED — chain exhausted, auto-selected "${_deg.name}"${/:cloud$/i.test(_deg.name) ? ' (cloud — no non-cloud model usable)' : ' (local)'} for this call`);
+      options._failoverReason = 'chain-exhausted-degraded';
+      options._effectiveModel = _deg.name;
+      const result = await dispatch(_deg.backend);
+      this.lastEffectiveModel = _deg.name;
+      this.lastEffectiveBackend = _deg.backend;
+      this.lastFailoverReason = 'chain-exhausted-degraded';
       return result;
     }
     this._emitFailoverUnavailable(targetBackend, err);
@@ -636,6 +654,8 @@ class ModelBridge {
     await this.detectAvailable();
 
     if (this._settings) {
+      // v7.9.37 pass 4 (C1/C2): settings-driven context config → Ollama.
+      this.backends?.ollama?.setContextConfig?.({ numCtxCap: Number(this._settings.get?.('llm.numCtxCap')) || undefined, maxTokensDefault: Number(this._settings.get?.('llm.maxTokensDefault')) || undefined });
       if (this._settings.hasAnthropic()) {
         this.configureBackend('anthropic', { apiKey: this._settings.get('models.anthropicApiKey') });
         _log.info('  [+] Anthropic API configured');

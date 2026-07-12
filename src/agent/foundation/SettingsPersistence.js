@@ -81,6 +81,8 @@ class _SettingsPersistenceHost {
     // ceilings keep a typo from disabling the runaway-generation
     // protection entirely.
     clamp('llm.streamTimeouts.firstChunk',        10000,  600000);
+    clamp('llm.numCtxCap',                        4096,   262144); // v7.9.37 pass 4
+    clamp('llm.maxTokensDefault',                 0,      32768);
     clamp('llm.streamTimeouts.chunk',             5000,   120000);
     clamp('llm.streamTimeouts.total',             60000,  1800000);
     clamp('llm.streamTimeouts.continuationTotal', 120000, 3600000);

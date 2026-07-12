@@ -175,18 +175,21 @@ describe('v7.9.18 A3 — _last_good_boot only after a clean boot', () => {
       'must NOT freeze a degraded boot');
   });
 
-  test('creates _last_good_boot when there are no start failures', () => {
+  test('creates _last_good_boot when there are no start failures', async () => {
     const root = makeHabitat('v7918-a3-clean');
     const { rec, snapshotManager } = makeRecovery(root);
     rec.postBootSuccess([]);
+    // v7.9.37 (T3): the snapshot runs a tick after the boot, not inside it.
+    await new Promise((r) => setTimeout(r, 20));
     assert(snapshotManager.created.includes('_last_good_boot'),
       'clean boot freezes last-good');
   });
 
-  test('defaults to clean when called with no argument (back-compat)', () => {
+  test('defaults to clean when called with no argument (back-compat)', async () => {
     const root = makeHabitat('v7918-a3-default');
     const { rec, snapshotManager } = makeRecovery(root);
     rec.postBootSuccess();
+    await new Promise((r) => setTimeout(r, 20)); // v7.9.37 (T3): snapshot runs off the boot path
     assert(snapshotManager.created.includes('_last_good_boot'),
       'no-arg call treated as clean');
   });

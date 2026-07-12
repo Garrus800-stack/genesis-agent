@@ -83,7 +83,11 @@ const BACKOFF_BASE_MS = process.env.GENESIS_OFFLINE_TESTS === '1' ? 0 : 1000;
 const PSEUDO_CONTINUATION_PROMPT =
   'Your previous response was truncated at the output token limit. ' +
   'Continue exactly from where you stopped. Do NOT repeat any prior text, ' +
-  'do NOT re-emit code fences, do NOT add a preamble. Resume mid-token if necessary.';
+  'do NOT re-emit code fences, do NOT add a preamble. Resume mid-token if necessary. ' +
+  // v7.9.37 (W3): field — the model re-greeted and asked the user which tool
+  // call was meant. A continuation is invisible plumbing, never a conversation.
+  'NEVER address the user, NEVER ask questions, NEVER comment on the truncation. ' +
+  'If a <tool_call> block was cut off, re-emit that block COMPLETE and nothing else.';
 
 /**
  * Run a continuation-aware completion against an Ollama backend.
@@ -237,7 +241,12 @@ async function runContinuation(args) {
         verdict: completeness.complete ? 'complete' : 'incomplete',
       });
 
-      if (completeness.complete) {
+      const _tinyStops = !completeness.complete && attempts >= 2
+        && lastDoneReason === 'stop' && (partial.length / attempts) < 400;
+      if (_tinyStops)
+
+        _emit(eventBus, 'llm:continuation-round', { model: modelName || 'unknown', attempt: attempts, doneReason: lastDoneReason || undefined, reason: 'sanity-accept: tiny stop-terminated partials — structural check likely misreads this model', partialChars: partial.length, deltaChars: 0, verdict: 'complete' });
+      if (completeness.complete || _tinyStops) {
         // Success — emit complete event, optional circuit-breaker record.
         const durationMs = Date.now() - startedAt;
         _emit(eventBus, 'llm:continuation-complete', {
@@ -298,7 +307,13 @@ async function runContinuation(args) {
     try { circuitBreaker.recordFailure(); } catch (_e) { /* swallow */ }
   }
   _log.warn(`[CONTINUATION] sequence for "${modelName}" failed: ${failureReason} (attempts=${attempts}, partial=${partial.length} chars)`);
+  // v7.9.37 pass 3 (R1a): the failure path used to return the partial with
+  // the SAME shape as success — callers passed fragments downstream as real
+  // content (field 09.07.: "Cannot find module 'pat" was require('path'
+  // torn mid-word). Failure is now explicit; content stays for diagnostics.
   return {
+    ok: false,
+    failureReason,
     content: partial,
     attempts,
     totalElapsedMs: durationMs,

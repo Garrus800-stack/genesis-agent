@@ -19,10 +19,14 @@ test('matches Cannot find module pattern (Node.js)', () => {
 });
 
 test('matches Webpack Module not found pattern', () => {
-  const r = matchObstacle("Module not found: Can't resolve './missing'");
-  assert(r, 'should match');
+  // v7.9.37 (X2): a relative PATH is never a package — the old expectation
+  // ("Install missing npm module: ./missing") was the exact naivety that cost
+  // 22 minutes of install futility in the field. Paths no longer match.
+  assert(matchObstacle("Module not found: Can't resolve './missing'") === null, 'paths are runner artifacts');
+  const r = matchObstacle("Module not found: Can't resolve 'lodash'");
+  assert(r, 'real package names still match');
   assert(r.type === 'module-not-found');
-  assert(r.module === './missing');
+  assert(r.module === 'lodash');
 });
 
 test('matches Python ModuleNotFoundError', () => {

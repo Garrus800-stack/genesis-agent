@@ -159,17 +159,24 @@ class GoalPersistence {
       this.goalStack.goals.push(goal);
       resumed.push(goal);
 
-      // Restore step checkpoint if available
+      // Restore step checkpoint if available.
+      // v7.9.37 (field, F2): world separation — the checkpoint's stepIndex
+      // counts PLAN steps (written on agent-loop:step-complete), while
+      // goal.currentStep counts the legacy GoalStack world and is born 0.
+      // Writing one into the other made AgentLoopPursuit resume fresh goals
+      // at step 2. The loop now reads this transient field instead; the
+      // stack-world fields stay untouched.
       const checkpoint = this._stepCheckpoints.get(goal.id);
       if (checkpoint && typeof checkpoint.stepIndex === 'number') {
-        goal.currentStep = checkpoint.stepIndex;
-        if (checkpoint.partialResults) {
-          goal.results = checkpoint.partialResults;
-        }
+        goal._loopCheckpoint = {
+          stepIndex: checkpoint.stepIndex,
+          partialResults: Array.isArray(checkpoint.partialResults) ? checkpoint.partialResults : [],
+        };
       }
 
       this.bus.fire('goal:resumed', {
         id: goal.id,
+        parentGoalId: goal.parentGoalId ?? null, // v7.9.37 (V-C): the chain must survive a boot
         description: goal.description,
         step: goal.currentStep,
         totalSteps: goal.steps ? goal.steps.length : 0,
@@ -365,6 +372,12 @@ class GoalPersistence {
       }
     }
 
+    // v7.9.37 pass 6 (S-D): the archive carries the honest outcome — field
+    // 11.07.: abandoned goal archived with empty outcome.
+    if (!goal.outcome) {
+      const _why = goal.failureReason || goal.abandonReason || goal.lastError || goal.reason;
+      if (_why) goal.outcome = String(_why).slice(0, 300);
+    }
     this._archive.push(goal);
     this._activeGoals = this._activeGoals.filter(g => g.id !== goalId);
     this._stepCheckpoints.delete(goalId);

@@ -39,7 +39,7 @@ EmotionalState ──emit('emotion:shift')──→ EventBus ──→ PromptBui
 
 Key properties:
 
-- **498 event types** catalogued in `EventTypes.js` (v7.9.36 baseline)
+- **498 event types** catalogued in `EventTypes.js` (v7.9.37 baseline)
 - **498 payload schemas** in `EventPayloadSchemas.js` — full parity since v7.6.x (every catalog entry has a registered schema); dev-mode validation throws on mismatch
 - **Ring buffer history** — last 500 events for debugging
 - **Source tracking** — every event carries `{ source: 'ModuleName' }` for audit
@@ -51,6 +51,24 @@ New v7.5.6 events: `model:marked-unavailable`, `model:unavailable-cleared`, `mod
 New v7.7.9 events (InnerSpeech + PSE): `inner-speech:emitted`, `inner-speech:overflowed`, `pse:gate-blocked`, `pse:scored`, `pse:surfaced`. The InnerSpeech events thread the ring buffer; the PSE events let `/proactive-status` surface suppression reasons without digging into raw structures.
 
 New v7.8.9–v7.9.4 events (Können maturity chain): `skill:candidate-extracted`, `skill:forged`, `skill:promoted`, `skill:discard-suggested`, `skill:discarded`, `skill:rehearsed`, `selfnarrative:skill-acquired`, `skills:reloaded`. The `koennen-promotion-v794` contract prefix in `stale-refs.json` locks the shapes against silent drift. v7.9.31 adds `skill:candidate-created` — the SkillManager intake announcing a maturing candidate (replaces the retired `daemon:skill-created`).
+
+v7.9.37 (K follow-up, same version): the nudge and the synthesis carry the recent conversation (field: a reply of "ok" made the model context-blind and it said so); questions to the human are not announcements; a fruitless nudge never cascades; npm start rebuilds a stale UI bundle (the field ran pre-W renderer code for days).
+
+v7.9.37 (W follow-up, same version): slash-as-prose confronted after tool rounds; prompt rule rewritten without quoting the announce phrase; continuations never address the user and re-emit cut tool_calls whole; the done event carries the final text so the UI replaces intermediate rounds (one clean bubble); live tool lifecycle (running→done) and typing pulse until the turn ends.
+
+v7.9.37 (G follow-up, same version): step-type aliases are one truth (validator included — phantom blockers die); the approval card names goal/why/blockers/consequences + trust level; self-mod never trust-bypassed; approval timeout parks instead of hanging; goal id set early; goal families persist cross-session into the planning prompt.
+
+v7.9.37 (pass 6, same version): sandbox env grounded (GENESIS_ROOT + NODE_PATH, both spawn paths; cwd isolation kept); code prompt teaches absolute requires, inspection read-only; failure taxonomy never null (lazy fallback) + field env patterns; self-modifying steps blocked toward the proposal pipeline; archive carries outcomes; crash boots leave a flight-recorder trace; announce-stutter replaced by one honest status line, detector knows the field idioms.
+
+v7.9.37 (pass 5, same version): one recursive, case-insensitive file resolver for read/open/summarize (one match acts; ambiguity lists; the question remembers itself — never asked twice); 📄 provenance heads on every file answer; two-strike announce-reprompt + prompt rule against announce-as-prose tool use; ComSpec-safe shell spawn on Windows.
+
+v7.9.37 (pass 4, same version): num_ctx now carries the model's real window via /api/show (was hard 8192 — the root of months of truncated-prompt failures); num_predict always explicit; cloud-fair first-chunk (300s) with a two-strike stream-timeout mark; no reason-downgrade on re-marks; honest degraded/fallback logs; plan-family variety; identity forbids invented versions and cut-off claims; act-don't-ask at full autonomy; non-idle goals report outcomes into chat; visible [STEP-DIAG] lines; probe-model.js for one-minute model truth.
+
+v7.9.37 (pass 3, same version): continuation failures are explicit and partials are discarded (model marked 30min on max-continuations); an exhausted chain degrades to the best local model; the session cost cap enters idle rest-mode (one transition, no hammering) and rate/budget failures park an activity for ~4 cycles; replans+repairs share a 5-round budget with a step ceiling min(40, max(24, 3×initial)); failed activity runs are persisted in the stats.
+
+v7.9.37 (field-2, same version): scripts get `GENESIS_ROOT` in their environment and the CODE conventions teach `require(path.join(process.env.GENESIS_ROOT,'src/...'))`; inline shell scripts with relative requires are rejected pre-approval with a teachable error; legacy step types (think/check/create-file …) alias silently onto loop types; failure messages carry `(attempt n/3)`.
+
+v7.9.37 (field): goal dedup now treats `abandoned` as terminal (both prompt fences and the overlap fence see it), fresh goals no longer skip step 1 (plan-world resume reads a transient `_loopCheckpoint`; `goal.currentStep` stays with the legacy stack path), the activity's curated preset steps reach the loop again (`goal.steps` fallback), and the plan context window is 10.
 
 New v7.9.36 kind (concern): the ConcernMonitor emits a `concern` thought into InnerSpeech only when two independent sources agree (journal session pattern + user-model affect); the PSE pipeline applies all existing guards plus the new generic per-kind wallclock cap (gate 6.5, concern ≤ 1/7d) and a 30-day decline window with its own suppression reasons (`kind-wallclock-cap`, `kind-declined`) — respect stays distinguishable from rate limiting in `/proactive-status`.
 

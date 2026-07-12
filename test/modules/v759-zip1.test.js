@@ -224,7 +224,7 @@ describe('v7.5.9 ZIP1 Phase 0 — detectToolIntentWithoutCall', () => {
 
   test('source-presence: ChatOrchestrator integrates re-prompt', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8');
-    assert(/_toolIntentReprompted/.test(src),
+    assert(/_toolIntentReprompts/.test(src), // v7.9.37 pass 5 (X4): counter, two strikes
       'ChatOrchestrator must track re-prompt state');
     assert(/detectToolIntentWithoutCall/.test(src),
       'ChatOrchestrator must call the detector');

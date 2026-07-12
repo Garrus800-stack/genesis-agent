@@ -37,15 +37,22 @@ const _log = createLogger('ModelBridge');
 // the move is internal-only.
 
 /** @type {Array<{pattern: RegExp, score: number, note: string}>} */
+// v7.9.37 (T2): families instead of pinned generations. The old table matched
+// /deepseek-v[23]/ — so deepseek-v4-pro scored 50 (unknown) and LOST against
+// deepseek-v3.2 (92). Every new model generation fell through to neutral.
+// Family patterns + a version bonus (see _versionBonus) keep the ranking honest
+// as models evolve: within a family, newer always outranks older.
 const MODEL_TIERS = [
   // Tier 1: Known excellent code models (score 90-100)
   { pattern: /claude/i,                          score: 100, note: 'Anthropic Claude' },
-  { pattern: /gpt-4o|gpt-4-turbo/i,             score: 95,  note: 'OpenAI GPT-4' },
-  { pattern: /deepseek-coder|deepseek-v[23]/i,   score: 92,  note: 'DeepSeek Coder' },
-  { pattern: /qwen-?2\.5.*(?:72|32|14)b/i,       score: 90,  note: 'Qwen 2.5 large' },
-  { pattern: /qwen-?3.*coder/i,                  score: 90,  note: 'Qwen 3 Coder' },
+  { pattern: /\bo[1-9]\b|gpt-[5-9]/i,            score: 96,  note: 'OpenAI frontier' },
+  { pattern: /gpt-4o|gpt-4-turbo|gpt-4\.\d/i,    score: 93,  note: 'OpenAI GPT-4' },
+  { pattern: /deepseek/i,                        score: 92,  note: 'DeepSeek (any generation)' },
+  { pattern: /qwen-?3.*coder/i,                  score: 91,  note: 'Qwen 3 Coder' },
+  { pattern: /kimi/i,                            score: 90,  note: 'Kimi (any generation)' },
+  { pattern: /glm-?(?:4\.[5-9]|[5-9])/i,         score: 89,  note: 'GLM recent (strong coder)' },
+  { pattern: /qwen-?2\.5.*(?:72|32|14)b/i,       score: 88,  note: 'Qwen 2.5 large' },
   { pattern: /qwen-?3(?!.*vl).*(?:235|110|32)b/i, score: 89, note: 'Qwen 3 large' },
-  { pattern: /kimi-k2/i,                         score: 88,  note: 'Kimi K2' },
   { pattern: /llama-?3.*(?:70|405)b/i,           score: 88,  note: 'Llama 3 large' },
   { pattern: /dolphin.*(?:70|405)b/i,            score: 87,  note: 'Dolphin large' },
   { pattern: /codellama|code-?llama/i,           score: 85,  note: 'Code Llama' },
@@ -80,6 +87,17 @@ const MODEL_TIERS = [
   { pattern: /gpt-oss/i,                         score: 20,  note: 'GPT-OSS (unstable)' },
   { pattern: /minimax/i,                         score: 15,  note: 'MiniMax (weak at code)' },
 ];
+
+// v7.9.37 (T2): first version-like number in the name that is NOT a parameter
+// size ("72b", "120b"). kimi-k2.7 → 2.7, deepseek-v4-pro → 4, qwen-2.5-72b → 2.5,
+// gpt-oss:120b → none. Capped at 4 points so a version never crosses a tier.
+function _versionBonus(name) {
+  const m = String(name || '').match(/(\d+(?:\.\d+)?)(?![\d.]*b\b)/i);
+  if (!m) return 0;
+  const v = parseFloat(m[1]);
+  if (!isFinite(v) || v <= 0) return 0;
+  return Math.min(v, 10) * 0.4;
+}
 
 // ── Mixin object ────────────────────────────────────────────
 
@@ -170,7 +188,25 @@ const discovery = {
         }
       }
 
-      // Priority 2: Cloud backends (configured = user actively chose them)
+      // Priority 2 (v7.9.37 T1): the user's OWN fallback chain, in the user's
+      // order. Field 17: the preferred model was marked unavailable and Genesis
+      // jumped straight to score-ranking — the configured chain was never asked.
+      // An explicitly chosen alternative always beats a heuristic.
+      if (!chosen) {
+        const chain = this._settings?.get?.('models.fallbackChain') || [];
+        for (const wanted of (Array.isArray(chain) ? chain : [])) {
+          if (this.isMarkedUnavailable(wanted)) continue;
+          const hit = this.availableModels.find(m => m.name === wanted)
+                   || this.availableModels.find(m => m.name.startsWith(String(wanted).split(':')[0]));
+          if (hit && !this.isMarkedUnavailable(hit.name)) {
+            chosen = hit;
+            _log.info(`[MODEL] Using fallback chain (your configured alternative): ${chosen.name}`);
+            break;
+          }
+        }
+      }
+
+      // Priority 3: Cloud backends (configured = user actively chose them)
       if (!chosen) {
         chosen = this.availableModels.find(m => m.backend === 'anthropic' && !this.isMarkedUnavailable(m.name))
               || this.availableModels.find(m => m.backend === 'openai' && !this.isMarkedUnavailable(m.name));
@@ -209,7 +245,10 @@ const discovery = {
    */
   _scoreModel(name) {
     for (const tier of MODEL_TIERS) {
-      if (tier.pattern.test(name)) return tier.score;
+      // v7.9.37 (T2): family score + version bonus — deepseek-v4-pro must beat
+      // deepseek-v3.2, kimi-k2.7 must beat kimi-k2. The bonus is capped (max 4)
+      // so it never crosses a tier boundary, only orders within/near a family.
+      if (tier.pattern.test(name)) return Math.round((tier.score + _versionBonus(name)) * 10) / 10;
     }
     // v6.0.5: Size-based fallback for unknown models.
     // Larger models are generally more capable — score by parameter count.

@@ -34,10 +34,10 @@ describe('v765-modelbridge-split contract: ModelBridgeFailover mixin', () => {
     assert(typeof mod.failoverMixin === 'object', 'failoverMixin must be an object');
   });
 
-  test('failoverMixin has exactly three methods', () => {
+  test('failoverMixin has exactly four methods', () => {
     const { failoverMixin } = require(path.join(ROOT, 'src/agent/foundation/ModelBridgeFailover'));
     const keys = Object.keys(failoverMixin).sort();
-    assertEqual(keys.length, 3, `expected 3 methods, got ${keys.length}: ${keys.join(',')}`);
+    assertEqual(keys.length, 4, `expected 4 methods, got ${keys.length}: ${keys.join(',')}`);
     assert(keys.includes('_findFallbackBackend'), 'missing _findFallbackBackend');
     assert(keys.includes('_classifyFailoverReason'), 'missing _classifyFailoverReason');
     assert(keys.includes('_emitFailoverUnavailable'), 'missing _emitFailoverUnavailable');

@@ -237,7 +237,7 @@ console.log('\n  📦 v7.5.1 Regression Tests\n');
 
 // ── C/E: preload ALLOWED_RECEIVE pruned ───────────────────────
 (async () => {
-  await test('C: preload ALLOWED_RECEIVE has 14 entries (4 telemetry removed in v7.5.1, +1 added in v7.7.9 Phase 2, +4 in v7.9.4 Können Phase 3, +1 in v7.9.12)', async () => {
+  await test('C: preload ALLOWED_RECEIVE has 15 entries (4 telemetry removed in v7.5.1, +1 added in v7.7.9 Phase 2, +4 in v7.9.4 Können Phase 3, +1 in v7.9.12, +1 in v7.9.37 W6a tool lifecycle)', async () => {
     const preloadSrc = fs.readFileSync(path.join(__dirname, '../../preload.mjs'), 'utf8');
     const m = preloadSrc.match(/const\s+ALLOWED_RECEIVE\s*=\s*\[([^\]]+)\]/s);
     assert(m, 'ALLOWED_RECEIVE block found');
@@ -248,7 +248,8 @@ console.log('\n  📦 v7.5.1 Regression Tests\n');
     // skill:discarded, skill:quarantined, skill:discard-suggested) — bridged
     // by AgentCoreWire for renderer-side toast notifications.
     // v7.9.12: added 1 (model:cloud-without-fallback — config warning toast).
-    assert.strictEqual(channels.length, 14, `expected 14 channels, got ${channels.length}: ${channels}`);
+    // v7.9.37 (W6a): added 1 (agent:tool-status — live tool lifecycle in the bubble).
+    assert.strictEqual(channels.length, 15, `expected 15 channels, got ${channels.length}: ${channels}`);
     // The 4 removed:
     for (const removed of ['goal:driver-pickup', 'goal:resumed-auto', 'goal:discarded', 'driver:unresponsive']) {
       assert(!channels.includes(removed), `${removed} should be removed from ALLOWED_RECEIVE`);

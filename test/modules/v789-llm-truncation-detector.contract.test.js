@@ -71,9 +71,16 @@ describe('llm-resilience-v789 contract: isComplete handles truncation signals', 
   });
 
   test('llm-resilience-v789 contract: doneReason=null (TCP-drop) flags incomplete', () => {
+    // v7.9.37 (U1): a MISSING done_reason is no longer assumed to be a cut —
+    // some backends never report one on a clean finish, and field 18 showed a
+    // complete answer being rewritten because of that assumption. The TCP-drop
+    // protection is now derived from the text: a stream that dropped ends
+    // mid-word (this payload does), a finished answer ends on punctuation.
     const r = isComplete('some partial', null);
-    assertEqual(r.complete, false, 'null=truncated');
-    assertEqual(r.reason, 'truncation-signal:null', 'null reason');
+    assertEqual(r.complete, false, 'null + mid-word tail = truncated');
+    assertEqual(r.reason, 'free-no-signal:open-end', 'null reason (structural)');
+    const clean = isComplete('Fertig. Das war alles.', null);
+    assertEqual(clean.complete, true, 'null + clean ending = complete (no rewrite)');
   });
 
   test('llm-resilience-v789 contract: doneReason=chunk-timeout flags incomplete', () => {

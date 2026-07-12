@@ -58,19 +58,19 @@ const ctx = (over = {}) => Object.assign(Object.create(H), { fp: { rootDir: root
   // ---- summarizeFile handler: one deterministic call, no tool loop ----
   clearLastDoc();
   let out = await H.summarizeFile.call(ctx(), 'fasse ONTOGENESIS zusammen');
-  ok('summarize named extensionless -> resolves docs/ONTOGENESIS.md', out && /Zusammenfassung von ONTOGENESIS\.md/.test(out));
+  ok('summarize named extensionless -> resolves docs/ONTOGENESIS.md', out && /📄 ONTOGENESIS\.md gelesen \(\d+ Zeilen\) — Zusammenfassung:/.test(out)); // v7.9.37 pass 5 (X3)
   ok('summarize passes FULL content in a single user message', lastCall && lastCall.msgs.length === 1 && /Substrat/.test(lastCall.msgs[0].content));
   ok('summarize directive forbids ask/tool/announce', lastCall && /nicht nach|kein Werkzeug|direkt/i.test(lastCall.sys));
   ok('summarize uses the user-selected model', lastCall && lastCall.opts && lastCall.opts._userChat === true);
 
   clearLastDoc(); setLastDoc(path.join(root, 'notiz.txt'), 'file');
   out = await H.summarizeFile.call(ctx(), 'fasse das zusammen');
-  ok('summarize anaphora "fasse das zusammen" -> last file', out && /Zusammenfassung von notiz\.txt/.test(out));
+  ok('summarize anaphora "fasse das zusammen" -> last file', out && /📄 notiz\.txt gelesen \(\d+ Zeilen\) — Zusammenfassung:/.test(out)); // (X3)
 
   clearLastDoc();
   fs.writeFileSync(path.join(root, 'leer.txt'), '');
   out = await H.summarizeFile.call(ctx(), 'fasse leer zusammen');
-  ok('summarize empty file -> "leer" (no LLM call)', out && /leer/.test(out) && !/Zusammenfassung von/.test(out));
+  ok('summarize empty file -> "leer" (no LLM call)', out && /leer/.test(out) && !/— Zusammenfassung:/.test(out)); // (X3)
 
   clearLastDoc();
   out = await H.summarizeFile.call(ctx({ modelBridge: null }), 'fasse ONTOGENESIS zusammen');
@@ -86,7 +86,7 @@ const ctx = (over = {}) => Object.assign(Object.create(H), { fp: { rootDir: root
 
   clearLastDoc();
   out = await H.summarizeFile.call(ctx({ lang: { detect: () => 'en' } }), 'summarize notiz');
-  ok('summarize English -> English head + directive', out && /Summary of notiz\.txt/.test(out) && /English/.test(lastCall.sys));
+  ok('summarize English -> English head + directive', out && /📄 notiz\.txt read \(\d+ lines\) — summary:/.test(out) && /English/.test(lastCall.sys)); // (X3)
 
   // ---- createFile content phrasings ----
   const mk = async (msg, file, exp) => {
@@ -105,7 +105,7 @@ const ctx = (over = {}) => Object.assign(Object.create(H), { fp: { rootDir: root
   fs.writeFileSync(path.join(root, 'x1.txt'), 'test');
   clearLastDoc();
   out = await H.readFile.call(ctx(), 'was ist in dem dokument x1');
-  ok('readFile "was ist in dem dokument x1" -> reads x1.txt', /Inhalt von x1\.txt/.test(out) && /test/.test(out));
+  ok('readFile "was ist in dem dokument x1" -> reads x1.txt', /📄 x1\.txt gelesen \(\d+ Zeilen\)/.test(out) && /test/.test(out)); // (X3)
   clearLastDoc();
   out = await H.readFile.call(ctx(), 'was ist der inhalt von x1');
   ok('readFile "was ist der inhalt von x1"', /test/.test(out));

@@ -101,6 +101,7 @@ const ALLOWED_SEND = [
 
 const ALLOWED_RECEIVE = [
   'agent:stream-chunk',
+  'agent:tool-status', // v7.9.37 (W6a): live tool lifecycle (Agent -> UI push)
   'agent:stream-done',
   'agent:status-update',
   'agent:open-in-editor',

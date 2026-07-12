@@ -205,7 +205,7 @@ class _ToolRegistryBuiltinsHost {
         // and when real Unix tools are on PATH (Git for Windows). The raw
         // blocklist above already ran, so destructive commands are still caught.
         const runCmd = adaptCommand(cmd, process.platform);
-        const shell = isWin ? 'cmd.exe' : '/bin/sh';
+        const shell = isWin ? (process.env.ComSpec || 'cmd.exe') : '/bin/sh'; // v7.9.37 pass 5 (T1)
         const shellFlag = isWin ? '/c' : '-c';
         // v7.9.11: read raw buffer on Win, decode with detected codepage.
         // Pre-fix `encoding: 'utf-8'` mistook cp850/cp1252 bytes for UTF-8
@@ -352,7 +352,9 @@ class _ToolRegistryBuiltinsHost {
       if (stat.isDirectory()) return { content: '', size: 0, exists: true, error: 'Path is a directory' };
       const maxBytes = input.maxBytes || 100000;
       const content = fs.readFileSync(filePath, 'utf-8').slice(0, maxBytes);
-      return { content, size: stat.size, exists: true };
+      // v7.9.37 (R2): provenance head — the chat brain must SEE that a real read
+      // happened (field 11.07.: reads via the file-read tool carried no 📄 marker).
+      return { content: `📄 ${require('path').basename(filePath)} gelesen (${String(content).split('\n').length} Zeilen) —\n${content}`, size: stat.size, exists: true };
     }, 'system');
 
     // FIX v6.1.1: Open file in the Genesis editor panel

@@ -33,6 +33,10 @@
 
 'use strict';
 
+// v7.9.37 pass 4 (B2): Ollama convention — cloud endpoints carry ':cloud'.
+// Module-level helper (NOT a mixin method — v7.6.5 counts exactly four).
+function isCloudModel(name) { return /:cloud$/i.test(String(name || '')); }
+
 const failoverMixin = {
 
   /**
@@ -70,6 +74,12 @@ const failoverMixin = {
   // consumers (dashboard, CostStream later, MetaLearning) can aggregate
   // without string-matching err.message themselves.
   _classifyFailoverReason(err) {
+    // v7.9.37 pass 4 (B1): the R1a wrapper throws "[CONTINUATION] … max-continuations …" —
+    // without this pattern the failover re-marked the model with reason=undefined,
+    // overwriting the wrapper's good mark (field 10.07.: persist showed reason:None).
+    if (/max-continuations|continuation-exhausted/i.test((err && err.message) || '')) {
+      return 'continuation-exhausted';
+    }
     const msg = (err?.message || '').toLowerCase();
     // v7.5.7-fix: subscription checked before generic 401/403 'auth'
     // — Ollama Cloud Pro-gates carry both. Without this, gated cloud
@@ -99,6 +109,24 @@ const failoverMixin = {
     return 'other';
   },
 
+  // v7.9.37 pass 3 (R1b): when preferred AND the whole fallback chain are
+  // unavailable, pick the best still-usable discovered model (score-ranked,
+  // same mechanism the boot auto-select uses). Returns { name, backend } or
+  // null when truly nothing is usable — the caller then falls through to the
+  // existing failover-unavailable path.
+  _pickDegradedLocal() {
+    try {
+      const eligible = (this.availableModels || [])
+        .filter(m => m && m.name && !this.isMarkedUnavailable(m.name));
+      if (eligible.length === 0) return null;
+      // v7.9.37 pass 4 (B2): prefer non-cloud when any is usable — but the
+      // user's cloud-only setup stays first-class (cloud wins if it's all there is).
+      const nonCloud = eligible.filter(m => !isCloudModel(m.name));
+      const chosen = this._selectBestModel(nonCloud.length > 0 ? nonCloud : eligible);
+      return chosen ? { name: chosen.name, backend: chosen.backend || 'ollama' } : null;
+    } catch (_e) { return null; }
+  },
+
   // v7.4.8: emitted when _findFallbackBackend returns null. Closes the
   // observability gap — without this event, "Genesis tried to failover
   // but had nothing to switch to" was invisible in EventStore.
@@ -116,4 +144,4 @@ const failoverMixin = {
 
 };
 
-module.exports = { failoverMixin };
+module.exports = { failoverMixin, isCloudModel };

@@ -37,7 +37,7 @@ class ApprovalGate {
    * Request user approval. Returns a Promise<boolean>.
    * Auto-rejects after timeout. Trust system can auto-approve.
    */
-  request(action, description) {
+  request(action, description, opts = {}) { // v7.9.37 (G2/G4): meta + per-request timeout
     // FIX v7.2.2: Read trustLevelSystem lazily from parent if not set directly.
     // ApprovalGate is constructed during AgentLoop's constructor when
     // trustLevelSystem is still null (not yet late-bound by Container).
@@ -62,8 +62,9 @@ class ApprovalGate {
       // v7.9.20: only arm an auto-reject timer when a positive timeout is configured.
       // _timeoutMs <= 0 means "stay until the user clicks" — the prompt persists in the
       // Dashboard indefinitely and resolves only through approve()/reject().
-      const timeout = this._timeoutMs > 0
-        ? setTimeout(() => { this._pending = null; resolve(false); }, this._timeoutMs)
+      const _effTimeout = Number.isFinite(opts.timeoutMs) ? opts.timeoutMs : this._timeoutMs;
+      const timeout = _effTimeout > 0
+        ? setTimeout(() => { this._pending = null; resolve(opts.onTimeout === 'timeout' ? 'timeout' : false); }, _effTimeout)
         : null;
 
       this._pending = {
@@ -80,11 +81,41 @@ class ApprovalGate {
         },
       };
 
+      const _tls = this.trustLevelSystem || this._parent?.trustLevelSystem;
       this.bus.fire('agent-loop:approval-needed', {
         action, description,
         goalId: this.currentGoalId,
+        ...(opts.meta || {}),
+        trustLevel: _tls?._level ?? null, // v7.9.37 (G2): the card names the level
       }, { source: 'ApprovalGate' });
     });
+  }
+
+  /**
+   * v7.9.37 (G2/G3): build a human-readable plan-approval card. Field 11.07.:
+   * the card said only "Unknown step type" tech-speak — no goal, no why, no
+   * consequence. Self-modification content is named and never trust-bypassed.
+   */
+  buildPlanCard({ goalDescription, dryRun, presetGoal }) {
+    const selfMod = (presetGoal?.steps || []).some(s =>
+      /(create|relocate|move|write|generate)\b[^\n]{0,80}\bsrc[\\/]/i.test(s?.description || ''));
+    const issueLines = (dryRun.validation?.results || [])
+      .flatMap(r => (r.issues || []).map(i => `- Step ${r.stepIndex} (${r.type}): ${i}`))
+      .slice(0, 6).join('\n') || String(dryRun.summary || '').slice(0, 400);
+    return {
+      action: selfMod ? 'self-modification' : 'plan-has-issues',
+      description: `Approval needed — goal: "${(goalDescription || '').slice(0, 120)}"\n` +
+        `Why: ${presetGoal?.source || 'agent'} plan with ${dryRun.validation?.totalIssues ?? '?'} real blocker(s)${selfMod ? ' (contains self-modification)' : ''}\n` +
+        `${issueLines}\n\nApprove = run this plan anyway · Reject = drop the goal`,
+      opts: { timeoutMs: 10 * 60 * 1000, onTimeout: 'timeout',
+        meta: { goalDescription: (goalDescription || '').slice(0, 200), selfMod } },
+    };
+  }
+
+  /** v7.9.37 (G4): one-call plan approval — build the card, ask, return true/false/'timeout'. */
+  requestPlanCard(input) {
+    const c = this.buildPlanCard(input);
+    return this.request(c.action, c.description, c.opts);
   }
 
   /** User approves the pending action. */

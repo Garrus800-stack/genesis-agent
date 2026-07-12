@@ -23,7 +23,7 @@ const { trySkillStep } = require('./skill-step');
 // v7.9.11: Win console codepage handling for SHELL-step fallback
 const { decodeWinConsole } = require('../core/shell/WinConsoleEncoding');
 const { toPosix } = require('../core/utils');
-const { sourceForPrompt, checkSyntaxForPrompt } = require('./AgentLoopGrounding');
+const { sourceForPrompt, checkSyntaxForPrompt, structurallyUnreachableResources } = require('./AgentLoopGrounding');
 const path = require('path');
 const fs = require('fs');
 const _log = createLogger('AgentLoopSteps');
@@ -156,12 +156,21 @@ class AgentLoopStepsDelegate {
         // read-only treatment instead of silently no-oping into a fake
         // success-summary. The description is annotated so the fallback is
         // visible in logs and self-statements.
+        // v7.9.37 (field-2, L2): F5 revived the preset branch and with it the
+        // legacy vocabulary — known aliases map silently, WARN stays for unknowns.
+        const _ALIAS = { think: 'ANALYZE', check: 'ANALYZE', read: 'ANALYZE', investigate: 'ANALYZE', 'create-file': 'CODE', write: 'CODE', run: 'SHELL', execute: 'SHELL', find: 'SEARCH' };
+        const _lc = (typeof step.type === 'string') ? step.type.toLowerCase() : '';
+        if (_ALIAS[_lc]) {
+          _log.debug(`[STEPS] Step type "${step.type}" → ${_ALIAS[_lc]} (legacy alias)`);
+          step.type = _ALIAS[_lc];
+        } else {
         const _origType = (typeof step.type === 'string' && step.type)
           ? step.type
           : '<missing>';
         _log.warn(`[STEPS] Step had unknown/missing type "${_origType}" — falling back to ANALYZE`);
         step.description = `[was ${_origType}] ${step.description || ''}`.trim();
         step.type = 'ANALYZE';
+        }
       }
 
       // v7.4.5 Baustein C: Pre-existence check.
@@ -191,11 +200,8 @@ class AgentLoopStepsDelegate {
               // fail the step instead of blocking. If at least one missing
               // resource is plausible (or non-file:), keep the block — those
               // are legitimate waits.
-              const implausiblePaths = _filterImplausibleFilePaths(
-                check.missing, loop.rootDir || process.cwd()
-              );
-              if (implausiblePaths.length > 0 &&
-                  implausiblePaths.length === check.missing.length) {
+              const implausiblePaths = _filterImplausibleFilePaths(check.missing, loop.rootDir || process.cwd());
+              if (implausiblePaths.length > 0 && implausiblePaths.length === check.missing.length) {
                 _log.info(`[STEPS] step failed — implausible paths: ${implausiblePaths.join(', ')}`);
                 return {
                   output: null,
@@ -204,14 +210,15 @@ class AgentLoopStepsDelegate {
                 };
               }
               _log.info(`[STEPS] step blocked — missing resources: ${check.missing.join(', ')}`);
-              // v7.9.9 final: for idle-mind-sourced goals, never block-and-wait
-              // for resources. Idle-mind goals are agent-initiated activities,
-              // not user-driven requests — there is nobody who is going to
-              // make the missing file appear. Field-test 2026-05-24 showed
-              // a 15-minute stall waiting on a hallucinated test\AgentCoreHealth.test.js.
-              // Convert to immediate failure so the recovery path (FailureTaxonomy,
-              // decompose-on-failure) runs instead of the StalledGoalWatchdog.
+              // v7.9.9: idle-mind goals never block-and-wait — nobody will make
+              // the missing resource appear (field 2026-05-24: 15-min stall on a
+              // hallucinated test file). Fail so recovery runs, not the watchdog.
               const goalSource = loop?.goalStack?.getById?.(loop.currentGoalId)?.source;
+              const _unreachable = structurallyUnreachableResources(check.missing, loop);
+              if (_unreachable.length > 0 && _unreachable.length === check.missing.length) {
+                _log.info(`[STEPS] step failed — unreachable resource(s): ${_unreachable.join(', ')}`);
+                return { output: null, error: `Resource '${_unreachable.join(', ')}' unavailable in this habitat (0 peers, discovery disabled) — replan without delegation.`, durationMs: Date.now() - start };
+              }
               if (goalSource === 'idle-mind') {
                 return {
                   output: null,
@@ -454,6 +461,12 @@ class AgentLoopStepsDelegate {
     }
 
     // Safety: request approval for shell commands
+    // v7.9.37 (field-2, L1c): reject inline scripts with RELATIVE requires copied
+    // from source files BEFORE approval — teachable error feeds recovery (cf. R4).
+    if (/require\(\s*['"]\.\.?\//.test(command)) {
+      return { output: '', command, error: "Inline script uses a RELATIVE require copied from a source file — it cannot resolve from here. Load project modules via: node -e \"const p=require('path');const M=require(p.join(process.env.GENESIS_ROOT,'src/agent/core/Logger.js'));...\" (GENESIS_ROOT is provided). Re-declare any module-internal constants locally instead of referencing them." };
+    }
+
     let approvalDetail = `Run: ${command}`;
     if (cleanupReport && !cleanupReport.safe && cleanupReport.findings.length > 0) {
       approvalDetail += `\n\n⚠ Pre-deletion audit findings for ${cleanupReport.target}:`;
@@ -480,7 +493,8 @@ class AgentLoopStepsDelegate {
       // the user got no actual command output. The shell command was
       // either never observed to completion (fire-and-forget) or the
       // output was lost because we returned before resolution.
-      const result = await loop.shell.run(command, { cwd: loop.rootDir, timeout: step.timeoutMs || TIMEOUTS.SHELL_EXEC, origin: SourceTrust.AGENT_LOOP });
+      // v7.9.37 (field-2, L1a): GENESIS_ROOT lets scripts load project modules.
+      const result = await loop.shell.run(command, { cwd: loop.rootDir, env: { ...process.env, GENESIS_ROOT: loop.rootDir }, timeout: step.timeoutMs || TIMEOUTS.SHELL_EXEC, origin: SourceTrust.AGENT_LOOP });
       // v7.4.6.fix #28: include command + adapted command in result so
       // Verifier _formatOutputs can show the user what actually ran.
       return {
@@ -513,6 +527,7 @@ class AgentLoopStepsDelegate {
       const isWin = process.platform === 'win32';
       const { stdout } = await execFileAsync(bin, args, {
         cwd: loop.rootDir,
+        env: { ...process.env, GENESIS_ROOT: loop.rootDir }, // v7.9.37 (field-2, L1a)
         timeout: step.timeoutMs || TIMEOUTS.SHELL_EXEC,
         // v7.9.11: read raw buffer on Win, decode with detected codepage.
         // Pre-fix utf-8 produced U+FFFD on cp850 output.

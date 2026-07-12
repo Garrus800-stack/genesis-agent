@@ -498,6 +498,14 @@ body {
 .streaming-cursor { animation: blink 0.8s step-end infinite; color: var(--accent); }
 
 /* v5.1.0: Animated typing indicator (3 bouncing dots) */
+/* v7.9.37 (W6a): live tool lifecycle in the chat bubble */
+.tool-status-bar { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+.tool-status { font-size: 0.85em; opacity: 0.75; }
+.tool-status.running .tool-dots span { animation: typing-blink 1.2s infinite; }
+.tool-status.running .tool-dots span:nth-child(2) { animation-delay: 0.2s; }
+.tool-status.running .tool-dots span:nth-child(3) { animation-delay: 0.4s; }
+.tool-status.done { opacity: 0.55; }
+
 .typing-indicator {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 4px 0;

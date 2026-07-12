@@ -34,7 +34,7 @@ const PATTERNS = [
   {
     type: 'module-not-found',
     // Node.js / npm
-    regex: /Cannot find module ['"]([^'"]+)['"]/i,
+    regex: /Cannot find module ['"]([a-z@][a-z0-9@/_.-]*)['"]/i, // v7.9.37 (X2): npm names only — a path (backslash, drive, .js) is a runner artifact, not a package
     build: (match) => ({
       type: 'module-not-found',
       module: match[1],
@@ -45,7 +45,7 @@ const PATTERNS = [
   {
     type: 'module-not-found',
     // Webpack / generic
-    regex: /Module not found:.*['"]([^'"]+)['"]/i,
+    regex: /Module not found:.*['"]([a-z@][a-z0-9@/_.-]*)['"]/i, // v7.9.37 (X2): npm names only
     build: (match) => ({
       type: 'module-not-found',
       module: match[1],

@@ -95,7 +95,7 @@ const { VectorClock, PeerConsensus } = require('../../src/agent/hexagonal/PeerCo
 const { BootRecovery } = require('../../src/agent/foundation/BootRecovery');
 
 describe('E2E — BootRecovery Integration', () => {
-  test('sentinel lifecycle: write → clear → snapshot', () => {
+  test('sentinel lifecycle: write → clear → snapshot', async () => {
     const { SnapshotManager } = require('../../src/agent/capabilities/SnapshotManager');
     const genesisDir = path.join(ROOT, '.genesis');
     const mgr = new SnapshotManager({
@@ -110,7 +110,9 @@ describe('E2E — BootRecovery Integration', () => {
     assertEqual(pre.recovered, false);
     recovery.postBootSuccess();
 
-    // Verify snapshot was created
+    // Verify snapshot was created (v7.9.37 T3: scheduled off the boot path —
+    // 400 copyFileSync calls used to cost 4.8s of the boot; one tick now.)
+    await new Promise((r) => setTimeout(r, 20));
     const snaps = mgr.list();
     assert(snaps.some(s => s.name === '_last_good_boot'), 'should have good boot snapshot');
   });

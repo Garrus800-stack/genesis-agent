@@ -326,10 +326,13 @@ describe('AgentLoopRecovery.classifyAndRecover', () => {
   });
 
   test('survives null bus._container', async () => {
+    // v7.9.37 pass 6 (S-B): a null container no longer degrades to inaction —
+    // the lazy fallback taxonomy classifies (field 11.07.: 17× unclassified→none).
     const loop = mockLoop({ bus: { _container: null } });
     const r = new AgentLoopRecoveryDelegate(loop);
     const result = await r.classifyAndRecover({ type: 'code' }, { error: 'x' }, 0, () => {});
-    assertEqual(result.action, 'none');
+    assert(result && typeof result.action === 'string' && result.action.length > 0,
+      'fallback ft yields a real action instead of throwing or none-by-null');
   });
 
   test('passes correct context to classify', async () => {

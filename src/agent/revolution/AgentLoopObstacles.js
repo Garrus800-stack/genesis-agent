@@ -13,6 +13,14 @@ const _log = createLogger('AgentLoopRecovery');
 
 class _AgentLoopObstaclesHost {
   async _tryDecomposeOnRepeatedFailure(step, result, stepIndex, onProgress) {
+    // v7.9.37 (V-C): depth-1 guard — a decomposition child never spawns another
+    // investigate (field 11.07.: identical-title recursion four levels deep;
+    // the per-goal strike brake could not see the chain because every child is
+    // a NEW goal). The normal failure path (3 attempts → abandon) takes over.
+    if (this.loop && this.loop._goalSource === 'goal-decomposition') {
+      _log.info('[D] depth-1 guard: investigate goals do not spawn investigates');
+      return null;
+    }
     const goalId = this.loop.currentGoalId;
     if (!goalId) return null;
     const errMsg = (result && result.error) ? String(result.error) : '';
@@ -148,7 +156,7 @@ class _AgentLoopObstaclesHost {
     }
 
     onProgress?.({ phase: 'subgoal-spawned', subGoalId: subGoal.id, obstacle: obstacle.type });
-    _log.info(`[D] obstacle "${obstacle.type}" → spawned sub-goal ${subGoal.id} (parent=${parentId})`);
+    _log.info(`[D] obstacle "${obstacle.type || obstacle.name || 'synthetic'}" → spawned sub-goal ${subGoal.id} (parent=${parentId})`); // v7.9.37 (V-C): never log "undefined"
 
     return { spawned: true, subId: subGoal.id };
   }

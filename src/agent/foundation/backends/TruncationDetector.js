@@ -105,7 +105,12 @@ function isComplete(content, doneReason, shapeOverride) {
     'timeout',                // TCP socket timeout
     'abort',                  // external abort
     'error',                  // network/protocol error
-    null,                     // TCP-drop, no terminal chunk
+    // v7.9.37 (U1): `null` used to live here ("TCP-drop, no terminal chunk").
+    // But some backends simply never report a done_reason on a CLEAN finish —
+    // and then a perfectly complete answer was declared truncated (field 18:
+    // the awakening answer was rewritten a second time into the same bubble).
+    // A dropped stream still leaves a mid-sentence tail, so the absence of a
+    // signal is now decided structurally below, not assumed to be a cut.
   ]);
 
   if (TRUNCATED_REASONS.has(doneReason)) {
@@ -173,19 +178,42 @@ function isComplete(content, doneReason, shapeOverride) {
 
     case 'free':
     default: {
-      // Free-form text: short responses with balanced brackets pass through.
-      // (Already filtered out truncation signals above.)
+      // v7.9.37 (U1): no done_reason at all → decide by STRUCTURE, not by
+      // assumption, and decide it FIRST (the short-text shortcut below trusts
+      // a signal we do not have). A finished answer ends on sentence
+      // punctuation or a closed fence; a dropped stream ends mid-word — so the
+      // TCP-drop protection survives while complete answers are never rewritten.
+      if (doneReason === null || doneReason === undefined) {
+        return endsCleanly(content)
+          ? { complete: true, reason: 'free-no-signal:clean-end', shape }
+          : { complete: false, reason: 'free-no-signal:open-end', shape };
+      }
+      // Free-form text with a real stop signal: short + balanced passes through.
       const SHORT_THRESHOLD = 200;
       if (content.length < SHORT_THRESHOLD && bracketsBalanced(content)) {
         return { complete: true, reason: 'short-stop-balanced', shape };
       }
-      // Longer free-form: just trust doneReason='stop'.
       return { complete: true, reason: 'free-stop', shape };
     }
   }
 }
 
 // ── Internals ──────────────────────────────────────────────
+
+/**
+ * v7.9.37 (U1): does this free-form text end like a finished thought?
+ * Sentence punctuation, a closing quote/bracket, or a closed code fence.
+ * A stream that was cut mid-word ends on a word character — that is the
+ * signal we keep, now derived from the text instead of from a missing flag.
+ * @param {string} content
+ * @returns {boolean}
+ */
+function endsCleanly(content) {
+  const t = String(content || '').trimEnd();
+  if (!t) return false;
+  if (/```\s*$/.test(t)) return true;
+  return /[.!?…:"'”’»)\]}]$/.test(t);
+}
 
 /**
  * Check whether (), [], {} are balanced AND properly nested in code,

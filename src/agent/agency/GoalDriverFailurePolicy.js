@@ -74,12 +74,25 @@ const failurePolicyMixin = {
     // before the driver's failure path runs (live trace 2026-07-05:
     // goal:abandoned at .411, a "backing off" line at .534) — a backoff
     // promise for a goal that already left the live stack contradicts the
-    // event. Vocabulary note: core/goal-intent keeps completed in its own
-    // _DONE set and does not know 'abandoned' yet (field-line candidate);
-    // we union locally rather than widening the shared set in a field fix.
+    // event. v7.9.37: the field-line candidate is redeemed — 'abandoned'
+    // now lives in the shared _TERMINAL_GOAL_STATUS set (goal-intent.js),
+    // because the dedup fences consume it too; the local union is gone.
     const _st = goal && goal.status;
-    if (_st && (_TERMINAL_GOAL_STATUS.has(_st) || _DONE_GOAL_STATUS.has(_st) || _st === 'abandoned')) {
+    if (_st && (_TERMINAL_GOAL_STATUS.has(_st) || _DONE_GOAL_STATUS.has(_st))) {
       _log.info(`[DRIVER] pursuit of ${goalId} ended (${_st}) — no backoff scheduled`);
+      // v7.9.37 pass 4 (V3): chat↔goal bridge. Goals the USER cares about
+      // (anything not idle-born) report their outcome into the chat via the
+      // existing proactive-insight channel — no more "weiter" typing to learn
+      // what happened (field 10.07.: "Ich hab die Ergebnisse noch nicht").
+      if (goal && goal.source !== 'idle-mind') {
+        try {
+          const _out = (goal.outcome || goal.result || '').toString().slice(0, 200);
+          this.bus?.fire?.('idle:proactive-insight', {
+            activity: 'goal',
+            insight: `Ziel "${(goal.description || goalId).slice(0, 120)}" → ${_st}${_out ? `: ${_out}` : ''}`.slice(0, 300),
+          }, { source: 'GoalDriver' });
+        } catch (_e) { /* best-effort */ }
+      }
       return;
     }
 
@@ -247,6 +260,12 @@ const failurePolicyMixin = {
         // fought failure (real struggle, not hallucination) registers in affect.
         if (entry.count === 2 && !_isHallucination && this.bus?.fire) {
           this.bus.fire('goal:pursuit-struggling', { id: goalId, count: entry.count }, { source: 'GoalDriver' });
+        }
+        // v7.9.37 (field-2, L3): three ❌ cards for one goal read like the old
+        // duplicate bug — carry the attempt into the message itself so every
+        // surface (dashboard card, journal, log) tells retries from repeats.
+        if (errMsg && !String(errMsg).startsWith('(attempt')) {
+          errMsg = `(attempt ${entry.count}/${_failureCap + 1}) ${errMsg}`;
         }
         const backoffMs = backoffSchedule[entry.count - 1];
         this._goalPausedUntil.set(goalId, _now + backoffMs);

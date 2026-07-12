@@ -25,7 +25,7 @@ const helpers = {
   async _processToolLoop(response, onChunk, userMessage, intentType = 'general') {
     let fullText = response;
     let lastCallSignature = null;
-    let nudges = 0; // v7.9.28: bounded false-stop recoveries (see loop break)
+    let nudges = 0; let lastNudgeCalls = -1; const _recent = (this.history || []).slice(-8); // v7.9.28 + v7.9.37 (K1): the conversation travels with every inner call — field 15: the model saw only the system prompt and said so
     let shellRuns = 0; // v7.9.28: bounded read-only shell-fence executions
     let dedupNote = ''; // v7.9.30 (S4): carried into synthesis when duplicates collapse
     // v7.3.5: Accumulate every tool call fired across rounds, for the
@@ -103,13 +103,13 @@ const helpers = {
         // German set no longer includes the ubiquitous "werde"/"sehe", which had
         // matched an ordinary reply like "ich werde …" and re-drove it, so the
         // same answer was emitted several times.
-        const announcesNext = /\b(?:next[,]?\s+i(?:'ll| will)|i(?:'ll| will)\s+(?:now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|implement|write|start|proceed|continue|locate)|let me\s+(?:first\s+|now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|start|locate)|als\s+n[äa]chstes|ich\s+(?:schaue|lese|pr[üu]fe|erkunde|beginne|baue|erstelle|starte|inspiziere|untersuche))/i.test(text || '');
-        if (announcesNext && allToolCalls.length > 0 && nudges < 3 && round < this.maxToolRounds - 1) {
-          nudges++;
+        const announcesNext = /\b(?:next[,]?\s+i(?:'ll| will)|i(?:'ll| will)\s+(?:now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|implement|write|start|proceed|continue|locate)|let me\s+(?:first\s+|now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|start|locate)|ich\s+(?:schaue|lese|pr[üu]fe|erkunde|beginne|baue|erstelle|starte|inspiziere|untersuche))/i.test(text || '') && !/(?:\?\s*$|\bsag mir\b|\btell me\b|\bwas (?:steht|soll|m[öo]chtest|genau)\b)/i.test(String(text || '').trim()); // v7.9.37 (K2): a QUESTION to the human is not an announcement — field 15: "Sag mir, was als Nächstes ansteht" matched 'als nächstes' and nudged itself into a cascade
+        if (announcesNext && allToolCalls.length > 0 && nudges < 3 && allToolCalls.length > lastNudgeCalls && round < this.maxToolRounds - 1) { // v7.9.37 (K3): a nudge that produced no new tool call never nudges again — no cascade
+          nudges++; lastNudgeCalls = allToolCalls.length;
           try {
             const rawNudge = await this.model.chat(
               systemPrompt || 'You are Genesis. Respond in the user\'s language.',
-              [{ role: 'user', content: `You are carrying out: "${String(userMessage || '').slice(0, 400)}"\n\nYou just said you would continue:\n"${String(text).slice(0, 400)}"\n\n— but you emitted no tool call, so nothing happened. Perform that step NOW: emit the tool call. If you already have enough context, produce the FINAL result in full (the requested code and files). Do not describe what you will do — do it.` }],
+              [..._recent, { role: 'user', content: `You are carrying out: "${String(userMessage || '').slice(0, 400)}"\n\nYou just said you would continue:\n"${String(text).slice(0, 400)}"\n\n— but you emitted no tool call, so nothing happened. Perform that step NOW: emit the tool call. If you already have enough context, produce the FINAL result in full (the requested code and files). Do not describe what you will do — do it.` }],
               'chat',
               { _userChat: true }
             );
@@ -269,6 +269,10 @@ const helpers = {
         } catch (_) { /* gateStats optional */ }
       }
 
+      // v7.9.37 (V1): side-effect tools (mark-moment, journal-write) never rewrite a finished answer — field 19: the model answered the awakening speech completely AND marked the moment; the synthesis then restated the whole greeting into the same bubble.
+      const _resultsTrivial = results.length > 0 && results.every(r => r.success && String(typeof r.result === 'string' ? r.result : JSON.stringify(r.result ?? '')).trim().length < 120);
+      const _answerDelivered = String(text || '').trim().length > 200 && /[.!?…"'”’)\]}]\s*$/.test(String(text || '').trimEnd());
+      if (_resultsTrivial && _answerDelivered) { _log.info(`[CHAT] synthesis skipped — answer already complete, ${results.length} side-effect tool(s) with trivial results`); fullText = text; break; }
       const resultSummary = results.map(r => {
         if (!r.success) return `[${r.name}]: ${this.lang.t('agent.error').toUpperCase()} - ${r.error}`;
         if (r.result && r.result._injectionFlagged) {
@@ -277,15 +281,10 @@ const helpers = {
         return `[${r.name}]: ${JSON.stringify(r.result).slice(0, 500)}`;
       }).join('\n');
 
-      // Synthesize with tool results — now WITH system prompt and conversation
-      // context. v7.9.28: the prompt drives CONTINUATION, not a narrated stop.
-      // The old "summarize the results and respond to the user" steered the
-      // model into "I inspected… Next, I'll read…" and then it emitted no tool
-      // call, so the loop ended after one round and the user had to re-send.
-      // Now it is framed as carrying out the task: emit the next tool call, or
-      // deliver the finished result — do not merely describe the next step.
-      const synthesisMessages = [
-        { role: 'user', content: `You are carrying out this request: "${String(userMessage || '').slice(0, 500)}"\n\nYour previous step:\n${text.slice(0, 1500)}\n\nTool results (round ${round + 1} of ${this.maxToolRounds}):\n${resultSummary}${dedupNote}\n\nContinue the task now. If it is not yet complete, emit the NEXT tool call to make progress — do NOT merely describe what you will do next. If you already have what you need, produce the final result in full (e.g. the requested code and files). Only stop to ask the user if you genuinely need information that only they can provide.` },
+      // Synthesize with tool results (v7.9.28: the prompt drives CONTINUATION, not
+      // a narrated stop — emit the next call or deliver the finished result).
+      const synthesisMessages = [ ..._recent, // v7.9.37 (K1): tool results without the conversation left the model guessing
+        { role: 'user', content: `You are carrying out this request: "${String(userMessage || '').slice(0, 500)}"\n\nYour previous step:\n${text.slice(0, 1500)}\n\nTool results (round ${round + 1} of ${this.maxToolRounds}):\n${resultSummary}${dedupNote}\n\nContinue the task now. If it is not yet complete, emit the NEXT tool call to make progress — do NOT merely describe what you will do next. If you already have what you need, produce the final result in full (e.g. the requested code and files). Do NOT restate or rewrite your previous step — deliver only what is NEW: findings from the tool results, the next tool call, or the final missing piece. Only stop to ask the user if you genuinely need information that only they can provide.` },
       ];
 
       const rawSynthesis = await this.model.chat(
@@ -689,6 +688,10 @@ const helpers = {
 
 };
 
-Object.assign(helpers, require('./ChatOrchestratorLessons').chatOrchestratorLessons); // v7.9.29 (hygiene)
-
-module.exports = { helpers };
+Object.assign(helpers, require('./ChatOrchestratorLessons').chatOrchestratorLessons, { ensureNonEmptyReply }); // v7.9.29 (hygiene) + v7.9.37 (Y1)
+function ensureNonEmptyReply(text, orchestrator, onChunk, log) { // v7.9.37 (Y1): silence never reaches the user (field 13: blank bubbles on short prompts) — honest line, logged, chunked; model-neutral
+  if (text && String(text).trim()) return text; log?.warn?.(`[CHAT] empty model response (model=${orchestrator?.model?.activeModel || 'unknown'}) — honest fallback line emitted`);
+  const fallback = (orchestrator?.lang && orchestrator.lang.current === 'de') ? 'Mir ist gerade keine Antwort entstanden — sag es noch einmal oder etwas anders, dann bin ich da.' : 'I did not produce a reply just now — say it again or differently and I am here.';
+  if (typeof onChunk === 'function') onChunk(fallback); return fallback;
+}
+module.exports = { ensureNonEmptyReply, helpers }; // v7.9.37 (Y1)

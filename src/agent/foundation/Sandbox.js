@@ -172,6 +172,11 @@ class Sandbox {
     // FIX v3.5.4: Minimal env set — do NOT leak API keys, secrets, or tokens
     // from parent process. Only PATH, HOME/USERPROFILE, and TEMP are needed.
     const safeEnv = {
+      // v7.9.37 pass 6 (S-A): ground generated code — field 11.07. lost both
+      // idle goals to "missing module" + "unset GENESIS_ROOT". cwd stays the
+      // sandbox dir (deliberate isolation); requires resolve via env instead.
+      GENESIS_ROOT: this.rootDir,
+      NODE_PATH: [this.rootDir, require('path').join(this.rootDir, 'src')].join(require('path').delimiter),
       PATH: process.env.PATH,
       HOME: process.env.HOME,
       USERPROFILE: process.env.USERPROFILE,
@@ -333,6 +338,11 @@ class Sandbox {
 
     // Minimal env — same pattern as JS execute()
     const safeEnv = {
+      // v7.9.37 pass 6 (S-A): ground generated code — field 11.07. lost both
+      // idle goals to "missing module" + "unset GENESIS_ROOT". cwd stays the
+      // sandbox dir (deliberate isolation); requires resolve via env instead.
+      GENESIS_ROOT: this.rootDir,
+      NODE_PATH: [this.rootDir, require('path').join(this.rootDir, 'src')].join(require('path').delimiter),
       PATH: process.env.PATH,
       HOME: process.env.HOME,
       USERPROFILE: process.env.USERPROFILE,

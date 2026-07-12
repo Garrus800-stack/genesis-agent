@@ -66,6 +66,12 @@ const TRANSIENT_PATTERNS = [
 ];
 
 const DETERMINISTIC_PATTERNS = [
+  // v7.9.37 (V-B): verification/parse failures are deterministic — same code
+  // fails the same way; retrying unchanged is waste, regeneration is the move.
+  /max[- ]?continuations/i,
+  /verification[- ]parse/i,
+  /Verification failed/i,
+  /Unexpected token \(\d+:\d+\)/,
   /SyntaxError/i, /ReferenceError/i, /TypeError: .*is not a function/i,
   /Unexpected token/i, /Cannot find module/i, /Module not found/i,
   /is not defined/i, /Cannot read propert/i,
@@ -77,6 +83,12 @@ const DETERMINISTIC_PATTERNS = [
 ];
 
 const ENVIRONMENTAL_PATTERNS = [
+  // v7.9.37 pass 6 (S-B): field 11.07. — generated self-inspection code died
+  // on the sandbox floor; these make the wall nameable (and thus retryable
+  // after S-A grounded the env).
+  /Cannot find module ['"][^'"]*[\\/][^'"]*['"]/i, // v7.9.37 (X2): module PATH missing = sandbox/runner environment, never an npm install
+  /unset GENESIS_/i,
+  /GENESIS_\w+\s+(?:is\s+)?(?:unset|not\s+set|not\s+defined)/i,
   /ENOENT/i, /no such file/i, /file not found/i,
   /EACCES/i, /permission denied/i, /EPERM/i,
   /ENOSPC/i, /disk.*full/i, /no space left/i,

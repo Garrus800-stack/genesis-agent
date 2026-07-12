@@ -72,6 +72,23 @@ class BootRecovery {
     // Sentinel exists → last boot didn't complete
     const crashCount = (sentinel.crashCount || 0) + 1;
     _log.warn(`[RECOVERY] Crash detected! Boot sentinel from ${new Date(sentinel.ts).toISOString()} — crash #${crashCount}`);
+    // v7.9.37 pass 6 (S-E): the crash leaves a trace — field 11.07.: crash #1
+    // had no line in flight-recorder (the recorder transport starts later).
+    try {
+      const _p = require('path');
+      const _fs = require('fs');
+      const _gen = _p.join(this.rootDir || process.cwd(), '.genesis');
+      let _extra = '';
+      try {
+        const _cl = _p.join(_gen, 'crash.log');
+        if (_fs.existsSync(_cl)) {
+          const _lines = _fs.readFileSync(_cl, 'utf8').trim().split('\n');
+          _extra = ` — last crash.log entry: ${_lines[_lines.length - 1].slice(0, 200)}`;
+        }
+      } catch (_e2) { /* best-effort */ }
+      _fs.appendFileSync(_p.join(_gen, 'flight-recorder.log'),
+        `[${new Date().toISOString()}] [WARN ] [BootRecovery] [RECOVERY] crash #${crashCount} detected at boot (sentinel ${new Date(sentinel.ts).toISOString()})${_extra}\n`);
+    } catch (_e) { /* best-effort */ }
 
     if (crashCount > MAX_CRASH_RECOVERIES) {
       // Too many recovery attempts — boot clean to avoid infinite loop
@@ -165,14 +182,21 @@ class BootRecovery {
       return;
     }
 
-    // Create a "last-known-good" snapshot (overwrite previous)
+    // Create a "last-known-good" snapshot (overwrite previous).
+    // v7.9.37 (T3): scheduled OFF the boot path. create() copies ~400 files with
+    // copyFileSync — measured at 4.8s of a 6.7s boot in the field. The snapshot
+    // describes a boot that already succeeded, so writing it a tick later is both
+    // faster and semantically truer. Boot returns immediately; the disk catches up.
     if (this._snapshotManager) {
-      try {
-        this._snapshotManager.create('_last_good_boot');
-        _log.info('[RECOVERY] Last-known-good snapshot updated');
-      } catch (err) {
-        _log.debug('[RECOVERY] Snapshot creation failed:', err.message);
-      }
+      setTimeout(() => {
+        try {
+          const t0 = Date.now();
+          this._snapshotManager.create('_last_good_boot');
+          _log.info(`[RECOVERY] Last-known-good snapshot updated (background, ${Date.now() - t0}ms)`);
+        } catch (err) {
+          _log.debug('[RECOVERY] Snapshot creation failed:', err.message);
+        }
+      }, 0).unref?.();
     }
   }
 

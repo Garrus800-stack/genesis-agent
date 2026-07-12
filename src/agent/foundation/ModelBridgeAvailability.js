@@ -32,6 +32,12 @@ const availability = {
     const until = Date.now() + ttlMs;
     this._unavailableUntil.set(modelName, { until, reason, ttlMs });
     this._persistUnavailable();
+    // v7.9.37 pass 4 (B1): never downgrade a known reason to undefined —
+    // a second caller (failover) may re-mark the same failure.
+    if (!reason) {
+      const _prev = this._unavailableUntil && this._unavailableUntil.get(modelName);
+      reason = (_prev && _prev.reason) || 'unknown';
+    }
     this.bus.fire('model:marked-unavailable',
       { modelName, reason, ttlMs },
       { source: 'ModelBridge' });
@@ -111,6 +117,18 @@ const availability = {
       return false;
     }
     return this.availableModels.every(m => this.isMarkedUnavailable(m.name));
+  },
+
+  // v7.9.37 (S1): is ANY discovered model usable right now? Field 17: the idle
+  // resource pre-check asked service:llm while activeBackend was still null
+  // (preferred model marked unavailable, no configure() yet) and got false —
+  // even though a failover model was free. This answers the pool, not the
+  // active pointer, so a blocked idle goal unblocks the moment any model is up.
+  hasAnyModelAvailable() {
+    if (!Array.isArray(this.availableModels) || this.availableModels.length === 0) {
+      return false;
+    }
+    return this.availableModels.some(m => !this.isMarkedUnavailable(m.name));
   },
 
   /**

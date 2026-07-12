@@ -118,7 +118,10 @@ test('effective-model contract: schema entries cover all three events', () => {
 
 test('effective-model contract: failover log line names the fallback model', () => {
   const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/ModelBridge.js'), 'utf-8');
-  assert.match(src, /falling back to \$\{fallback\}\$\{fallbackModelName\s*\?\s*` \(\$\{fallbackModelName\}\)`/);
+  // v7.9.37 pass 4 (B4): the line now names models, not backends —
+  // 'ollama failed, falling back to ollama (kimi…)' confused the field.
+  assert(src.includes('failed → ') && src.includes('(backend ${fallback})'),
+    'fallback line names model → model (backend …)');
 });
 
 test('effective-model contract: non-failover call yields effectiveModel === activeModel', async () => {

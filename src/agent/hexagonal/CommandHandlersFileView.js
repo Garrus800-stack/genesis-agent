@@ -248,7 +248,22 @@ const commandHandlersFileView = {
     const path = require('path');
     const { getLastDoc, setLastDoc } = require('./LastDocStore');
     const { _isCriticalSystemPath, _isSecretFile } = require('../core/shell/ShellSafety');
+    const { resolveFileToken } = require('./ProjectFileResolver');
+    const _rootDir = (this.fp && this.fp.rootDir) || process.cwd();
     let target = null;
+    // v7.9.37 pass 5 (X2): a fresh pending file-question turns the NEXT
+    // message into an answer — never ask the identical question twice.
+    const _pend = this._pendingFileRequest;
+    if (_pend && _pend.kind === 'read' && Date.now() - _pend.ts < 5 * 60 * 1000) {
+      const ord = String(message).trim().match(/^([1-5])\.?$/);
+      if (ord && _pend.candidates && _pend.candidates[+ord[1] - 1]) {
+        target = _pend.candidates[+ord[1] - 1].abs;
+      } else {
+        const rr = resolveFileToken(message, _rootDir);
+        if (rr.status === 'one') target = rr.matches[0].abs;
+      }
+      if (target) this._pendingFileRequest = null;
+    }
     const quoted = message.match(/["']([^"']+)["']/);
     if (quoted) target = quoted[1].trim();
     if (!target) { const wp = message.match(/([A-Za-z]:\\[^\s"']*)/); if (wp) target = wp[1]; }
@@ -272,6 +287,21 @@ const commandHandlersFileView = {
         }
       }
     }
+    // v7.9.37 pass 5 (X1): the shared resolver — recursive, case-insensitive,
+    // against the REAL project tree. One match means ACT (field: the same
+    // template question was asked four times while the name sat in the message).
+    if (!target) {
+      const rr = resolveFileToken(message, _rootDir);
+      if (rr.status === 'one') target = rr.matches[0].abs;
+      else if (rr.status === 'many') {
+        this._pendingFileRequest = { kind: 'read', candidates: rr.matches, ts: Date.now() };
+        const lines = rr.matches.map((m, i) => `${i + 1}) ${m.rel}`).join('\n');
+        return `Ich habe mehrere Treffer für „${rr.token}" — welche meinst du?\n${lines}\n(Antworte mit der Nummer oder dem Pfad.)`;
+      } else if (rr.token) {
+        this._pendingFileRequest = { kind: 'read', token: rr.token, ts: Date.now() };
+        return `„${rr.token}" habe ich im Projekt nicht gefunden. Nenn mir einen anderen Namen oder den Pfad — oder sag „liste die Dateien in <ordner> auf".`;
+      }
+    }
     if (!target) {
       const last = getLastDoc();
       if (last && last.kind === 'file') target = last.path;
@@ -279,7 +309,12 @@ const commandHandlersFileView = {
         return `\`${last.path}\` ist ein Ordner. Sag „liste sie auf" für die Dateien darin.`;
       }
     }
-    if (!target) return 'Welche Datei soll ich lesen? Gib mir den Namen oder Pfad an.';
+    if (!target) {
+      if (this._pendingFileRequest && this._pendingFileRequest.kind === 'read') {
+        return 'Ich warte noch auf die Datei: antworte mit der Nummer aus meiner letzten Liste, einem Dateinamen (z.B. „ARCHITECTURE.md") oder einem Pfad.';
+      }
+      return 'Welche Datei soll ich lesen? Gib mir den Namen oder Pfad an.';
+    }
     const absLower = String(target).toLowerCase();
     if (_isCriticalSystemPath(absLower, process.platform === 'win32') || _isSecretFile(absLower)) {
       return 'Diese Datei ist geschützt und kann nicht gelesen werden.';
@@ -304,9 +339,9 @@ const commandHandlersFileView = {
     if (!content.trim()) return `Die Datei \`${base}\` ist leer.`;
     const MAX = 8000;
     if (content.length > MAX) {
-      return `Inhalt von ${base} (${content.length} Zeichen, gekürzt):\n\n${content.slice(0, MAX)}\n\n[... gekürzt. Sag „fasse ${base} zusammen" für eine Zusammenfassung des ganzen Dokuments.]`;
+      return `📄 ${base} gelesen (${content.split('\n').length} Zeilen, gekürzt auf ${MAX} Zeichen) —\n\n${content.slice(0, MAX)}\n\n[... gekürzt. Sag „fasse ${base} zusammen" für eine Zusammenfassung des ganzen Dokuments.]`;
     }
-    return `Inhalt von ${base}:\n\n${content}`;
+    return `📄 ${base} gelesen (${content.split('\n').length} Zeilen) —\n\n${content}`;
   },
 
   /**
@@ -572,7 +607,10 @@ const commandHandlersFileView = {
         summary = await this.modelBridge.chat(sys, [{ role: 'user', content: userMsg }], 'chat', { _userChat: true, maxTokens: 1600, noCache: true });
       } catch { return null; }
       if (!summary || !String(summary).trim()) return null;
-      const head = isDe ? `Zusammenfassung von ${base}:\n\n` : `Summary of ${base}:\n\n`;
+      const _ln = content.split('\n').length; // v7.9.37 pass 5 (X3)
+      const head = isDe
+        ? `📄 ${base} gelesen (${_ln} Zeilen) — Zusammenfassung:\n\n`
+        : `📄 ${base} read (${_ln} lines) — summary:\n\n`;
       const full = head + String(summary).trim();
       // remember it so "speichere die Zusammenfassung in Datei X" can persist it
       try { require('./LastDocStore').setLastText(String(summary).trim(), 'summary'); } catch { /* ignore */ }

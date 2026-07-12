@@ -314,8 +314,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // the user sees the model that actually answered. Programmatic
   // .value assignment does NOT fire `change`, so the user's preferred
   // setting is not touched.
-  window.genesis.on('agent:stream-done', () => {
-    finishStream();
+  window.genesis.on('agent:tool-status', (p) => { try { updateToolStatus(p); } catch (_e) { /* ui best-effort */ } }); // v7.9.37 (W6a)
+  window.genesis.on('agent:stream-done', (payload) => {
+    finishStream(payload && payload.final); // v7.9.37 (W4): one clean bubble
     refreshEffectiveModelDisplay().catch(() => { /* best-effort */ });
   });
 

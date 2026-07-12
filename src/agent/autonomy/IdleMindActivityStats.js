@@ -67,6 +67,14 @@ const activityStatsMixin = {
    * write. No-op if storage isn't available (e.g. in unit tests with
    * storageDir: null).
    */
+  // v7.9.37 pass 3 (R5): count a failed run (success counting stays in
+  // _recordActivity). Same persistence path, never throws upward.
+  _bumpFailedRun(activity) {
+    if (!this._failedRunCounts) this._failedRunCounts = new Map();
+    this._failedRunCounts.set(activity, (this._failedRunCounts.get(activity) || 0) + 1);
+    this._saveActivityStats();
+  },
+
   _saveActivityStats() {
     // v7.9.18 (C1): use the synchronous, atomic writeJSON() instead of the
     // 1s-debounced writeJSONDebounced. The underlying StorageService write is
@@ -98,6 +106,9 @@ const activityStatsMixin = {
         // later _recordActivity write into a single flush.
         thoughtCount: this.thoughtCount || 0,
         activityCounts: Object.fromEntries(this._activityCounts || []),
+        // v7.9.37 pass 3 (R5): failures were invisible — field 09.07. showed
+        // explore with 19 fails and runs=0 in the stats.
+        failedRunCounts: Object.fromEntries(this._failedRunCounts || []),
         activityLog: (this.activityLog || []).slice(-STATS_LOG_BOUND),
       };
       this.storage.writeJSON(STATS_FILE, payload);
@@ -137,6 +148,11 @@ const activityStatsMixin = {
     if (data.activityCounts && typeof data.activityCounts === 'object') {
       this._activityCounts = new Map(
         Object.entries(data.activityCounts).filter(([k, v]) => typeof k === 'string' && Number.isFinite(v))
+      );
+    }
+    if (data.failedRunCounts && typeof data.failedRunCounts === 'object') { // v7.9.37 pass 3 (R5)
+      this._failedRunCounts = new Map(
+        Object.entries(data.failedRunCounts).filter(([k, v]) => typeof k === 'string' && Number.isFinite(v))
       );
     }
     // v7.9.11: restore persistent thoughtCount. Missing field on legacy

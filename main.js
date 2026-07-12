@@ -1220,6 +1220,7 @@ const CHANNELS = {
 
   'agent:stream-chunk': null, // Agent -> UI (push only)
   'agent:stream-done': null,  // Agent -> UI (push only, stream complete)
+  'agent:tool-status': null,  // Agent -> UI (push only, v7.9.37 W6a: live tool lifecycle)
   'agent:status-update': null, // Agent -> UI (push only)
   'agent:open-in-editor': null, // Agent -> UI (push only)
   'agent:loop-progress': null,  // v3.5.0: Agent -> UI (push only)
@@ -1283,13 +1284,29 @@ ipcMain.on('agent:request-stream', (event, message) => {
     }
     return;
   }
+  // v7.9.37 (W6a): bridge live tool status to the renderer — the field
+  // screenshot showed a static block with no running/done truth.
+  if (agent.bus && !global._toolStatusBridged) {
+    global._toolStatusBridged = true;
+    const _fwd = (phase) => (p) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('agent:tool-status',
+          { phase, name: (p && (p.name || p.tool || p.toolName)) || 'tool', ts: Date.now() });
+      }
+    };
+    agent.bus.on('tools:calling', _fwd('calling'));
+    agent.bus.on('tools:result', _fwd('result'));
+  }
   agent.handleChatStream(message, (chunk) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('agent:stream-chunk', chunk);
     }
-  }, () => {
+  }, (finalText) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('agent:stream-done');
+      // v7.9.37 (W4): the done event carries the FINAL text so the UI can
+      // replace the streamed intermediate rounds with one clean answer.
+      mainWindow.webContents.send('agent:stream-done',
+        { final: typeof finalText === 'string' ? finalText : null });
     }
   });
 });

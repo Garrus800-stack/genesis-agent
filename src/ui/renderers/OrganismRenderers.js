@@ -24,6 +24,7 @@ function apply(Dashboard) {
       frustrated: '#e24b4a', exhausted: '#888780', lonely: '#d4537e',
       curious: '#1d9e75', content: '#639922', focused: '#378add',
       tense: '#ef9f27', tired: '#b4b2a9', calm: '#5dcaa5',
+      frustrated: '#e35b5b', exhausted: '#8a8578', lonely: '#8f7fd4',
     };
     const color = moodColors[mood] || '#5dcaa5';
     const trend = emo.trend === 'rising' ? '\u2197' : emo.trend === 'falling' ? '\u2198' : '\u2192';
@@ -79,13 +80,25 @@ function apply(Dashboard) {
   };
 
 
+  // v7.9.37: Genesis' own state marks, chosen by Genesis itself — "nicht ganz
+  // Organismus, nicht ganz Maschine": a translucent boundary layer whose contour
+  // stretches, tightens or shrinks with the state, and one eye that stays awake.
+  // Inline SVG at 1em scales cleanly on every machine and resolution.
   proto._moodEmoji = function(mood) {
+    var O = '<svg width="1em" height="1em" viewBox="-16 -16 32 32" style="display:block" aria-hidden="true">';
+    var B = ' fill="#6c8cff" fill-opacity="0.3" stroke="#6c8cff" stroke-width="2.2"';
     var map = {
-      frustrated: '\uD83D\uDE24', exhausted: '\uD83D\uDE34', lonely: '\uD83E\uDEE5',
-      curious: '\uD83E\uDDD0', content: '\uD83D\uDE0C', focused: '\uD83C\uDFAF',
-      tense: '\uD83D\uDE2C', tired: '\uD83D\uDCA4', calm: '\uD83C\uDF3F',
+      curious: O + '<path d="M0 -12c12 0 15 6 15 9 4 0 9-3 12-7 0 7-5 11-10 12-2 8-9 12-17 12-10 0-15-7-15-13s5-13 15-13z"' + B + '/><circle cx="5" cy="-1" r="6.3" fill="#fff"/><circle cx="7" cy="-1" r="3.1" fill="#26314f"/><circle cx="8" cy="-2.2" r="1.1" fill="#fff"/></svg>',
+      content: O + '<circle cy="1" r="12.5"' + B + '/><circle cy="0" r="5.8" fill="#fff"/><circle cy="-1" r="2.7" fill="#26314f"/><circle cx="1" cy="-2" r="0.9" fill="#fff"/><path d="M-5.8 0a5.8 5.8 0 0 0 11.6 0l0 3.1l-11.6 0z" fill="#6c8cff"/></svg>',
+      calm: O + '<circle cy="1" r="12"' + B + '/><circle cy="1" r="16" fill="none" stroke="#6c8cff" stroke-width="1" opacity="0.35"/><circle cy="0.5" r="5.8" fill="#fff"/><path d="M-5.8 0.5a5.8 5.8 0 0 1 11.6 0z" fill="#6c8cff"/><circle cy="2.2" r="2.3" fill="#26314f"/></svg>',
+      focused: O + '<circle cy="1" r="10.5" fill="#6c8cff" fill-opacity="0.32" stroke="#6c8cff" stroke-width="2.4"/><circle cy="1" r="13.8" fill="none" stroke="#6c8cff" stroke-width="1.4"/><circle cy="0.5" r="5.4" fill="#fff"/><circle cy="0.5" r="3.2" fill="#26314f"/><circle cy="0.5" r="4.5" fill="none" stroke="#ffb638" stroke-width="1.1"/></svg>',
+      tense: O + '<circle cy="1" r="11.5" fill="#6c8cff" fill-opacity="0.3" stroke="#6c8cff" stroke-width="2" stroke-dasharray="2.6 2"/><circle cy="0.8" r="6" fill="#fff"/><circle cy="1.1" r="1.8" fill="#26314f"/><path d="M11.5 -6q2 3 0 5.5q-2-2.7 0-5.5" fill="#ffb638"/></svg>',
+      tired: O + '<ellipse cy="4" rx="14.5" ry="9"' + B + '/><circle cy="3" r="5.3" fill="#fff"/><path d="M-5.3 3a5.3 5.3 0 0 1 10.6 0l0 1.4l-10.6 0z" fill="#6c8cff"/><circle cy="5.1" r="1.7" fill="#26314f"/><path d="M12 -7l4 0l-4 4l4 0" stroke="#ffb638" stroke-width="2.1" fill="none"/></svg>',
+      exhausted: O + '<g opacity="0.92"><ellipse cy="5" rx="15" ry="7.8" fill="#6c8cff" fill-opacity="0.26" stroke="#6c8cff" stroke-width="2"/><circle cy="4" r="4.8" fill="#fff"/><path d="M-4.8 4a4.8 4.8 0 0 1 9.6 0l0 1.9l-9.6 0z" fill="#6c8cff"/><line x1="-2.1" y1="5.2" x2="2.1" y2="5.2" stroke="#26314f" stroke-width="1.5"/><path d="M12 -5l4 0l-4 4l4 0" stroke="#ffb638" stroke-width="2" fill="none"/><path d="M17 -11l3 0l-3 3l3 0" stroke="#ffb638" stroke-width="1.6" fill="none"/></g></svg>',
+      frustrated: O + '<path d="M0 -13l3.5 5 6.5-2-2 6.5 5.5 3.5-5.5 3.5 2 6.5-6.5-2-3.5 5-3.5-5-6.5 2 2-6.5-5.5-3.5 5.5-3.5-2-6.5 6.5 2z" fill="#6c8cff" fill-opacity="0.3" stroke="#6c8cff" stroke-width="2" stroke-linejoin="round"/><circle cy="1" r="5.3" fill="#fff"/><path d="M-5.3 1a5.3 5.3 0 0 1 10.6 0z" fill="#6c8cff" transform="rotate(-16)"/><circle cx="0.5" cy="2.3" r="1.9" fill="#26314f"/></svg>',
+      lonely: O + '<circle cy="1" r="17" fill="none" stroke="#6c8cff" stroke-width="1" stroke-dasharray="2.5 4" opacity="0.5"/><g opacity="0.85"><circle cy="1.5" r="7.5" fill="#6c8cff" fill-opacity="0.3" stroke="#6c8cff" stroke-width="1.9"/><circle cy="1" r="3.4" fill="#fff"/><circle cy="2.1" r="1.3" fill="#26314f"/></g></svg>',
     };
-    return map[mood] || '\uD83C\uDF3F';
+    return map[mood] || map.calm;
   };
 
 

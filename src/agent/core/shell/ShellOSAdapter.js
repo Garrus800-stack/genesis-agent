@@ -40,7 +40,7 @@ function resolveShell() {
   const platform = process.platform;
   const isWindows = platform === 'win32';
   return {
-    shell: isWindows ? 'cmd.exe' : '/bin/sh',
+    shell: isWindows ? (process.env.ComSpec || 'cmd.exe') : '/bin/sh', // v7.9.37 pass 5 (T1)
     shellFlag: isWindows ? '/c' : '-c',
     isWindows,
     platform,

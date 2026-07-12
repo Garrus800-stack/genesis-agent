@@ -31,6 +31,21 @@ class AgentLoopRecoveryDelegate {
 
   // ── Error Classification & Recovery ───────────────────
 
+  // v7.9.37 pass 3 (R4): the repair/replan budget, extracted here so the
+  // pursuit loop stays under its size guard. Field 2026-07-09: unbounded
+  // tail-replans grew one goal to 170 steps — growth stays allowed (retries
+  // inherit repairs) but shares five rounds and a step ceiling.
+  createRepairBudget(initialStepCount) {
+    const stepCap = Math.min(40, Math.max(24, 3 * initialStepCount));
+    let rounds = 0;
+    return {
+      stepCap,
+      hasRounds() { return rounds < 5; },
+      fits(nextLength) { return nextLength <= stepCap; },
+      spend() { rounds++; },
+    };
+  }
+
   /**
    * Classify error via FailureTaxonomy and apply recovery strategy.
    * @param {object} step
@@ -40,18 +55,24 @@ class AgentLoopRecoveryDelegate {
    * @returns {Promise<{ action: string, category?: string }>}
    */
   async classifyAndRecover(step, result, stepIndex, onProgress) {
+    let _lastCategory = null; // v7.9.37 (R1): carry the verdict to the default return — field 16: a deterministic verdict logged as "unclassified" because no strategy matched and the fall-through return dropped it
     try {
+      // v7.9.37 pass 6 (S-B): the container ref is absent on the idle path —
+      // field 11.07. ran 17 step failures as "unclassified → none" because ft
+      // resolved to null. A lazy local instance guarantees classification.
       const ft = this.loop.bus._container?.resolve?.('failureTaxonomy')
-        || (this.loop._failureTaxonomy || null);
+        || (this.loop._failureTaxonomy || null)
+        || (this._ftFallback ||= new (require('../intelligence/FailureTaxonomy').FailureTaxonomy)({}));
       if (!ft) return { action: 'none' };
 
-      const taxonomy = ft.classify(result.error, {
+      const _tax0 = ft.classify(result.error, {
         actionType: step.type,
         stepIndex,
         goalId: this.loop.currentGoalId,
         model: this.loop.model?.activeModel,
         attempt: this.loop.consecutiveErrors - 1,
       });
+      const taxonomy = _tax0; _lastCategory = taxonomy.category; // v7.9.37 (R1): remember for the fall-through
       onProgress({ phase: 'failure-classified', category: taxonomy.category, strategy: taxonomy.strategy });
 
       if (taxonomy.strategy === 'retry_backoff' && taxonomy.retryConfig?.shouldRetry) {
@@ -113,7 +134,9 @@ class AgentLoopRecoveryDelegate {
     const decomposed = await this._tryDecomposeOnRepeatedFailure(step, result, stepIndex, onProgress);
     if (decomposed) return decomposed;
 
-    return { action: 'none' };
+    // v7.9.37 (R1): a classified-but-unrecovered failure keeps its verdict —
+    // the diagnosis must say "deterministic", not "unclassified".
+    return _lastCategory ? { action: 'none', category: _lastCategory } : { action: 'none' };
   }
 
   /**
@@ -304,7 +327,10 @@ If the error is unfixable (e.g., missing dependency, permission denied), say "UN
 
     // Ambiguous — ask LLM
     const verificationContext = verified.length > 0
-      ? `\nProgrammatic verification: ${programmaticPasses} pass, ${programmaticFails} fail, ${ambiguous} ambiguous`
+      ? `\nProgrammatic verification: ${programmaticPasses} pass, ${programmaticFails} fail, ${ambiguous} ambiguous${
+          (ambiguous > 0 && ambiguous / Math.max(1, verified.length) > 0.5)
+            ? ' — likely output-format mismatch (truncated model response?)' /* v7.9.37 pass 4 (S2) */
+            : ''}`
       : '';
 
     const prompt = `Goal: "${plan.title}"

@@ -48,10 +48,14 @@ describe('BootRecovery — Clean Boot', () => {
     assert(!fs.existsSync(path.join(genesisDir, 'boot-sentinel.json')), 'sentinel should be cleared');
   });
 
-  test('postBootSuccess creates _last_good_boot snapshot', () => {
+  test('postBootSuccess creates _last_good_boot snapshot (v7.9.37 T3: off the boot path)', async () => {
     const { recovery, snapshotMgr } = setup('snapshot');
     recovery.preBootCheck();
     recovery.postBootSuccess();
+    // v7.9.37 (T3): the snapshot copies ~400 files (copyFileSync) and used to
+    // block the boot for ~4.8s. It is now scheduled a tick later — still created
+    // after a clean boot, just not in the boot's critical path.
+    await new Promise((r) => setTimeout(r, 20));
     const list = snapshotMgr.list();
     assert(list.some(s => s.name === '_last_good_boot'), 'should create last-good-boot snapshot');
   });

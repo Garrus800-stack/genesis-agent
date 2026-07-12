@@ -85,6 +85,16 @@ const VALID_STEP_TYPES = new Set(Object.keys(STEP_TYPES));
  * produced GIT_SNAPSHOT, CODE_GENERATE, WRITE_FILE).
  */
 const STEP_TYPE_ALIASES = Object.freeze({
+  // v7.9.37 (G1): field 11.07. — a plan with THINK/CREATE-FILE/CHECK produced
+  // "5 blockers" and a human approval card, while the loop's runtime alias map
+  // (AgentLoopSteps) knew all of them. One truth source, validator included.
+  'THINK':         'ANALYZE',
+  'CHECK':         'ANALYZE',
+  'READ':          'ANALYZE',
+  'INVESTIGATE':   'ANALYZE',
+  'RUN':           'SHELL',
+  'EXECUTE':       'SHELL',
+  'FIND':          'SEARCH',
   // file mutation variants → CODE
   'WRITE_FILE':    'CODE',
   'WRITE':         'CODE',
@@ -169,6 +179,8 @@ function normalizeStepType(rawType) {
   const upper = rawType.trim().toUpperCase();
   if (VALID_STEP_TYPES.has(upper)) return upper;
   if (STEP_TYPE_ALIASES[upper]) return STEP_TYPE_ALIASES[upper];
+  const underscored = upper.replace(/[-\s]+/g, '_'); // v7.9.37 (G1): CREATE-FILE et al.
+  if (STEP_TYPE_ALIASES[underscored]) return STEP_TYPE_ALIASES[underscored];
   return null;
 }
 

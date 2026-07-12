@@ -310,17 +310,17 @@ class Settings {
         // and cannot drift from it.
         localTimeoutMs: TIMEOUTS.LLM_RESPONSE_LOCAL,
         cloudTimeoutMs: TIMEOUTS.LLM_RESPONSE_CLOUD_OLLAMA,
-        // v7.9.13: stream timeouts surfaced as settings (the Constants.js
-        // comment promised this override but it was never wired). Values
-        // reference the constants so they cannot drift from them. These
-        // affect only Ollama code-generation streaming (taskType === 'code'),
-        // the single path through ContinuationLoop → StreamingCompletion.
+        // v7.9.13: stream timeouts surfaced as settings (Constants.js promised
+        // this override but never wired it). Values reference the constants so
+        // they cannot drift. Affect only Ollama code-gen streaming (taskType
+        // 'code'), the single path ContinuationLoop → StreamingCompletion.
         streamTimeouts: {
           firstChunk: TIMEOUTS.LLM_STREAM_FIRST_CHUNK,
           chunk: TIMEOUTS.LLM_STREAM_CHUNK,
           total: TIMEOUTS.LLM_STREAM_TOTAL,
           continuationTotal: TIMEOUTS.LLM_CONTINUATION_TOTAL,
         },
+        numCtxCap: 65536, maxTokensDefault: 0, // v7.9.37 pass 4 (C1/C2): real-window cap; 0 = derive min(8192, ctx/4)
       },
       // v3.5.0: Configurable timeouts (were hardcoded across modules)
       timeouts: { approvalSec: 0, shellMs: 15000, httpMs: 60000, gitMs: 5000 },

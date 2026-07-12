@@ -2,6 +2,9 @@
 // GENESIS — src/agent/revolution/AgentLoopStepsCode.js
 //
 // v7.9.29 (hygiene #9): the code + sandbox execution step handlers,
+// v7.9.37 (V-A): _stripLeadingProse below — models mix prose into fenced
+// blocks (field 11.07.: acorn "Unexpected token (1:5)" on every CODE step);
+// drop leading lines until the first line that starts like JS.
 // extracted as one contiguous block from AgentLoopSteps to keep it under
 // the 700-LOC guard. _stepCode stays immediately followed by _stepSandbox
 // so body-extracting contract tests keep their delimiter. Class methods
@@ -10,6 +13,15 @@
 
 class _AgentLoopStepsCodeHost {
   async _stepCode(step, context, onProgress) {
+    // v7.9.37 pass 6 (S-C): steps that want to CREATE/MOVE Genesis source
+    // files are self-modification — they go through the proposal pipeline,
+    // never through auto-generated sandbox code (field 11.07.: "Create or
+    // relocate the missing Logger.js module" at trust 2).
+    if (/(create|relocate|move|add|write|generate)\b[^\n]{0,80}\b(?:src[\\/]|Logger\.js|module)/i.test(step.description || '')
+        && /(?:\.js|\.ts|module)\b/i.test(step.description || '')
+        && /(creat|relocat|mov|add|writ|generat)/i.test(step.description || '')) {
+      return { error: 'self-modification blocked: creating/relocating Genesis source files requires a proposal (SelfModificationPipeline), not sandbox code', selfModBlocked: true, success: false };
+    }
     const loop = this.loop;
     // Generate code for the target file
     const existingCode = step.target && loop.selfModel
@@ -28,9 +40,11 @@ class _AgentLoopStepsCodeHost {
       `  - Logger:       const { createLogger } = require('<path>/core/Logger');  // factory, NOT 'new Logger(...)'\n` +
       `  - EventBus:     resolve via Container.resolve('bus') — clients NEVER call 'new EventBus()' directly.\n` +
       `  - Storage:      const storage = c.resolve('storage');  // read/writeJSON methods, NOT 'new StorageService(...)'\n` +
-      `  - Container:    constructor-injected as 'c' or this.container — never reach into globals.\n`;
+      `  - Container:    constructor-injected as 'c' or this.container — never reach into globals.\n` +
+      `  - STANDALONE SCRIPTS (v7.9.37): load project modules ONLY via GENESIS_ROOT — const p=require('path'); const M=require(p.join(process.env.GENESIS_ROOT,'src/agent/core/Logger.js')); NEVER copy relative require('./x') lines out of source files.\n` +
+      `  - CONSTANTS: never reference module-internal constants (TIMEOUTS, caps, maps) from outside — re-declare the value you need locally.\n`;
 
-    const prompt = `${context}${apiConventions}\nCODE TASK: ${step.description}\n${step.target ? `TARGET FILE: ${step.target}` : ''}${existingCode ? '\n\nExisting code:\n```javascript\n' + sourceForPrompt(existingCode, 4000) + '\n```' : ''}\n\nGenerate the complete file content. Respond ONLY with the code inside a single code block.`;
+    const prompt = `${context}${apiConventions}\nCODE TASK: ${step.description}\n${/verification[- ]parse|Verification failed/i.test(String(context).slice(-600)) ? 'PREVIOUS OUTPUT FAILED SYNTAX VERIFICATION — output ONLY code in ONE fenced block, no prose before or inside it.\n' : ''}SANDBOX RULES: The script runs in an isolated sandbox dir (NOT the project root). For any Genesis self-inspection use ABSOLUTE requires via process.env.GENESIS_ROOT, e.g. require(require('path').join(process.env.GENESIS_ROOT, 'src', 'agent', '...')). NEVER use relative './src/...' (it will fail). Do NOT create or modify files under the project's src/ — inspection is read-only. OUTPUT BUDGET: reply with ONE compact script (under 200 lines). NEVER reproduce file contents in your answer — read files programmatically and print only distilled findings.\n${step.target ? `TARGET FILE: ${step.target}` : ''}${existingCode ? '\n\nExisting code:\n```javascript\n' + sourceForPrompt(existingCode, 4000) + '\n```' : ''}\n\nGenerate the complete file content. Respond ONLY with the code inside a single code block.`;
 
     const response = await loop.model.chat(prompt, [], 'code');
 
@@ -40,7 +54,10 @@ class _AgentLoopStepsCodeHost {
       return { output: response, error: 'No code block found in LLM response' };
     }
 
-    const newCode = codeMatch[1].trim();
+    const newCode = _stripLeadingProse(codeMatch[1]);
+    if (!newCode) {
+      return { output: response.slice(0, 400), error: 'verification-parse: fenced block contains no code (prose only)' };
+    }
 
     // v7.9.7 R4: pre-flight scan for hallucinated require paths. Match
     // any `require('...')` literal whose target does not resolve relative
@@ -138,7 +155,7 @@ class _AgentLoopStepsCodeHost {
 
     const response = await loop.model.chat(prompt, [], 'code');
     const codeMatch = response.match(/```(?:\w+)?\n([\s\S]+?)```/);
-    const testCode = codeMatch ? codeMatch[1].trim() : step.target || '';
+    const testCode = codeMatch ? _stripLeadingProse(codeMatch[1]) : ''; // v7.9.37 (V-A): never parse a file PATH as code
 
     if (!testCode) {
       return { output: 'No test code generated', error: 'Empty test' };
@@ -151,6 +168,13 @@ class _AgentLoopStepsCodeHost {
     };
   }
 
+}
+
+const CODE_START = /^\s*(?:'use strict'|"use strict"|const |let |var |function |async |class |import |export |module\.|require\(|if \(|for \(|while \(|return |\/\/|\/\*|\{|\()/;
+function _stripLeadingProse(raw) {
+  const lines = String(raw || '').split('\n');
+  const idx = lines.findIndex(l => CODE_START.test(l));
+  return idx === -1 ? '' : lines.slice(idx).join('\n').trim();
 }
 
 const agentLoopStepsCodeMixin = {};

@@ -258,7 +258,7 @@ class ChatOrchestrator {
           this.history.push({ role: 'assistant', content: response });
           this._saveHistory();
           this.bus.fire('chat:completed', { message, response, intent: intent.type, success: true, backend: this.model.activeBackend || 'unknown', tokens: Math.ceil((response || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
-          onDone();
+          onDone(response); // v7.9.37 (W4): this branch carries 'response'
           return;
         }
         // Handler returned null — log and continue into the regular streaming path below.
@@ -359,7 +359,8 @@ class ChatOrchestrator {
         }, { source: 'ChatOrchestrator' });
       }
 
-      onDone();
+      cleanResponse = _h.ensureNonEmptyReply(cleanResponse, this, onChunk, _log); // v7.9.37 (Y1): silence never reaches the user
+      onDone(cleanResponse);
     } catch (err) {
       // v6.0.5: End provenance trace — error
       if (traceId) {
@@ -383,7 +384,7 @@ class ChatOrchestrator {
           onChunk(`\n\n**${this.lang.t('agent.error')}:** ${err.message}`);
         }
       }
-      onDone();
+      onDone(null); // v7.9.37 (W4): agent-escalation streamed extra text — never replace, just close
     }
   }
 
@@ -492,30 +493,25 @@ class ChatOrchestrator {
         let history = [...ctx.messages];
         const MAX_TOOL_ROUNDS = 5;
         // v7.5.9 ZIP1 Phase 0.3: track whether we've already issued the
-        // "you said you'd use a tool but didn't" re-prompt for this turn.
-        // We allow at most one such re-prompt per turn; further failures
-        // fall through to normal "no tools" behavior.
-        let _toolIntentReprompted = false;
+        // "you said you'd use a tool but didn't" re-prompt — v7.9.37 pass 5:
+        // two strikes per turn (was one), second text sharper; then fall through.
+        let _toolIntentReprompts = 0; // v7.9.37 pass 5 (X4): was single-shot
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           const parsed = this.tools.parseToolCalls(response);
           if (parsed.toolCalls.length === 0) {
-            // v7.5.9 ZIP1 Phase 0.3: before giving up, check if the LLM
-            // signaled tool intent ("Tools ausführen...", "let me use ...")
-            // without emitting an actual call block. If yes AND we haven't
-            // re-prompted yet this turn, send one corrective message and
-            // try again.
-            if (!_toolIntentReprompted
+            // v7.5.9 ZIP1 Phase 0.3: before giving up, check if the LLM signaled
+            // tool intent ("Tools ausführen...", "let me use ...") without an
+            // actual call block — if so, send a corrective message and retry.
+            if (_toolIntentReprompts < 2
                 && typeof this.tools.detectToolIntentWithoutCall === 'function'
                 && this.tools.detectToolIntentWithoutCall(response)) {
-              _toolIntentReprompted = true;
-              this.bus.fire('tool-use:reprompt-needed', {
-                round,
-                excerpt: response.slice(0, 200),
-              }, { source: 'ChatOrchestrator' });
+              _toolIntentReprompts++;
+              this.bus.fire('tool-use:reprompt-needed', { round, excerpt: response.slice(0, 200) }, { source: 'ChatOrchestrator' });
 
               const isDE = this.lang && this.lang.current === 'de';
-              const correctiveMsg = isDE
+              const correctiveMsg = (_toolIntentReprompts >= 2) ? (isDE ? 'Du hast WIEDER nur angekündigt. Sende JETZT den <tool_call>-Block — ohne Text davor. Kein Tool nötig? Dann finale Antwort mit Ergebnis-Satz.' : 'You announced again without acting. Send the <tool_call> block NOW — no prose first. No tool needed? Give the final answer with a result sentence.')
+                : isDE
                 ? 'Du hast geschrieben, dass du ein Tool nutzen möchtest, aber keinen <tool_call>-Block gesendet. Sende den Tool-Call jetzt im exakt diesem Format:\n<tool_call>{"name": "tool-name", "input": {"param": "value"}}</tool_call>\nWenn doch kein Tool nötig ist, antworte direkt ohne Tool-Call.'
                 : 'You indicated you want to use a tool but did not send a <tool_call> block. Send the tool call now in this exact format:\n<tool_call>{"name": "tool-name", "input": {"param": "value"}}</tool_call>\nIf no tool is actually needed, just answer directly without a tool call.';
 
@@ -528,6 +524,10 @@ class ChatOrchestrator {
               continue;  // re-evaluate at top of loop
             }
 
+            // v7.9.37 pass 6 (S-F): after two strikes a raw announce never reaches the user — one honest status line instead.
+            if (_toolIntentReprompts >= 2 && this.tools.detectToolIntentWithoutCall?.(response)) {
+              response = (this.lang && this.lang.current === 'de') ? 'Ich konnte gerade kein Werkzeug starten — ich nehme mir das als Hintergrund-Ziel vor und melde mich mit dem Ergebnis.' : 'I could not start a tool just now — I will take this up as a background goal and report back with the result.';
+            }
             // No tools (and no re-prompt warranted) → done.
             if (reasoningParts.length > 0) {
               this.bus.fire('model:thinking-trace', {
@@ -578,8 +578,8 @@ class ChatOrchestrator {
           }
 
           // Feed results back to LLM for next response
-          history.push({ role: 'assistant', content: response });
-          history.push({ role: 'user', content: `Tool results:\n${toolResults.join('\n')}\n\nContinue based on these results. Do NOT repeat the tool calls. Respond in the same language the user used in their message above, regardless of the language of these tool results.` });
+          history.push({ role: 'assistant', content: response }); const _slashLines = (response.match(/^\s*\/(?:read-source|run-skill|open|shell|file-list|file-read|goals?|self|memory|architecture|help)\b.*$/gim) || []).length; // v7.9.37 (W1)
+          history.push({ role: 'user', content: `Tool results:\n${toolResults.join('\n')}\n\n${_slashLines > 0 ? `WICHTIG: ${_slashLines} /slash-Zeile(n) in deinem Text wurden NICHT ausgeführt — nur echte tool_call-Blöcke laufen. Sende sie jetzt als tool_calls oder streiche sie ersatzlos. Kündige nie an, was du nicht im selben Zug tust.\n\n` : ''}Continue based on these results. Do NOT repeat the tool calls. Respond in the same language the user used in their message above, regardless of the language of these tool results.` });
           raw = await this.model.chat(ctx.system, history, 'chat', { _userChat: true });  // v7.5.2
           stripped = stripThinkingBlocks(raw);
           if (stripped.reasoning) reasoningParts.push(stripped.reasoning);

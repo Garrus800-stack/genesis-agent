@@ -286,6 +286,13 @@ class TrustLevelSystem {
    */
   checkApproval(actionType, context = {}) {
     this._stats.approvalChecks++;
+    // v7.9.37 (G3): self-modification is never trust-bypassed while the
+    // security setting demands confirmation — even at FULL autonomy.
+    if (actionType === 'self-modification' && this.requiresSelfModifyConfirmation?.()) {
+      this._audit(actionType, 'critical', 'needs-approval (self-modify setting)');
+      return { approved: false, needsUserApproval: true,
+        reason: 'self-modification requires confirmation (security.selfModifyRequiresConfirmation)' };
+    }
 
     const risk = this._getActionRisk(actionType);
     const level = this._level;

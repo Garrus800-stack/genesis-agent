@@ -92,7 +92,9 @@ module.exports = {
   async run(idleMind) {
     const modules = idleMind.selfModel?.getModuleSummary() || [];
     const caps = idleMind.selfModel?.getCapabilities() || [];
-    const existingPlans = idleMind.plans.slice(-3);
+    // v7.9.37 (field, F4): 10 instead of 3 — the field showed plan #7 could
+    // not see #1–#4 and re-circled the same theme (title+status only, cheap).
+    const existingPlans = idleMind.plans.slice(-10);
 
     // v7.7.9 (post-burnin P2): list real source files so the LLM can only
     // reference them. v7.9.20 (L1): order not-yet-covered files first and
@@ -107,11 +109,20 @@ module.exports = {
     const { recentFailures, recentCompleted, failedHint: recentFailed, completedHint: recentDone } =
       buildRecentGoalContext({ goalStack: idleMind.goalStack, storage: idleMind.storage, now: Date.now(), log: _log });
 
-    const prompt = `You are Genesis. Propose ONE concrete, verifiable activity that fits your current capabilities.\n\nReal source files you can reference (use EXACTLY these paths, do not invent):\n${realPaths}\n\nYour capabilities: ${caps.join(', ')}\n${existingPlans.length ? 'Previous plans:\n' + existingPlans.map(p => `- ${p.title}: ${p.status}`).join('\n') : ''}\n${alreadyReviewed ? '\nAlready covered (do NOT inspect again unless you have a genuinely new angle; prefer a file not in this list):\n' + alreadyReviewed : ''}\n${recentFailed ? '\nRecently FAILED goals (do NOT propose similar ones — they are obsolete):\n' + recentFailed : ''}${recentDone ? '\nRecently COMPLETED goals (do NOT propose these again — they are already done):\n' + recentDone : ''}\n\nRules:\n- Pick a SMALL, concrete activity (not an abstract meta-system).\n- TITLE must start with one of these verbs: Document, Reflect, Summarise, Research, Test, Verify, List, Compare, Investigate, Map, Index, Explore, Catalog, Inspect.\n- Reference ONLY real files from the list above.\n- The activity must be verifiable in <= 3 steps.\n- If you cannot find a small concrete activity, output: TITLE: SKIP\n\nFormat:\nTITLE: [Verb + short name, or SKIP if no concrete idea]\nPRIORITY: [high/medium/low]\nEFFORT: [small/medium/large]\nDESCRIPTION: [What exactly should be done, max 3 sentences]\nFIRST_STEP: [The very first concrete step, referencing a real file]`;
+    const prompt = `You are Genesis. Propose ONE concrete, verifiable activity that fits your current capabilities.\n\nReal source files you can reference (use EXACTLY these paths, do not invent):\n${realPaths}\n\nYour capabilities: ${caps.join(', ')}\n${existingPlans.length ? 'Previous plans:\n' + existingPlans.map(p => `- ${p.title}: ${p.status}`).join('\n') : ''}\n${alreadyReviewed ? '\nAlready covered (do NOT inspect again unless you have a genuinely new angle; prefer a file not in this list):\n' + alreadyReviewed : ''}\n${recentFailed ? '\nRecently FAILED goals (do NOT propose similar ones — they are obsolete):\n' + recentFailed : ''}${recentDone ? '\nRecently COMPLETED goals (do NOT propose these again — they are already done):\n' + recentDone : ''}\n\nRules:\n- RECENT goal families (from past sessions — do NOT repeat these kinds): ${(() => { try { const _f = require('fs').readFileSync(require('path').join(process.cwd(), '.genesis', 'goal-families.json'), 'utf8'); const _a = JSON.parse(_f); return Array.isArray(_a) && _a.length ? _a.slice(-8).join(', ') : 'none yet'; } catch (_e) { return 'none yet'; } })()}\n- VARY goal families: never propose the same family (e.g. inspect-file) twice in a row; if recent failures share a family, choose a different one today.\n- Pick a SMALL, concrete activity (not an abstract meta-system).\n- TITLE must start with one of these verbs: Document, Reflect, Summarise, Research, Test, Verify, List, Compare, Investigate, Map, Index, Explore, Catalog, Inspect.\n- Reference ONLY real files from the list above.\n- The activity must be verifiable in <= 3 steps.\n- If you cannot find a small concrete activity, output: TITLE: SKIP\n\nFormat:\nTITLE: [Verb + short name, or SKIP if no concrete idea]\nPRIORITY: [high/medium/low]\nEFFORT: [small/medium/large]\nDESCRIPTION: [What exactly should be done, max 3 sentences]\nFIRST_STEP: [The very first concrete step, referencing a real file]`;
 
     const thought = await idleMind.model.chat(prompt, [], 'analysis');
 
     const titleMatch = thought.match(/TITLE:\s*(.+)/i) || thought.match(/TITEL:\s*(.+)/i);
+    // v7.9.37 (G5): persist the goal family — three fresh-soul runs in a row chose the same kind.
+    if (titleMatch && !/^\s*SKIP/i.test(titleMatch[1])) {
+      try {
+        const _fs = require('fs'), _file = require('path').join(process.cwd(), '.genesis', 'goal-families.json');
+        let _fam = []; try { _fam = JSON.parse(_fs.readFileSync(_file, 'utf8')); } catch (_e) { _fam = []; }
+        if (!Array.isArray(_fam)) _fam = []; _fam.push(String(titleMatch[1]).trim().toLowerCase().split(/\s+/).slice(0, 3).join(' '));
+        _fs.writeFileSync(_file, JSON.stringify(_fam.slice(-12), null, 2));
+      } catch (_e) { /* best-effort */ }
+    }
     const prioMatch = thought.match(/PRIORITY:\s*(.+)/i) || thought.match(/PRIORITAET:\s*(.+)/i);
     if (titleMatch) {
       let title = titleMatch[1].trim();
@@ -187,11 +198,15 @@ module.exports = {
       } catch (e) { _log.debug('[catch] plan-refine:', e.message); }
 
       const priority = prioMatch?.[1]?.trim() || 'medium';
+      // v7.9.37 (field, F4): store the DESCRIPTION section, not the raw LLM
+      // block ("TITLE:…PRIORITY:…") — plans.json carried the full scaffold.
+      const _descMatch = thought.match(/DESCRIPTION:\s*([\s\S]*?)(?:\n\s*FIRST_STEP:|$)/i);
+      const _descText = (_descMatch && _descMatch[1] && _descMatch[1].trim()) || thought;
       const plan = {
         id: `plan_${Date.now()}`,
         title,
         priority,
-        description: thought,
+        description: _descText,
         status: 'new',
         created: new Date().toISOString(),
       };

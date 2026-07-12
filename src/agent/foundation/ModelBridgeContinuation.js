@@ -92,7 +92,12 @@ const continuationMixin = {
     } catch (err) {
       _log.debug(`[CONTINUATION] capability detection failed: ${err.message}`);
     }
-    const result = await runContinuation({
+    // v7.9.37 pass 3 (R1a): a max-continuations failure means the model is
+    // drip-feeding fragments — mark it so failover stops re-picking it
+    // (field 09.07.: qwen3 collapsed at 10:04 and was still preferred at 13:32).
+    let result;
+    try {
+      result = await runContinuation({
       backend,
       systemPrompt,
       messages,
@@ -123,12 +128,40 @@ const continuationMixin = {
         // keeps continuationTotal itself for the cross-attempt deadline.
         // Scope: these only affect Ollama code-generation (taskType ===
         // 'code'), the single path that routes through ContinuationLoop.
-        firstChunkTimeoutMs: Number(this._settings?.get?.('llm.streamTimeouts.firstChunk') ?? TIMEOUTS.LLM_STREAM_FIRST_CHUNK),
+        // v7.9.37 pass 4 (C3): cloud models legitimately think longer before
+        // the first token — default 300s for ':cloud', 180s local; settings win.
+        firstChunkTimeoutMs: Number(this._settings?.get?.('llm.streamTimeouts.firstChunk')
+          ?? (/:cloud$/i.test(model) ? 300000 : TIMEOUTS.LLM_STREAM_FIRST_CHUNK)),
         chunkTimeoutMs: Number(this._settings?.get?.('llm.streamTimeouts.chunk') ?? TIMEOUTS.LLM_STREAM_CHUNK),
         totalTimeoutMs: Number(this._settings?.get?.('llm.streamTimeouts.total') ?? TIMEOUTS.LLM_STREAM_TOTAL),
         continuationTotalTimeoutMs: Number(this._settings?.get?.('llm.streamTimeouts.continuationTotal') ?? TIMEOUTS.LLM_CONTINUATION_TOTAL),
       },
     });
+    } catch (err) {
+      const _msg = (err && err.message) || '';
+      if (/max-continuations/.test(_msg)) {
+        try { this.markUnavailable(model, 'continuation-exhausted'); } catch (_e) { /* best-effort */ }
+      }
+      // v7.9.37 pass 4 (B3): two first-chunk timeouts within 10min ⇒ mark.
+      if (/first-chunk timeout/i.test(_msg)) {
+        if (!this._firstChunkStrikes) this._firstChunkStrikes = new Map();
+        const now = Date.now();
+        const hits = (this._firstChunkStrikes.get(model) || []).filter(t => now - t < 10 * 60 * 1000);
+        hits.push(now);
+        this._firstChunkStrikes.set(model, hits);
+        if (hits.length >= 2) {
+          try { this.markUnavailable(model, 'stream-timeout'); } catch (_e) { /* best-effort */ }
+          this._firstChunkStrikes.set(model, []);
+        }
+      }
+      throw err;
+    }
+    if (result && result.ok === false) {
+      if (result.failureReason === 'max-continuations') {
+        try { this.markUnavailable(model, 'continuation-exhausted'); } catch (_e) { /* best-effort */ }
+      }
+      throw new Error(`[CONTINUATION] ${model} failed: ${result.failureReason} — partial (${(result.content || '').length} chars) discarded, not usable as code`);
+    }
     return result.content;
   },
 

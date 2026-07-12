@@ -409,19 +409,62 @@ function appendToStream(chunk) {
   streamingMessageEl._chunks.push(chunk);
   const full = streamingMessageEl._chunks.join('');
   const body = streamingMessageEl.querySelector('.message-content');
-  if (body) body.innerHTML = `<div class="message-name">Genesis</div>${renderMarkdownWithEditorButtons(full)}`;
+  if (body) {
+    body.innerHTML = `<div class="message-name">Genesis</div>${renderMarkdownWithEditorButtons(full)}`;
+    // v7.9.37 (W6b): the turn is still open — keep the pulse visible until
+    // agent:stream-done. Dots visible = working; dots gone = finished.
+    if (isStreaming) body.insertAdjacentHTML('beforeend', '<div class="typing-indicator"><span></span><span></span><span></span></div>');
+  }
   const container = $('#chat-messages');
   container.scrollTop = container.scrollHeight;
 }
 
-function finishStream() {
+function finishStream(finalText) {
   isStreaming = false;
   $('#btn-send').classList.remove('hidden');
   $('#btn-stop').classList.add('hidden');
   if (streamingMessageEl) {
+    // v7.9.37 (W4): the streamed bubble may contain intermediate rounds
+    // (re-prompts, continuations). When the orchestrator hands us the FINAL
+    // text, it replaces everything — one clean answer per turn.
+    if (typeof finalText === 'string' && finalText.trim()) {
+      const body = streamingMessageEl.querySelector('.message-content');
+      if (body) body.innerHTML = `<div class="message-name">Genesis</div>${renderMarkdownWithEditorButtons(finalText)}`;
+    } else {
+      // No final payload → at least drop the typing tail (v7.9.37 W6b).
+      streamingMessageEl.querySelectorAll('.typing-indicator').forEach(el => el.remove());
+    }
     attachCodeButtons(streamingMessageEl);
     streamingMessageEl = null;
   }
+}
+
+// v7.9.37 (W6a): live tool lifecycle inside the streaming bubble — the field
+// screenshot showed a static block with no way to tell running from done.
+const _toolStarts = {};
+function updateToolStatus(p) {
+  if (!streamingMessageEl || !p) return;
+  const body = streamingMessageEl.querySelector('.message-content');
+  if (!body) return;
+  let bar = body.querySelector('.tool-status-bar');
+  if (!bar) { bar = document.createElement('div'); bar.className = 'tool-status-bar'; body.appendChild(bar); }
+  const name = escapeHtml(String(p.name || 'tool'));
+  if (p.phase === 'calling') {
+    _toolStarts[name] = p.ts || Date.now();
+    const el = document.createElement('div');
+    el.className = 'tool-status running';
+    el.dataset.tool = name;
+    el.innerHTML = `⚙️ ${name} läuft<span class="tool-dots"><span>.</span><span>.</span><span>.</span></span>`;
+    bar.appendChild(el);
+  } else {
+    const el = bar.querySelector(`.tool-status.running[data-tool="${name}"]`);
+    const ms = _toolStarts[name] ? (Date.now() - _toolStarts[name]) : null;
+    const label = `✓ ${name}${ms != null ? ` · ${(ms / 1000).toFixed(1)}s` : ''}`;
+    if (el) { el.className = 'tool-status done'; el.textContent = label; }
+    else { const d = document.createElement('div'); d.className = 'tool-status done'; d.textContent = label; bar.appendChild(d); }
+  }
+  const container = $('#chat-messages');
+  container.scrollTop = container.scrollHeight;
 }
 
 async function sendMessage() {
@@ -460,7 +503,7 @@ function autoResize(ta) {
 }
 
 module.exports = {
-  addMessage, startStreamingMessage, appendToStream, finishStream,
+  addMessage, startStreamingMessage, appendToStream, finishStream, updateToolStatus, // v7.9.37 (W6a)
   sendMessage, stopGeneration, escapeHtml, renderMarkdown,
   getStreamingState, attachCodeButtons,
   // v7.7.2:

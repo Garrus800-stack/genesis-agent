@@ -183,6 +183,11 @@ class ResourceRegistry {
 
     // service:llm → resolve to active backend
     if (token === 'service:llm') {
+      // v7.9.37 (S2): available if ANY discovered model is usable — not tied to
+      // activeBackend, which is null right after the preferred model is marked
+      // unavailable at an idle boot (field 17: a free failover model existed but
+      // service:llm returned false, blocking the idle goal for the whole session).
+      if (this.modelBridge?.hasAnyModelAvailable?.()) return true;
       const backend = this.modelBridge?.activeBackend;
       if (!backend) return false;
       // v7.9.12: even with a configured active backend, service:llm is

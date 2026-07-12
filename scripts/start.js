@@ -43,6 +43,36 @@ try {
 
 const appRoot = path.resolve(__dirname, '..');
 
+// ── Step 1b: keep the UI bundle honest (v7.9.37) ────────────
+// main.js PREFERS dist/preload.js + dist/renderer.bundle.js when they exist.
+// A stale bundle silently runs OLD renderer code: the field ran a pre-W-series
+// UI for days because npm start never rebuilt it. Rebuild when any UI source is
+// newer than the bundle — cheap (esbuild), and it can never rot again.
+const fs = require('fs');
+function newestMtime(paths) {
+  let newest = 0;
+  const walk = (p) => {
+    let st; try { st = fs.statSync(p); } catch { return; }
+    if (st.isDirectory()) { for (const e of fs.readdirSync(p)) walk(path.join(p, e)); return; }
+    if (st.mtimeMs > newest) newest = st.mtimeMs;
+  };
+  paths.forEach(walk);
+  return newest;
+}
+try {
+  const srcNewest = newestMtime([path.join(appRoot, 'src/ui'), path.join(appRoot, 'preload.js')]);
+  const bundles = ['dist/renderer.bundle.js', 'dist/preload.js'].map(f => path.join(appRoot, f));
+  const missing = bundles.some(f => !fs.existsSync(f));
+  const bundleOldest = missing ? 0 : Math.min(...bundles.map(f => fs.statSync(f).mtimeMs));
+  if (missing || bundleOldest < srcNewest) {
+    console.log(`[START] UI bundle ${missing ? 'missing' : 'stale'} — rebuilding (dist/ is what actually runs)...`);
+    const r = spawnSync(process.execPath, [path.join(__dirname, 'build-bundle.js')], { stdio: 'inherit', cwd: appRoot });
+    if (r.status !== 0) console.warn('[START] Bundle rebuild failed — the UI may be running OLD code. Run: npm run build:bundle');
+  }
+} catch (err) {
+  console.warn(`[START] Bundle freshness check skipped: ${err.message}`);
+}
+
 const child = spawn(electronPath, ['.'], {
   stdio: 'inherit',
   cwd: appRoot,

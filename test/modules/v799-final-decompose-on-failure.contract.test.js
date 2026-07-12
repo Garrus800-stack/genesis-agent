@@ -58,10 +58,13 @@ describe('v7.9.9 Fix 3 — Decompose-on-Failure Activation', () => {
     // The fall-through `return { action: 'none' }` is the LAST occurrence inside
     // classifyAndRecover (an earlier short-circuit return for missing FailureTaxonomy
     // also returns 'none' but is in a different branch).
-    const returnNoneIdx = src.lastIndexOf("return { action: 'none' }");
+    // v7.9.37 (R1): the fall-through return now carries the category via a ternary
+    // (_lastCategory ? {action,category} : {action}), so anchor on that form.
+    const returnNoneIdx = src.lastIndexOf("{ action: 'none' }");
     assert(callIdx > 0, 'classifyAndRecover must call _tryDecomposeOnRepeatedFailure');
-    assert(returnNoneIdx > 0, "default return { action: 'none' } must still exist as fall-through");
+    assert(returnNoneIdx > 0, "default fall-through action:'none' must still exist");
     assert(callIdx < returnNoneIdx, "_tryDecomposeOnRepeatedFailure must be called BEFORE the fall-through return");
+    assert(src.includes("_lastCategory ? { action: 'none', category: _lastCategory }"), 'R1: the fall-through carries the classified category');
   });
 
   test('SRC-03: _tryDecomposeOnRepeatedFailure method body has correct shape', () => {

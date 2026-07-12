@@ -32,6 +32,7 @@ const agentLoopPursuitMixin = {
     if (this.running) {
       return { success: false, error: 'Agent loop already running. Use stop() first.' };
     }
+      // v7.9.37 (F5): preGeneratedSteps had ZERO writers (dead branch) — accept goal.steps.
 
     // v7.4.5: Accept string (legacy DaemonController-direct) OR Goal object (GoalDriver-pickup with optional preGeneratedSteps).
     const _isGoalObject = (typeof input === 'object' && input !== null
@@ -42,6 +43,7 @@ const agentLoopPursuitMixin = {
 
     _log.info(`[AGENT-LOOP] starting pursuit — goal="${(goalDescription || '').slice(0, 80)}"${_presetGoal ? ` (id=${_presetGoal.id}, ${(_presetGoal.steps || []).length} preset steps)` : ' (legacy string input)'}`);
     // v7.9.9 Fix 1: notify SymbolicResolver to reset its per-pursuit AVOID counter.
+    this.currentGoalId = _presetGoal?.id || this.currentGoalId || null; if (this.approval) this.approval.currentGoalId = this.currentGoalId; this._goalSource = _presetGoal?.source || null; // v7.9.37 (G4): early — card + abandoned event carry the id
     try { this.bus.fire('agent-loop:starting-pursuit', { goalDescription: typeof goalDescription === 'string' ? goalDescription.slice(0, 200) : '', goalId: _presetGoal?.id || null }, { source: 'AgentLoop' }); } catch (_e) { /* never break pursuit */ }
 
     // v3.7.0: Strict Cognitive Mode — refuse to run without core cognitive services
@@ -133,7 +135,7 @@ const agentLoopPursuitMixin = {
       this._aborted = true;
       this._cancelToken?.cancel(`Global timeout (${_armedBudgetMs}ms)`);
       this.bus.fire('agent-loop:timeout', { goal: goalDescription.slice(0, 80), steps: this.stepCount, elapsed: _armedBudgetMs }, { source: 'AgentLoop' });
-      this.bus.fire('goal:abandoned', { id: this.currentGoalId, reason: `Global timeout (${_armedBudgetMs}ms)`, stepsCompleted: this.stepCount }, { source: 'AgentLoop' });
+      this.bus.fire('goal:abandoned', { id: this.currentGoalId, reason: `Global timeout (${TIMEOUTS.AGENT_LOOP_GLOBAL}ms)`, stepsCompleted: this.stepCount }, { source: 'AgentLoop' }); // v7.9.37 pass 4 (B6)
       reflectIfNeeded(this, { goalId: this.currentGoalId, goalDescription: typeof goalDescription === 'string' ? goalDescription : null, errorMessage: `Global timeout (${_armedBudgetMs}ms) reached after ${this.stepCount} steps`, stepsExecuted: this.stepCount });
     };
     const _armGlobalTimeout = (ms) => { if (globalTimeout) clearTimeout(globalTimeout); _armedBudgetMs = ms; globalTimeout = setTimeout(_onGlobalTimeout, ms); };
@@ -145,11 +147,13 @@ const agentLoopPursuitMixin = {
     try {
       // ── Phase 1: PLAN ── v7.4.5: presetGoal.preGeneratedSteps skip the planner.
       /** @type {*} */ let plan;
-      if (_presetGoal && Array.isArray(_presetGoal.preGeneratedSteps)
-          && _presetGoal.preGeneratedSteps.length > 0) {
+      const _presetSteps = (Array.isArray(_presetGoal?.preGeneratedSteps) && _presetGoal.preGeneratedSteps.length > 0)
+        ? _presetGoal.preGeneratedSteps
+        : ((Array.isArray(_presetGoal?.steps) && _presetGoal.steps.length > 0) ? _presetGoal.steps : null);
+      if (_presetGoal && _presetSteps) {
         plan = {
           title: (_presetGoal.description || '').slice(0, 100) || 'Pre-planned goal',
-          steps: _presetGoal.preGeneratedSteps,
+          steps: _presetSteps,
           successCriteria: _presetGoal.successCriteria,
         };
       } else {
@@ -199,15 +203,14 @@ const agentLoopPursuitMixin = {
           });
 
           if (!dryRun.valid) {
-            const proceed = await this.approval.request(
-              'plan-has-issues',
-              `Plan has ${dryRun.validation.totalIssues} blockers:\n${dryRun.summary}`
-            );
+            const proceed = await this.approval.requestPlanCard({ goalDescription, dryRun, presetGoal: _presetGoal }); // v7.9.37 (G2/G3/G4): human card; self-mod never bypassed; timeout parks
+            if (proceed === 'timeout') {
+              this.running = false; _clearGlobalTimeout(); const _pk = 'plan approval timed out — goal parked for retry'; _log.warn(`[AGENT-LOOP] ${_pk}`); return { success: false, error: _pk, parked: true };
+            }
             if (!proceed) {
               this.running = false;
               _clearGlobalTimeout();
-              const _err = 'User rejected plan with blockers';
-              _emitFailure(_err);
+              const _err = 'User rejected plan with blockers'; _emitFailure(_err);
               return { success: false, error: _err };
             }
           }
@@ -339,10 +342,9 @@ const agentLoopPursuitMixin = {
       }
 
       // ── Phase 2: EXECUTE LOOP ─────────────────────────
-      // v7.9.23: resume from the last checkpoint. GoalPersistence loads goals/steps/<id>.json on
-      // boot and sets goal.currentStep (last completed step); continue at the next step, seed results.
-      const _resumeFrom = (_presetGoal && Number.isInteger(_presetGoal.currentStep) && _presetGoal.currentStep >= 0) ? _presetGoal.currentStep + 1 : 0;
-      const _seededResults = (_presetGoal && Array.isArray(_presetGoal.results)) ? _presetGoal.results : [];
+      const _cp = _presetGoal && _presetGoal._loopCheckpoint;
+      const _resumeFrom = (_cp && Number.isInteger(_cp.stepIndex) && _cp.stepIndex >= 0) ? _cp.stepIndex + 1 : 0;
+      const _seededResults = (_cp && Array.isArray(_cp.partialResults)) ? _cp.partialResults : [];
       if (_resumeFrom > 0) _log.info(`[AGENT-LOOP] resuming goal ${this.currentGoalId} from step ${_resumeFrom + 1}/${plan.steps.length} (checkpoint)`);
       const result = await this._executeLoop(plan, onProgress, _resumeFrom, _seededResults);
 
@@ -428,7 +430,7 @@ const agentLoopPursuitMixin = {
   // EXECUTION LOOP
   // ════════════════════════════════════════════════════════
   async _executeLoop(plan, onProgress, startIndex = 0, seededResults = []) {
-    const steps = plan.steps;
+    const steps = plan.steps, _budget = this.recovery.createRepairBudget(plan.steps.length); // (R4) repair/replan budget
     let allResults = Array.isArray(seededResults) ? seededResults.slice() : []; // v7.9.23: resume seed
     this._currentPlan = plan; // v4.12.4: Store for consciousness context access
 
@@ -560,6 +562,8 @@ const agentLoopPursuitMixin = {
 
         // FailureTaxonomy classify (SA-O2) + Fix 8: plan+allResults for refresh→replan.
         const recovery = await this.recovery.classifyAndRecover(step, result, i, onProgress);
+        const _diag = `[STEP-DIAG] Step ${i + 1} "${(step.description || step.type || '').slice(0, 60)}" failed → cause: ${recovery.category || 'unclassified'} → action: ${recovery.action || 'none'} → error: ${String(result.error || '').replace(/\s+/g, ' ').slice(0, 80)}`; // (S1) + v7.9.37 (Z5)
+        _log.info(_diag); try { onProgress({ phase: 'step-diagnosis', detail: _diag }); } catch (_e) { /* best-effort */ }
         if (recovery.action === 'retry') {
           i--; // Retry same step
           allResults.push({ retried: true, category: recovery.category });
@@ -581,7 +585,8 @@ const agentLoopPursuitMixin = {
 
         if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
           // ── REFLECT: Too many errors — attempt self-repair ──
-          const repairResult = await this.recovery.attemptRepair(step, result, allResults, onProgress);
+          const repairResult = _budget.hasRounds() ? await this.recovery.attemptRepair(step, result, allResults, onProgress) : { recovered: false, reason: 'repair budget exhausted' }; // (R4)
+          if (repairResult.recovered) _budget.spend();
           if (repairResult.recovered) {
             this.consecutiveErrors = 0;
             allResults.push(repairResult);
@@ -616,8 +621,9 @@ const agentLoopPursuitMixin = {
       // ── REFLECT: Should we adjust the plan? ───────────
       if (i < steps.length - 1 && (i + 1) % 3 === 0) {
         // Every 3 steps, check if the plan still makes sense
-        const adjustment = await this.recovery.reflectOnProgress(plan, allResults, i);
+        const adjustment = _budget.hasRounds() ? await this.recovery.reflectOnProgress(plan, allResults, i) : null; // (R4)
         if (adjustment && adjustment.newSteps) {
+          if (!_budget.fits(i + 1 + adjustment.newSteps.length)) { _log.warn(`[REPLAN] rejected — exceeds step cap (${_budget.stepCap})`); } else { _budget.spend();
           normalizeStepTypes(adjustment.newSteps, { logger: _log, tag: '[REPLAN]' });
           steps.splice(i + 1, steps.length, ...adjustment.newSteps);
           onProgress({
@@ -625,6 +631,7 @@ const agentLoopPursuitMixin = {
             detail: `Plan adjusted: ${adjustment.reason}`,
             newSteps: adjustment.newSteps.map(s => s.description),
           });
+          }
         }
       }
 

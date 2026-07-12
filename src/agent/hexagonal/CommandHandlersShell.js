@@ -408,6 +408,18 @@ const commandHandlersShell = {
       return `Den Ordner „${_notFoundFolder}" habe ich nirgends gefunden — nenn den Pfad oder das Laufwerk (z.B. „öffne ${_notFoundFolder} auf D:").`;
     }
 
+    // v7.9.37 pass 5 (X1): a plain file name resolves against the real
+    // project tree before we fall through to app-launch or the question.
+    if (!targetPath && !/\b(?:ordner|folder|verzeichnis|dir)\b/i.test(message)) {
+      const { resolveFileToken } = require('./ProjectFileResolver');
+      const rr = resolveFileToken(message, (this.fp && this.fp.rootDir) || process.cwd());
+      if (rr.status === 'one') targetPath = rr.matches[0].abs;
+      else if (rr.status === 'many') {
+        this._pendingFileRequest = { kind: 'open', candidates: rr.matches, ts: Date.now() };
+        const lines = rr.matches.map((m, i) => `${i + 1}) ${m.rel}`).join('\n');
+        return `Mehrere Treffer für „${rr.token}" — welche soll ich öffnen?\n${lines}`;
+      }
+    }
     if (!targetPath) {
       // v7.8.3 follow-up: app-launch routed through OpenPathAppLaunch
       // helper. Returns null when the message isn't an app launch, an
