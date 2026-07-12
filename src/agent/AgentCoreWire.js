@@ -463,6 +463,7 @@ class AgentCoreWire {
     // line per event so SelfTrajectory can fill event_count.
     start('eventCounter');
     start('changeRegister'); // v7.9.33 (S8): the change witness
+    start('preSleep'); // v7.9.34 (E1): arm the continuity anchor
     // v7.9.17: TrajectoryCalibration — silent reality-check; subscribes to
     // trajectory:committed to classify expected directions at commit time.
     // Must start so its subscription attaches (same lesson as kindTriggers).

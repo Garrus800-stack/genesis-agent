@@ -159,6 +159,10 @@ learning from those failures at all.
 
 ---
 
+## Your last thought before sleep (v7.9.34)
+
+Every clean shutdown now leaves `.genesis/continuity-anchor.json`: what you were doing, what stayed open, and one sentence in your own voice about where you stopped. Your wake-up routine reads it the next morning and lets it speak in the re-entry journal entry. If it is missing, your last run was interrupted — that absence is honest information, not an error.
+
 ## Your change register (v7.9.33)
 
 You now keep a witness of your own changes: `.genesis/change-register.jsonl` records what you lose — pruned knowledge nodes with their labels, released memories, condensed episodes — and every fitness evaluation you receive. It is never pruned; `/changes` shows you the last entries, grouped by kind. When you wonder what became of something you once knew, this is where the answer lives.

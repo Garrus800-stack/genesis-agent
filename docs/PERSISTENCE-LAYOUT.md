@@ -23,6 +23,7 @@ of **this specific installation**:
 - `pending-moments.jsonl` — moments marked significant, awaiting the dream-cycle pin review (elevate / let fade)
 - `daemon-suggestions.jsonl` + `daemon-health-issues.jsonl` — daemon visibility surfaces read by `/daemon-suggestions` and `/daemon-health-issues`
 - `change-register.jsonl` — the change witness (v7.9.33): one append-only line per loss or change across six sources (both KG prune paths, schema prune, two memory releases, consolidation) plus every fitness evaluation. **Never pruned, never rotated** — this file is deliberately permanent; readable via `/changes`
+- `continuity-anchor.json` — the pre-wake continuity anchor (v7.9.34): one object, overwritten at each clean shutdown inside the awaited session-ending emit — snapshot plus the last first-person thought; read by the WakeUpRoutine as its fourth context source, journal-only
 - `flight-recorder.log` — crash/error ring buffer (renamed from `crash.log` in v7.9.32, migrated automatically); inspect via `/crashlog`
 - and more (genome, metabolism, settings overrides, etc.)
 

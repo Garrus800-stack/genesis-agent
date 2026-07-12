@@ -354,6 +354,27 @@ function phase9b(ctx, R) {
       factory: () => new (R('GateStats').GateStats)(),
     }],
 
+    // v7.9.34 (E1): PreSleep — the WakeUpRoutine's mirror. Listens to
+    // the awaited session:ending emit and writes the continuity anchor
+    // (.genesis/continuity-anchor.json) in a 10s box: deterministic
+    // snapshot + one first-person sentence (LLM-preferred, template
+    // fallback). Started in the start sequence, stopped in TO_STOP;
+    // the anchor is journal-only on the wake side, never prompt-path.
+    ['preSleep', {
+      phase: 9,
+      deps: ['bus', 'storage'],
+      tags: ['cognitive', 'lifecycle', 'persistent'],
+      lateBindings: [
+        { prop: 'goalStack',      service: 'goalStack',      optional: true },
+        { prop: 'emotionalState', service: 'emotionalState', optional: true },
+        { prop: 'model',          service: 'llm',            optional: true },
+      ],
+      factory: (c) => new (R('PreSleep').PreSleep)({
+        bus,
+        storage: c.resolve('storage'),
+      }),
+    }],
+
     // v7.3.7: WakeUpRoutine — post-boot Re-Entry.
     // Triggered by boot:complete event, time-boxed 30s.
     // All dependencies optional late-bindings — runs with whatever is wired.
@@ -370,6 +391,7 @@ function phase9b(ctx, R) {
         { prop: 'coreMemories',        service: 'coreMemories',        optional: true },
         { prop: 'dreamCycle',          service: 'dreamCycle',          optional: true },
         { prop: 'model',               service: 'llm',                 optional: true },
+        { prop: 'preSleep',            service: 'preSleep',            optional: true }, // v7.9.34 (E1)
       ],
       factory: () => new (R('WakeUpRoutine').WakeUpRoutine)({ bus }),
     }],

@@ -41,6 +41,7 @@ class WakeUpRoutine {
     this.pendingMomentsStore = null;
     this.coreMemories = null;
     this.dreamCycle = null;
+    this.preSleep = null;          // v7.9.34 (E1): the sleep-side mirror — anchor reader
 
     this._wired = false;
     this._ran = false;
@@ -120,14 +121,26 @@ class WakeUpRoutine {
         emotionalSnapshot: null,
         activeNeeds: [],
         readCounts: {},
+        lastPreSleep: this._readPreSleepAnchor(),
       };
     }
     try {
-      return await this.contextCollector.collectPostBootContext();
+      const ctx = await this.contextCollector.collectPostBootContext();
+      // v7.9.34 (E1): the fourth context source — what Genesis thought
+      // as he fell asleep. Journal-only downstream (decision G2a);
+      // never reaches the runtime prompt.
+      ctx.lastPreSleep = this._readPreSleepAnchor();
+      return ctx;
     } catch (e) {
       _log.debug('[WakeUp] context collection failed:', e.message);
-      return { readCounts: {} };
+      return { readCounts: {}, lastPreSleep: this._readPreSleepAnchor() };
     }
+  }
+
+  /** v7.9.34 (E1): defensive anchor read via the PreSleep service. @private */
+  _readPreSleepAnchor() {
+    try { return this.preSleep?.readAnchor?.() ?? null; }
+    catch (_e) { return null; }
   }
 
   // ── Step 2: pending review at boot ────────────────────────
@@ -210,6 +223,14 @@ class WakeUpRoutine {
     if (mood) {
       parts.push(`Grundstimmung: ${mood}.`);
     }
+    // v7.9.34 (E1): continuity across the sleep — fresh anchor speaks,
+    // an old one is named honestly (interruptions in between implied).
+    const ps = ctx?.lastPreSleep;
+    if (ps?.anchor?.lastThought) {
+      parts.push(ps.fresh
+        ? `Vor dem Schlaf: „${ps.anchor.lastThought}“`
+        : 'Mein letzter bewusster Schlaf liegt länger zurück.');
+    }
 
     const content = parts.join(' ');
     const tags = ['re-entry', `heuristic-${tag}`];
@@ -256,6 +277,13 @@ class WakeUpRoutine {
     }
     if (ctx?.lastSharedEntry) {
       lines.push(`  Letzter Shared-Eintrag: ${(ctx.lastSharedEntry.content || '').slice(0, 120)}`);
+    }
+    // v7.9.34 (E1): the anchor speaks into the re-entry prompt only —
+    // journal path, never the runtime prompt (decision G2a).
+    if (ctx?.lastPreSleep?.anchor?.lastThought) {
+      lines.push(ctx.lastPreSleep.fresh
+        ? `  Letzter Gedanke vor dem Schlaf: ${ctx.lastPreSleep.anchor.lastThought}`
+        : '  Der letzte bewusste Schlaf liegt länger zurück.');
     }
 
     lines.push('', 'Schreib einen kurzen persönlichen Eintrag. Keine Aufzählung, keine Meta-Ebene.');

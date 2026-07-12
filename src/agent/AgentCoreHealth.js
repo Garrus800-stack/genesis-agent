@@ -433,6 +433,7 @@ class AgentCoreHealth {
       // teardown order is independent.
       'eventCounter',
       'changeRegister', // v7.9.33
+      'preSleep', // v7.9.34
       // v7.9.17: TrajectoryCalibration — unsubscribes from trajectory:committed.
       // stop() only detaches the listener (the directions/calibration files are
       // append-only and already durable), so its teardown order is independent.

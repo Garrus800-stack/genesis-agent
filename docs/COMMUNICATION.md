@@ -39,7 +39,7 @@ EmotionalState ──emit('emotion:shift')──→ EventBus ──→ PromptBui
 
 Key properties:
 
-- **498 event types** catalogued in `EventTypes.js` (v7.9.33 baseline)
+- **498 event types** catalogued in `EventTypes.js` (v7.9.34 baseline)
 - **498 payload schemas** in `EventPayloadSchemas.js` — full parity since v7.6.x (every catalog entry has a registered schema); dev-mode validation throws on mismatch
 - **Ring buffer history** — last 500 events for debugging
 - **Source tracking** — every event carries `{ source: 'ModuleName' }` for audit
@@ -51,6 +51,8 @@ New v7.5.6 events: `model:marked-unavailable`, `model:unavailable-cleared`, `mod
 New v7.7.9 events (InnerSpeech + PSE): `inner-speech:emitted`, `inner-speech:overflowed`, `pse:gate-blocked`, `pse:scored`, `pse:surfaced`. The InnerSpeech events thread the ring buffer; the PSE events let `/proactive-status` surface suppression reasons without digging into raw structures.
 
 New v7.8.9–v7.9.4 events (Können maturity chain): `skill:candidate-extracted`, `skill:forged`, `skill:promoted`, `skill:discard-suggested`, `skill:discarded`, `skill:rehearsed`, `selfnarrative:skill-acquired`, `skills:reloaded`. The `koennen-promotion-v794` contract prefix in `stale-refs.json` locks the shapes against silent drift. v7.9.31 adds `skill:candidate-created` — the SkillManager intake announcing a maturing candidate (replaces the retired `daemon:skill-created`).
+
+New v7.9.34 consumer (pre-wake continuity): `session:ending` gains a third listener — PreSleep, the WakeUpRoutine's mirror, writes `.genesis/continuity-anchor.json` inside the awaited emit (10 s box, atomic + fsync); the WakeUpRoutine reads it at the next boot as its fourth context source. Journal-only by decision — never the runtime prompt.
 
 New v7.9.32–v7.9.33 events and payload truths (field fixes + change register): `knowledge:nodes-pruned` now carries `examples` (up to 20 node identities) and a `cause` tag on **both** prune paths — the cap eviction enriches its existing fire, and the previously silent stale sweep (three production callers) fires for the first time. `schema:pruned` and `memory:consolidated` had their declarations pulled onto the truth: both had declared a `count` field that was never fired. `memory:consolidated` has **two fire sites** — DreamCycle episode condensation (`episodeId, fromLayer, toLayer, sizeReduction, label`) and UnifiedMemory topic promotion (`promotedCount, topics`); the schema now declares the honest union. The two memory releases and the consolidation carry an optional `label`. `fitness:evaluated` gained its first-ever listener: the ChangeRegister, a record-only witness writing one line per change into `.genesis/change-register.jsonl` (never pruned) — readable via the new `/changes` slash command.
 
