@@ -226,7 +226,7 @@ test('A4: ACTIVITY_MODULES contains 18 entries with inhabit included', () => {
   const match = src.match(/const ACTIVITY_MODULES = \[([^\]]+)\];/);
   assert(match, 'ACTIVITY_MODULES array must be present');
   const requires = match[1].match(/require\([^)]+\)/g) || [];
-  assertEqual(requires.length, 18, 'must have exactly 18 activities (v7.9.20: + ProposeImprovements)');
+  assertEqual(requires.length, 19, 'must have exactly 19 activities (v7.9.35: + Pause)');
   const hasInhabit = requires.some(r => r.includes("activities/Inhabit"));
   assert(hasInhabit, 'ACTIVITY_MODULES must include Inhabit');
 });

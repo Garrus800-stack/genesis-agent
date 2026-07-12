@@ -48,6 +48,7 @@ const ACTIVITY_MODULES = [
   require('./activities/SkillRehearsal'), // v7.9.4
   require('./activities/Inhabit'),        // v7.9.5
   require('./activities/ProposeImprovements'), // v7.9.20 (D)
+  require('./activities/Pause'),               // v7.9.35 (E2)
 ];
 const ACTIVITY_BY_NAME = Object.fromEntries(ACTIVITY_MODULES.map(a => [a.name, a]));
 

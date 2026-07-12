@@ -54,6 +54,8 @@ function phase6(ctx, R) {
       tags: ['autonomy'],
       lateBindings: [
         { prop: 'mcpClient', service: 'mcpClient', optional: true },
+        // v7.9.35 (E2): private one-liner target for the pause activity
+        { prop: 'journalWriter', service: 'journalWriter', optional: true },
         // v7.1.6: cross-phase P6→P5/P7, optional for graceful degradation
         // v7.2.1: expectedActive marks bindings critical for IdleMind's core activities
         { prop: 'learningService', service: 'learningService', optional: true },

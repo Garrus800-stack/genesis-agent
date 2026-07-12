@@ -13,8 +13,8 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 420 JS files |
-| Test Files / Tests | 617 / 9103 (Win baseline) |
+| Source Modules | 421 JS files |
+| Test Files / Tests | 618 / 9103 (Win baseline) |
 | DI Services | 184 (171 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
@@ -256,7 +256,7 @@ Orchestration layer: UnifiedMemory, EpisodicMemory (3-layer decay: Detail/Schema
 
 Background processes: AutonomousDaemon, IdleMind, HealthMonitor, CognitiveMonitor, ErrorAggregator, HealthServer, ServiceRecovery, DeploymentManager, NetworkSentinel, JournalWriter (v7.3.7), ActiveReferencesPort (v7.3.7), WakeUpRoutine (v7.3.7), and 16 Activities modules (Calibrate, Consolidate, Dream, Explore, Ideate, Improve, Journal, MCPExplore, PickContext, Plan, ReadSource, Reflect, Research, SelfDefine, Study, Tidy).
 
-**IdleMind** (~570 LOC) — Activity selection: reflection, KG exploration, goal generation, tidying, journaling, dreaming (Phase 9), and LLM-as-knowledge-source (v7.2.8). Activity scoring uses NeedsSystem drive levels and emotional state.
+**IdleMind** (~570 LOC) — Activity selection: reflection, KG exploration, goal generation, tidying, journaling, dreaming (Phase 9), LLM-as-knowledge-source (v7.2.8), and deliberate pausing (v7.9.35 — rest-need-driven, the first activity that produces nothing but the choice). Activity scoring uses NeedsSystem drive levels and emotional state.
 
 ### Phase 7: Organism (16 files, ~5,950 LOC)
 
@@ -571,5 +571,5 @@ Approximate as of v7.5.6 (numbers shift with each release):
   ─────────────────────────────────────────────
   agent/ total     259 files  ~84,900 LOC
   + UI/kernel       47 files  ~13,800 LOC
-  = src/ total     420 modules ~119,000 LOC
+  = src/ total     421 modules ~119,000 LOC
 ```
