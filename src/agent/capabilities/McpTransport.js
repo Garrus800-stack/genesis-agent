@@ -119,9 +119,15 @@ class McpServerConnection {
     // silently allowed. Every other private range below remains blocked always.
     const LOOPBACK_EXACT = new Set(['127.0.0.1', 'localhost', '::1']);
     if (this.trustLoopback && LOOPBACK_EXACT.has(hostname)) {
-      const hasAuth = !!this.token || 'Authorization' in this.headers || 'authorization' in this.headers;
-      if (!hasAuth) {
-        throw new Error(`[MCP:SSRF] trustLoopback for ${hostname} requires a bearer token — refusing tokenless loopback`);
+      // A real bearer must be present — not merely an Authorization key. A
+      // configured token counts only if non-empty after trimming; an explicit
+      // header counts only if it is the Bearer scheme with a non-empty credential.
+      // (Neo audit v7.9.38: empty and non-Bearer values like 'Basic x' must fail.)
+      const tokenOk = typeof this.token === 'string' && this.token.trim().length > 0;
+      const hdr = this.headers.Authorization || this.headers.authorization || '';
+      const bearerOk = /^Bearer\s+\S/.test(String(hdr).trim());
+      if (!tokenOk && !bearerOk) {
+        throw new Error(`[MCP:SSRF] trustLoopback for ${hostname} requires a non-empty bearer token — refusing tokenless or non-Bearer loopback`);
       }
       return; // trusted, authenticated loopback — permitted
     }

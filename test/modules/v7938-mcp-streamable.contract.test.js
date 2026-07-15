@@ -97,7 +97,15 @@ describe('v7.9.38 — trusted-loopback opt-in is narrow and token-gated', () => 
   });
 
   test('a token supplied only via Authorization header also satisfies the gate', () => {
-    assert.strictEqual(validates({ trustLoopback: true, headers: { Authorization: 'Bearer h' } }, 'http://127.0.0.1/mcp'), true, 'explicit Authorization header counts as auth');
+    assert.strictEqual(validates({ trustLoopback: true, headers: { Authorization: 'Bearer h' } }, 'http://127.0.0.1/mcp'), true, 'explicit Bearer header counts as auth');
+  });
+
+  test('empty, whitespace, and non-Bearer authorization are refused (Neo audit v7.9.38)', () => {
+    assert.strictEqual(validates({ trustLoopback: true, headers: { Authorization: '' } }, 'http://127.0.0.1/mcp'), false, 'an empty Authorization header does not open the gate');
+    assert.strictEqual(validates({ trustLoopback: true, headers: { Authorization: 'Basic x' } }, 'http://127.0.0.1/mcp'), false, 'a non-Bearer scheme (Basic) does not open the gate');
+    assert.strictEqual(validates({ trustLoopback: true, headers: { Authorization: 'Bearer   ' } }, 'http://127.0.0.1/mcp'), false, 'Bearer with an empty credential does not open the gate');
+    assert.strictEqual(validates({ trustLoopback: true, token: '   ' }, 'http://127.0.0.1/mcp'), false, 'a whitespace-only configured token does not open the gate');
+    assert.strictEqual(validates({ trustLoopback: true, token: '' }, 'http://127.0.0.1/mcp'), false, 'an empty configured token does not open the gate');
   });
 });
 
