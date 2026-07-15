@@ -29,6 +29,10 @@ const { CircuitBreaker } = require('../core/CircuitBreaker');
 const { TIMEOUTS } = require('../core/Constants');
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('McpTransport');
+// v7.9.38 (B4): report the real Genesis version to peers instead of a stale
+// hard-coded '7.0.5'. Falls back gracefully if package.json can't be read.
+let _clientVersion = '0.0.0';
+try { _clientVersion = require('../../../package.json').version || _clientVersion; } catch (_e) { /* keep fallback */ }
 
 let _rpcId = 0;
 function jsonrpc(method, params = {}) {
@@ -53,6 +57,11 @@ class McpServerConnection {
 
     this._sseConnection = null;
     this._sessionUrl = null;
+    // v7.9.38: Streamable-HTTP session id (from the Mcp-Session-Id response header),
+    // an optional bearer token, and the explicit per-server loopback opt-in.
+    this._sessionId = null;
+    this.token = config.token || null;
+    this.trustLoopback = config.trustLoopback === true;
     this._pendingRequests = new Map();
     this._reconnectAttempts = 0;
     this._reconnectTimer = null; // v7.1.6: tracked for cleanup in disconnect()
@@ -103,6 +112,19 @@ class McpServerConnection {
       throw new Error(`[MCP:SSRF] Only HTTP/HTTPS allowed, got: ${parsed.protocol}`);
     }
     const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+    // v7.9.38 (T3): explicit per-server trusted-loopback opt-in. This is the ONLY
+    // way past the SSRF wall, and it is deliberately narrow: exact loopback hosts
+    // only (no substring match, so 127.0.0.1.evil.com stays blocked), and only
+    // when a bearer token is present — a tokenless loopback opt-in is refused, not
+    // silently allowed. Every other private range below remains blocked always.
+    const LOOPBACK_EXACT = new Set(['127.0.0.1', 'localhost', '::1']);
+    if (this.trustLoopback && LOOPBACK_EXACT.has(hostname)) {
+      const hasAuth = !!this.token || 'Authorization' in this.headers || 'authorization' in this.headers;
+      if (!hasAuth) {
+        throw new Error(`[MCP:SSRF] trustLoopback for ${hostname} requires a bearer token — refusing tokenless loopback`);
+      }
+      return; // trusted, authenticated loopback — permitted
+    }
     const privatePatterns = [
       /^127\./, /^10\./, /^172\.(1[6-9]|2[0-9]|3[01])\./,
       /^192\.168\./, /^169\.254\./, /^0\./, /^::1$/, /^::$/,
@@ -153,7 +175,7 @@ class McpServerConnection {
       if (this.transport === 'sse') {
         await this._connectSSE();
       } else {
-        await (/** @type {any} */ (this))._connectHTTP();
+        await this._connectHTTP();
       }
       this._startHeartbeat();
     } catch (err) {
@@ -263,6 +285,43 @@ class McpServerConnection {
     }
   }
 
+  // ── Streamable HTTP (v7.9.38) ────────────────────────────
+  // Replaces the dead _connectHTTP call that the non-'sse' branch invoked but
+  // that never existed in the file. POST-first JSON-RPC per the MCP Streamable
+  // HTTP spec: initialize over a direct request so the Mcp-Session-Id header is
+  // read from the response, then notifications/initialized carrying that id.
+  async _connectHTTP() {
+    const initRes = await this._httpRequest(this.url, jsonrpc('initialize', {
+      protocolVersion: '2025-03-26',
+      capabilities: { roots: { listChanged: false } },
+      clientInfo: { name: 'genesis-agent', version: _clientVersion },
+    }));
+    if (initRes.status && initRes.status >= 400) {
+      throw new Error(`initialize failed: HTTP ${initRes.status}`);
+    }
+    // The session id lives in the response header (Node lowercases header names).
+    const sid = initRes.headers['mcp-session-id'];
+    if (sid) this._sessionId = Array.isArray(sid) ? sid[0] : sid;
+
+    const result = this._extractRpc(initRes) || {};
+    this.serverInfo = result.serverInfo || {};
+    this.capabilities = result.capabilities || {};
+
+    // Spec-required follow-up. Answers 202 with an empty body — tolerated by
+    // _httpRequest/_extractRpc now. Carries the session id via the auto-header.
+    try {
+      await this._httpRequest(this.url, { jsonrpc: '2.0', method: 'notifications/initialized' });
+    } catch (err) { _log.debug('[MCP] initialized notify:', err.message); }
+
+    this.status = 'ready';
+    this._reconnectAttempts = 0;
+    this._circuitBreaker.reset();
+    this.bus.fire('mcp:connected', {
+      name: this.name, serverInfo: this.serverInfo, capabilities: this.capabilities,
+    }, { source: 'McpTransport' });
+    _log.info(`[MCP] Connected (streamable): ${this.name} (${this.serverInfo.name || '?'})`);
+  }
+
   // ── JSON-RPC ─────────────────────────────────────────────
 
   async _send(method, params = {}) {
@@ -363,36 +422,85 @@ class McpServerConnection {
     }, 30000);
   }
 
-  async _post(url, body) {
+  // v7.9.38 (T1): low-level HTTP that returns status, headers AND body. The old
+  // _post threw away the response headers, which made the Streamable-HTTP session
+  // id (delivered in the Mcp-Session-Id *header*) structurally unreachable, and it
+  // rejected an empty body as invalid JSON — but the spec-required
+  // notifications/initialized POST answers 202 with no body. Both are fixed here.
+  // Never sends an Origin header: Genesis is a non-browser client, and a forgeable
+  // Origin adds no authentication value (probe-1 servers reject any present Origin).
+  _httpRequest(url, body, extraHeaders = {}) {
     return new Promise((resolve, reject) => {
-      const parsed = new URL(url);
+      let parsed;
+      try { parsed = new URL(url); } catch (_e) { reject(new Error(`Invalid URL: ${url}`)); return; }
       const proto = parsed.protocol === 'https:' ? https : http;
-      const payload = JSON.stringify(body);
-
+      const payload = body == null ? '' : (typeof body === 'string' ? body : JSON.stringify(body));
+      const headers = {
+        'Accept': 'application/json, text/event-stream',
+        ...this.headers,
+        ...extraHeaders,
+      };
+      if (payload) {
+        headers['Content-Type'] = 'application/json';
+        headers['Content-Length'] = Buffer.byteLength(payload);
+      }
+      // v7.9.38 (T3 companion): a bearer token, if configured, rides here — unless
+      // the caller already set an explicit Authorization header.
+      if (this.token && !('Authorization' in headers) && !('authorization' in headers)) {
+        headers['Authorization'] = `Bearer ${this.token}`;
+      }
+      if (this._sessionId && !('Mcp-Session-Id' in headers)) {
+        headers['Mcp-Session-Id'] = this._sessionId;
+      }
       const req = proto.request({
         hostname: parsed.hostname,
         port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
         path: parsed.pathname + parsed.search,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...this.headers },
+        headers,
       }, (res) => {
         let data = '';
         res.setEncoding('utf-8');
         res.on('data', (c) => { data += c; });
-        res.on('end', () => {
-          try {
-            const p = safeJsonParse(data, null, 'McpTransport');
-            if (!p) { reject(new Error('Invalid JSON from ' + this.name)); return; }
-            p.error ? reject(new Error(p.error.message || JSON.stringify(p.error))) : resolve(p.result !== undefined ? p.result : p);
-          } catch (err) { reject(new Error('Invalid JSON from ' + this.name)); }
-        });
+        res.on('end', () => resolve({
+          status: res.statusCode,
+          headers: res.headers,
+          contentType: String(res.headers['content-type'] || ''),
+          body: data,
+        }));
       });
-
       req.setTimeout(this._requestTimeout, () => { req.destroy(); reject(new Error('POST timeout')); });
       req.on('error', reject);
-      req.write(payload);
+      if (payload) req.write(payload);
       req.end();
     });
+  }
+
+  // Extract a single JSON-RPC result from a response that is either a plain JSON
+  // body or an SSE stream carrying one message (Streamable HTTP allows either).
+  // An empty body (202 for a notification) resolves to null.
+  _extractRpc(res) {
+    const raw = (res.body || '').trim();
+    if (!raw) return null;
+    let jsonText = raw;
+    if (res.contentType.includes('text/event-stream') || raw.startsWith('event:') || raw.startsWith('data:')) {
+      // Collect the concatenated data: lines — the last complete JSON object wins.
+      let collected = '';
+      for (const line of raw.split('\n')) {
+        if (line.startsWith('data:')) collected += line.slice(5).trim();
+      }
+      jsonText = collected || raw;
+    }
+    const p = safeJsonParse(jsonText, null, 'McpTransport');
+    if (!p) throw new Error('Invalid JSON from ' + this.name);
+    if (p.error) throw new Error(p.error.message || JSON.stringify(p.error));
+    return p.result !== undefined ? p.result : p;
+  }
+
+  // Legacy shape preserved: callers still receive the unwrapped JSON-RPC result.
+  async _post(url, body) {
+    const res = await this._httpRequest(url, body);
+    return this._extractRpc(res);
   }
 
   // ── MCP Initialize ───────────────────────────────────────
@@ -401,7 +509,7 @@ class McpServerConnection {
     const result = await this._send('initialize', {
       protocolVersion: '2025-03-26',
       capabilities: { roots: { listChanged: false } },
-      clientInfo: { name: 'genesis-agent', version: '7.0.5' },
+      clientInfo: { name: 'genesis-agent', version: _clientVersion },
     });
 
     this.serverInfo = result.serverInfo || {};
@@ -485,6 +593,7 @@ class McpServerConnection {
     this._requestQueue = [];
     this.status = 'disconnected';
     this.tools = [];
+    this._sessionId = null; // v7.9.38: drop the streamable session on disconnect
   }
 
   getStatus() {
