@@ -97,6 +97,13 @@ function isComplete(content, doneReason, shapeOverride) {
   // StreamingCompletion. Even with structurally-balanced content,
   // we treat them as incomplete (the model may have stopped
   // mid-thought even if syntactically valid).
+  // v7.9.39: the streaming repetition brake ends a stream whose model looped
+  // on an already-finished paragraph. That answer IS complete — feeding it
+  // back into the continuation loop would revive the repetition one level up.
+  if (doneReason === 'stop-repetition') {
+    return { complete: true, reason: 'stream-repetition-brake', shape };
+  }
+
   const TRUNCATED_REASONS = new Set([
     'length',                 // token cap hit
     'first-chunk-timeout',    // no chunks at all

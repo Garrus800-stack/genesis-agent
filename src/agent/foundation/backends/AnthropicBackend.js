@@ -68,7 +68,11 @@ class AnthropicBackend {
   }
 
   /** Streaming chat — calls onChunk(text) for each token */
-  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens) {
+  // v7.9.39: optional onDone(reason) — same swallowed-signal gap as the OpenAI
+  // backend (message_stop only resolved, never reported). stop_reason
+  // 'max_tokens' maps to our 'length' vocabulary so the truncation detector
+  // sees the same language from every backend.
+  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens, onDone) {
     if (!this.apiKey) throw new Error('Anthropic API key not configured');
 
     const body = {
@@ -118,12 +122,15 @@ class AnthropicBackend {
             for (const line of lines) {
               if (!line.startsWith('data: ')) continue;
               const payload = line.slice(6).trim();
-              if (payload === '[DONE]') { _resolve(); return; }
+              if (payload === '[DONE]') { if (typeof onDone === 'function') onDone('stop'); _resolve(); return; }
               try {
                 const parsed = JSON.parse(payload);
                 _consecutiveParseErrors = 0;
                 if (parsed.type === 'content_block_delta' && parsed.delta?.text) onChunk(parsed.delta.text);
-                if (parsed.type === 'message_stop') { _resolve(); return; }
+                if (parsed.type === 'message_delta' && parsed.delta?.stop_reason && typeof onDone === 'function') {
+                  onDone(parsed.delta.stop_reason === 'max_tokens' ? 'length' : parsed.delta.stop_reason);
+                }
+                if (parsed.type === 'message_stop') { if (typeof onDone === 'function') onDone('stop'); _resolve(); return; }
               } catch (_e) {
                 _consecutiveParseErrors++;
                 // FIX v4.12.7 (Audit-01): Warn on persistent parse failures

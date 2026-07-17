@@ -63,6 +63,34 @@ const _log = createLogger('StreamingCompletion');
  * @param {AbortSignal} [args.options.externalAbort] - Caller-provided abort
  * @returns {Promise<{content: string, doneReason: string|null, attempts: number, elapsedMs: number, firstChunkMs: number|null, chunkCount: number}>}
  */
+// v7.9.39: tail-repetition detector. Some cloud models fall into an internal
+// repetition loop and stream the same finished paragraph over and over —
+// chunks keep arriving on time, so no timer fires, and 50 copies reach the
+// bubble (field: the awakening log). This detects >=minCopies immediate
+// repetitions of a block >=minBlock chars at the tail of the accumulated
+// content. Candidate periods come from lastIndexOf of the tail probe (O(n)),
+// verified by direct block comparison — thresholds keep legitimate text
+// (short refrains, code lines, two-copy echoes) untouched.
+function detectTailRepetition(s, minBlock = 40, maxBlock = 2000, minCopies = 3) {
+  if (!s || s.length < minBlock * minCopies) return null;
+  const tail = s.slice(-Math.min(s.length, maxBlock * 4));
+  const probe = tail.slice(-minBlock);
+  let searchEnd = tail.length - minBlock - 1;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const j = tail.lastIndexOf(probe, searchEnd);
+    if (j < 0) return null;
+    const p = (tail.length - minBlock) - j;
+    searchEnd = j - 1;
+    if (p < minBlock || p > maxBlock || p * minCopies > tail.length) continue;
+    const a = tail.slice(-p);
+    let copies = 1;
+    let i = tail.length - p;
+    while (i - p >= 0 && tail.slice(i - p, i) === a) { copies++; i -= p; }
+    if (copies >= minCopies) return { blockLen: p, copies };
+  }
+  return null;
+}
+
 async function streamingCompletion(args) {
   const {
     backend,
@@ -78,6 +106,7 @@ async function streamingCompletion(args) {
   const startedAt = Date.now();
   let content = '';
   let chunkCount = 0;
+  let _sinceRepCheck = 0;
   let firstChunkAt = null;
   let doneReason = null;
   let _terminated = false;
@@ -157,6 +186,20 @@ async function streamingCompletion(args) {
     lastChunkAt = Date.now();
     chunkCount++;
     content += text;
+    // v7.9.39: repetition brake — checked every ~512 accumulated chars so the
+    // cost stays negligible. On detection: trim to ONE copy, terminate with a
+    // dedicated reason the truncation detector treats as COMPLETE (the answer
+    // is finished — the model just had no exit), never as a cut.
+    _sinceRepCheck += text.length;
+    if (_sinceRepCheck >= 512) {
+      _sinceRepCheck = 0;
+      const rep = detectTailRepetition(content);
+      if (rep) {
+        content = content.slice(0, content.length - (rep.copies - 1) * rep.blockLen);
+        _log.warn(`[STREAM] repetition brake: block=${rep.blockLen} chars x${rep.copies} — trimmed to one copy, terminating`);
+        terminate('stop-repetition');
+      }
+    }
   };
 
   const onDone = (reason) => {
@@ -198,4 +241,4 @@ async function streamingCompletion(args) {
   };
 }
 
-module.exports = { streamingCompletion };
+module.exports = { streamingCompletion, detectTailRepetition };

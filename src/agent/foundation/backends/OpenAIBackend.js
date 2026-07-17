@@ -78,7 +78,12 @@ class OpenAIBackend {
   }
 
   /** Streaming chat — calls onChunk(text) for each token */
-  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens) {
+  // v7.9.39: optional onDone(reason) — the server's finish_reason was received
+  // and then thrown away, so every cloud answer carried doneReason: null and
+  // every downstream layer had to guess completeness (the root of field 18).
+  // Same contract as OllamaBackend since v7.8.9: callers without onDone see
+  // identical behavior.
+  async stream(systemPrompt, messages, onChunk, abortSignal, temperature, modelName, maxTokens, onDone) {
     if (!this.baseUrl) throw new Error('OpenAI backend not configured');
 
     const body = {
@@ -131,13 +136,14 @@ class OpenAIBackend {
             for (const line of lines) {
               if (!line.startsWith('data: ')) continue;
               const payload = line.slice(6).trim();
-              if (payload === '[DONE]') { _resolve(); return; }
+              if (payload === '[DONE]') { if (typeof onDone === 'function') onDone('stop'); _resolve(); return; }
               try {
                 const parsed = JSON.parse(payload);
                 _consecutiveParseErrors = 0;
                 const delta = parsed.choices?.[0]?.delta?.content;
                 if (delta) onChunk(delta);
-                if (parsed.choices?.[0]?.finish_reason) { _resolve(); return; }
+                const fin = parsed.choices?.[0]?.finish_reason;
+                if (fin) { if (typeof onDone === 'function') onDone(fin); _resolve(); return; }
               } catch (_e) {
                 _consecutiveParseErrors++;
                 // FIX v4.12.7 (Audit-01): Warn on persistent parse failures
