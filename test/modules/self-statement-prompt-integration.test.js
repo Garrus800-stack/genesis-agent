@@ -79,8 +79,13 @@ describe('_introspectionContext: trigger always runs (v7.5.5)', () => {
     builder.setIntent && builder.setIntent('general');
 
     const out = builder._introspectionContext();
-    assertEqual(out, '', 'empty when nothing to inject');
-    assertEqual(log._lastIntrospectionPopulated, false, 'flag set false');
+    // v7.9.40 (B1/V4): the self clock is ALWAYS present — "wach seit" is a
+    // verified truth even when every other holder is absent (Genesis: "sie
+    // muss wahr sein"). The old contract "empty when nothing to inject" is
+    // deliberately superseded: there is now always one true thing to say.
+    assert(out.includes('Self clock: awake'), 'self clock present even without sources: ' + out);
+    assert(!out.includes('goal runs') && !out.includes('idle thoughts'), 'no invented segments');
+    assertEqual(log._lastIntrospectionPopulated, true, 'flag reflects the clock');
   });
 
   test('does not crash when selfStatementLog is null', () => {

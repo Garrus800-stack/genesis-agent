@@ -22,6 +22,9 @@
 'use strict';
 
 const { createLogger } = require('../core/Logger');
+// v7.9.40 (B1/V4): event-type map for the goal-run counter — same import
+// the FitnessEvaluator uses (single source of truth for store/bus names).
+const { EVENT_STORE_BUS_MAP: EM } = require('../core/EventTypes');
 const _log = createLogger('PromptBuilder');
 
 const sectionsExtra = {
@@ -167,9 +170,42 @@ const sectionsExtra = {
   // ~150 per turn when populated; confabulation-risk reduction vastly
   // outweighs that. Fallback if Genesis becomes sterilized: re-add a
   // narrower heuristic gate (e.g. `_currentIntent !== 'general'`).
+  // v7.9.40 (B1/V4): the self clock — one verified time line, Genesis' own
+  // spec: "wach seit … · Gedanken · Ziel-Läufe · letzter Traum vor …".
+  // No mood, no prognosis. Every segment is live or OMITTED — never guessed.
+  // I/O-free by the IdleMindStatus design rule; the run counter queries the
+  // in-memory eventStore exactly like FitnessEvaluator._getEventsSince.
+  _selfClockLine() {
+    try {
+      const seg = [];
+      const upMs = Math.floor(process.uptime() * 1000);
+      seg.push('awake ' + _fmtDur(upMs));
+      if (this._idleMind && typeof this._idleMind.thoughtCount === 'number') {
+        seg.push(this._idleMind.thoughtCount + ' idle thoughts');
+      }
+      if (this.eventStore && typeof this.eventStore.query === 'function') {
+        try {
+          const since = Date.now() - upMs;
+          const evs = this.eventStore.query({ since }) || [];
+          const runs = evs.filter(e => e && (e.type === EM.AGENT_LOOP_STARTED.store || e.type === EM.AGENT_LOOP_STARTED.bus)).length;
+          seg.push(runs + ' goal runs');
+        } catch (_e) { /* omit over guess */ }
+      }
+      if (this._dreamCycle && typeof this._dreamCycle.getTimeSinceLastDream === 'function') {
+        const dm = this._dreamCycle.getTimeSinceLastDream();
+        if (typeof dm === 'number' && isFinite(dm) && dm >= 0) seg.push('last dream ' + _fmtDur(dm) + ' ago');
+      }
+      return '  Self clock: ' + seg.join(' \u00b7 ');
+    } catch (_e) { return ''; }
+  },
+
   _introspectionContext() {
     try {
       const parts = ['VERIFIED FACTS ABOUT YOURSELF (use these, do NOT invent numbers):'];
+
+      // v7.9.40 (B1/V4): the self clock is the FIRST verified fact.
+      const clock = this._selfClockLine();
+      if (clock) parts.push(clock);
 
       // SelfModel: module counts, version, capabilities
       const manifest = this.selfModel?.manifest;
@@ -401,5 +437,15 @@ const sectionsExtra = {
   },
 
 };
+
+
+// v7.9.40 (B1/V4): compact duration — "2h17m" / "41m" / "12s".
+function _fmtDur(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + 'm';
+  return Math.floor(m / 60) + 'h' + (m % 60) + 'm';
+}
 
 module.exports = { sectionsExtra };

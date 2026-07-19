@@ -11,6 +11,24 @@
 // copied onto AgentLoopStepsDelegate.prototype via the mixin. this.* only.
 // ============================================================
 
+const { TIMEOUTS } = require('../core/Constants');
+
+// v7.9.40 (B0): code-step tests may READ the project's own src/ tree —
+// the same read-only allowance testPatch has had (Sandbox.js:262/:283).
+// Genesis' self-inspection goals structurally died without it (field
+// 17.07.: "Read access blocked" on reading its own source). Write access
+// stays fully sandboxed at every level; the sandbox guard itself is
+// untouched. Not-Aus: set GENESIS_CODESTEP_ALLOW_SRC_READ=0 to withdraw
+// the allowance without a code change.
+function _codeStepSandboxEnv(loop) {
+  try {
+    if (process.env.GENESIS_CODESTEP_ALLOW_SRC_READ === '0') return {};
+    const root = loop && loop.sandbox && loop.sandbox.rootDir;
+    if (!root) return {};
+    return { GENESIS_SANDBOX_ALLOW_READ_ROOT: require('path').join(root, 'src') };
+  } catch (_e) { return {}; }
+}
+
 class _AgentLoopStepsCodeHost {
   async _stepCode(step, context, onProgress) {
     // v7.9.37 pass 6 (S-C): steps that want to CREATE/MOVE Genesis source
@@ -161,7 +179,7 @@ class _AgentLoopStepsCodeHost {
       return { output: 'No test code generated', error: 'Empty test' };
     }
 
-    const result = await loop.sandbox.execute(testCode, { timeout: TIMEOUTS.SANDBOX_EXEC });
+    const result = await loop.sandbox.execute(testCode, { timeout: TIMEOUTS.SANDBOX_EXEC, env: _codeStepSandboxEnv(loop) });
     return {
       output: result.output || '',
       error: result.error || null,

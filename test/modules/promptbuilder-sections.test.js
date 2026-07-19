@@ -45,7 +45,7 @@ describe('PromptBuilderSections: Delegation', () => {
       '_perceptionContext', '_consciousnessContext', '_valuesContext',
       '_userModelContext', '_bodySchemaContext', '_episodicContext',
       '_architectureContext', '_projectContext', '_taskPerformanceContext',
-      '_disclosureContext', '_introspectionContext', '_versionContext',
+      '_disclosureContext', '_introspectionContext', '_versionContext', '_selfClockLine', // v7.9.40 (B1/V4): the self clock (SectionsExtra)
       '_autonomyContext',
       // v7.3.3: new sections (live in PromptBuilderSectionsExtra.js)
       '_groundednessContext', '_sourceAccessContext', '_buildSourceBlock',

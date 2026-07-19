@@ -147,7 +147,7 @@ class PromptBuilder {
       [7, 'selfAwareness', 200],   // v4.12.8: Demoted — rarely affects task quality
       [7, 'architecture',  200],   // v5.7.0 SA-P3: Architecture self-reflection for self-mod
       [7, 'organism',      300],   // v4.12.8: Reduced from 400 — emotions are context, not instructions
-      [7, 'autonomy',      200],   // v7.2.7: Autonomous activity report
+      [2, 'autonomy',      700],   // v7.9.40 (B1): self-trace promoted — awakening/on-ask full block, else unchanged
       [8, 'consciousness', 300],   // v4.12.8: Demoted from P5→P8, reduced from 500→300
       [9, 'bodySchema',    150],   // v4.12.8: Demoted to lowest — almost never task-relevant
     ];
@@ -161,7 +161,7 @@ class PromptBuilder {
     this._modelGatingApplied = false; // v6.0.7: track model-gating state for re-enable on failover
     const abMode = process.env.GENESIS_AB_MODE || '';
     if (abMode === 'baseline') {
-      ['organism', 'consciousness', 'selfAwareness', 'bodySchema', 'taskPerformance', 'autonomy'].forEach(s => this._disabledSections.add(s));
+      ['organism', 'consciousness', 'selfAwareness', 'bodySchema', 'taskPerformance'].forEach(s => this._disabledSections.add(s));
     } else if (abMode === 'no-organism') {
       ['organism', 'bodySchema'].forEach(s => this._disabledSections.add(s));
     } else if (abMode === 'no-consciousness') {
@@ -372,7 +372,7 @@ class PromptBuilder {
     const isLocal = !hasCloudSuffix && /\b(llama|qwen|gemma|mistral|phi|deepseek|codellama|yi-|solar|vicuna|orca|wizardcoder|starcoder|ollama|mannix)\b/i.test(modelName);
 
     if (isLocal && !this._modelGatingApplied) {
-      const gated = ['organism', 'consciousness', 'selfAwareness', 'bodySchema', 'metacognition', 'values', 'anticipator', 'optimizer', 'autonomy'];
+      const gated = ['organism', 'consciousness', 'selfAwareness', 'bodySchema', 'metacognition', 'values', 'anticipator', 'optimizer'];
       for (const s of gated) this._disabledSections.add(s);
       this._modelGatingApplied = true;
       _log.info(`[PROMPT] Model-gated: local model "${modelName}" → skipping ${gated.join(', ')}`);

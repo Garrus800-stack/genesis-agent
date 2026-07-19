@@ -375,6 +375,18 @@ class GoalPersistence {
     // v7.9.37 pass 6 (S-D): the archive carries the honest outcome — field
     // 11.07.: abandoned goal archived with empty outcome.
     if (!goal.outcome) {
+      // v7.9.40 (B0): preserve the last step error BEFORE checkpoints are
+      // dropped on archive — field 17.07.: a sandbox "Read access blocked:
+      // D:\..." died with the deleted steps file; archive.json showed
+      // abandoned goals with no outcome. goal.lastError feeds the existing
+      // outcome chain directly below.
+      if (!goal.lastError) {
+        const _cp = this._stepCheckpoints.get(goalId);
+        const _list = _cp && Array.isArray(_cp.partialResults) ? _cp.partialResults : [];
+        const _fromList = [..._list].reverse().find(r => r && r.error) || null;
+        const _stepErr = (_cp && _cp.partialResult && _cp.partialResult.error) || (_fromList && _fromList.error) || null;
+        if (_stepErr) goal.lastError = String(_stepErr);
+      }
       const _why = goal.failureReason || goal.abandonReason || goal.lastError || goal.reason;
       if (_why) goal.outcome = String(_why).slice(0, 300);
     }

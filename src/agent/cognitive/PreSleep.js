@@ -144,7 +144,8 @@ class PreSleep {
   _collectSnapshot() {
     const snap = { openGoals: { count: 0, top: [] }, mood: null, lastJournalTitle: null };
     try {
-      const active = this.goalStack?.getActiveGoals?.() || [];
+      // v7.9.40 (B1): open = not terminal (field: "0 Ziele offen" with one blocked).
+    const active = this.goalStack?.getOpenGoals?.() || this.goalStack?.getActiveGoals?.() || [];
       snap.openGoals.count = active.length;
       snap.openGoals.top = active.slice(0, 3)
         .map(g => String(g?.title || g?.description || g?.id || '').slice(0, LABEL_CAP))

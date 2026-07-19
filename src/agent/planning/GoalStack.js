@@ -421,6 +421,13 @@ class GoalStack {
   // ── Query ────────────────────────────────────────────────
 
   getActiveGoals() { return this.goals.filter(g => g.status === 'active'); }
+  // v7.9.40 (B1): open = not terminal — includes paused/stalled/blocked.
+  // Terminal set mirrors isTerminal (:501): completed|failed|abandoned;
+  // obsolete is excluded too ("no point in pursuing", Lifecycle:229).
+  // Field 17.07.: PreSleep said "0 Ziele offen" while one goal sat blocked.
+  getOpenGoals() {
+    return this.goals.filter(g => g.status !== 'completed' && g.status !== 'failed' && g.status !== 'abandoned' && g.status !== 'obsolete');
+  }
   getAll() { return this.goals; }
   // v7.9.22 Item 1: by-id accessor — repairs the idle-mind hatch and the GoalDriver
   // primary path, both of which called a getById that did not exist.

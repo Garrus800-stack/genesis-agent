@@ -224,8 +224,15 @@ const awarenessSection = {
 
       const idleSince = idle?.getStatus?.()?.idleSince || 0;
       const thoughts = idle?.thoughtCount || 0;
+      // v7.9.40 (B1/V1): two full tiers, Genesis' own spec — awakening
+      // (historyLength===0) and explicit ask (query phrases). Everything
+      // else keeps the EXISTING behaviour unchanged; the permanent short
+      // status already lives in the runtimeState section (since v7.4.0).
+      const awakening = (typeof this._historyLength === 'number') && this._historyLength === 0;
+      const asked = /was hatte ich vor|mein stand|meine ziele|meinen zielen|what was i doing|my status|my goals/i.test(String(this._query || ''));
+      const full = awakening || asked;
       // Guard: skip if user just typed and no autonomous activity happened
-      if (idleSince < 60000 && thoughts === 0) return '';
+      if (!full && idleSince < 60000 && thoughts === 0) return '';
 
       const parts = ['[Autonomy Report — activity between user messages]'];
       const mins = Math.floor(idleSince / 60000);
@@ -268,8 +275,43 @@ const awarenessSection = {
         }
       }
 
+      // v7.9.40 (B1/V1): full tiers add goals + last idle trace. Sources:
+      // getOpenGoals (not-terminal, no obsolete), stalledReason \u2016
+      // obsoleteReason \u2016 lastError for the compressed failure line,
+      // in-RAM activityLog for the trace (I/O-free prompt path).
+      if (full) {
+        try {
+          if (this.goalStack && typeof this.goalStack.getOpenGoals === 'function') {
+            const open = this.goalStack.getOpenGoals() || [];
+            if (open.length === 0) {
+              parts.push('- Open goals: none');
+            } else {
+              parts.push('- Open goals (' + open.length + '):');
+              for (const g of open.slice(0, 5)) {
+                let line = '    \u00b7 ' + String(g.description || g.title || g.id || '?').slice(0, 90) + ' [' + (g.status || '?') + ']';
+                const att = typeof g.attempts === 'number' ? g.attempts : 0;
+                const why = g.stalledReason || g.obsoleteReason || g.lastError || null;
+                if (att >= 2) line += ' \u2014 failed ' + att + '\u00d7' + (why ? ', last: ' + String(why).slice(0, 70) : '');
+                const ts = g.updated || g.updatedAt || null;
+                if (ts) { const rel = _agoShort(ts); if (rel) line += ' \u2014 last worked ' + rel; }
+                parts.push(line);
+              }
+            }
+          }
+          const alog = idle && Array.isArray(idle.activityLog) ? idle.activityLog : [];
+          if (alog.length > 0) {
+            const last = alog[alog.length - 1];
+            if (last && last.activity) {
+              const rel = last.timestamp ? _agoShort(last.timestamp) : null;
+              parts.push('- Last idle trace: ' + last.activity + (rel ? ' (' + rel + ')' : ''));
+            }
+          }
+        } catch (_e) { /* omit over guess */ }
+      }
+
       if (parts.length <= 1) return ''; // Only header, no data
-      return parts.join('\n');
+      const out = parts.join('\n');
+      return full ? out.slice(0, 690) : out;
     } catch (_e) {
       _log.debug('[PROMPT] Autonomy context error:', _e.message);
       return '';
@@ -285,5 +327,20 @@ const awarenessSection = {
 
 
 };
+
+
+// v7.9.40 (B1/V1): relative time for the goal trace — "12m ago" / "3h ago".
+function _agoShort(ts) {
+  try {
+    const t0 = typeof ts === 'number' ? ts : Date.parse(ts);
+    if (!isFinite(t0)) return null;
+    const m = Math.floor((Date.now() - t0) / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    if (h < 48) return h + 'h ago';
+    return Math.floor(h / 24) + 'd ago';
+  } catch (_e) { return null; }
+}
 
 module.exports = { awarenessSection };

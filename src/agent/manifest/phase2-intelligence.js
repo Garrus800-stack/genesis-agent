@@ -104,6 +104,8 @@ function phase2(ctx, R) {
         { prop: 'toolRegistry', service: 'tools', optional: true, expectedActive: true, expects: ['listTools'], impact: 'No verified tool list in introspection' },
         // v7.8.1: AutonomousDaemon — for honest "skills I tried but couldn't" list
         { prop: 'autonomousDaemon', service: 'daemon', optional: true, expectedActive: true, expects: ['getLockedOutSkills'], impact: 'No skill-failure honesty in introspection' },
+        { prop: 'goalStack', service: 'goalStack', optional: true, expectedActive: true, expects: ['getOpenGoals'], impact: 'No goal trace in chat context (v7.9.40 B1)' },
+        { prop: 'eventStore', service: 'eventStore', optional: true, expectedActive: true, expects: ['query'], impact: 'No run counter in the self clock (v7.9.40 B1)' },
         // v5.7.0 (SA-P3): Architecture self-reflection
         { prop: 'architectureReflection', service: 'architectureReflection', optional: true, expectedActive: true, expects: ['getSnapshot', 'buildPromptContext'], impact: 'No architecture data for introspection' },
         // v5.7.0: Project intelligence
