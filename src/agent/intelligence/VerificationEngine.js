@@ -95,7 +95,15 @@ class VerificationEngine {
           // v7.9.41 (D1/K1): prefer the CODE over the prose output — parsing the
           // neutral "Code written: …" sentence killed every successful step of
           // the whole alias family (CODE/REFACTOR/IMPLEMENT/FIX/UPDATE/PATCH).
-          verification = this._verifiers.code.verify(result.code || result.output || '', {
+          // v7.9.42 A2: a CODE step that produced NO code payload and whose
+          // textual output does not look like code (field: "Allowed ...")
+          // must not be syntax-parsed to death — accept as AMBIGUOUS text.
+          const _codePayload = result.code || result.output || '';
+          if (!result.code && _codePayload && !/[;{}]|=>|\bfunction\b|\bconst\b|\brequire\s*\(/.test(_codePayload)) {
+            verification = { status: AMBIGUOUS, reason: 'no code payload — textual output accepted without syntax parse (v7.9.42 A2)' };
+            break;
+          }
+          verification = this._verifiers.code.verify(_codePayload, {
             rootDir: this.rootDir,
             targetFile: step.target,
           });

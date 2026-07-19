@@ -506,7 +506,11 @@ function _checkReadPath(p) {
   const inNodeModules = resolved.startsWith(_nodeModulesDir);
   // Allow reading project root if env var is set (for testPatch)
   const allowRoot = process.env.GENESIS_SANDBOX_ALLOW_READ_ROOT || '';
-  const inRoot = allowRoot && resolved.startsWith(allowRoot);
+  // v7.9.42 A1: resolve the grant and compare on a separator boundary —
+  // "D:\Genesis Home" must admit its children (spaces are fine) but never
+  // the sibling "D:\Genesis Home2". Behavior for legitimate paths unchanged.
+  const rootResolved = allowRoot ? _path.resolve(allowRoot) : '';
+  const inRoot = rootResolved && (resolved === rootResolved || resolved.startsWith(rootResolved + _path.sep));
   if (!inSandbox && !inNodeModules && !inRoot) {
     throw new Error('[SANDBOX] Read access blocked: ' + p);
   }

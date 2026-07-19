@@ -651,7 +651,7 @@ class ModelBridge {
 
   /** @internal Called by Container.bootAll() */
   async asyncLoad() {
-    await this.detectAvailable();
+    await this._bootModelSelection(); // v7.9.42 A4: instant restore, rescan behind boot
 
     if (this._settings) {
       // v7.9.37 pass 4 (C1/C2): settings-driven context config → Ollama.

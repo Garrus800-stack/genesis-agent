@@ -37,6 +37,19 @@ const _log = createLogger('PickContext');
  * @param {object} idleMind - The IdleMind instance (passed as `this`)
  * @returns {PickContext} Fully populated context for shouldTrigger()
  */
+
+// v7.9.42 V2a: read the last few resonance condensates (self-marked moments).
+// Tolerant by design — no file, no field; a broken line is skipped.
+function _readResonance(idleMind) {
+  try {
+    const fs = require('fs'); const path = require('path');
+    const dir = idleMind.storageDir || (idleMind.model && idleMind.model._genesisDir);
+    if (!dir) return [];
+    const raw = fs.readFileSync(path.join(dir, 'resonance.jsonl'), 'utf8');
+    return raw.split('\n').filter(Boolean).slice(-5).map(l => { try { return JSON.parse(l); } catch (_e) { return null; } }).filter(Boolean);
+  } catch (_e) { return []; }
+}
+
 function buildPickContext(idleMind) {
   const now = Date.now();
   const activityLog = idleMind.activityLog || [];
@@ -69,6 +82,8 @@ function buildPickContext(idleMind) {
 
   // Pre-computed snapshots — cheap reads all gathered once
   const snap = {
+    // v7.9.42 V2a: priority topic source — every other source below stays.
+    resonance: _safeSnap(() => _readResonance(idleMind)),
     emotional: _safeSnap(() => services.emotionalState?.getState?.() || null),
     idlePriorities: _safeSnap(() => services.emotionalState?.getIdlePriorities?.() || {}),
     needs: _safeSnap(() => services.needsSystem?.getActivityRecommendations?.() || []),

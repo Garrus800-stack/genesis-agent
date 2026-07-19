@@ -33,6 +33,10 @@ module.exports = {
   shouldTrigger(ctx) {
     let boost = 1.0;
 
+    // v7.9.42 V2a: self-marked resonance is the PREFERRED topic source —
+    // a strong boost, while every other source below stays untouched.
+    if ((ctx.snap.resonance || []).length > 0) boost += 2.5;
+
     // Scorer: EmotionalState idle priorities (frustration → reflect)
     const idlePrio = ctx.snap.idlePriorities || {};
     if (idlePrio.reflect !== undefined) {

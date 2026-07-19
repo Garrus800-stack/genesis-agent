@@ -198,6 +198,30 @@ const availability = {
     _log.warn(`[MODEL] Preferred is cloud (${chosen.name}) without fallbackChain — Genesis will fail if this model is gated. Configure Settings → Fallback Chain.`);
     this.bus?.fire?.('model:cloud-without-fallback', { model: chosen.name, backend: chosen.backend }, { source: 'ModelBridge' });
   },
+  // v7.9.42 A4: selection memory (sibling of the unavailable store). The boot
+  // path restores the remembered model synchronously and lets the full scan
+  // run behind boot; without a memory it awaits exactly as before.
+  async _bootModelSelection() {
+    this._selectionPath = this._genesisDir ? require('path').join(this._genesisDir, 'model-selection.json') : null;
+    const _cachedSel = this._loadSelection();
+    if (_cachedSel && _cachedSel.model) {
+      this.activeModel = _cachedSel.model;
+      _log.info(`[MODEL] Restored last selection: ${_cachedSel.model} (full rescan in background)`);
+      this.detectAvailable().then(() => this._saveSelection()).catch(() => {});
+    } else {
+      await this.detectAvailable();
+      this._saveSelection();
+    }
+  },
+  _loadSelection() {
+    if (!this._selectionPath) return null;
+    try { return JSON.parse(require('fs').readFileSync(this._selectionPath, 'utf8')); } catch (_e) { return null; }
+  },
+  _saveSelection() {
+    if (!this._selectionPath || !this.activeModel) return;
+    try { require('fs').writeFileSync(this._selectionPath, JSON.stringify({ model: this.activeModel, ts: Date.now() }, null, 2)); } catch (_e) { /* best effort */ }
+  },
+
 };
 
 module.exports = { availability };

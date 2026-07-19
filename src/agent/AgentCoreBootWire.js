@@ -53,6 +53,7 @@ const agentCoreBootWireMixin = {
           journalWriter:       c.tryResolve('journalWriter'),
           coreMemories:        c.tryResolve('coreMemories'),
           episodicMemory:      c.tryResolve('episodicMemory'),
+          modelBridge:         c.tryResolve('model'), // v7.9.42 V2a: resonance-note needs one small model call
         });
         if (registered.length > 0) {
           _log.info(`  [WIRE] v7.3.7 memory tools: ${registered.join(', ')}`);

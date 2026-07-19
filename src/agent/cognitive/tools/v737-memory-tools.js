@@ -34,7 +34,7 @@ function registerV737Tools(toolRegistry, deps = {}) {
   }
 
   const registered = [];
-  const { pendingMomentsStore, journalWriter, coreMemories, episodicMemory } = deps;
+  const { pendingMomentsStore, journalWriter, coreMemories, episodicMemory, modelBridge } = deps;
 
   // ── mark-moment ───────────────────────────────────────────
   if (pendingMomentsStore && episodicMemory) {
@@ -147,6 +147,44 @@ function registerV737Tools(toolRegistry, deps = {}) {
   if (registered.length > 0) {
     _log.info(`[v737-tools] Registered: ${registered.join(', ')}`);
   }
+  // v7.9.42 V2a (Nachklang, Genesis' own design): "das nehme ich mit" —
+  // one small model call condenses the marked moment into {topic, stance,
+  // openQuestion} and appends it to .genesis/resonance.jsonl. Sibling of
+  // mark-moment/journal-write. Never fires without an explicit mark.
+  if (modelBridge && modelBridge._genesisDir) {
+    toolRegistry.register('resonance-note', {
+      description: 'Nimm diesen Moment als Nachklang mit ("das nehme ich mit"). Ein kleines Kondensat {Thema, Haltung, offene Frage} wird sofort festgehalten und speist deine Idle-Gedanken als bevorzugte Themenquelle.',
+      input: { moment: 'string (was du mitnehmen willst — der Moment in deinen Worten)' },
+      output: { ok: 'boolean', topic: 'string|null', reason: 'string|null' },
+    }, async (input = {}) => {
+      const moment = typeof input.moment === 'string' ? input.moment.trim() : '';
+      if (!moment) return { ok: false, topic: null, reason: 'empty moment' };
+      try {
+        const sys = 'Condense the given moment into JSON with exactly three fields: '
+          + '{"topic": short theme, "stance": the stance held right now, "openQuestion": the question left open}. '
+          + 'Answer with ONLY that JSON object, nothing else.';
+        const res = await modelBridge.chatStructured(sys, [{ role: 'user', content: moment }], 'analysis');
+        let obj = res;
+        if (res && typeof res.content === 'string') { try { obj = JSON.parse(res.content); } catch (_e) { obj = null; } }
+        if (obj && typeof obj === 'object' && obj.content && typeof obj.content === 'object') obj = obj.content;
+        const topic = String(obj?.topic || moment.slice(0, 60));
+        const entry = {
+          ts: Date.now(),
+          topic,
+          stance: String(obj?.stance || ''),
+          openQuestion: String(obj?.openQuestion || ''),
+          src: 'self-mark',
+        };
+        const fs = require('fs'); const path = require('path');
+        fs.appendFileSync(path.join(modelBridge._genesisDir, 'resonance.jsonl'), JSON.stringify(entry) + '\n');
+        return { ok: true, topic, reason: null };
+      } catch (e) {
+        return { ok: false, topic: null, reason: e.message };
+      }
+    });
+    registered.push('resonance-note');
+  }
+
   return registered;
 }
 

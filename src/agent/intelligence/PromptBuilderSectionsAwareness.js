@@ -129,6 +129,14 @@ const awarenessSection = {
         );
       }
 
+      // v7.9.42 A5: announces must name the action verbatim — the field run
+      // showed paraphrased announces drifting from what was then executed.
+      // Bound to tool availability: no tools, nothing to announce, no noise
+      // (the silence contracts of this section stay intact).
+      if (this.toolRegistry && typeof this.toolRegistry.hasTool === 'function') {
+        parts.push('[Style] When you announce an action, tool, or skill, name it verbatim — never paraphrase what you are about to do.');
+      }
+
       // v7.8.0: subtle pointer to mark-moment tool. Not imperative —
       // Genesis decides if/when to use it. Only shown when the tool
       // exists, to avoid prompt noise on systems where it's not loaded.

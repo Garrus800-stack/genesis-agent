@@ -36,6 +36,7 @@ const OUT_DIR = outArg ? path.resolve(outArg.slice(6)) : ROOT;
 
 const EXCLUDE = [
   '.genesis',          // Runtime state, tokens, salt, telemetry
+  '.fitness-history',  // v7.9.42: workbench trend snapshots — never shipped (matches 7.9.40/41 zips)
   '.genesis-backups',   // v7.2.9: Auto-created identity backups (v7.2.3 feature) — never ship
   'node_modules',      // Dependencies (npm install recreates)
   'sandbox',           // Sandboxed execution artifacts

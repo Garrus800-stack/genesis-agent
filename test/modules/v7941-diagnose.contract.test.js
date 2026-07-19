@@ -25,11 +25,21 @@ describe('v7.9.41 D — Diagnose-Fixe', () => {
       { output: 'Code written: sandbox (3 lines)', code: 'const a = 1;\nmodule.exports = a;', error: null });
     assert.notStrictEqual(String(v.status).toLowerCase(), 'fail', JSON.stringify(v).slice(0, 200));
   });
-  test('D1: the exact field shape (output only, no code) FAILS and carries the parsat head', () => {
+  // v7.9.42 A2 contract follow-up (documented): the old pin demanded the very
+  // behaviour that killed field goals — textual output syntax-parsed to FAIL.
+  // The D1c substance stays pinned on code-looking output; plain text is now
+  // accepted as AMBIGUOUS instead of dying in the parser.
+  test('D1/A2: textual output (no code) is AMBIGUOUS, not a parse death', () => {
     const v = engine().verify('CODE', { target: null },
       { output: 'Code written: agent-loop-output.js (57 lines)', error: null });
+    assert.strictEqual(String(v.status).toLowerCase(), 'ambiguous');
+    assert.ok(String(v.reason || '').includes('textual output accepted'), 'A2 reason: ' + String(v.reason).slice(0, 160));
+  });
+  test('D1c lives: code-looking output still FAILS with the parsat head', () => {
+    const v = engine().verify('CODE', { target: null },
+      { output: 'const broken = {;', error: null });
     assert.strictEqual(String(v.status).toLowerCase(), 'fail');
-    assert.ok(String(v.reason || '').includes('head: "Code written'), 'parsat head in reason: ' + String(v.reason).slice(0, 160));
+    assert.ok(String(v.reason || '').includes('head:'), 'parsat head in reason: ' + String(v.reason).slice(0, 160));
   });
   test('D1: alias family members route through the same healed branch (source pin)', () => {
     const t = src('src/agent/intelligence/VerificationEngine.js');

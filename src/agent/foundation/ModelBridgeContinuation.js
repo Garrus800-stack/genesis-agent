@@ -160,7 +160,14 @@ const continuationMixin = {
       if (result.failureReason === 'max-continuations') {
         try { this.markUnavailable(model, 'continuation-exhausted'); } catch (_e) { /* best-effort */ }
       }
-      throw new Error(`[CONTINUATION] ${model} failed: ${result.failureReason} — partial (${(result.content || '').length} chars) discarded, not usable as code`);
+      // v7.9.42 A3: same message prefix (pinned in field logs), but the
+      // partial travels ON the error in honest failure shape — downstream
+      // diagnosis may read it; nothing may mistake it for finished code.
+      const _pErr = new Error(`[CONTINUATION] ${model} failed: ${result.failureReason} — partial (${(result.content || '').length} chars) discarded, not usable as code; preserved for diagnosis`);
+      _pErr.partialText = result.content || '';
+      _pErr.partialChars = (result.content || '').length;
+      _pErr.continuationReason = result.failureReason;
+      throw _pErr;
     }
     return result.content;
   },
