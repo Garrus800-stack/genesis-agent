@@ -201,7 +201,7 @@ const sectionsExtra = {
 
   _introspectionContext() {
     try {
-      const parts = ['VERIFIED FACTS ABOUT YOURSELF (use these, do NOT invent numbers):'];
+      const parts = ['VERIFIED FACTS ABOUT YOURSELF (use these, do NOT invent numbers; never deny activity these facts show):']; // v7.9.41 (F2)
 
       // v7.9.40 (B1/V4): the self clock is the FIRST verified fact.
       const clock = this._selfClockLine();

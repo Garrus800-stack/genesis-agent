@@ -163,7 +163,10 @@ class _AgentLoopStepsCodeHost {
     // job in AgentLoopPursuit, which runs after this step. Saying it
     // here would be a lie when verification later fails. Output stays
     // neutral; pursuit-layer overlays a verification marker if needed.
-    return { output: `Code written: ${step.target || 'sandbox'} (${newCode.split('\n').length} lines)`, error: null };
+    // v7.9.41 (D1/K1): carry the CODE itself for verification — the neutral
+    // output sentence was being parsed as JS (field: "Unexpected token (1:5)"
+    // = the 'w' of "Code written"). The verifier gets code; output stays prose.
+    return { output: `Code written: ${step.target || 'sandbox'} (${newCode.split('\n').length} lines)`, code: newCode, error: null };
   }
 
   async _stepSandbox(step, context) {

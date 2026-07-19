@@ -157,9 +157,13 @@ class IdleMind {
     this._goalStepsSincePick = 0;
 
     // Listen for user activity (multiple sources for reliability)
-    this._sub('agent:status', () => { this.lastUserActivity = Date.now(); }, { source: 'IdleMind' });
+    // v7.9.41 r4: ONLY the user's message resets the idle clock. Field 19.07.
+    // (Garrus): "15 minutes will never be reached, because he keeps doing
+    // something in the conversation" — right by construction: agent:status fires from
+    // Genesis' OWN loops (thinking/ready/error) and store:CHAT_MESSAGE fires
+    // for Genesis' OWN replies, so Genesis kept resetting its own silence.
+    // Own activity must never postpone the user-idle threshold.
     this._sub('user:message', () => { this.lastUserActivity = Date.now(); }, { source: 'IdleMind' });
-    this._sub('store:CHAT_MESSAGE', () => { this.lastUserActivity = Date.now(); }, { source: 'IdleMind' });
 
     // v7.0.3 — C4: Queue actionable insights from DreamCycle for next idle tick
     this._sub('insight:actionable', (data) => {

@@ -112,6 +112,27 @@ const PSEUDO_CONTINUATION_PROMPT =
  * @param {object} [args.options.circuitBreaker] - .recordSuccess() / .recordFailure()
  * @returns {Promise<{content: string, attempts: number, totalElapsedMs: number, finalDoneReason: string|null, totalTokens?: number}>}
  */
+// v7.9.41 r2: pseudo-continuation rounds (cloud/no-prefill) restart the answer
+// and glue a fresh beginning onto the seam — field 19.07.: "Ich lese das
+// Changelog.Ich lese das Changelog." and triple plan cards. Remove ADJACENT
+// duplicate blocks (24-400 chars), largest window first. Pure text-level;
+// non-adjacent repetition is never touched.
+function dedupeSeams(text) {
+  if (typeof text !== 'string' || text.length < 32) return text;
+  let s = text;
+  const maxL = Math.min(400, Math.floor(s.length / 2));
+  for (let L = maxL; L >= 16; L--) {
+    let i = 0;
+    while (i + 2 * L <= s.length) {
+      const _b = s.substr(i, L);
+      // monotone runs (─────, ===, xxxx) are layout, not seams — leave them
+      if (_b === s.substr(i + L, L) && new Set(_b).size >= 6) { s = s.slice(0, i + L) + s.slice(i + 2 * L); }
+      else i++;
+    }
+  }
+  return s;
+}
+
 async function runContinuation(args) {
   const {
     backend,
@@ -260,7 +281,7 @@ async function runContinuation(args) {
           try { circuitBreaker.recordSuccess(); } catch (_e) { /* swallow */ }
         }
         return {
-          content: partial,
+          content: dedupeSeams(partial),
           attempts,
           totalElapsedMs: durationMs,
           finalDoneReason: lastDoneReason,
@@ -314,7 +335,7 @@ async function runContinuation(args) {
   return {
     ok: false,
     failureReason,
-    content: partial,
+    content: dedupeSeams(partial),
     attempts,
     totalElapsedMs: durationMs,
     finalDoneReason: lastDoneReason,
@@ -342,7 +363,7 @@ function _sleep(ms) {
 // use pseudo-continuation and often need 8-10 rounds — Field-trace 2026-05-24
 // lost a 37591-char qwen3-vl:cloud output at round 6. For no-prefill we lift
 // the floor to CLOUD_NO_PREFILL_FLOOR.
-const CLOUD_NO_PREFILL_FLOOR = 10;
+const CLOUD_NO_PREFILL_FLOOR = 3; // v7.9.41 r2: was 10 — field 19.07.: kimi:cloud sends no done-chunk, so every pseudo-continuation round restarts the answer and glues a fresh beginning onto the seam; ten rounds turned one reply into a repetition cascade. Three keeps genuinely truncated outputs alive.
 
 /**
  * Compute the effective max-continuations cap based on model capability.
@@ -360,7 +381,8 @@ function computeEffectiveMaxContinuations(capability, maxContinuations) {
   return usePrefill ? maxContinuations : Math.max(maxContinuations, CLOUD_NO_PREFILL_FLOOR);
 }
 
-module.exports = {
+module.exports = { dedupeSeams, // v7.9.41 r2: exported for contract tests
+ 
   runContinuation,
   computeEffectiveMaxContinuations,
   // Constants exported for tests

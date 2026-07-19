@@ -163,7 +163,7 @@ const INTERVALS = {
   IDLE_THRESHOLD: 5 * 60 * 1000,
   /** IdleMind: autonomous think cycle (ms)
    *  v4.12.8: Raised from 3min→5min. Prevents back-to-back LLM calls during idle. */
-  IDLE_THINK_CYCLE: 5 * 60 * 1000,
+  IDLE_THINK_CYCLE: 60 * 1000, // v7.9.41 r4: was 5min — the tick only CHECKS idleTime>=threshold (cheap, no LLM); at 5min the first thought could lag phase-dependently to minute ~10. Now: last user message + 5min threshold + <=60s tick => first thought by ~minute 6, guaranteed.
   /** Full health check cycle (ms) */
   HEALTH_FULL: 5 * 60 * 1000,
   /** Health tick push to UI (ms) */

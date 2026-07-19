@@ -11,6 +11,8 @@
 const { createLogger } = require('../core/Logger');
 const _log = createLogger('AgentLoopRecovery');
 
+const INVESTIGATE_PREFIX = 'Investigate why this goal repeatedly fails with: '; // v7.9.41 K1
+
 class _AgentLoopObstaclesHost {
   async _tryDecomposeOnRepeatedFailure(step, result, stepIndex, onProgress) {
     // v7.9.37 (V-C): depth-1 guard — a decomposition child never spawns another
@@ -43,11 +45,22 @@ class _AgentLoopObstaclesHost {
     onProgress({ phase: 'decompose-on-failure', detail: `2nd strike of same error-class on goal — spawning investigative sub-goal`, errorClass });
     try {
       this.loop.bus.fire('agent-loop:decompose-on-failure', {
-        goalId, stepIndex, errorClass: errorClass.slice(0, 80), strikes,
+        goalId, stepIndex, errorClass, strikes, /* already sliced */
       }, { source: 'AgentLoopRecovery' });
     } catch (_e) { /* never let emit break the recovery path */ }
+    // v7.9.41 K1 dedupe.
+    try { const _ex=(this.loop.goalStack?.getOpenGoals?.()||[]).find(g=>g?.description?.startsWith?.(INVESTIGATE_PREFIX+errorClass)); if(_ex){onProgress({phase:'decompose-on-failure',detail:'parking on open investigate',errorClass});return{action:'blocked-on-subgoal',category:'repeated-failure',subId:_ex.id};} } catch(_e){}
     const spawned = await this._trySpawnObstacleSubgoal(syntheticObstacle, step, stepIndex, onProgress);
     if (spawned.spawned) {
+      // v7.9.41 (D6/K1): register the spawn's family so the ideation VARY
+      // rule can see it — spawns bypassed the whole family mechanism.
+      try {
+        const _fs = require('fs'), _file = require('path').join(process.cwd(), '.genesis', 'goal-families.json');
+        let _fam = []; try { _fam = JSON.parse(_fs.readFileSync(_file, 'utf8')); } catch (_x) {}
+        if (!Array.isArray(_fam)) _fam = [];
+        if (_fam[_fam.length - 1] !== 'investigate failure') _fam.push('investigate failure');
+        _fs.writeFileSync(_file, JSON.stringify(_fam.slice(-12), null, 2));
+      } catch (_e) { /* best-effort */ }
       return { action: 'blocked-on-subgoal', category: 'repeated-failure', subId: spawned.subId };
     }
     return null;

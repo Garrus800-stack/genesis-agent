@@ -108,7 +108,9 @@ class CodeVerifier {
     } catch (err) {
       return {
         passed: false,
-        error: err.message,
+        // v7.9.41 (D1): carry the first 80 chars of what was parsed — the
+        // field error "(1:5)" was undiagnosable without seeing the parsat.
+        error: err.message + ' | head: ' + JSON.stringify(String(code).slice(0, 80)),
         line: err.loc?.line || null,
         column: err.loc?.column || null,
       };

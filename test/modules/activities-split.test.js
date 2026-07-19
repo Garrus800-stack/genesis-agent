@@ -98,9 +98,11 @@ describe('v7.3.1 — Availability Gates (conditional activities return 0)', () =
     assertEqual(act.shouldTrigger(young), 0, 'young dream (age 5min) → 0');
     // Too few unprocessed → 0
     const few = neutralContext({
-      dreamCycle: { getTimeSinceLastDream: () => 60 * 60 * 1000, getUnprocessedCount: () => 3 },
+      // v7.9.41 (B2): at >=60 min ANY material makes the dream DUE (10.0),
+      // so the material gate is tested inside the 20-60 min corridor.
+      dreamCycle: { getTimeSinceLastDream: () => 40 * 60 * 1000, getUnprocessedCount: () => 3 },
     });
-    assertEqual(act.shouldTrigger(few), 0, 'few unprocessed (3) → 0');
+    assertEqual(act.shouldTrigger(few), 0, 'few unprocessed (3) in the 20-60 corridor → 0');
     // Both conditions met → >0
     const ok = neutralContext({
       dreamCycle: { getTimeSinceLastDream: () => 60 * 60 * 1000, getUnprocessedCount: () => 50 },
@@ -225,7 +227,9 @@ describe('v7.3.1 — Snapshot Boosts (regression guard for Phase A2)', () => {
     const ctx = neutralContext({
       _genome: { trait: (t) => t === 'consolidation' ? 1.0 : 0.5 },
       _homeostasis: { vitals: { memoryPressure: { value: 10 } } },
-      dreamCycle: { getTimeSinceLastDream: () => 60 * 60 * 1000, getUnprocessedCount: () => 50 },
+      // v7.9.41 (B2): >=60 min is the dominant overdue path (flat 10.0);
+      // the compound formula is tested inside the 20-60 min corridor.
+      dreamCycle: { getTimeSinceLastDream: () => 40 * 60 * 1000, getUnprocessedCount: () => 50 },
     });
     // Formula: 1.0 * (0.5 + 1.0) * 2.0 = 3.0 (genome=1.5x, memP<15=2.0x)
     const boost = act.shouldTrigger(ctx);

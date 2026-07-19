@@ -101,6 +101,11 @@ async function loadModels() {
 
 // ── Boot Ready ─────────────────────────────────────────
 async function onAgentReady(status) {
+  // v7.9.41 r6b: idempotent. With a fast boot (1.5s measured in the field)
+  // BOTH ready paths fire — the push event AND the initial health poll —
+  // and the first-boot welcome card rendered twice. One guard covers every
+  // caller for good; behavior is otherwise unchanged.
+  if (agentReady) return;
   agentReady = true;
   setAgentReady(true);  // v7.7.0: also signal shared module so chat/settings/statusbar guards see ready state
   console.debug('[UI] Genesis ready');

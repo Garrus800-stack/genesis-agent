@@ -454,7 +454,9 @@ class Container {
       // Resolve all services in this level synchronously first
       // (resolve() is sync and may have side effects / ordering expectations)
       const resolved = [];
+      let _rb = 0; // v7.9.41 r5 (U2): breathe between sync resolves — the heavy requires live here
       for (const name of level) {
+        if (++_rb % 12 === 0) await new Promise((r) => setImmediate(r));
         try {
           const instance = this.resolve(name);
           resolved.push({ name, instance });
@@ -498,7 +500,9 @@ class Container {
     const order = this._topologicalSort();
     const results = [];
 
+    let _breath = 0; // v7.9.41 r5 (U2): let the event loop pump between services
     for (const name of order) {
+      if (++_breath % 12 === 0) await new Promise((r) => setImmediate(r));
       try {
         const instance = this.resolve(name);
         if (instance && typeof instance.asyncLoad === 'function') {

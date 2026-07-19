@@ -188,7 +188,7 @@ describe('v7.9.37 pass 3 — model degradation becomes complete (R1)', () => {
 
   test('R1a: continuation failure is explicit and partials are discarded, model marked', () => {
     assert(bridge.includes("'continuation-exhausted': 30 * 60 * 1000"), 'TTL class exists');
-    assert(loop.includes("ok: false,") && loop.includes("failureReason,\n    content: partial"), 'loop failure shape is explicit');
+    assert(loop.includes("ok: false,") && loop.includes("failureReason,\n    content: dedupeSeams(partial)"), 'loop failure shape is explicit (v7.9.41 r2: partial passes the seam healer)');
     assert(cont.includes("markUnavailable(model, 'continuation-exhausted')"), 'wrapper marks the model');
     assert(cont.includes('discarded, not usable as code'), 'partial is thrown, not returned as success');
   });
@@ -875,8 +875,8 @@ describe('v7.9.37 T-series — the user chain wins, the ranking is current, boot
   test('T3: the last-good-boot snapshot never blocks the boot', () => {
     const br = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/BootRecovery.js'), 'utf8');
     const clearIdx = br.indexOf('this._clearSentinel();');
-    const snapIdx = br.indexOf("this._snapshotManager.create('_last_good_boot')");
-    assert(br.includes('setTimeout(() => {') && snapIdx > 0, 'the snapshot is scheduled, not awaited');
+    const snapIdx = br.indexOf("this._snapshotManager.createAsync('_last_good_boot')");
+    assert(br.includes('setTimeout(() => {') && snapIdx > 0, 'the snapshot is scheduled, not awaited (v7.9.41 r5: async twin)');
     assert(clearIdx < snapIdx, 'the sentinel is still cleared synchronously — safety unchanged');
     assert(br.includes('background,'), 'the log states it ran off the boot path');
   });

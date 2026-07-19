@@ -14,8 +14,23 @@ if (process.platform === 'win32') {
   } catch { /* non-fatal: some terminals don't support chcp */ }
 }
 
+// v7.9.41 r5 (U0b): V8 compile cache — bytecode persists across starts (Node 22 / Electron 42).
+// Safe no-op where unsupported. Measured -11% even on a fast machine; more on cold field disks.
+try { require('module').enableCompileCache?.(); } catch (_e) { /* optional */ }
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+// v7.9.41 (D3): earliest-possible boot trace — field 18.07.: crash #1 left
+// only a sentinel with NO cause (the crashing process logged nothing).
+// Best-effort, never blocks startup.
+try {
+  const _fs = require('fs');
+  const _dir = path.join(process.cwd(), '.genesis');
+  _fs.mkdirSync(_dir, { recursive: true });
+  const _early = path.join(_dir, 'early-boot.log');
+  _fs.appendFileSync(_early, `${new Date().toISOString()} pid=${process.pid} start argv=${process.argv.slice(2).join(' ')}\n`);
+  process.on('uncaughtException', (e) => { try { _fs.appendFileSync(_early, `${new Date().toISOString()} UNCAUGHT ${String(e && e.stack || e).slice(0, 800)}\n`); } catch (_x) {} });
+  process.on('unhandledRejection', (e) => { try { _fs.appendFileSync(_early, `${new Date().toISOString()} UNHANDLED ${String(e && (e.stack || e)).slice(0, 800)}\n`); } catch (_x) {} });
+} catch (_e) { /* best-effort */ }
 const fs = require('fs');
 const { SafeGuard } = require('./src/kernel/SafeGuard');
 const { AgentCore } = require('./src/agent/AgentCore');
@@ -377,6 +392,9 @@ app.whenReady().then(async () => {
       skipPhases,
     });
     await agent.boot();
+    _bootDone = true; _bootReadyResolve(); // r6: open the IPC gate
+    // r6 (U3-light): drop the boot overlay the moment the agent is ready.
+    try { mainWindow?.webContents.executeJavaScript('window.__genesisBootAlreadyDone = true; window.__genesisBootComplete && window.__genesisBootComplete();', true).catch(() => {}); } catch (_e) { /* window may be gone */ }
     console.log('[KERNEL] Agent booted successfully.');
 
     // FIX v5.0.0 (L-4): Emit security-degraded event when sandbox:false so the
@@ -390,6 +408,8 @@ app.whenReady().then(async () => {
     }
   } catch (err) {
     console.error('[KERNEL] Agent boot failed:', err);
+    _bootDone = true; _bootReadyResolve(); // r6: never leave the UI waiting forever
+    try { mainWindow?.webContents.executeJavaScript('window.__genesisBootFailed && window.__genesisBootFailed(' + JSON.stringify(String(err.message || 'Boot error')) + ');', true).catch(() => {}); } catch (_e) { /* best effort */ }
     dialog.showErrorBox('Genesis Boot Error', err.message);
   }
 }).catch(err => {
@@ -1249,14 +1269,25 @@ const CHANNELS = {
   'model:cloud-without-fallback': null, // Agent -> UI (push only — config warning)
 };
 
+// v7.9.41 r6: boot gate for IPC. The r5 breathing points made the main
+// thread responsive DURING boot — so queries (model list, status) could now
+// be answered mid-boot with half-initialized state (field: empty model list
+// until force reload). Pre-r5 they waited implicitly because the blocked
+// thread queued them. This gate restores exactly that timing: requests are
+// accepted immediately, answered once boot completes.
+let _bootDone = false;
+let _bootReadyResolve;
+const _bootReady = new Promise((resolve) => { _bootReadyResolve = resolve; });
+
 // Register all invoke handlers (with rate limiting)
 for (const [channel, handler] of Object.entries(CHANNELS)) {
   if (handler) {
-    ipcMain.handle(channel, (event, ...args) => {
+    ipcMain.handle(channel, async (event, ...args) => {
       if (!_ipcLimiter.tryConsume(channel)) {
         console.warn(`[KERNEL:IPC] Rate limited: ${channel}`);
         return { error: 'Rate limited — too many requests', rateLimited: true };
       }
+      if (!_bootDone) await _bootReady; // r6: answer after boot, like pre-r5
       return handler(event, ...args);
     });
   }
@@ -1271,6 +1302,12 @@ ipcMain.on('agent:request-stream', (event, message) => {
       mainWindow.webContents.send('agent:stream-chunk', '[Rate limited — please wait]');
       mainWindow.webContents.send('agent:stream-done');
     }
+    return;
+  }
+  if (!_bootDone) {
+    // v7.9.41 r6: an early stream waits for boot-complete, then runs
+    // unchanged — pre-r5 the blocked thread queued it the same way.
+    _bootReady.then(() => ipcMain.emit('agent:request-stream', event, message));
     return;
   }
   if (!agent) {

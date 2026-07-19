@@ -92,7 +92,10 @@ class VerificationEngine {
       switch (normalizedType) {
         case 'CODE':
         case 'CODE_GENERATE':
-          verification = this._verifiers.code.verify(result.output || result.code || '', {
+          // v7.9.41 (D1/K1): prefer the CODE over the prose output — parsing the
+          // neutral "Code written: …" sentence killed every successful step of
+          // the whole alias family (CODE/REFACTOR/IMPLEMENT/FIX/UPDATE/PATCH).
+          verification = this._verifiers.code.verify(result.code || result.output || '', {
             rootDir: this.rootDir,
             targetFile: step.target,
           });

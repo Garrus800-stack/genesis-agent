@@ -55,7 +55,17 @@ describe('BootRecovery — Clean Boot', () => {
     // v7.9.37 (T3): the snapshot copies ~400 files (copyFileSync) and used to
     // block the boot for ~4.8s. It is now scheduled a tick later — still created
     // after a clean boot, just not in the boot's critical path.
-    await new Promise((r) => setTimeout(r, 20));
+    // v7.9.41 r5: the boot snapshot is now the ASYNC twin (createAsync) — it
+    // finishes a few ticks later than the old one-tick sync create. Poll for
+    // completion instead of a fixed 20ms; the guarded behavior is unchanged:
+    // the snapshot appears after a clean boot, off the boot's critical path.
+    {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 2000) {
+        try { if (snapshotMgr.list().some(s => s.name === '_last_good_boot')) break; } catch (_e) {}
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    }
     const list = snapshotMgr.list();
     assert(list.some(s => s.name === '_last_good_boot'), 'should create last-good-boot snapshot');
   });

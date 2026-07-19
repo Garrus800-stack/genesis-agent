@@ -123,6 +123,60 @@ class SnapshotManager {
   }
 
   /**
+   * v7.9.41 r5 (U1): async twin of create() for the BOOT snapshot only.
+   * Identical semantics and IDENTICAL hash: files are walked with the same
+   * _listFiles logic, globally sorted like _hashDir would sort the target,
+   * then copied via fs.promises in small batches with setImmediate breaths —
+   * and hashed INCREMENTALLY from the very bytes written (one read per file
+   * instead of copy-then-rehash, ~800 → ~400 reads). The event loop keeps
+   * pumping, so the window stays responsive. create() itself and every
+   * shutdown path stay synchronous (fitness invariant: Shutdown Persist Safety).
+   */
+  async createAsync(name, description = '') {
+    const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
+    const snapshotDir = path.join(this._snapshotBase, safeName);
+    if (fs.existsSync(snapshotDir)) fs.rmSync(snapshotDir, { recursive: true, force: true });
+    fs.mkdirSync(snapshotDir, { recursive: true });
+
+    // Collect all files with the same walk as _listFiles, prefixed by target,
+    // then sort globally — byte-for-byte the order _hashDir would use.
+    const entries = [];
+    for (const target of SNAPSHOT_TARGETS) {
+      const srcDir = path.join(this.rootDir, target);
+      if (!fs.existsSync(srcDir)) continue;
+      for (const rel of this._listFiles(srcDir)) {
+        entries.push({ rel: path.join(target, rel), src: path.join(srcDir, rel) });
+      }
+    }
+    entries.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+
+    const hash = crypto.createHash('sha256');
+    const BATCH = 24;
+    for (let i = 0; i < entries.length; i++) {
+      const { rel, src } = entries[i];
+      const dest = path.join(snapshotDir, rel);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      const buf = await fs.promises.readFile(src);
+      hash.update(buf);
+      await fs.promises.writeFile(dest, buf);
+      if ((i + 1) % BATCH === 0) await new Promise((r) => setImmediate(r));
+    }
+
+    const meta = {
+      name: safeName,
+      description,
+      timestamp: Date.now(),
+      fileCount: entries.length,
+      hash: hash.digest('hex').slice(0, 16),
+      codeVersion: this._codeVersion(),
+    };
+    atomicWriteFileSync(path.join(snapshotDir, '_snapshot.json'), JSON.stringify(meta, null, 2));
+    this._prune();
+    _log.info(`[SNAPSHOT] Created "${safeName}" — ${meta.fileCount} files (async)`);
+    return meta;
+  }
+
+  /**
    * Restore a named snapshot (overwrites current source).
    * @param {string} name
    * @returns {{ restored: number, name: string }}

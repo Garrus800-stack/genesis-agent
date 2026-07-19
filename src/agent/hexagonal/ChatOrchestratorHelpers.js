@@ -25,7 +25,7 @@ const helpers = {
   async _processToolLoop(response, onChunk, userMessage, intentType = 'general') {
     let fullText = response;
     let lastCallSignature = null;
-    let nudges = 0; let lastNudgeCalls = -1; const _recent = (this.history || []).slice(-8); // v7.9.28 + v7.9.37 (K1): the conversation travels with every inner call — field 15: the model saw only the system prompt and said so
+    let nudges = 0; let lastNudgeCalls = -1; let _acts = 0; const _recent = (this.history || []).slice(-8); // v7.9.28 + v7.9.37 (K1): the conversation travels with every inner call — field 15: the model saw only the system prompt and said so
     let shellRuns = 0; // v7.9.28: bounded read-only shell-fence executions
     let dedupNote = ''; // v7.9.30 (S4): carried into synthesis when duplicates collapse
     // v7.3.5: Accumulate every tool call fired across rounds, for the
@@ -90,7 +90,7 @@ const helpers = {
           if (fenceCmds.length) shellRuns++;
           toolCalls = [...slashSkills, ...fenceCmds.map((command) => ({ name: 'shell', input: { command } }))];
           // fall through to execution below (S4 dedup + gate + synthesis apply)
-        } else {
+        } else { const _act = (_acts < 2) ? (require('./ChatActCore.js').planActFromText(text) || (round === 0 ? require('./ChatActCore.js').planActFromText(String(userMessage || '')) : null)) : null; if (_act) { _acts++; toolCalls = [_act]; try { onChunk('\n*[' + _act.note + ']*\n'); } catch (_e) {} } if (toolCalls.length === 0) { // v7.9.41 r3: said = done — deterministic read-only act from demand or announcement; the nudge below stays the fallback
         // v7.9.28: false-stop recovery. A capable model often does ONE tool
         // round, then narrates the next step ("Next, I'll read ARCHITECTURE.md",
         // "Ich schaue mir jetzt …") and emits no tool call — so the loop ended
@@ -104,7 +104,8 @@ const helpers = {
         // matched an ordinary reply like "ich werde …" and re-drove it, so the
         // same answer was emitted several times.
         const announcesNext = /\b(?:next[,]?\s+i(?:'ll| will)|i(?:'ll| will)\s+(?:now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|implement|write|start|proceed|continue|locate)|let me\s+(?:first\s+|now\s+)?(?:read|inspect|examine|look|check|explore|review|list|open|analy[sz]e|build|create|start|locate)|ich\s+(?:schaue|lese|pr[üu]fe|erkunde|beginne|baue|erstelle|starte|inspiziere|untersuche))/i.test(text || '') && !/(?:\?\s*$|\bsag mir\b|\btell me\b|\bwas (?:steht|soll|m[öo]chtest|genau)\b)/i.test(String(text || '').trim()); // v7.9.37 (K2): a QUESTION to the human is not an announcement — field 15: "Sag mir, was als Nächstes ansteht" matched 'als nächstes' and nudged itself into a cascade
-        if (announcesNext && allToolCalls.length > 0 && nudges < 3 && allToolCalls.length > lastNudgeCalls && round < this.maxToolRounds - 1) { // v7.9.37 (K3): a nudge that produced no new tool call never nudges again — no cascade
+        const _lastA = (() => { try { for (let _i = this.history.length - 1; _i >= 0; _i--) { if (this.history[_i] && this.history[_i].role === 'assistant') return String(this.history[_i].content || ''); } } catch (_e) {} return ''; })(); const _repeatAnnounce = announcesNext && /\b(?:ich\s+(?:schaue|lese|pr[üu]fe|erkunde|beginne|starte)|i(?:'ll| will)\s+(?:now\s+)?(?:read|inspect|start|check))/i.test(_lastA); // v7.9.41 r2: the SAME announcement already ended the previous turn — field 19.07.: five turns of "Ich lese das Changelog" with zero tool calls, because the v7.9.28 condition required a tool to have run THIS turn
+        if (announcesNext && (allToolCalls.length > 0 || _repeatAnnounce) && nudges < 3 && (allToolCalls.length === 0 || allToolCalls.length > lastNudgeCalls) && round < this.maxToolRounds - 1) { // v7.9.37 (K3): a nudge that produced no new tool call never nudges again — no cascade
           nudges++; lastNudgeCalls = allToolCalls.length;
           try {
             const rawNudge = await this.model.chat(
@@ -117,7 +118,7 @@ const helpers = {
             if (nudge && nudge.trim()) { onChunk('\n' + nudge); fullText = text + '\n\n' + nudge; continue; }
           } catch (_e) { /* nudge best-effort — fall through to break */ }
         }
-        break;
+        break; } // v7.9.41 r3: close act-guard
         }
       }
 
@@ -225,7 +226,7 @@ const helpers = {
       }
 
       onChunk(`\n\n*${this.lang.t('chat.tools_executing')}*\n`);
-      const results = await this.tools.executeToolCalls(toolCalls);
+      const results = await this.tools.executeToolCalls(toolCalls); try { /* v7.9.41 r2: compact tool trace in history — field 19.07.: the model denied a REAL read for lack of evidence; the trace IS the evidence (F2's twin) */ const _tr = results.map(r => `${r.name}(${String((toolCalls.find(tc => tc.name === r.name) || {}).input?.path || (toolCalls.find(tc => tc.name === r.name) || {}).input?.file || '').slice(0, 60)}) \u2192 ${r.success ? 'ok' : 'error'}`).join(' \u00b7 '); if (_tr && Array.isArray(this.history)) this.history.push({ role: 'assistant', content: '\u26ed tool: ' + _tr.slice(0, 300) }); } catch (_e) { /* best-effort */ }
 
       // v7.6.3 S1 — Tool-Result-Injection-Scan (warning-only).
       // Pre-fix the injection-gate scanned only userMessage. Tool-results

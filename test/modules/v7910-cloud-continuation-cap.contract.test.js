@@ -20,8 +20,8 @@ const {
 
 describe('v7.9.10 — Cloud no-prefill continuation cap', () => {
 
-  test('CLOUD_NO_PREFILL_FLOOR is 10', () => {
-    assertEqual(CLOUD_NO_PREFILL_FLOOR, 10, 'cloud floor must be 10');
+  test('CLOUD_NO_PREFILL_FLOOR is 3 (v7.9.41 r2: was 10 — field 19.07.: no-done cloud models turned ten pseudo-rounds into a repetition cascade)', () => {
+    assertEqual(CLOUD_NO_PREFILL_FLOOR, 3, 'cloud floor must be 3');
   });
 
   test('MAX_CONTINUATIONS_DEFAULT stays 6 (local-prefill floor)', () => {
@@ -38,14 +38,14 @@ describe('v7.9.10 — Cloud no-prefill continuation cap', () => {
     assertEqual(eff, 3, 'local-prefill caller-3 must stay 3');
   });
 
-  test('verified-no-prefill lifts 6 → 10', () => {
+  test('verified-no-prefill keeps 6 under floor 3', () => {
     const eff = computeEffectiveMaxContinuations({ status: 'verified-no-prefill' }, 6);
-    assertEqual(eff, 10, 'cloud no-prefill must lift to 10');
+    assertEqual(eff, 6, 'settings-6 stays 6 (floor 3 no longer lifts it)');
   });
 
-  test('unverified-no-prefill also lifts 6 → 10', () => {
+  test('unverified-no-prefill also keeps 6 under floor 3', () => {
     const eff = computeEffectiveMaxContinuations({ status: 'unverified-no-prefill' }, 6);
-    assertEqual(eff, 10, 'unverified no-prefill must lift to 10');
+    assertEqual(eff, 6, 'settings-6 stays 6 under floor 3');
   });
 
   test('caller requesting >10 (e.g. 15) is not capped down', () => {
@@ -55,22 +55,22 @@ describe('v7.9.10 — Cloud no-prefill continuation cap', () => {
 
   test('null capability defaults to no-prefill behaviour', () => {
     const eff = computeEffectiveMaxContinuations(null, 6);
-    assertEqual(eff, 10, 'null capability treated conservatively → lift');
+    assertEqual(eff, 6, 'null capability: settings-6 stays 6 under floor 3');
   });
 
   test('undefined capability defaults to no-prefill behaviour', () => {
     const eff = computeEffectiveMaxContinuations(undefined, 6);
-    assertEqual(eff, 10, 'undefined capability treated conservatively → lift');
+    assertEqual(eff, 6, 'undefined capability: settings-6 stays 6 under floor 3');
   });
 
   test('capability without status field defaults to no-prefill', () => {
     const eff = computeEffectiveMaxContinuations({}, 6);
-    assertEqual(eff, 10, 'capability with no status → lift');
+    assertEqual(eff, 6, 'no-status capability: settings-6 stays 6 under floor 3');
   });
 
   test('verification-failed capability lifts (no prefill possible)', () => {
     const eff = computeEffectiveMaxContinuations({ status: 'verification-failed' }, 6);
-    assertEqual(eff, 10, 'verification-failed treated as no-prefill');
+    assertEqual(eff, 6, 'verification-failed treated as no-prefill');
   });
 });
 

@@ -27,12 +27,12 @@ const _log = createLogger('IdleMind');
  * @returns {Promise<string>} the refined title, or the original when there is
  *          no genuine, valid, different improvement (or on any error)
  */
-async function refineGoalDraft({ title, description, model, allowedVerbs, hasHallucinatedPaths } = {}) {
+async function refineGoalDraft({ title, description, model, allowedVerbs, hasHallucinatedPaths, recentFailedHint } = {}) { // v7.9.41 (D6/K2)
   if (!title || !model || typeof model.chat !== 'function') return title;
 
   const prompt = `You proposed this activity:
 TITLE: ${title}
-
+${recentFailedHint ? '\nRecently FAILED goals (do NOT drift the refined title toward these):\n' + recentFailedHint + '\n' : ''}
 Sharpen ONLY the title so it names the concrete deliverable more precisely.
 Keep the SAME leading verb. Do not broaden the scope. Do not invent file paths.
 If the title is already as sharp as it can be, repeat it unchanged.

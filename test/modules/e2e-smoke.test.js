@@ -112,7 +112,17 @@ describe('E2E — BootRecovery Integration', () => {
 
     // Verify snapshot was created (v7.9.37 T3: scheduled off the boot path —
     // 400 copyFileSync calls used to cost 4.8s of the boot; one tick now.)
-    await new Promise((r) => setTimeout(r, 20));
+    // v7.9.41 r5: the boot snapshot is now the ASYNC twin (createAsync) — it
+    // finishes a few ticks later than the old one-tick sync create. Poll for
+    // completion instead of a fixed 20ms; the guarded behavior is unchanged:
+    // the snapshot appears after a clean boot, off the boot's critical path.
+    {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 2000) {
+        try { if (mgr.list().some(s => s.name === '_last_good_boot')) break; } catch (_e) {}
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    }
     const snaps = mgr.list();
     assert(snaps.some(s => s.name === '_last_good_boot'), 'should have good boot snapshot');
   });

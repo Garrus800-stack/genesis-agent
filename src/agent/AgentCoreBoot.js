@@ -258,6 +258,9 @@ class AgentCoreBoot {
       'eventStore', 'knowledgeGraph', 'worldState',
     ]) {
       c.resolve(name);
+      // v7.9.41 r5 (U2): each of these is heavy (first requires + init) —
+      // one breath after every resolve keeps the window responsive.
+      await new Promise((r) => setImmediate(r));
     }
     _log.info(`  [1] Foundation resolved: ${selfModel.moduleCount()} modules`);
 

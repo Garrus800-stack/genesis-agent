@@ -162,6 +162,8 @@ describe('v7.9.18 A3 — _last_good_boot only after a clean boot', () => {
     const snapshotManager = {
       created: [],
       create(name) { this.created.push(name); recordCreate && recordCreate(name); },
+    // v7.9.41 r5: boot snapshot moved to the async twin — same observable behavior
+    createAsync(name) { this.created.push(name); return Promise.resolve({ name }); },
       list() { return []; },
     };
     return { rec: new BootRecovery({ genesisDir, snapshotManager, rootDir: root }), snapshotManager };

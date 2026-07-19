@@ -31,13 +31,16 @@ const https = require('https');
 const { URL } = require('url');
 const { NullBus } = require('../core/EventBus');
 
-// Try to load cheerio for HTML parsing (optional dep)
-let cheerio = null;
-try { cheerio = require('cheerio'); } catch (_e) { console.debug('[catch] will use regex fallback:', _e.message); }
+// v7.9.41 r5 (U0a): cheerio/puppeteer load LAZILY on first use, not at boot.
+// Measured: eager load of these paid directly into the 12.9s field boot.
+// Fallback semantics are word-identical; only the load MOMENT moves.
+let cheerio = null; let _cheerioTried = false;
+function _cheerio() { if (!_cheerioTried) { _cheerioTried = true; try { cheerio = require('cheerio'); } catch (_e) { console.debug('[catch] will use regex fallback:', _e.message); } } return cheerio; }
+function _canResolve(name) { try { require.resolve(name); return true; } catch (_e) { return false; } }
 
 // Puppeteer is fully optional
-let puppeteer = null;
-try { puppeteer = require('puppeteer'); } catch (_e) { console.debug('[catch] lightweight mode only:', _e.message); }
+let puppeteer = null; let _puppeteerTried = false;
+function _puppeteer() { if (!_puppeteerTried) { _puppeteerTried = true; try { puppeteer = require('puppeteer'); } catch (_e) { console.debug('[catch] lightweight mode only:', _e.message); } } return puppeteer; }
 
 class WebPerception {
   constructor({ bus, storage, eventStore, config }) {
@@ -58,7 +61,7 @@ class WebPerception {
 
     // ── Headless browser (lazy init) ────────────────────
     this._browser = null;
-    this._headlessAvailable = !!puppeteer;
+    this._headlessAvailable = _canResolve('puppeteer'); // r5: availability WITHOUT loading
 
     // ── Stats ────────────────────────────────────────────
     this._stats = {
@@ -157,7 +160,7 @@ class WebPerception {
    * @returns {Promise<*>}
    */
   async extract(url, selectors) {
-    if (!cheerio) {
+    if (!_cheerio()) {
       return { success: false, error: 'cheerio not installed — npm install cheerio' };
     }
 
@@ -167,7 +170,7 @@ class WebPerception {
     const cached = this._cache.get(url);
     if (!cached?.content) return { success: false, error: 'No cached content' };
 
-    const $ = cheerio.load(cached.content);
+    const $ = _cheerio().load(cached.content);
     const data = Object.create(null);
 
     for (const [key, selector] of Object.entries(selectors)) {
@@ -213,7 +216,7 @@ class WebPerception {
    */
   getCapabilities() {
     return {
-      cheerioAvailable: !!cheerio,
+      cheerioAvailable: _canResolve('cheerio'), // r5: availability WITHOUT loading
       puppeteerAvailable: this._headlessAvailable,
       mode: this._headlessAvailable ? 'headless + lightweight' : 'lightweight only',
     };
@@ -281,7 +284,7 @@ class WebPerception {
 
   async _headlessFetch(url) {
     if (!this._browser) {
-      this._browser = await puppeteer.launch({
+      this._browser = await _puppeteer().launch({
         headless: 'new',
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
       });
@@ -302,14 +305,14 @@ class WebPerception {
   // ════════════════════════════════════════════════════════
 
   _parseHTML(html, url, options = {}) {
-    if (cheerio) {
+    if (_cheerio()) {
       return this._parseWithCheerio(html, url, options);
     }
     return this._parseWithRegex(html, url, options);
   }
 
   _parseWithCheerio(html, url, options) {
-    const $ = cheerio.load(html);
+    const $ = _cheerio().load(html);
 
     // Remove noise
     $('script, style, nav, footer, header, iframe, noscript, svg').remove();

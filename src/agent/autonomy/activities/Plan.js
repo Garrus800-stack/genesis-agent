@@ -119,7 +119,7 @@ module.exports = {
       try {
         const _fs = require('fs'), _file = require('path').join(process.cwd(), '.genesis', 'goal-families.json');
         let _fam = []; try { _fam = JSON.parse(_fs.readFileSync(_file, 'utf8')); } catch (_e) { _fam = []; }
-        if (!Array.isArray(_fam)) _fam = []; _fam.push(String(titleMatch[1]).trim().toLowerCase().split(/\s+/).slice(0, 3).join(' '));
+        if (!Array.isArray(_fam)) _fam = []; if (_fam[_fam.length - 1] !== String(titleMatch[1]).trim().toLowerCase().split(/\s+/).slice(0, 3).join(' ')) _fam.push(String(titleMatch[1]).trim().toLowerCase().split(/\s+/).slice(0, 3).join(' '));
         _fs.writeFileSync(_file, JSON.stringify(_fam.slice(-12), null, 2));
       } catch (_e) { /* best-effort */ }
     }
@@ -188,6 +188,7 @@ module.exports = {
       // different improvement; any error leaves the draft untouched.
       try {
         const refined = await refineGoalDraft({
+          recentFailedHint: recentFailed || '', // v7.9.41 (D6/K2)
           title, description: thought, model: idleMind.model, allowedVerbs: _ALLOWED_VERBS,
           hasHallucinatedPaths: (txt) => _hasHallucinatedPaths(txt, realPaths, _rootDir),
         });

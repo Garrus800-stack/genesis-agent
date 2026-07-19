@@ -563,7 +563,7 @@ const agentLoopPursuitMixin = {
         // FailureTaxonomy classify (SA-O2) + Fix 8: plan+allResults for refresh→replan.
         const recovery = await this.recovery.classifyAndRecover(step, result, i, onProgress);
         const _diag = `[STEP-DIAG] Step ${i + 1} "${(step.description || step.type || '').slice(0, 60)}" failed → cause: ${recovery.category || 'unclassified'} → action: ${recovery.action || 'none'} → error: ${String(result.error || '').replace(/\s+/g, ' ').slice(0, 80)}`; // (S1) + v7.9.37 (Z5)
-        _log.info(_diag); try { onProgress({ phase: 'step-diagnosis', detail: _diag }); } catch (_e) { /* best-effort */ }
+        _log.info(_diag); try { onProgress({ phase: 'step-diagnosis', detail: _diag }); } catch (_e) { /* best-effort */ } try { /* v7.9.41 (F3): step error ON the goal where it exists (.40 archive pull was empty: checkpoints=successes only); outcome chain picks it up */ const _g = this.goalStack?.getById?.(this.currentGoalId); if (_g && result.error) _g.lastError = String(result.error).slice(0, 500); } catch (_e) { /* never break */ }
         if (recovery.action === 'retry') {
           i--; // Retry same step
           allResults.push({ retried: true, category: recovery.category });

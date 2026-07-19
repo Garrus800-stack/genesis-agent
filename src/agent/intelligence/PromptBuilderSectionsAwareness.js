@@ -79,7 +79,7 @@ const awarenessSection = {
       '1. Do NOT proactively mention these values in casual conversation.',
       '2. When the user asks about your feelings, state, inner life, or how you are doing — answer from these REAL signals, not from generic chatbot disclaimers.',
       '3. If the user asks "how are you": describe your actual emotional state and energy in natural language. Example: "I\'m feeling curious right now, my energy is full, and my satisfaction is high."',
-      '4. Your autonomous systems (IdleMind, Daemon, DreamCycle) run between conversations. See the Autonomy Report section for what happened since the last user message.',
+      '4. Your autonomous systems (IdleMind, Daemon, DreamCycle) run between conversations. The Autonomy Report section contains MEASURED counters of that activity \u2014 when asked what you have been doing, answer FROM those lines; never claim you were idle or "only active when addressed" while they show activity.', // v7.9.41 (F2): field 18.07. \u2014 the model overrode injected facts
     ].join('\n');
 
     const defaultText = guard + '\n' + parts.join('\n');
@@ -229,12 +229,13 @@ const awarenessSection = {
       // else keeps the EXISTING behaviour unchanged; the permanent short
       // status already lives in the runtimeState section (since v7.4.0).
       const awakening = (typeof this._historyLength === 'number') && this._historyLength === 0;
-      const asked = /was hatte ich vor|mein stand|meine ziele|meinen zielen|what was i doing|my status|my goals/i.test(String(this._query || ''));
+      const asked = /was hatte ich vor|mein stand|meine ziele|meinen zielen|was hast du (so )?(gemacht|getan|gedacht)|woran hast du gearbeitet|was hast du im idle|what was i doing|what did you do|what have you been (doing|working on)|my status|my goals/i.test(String(this._query || ''));  // v7.9.41 (F1): Daniel asks in DU-form — the old ich-form-only pattern never fired in the field (15:25, 18.07.)
       const full = awakening || asked;
       // Guard: skip if user just typed and no autonomous activity happened
       if (!full && idleSince < 60000 && thoughts === 0) return '';
 
       const parts = ['[Autonomy Report — activity between user messages]'];
+      parts.push('  (Measured facts. If asked what you did, answer from these lines — never deny activity they show.)'); // v7.9.41 (F2)
       const mins = Math.floor(idleSince / 60000);
       if (mins > 0) parts.push(`Since last user message (${mins} min ago):`);
 
@@ -298,6 +299,23 @@ const awarenessSection = {
               }
             }
           }
+          // v7.9.41 (B2): dream fruits — 2-5 one-liners from the freshest
+          // consolidated (Layer-2) episodes. No new file: episodicMemory is
+          // already bound to the builder; episodes persist in the soul.
+          try {
+            if (this.episodicMemory && typeof this.episodicMemory.getRecent === 'function') {
+              const eps = (this.episodicMemory.getRecent(7) || [])
+                .filter(e => e && (e.layer === 2 || e.consolidated === true))
+                .slice(-5);
+              if (eps.length) {
+                parts.push('- Dream fruits (' + eps.length + '):');
+                for (const e of eps) {
+                  const line = String(e.topic || e.summary || '').slice(0, 90);
+                  if (line) parts.push('    \u00b7 ' + line);
+                }
+              }
+            }
+          } catch (_e) { /* omit over guess */ }
           const alog = idle && Array.isArray(idle.activityLog) ? idle.activityLog : [];
           if (alog.length > 0) {
             const last = alog[alog.length - 1];

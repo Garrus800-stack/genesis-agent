@@ -191,8 +191,12 @@ class BootRecovery {
       setTimeout(() => {
         try {
           const t0 = Date.now();
-          this._snapshotManager.create('_last_good_boot');
-          _log.info(`[RECOVERY] Last-known-good snapshot updated (background, ${Date.now() - t0}ms)`);
+          // v7.9.41 r5 (U1): async twin — the copy breathes (setImmediate batches),
+          // the main thread keeps handling input; before, create()'s copyFileSync
+          // froze the window ~5-7s right after it first became responsive.
+          this._snapshotManager.createAsync('_last_good_boot')
+            .then(() => _log.info(`[RECOVERY] Last-known-good snapshot updated (background, ${Date.now() - t0}ms)`))
+            .catch((e) => _log.warn('[RECOVERY] Snapshot update failed:', e.message));
         } catch (err) {
           _log.debug('[RECOVERY] Snapshot creation failed:', err.message);
         }
@@ -213,6 +217,22 @@ class BootRecovery {
   }
 
   _writeSentinel(data) {
+    // v7.9.41 r2 (D3 moved to the true early spot): the 07:52 crash wrote the
+    // sentinel but main.js' hooks left no line — this writer demonstrably runs
+    // before such crashes, so the trace + hooks live HERE. exit-listener also
+    // catches hard exits that throw no exception.
+    try {
+      const _fs = require('fs');
+      const _early = path.join(path.dirname(this._sentinelPath), 'early-boot.log');
+      _fs.appendFileSync(_early, `${new Date().toISOString()} pid=${process.pid} sentinel-write\n`);
+      if (!global.__genesisEarlyHooks) {
+        global.__genesisEarlyHooks = true;
+        const _line = (tag, e) => { try { _fs.appendFileSync(_early, `${new Date().toISOString()} ${tag} ${String(e && (e.stack || e)).slice(0, 800)}\n`); } catch (_x) {} };
+        process.on('uncaughtException', (e) => _line('UNCAUGHT', e));
+        process.on('unhandledRejection', (e) => _line('UNHANDLED', e));
+        process.on('exit', (code) => { try { _fs.appendFileSync(_early, `${new Date().toISOString()} exit code=${code}\n`); } catch (_x) {} });
+      }
+    } catch (_e) { /* best-effort */ }
     try {
       // v7.9.30 (S7): tag sentinels written under test, so a leftover from a
       // test-boot that didn't tear down cleanly is not misread as a crash on

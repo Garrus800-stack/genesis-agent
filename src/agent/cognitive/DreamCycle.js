@@ -69,7 +69,7 @@ class DreamCycle {
     this._maxDreamDurationMs = cfg.maxDurationMs || 120000;
     this._schemaMinOccurrences = cfg.schemaMinOccurrences || 3;
     this._memoryDecayRate = cfg.memoryDecayRate || 0.05;
-    this._consolidationIntervalMs = cfg.consolidationIntervalMs || 30 * 60 * 1000;
+    this._consolidationIntervalMs = cfg.consolidationIntervalMs || 20 * 60 * 1000; // v7.9.41 (B2): harmonised with the activity cadence (no second clock)
     this._useLLM = cfg.useLLM !== false; // default true
 
     // ── State ────────────────────────────────────────────

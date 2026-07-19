@@ -78,10 +78,21 @@ async function main() {
 
     if (fs.existsSync(testDir)) {
       const testFiles = fs.readdirSync(testDir).filter(f => f.endsWith('.test.js'));
+      // v7.9.41 (CI): optional alphabetical range for time-boxed environments —
+      // GENESIS_TEST_RANGE="a-m" runs only files whose name sorts inside the
+      // range. Two disjoint ranges cover the full set losslessly; the summary
+      // lines of both runs add up to the full-oracle numbers.
+      const RANGE = process.env.GENESIS_TEST_RANGE;
+      let rangedFiles = testFiles;
+      if (RANGE && /^[a-z0-9]+-[a-z0-9~]+$/i.test(RANGE)) {
+        const [lo, hi] = RANGE.toLowerCase().split('-');
+        rangedFiles = testFiles.filter(f => { const n = f.toLowerCase(); return n >= lo && n <= hi + '~~~'; });
+        console.log(`  (range ${RANGE}: ${rangedFiles.length}/${testFiles.length} files)`);
+      }
 
       // Run in batches of CONCURRENCY for parallelism without overwhelming the system
-      for (let i = 0; i < testFiles.length; i += CONCURRENCY) {
-        const batch = testFiles.slice(i, i + CONCURRENCY);
+      for (let i = 0; i < rangedFiles.length; i += CONCURRENCY) {
+        const batch = rangedFiles.slice(i, i + CONCURRENCY);
         const results = await Promise.allSettled(
           batch.map(async (file) => {
             const filePath = path.join(testDir, file);

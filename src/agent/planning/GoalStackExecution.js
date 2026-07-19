@@ -86,7 +86,7 @@ Respond with EXACTLY one word: YES or NO. Then briefly explain why.`;
     const prompt = `You are Genesis. Decompose this goal into concrete steps.
 
 GOAL: ${description}
-
+${(() => { try { const { buildRecentGoalContext } = require('../core/goal-intent'); const { failedHint } = buildRecentGoalContext({ goalStack: this, storage: this.storage || null, now: Date.now(), log: null }); return failedHint ? '\nRecently FAILED similar goals \u2014 choose steps that take a DIFFERENT approach than these:\n' + failedHint + '\n' : ''; } catch (_e) { return ''; } })()}
 Rules:
 - Maximum ${this.maxStepsPerGoal} steps
 - Each step must be independently executable

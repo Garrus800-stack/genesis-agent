@@ -65,28 +65,22 @@ describe('v7.9.40 B0 — Fundament', () => {
     assert.ok(text.includes('Write access blocked'), 'got: ' + text.slice(0, 160));
     assert.ok(!fs.existsSync(path.join(ROOT,'src','agent','core','v7940-write-probe.tmp')));
   });
-  test('_archiveGoal preserves the last step error → outcome (field: abandoned with no outcome)', async () => {
+  // v7.9.41 (F3) supersedes the .40 checkpoint pull: checkpoints only ever
+  // existed for SUCCESSFUL steps (field proof 18.07.), so the archive-side
+  // pull was structurally empty and has been removed. lastError is now set
+  // at the pursuit STEP-DIAG site; the archive outcome chain picks it up.
+  test('_archiveGoal carries pursuit-set lastError into outcome (v7.9.41 contract)', async () => {
     const gp = Object.create(GoalPersistence.prototype);
-    const goal = { id: 'g1', status: 'active', description: 'Inspect AgentCoreHealth' };
+    const goal = { id: 'g1', status: 'active', description: 'Inspect AgentCoreHealth', lastError: FIELD_ERR };
     gp._activeGoals = [goal]; gp._archive = []; gp._stats = { goalsArchived: 0 };
-    gp._stepCheckpoints = new Map([['g1', {
-      partialResult: { action: 'test-code', success: false, error: FIELD_ERR },
-      partialResults: [{ error: null }, { error: FIELD_ERR }],
-    }]]);
+    gp._stepCheckpoints = new Map();
     gp.storage = { writeJSON: async () => {}, delete: async () => {} };
     await gp._archiveGoal('g1', 'abandoned');
-    assert.strictEqual(goal.lastError, FIELD_ERR, 'full text, uncut');
     assert.ok(goal.outcome && goal.outcome.includes('Read access blocked'), 'outcome chain: ' + goal.outcome);
-    assert.ok(!gp._stepCheckpoints.has('g1'));
   });
-  test('_archiveGoal leaves an explicitly set lastError untouched', async () => {
-    const gp = Object.create(GoalPersistence.prototype);
-    const goal = { id: 'g2', status: 'active', lastError: 'earlier, more specific error' };
-    gp._activeGoals = [goal]; gp._archive = []; gp._stats = { goalsArchived: 0 };
-    gp._stepCheckpoints = new Map([['g2', { partialResult: { error: 'later noise' } }]]);
-    gp.storage = { writeJSON: async () => {}, delete: async () => {} };
-    await gp._archiveGoal('g2', 'failed');
-    assert.strictEqual(goal.lastError, 'earlier, more specific error');
+  test('the dead .40 archive-side checkpoint pull stays removed (source pin)', () => {
+    const t = fs.readFileSync(path.join(ROOT, 'src', 'agent', 'planning', 'GoalPersistence.js'), 'utf-8');
+    assert.ok(!t.includes('v7.9.40 (B0): preserve'), 'superseded by v7.9.41 F3 at the pursuit site');
   });
 });
 if (require.main === module) run();

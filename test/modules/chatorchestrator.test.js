@@ -247,7 +247,7 @@ async function runAsync() {
     mocks.model.chat = async (sys, msgs) => {
       chatCalls++;
       const content = msgs.map((m) => m.content).join(' ');
-      if (/Tool results/.test(content) && phase === 0) { phase = 1; return "I inspected. Next, I'll read ARCHITECTURE.md to fit conventions."; }
+      if (/Tool results/.test(content) && phase === 0) { phase = 1; return "I inspected. Next, I'll proceed with the remaining build steps."; /* v7.9.41 r3: unmappable announcement — mappable ones (a named file) are taken by the act core BEFORE the nudge; this test pins the nudge FALLBACK */ }
       if (/emitted no tool call/i.test(content) || /Perform that step NOW/i.test(content)) return 'Finished: DONE_BUILT ```js\nconst x=1;\n```';
       return 'ok';
     };

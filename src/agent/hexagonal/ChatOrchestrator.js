@@ -6,7 +6,7 @@
 // multi-round tool execution loop, and structured output parsing.
 // ============================================================
 
-const fs = require('fs');
+const fs = require('fs'); const { dedupeSeams } = require('../foundation/backends/ContinuationLoop.js'); /* v7.9.41 r2: seam healing also at the CHAT egress — field 19.07. */
 const path = require('path');
 const { NullBus } = require('../core/EventBus');
 const { detectVagueReference: _detectVagueRef } = require('../foundation/VagueReferenceDetector');
@@ -159,7 +159,7 @@ class ChatOrchestrator {
           : "I couldn't produce a response just now — the model may be briefly unavailable. Try again.";
       }
 
-      this.history.push({ role: 'assistant', content: response });
+      response = dedupeSeams(response); this.history.push({ role: 'assistant', content: response });
       this._saveHistory();
       // v3.5.0: Record conversation as episodic memory (ChatOrchestratorHelpers mixin)
       (/** @type {any} */ (this))._recordEpisode(message, response, intent.type);
@@ -199,7 +199,7 @@ class ChatOrchestrator {
 
       if (!result.isSystemMessage) {
         // Existing behavior for non-LLM errors: push to history
-        this.history.push({ role: 'assistant', content: result.text });
+        result.text = dedupeSeams(result.text); this.history.push({ role: 'assistant', content: result.text });
         this._saveHistory();
       }
       // For isSystemMessage=true: do NOT push to history. User sees it,
@@ -255,7 +255,7 @@ class ChatOrchestrator {
         // "no response generated" to the user. This way Genesis actually speaks.
         if (response != null) {
           onChunk(response);
-          this.history.push({ role: 'assistant', content: response });
+          response = dedupeSeams(response); this.history.push({ role: 'assistant', content: response });
           this._saveHistory();
           this.bus.fire('chat:completed', { message, response, intent: intent.type, success: true, backend: this.model.activeBackend || 'unknown', tokens: Math.ceil((response || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
           onDone(response); // v7.9.37 (W4): this branch carries 'response'
@@ -333,7 +333,7 @@ class ChatOrchestrator {
       // v7.5.1: pass intent.type so intent-tool-coherence can cross-check
       // tool-category against the IntentRouter classification.
       cleanResponse = await _h._processToolLoop(cleanResponse, onChunk, message, intent.type);
-      this.history.push({ role: 'assistant', content: cleanResponse });
+      cleanResponse = dedupeSeams(cleanResponse); this.history.push({ role: 'assistant', content: cleanResponse });
       require('./LastDocStore').rememberOutput(cleanResponse); // v7.9.28: enable "speichere es"
       this._saveHistory();
       this.bus.fire('chat:completed', { message, response: cleanResponse, intent: intent.type, success: true, backend: this.model.activeBackend || 'unknown', tokens: Math.ceil((cleanResponse || '').length / 3.5), latencyMs: Date.now() - t0 }, { source: 'ChatOrchestrator' });
@@ -515,7 +515,7 @@ class ChatOrchestrator {
                 ? 'Du hast geschrieben, dass du ein Tool nutzen möchtest, aber keinen <tool_call>-Block gesendet. Sende den Tool-Call jetzt im exakt diesem Format:\n<tool_call>{"name": "tool-name", "input": {"param": "value"}}</tool_call>\nWenn doch kein Tool nötig ist, antworte direkt ohne Tool-Call.'
                 : 'You indicated you want to use a tool but did not send a <tool_call> block. Send the tool call now in this exact format:\n<tool_call>{"name": "tool-name", "input": {"param": "value"}}</tool_call>\nIf no tool is actually needed, just answer directly without a tool call.';
 
-              history.push({ role: 'assistant', content: response });
+              response = dedupeSeams(response); history.push({ role: 'assistant', content: response });
               history.push({ role: 'user', content: correctiveMsg });
               raw = await this.model.chat(ctx.system, history, 'chat', { _userChat: true });
               stripped = stripThinkingBlocks(raw);
@@ -578,7 +578,7 @@ class ChatOrchestrator {
           }
 
           // Feed results back to LLM for next response
-          history.push({ role: 'assistant', content: response }); const _slashLines = (response.match(/^\s*\/(?:read-source|run-skill|open|shell|file-list|file-read|goals?|self|memory|architecture|help)\b.*$/gim) || []).length; // v7.9.37 (W1)
+          response = dedupeSeams(response); history.push({ role: 'assistant', content: response }); const _slashLines = (response.match(/^\s*\/(?:read-source|run-skill|open|shell|file-list|file-read|goals?|self|memory|architecture|help)\b.*$/gim) || []).length; // v7.9.37 (W1)
           history.push({ role: 'user', content: `Tool results:\n${toolResults.join('\n')}\n\n${_slashLines > 0 ? `WICHTIG: ${_slashLines} /slash-Zeile(n) in deinem Text wurden NICHT ausgeführt — nur echte tool_call-Blöcke laufen. Sende sie jetzt als tool_calls oder streiche sie ersatzlos. Kündige nie an, was du nicht im selben Zug tust.\n\n` : ''}Continue based on these results. Do NOT repeat the tool calls. Respond in the same language the user used in their message above, regardless of the language of these tool results.` });
           raw = await this.model.chat(ctx.system, history, 'chat', { _userChat: true });  // v7.5.2
           stripped = stripThinkingBlocks(raw);

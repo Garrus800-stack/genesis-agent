@@ -2,7 +2,9 @@
 // ============================================================
 // GENESIS — activities/Dream.js (v7.3.1)
 // Runs a dream cycle (memory consolidation via DreamCycle).
-// Conditional: dreamAge > 30min AND unprocessed >= 10.
+// Cadence (v7.9.41 B2, Genesis' own spec): never twice within 20 min;
+// after 60 min idle-with-material the dream is DUE and dominates the pick;
+// between 20-60 min the v7.9.23 material gate (>=4 unprocessed) applies.
 // Boost sources: Genome.consolidation, MemoryPressure (<15% → 2x,
 //   <30% → 1.5x).
 // ============================================================
@@ -21,12 +23,16 @@ module.exports = {
     // Availability gate — dream only runs if age+unprocessed conditions met
     const age = ctx.snap.dreamAge || 0;
     const unprocessed = ctx.snap.dreamUnprocessed || 0;
-    if (age < 30 * 60 * 1000) return 0;
+    if (age < 20 * 60 * 1000) return 0; // v7.9.41 (B2): never twice within 20 min (was 30)
     // v7.9.23: 10 unprocessed was unreachable at real episode counts (the organism carried
     // ~6 total), so the dream never fired and the self-narrative stayed empty. Lower the
     // threshold to 4 and add an age fallback: after 6h with at least one unprocessed episode,
     // allow the dream regardless. The 30-min minimum-age floor above is unchanged.
-    if (unprocessed < 4 && !(age >= 6 * 60 * 60 * 1000 && unprocessed >= 1)) return 0;
+    // v7.9.41 (B2): hard overdue — after 60 min with ANY material the dream
+    // is due and must WIN the pick (dominant by contract; field 18.07.: four
+    // idle hours, zero dreams). This subsumes the old 6-h fallback.
+    if (age >= 60 * 60 * 1000 && unprocessed >= 1) return 10.0;
+    if (unprocessed < 4) return 0; // 20-60 min: material gate unchanged (v7.9.23)
 
     let boost = 1.0;
 
