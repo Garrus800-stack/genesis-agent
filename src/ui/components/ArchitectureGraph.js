@@ -67,7 +67,11 @@ class ArchitectureGraph {
     }
 
     this._width = this._container.clientWidth || 800;
-    this._height = Math.max(400, Math.min(600, this._data.nodes.length * 3));
+    this._height = Math.max(400, (this._container.clientHeight || 0) - 30 || Math.min(600, this._data.nodes.length * 3)); // v7.9.43 W4: fill the window, no 600 cap
+    if (typeof ResizeObserver === 'function' && !this._ro) { // v7.9.43 W4: follow the window, keep the zoom
+      this._ro = new ResizeObserver(() => { try { const h = Math.max(400, (this._container.clientHeight || 0) - 30); const w = this._container.clientWidth || this._width;
+        if (Math.abs(h - this._height) > 8 || Math.abs(w - this._width) > 8) { this._width = w; this._height = h; this._render(); } } catch (_e) { /* keep last */ } });
+      try { this._ro.observe(this._container); } catch (_e) { /* env without RO */ } }
 
     // Filter to service nodes only for main graph (events are too noisy)
     const serviceNodes = this._data.nodes.filter(n => n.type === 'service');
@@ -85,7 +89,7 @@ class ArchitectureGraph {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', `0 0 ${this._width} ${this._height}`);
     svg.setAttribute('width', '100%');
-    svg.setAttribute('height', this._height + 'px');
+    svg.setAttribute('height', '100%'); // v7.9.43 W4
     svg.style.background = 'var(--color-bg-secondary, #1a1a2e)';
     svg.style.borderRadius = '8px';
     svg.style.cursor = 'grab';

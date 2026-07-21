@@ -7,7 +7,7 @@
 // ============================================================
 
 const fs = require('fs'); const { dedupeSeams } = require('../foundation/backends/ContinuationLoop.js'); /* v7.9.41 r2: seam healing also at the CHAT egress — field 19.07. */
-const path = require('path');
+const path = require('path'); const { sanitizeModelToolLines } = require('./ChatToolTruth.js'); // v7.9.43 W1 (+W3 via BootWire late-binding)
 const { NullBus } = require('../core/EventBus');
 const { detectVagueReference: _detectVagueRef } = require('../foundation/VagueReferenceDetector');
 const { LIMITS } = require('../core/Constants');
@@ -159,7 +159,7 @@ class ChatOrchestrator {
           : "I couldn't produce a response just now — the model may be briefly unavailable. Try again.";
       }
 
-      response = dedupeSeams(response); this.history.push({ role: 'assistant', content: response });
+      response = dedupeSeams(sanitizeModelToolLines(response, this._execNames)); this.history.push({ role: 'assistant', content: response }); this._observeResonance && this._observeResonance(this, response); // v7.9.43 W3
       this._saveHistory();
       // v3.5.0: Record conversation as episodic memory (ChatOrchestratorHelpers mixin)
       (/** @type {any} */ (this))._recordEpisode(message, response, intent.type);
@@ -199,7 +199,7 @@ class ChatOrchestrator {
 
       if (!result.isSystemMessage) {
         // Existing behavior for non-LLM errors: push to history
-        result.text = dedupeSeams(result.text); this.history.push({ role: 'assistant', content: result.text });
+        result.text = dedupeSeams(sanitizeModelToolLines(result.text, this._execNames)); this.history.push({ role: 'assistant', content: result.text }); this._observeResonance && this._observeResonance(this, result.text); // v7.9.43 W3
         this._saveHistory();
       }
       // For isSystemMessage=true: do NOT push to history. User sees it,

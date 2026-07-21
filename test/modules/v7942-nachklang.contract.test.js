@@ -41,11 +41,13 @@ describe('v7942 V2a — resonance-note tool (sibling of the v7.3.7 house)', () =
     assert(r.ok === false, 'refused');
     assert(!fs.existsSync(path.join(dir, 'resonance.jsonl')), 'nothing written');
   });
-  test('source pin: resonance.jsonl is written by the tool alone', () => {
-    const hits = [];
-    const walk = (d) => { for (const f of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, f.name); if (f.isDirectory()) walk(p); else if (f.name.endsWith('.js') && fs.readFileSync(p, 'utf8').includes("resonance.jsonl")) hits.push(path.relative(ROOT, p).split(path.sep).join('/')); } };
+  test('source pin: resonance.jsonl is WRITTEN by the tool alone', () => {
+    // v7.9.43 follow-up (documented): W3 modules may MENTION the anchor file
+    // in comments ("never enter"); the pin counts WRITE paths, not words.
+    const writers = [];
+    const walk = (d) => { for (const f of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, f.name); if (f.isDirectory()) walk(p); else if (f.name.endsWith('.js')) { const t = fs.readFileSync(p, 'utf8'); if (/(appendFileSync|writeFileSync)\([^\n]*resonance\.jsonl/.test(t)) writers.push(path.relative(ROOT, p).split(path.sep).join('/')); } } };
     walk(path.join(ROOT, 'src'));
-    assertEqual(hits.sort().join(','), 'src/agent/autonomy/activities/PickContext.js,src/agent/cognitive/tools/v737-memory-tools.js', 'one writer, one reader');
+    assertEqual(writers.join(','), 'src/agent/cognitive/tools/v737-memory-tools.js', 'exactly one write path');
     assert(!/appendFileSync[^\n]*resonance/.test(src('src/agent/autonomy/activities/PickContext.js')), 'the reader never writes');
   });
   test('wiring pin: BootWire hands the container model to the house', () => {

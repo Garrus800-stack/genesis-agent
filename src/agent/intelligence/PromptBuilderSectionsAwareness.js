@@ -135,6 +135,7 @@ const awarenessSection = {
       // (the silence contracts of this section stay intact).
       if (this.toolRegistry && typeof this.toolRegistry.hasTool === 'function') {
         parts.push('[Style] When you announce an action, tool, or skill, name it verbatim — never paraphrase what you are about to do.');
+        parts.push('[Style] Never write the \u26ed trace line yourself \u2014 the system adds it after real execution.'); // v7.9.43 W1
       }
 
       // v7.8.0: subtle pointer to mark-moment tool. Not imperative —

@@ -175,6 +175,25 @@ const sectionsExtra = {
   // No mood, no prognosis. Every segment is live or OMITTED — never guessed.
   // I/O-free by the IdleMindStatus design rule; the run counter queries the
   // in-memory eventStore exactly like FitnessEvaluator._getEventsSince.
+  _selfConsistencyLine() { // v7.9.43 W2 (B4): one gentle line or byte-identical silence
+    try {
+      const upMs = Math.floor(process.uptime() * 1000);
+      const dm = (this._dreamCycle && typeof this._dreamCycle.getTimeSinceLastDream === 'function') ? this._dreamCycle.getTimeSinceLastDream() : null;
+      const line = require('./SelfConsistencyAlarm.js').checkSelfConsistency({ goalStack: this._goalStack || null, idleMind: this._idleMind || null, dreamMs: dm, upMs, lastUpMs: this._lastUpMs });
+      this._lastUpMs = upMs;
+      return line;
+    } catch (_e) { return null; }
+  },
+
+  _resonanceOfferBlock() { // v7.9.43 W3: at most one card per awakening, his exact wording
+    try {
+      const dir = this._genesisDir || (this._idleMind && this._idleMind.storageDir);
+      if (!dir) return null;
+      const offer = this._pickOffer ? this._pickOffer(dir) : null; // wired by BootWire (phase-clean)
+      return offer ? offer.block : null;
+    } catch (_e) { return null; }
+  },
+
   _selfClockLine() {
     try {
       const seg = [];
@@ -206,6 +225,7 @@ const sectionsExtra = {
       // v7.9.40 (B1/V4): the self clock is the FIRST verified fact.
       const clock = this._selfClockLine();
       if (clock) parts.push(clock);
+      { const _al = this._selfConsistencyLine(); if (_al) parts.push(_al); } { const _of = this._resonanceOfferBlock(); if (_of) parts.push(_of); } // v7.9.43 W2+W3
 
       // SelfModel: module counts, version, capabilities
       const manifest = this.selfModel?.manifest;

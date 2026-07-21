@@ -23,7 +23,7 @@ const helpers = {
    *  the LLM actually picks. Default 'general' keeps backwards-compat
    *  for any caller that doesn't pass the param. */
   async _processToolLoop(response, onChunk, userMessage, intentType = 'general') {
-    let fullText = response;
+    let fullText = response; this._execNames = new Set(); // v7.9.43 W1: what REALLY ran this turn
     let lastCallSignature = null;
     let nudges = 0; let lastNudgeCalls = -1; let _acts = 0; const _recent = (this.history || []).slice(-8); // v7.9.28 + v7.9.37 (K1): the conversation travels with every inner call — field 15: the model saw only the system prompt and said so
     let shellRuns = 0; // v7.9.28: bounded read-only shell-fence executions
@@ -226,7 +226,7 @@ const helpers = {
       }
 
       onChunk(`\n\n*${this.lang.t('chat.tools_executing')}*\n`);
-      const results = await this.tools.executeToolCalls(toolCalls); try { /* v7.9.41 r2: compact tool trace in history — field 19.07.: the model denied a REAL read for lack of evidence; the trace IS the evidence (F2's twin) */ const _tr = results.map(r => `${r.name}(${String((toolCalls.find(tc => tc.name === r.name) || {}).input?.path || (toolCalls.find(tc => tc.name === r.name) || {}).input?.file || '').slice(0, 60)}) \u2192 ${r.success ? 'ok' : 'error'}`).join(' \u00b7 '); if (_tr && Array.isArray(this.history)) this.history.push({ role: 'assistant', content: '\u26ed tool: ' + _tr.slice(0, 300) }); } catch (_e) { /* best-effort */ }
+      const results = await this.tools.executeToolCalls(toolCalls); results.forEach(r => { if (r && r.success) this._execNames.add(r.name); }); // v7.9.43 W1 try { /* v7.9.41 r2: compact tool trace in history — field 19.07.: the model denied a REAL read for lack of evidence; the trace IS the evidence (F2's twin) */ const _tr = results.map(r => `${r.name}(${String((toolCalls.find(tc => tc.name === r.name) || {}).input?.path || (toolCalls.find(tc => tc.name === r.name) || {}).input?.file || '').slice(0, 60)}) \u2192 ${r.success ? 'ok' : 'error'}`).join(' \u00b7 '); if (_tr && Array.isArray(this.history)) this.history.push({ role: 'assistant', content: '\u26ed tool: ' + _tr.slice(0, 300) }); } catch (_e) { /* best-effort */ }
 
       // v7.6.3 S1 — Tool-Result-Injection-Scan (warning-only).
       // Pre-fix the injection-gate scanned only userMessage. Tool-results

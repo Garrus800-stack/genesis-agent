@@ -89,6 +89,7 @@ const agentCoreBootWireMixin = {
 
     // Handler registrations
     const chat = c.resolve('chatOrchestrator');
+    try { chat._observeResonance = require('./cognitive/ResonanceHeuristic.js').observeAssistant; require('./intelligence/PromptBuilderSectionsExtra.js').sectionsExtra._pickOffer = (d) => require('./cognitive/ResonanceCandidates.js').pickOffer(d); } catch (_e) { /* v7.9.43 W3 wiring best effort */ }
     c.resolve('selfModPipeline').registerHandlers(chat);
     c.resolve('commandHandlers').registerHandlers(chat);
     // v7.9.20 (C): late-bind the skill registry onto the agent loop so an

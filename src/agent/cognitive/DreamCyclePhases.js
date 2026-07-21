@@ -234,6 +234,7 @@ const dreamCyclePhases = {
         consolidated: layerPhase?.processed || 0,
       },
     });
+    try { require('./ResonanceCandidates.js').add(require('path').dirname(this.journalWriter.dir), { sourceText: 'Dies k\u00f6nnte ein Nachklang sein: ' + String(line).slice(0, 200), src: 'dream' }); } catch (_e) { /* card is best effort */ } // v7.9.43 W3: the dream may propose, never enter
   },
 
   // ── Helper: ask LLM for KEEP/ELEVATE/LET_FADE on a pin ───

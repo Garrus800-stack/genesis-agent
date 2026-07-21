@@ -183,6 +183,7 @@ function registerV737Tools(toolRegistry, deps = {}) {
       }
     });
     registered.push('resonance-note');
+    _log.info('[v737-tools] Registered (v7.9.42): resonance-note'); // v7.9.43 D-2
   }
 
   return registered;
