@@ -234,7 +234,7 @@ class McpClient {
           'Execute JavaScript that chains multiple MCP calls. The code runs in a sandbox. ' +
           'Available: `await mcp(server, tool, args)` to call any MCP tool. ' +
           'Return the final result. Example:\n' +
-          '  const repos = await mcp("github", "list-repos", {user: "garrus"});\n' +
+          '  const repos = await mcp("github", "list-repos", {user: "human"});\n' +
           '  const details = await mcp("github", "get-repo", {repo: repos[0].name});\n' +
           '  return { repos: repos.length, latest: details };',
         input: { code: 'string' },

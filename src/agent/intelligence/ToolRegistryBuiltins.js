@@ -384,7 +384,7 @@ class _ToolRegistryBuiltinsHost {
     this.register('file-write', {
       description: 'Write content to a file (project scope only)',
       input: { path: 'string', content: 'string' },
-      output: { ok: 'boolean', error: 'string?' },
+      output: { ok: 'boolean', error: 'string?', warning: 'string?' },
     }, async (input) => {
       try {
         const filePath = path.resolve(rootDir, input.path);
@@ -394,6 +394,19 @@ class _ToolRegistryBuiltinsHost {
         // FIX v4.10.0: Async atomic write
         const { atomicWriteFile } = require('../core/utils');
         await atomicWriteFile(filePath, input.content, 'utf-8');
+        // v7.9.44 r16: safety net — mirrors the v737 _syntaxNet (kept local so the
+        // builtin layer does not reach into cognitive). Written ALWAYS; a broken
+        // .js/.json is reported honestly via `warning`, never blocked — a
+        // multi-step rewrite may be legitimately broken in between.
+        try {
+          if (/\.(js|mjs|cjs)$/i.test(filePath) && input.content.length <= 1024 * 1024) {
+            new (require('vm').Script)(input.content, { filename: filePath });
+          } else if (/\.json$/i.test(filePath) && input.content.length <= 1024 * 1024) {
+            JSON.parse(input.content);
+          }
+        } catch (synErr) {
+          return { ok: true, warning: 'Geschrieben, aber die Datei ist syntaktisch gebrochen: ' + String(synErr.message || synErr).split('\n')[0].slice(0, 200) };
+        }
         return { ok: true };
       } catch (err) {
         return { ok: false, error: err.message };

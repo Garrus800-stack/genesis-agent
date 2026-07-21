@@ -4,7 +4,7 @@
 
 ## Scale
 
-- 429 source modules across 12 boot phases
+- 432 source modules across 12 boot phases
 - 185 DI services (172 manifest + 13 bootstrap)
 - 9122 tests on Windows / 9096 on Linux (passing; the 4 UI suites need the Win toolchain)
 - 498 events with 498 payload schemas (full parity)
@@ -212,6 +212,7 @@ The former Consciousness Layer (AttentionalGate, PhenomenalField, TemporalSelf, 
 | **Sandbox** | Execute JavaScript in an isolated VM or Linux namespace sandbox |
 | **ShellAgent** | Run shell commands with safety classification (read/write/system tiers) |
 | **Deterministic file ops** `v7.9.28` | List a folder, read/create/write/summarise a file straight through the filesystem (no shell echo, no Unix-only utilities) from natural chat in German or English. A name given without a path resolves across Desktop/Documents/Downloads (incl. OneDrive-redirected) and the drive roots; a summary reads the whole document in one model call; whatever was last produced (a drawing, diagram, or answer) can be saved with "save it". |
+| **Genesis Archive** `v7.9.44` | A file vault Genesis owns — `inbox/` for what the user hands over (◈ button or drag-drop, copied in on send with a neutral note), `projects/` for his works, plus files he creates. See it with `list-archive`; read it with `read-archive-file` (`look-at-image` for pictures). His workbench too: new files default into it rather than scattering through the project, `edit-file` changes one exact spot in place and `append-file` grows a file from its end (no whole-file rewrite — the same in-place touch he uses on his own code), and `copy-to-archive` / `move-to-archive` bring a file in from anywhere on the machine. Writes into his soul, secrets, or system paths are refused. |
 | **FileProcessor** | Import, read, analyze, execute files |
 | **CodeAnalyzer** | AST-based analysis of JavaScript files |
 | **WebFetcher** | Fetch web content, npm search |
@@ -263,7 +264,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **637 test files** | 9122 tests (Win baseline, v7.9.37), coverage gates: 80% lines, 76% branches, 78% functions |
+| **644 test files** | 9122 tests (Win baseline, v7.9.37), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

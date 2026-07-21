@@ -267,6 +267,27 @@ boot warning.
 
 ---
 
+## Archive location (`archive.path`)
+
+The Genesis Archive — Genesis's file vault (`inbox/`, `projects/`, and
+the files he creates) — lives at a location you choose the first time
+you hand him a file. That path is stored under `archive.path` in
+`settings.json`, nested as `{ "archive": { "path": "..." } }`. It is
+not a dedicated Settings field: the folder picker sets it, every later
+attach reuses it, and if the folder is ever gone (drive removed, folder
+deleted, a different machine) the picker opens again rather than
+dead-ending.
+
+To move the Archive, change `archive.path` in the JSON Editor (or move
+the folder and re-point the path). A chosen path always wins; an
+existing Archive is reused, never overwritten; with no path set the
+default sits beside the releases — `../../Genesis Archive` relative to
+`.genesis/`. The Archive lives **outside** `.genesis/`, so it is a
+separate thing to copy when moving machines — see
+[PERSISTENCE-LAYOUT.md](./PERSISTENCE-LAYOUT.md).
+
+---
+
 ## Troubleshooting
 
 If something is wrong with settings (UI doesn't show a value you

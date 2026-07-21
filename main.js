@@ -460,7 +460,6 @@ _ipcLimiter.configure('agent:clone', 2, 0.1);              // 2 burst, 1 per 10s
 _ipcLimiter.configure('agent:loop-approve', 10, 2);
 _ipcLimiter.configure('agent:loop-reject', 10, 2);
 _ipcLimiter.configure('agent:mcp-add-server', 5, 1);
-_ipcLimiter.configure('agent:import-file', 10, 2);
 _ipcLimiter.configure('agent:execute-file', 5, 1);
 _ipcLimiter.configure('agent:switch-model', 3, 0.5);
 // Read-only getters: unconfigured = unlimited (no entry in _buckets)
@@ -667,15 +666,6 @@ const CHANNELS = {
     if (!agent) return { error: 'Agent not booted' };
     if (!config || typeof config !== 'object' || Array.isArray(config)) return { error: 'config must be a plain object' };
     return agent.cloneSelf(config);
-  },
-
-  'agent:import-file': async (event, sourcePath) => {
-    if (!agent) return { error: 'Agent not booted' };
-    const err = _validateStr(sourcePath, 'sourcePath');
-    if (err) return { error: err };
-    if (!agent.container.has('fileProcessor')) return { error: 'FileProcessor not available' };
-    const fp = agent.container.resolve('fileProcessor');
-    return fp.importFile(sourcePath);
   },
 
   'agent:file-info': async (event, filePath) => {
@@ -1251,6 +1241,84 @@ const CHANNELS = {
   // flagged the drift. Adding them as null entries (push-only) keeps the
   // contract list complete and prevents future drift.
   'agent:chat-system-message': null, // Agent -> UI (push only — system messages in chat)
+  'archive:drop-file': async (_event, payload) => { // v7.9.44 H2: the user reaches a file in — copy, never move; inbox never auto-emptied
+    try {
+      const name = String((payload && payload.name) || 'datei').replace(/[\\/:*?"<>|]/g, '_');
+      const data = Buffer.from(String((payload && payload.dataB64) || ''), 'base64');
+      if (!data.length) return { ok: false, code: 'empty' };
+      if (data.length > 64 * 1024 * 1024) return { ok: false, code: 'too_large' };
+      let root;
+      try { const WR = require('./src/agent/cognitive/WorkRegistry.js'); const _s = agent && agent.container ? agent.container.resolve('settings') : null; root = WR.archiveRoot(agent && agent._genesisDir, _s); }
+      catch (_e) { root = path.resolve(__dirname, '..', 'Genesis Archive'); }
+      const inbox = path.join(root, 'inbox');
+      // v7.9.44 r12: send NEVER creates the folder — no dead code on the send path. The
+      // Archive is created by archive:ensure when you first attach a file (which picks a
+      // location). Normally the UI ensures it before send; this missing-check is the last
+      // guard, and the UI reopens the picker + retries rather than dead-ending.
+      if (!fs.existsSync(inbox)) {
+        return { ok: false, code: 'missing' };
+      }
+      const ext = path.extname(name); const base = path.basename(name, ext);
+      let final = name; let n = 1;
+      while (fs.existsSync(path.join(inbox, final))) { final = base + ' (' + (n++) + ')' + ext; }
+      fs.writeFileSync(path.join(inbox, final), data);
+      return { ok: true, rel: 'inbox/' + final };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+  'archive:status': async () => { // v7.9.44 r18: read-only — is the Archive ready? NO dialog, NO mkdir.
+    // Lets the renderer decide synchronously at click time: ready → open the file
+    // chooser inside the gesture; not ready → run the folder pick FIRST (the r6
+    // order the user wants) and ask for one more click. Never blocks, never creates.
+    try {
+      const WR = require('./src/agent/cognitive/WorkRegistry.js');
+      const settings = agent && agent.container ? agent.container.resolve('settings') : null;
+      const configured = settings && settings.get ? settings.get('archive.path') : null;
+      if (!configured || !String(configured).trim()) return { ok: true, ready: false };
+      const root = WR.archiveRoot(agent && agent._genesisDir, settings);
+      return { ok: true, ready: fs.existsSync(path.join(root, 'inbox')) };
+    } catch (_e) { return { ok: true, ready: false }; }
+  },
+  'archive:ensure': async () => { // v7.9.44 r6: + calls this — pick a location once, create + remember it
+    try {
+      const WR = require('./src/agent/cognitive/WorkRegistry.js');
+      const settings = agent && agent.container ? agent.container.resolve('settings') : null;
+      let configured = null;
+      try { configured = settings && settings.get && settings.get('archive.path'); } catch (_e) {}
+      // already chosen → try to use it. recursive:true is safe: if inbox/projects
+      // already exist (e.g. the Archive travelled with the soul across a reinstall),
+      // nothing is overwritten and no files are touched — it just reuses them.
+      if (configured && String(configured).trim()) {
+        try {
+          const root = WR.archiveRoot(agent && agent._genesisDir, settings);
+          fs.mkdirSync(path.join(root, 'inbox'), { recursive: true });
+          fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
+          return { ok: true, root };
+        } catch (_e) {
+          // v7.9.44 r9 (the user): the saved path is unreachable now (drive gone, folder
+          // moved/deleted, different machine). Don't dead-end — fall through to the
+          // picker so a new location can be chosen. No error wall, no stuck state.
+        }
+      }
+      // not chosen yet, or the saved path no longer works → open a folder picker
+      const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+      // v7.9.44 r10: dialog text follows the app language (was hardcoded German — wrong
+      // in FR/EN/ES). Pull from the same lang instance the rest of the UI uses.
+      let L = null; try { L = agent && agent.container ? agent.container.resolve('lang') : null; } catch (_e) {}
+      const tr = (key, fallback) => { try { return L && L.t ? L.t(key) : fallback; } catch (_e) { return fallback; } };
+      const pick = await dialog.showOpenDialog(win, {
+        title: tr('ui.dialog_archive_title', 'Create Genesis Archive'),
+        message: tr('ui.dialog_archive_message', 'For Genesis to receive your files, it needs a folder for them. Choose WHERE that folder should live.'),
+        buttonLabel: tr('ui.dialog_archive_button', 'Create Archive here'),
+        properties: ['openDirectory', 'createDirectory'],
+      });
+      if (pick.canceled || !pick.filePaths || !pick.filePaths[0]) return { ok: false, canceled: true };
+      const chosen = path.join(pick.filePaths[0], 'Genesis Archive');
+      fs.mkdirSync(path.join(chosen, 'inbox'), { recursive: true });
+      fs.mkdirSync(path.join(chosen, 'projects'), { recursive: true });
+      if (settings && settings.set) { try { settings.set('archive.path', chosen); } catch (_e) {} }
+      return { ok: true, root: chosen, created: true }; // created:true → UI confirms where it was made
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
   'ui:resume-prompt': null,           // Agent -> UI (push only — resume previous goal?)
   // v7.8.3 follow-up: declared after audit §3.4 — fires from
   // AgentCoreWire.js when a self-statement bubble should appear in the

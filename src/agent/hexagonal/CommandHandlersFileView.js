@@ -9,6 +9,38 @@
 // against both the plain and the OneDrive-redirected base so the user need not
 // type full paths; summaries ("fasse X zusammen") stay on the LLM path.
 
+// v7.9.44 r14: default create location = the Genesis Archive (once one exists),
+// so files Genesis makes land in one ordered place instead of scattered in the
+// project. Self-contained: reads the chosen path from settings.json (nested
+// archive.path) with the archiveRoot default as fallback; returns null on any
+// doubt so the caller safely falls back to the project.
+function _archiveDir(rootDir) {
+  const fs = require('fs'); const path = require('path');
+  try {
+    const genesisDir = path.join(rootDir, '.genesis');
+    let chosen = null;
+    try { const j = JSON.parse(fs.readFileSync(path.join(genesisDir, 'settings.json'), 'utf-8')); chosen = j && j.archive && j.archive.path; } catch (_e) { /* no settings yet */ }
+    // Mirrors WorkRegistry.archiveRoot — kept local so a command handler does not
+    // reach across into the cognitive layer just to resolve a path. A chosen path
+    // wins; else the Archive sits two levels above .genesis. Keep both in sync.
+    if (chosen && String(chosen).trim()) return path.resolve(String(chosen).trim());
+    return path.resolve(genesisDir, '..', '..', 'Genesis Archive');
+  } catch (_e) { return null; }
+}
+
+// v7.9.44 r15 (field): spoken content often carries an instruction shell —
+// "inhalt da fügst du das ein: X", "inhalt text: X". The file must get the
+// pure text, not the instruction. Strip only clear leading meta prefixes;
+// formal content ("Fügen Sie …") and mid-text phrases stay untouched.
+function _stripContentMeta(s) {
+  return String(s)
+    .replace(/^(?:bitte\s+)?(?:da\s+)?f(?:\u00fc|u)g(?:e|st)?\s+(?:du\s+)?(?:das\s+|den\s+|dies(?:es|e)?\s+|folgendes\s+)?(?:ein|hinzu|rein)\s*[:=]?\s*/i, '')
+    .replace(/^schreib(?:e|st)?\s+(?:das\s+|den\s+text\s+)?(?:rein|hinein|hinzu)\s*[:=]?\s*/i, '')
+    .replace(/^(?:der\s+|den\s+)?(?:text|inhalt|content)\s*[:=]\s*/i, '')
+    .replace(/^folgende[rsn]?\s*[:=]\s*/i, '')
+    .trim();
+}
+
 const commandHandlersFileView = {
 
   /**
@@ -55,7 +87,7 @@ const commandHandlersFileView = {
    * v7.9.28 (field-fix #3): find a folder/file by NAME across the common user
    * locations when no location is given — Desktop/Documents/Downloads/... in
    * their localized and OneDrive-redirected forms, the project root, and (on
-   * Windows) the drive roots C:/D:/E:. The field showed "öffne GMxBGxx" (a
+   * Windows) the drive roots C:/D:/E:. The field showed "öffne <ordner>" (a
    * folder on D:) got launched as an application. Case-, extension- and
    * punctuation-insensitive (fuzzy); prefers folders when foldersOnly is set.
    * Returns the absolute path or null.
@@ -362,7 +394,9 @@ const commandHandlersFileView = {
     const rootDir = (this.fp && this.fp.rootDir) || process.cwd();
 
     // name
-    const nameM = message.match(/(?:mit\s+)?(?:namens?|named|called)\s+["']?([^\s"',]+?)["']?(?=\s|$|,)/i)
+    // v7.9.44 r15 (field): a name may carry spaces ("Genesis 01") — capture up
+    // to "und/mit inhalt|text", a location clause, punctuation, or the end.
+    const nameM = message.match(/(?:mit\s+)?(?:namens?|named|called)\s+["']?([^\s"',][^"',]*?)["']?(?=\s+(?:und|and)\b|\s+(?:mit|with)\s+(?:dem\s+|the\s+)?(?:inhalt|text|content)\b|\s+(?:der|dem|den|the)\s+(?:inhalt|text|content)\b|\s+(?:in|im|auf|unter|on)\s+|\s*[,.!?;]|\s*$)/i)
       || message.match(/(?:text[\s-]*)?(?:datei|dokument|file|document)\s+["']([^"']+)["']/i);
     let name = nameM ? nameM[1].trim() : null;
     if (!name) {
@@ -387,7 +421,7 @@ const commandHandlersFileView = {
       // English: "with content X", "the content/text is X", "saying/that says X"
       || message.match(/(?:the\s+)?(?:content|text)\s+(?:is|reads|:|=)\s*["']?([\s\S]+?)["']?$/i)
       || message.match(/(?:with\s+(?:the\s+)?(?:content|text)|saying|that\s+says?|containing)\s*[:=]?\s*["']?([\s\S]*?)["']?(?:\s+(?:in|on)\s+(?:the\s+)?(?:desktop|downloads?|documents?|pictures?|music|genesis|[A-Za-z]:)\b[\s\S]*)?$/i);
-    let content = contentM ? stripLoc(contentM[1]) : '';
+    let content = contentM ? _stripContentMeta(stripLoc(contentM[1])) : '';
     // A bare reference to the last output ("es", "das", "die Zusammenfassung",
     // "die Zeichnung") resolves to whatever Genesis last produced. Any OTHER
     // literal text is written verbatim — the remembered output is one source.
@@ -397,8 +431,9 @@ const commandHandlersFileView = {
       try { const lt = require('./LastDocStore').getLastText(); if (lt && lt.text) content = lt.text; } catch { /* ignore */ }
     }
 
-    // target directory
-    let dir = rootDir;
+    // target directory — default is the Archive when one exists, else the project.
+    const _arch = _archiveDir(rootDir);
+    let dir = (_arch && require('fs').existsSync(_arch)) ? _arch : rootDir;
     const driveM = message.match(/\b(?:in|im|unter|auf|on)\s+["']?([A-Za-z]:\\[^\s"']*)/i);
     const locM = message.match(/\b(?:auf|in|unter|on|im)\s+(?:dem|den|der|de|the)\s+(desktop|schreibtisch|downloads?|dokumente|documents?|bilder|pictures?|musik|music)\b/i);
     const genM = /\b(?:in|im)\s+(?:dem\s+|das\s+|den\s+)?(?:genesis[-\s]?ordner|genesis[-\s]?verzeichnis|genesis[-\s]?folder|genesis\b|projekt(?:ordner|verzeichnis)?)/i.test(message);
@@ -474,7 +509,8 @@ const commandHandlersFileView = {
       }
       if (targetName) {
         if (!/\.[A-Za-z0-9]+$/.test(targetName)) targetName += '.txt';
-        let dir = rootDir;
+        const _arch = _archiveDir(rootDir);
+        let dir = (_arch && fs.existsSync(_arch)) ? _arch : rootDir;
         const driveM = message.match(/\b(?:in|im|unter|auf|on)\s+["']?([A-Za-z]:\\[^\s"']*)/i);
         const locM = message.match(/\b(?:auf|in|unter|on|im)\s+(?:dem\s+|den\s+|der\s+|the\s+)?(desktop|schreibtisch|downloads?|dokumente|documents?|bilder|pictures?|musik|music)\b/i);
         const genM = /\b(?:in|im)\s+(?:dem\s+|das\s+|den\s+)?(?:genesis[-\s]?ordner|genesis[-\s]?verzeichnis|genesis\b|projekt(?:ordner|verzeichnis)?)/i.test(message);
@@ -496,7 +532,7 @@ const commandHandlersFileView = {
       let cm = message.match(/\bschreib\w*\s+(?:den\s+text\s+|mir\s+|die\s+|das\s+)?([\s\S]+?)\s+(?:in\s+den\s+inhalt|in\s+die\s+datei|in\s+das\s+dokument|hinein|rein|dazu|hinzu)\b/i)
         || message.match(/(?:schreib\w*\s+(?:den\s+|mir\s+)?text\s*[-:–]\s*|folgendes?\s*[-:]\s*)([\s\S]+?)(?:\s+in\s+["']?[\w.()\-]+["']?\s*[.?!]*)?$/i)
         || message.match(/(?:mit\s+)?inhalt\s*[:=]\s*([\s\S]+?)(?:\s+in\s+["']?[\w.()\-]+["']?\s*[.?!]*)?$/i);
-      if (cm && cm[1].trim()) content = cm[1].trim();
+      if (cm && cm[1].trim()) content = _stripContentMeta(cm[1].trim()) || cm[1].trim();
       // a bare reference ("die Zusammenfassung", "es", "das", "die Zeichnung")
       // resolves to the last output; any other text is written verbatim.
       if (content && /^(?:die\s+|der\s+|das\s+|letzte[nr]?\s+|diese[nrs]?\s+|obige[nrs]?\s+)?(?:es|das|dies(?:es|e)?|zusammenfassung|summary|zusammenfassund|ergebnis|zeichnung|bild|diagramm|grafik|ausgabe|output|antwort)$/i.test(content)) {

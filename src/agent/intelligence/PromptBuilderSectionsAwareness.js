@@ -238,7 +238,7 @@ const awarenessSection = {
       // else keeps the EXISTING behaviour unchanged; the permanent short
       // status already lives in the runtimeState section (since v7.4.0).
       const awakening = (typeof this._historyLength === 'number') && this._historyLength === 0;
-      const asked = /was hatte ich vor|mein stand|meine ziele|meinen zielen|was hast du (so )?(gemacht|getan|gedacht)|woran hast du gearbeitet|was hast du im idle|what was i doing|what did you do|what have you been (doing|working on)|my status|my goals/i.test(String(this._query || ''));  // v7.9.41 (F1): Daniel asks in DU-form — the old ich-form-only pattern never fired in the field (15:25, 18.07.)
+      const asked = /was hatte ich vor|mein stand|meine ziele|meinen zielen|was hast du (so )?(gemacht|getan|gedacht)|woran hast du gearbeitet|was hast du im idle|what was i doing|what did you do|what have you been (doing|working on)|my status|my goals/i.test(String(this._query || ''));  // v7.9.41 (F1): the user asks in DU-form — the old ich-form-only pattern never fired in the field (15:25, 18.07.)
       const full = awakening || asked;
       // Guard: skip if user just typed and no autonomous activity happened
       if (!full && idleSince < 60000 && thoughts === 0) return '';

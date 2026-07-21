@@ -207,7 +207,7 @@ class OllamaBackend {
         ollamaMessages.push({ role: 'system', content: systemPrompt });
       }
       for (const m of messages) {
-        ollamaMessages.push({ role: m.role, content: m.content });
+        ollamaMessages.push({ role: m.role, content: m.content }); if (m.images && Array.isArray(m.images) && m.images.length) { ollamaMessages[ollamaMessages.length - 1].images = m.images; } // v7.9.44 A: the eye \u2014 images travel with the message
       }
     }
 

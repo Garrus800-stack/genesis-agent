@@ -267,7 +267,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
 
   await test('#31 _checkRootDirSandbox accepts quoted Linux path with spaces inside rootDir', () => {
     const { checkRootDirSandbox } = require('../../src/agent/core/shell/ShellSafety');
-    const rootDir = '/home/garrus/My Files/Genesis';
+    const rootDir = '/home/human/My Files/Genesis';
     const cmd = `ls -la "${rootDir}/src"`;
     const r = checkRootDirSandbox(cmd, rootDir, { platform: 'linux' });
     assert(r.ok, `expected ok for quoted-space-path inside rootDir, got: ${JSON.stringify(r)}`);
@@ -275,7 +275,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
 
   await test('#31 _checkRootDirSandbox rejects quoted Linux path with spaces outside rootDir', () => {
     const { checkRootDirSandbox } = require('../../src/agent/core/shell/ShellSafety');
-    const rootDir = '/home/garrus/My Files/Genesis';
+    const rootDir = '/home/human/My Files/Genesis';
     const cmd = `cat "/etc/My Config/passwd"`;
     const r = checkRootDirSandbox(cmd, rootDir, { platform: 'linux' });
     assert(!r.ok, `expected reject for quoted-space-path outside rootDir, got: ${JSON.stringify(r)}`);

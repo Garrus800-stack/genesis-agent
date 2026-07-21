@@ -99,7 +99,7 @@ describe('v7.3.7 #4a — JournalWriter', () => {
   });
 
   it('shared writes go to shared-YYYY-MM.jsonl', () => {
-    jw.write({ visibility: 'shared', content: 'with garrus' });
+    jw.write({ visibility: 'shared', content: 'with human' });
     assert.ok(fs.existsSync(path.join(tempDir, 'journal', 'shared-2026-04.jsonl')));
   });
 

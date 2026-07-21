@@ -51,7 +51,7 @@ test('Windows: OneDrive - Contoso (work tenant) variant', () => {
 // ── Linux/Mac OneDrive (via rclone/onedriver/CloudStorage) ──
 
 test('Linux: /OneDrive/ is cloud-sync', () => {
-  assert.strictEqual(isCloudSyncPath('/home/garrus/OneDrive/Desktop/Genesis'), true);
+  assert.strictEqual(isCloudSyncPath('/home/human/OneDrive/Desktop/Genesis'), true);
 });
 
 test('Mac: /OneDrive - Personal/ variant', () => {
@@ -107,7 +107,7 @@ test('plain local Windows path is NOT cloud-sync', () => {
 });
 
 test('plain Linux home is NOT cloud-sync', () => {
-  assert.strictEqual(isCloudSyncPath('/home/garrus/Genesis'), false);
+  assert.strictEqual(isCloudSyncPath('/home/human/Genesis'), false);
 });
 
 test('plain Mac Documents is NOT cloud-sync', () => {

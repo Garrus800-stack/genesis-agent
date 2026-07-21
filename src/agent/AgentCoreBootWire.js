@@ -54,6 +54,7 @@ const agentCoreBootWireMixin = {
           coreMemories:        c.tryResolve('coreMemories'),
           episodicMemory:      c.tryResolve('episodicMemory'),
           modelBridge:         c.tryResolve('model'), // v7.9.42 V2a: resonance-note needs one small model call
+          settings:            c.tryResolve('settings'), // v7.9.44 r13: look-at-image + read-archive-file resolve the CHOSEN Archive path, not the default
         });
         if (registered.length > 0) {
           _log.info(`  [WIRE] v7.3.7 memory tools: ${registered.join(', ')}`);
@@ -89,7 +90,7 @@ const agentCoreBootWireMixin = {
 
     // Handler registrations
     const chat = c.resolve('chatOrchestrator');
-    try { chat._observeResonance = require('./cognitive/ResonanceHeuristic.js').observeAssistant; require('./intelligence/PromptBuilderSectionsExtra.js').sectionsExtra._pickOffer = (d) => require('./cognitive/ResonanceCandidates.js').pickOffer(d); } catch (_e) { /* v7.9.43 W3 wiring best effort */ }
+    try { chat._observeResonance = require('./cognitive/ResonanceHeuristic.js').observeAssistant; require('./intelligence/PromptBuilderSectionsExtra.js').sectionsExtra._pickOffer = (d) => require('./cognitive/ResonanceCandidates.js').pickOffer(d); /* v7.9.44 r12: the Archive is NOT forced at boot — archive:ensure creates inbox/ + projects/ when you first attach a file (picking a location), and register-work creates projects/<name>/ on demand. No ghost folder before a location is chosen. */ require('./intelligence/PromptBuilderSectionsExtra.js').sectionsExtra._buildThreads = (d) => { try { require('./cognitive/WorkRegistry.js').checkWorks(d); } catch (_e) { /* care is best effort */ } return require('./cognitive/OpenThreads.js').buildBlock(d); }; } catch (_e) { /* v7.9.43 W3 wiring best effort */ }
     c.resolve('selfModPipeline').registerHandlers(chat);
     c.resolve('commandHandlers').registerHandlers(chat);
     // v7.9.20 (C): late-bind the skill registry onto the agent loop so an

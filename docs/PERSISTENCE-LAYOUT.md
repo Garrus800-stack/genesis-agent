@@ -41,6 +41,24 @@ corrupted.
 Safe to delete to free space — only loses backup history, not the
 live state.
 
+## Genesis Archive (user-chosen location)
+
+Separate from `.genesis/` and its backups: the Genesis Archive is
+Genesis's file vault, kept wherever you pointed it the first time you
+handed him a file (stored as `archive.path` in `settings.json`; default
+beside the releases at `../../Genesis Archive` relative to `.genesis/`).
+It holds:
+
+- `inbox/` — files the user hands over (◈ button or drag-drop)
+- `projects/` — Genesis's own works
+- files Genesis creates (which default here rather than into the project folder)
+
+Unlike `.genesis/`, this is **not** identity — it is content, and it
+can live anywhere, so it does not travel with the source folder
+automatically. To keep it when migrating, copy the Archive folder too,
+or re-point `archive.path` at its new location on the new machine — an
+existing Archive is always reused, never overwritten.
+
 ## Cross-installation, per-user: `~/.genesis-lessons/`
 
 Lives in the user's home directory, **shared across all Genesis
@@ -80,6 +98,7 @@ and learned context:
      + `.genesis-backups/` + `node_modules` if you want to skip
      `npm install`)
    - `~/.genesis-lessons/` if you want lesson continuity
+   - The Genesis Archive folder (wherever `archive.path` points) if you want his vault of handed-in files and works — or re-point `archive.path` after the move
 3. On the new machine, run `npm install` (if you didn't bring
    `node_modules`), then `npm start`.
 

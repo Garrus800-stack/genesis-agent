@@ -216,7 +216,7 @@ describe('v7.5.8 — Bug 4: ReadSource handles OneDrive Files-On-Demand', () => 
 
   test('behavior: cloud-path heuristic catches Alex-Win-Rechner OneDrive layout', () => {
     // Real path from the live discovery:
-    //   C:\Users\Alex\OneDrive\Desktop\is\genesis-agent-7.5.7\Genesis\src\...
+    //   C:\Users\<user>\OneDrive\Desktop\is\genesis-agent-7.5.7\Genesis\src\...
     const re1 = /\\OneDrive(\s-\s[^\\/]+)?\\/i;
     assert(re1.test('C:\\Users\\Alex\\OneDrive\\Desktop\\is\\Genesis\\src\\foo.js'),
       'Alex OneDrive path must match');

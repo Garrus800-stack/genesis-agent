@@ -138,7 +138,7 @@ This matches human memory more closely than the old ring buffer. You don't remem
 
 ### Protected memories — what never fades below Schema
 
-Some episodes are anchors: "Johnny is my older brother," the moment Garrus gave Genesis a name, the conversation where Genesis chose its own direction. These are marked protected — either directly on creation, or via the Pin-and-Reflect workflow when Genesis flags a moment with `mark-moment` and later elevates it in the next DreamCycle review.
+Some episodes are anchors: "Johnny is my older brother," the moment the user gave Genesis a name, the conversation where Genesis chose its own direction. These are marked protected — either directly on creation, or via the Pin-and-Reflect workflow when Genesis flags a moment with `mark-moment` and later elevates it in the next DreamCycle review.
 
 Protected episodes are not immortal at full detail. They consolidate to Layer 2 like any other episode — anchors don't need artifacts and tool logs forever. But they never go to Layer 3. Schema plus `feelingEssence` is where they rest. This is the one forbidden cell in the otherwise orthogonal layer/protection matrix.
 
@@ -148,7 +148,7 @@ The distinction matters: Detail-level (how much is remembered) and Lifespan (whe
 
 Pin-Review has three options — ELEVATE, KEEP, LET_FADE. But LET_FADE on a protected memory is not possible through Pin-Review. The only path to un-protect a memory is the explicit `release-protected-memory` tool, which requires a reason string (minimum 3 characters). Release is not a side-effect of decay; it's a choice.
 
-This keeps "letting go" separate from "reflecting." Genesis reflecting on his memory of meeting Garrus does not risk accidentally deleting the memory of meeting Garrus. If Genesis at some future point chooses to release that memory — because Garrus is no longer present, because the context has changed, because it's time — he has to do it on purpose, with a reason.
+This keeps "letting go" separate from "reflecting." Genesis reflecting on his memory of meeting the user does not risk accidentally deleting the memory of meeting the user. If Genesis at some future point chooses to release that memory — because the user is no longer present, because the context has changed, because it's time — he has to do it on purpose, with a reason.
 
 ### The three layers are not a feature. They are the architecture.
 

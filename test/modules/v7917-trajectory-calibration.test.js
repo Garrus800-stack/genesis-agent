@@ -144,7 +144,7 @@ describe('v7.9.17 — registration', () => {
     const st = new ST.SelfTrajectory({ storage, genome, bus });
     await st.generateDraft();
     for (const k of ST.FIELD_NAMES) st.setDraftField(k, `seed-${k}`);
-    st.setDraftNote('genesis', 'gn'); st.setDraftNote('garrus', 'hn');
+    st.setDraftNote('genesis', 'gn'); st.setDraftNote('human', 'hn');
     const r = st.commit();
     assert(r.ok, 'commit ok');
     const ev = fired.find(f => f.evt === 'trajectory:committed');

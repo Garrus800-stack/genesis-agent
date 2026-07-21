@@ -50,7 +50,7 @@ async function commitEntryLocal(st, suffix) {
   await st.generateDraft();
   for (const k of FIELD_NAMES) st.setDraftField(k, `${suffix}-${k}`);
   st.setDraftNote('genesis', `${suffix}-gn`);
-  st.setDraftNote('garrus', `${suffix}-hn`);
+  st.setDraftNote('human', `${suffix}-hn`);
   return st.commit();
 }
 

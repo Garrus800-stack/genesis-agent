@@ -10,7 +10,7 @@
 |---------|-------------|----------|
 | `npm test` | Run all ~9122 tests | ≈60–65 s on the Windows target; ≈160 s on the Linux CI sandbox |
 | `npm run test:ci` | Tests + coverage enforcement (80/76/78) | plain run + coverage overhead |
-| `npm run benchmark:agent --quick` | 3-task capability benchmark | ~2 min |
+| `npm run benchmark:agent:quick` | 3-task capability benchmark | ~2 min |
 | `npm run benchmark:agent:layer:organism` | A/B: full vs without organism | ~5 min |
 | `npm run benchmark:agent:ab` | A/B: full vs baseline (no organism) | ~10 min |
 | `npm run test:colony` | Colony infrastructure test (2 instances) | ~1 min |

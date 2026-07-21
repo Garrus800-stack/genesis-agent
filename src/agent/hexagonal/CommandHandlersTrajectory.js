@@ -15,7 +15,7 @@
 //   /trajectory new                        — show draft (or generate one)
 //   /trajectory new set <field>: <text>    — set a draft field
 //   /trajectory new note genesis: <text>   — set the genesis note (in draft)
-//   /trajectory new note garrus: <text>    — set the human note (in draft)
+//   /trajectory new note human: <text>    — set the human note (in draft)
 //   /trajectory new commit                 — commit the draft to the journal
 //   /trajectory new discard                — drop the draft, no commit
 //   /trajectory show [cycle_id]            — show latest / a specific entry
@@ -80,7 +80,7 @@ const commandHandlersTrajectory = {
     if (action === 'note')      return this._trajectoryNewNote(actionRest);
     if (action === 'commit')    return this._trajectoryNewCommit();
     if (action === 'discard')   return this._trajectoryNewDiscard();
-    return 'Usage: /trajectory new [set <field>: <text> | note <genesis|garrus>: <text> | commit | discard]';
+    return 'Usage: /trajectory new [set <field>: <text> | note <genesis|human>: <text> | commit | discard]';
   },
 
   // Bare /trajectory new — NEVER silently regenerates over an existing
@@ -118,13 +118,13 @@ const commandHandlersTrajectory = {
   _trajectoryNewNote(actionRest) {
     const parts = splitFirstColon(actionRest);
     if (!parts || !parts.key) {
-      return 'Usage: /trajectory new note <genesis|garrus>: <text>';
+      return 'Usage: /trajectory new note <genesis|human>: <text>';
     }
     const who = parts.key.toLowerCase();
     const r = this.selfTrajectory.setDraftNote(who, parts.value);
     if (!r.ok) {
       if (r.error === 'no-draft') return 'No draft. Start one with /trajectory new.';
-      if (r.error === 'unknown-author') return 'Note author must be "genesis" or "garrus".';
+      if (r.error === 'unknown-author') return 'Note author must be "genesis" or "human".';
       return `Could not set note: ${r.error}`;
     }
     return this._renderDraft(this.selfTrajectory.readDraft(), `Set ${who} note.`);
@@ -136,7 +136,7 @@ const commandHandlersTrajectory = {
       if (r.error === 'no-draft') return 'No draft to commit. Start one with /trajectory new.';
       if (r.error === 'empty-field') return `Cannot commit: field "${r.detail}" is empty. Use /trajectory new set ${r.detail}: <text>.`;
       if (r.error === 'stub-field') return `Cannot commit: field "${r.detail}" still holds the placeholder. Write it with /trajectory new set ${r.detail}: <text>.`;
-      if (r.error === 'first-entry-note') return `Cannot commit the first entry without a non-empty ${r.detail}. Use /trajectory new note ${r.detail === 'genesis_note' ? 'genesis' : 'garrus'}: <text>.`;
+      if (r.error === 'first-entry-note') return `Cannot commit the first entry without a non-empty ${r.detail}. Use /trajectory new note ${r.detail === 'genesis_note' ? 'genesis' : 'human'}: <text>.`;
       return `Cannot commit: ${r.error}`;
     }
     const e = r.entry;
@@ -212,7 +212,7 @@ const commandHandlersTrajectory = {
     if (!m) return 'Usage: /trajectory note <cycle_id> <text>';
     const cycleId = m[1];
     const text = m[2].trim();
-    const r = this.selfTrajectory.addLateNote(cycleId, 'garrus', text);
+    const r = this.selfTrajectory.addLateNote(cycleId, 'human', text);
     if (!r.ok) {
       if (r.error === 'cycle-not-found') return `No entry with cycle_id "${cycleId}". See /trajectory list.`;
       if (r.error === 'empty-journal') return 'No trajectory entries yet.';
@@ -226,16 +226,16 @@ const commandHandlersTrajectory = {
   _renderDraft(draft, head) {
     const fieldLines = this.selfTrajectory.fieldNames.map(k => `  ${k}: ${draft.fields[k] || '(empty)'}`).join('\n');
     const gN = draft.genesis_note ? draft.genesis_note : '(empty)';
-    const hN = draft.garrus_note ? draft.garrus_note : '(empty)';
+    const hN = draft.human_note ? draft.human_note : '(empty)';
     const firstTag = draft.first_entry ? ' [first entry]' : '';
     return [
       `**Draft${firstTag}**${head ? ' — ' + head : ''}`,
       '',
       fieldLines,
       `  genesis_note: ${gN}`,
-      `  garrus_note: ${hN}`,
+      `  human_note: ${hN}`,
       '',
-      'Actions: /trajectory new set <field>: <text> · note <genesis|garrus>: <text> · commit · discard',
+      'Actions: /trajectory new set <field>: <text> · note <genesis|human>: <text> · commit · discard',
     ].join('\n');
   },
 
@@ -400,7 +400,7 @@ const commandHandlersTrajectory = {
       fieldLines,
     ];
     if (entry.genesis_note) out.push('', `genesis_note: ${entry.genesis_note}`);
-    if (entry.garrus_note) out.push(`garrus_note: ${entry.garrus_note}`);
+    if (entry.human_note) out.push(`human_note: ${entry.human_note}`);
 
     const edits = Array.isArray(entry.editing_history) ? entry.editing_history : [];
     if (edits.length > 0) {
@@ -428,7 +428,7 @@ const commandHandlersTrajectory = {
 
   _authorLabel(author) {
     const a = Array.isArray(author) ? author : [];
-    return a.includes('garrus') ? 'g+garrus' : 'genesis';
+    return a.includes('human') ? 'g+human' : 'genesis';
   },
 
   _short(s) {

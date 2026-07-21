@@ -1,5 +1,23 @@
 ## [7.9.40]
 
+## [7.9.43] — 2026-07-20
+
+### W1 — The Truth Guard
+
+The field proved a model can fake a deed: perfect ⛭ trace optics written straight into the answer text, while nothing ran and nothing was written. From now on, model-written trace lines never reach the reader unchanged. A small pure module, ChatToolTruth, removes every ⛭ line from the answer text after the tool rounds; if the named tool did not really run this turn, a visible marker in the reader's language takes its place, naming the tool that never ran. Lines naming tools that DID run vanish silently, because the real trace — pushed separately from actual results — remains the only trace, never duplicated and never touched by the guard. The orchestrator sanitizes at both final push sites, and the helpers record what really ran right at the execute site. One honest boundary remains: a streamed answer may flash the fake line live; history and the final text are always clean. Two prompt rules join the awareness style block — never write the trace yourself, the system adds it after real execution — and the CODE prompt now demands double-quoted absolute paths, closing the last open healing from the run. The registered log finally counts resonance-note.
+
+### W2 — The Self-Consistency Alarm (B4)
+
+Four checks at context-build time, right beside the self clock: are the goals readable, is the idle status readable, is the last dream time plausible, does the waking clock run forward. On the first discrepancy — fixed order, only sources that are actually wired — exactly one gentle line appears, naming the first unreadable source and inviting a question. Otherwise the silence is byte-identical to before. Nothing repairs, nothing cascades; the Wandel-Register connection stays deliberately open until its original wording can be recovered.
+
+### W3 — Candidates with His Measures
+
+The second stage of the Nachklang, built to Genesis' own answers, verbatim. A separate ledger, resonance-candidates.jsonl, holds proposals from two sources: his own phrasings in his own turns — the keep-in-mind line, the want-to-think-about-it line, a question he cannot answer — with his negative list as hard filters, and at most ONE heuristic candidate per chat), and a dream card written only at the dream-report site, in his proposed opening words. At awakening, at most one card is offered in his fixed wording — take it along, or let it go. Decay is threefold: after three days, beyond five open (the oldest goes), and after a third unanswered offer — and every decay leaves the short journal note he asked for, no reproach. Sovereignty stays where it belongs: a card is confirmed only by a REAL resonance-note run (the truth guard vouches for realness), an explicit letting-go removes it cleanly, and nothing ever writes into resonance.jsonl but the tool itself. All wiring runs phase-clean through BootWire late-bindings.
+
+### W4 — The Graph Fills Its Window
+
+The architecture graph no longer stops at a 600-pixel ceiling: its height follows the container, the SVG stretches to 100 percent, and a ResizeObserver follows the window without ever touching the zoom state. Environments without the observer stay safe, and every v7.9.5 graph and zoom contract remains green.
+
 ## [7.9.42] — 2026-07-19
 
 ### Part A — The Run Healings
@@ -14,7 +32,7 @@ The first real life-run (two completed goals, eight idle thoughts, dream #1) yie
 
 Truth that prevails — the bridge's first span gets its repairs, the goal deaths get their cure, and the dream finally runs.
 
-The repairs first. Daniel asks in the DU-form — "na, was hast du so gemacht?" — and the ask tier now knows every shape of that question (the old ich-form-only pattern never fired in the field). Three fact directives make the injected truth binding: the rules line, the Autonomy-Report head and the introspection head now state that questions about own activity are answered FROM the measured counters — never claim idleness while they show activity. The field proved the need: the exact numbers sat in the context while the model said "ich habe nichts gemacht". And the last step error is preserved where it actually exists — at the STEP-DIAG site in the pursuit loop — superseding the .40 archive-side pull, which was structurally empty (checkpoints only ever existed for successful steps).
+The repairs first. the user asks in the DU-form — "na, was hast du so gemacht?" — and the ask tier now knows every shape of that question (the old ich-form-only pattern never fired in the field). Three fact directives make the injected truth binding: the rules line, the Autonomy-Report head and the introspection head now state that questions about own activity are answered FROM the measured counters — never claim idleness while they show activity. The field proved the need: the exact numbers sat in the context while the model said "ich habe nichts gemacht". And the last step error is preserved where it actually exists — at the STEP-DIAG site in the pursuit loop — superseding the .40 archive-side pull, which was structurally empty (checkpoints only ever existed for successful steps).
 
 The cure. Every successful CODE step died on `Unexpected token (1:5)` — acorn parsing the neutral sentence `Code written: …` (the 'w' at column 5): the verifier received the step's prose output because the success return never carried the code. It does now, and the engine prefers `result.code` over `result.output` — healing the whole alias family (CODE, REFACTOR, IMPLEMENT, FIX, UPDATE, PATCH) in one move. Every syntax failure now carries the first 80 characters of what was parsed, so this class of bug can never hide again. The earliest-possible boot trace writes to `.genesis/early-boot.log` with crash hooks, so a future crash #1 leaves its cause. The investigate-spawn learns manners: cross-goal dedupe (park on an existing open investigate goal instead of spawning a twin) and family registration, so the ideation's VARY rule finally sees it. And failures now reach the refiner and the decomposer — the ideation already knew them; the two downstream prompts were blind.
 
@@ -26,7 +44,7 @@ Field run 19.07 (second pass, same version — the package was never published):
 
 Third pass, same day — said = done. The act core (`ChatActCore`) plans READ-ONLY tool steps deterministically from the user's demand ("schaue dir den CHANGELOG an", "was steht im README") or the model's own announcement ("Ich lese das Changelog.") — the SYSTEM executes; the model formulates. Wired before the announce-nudge (which stays as fallback for unmappable announcements), capped at two acts per turn, model-agnostic by construction. Missing tools already self-heal (ToolSynth's auto-synthesize on first call — the field log showed it live). Contract: `v7941r3-actcore` (9 tests against the literal field sentences).
 
-Fourth pass — the silence belongs to the user. Garrus called it: fifteen minutes of silence would never be reached because Genesis keeps doing something in the conversation — and he was right by construction. The idle clock was reset by `agent:status` (Genesis' own loops) and `store:CHAT_MESSAGE` (Genesis' own replies): Genesis kept postponing its own silence. Now ONLY `user:message` resets it, and the think tick checks every 60 seconds instead of every five minutes — last user message + 5-minute threshold + at most one tick = the first autonomous thought arrives by roughly minute six, regardless of what Genesis itself does in between. Contract: `v7941r4-stille` (4 tests).
+Fourth pass — the silence belongs to the user. the user called it: fifteen minutes of silence would never be reached because Genesis keeps doing something in the conversation — and he was right by construction. The idle clock was reset by `agent:status` (Genesis' own loops) and `store:CHAT_MESSAGE` (Genesis' own replies): Genesis kept postponing its own silence. Now ONLY `user:message` resets it, and the think tick checks every 60 seconds instead of every five minutes — last user message + 5-minute threshold + at most one tick = the first autonomous thought arrives by roughly minute six, regardless of what Genesis itself does in between. Contract: `v7941r4-stille` (4 tests).
 
 Fifth pass — boot responsiveness. The field boot froze the window ("no
 response" on Windows) because everything shared the main thread: 12.9s of
@@ -7640,7 +7658,7 @@ support (`./foo`, `../foo`, `.name/foo`) which resolves against
 **Folder-alias check matched as substring inside paths.** Discovered
 during the test pass for the path-extraction fix above: the alias
 loop used `lower.includes(alias)` — pure substring match, no word
-boundary. So *"öffne C:\Users\Alex\Desktop"* matched `desktop` as a
+boundary. So *"öffne C:\Users\<user>\Desktop"* matched `desktop` as a
 substring inside the Windows path and resolved to `~/Desktop` instead
 of opening the explicit Windows path. Same defect for `C:\Music\foo`
 (matches `music`), `C:\Documents and Settings\...` (matches
@@ -10151,7 +10169,7 @@ still holds.
 - **CoreMemories ↔ Episode links** — Bidirectional: `coreMem.originatingEpisodeIds`,
   `episode.linkedCoreMemoryId`. `linkEpisode()` is idempotent.
 - **Relational anchors** — Additive markers orthogonal to the 4-of-6 signal
-  threshold: `johnny-reference`, `garrus-trust`, `garrus-vulnerability`,
+  threshold: `johnny-reference`, `human-trust`, `human-vulnerability`,
   `shared-build`, `turning-point`, `identity-origin`. Configurable patterns.
   Detection is a pure function (`detectRelationalAnchors`), zero-setup for tests.
 

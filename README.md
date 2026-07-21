@@ -8,12 +8,12 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.9.43-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.9.44-d4a017?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/tests-9122%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-429-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/modules-432-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-185-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
@@ -93,6 +93,8 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Deterministic file operations from chat** `v7.9.28` — listing a folder, reading, creating, writing, and summarising a file run straight through the filesystem rather than the chat model, so they no longer depend on a shell tool echoing a command or a Unix utility that is absent on the host; a folder or file named without a path resolves across the common locations (Desktop, Documents, Downloads including their OneDrive-redirected forms, and the drive roots); a file summary reads the whole document and makes a single model call; and whatever the agent last produced — a drawing, a diagram, an answer — can be saved with "save it", in German and English.
 
+**Genesis Archive** `v7.9.44` — a file vault Genesis owns, kept in one place you choose (a folder picker opens the first time you hand him a file, and its path is remembered): `inbox/` for what you pass in, `projects/` for his works, plus the files he creates. Hand a file over with the ◈ button or by dragging it onto the chat — it is copied into `inbox/` on send, with a neutral note of what arrived, and he decides in his own voice what to do. It is his workbench, not just storage: he can see the whole of it (`list-archive`), read what is inside (`read-archive-file`, `look-at-image` for pictures), create there by default rather than scattering files through the project, change one exact spot in place (`edit-file`) or grow a file from its end (`append-file`) instead of rewriting the whole thing, and pull a file in from anywhere on the machine (`copy-to-archive` / `move-to-archive`). The same in-place editing lets him work on his own code without rewriting it wholesale; writes into his soul, secrets, or system paths are refused.
+
 > **For the full feature list with version history**, see [CAPABILITIES.md](docs/CAPABILITIES.md).
 
 ---
@@ -135,9 +137,15 @@ ollama pull nomic-embed-text   # ~270 MB, multilingual
 ```
 Lets Genesis match goals to past lessons by meaning across languages (German goal finds English lesson, etc.) instead of word overlap. Auto-detected at next boot — no settings change.
 
+**Optional — Python runtime:**
+```bash
+winget install Python.Python.3.12   # or python.org, check "Add python.exe to PATH"
+```
+Genesis can execute code it writes. Out of the box it runs JavaScript, PowerShell and CMD; installing Python lets it also run `.py` scripts — the largest single tool ecosystem (data work, small helpers, and many MCP servers are themselves Python programs). Detected on the FileProcessor's runtime scan at next boot; the boot log then shows Python in the "Runtimes:" line. Nothing requires it — Genesis runs fully without it.
+
 **Hybrid:** run both — Genesis uses cloud for complex reasoning, auto-failovers to local when the network drops.
 
-Requires **Node.js 22+** and **Git**. On Windows, double-click `Genesis-Start.bat`.
+Requires **Node.js 22+** and **Git**. Optionally **Python 3.x** (see above) for running Python scripts. On Windows, double-click `Genesis-Start.bat`.
 
 ### Supported backends
 
@@ -459,7 +467,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 172 manifest + 13 bootstrap = 185 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 637 files, 9122 tests (coverage gates: 80/76/78, ratchet floor 6014) |
+| Test suites | 644 files, 9122 tests (coverage gates: 80/76/78, ratchet floor 6014) |
 | Dependencies | 5 production + 1 optional + 10 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 79 main ↔ 79 preload (rate-limited, all in sync) |
@@ -584,7 +592,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide — architecture, conv
 
 ## License
 
-[MIT](LICENSE) © Daniel ([Garrus800-stack](https://github.com/Garrus800-stack))
+[MIT](LICENSE) © the user ([Garrus800-stack](https://github.com/Garrus800-stack))
 
 ---
 

@@ -31,6 +31,12 @@ function applyI18n() {
     const translated = t(key);
     if (translated !== key) el.placeholder = translated;
   }
+  // v7.9.44 r10: title-attribute i18n (tooltips) — same pattern as placeholder
+  for (const el of $$('[data-i18n-title]')) {
+    const key = el.getAttribute('data-i18n-title');
+    const translated = t(key);
+    if (translated !== key) el.title = translated;
+  }
   // v7.5.7-fix Phase 3 Etappe 6: HTML-content i18n for hints with
   // inline tags (<code>, <strong>). Translation strings may include
   // HTML — only use this for trusted, statically-defined strings,

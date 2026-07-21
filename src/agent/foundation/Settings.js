@@ -88,6 +88,7 @@ class Settings {
         maxConcurrent: 3,
       },
       daemon: { enabled: true, cycleMinutes: 5, autoRepair: true, autoOptimize: false },
+      archive: { path: null },
       idleMind: {
         enabled: true, idleMinutes: 10, thinkMinutes: 15, maxActiveGoals: 3, journalMaxFileSizeMB: 10, journalMaxRotations: 3,
         // v7.9.4: every N goal-steps, break out of goal-execution and let the
@@ -497,7 +498,6 @@ class Settings {
     }
     obj[parts[parts.length - 1]] = value;
   }
-
 
   /**
    * v7.6.6 Track A: Lazy-load the installation UUID from `.install-id`.

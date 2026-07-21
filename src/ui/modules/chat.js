@@ -467,10 +467,58 @@ function updateToolStatus(p) {
   container.scrollTop = container.scrollHeight;
 }
 
+let _pendingAttachment = null; // v7.9.44 r4: { name, dataB64 } of a file attached but not yet sent
+function setPendingAttachment(att) { _pendingAttachment = att || null; }
+
+// v7.9.44 r12: the ONE shared path both the ◈ button and drag & drop use — no duplicate
+// logic anywhere. Ensures the Archive exists (picks a location once if needed), reads the
+// file's bytes, remembers it, and shows the removable marker. Copy to disk happens on send.
+// v7.9.44 r18: the renderer's synchronous knowledge "is the Archive ready?" —
+// loaded once at module start (read-only, no dialog), set true after any
+// successful ensureArchive. This is what lets the click open the file chooser
+// INSIDE the gesture (no await → Chromium never blocks it) while the FIRST
+// click keeps the r6 order the user wants: folder pick first, file second.
+let _archiveReady = false;
+(async () => { try { const r = await window.genesis.invoke('archive:status'); _archiveReady = !!(r && r.ready); } catch { /* stays false; first click ensures */ } })();
+function attachButtonClick() {
+  if (_archiveReady) { const fi = document.querySelector('#file-attach'); if (fi) fi.click(); return; }
+  // First time (or path lost): the folder pick comes FIRST — a main-process
+  // dialog needs no gesture. Then one honest hint instead of a silently
+  // blocked chooser; from the next click on it is a single click.
+  ensureArchive().then((ok) => { if (ok) { try { showToast(t('ui.archive_click_again'), 'info'); } catch { /* toast optional */ } } });
+}
+async function ensureArchive() {
+  try {
+    const r = await window.genesis.invoke('archive:ensure');
+    if (r && r.canceled) return false;
+    if (!r || !r.ok) { try { showToast(t('ui.archive_create_failed', { error: (r && r.error) || '?' }), 'error'); } catch { /* toast optional */ } return false; }
+    if (r.created && r.root) { try { showToast(t('ui.archive_created', { path: r.root }), 'success'); } catch { /* toast optional */ } }
+    _archiveReady = true; // r18: from now on the click opens the chooser directly
+    return true;
+  } catch (e) { try { showToast(t('ui.archive_create_failed', { error: e.message }), 'error'); } catch { /* toast optional */ } return false; }
+}
+function _showAttachmentChip(name) {
+  const chip = document.querySelector('#attach-chip'); const cn = document.querySelector('#attach-chip-name');
+  if (cn) cn.textContent = name; if (chip) chip.classList.remove('hidden');
+}
+async function attachFile(file) {
+  if (!file) return;
+  if (!(await ensureArchive())) return; // gate first — neither path can reach the "no Archive" dead end
+  const rd = new FileReader();
+  rd.onload = () => {
+    const b64 = String(rd.result).split(',')[1] || '';
+    setPendingAttachment({ name: file.name, dataB64: b64 }); // read + remember only; disk copy on send
+    _showAttachmentChip(file.name);
+    const ci = document.querySelector('#chat-input'); if (ci) ci.focus();
+  };
+  rd.onerror = () => { try { showToast(t('ui.attach_read_failed', { file: file.name }), 'error'); } catch { /* toast optional */ } };
+  rd.readAsDataURL(file);
+}
+
 async function sendMessage() {
   const input = $('#chat-input');
-  const msg = input.value.trim();
-  if (!msg || isStreaming) return;
+  let msg = input.value.trim();
+  if ((!msg && !_pendingAttachment) || isStreaming) return; // v7.9.44 r3: attachment alone may be sent
   // v7.7.0: not-ready guard. Without this, user input typed during the
   // boot window (~1-3s between DOMContentLoaded and agent:ready) was
   // silently dropped — the IPC send would fire but the backend wasn't
@@ -479,6 +527,43 @@ async function sendMessage() {
   if (!isAgentReady()) {
     showToast(t('ui.still_starting'), 'warning');
     return;
+  }
+  // v7.9.44 r4: on send, put the file into the Archive NOW, then fold the note
+  // into the message in the user's own voice. If the copy fails, do NOT send —
+  // no "Datei im Archiv" for a file that never arrived.
+  if (_pendingAttachment) {
+    let res;
+    try { res = await window.genesis.invoke('archive:drop-file', { name: _pendingAttachment.name, dataB64: _pendingAttachment.dataB64 }); }
+    catch (e) { showToast(t('ui.archive_drop_failed', { error: e.message }), 'error'); return; }
+    // v7.9.44 r11: if the Archive vanished under us (deleted externally while a file was
+    // attached), don't dead-end — open the picker, then retry the drop once. No "go to
+    // Settings" message pointing at a field that no longer exists.
+    if (res && res.code === 'missing') {
+      let ens;
+      try { ens = await window.genesis.invoke('archive:ensure'); } catch (_e) { ens = null; }
+      if (ens && ens.ok) {
+        try { res = await window.genesis.invoke('archive:drop-file', { name: _pendingAttachment.name, dataB64: _pendingAttachment.dataB64 }); }
+        catch (e) { showToast(t('ui.archive_drop_failed', { error: e.message }), 'error'); return; }
+      } else { return; } // user cancelled the picker — leave the attachment pending, no error wall
+    }
+    if (!res || !res.ok) {
+      // backend returns a CODE; we localize it here (frontend knows the language)
+      const codeMap = { empty: 'ui.archive_empty', too_large: 'ui.archive_too_large', missing: 'ui.archive_missing' };
+      const key = res && res.code && codeMap[res.code];
+      showToast(key ? t(key) : t('ui.archive_drop_failed', { error: (res && res.error) || '?' }), 'error');
+      return;
+    }
+    // v7.9.44 r13: the note now names the RIGHT tool for the file type so Genesis actually
+    // perceives it (a neutral "Attached: path" left him saying "just a path, I see no image").
+    // Image → look-at-image; anything else → read-archive-file. The path is what the tool needs.
+    const rel = res.rel;
+    const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(rel || _pendingAttachment.name || '');
+    const toolName = isImage ? 'look-at-image' : 'read-archive-file';
+    msg = msg
+      ? (msg + '\n\n[' + t('chat.attachment_fact', { path: rel, tool: toolName }) + ']')
+      : t('chat.attachment_alone', { path: rel, tool: toolName });
+    _pendingAttachment = null;
+    clearPendingAttachmentUI();
   }
   input.value = '';
   input.style.height = 'auto';
@@ -502,7 +587,14 @@ function autoResize(ta) {
   ta.style.height = Math.min(ta.scrollHeight, 150) + 'px';
 }
 
+function clearPendingAttachmentUI() {
+  const chip = document.querySelector('#attach-chip'); const name = document.querySelector('#attach-chip-name');
+  if (chip) chip.classList.add('hidden'); if (name) name.textContent = '';
+}
+
 module.exports = {
+  setPendingAttachment, clearPendingAttachmentUI,
+  attachFile, ensureArchive, attachButtonClick, // v7.9.44 r12/r18: the one shared attach path (button + drag&drop)
   addMessage, startStreamingMessage, appendToStream, finishStream, updateToolStatus, // v7.9.37 (W6a)
   sendMessage, stopGeneration, escapeHtml, renderMarkdown,
   getStreamingState, attachCodeButtons,

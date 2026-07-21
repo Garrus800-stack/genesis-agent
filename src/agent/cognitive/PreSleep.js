@@ -154,6 +154,14 @@ class PreSleep {
     try {
       const mood = this.emotionalState?.getMood?.()
         ?? this.emotionalState?.getState?.()?.mood ?? null;
+      try { // v7.9.44 P4: the anchor finally carries the last journal title
+        const jdir = require('path').join(this.storageDir, 'journal');
+        const files = require('fs').readdirSync(jdir).filter((f) => f.endsWith('.jsonl')).sort();
+        if (files.length) {
+          const lines = require('fs').readFileSync(require('path').join(jdir, files[files.length - 1]), 'utf8').split('\n').filter(Boolean);
+          if (lines.length) { const e = JSON.parse(lines[lines.length - 1]); snap.lastJournalTitle = String(e.content || '').slice(0, 60) || null; }
+        }
+      } catch (_e) { /* omit over guess */ }
       if (mood) snap.mood = String(mood).slice(0, LABEL_CAP);
     } catch (_e) { /* mood source absent */ }
     try {

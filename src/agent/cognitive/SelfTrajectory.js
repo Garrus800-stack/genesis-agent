@@ -321,7 +321,7 @@ class SelfTrajectory {
       first_entry: first,
       fields,
       genesis_note: genesisNote || '',
-      garrus_note: '',
+      human_note: '',
       editing_history: [],
     };
     return this._writeDraft(draft);
@@ -334,7 +334,7 @@ class SelfTrajectory {
    * existed and belongs to the history.
    * @returns {{ok:true, field:string}|{ok:false, error:string}}
    */
-  setDraftField(rawFieldName, value, author = 'garrus') {
+  setDraftField(rawFieldName, value, author = 'human') {
     const draft = this.readDraft();
     if (!draft) return { ok: false, error: 'no-draft' };
     const field = normalizeFieldName(rawFieldName);
@@ -351,15 +351,15 @@ class SelfTrajectory {
   }
 
   /**
-   * Set genesis_note or garrus_note on the draft. These are two more
+   * Set genesis_note or human_note on the draft. These are two more
    * string fields, not a privileged type — set/edited like any value,
    * just not part of the six self-statement fields.
-   * @param {'genesis'|'garrus'} who
+   * @param {'genesis'|'human'} who
    */
   setDraftNote(who, text) {
     const draft = this.readDraft();
     if (!draft) return { ok: false, error: 'no-draft' };
-    if (who !== 'genesis' && who !== 'garrus') return { ok: false, error: 'unknown-author' };
+    if (who !== 'genesis' && who !== 'human') return { ok: false, error: 'unknown-author' };
     draft[`${who}_note`] = String(text);
     this._writeDraft(draft);
     return { ok: true };
@@ -384,7 +384,7 @@ class SelfTrajectory {
     }
     if (draft.first_entry) {
       if (!(draft.genesis_note || '').trim()) return { ok: false, error: 'first-entry-note', detail: 'genesis_note' };
-      if (!(draft.garrus_note || '').trim()) return { ok: false, error: 'first-entry-note', detail: 'garrus_note' };
+      if (!(draft.human_note || '').trim()) return { ok: false, error: 'first-entry-note', detail: 'human_note' };
     }
 
     const wallclockEnd = new Date(this._clock.now()).toISOString();
@@ -400,13 +400,13 @@ class SelfTrajectory {
     const _prevEnd = _prior.length ? _prior[_prior.length - 1].wallclock_end : null;
     const eventCount = this.eventCounter ? this.eventCounter.countSince(_prevEnd) : null;
 
-    // author: genesis is the base; garrus is added if there is a
-    // garrus_note or any garrus edit in the history.
+    // author: genesis is the base; human is added if there is a
+    // human_note or any human edit in the history.
     const author = ['genesis'];
-    const garrusTouched =
-      (draft.garrus_note || '').trim().length > 0 ||
-      draft.editing_history.some(e => e.author === 'garrus');
-    if (garrusTouched) author.push('garrus');
+    const humanTouched =
+      (draft.human_note || '').trim().length > 0 ||
+      draft.editing_history.some(e => e.author === 'human');
+    if (humanTouched) author.push('human');
 
     const entry = {
       cycle_id: cycleId,
@@ -418,7 +418,7 @@ class SelfTrajectory {
       first_entry: !!draft.first_entry,
       fields: { ...draft.fields },
       genesis_note: draft.genesis_note || '',
-      garrus_note: draft.garrus_note || '',
+      human_note: draft.human_note || '',
       editing_history: draft.editing_history || [],
       late_notes: [],
     };

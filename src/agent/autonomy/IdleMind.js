@@ -158,7 +158,7 @@ class IdleMind {
 
     // Listen for user activity (multiple sources for reliability)
     // v7.9.41 r4: ONLY the user's message resets the idle clock. Field 19.07.
-    // (Garrus): "15 minutes will never be reached, because he keeps doing
+    // (the user): "15 minutes will never be reached, because he keeps doing
     // something in the conversation" — right by construction: agent:status fires from
     // Genesis' OWN loops (thinking/ready/error) and store:CHAT_MESSAGE fires
     // for Genesis' OWN replies, so Genesis kept resetting its own silence.

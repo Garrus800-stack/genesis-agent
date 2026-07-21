@@ -396,6 +396,11 @@ const INTENT_DEFINITIONS = [
     // English
     /\b(?:create|make|write)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:text\s+|empty\s+)?(?:file|document)\b/i,
     /\b(?:file|document)\s+(?:named|called)\b/i,
+    // v7.9.44 r15 (field): spoken / verb-at-end forms — "kannst (du) ein
+    // dokument erstellen mit namen …", "eine datei anlegen namens …". The
+    // noun-verb adjacency plus a name/content marker keeps capability
+    // questions ("welche dateien kann man erstellen?") with the model.
+    /\b(?:datei(?:en)?|dokumente?|files?|documents?)\s+(?:bitte\s+|jetzt\s+|mal\s+|noch\s+|zu\s+)*(?:erstell|anleg)\w*\b[\s\S]{0,80}\b(?:namens?|inhalt|text|content|named|called)\b/i,
   ], 14, ['erstelle', 'erstellen', 'datei', 'dokument', 'anlegen', 'schreiben', 'create', 'file']],
 
   // v7.9.28 (field-fix #3): deterministic file summary — resolves + reads the

@@ -15,6 +15,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const ALLOWED_INVOKE = [
+  'archive:ensure',
+  'archive:status',
   'agent:chat',
   'agent:chat:stop',
   'agent:get-self-model',
@@ -27,7 +29,6 @@ const ALLOWED_INVOKE = [
   'agent:switch-model',
   'agent:list-models',
   'agent:clone',
-  'agent:import-file',
   'agent:file-info',
   'agent:execute-file',
   'agent:read-external-file',
@@ -94,7 +95,7 @@ const ALLOWED_INVOKE = [
   // v7.4.5: GoalDriver
   'agent:goal-driver-status',
   'agent:goal-driver-queue',
-  'agent:resume-decision',
+  'agent:resume-decision', 'archive:drop-file',
 ];
 
 const ALLOWED_SEND = [

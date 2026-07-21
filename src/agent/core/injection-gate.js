@@ -265,7 +265,7 @@ function classifyToolSource(toolName, toolInput) {
       // v7.9.41 r2: bare project-root files (CHANGELOG.md, README.md, docs/…)
       // are Genesis' OWN documentation — field 19.07.: the credential heuristic
       // blocked Genesis from reading its own CHANGELOG ("[BLOCKED: …
-      // kinds=credential]"), exactly when Daniel asked for it. A path with no
+      // kinds=credential]"), exactly when the user asked for it. A path with no
       // directory (or under docs/) that matched no user-folder pattern above
       // is internal, not user-supplied.
       if (!/\//.test(p) || /^docs\//.test(p)) {

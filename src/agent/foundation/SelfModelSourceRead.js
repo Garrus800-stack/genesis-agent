@@ -29,7 +29,7 @@ const _log = createLogger('SelfModel');
 // v7.5.8: Cloud-sync placeholder awareness.
 //
 // Live-Befund (2026-05-03 Alex-Win-Rechner): Genesis copy in
-// `C:\Users\Alex\OneDrive\Desktop\...\Genesis\` triggered a 30s+ hang
+// `C:\Users\<user>\OneDrive\Desktop\...\Genesis\` triggered a 30s+ hang
 // when ReadSource (idle-time) picked a file that was a OneDrive
 // Files-On-Demand placeholder (`fs.existsSync` returns true, but reading
 // the file forces an implicit cloud download). The hang blocked the

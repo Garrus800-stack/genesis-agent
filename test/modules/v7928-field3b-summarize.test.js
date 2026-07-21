@@ -52,8 +52,8 @@ const ctx = (over = {}) => Object.assign(Object.create(H), { fp: { rootDir: root
   routes('welche datein sind im ordner', 'list-folder');
   routes('wieviele dateien sind drin', 'list-folder');
   routes('erstelle datei namens x der text ist a', 'create-file');
-  routes('öffne den ordner GMxBGxx auf D:', 'open-path');
-  routes('öffne auf d: den ordner GMxBGxx', 'open-path');
+  routes('öffne den ordner Arbeitsordner auf D:', 'open-path');
+  routes('öffne auf d: den ordner Arbeitsordner', 'open-path');
 
   // ---- summarizeFile handler: one deterministic call, no tool loop ----
   clearLastDoc();
@@ -254,19 +254,19 @@ const ctx = (over = {}) => Object.assign(Object.create(H), { fp: { rootDir: root
 
   // ---- cross-location resolution + openPath name handling (round 2e) ----
   // The field showed a named folder without a location failed or got launched as
-  // an app: "öffne den ordner GMxBGxx" extracted the article "den", "öffne
-  // GMxBGxx" ran it as an application, and "welche dateien sind in Neuer Ordner
+  // an app: "öffne den ordner Arbeitsordner" extracted the article "den", "öffne
+  // Arbeitsordner" ran it as an application, and "welche dateien sind in Neuer Ordner
   // (8) enthalten" (no "auf dem desktop") was refused. Now a bare name resolves
   // across the common locations, and the openPath name extraction is robust.
   const home3 = fs.mkdtempSync(path.join(os.tmpdir(), 'genesis-f3b-x-'));
   const realHome2 = os.homedir; os.homedir = () => home3;
   const odDesk = path.join(home3, 'OneDrive', 'Desktop');
-  fs.mkdirSync(path.join(odDesk, 'GMxBGxx'), { recursive: true });
+  fs.mkdirSync(path.join(odDesk, 'Arbeitsordner'), { recursive: true });
   fs.mkdirSync(path.join(odDesk, 'Neuer Ordner (8)'));
   for (let i = 0; i < 3; i++) fs.writeFileSync(path.join(odDesk, 'Neuer Ordner (8)', 'h' + i + '.txt'), 'x');
   const xctx = () => Object.assign(Object.create(H), { fp: { rootDir: root } });
-  ok('_findNamedTargetAnywhere finds a folder on OneDrive Desktop', H._findNamedTargetAnywhere.call(xctx(), 'GMxBGxx') === path.join(odDesk, 'GMxBGxx'));
-  ok('_findNamedTargetAnywhere is case-insensitive', String(H._findNamedTargetAnywhere.call(xctx(), 'gmxbgxx') || '').toLowerCase() === path.join(odDesk, 'GMxBGxx').toLowerCase());
+  ok('_findNamedTargetAnywhere finds a folder on OneDrive Desktop', H._findNamedTargetAnywhere.call(xctx(), 'Arbeitsordner') === path.join(odDesk, 'Arbeitsordner'));
+  ok('_findNamedTargetAnywhere is case-insensitive', String(H._findNamedTargetAnywhere.call(xctx(), 'arbeitsordner') || '').toLowerCase() === path.join(odDesk, 'Arbeitsordner').toLowerCase());
   ok('_findNamedTargetAnywhere resolves a spaced/paren name', H._findNamedTargetAnywhere.call(xctx(), 'Neuer Ordner (8)') === path.join(odDesk, 'Neuer Ordner (8)'));
   ok('_findNamedTargetAnywhere returns null for unknown', H._findNamedTargetAnywhere.call(xctx(), 'ZzUnlikelyFolder_XQ97b') === null);
   clearLastDoc();
@@ -276,12 +276,12 @@ const ctx = (over = {}) => Object.assign(Object.create(H), { fp: { rootDir: root
   const S = require(path.join(__dirname, '..', '..', 'src/agent/hexagonal/CommandHandlersShell')).commandHandlersShell;
   const opProto = Object.assign(Object.create(null), H, S);
   const opCtx = Object.assign(Object.create(opProto), { fp: { rootDir: root }, lang: { t: (k) => k }, shell: { run: async () => ({ ok: true, exitCode: 0, stdout: '' }) } });
-  out = await opCtx.openPath('öffne den ordner GMxBGxx');
-  ok('openPath "öffne den ordner GMxBGxx" opens the folder (not the article "den")', /geöffnet/.test(out) && /GMxBGxx/.test(out));
-  out = await opCtx.openPath('irgendwas gehört, öffne den ordner GMxBGxx');
-  ok('openPath tolerates a preamble', /geöffnet/.test(out) && /GMxBGxx/.test(out));
-  out = await opCtx.openPath('öffne GMxBGxx');
-  ok('openPath bare "öffne GMxBGxx" opens the folder, not an app', /geöffnet/.test(out) && /GMxBGxx/.test(out));
+  out = await opCtx.openPath('öffne den ordner Arbeitsordner');
+  ok('openPath "öffne den ordner Arbeitsordner" opens the folder (not the article "den")', /geöffnet/.test(out) && /Arbeitsordner/.test(out));
+  out = await opCtx.openPath('irgendwas gehört, öffne den ordner Arbeitsordner');
+  ok('openPath tolerates a preamble', /geöffnet/.test(out) && /Arbeitsordner/.test(out));
+  out = await opCtx.openPath('öffne Arbeitsordner');
+  ok('openPath bare "öffne Arbeitsordner" opens the folder, not an app', /geöffnet/.test(out) && /Arbeitsordner/.test(out));
   out = await opCtx.openPath('ja öffne den ordner');
   ok('openPath "ja öffne den ordner" does not extract the article', !/„den"|"den"/.test(out));
   os.homedir = realHome2;
@@ -295,8 +295,8 @@ const ctx = (over = {}) => Object.assign(Object.create(H), { fp: { rootDir: root
   await asyncRoutes('speichere es als quadrat.txt', 'write-file');
   await asyncRoutes('schreibe das in eine datei', 'write-file');
   await asyncRoutes('schreibe es in ein dokument', 'write-file');
-  await asyncRoutes('mach den ordner GMxBGxx auf', 'open-path');
-  await asyncRoutes('mach GMxBGxx auf', 'open-path');
+  await asyncRoutes('mach den ordner Arbeitsordner auf', 'open-path');
+  await asyncRoutes('mach Arbeitsordner auf', 'open-path');
   const { setLastText: setLT2 } = require(path.join(__dirname, '..', '..', 'src/agent/hexagonal/LastDocStore'));
   const sctx = () => Object.assign(Object.create(H), { fp: { rootDir: root }, lang: { detect: () => 'de' }, modelBridge: bridge });
   const drawing = '+----+\n|    |\n+----+';

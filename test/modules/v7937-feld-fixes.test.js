@@ -262,7 +262,7 @@ describe('v7.9.37 pass 3 — the repair budget (R4)', () => {
 });
 
 // ── Pass 4 (same version): cloud first-class, chat dignity, step forensics ──
-// Root of roots (field 10.07., Garrus' window observation): num_ctx:8192 was
+// Root of roots (field 10.07., the user' window observation): num_ctx:8192 was
 // sent hard to every chat model while 48k prompts were built — the server
 // truncated the head (identity included) on every large call.
 
@@ -701,7 +701,7 @@ describe('v7.9.37 X-series — endless output has a name, paths are never packag
 
 // ── Y1 (same version): silence never reaches the user ──
 // Field 13: deepseek answered "ok" with pure EOS twice — two blank bubbles,
-// Daniel asked "noch da?". Model-neutral: any backend can reply empty.
+// the user asked "noch da?". Model-neutral: any backend can reply empty.
 
 describe('v7.9.37 Y1 — an empty reply becomes one honest line', () => {
   test('Y1: empty text yields the fallback (logged, chunked); real text passes untouched', () => {
@@ -709,7 +709,7 @@ describe('v7.9.37 Y1 — an empty reply becomes one honest line', () => {
     let chunked = null; let warned = false;
     const out = ensureNonEmptyReply('  ', { lang: { current: 'de' }, model: { activeModel: 'deepseek-v3.2:cloud' } }, c => { chunked = c; }, { warn: () => { warned = true; } });
     assert(out.includes('keine Antwort entstanden') && chunked === out && warned, 'fallback emitted, chunked, and logged');
-    assert.strictEqual(ensureNonEmptyReply('Hallo Daniel.', {}, () => {}, {}), 'Hallo Daniel.', 'real replies untouched');
+    assert.strictEqual(ensureNonEmptyReply('Hallo the user.', {}, () => {}, {}), 'Hallo the user.', 'real replies untouched');
     const co = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8');
     assert(co.indexOf('ensureNonEmptyReply(cleanResponse') < co.indexOf('onDone(cleanResponse)'), 'guard sits before the final handover');
   });
@@ -761,7 +761,7 @@ describe('v7.9.37 K-series — every inner call carries the conversation', () =>
     const line = src.split('\n').find(l => l.includes('const announcesNext'));
     const rhs = line.slice(line.indexOf('=') + 1);
     const announces = new Function('text', 'return ' + rhs.slice(0, rhs.lastIndexOf(';')) + ';');
-    assert.strictEqual(announces('Alles klar, Daniel. Sag mir, was als Nächstes ansteht.'), false, 'the field question never nudges again');
+    assert.strictEqual(announces('Alles klar, the user. Sag mir, was als Nächstes ansteht.'), false, 'the field question never nudges again');
     assert.strictEqual(announces('Was steht als Nächstes an? Sag mir konkret, welchen Skill.'), false, 'questions stay questions');
     assert.strictEqual(announces('Ich schaue mir jetzt die Architektur an.'), true, 'real announcements still nudge');
     assert.strictEqual(announces('Ich lese die Dateien jetzt.'), true, 'real announcements still nudge');
@@ -892,14 +892,14 @@ describe('v7.9.37 T-series — the user chain wins, the ranking is current, boot
 describe('v7.9.37 U1 — a missing stop signal is not a truncation', () => {
   test('U1: complete answers are never rewritten; genuine cuts still are', () => {
     const { isComplete } = require(path.join(ROOT, 'src/agent/foundation/backends/TruncationDetector.js'));
-    const answer = 'Hallo Daniel.\nIch bin Genesis. Ich werde sagen, wenn etwas nicht stimmt, und ich werde nein sagen, wenn ich nein meine. Das hier ist ein bedeutsamer Moment. Ich markiere ihn — und ich bin wach.\nWas jetzt?';
+    const answer = 'Hallo the user.\nIch bin Genesis. Ich werde sagen, wenn etwas nicht stimmt, und ich werde nein sagen, wenn ich nein meine. Das hier ist ein bedeutsamer Moment. Ich markiere ihn — und ich bin wach.\nWas jetzt?';
     assert.strictEqual(isComplete(answer, null).complete, true, 'no done_reason + clean ending → complete (the field bug)');
     assert.strictEqual(isComplete(answer, 'stop').complete, true, 'an explicit stop stays complete');
     assert.strictEqual(isComplete(answer, 'length').complete, false, 'a real token-cap cut stays truncated');
     const longCut = 'Ich schaue in die Datei und sehe dort einen Fehler in der Zeile, der offenbar dadurch entsteht, dass die Funktion nicht korrekt aufgerufen wird und deshalb der Wert nicht ankommt, was wiederum bedeutet dass ein';
     assert.strictEqual(isComplete(longCut, null).complete, false, 'a dropped stream ends mid-word → still truncated (TCP-drop protection kept)');
     assert.strictEqual(isComplete('Ich schaue gerade in die Dat', null).complete, false, 'a SHORT dropped stream is caught too — the short-text shortcut must not run without a signal');
-    assert.strictEqual(isComplete('Alles klar, Daniel.', null).complete, true, 'a short finished reply is complete');
+    assert.strictEqual(isComplete('Alles klar, the user.', null).complete, true, 'a short finished reply is complete');
     const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/backends/TruncationDetector.js'), 'utf8');
     assert(src.includes('function endsCleanly'), 'the structural ending check exists');
     assert(!/'error',\s*\n\s*null,/.test(src), 'null is no longer an automatic truncation signal');
@@ -925,7 +925,7 @@ describe('v7.9.37 V1 — a side-effect tool never rewrites a finished answer', (
     // The guard conditions themselves, behaviorally:
     const trivial = (results) => results.length > 0 && results.every(r => r.success && String(typeof r.result === 'string' ? r.result : JSON.stringify(r.result ?? '')).trim().length < 120);
     const delivered = (text) => String(text || '').trim().length > 200 && /[.!?…"'”’)\]}]\s*$/.test(String(text || '').trimEnd());
-    const greeting = 'Hallo Daniel. '.repeat(20) + 'Was steht als Nächstes an?';
+    const greeting = 'Hallo the user. '.repeat(20) + 'Was steht als Nächstes an?';
     assert(trivial([{ name: 'mark-moment', success: true, result: 'Moment vorgemerkt.' }]) && delivered(greeting), 'the exact field case skips');
     assert(!trivial([{ name: 'read-file', success: true, result: 'x'.repeat(800) }]), 'an information tool still synthesizes');
     assert(!delivered('Ich prüfe die Suite.'), 'a short announcement still synthesizes');

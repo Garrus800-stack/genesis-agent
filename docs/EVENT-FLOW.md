@@ -706,6 +706,25 @@ sequenceDiagram
 
 When Genesis is idle, the `propose-improvements` activity turns agent-loop analyses into proposals written to `.genesis/improvement-proposals.json` with status `proposed`. The Dashboard polls `agent:get-proposals` every two seconds and renders each open proposal as a card. Approve invokes `agent:accept-proposal`, which runs the change through the gated self-modification pipeline and marks the proposal `attempted`; Reject invokes `agent:reject-proposal`, which marks it `dismissed` with a cooldown so it is not raised again immediately. A proposal is auto-applied without a card only at Full Autonomy with `selfModifyRequiresConfirmation` off; by default it always waits for a person.
 
+## Event Flow: File Attachment -> Archive (v7.9.44)
+
+Handing a file to Genesis (the ◈ button or dragging it onto the chat, both through one shared path) does not act immediately — it remembers the file as a small removable marker. The Archive folder is created lazily, the first time you ever attach, via a folder picker whose location is then stored as `archive.path`. Only on send is the file copied into `inbox/` (a copy — the original is untouched, name collisions numbered), and a neutral note of what arrived travels with the user's message, naming the tool that reaches it. Genesis' own judgement decides what to do — nothing is bolted onto his instructions. Beyond reading and filling, the same Archive is his workbench: `list-archive` shows it, `edit-file` / `append-file` change or grow a file in place, and `copy-to-archive` / `move-to-archive` bring one in from elsewhere; created files default into it.
+
+```mermaid
+graph TD
+    A["User attaches a file<br/>(◈ button or drag-drop)"] --> B{"Archive location<br/>known?"}
+    B -- "no (first ever)" --> P["Folder picker opens<br/>Genesis Archive created<br/>path stored as archive.path"]
+    B -- "yes" --> C["File remembered only<br/>(removable marker in chat)"]
+    P --> C
+    C --> D["User sends the message"]
+    D --> E["File copied into inbox/<br/>(original untouched, collisions numbered)"]
+    E --> F["Neutral note of what arrived<br/>rides with the message,<br/>naming the tool to reach it"]
+    F --> G["Genesis' own judgement"]
+    G --> H["look-at-image (picture)"]
+    G --> I["read-archive-file (text/data)"]
+    G --> J["list-archive, edit-file, append-file,<br/>copy-to-archive, move-to-archive"]
+```
+
 ## Selected Event Catalog
 
 > **Selected high-traffic events with their emitters and consumers.** This is not exhaustive — Genesis has ~450 events; the live catalog is in `src/agent/core/EventTypes.js`.

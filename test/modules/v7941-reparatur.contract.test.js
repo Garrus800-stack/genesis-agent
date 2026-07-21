@@ -28,7 +28,7 @@ function pb(fields) {
 }
 
 describe('v7.9.41 F — Reparaturen', () => {
-  test('F1: every DU-form of Daniels question fires the full block mid-conversation', () => {
+  test('F1: every DU-form of the users question fires the full block mid-conversation', () => {
     const forms = [
       'na, was hast du so gemacht?', 'was hast du gemacht', 'was hast du getan?',
       'was hast du gedacht', 'woran hast du gearbeitet?', 'was hast du im idle gemacht',

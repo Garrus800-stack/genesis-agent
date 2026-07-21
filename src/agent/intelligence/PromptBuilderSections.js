@@ -184,6 +184,16 @@ const sections = {
       '5. If yes, use the shell tool to open it (Windows: explorer, macOS: open, Linux: xdg-open)',
       'IMPORTANT: Do this AUTOMATICALLY — don\'t just show code and stop. Save the file and offer to open it.',
     ].join('\n'));
+    lines.push([
+      'YOUR ARCHIVE is your workspace — inbox/ for files the user hands you, projects/ for your works, plus files you create.',
+      'When the user attaches a file, its path appears in his message (e.g. "inbox/notiz.txt").',
+      'SEE it with list-archive. READ a text/code/data file with read-archive-file; an image with look-at-image. Paths are archive-relative.',
+      'CREATE: files you make land in the Archive by default (your ordered home, not the project) unless you are told elsewhere.',
+      'GROW a file without rewriting the whole thing: append-file adds to the end, edit-file replaces ONE exact spot. Use these for documents, your works, and your own code. After a write into a .js/.json file the tool itself checks the syntax and tells you honestly if the file is now broken — read that and repair it.',
+      'CHECK a file anytime with check-file (syntax verdict only, .js/.json). COMPARE two versions with compare-files — it lays only the differences on your table, not both files whole.',
+      'BRING IN a file from the Desktop, D:, or anywhere with copy-to-archive / move-to-archive.',
+      'Don\'t use file-read or shell listing for the Archive — those are scoped to the project, not the Archive.',
+    ].join('\n'));
     lines.push('Focus on answering the user\'s question directly. Never list your internal modules, capabilities, or architecture unless explicitly asked.');
     const defaultText = lines.join('\n');
     if (this.promptEvolution) {

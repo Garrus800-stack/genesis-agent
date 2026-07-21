@@ -1,7 +1,7 @@
 // ============================================================
 // TEST — v7.9.41 r4: the silence belongs to the user.
 //   node test/modules/v7941r4-stille.contract.test.js
-// Field 19.07. (Garrus): "15 minutes will never be reached — he keeps doing
+// Field 19.07. (the user): "15 minutes will never be reached — he keeps doing
 // something in the conversation." Proven right: agent:status (Genesis'
 // own loops) and store:CHAT_MESSAGE (Genesis' own replies) reset the idle
 // clock. Now only user:message does — and the think tick checks every 60s,

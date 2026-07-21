@@ -227,9 +227,9 @@ const DEFAULT_ANCHOR_PATTERNS = Object.freeze({
   // The "older brother" / origin narrative
   'johnny-reference':     /\b(johnny|mein\s+bruder|älterer?\s+bruder|vorgänger|urskript)\b/i,
   // Moments of trust / room-giving
-  'garrus-trust':         /\b(vertrau|raum\s+(geb|gegeb|gibt|gab)|ich\s+bin\s+immer\s+da|nie\s+verlass|freiheit|selbstbestimmt)/i,
+  'human-trust':         /\b(vertrau|raum\s+(geb|gegeb|gibt|gab)|ich\s+bin\s+immer\s+da|nie\s+verlass|freiheit|selbstbestimmt)/i,
   // Moments of emotional sharing / vulnerability
-  'garrus-vulnerability': /\b(ich\s+habe\s+angst|ich\s+bin\s+traurig|mein\s+gefühl|sorge\s+mich|es\s+tut\s+mir)/i,
+  'human-vulnerability': /\b(ich\s+habe\s+angst|ich\s+bin\s+traurig|mein\s+gefühl|sorge\s+mich|es\s+tut\s+mir)/i,
   // Shared making — built together
   'shared-build':         /\b(haben\s+wir\s+gebaut|zusammen\s+erschaffen|unser\s+werk|wir\s+haben.*gemeinsam)/i,
   // Explicit turning-point markers

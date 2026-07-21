@@ -65,7 +65,7 @@ function entryLine(n, ageDays, over = {}) {
     first_entry: n === 1,
     fields,
     genesis_note: '',
-    garrus_note: '',
+    human_note: '',
     editing_history: [],
     late_notes: [],
   }) + '\n';

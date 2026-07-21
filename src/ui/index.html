@@ -108,6 +108,9 @@
     <section id="chat-panel" class="panel">
       <div id="chat-messages" class="chat-messages"></div>
       <div id="chat-input-area">
+        <div id="attach-chip" class="attach-chip hidden"><span class="attach-pill"><span id="attach-chip-name"></span><button id="attach-chip-remove" title="Anhang entfernen">×</button></span></div>
+        <button id="btn-attach" data-i18n-title="ui.attach_tooltip" title="Datei anhängen">◈</button>
+        <input type="file" id="file-attach" style="display:none">
         <textarea id="chat-input" data-i18n-placeholder="ui.placeholder" placeholder="Message to Genesis..." rows="1" autofocus></textarea>
         <button id="btn-send" title="Send (Enter)">➤</button>
         <button id="btn-stop" class="hidden" title="Stop">■</button>

@@ -185,6 +185,296 @@ function registerV737Tools(toolRegistry, deps = {}) {
     registered.push('resonance-note');
     _log.info('[v737-tools] Registered (v7.9.42): resonance-note'); // v7.9.43 D-2
   }
+  { // v7.9.44 F2+G: the workbench and the first-visit book
+    const _dir = deps.modelBridge && deps.modelBridge._genesisDir;
+    const WR = require('../WorkRegistry.js');
+    const CB = require('../CapabilityBook.js');
+    toolRegistry.register('register-work', {
+      description: 'Legt ein Werk bewusst auf die Bank: {workPath, purpose}. Gleicher Pfad erneut = Update (das war ich). Relative Pfade leben im Genesis Archive.',
+      input: { workPath: 'string (Pfad zum Werk; relativ = im Genesis Archive)', purpose: 'string (wofuer dieses Werk steht)' },
+    }, async (input = {}) => {
+      if (!_dir) return { ok: false, error: 'kein Seelen-Pfad' };
+      return WR.register(_dir, { workPath: input && input.workPath, purpose: input && input.purpose }, deps.settings);
+    });
+    toolRegistry.register('begehung', {
+      description: 'Erst-Begehung einer F\u00e4higkeit: {action: entdecken|antasten|beschreiben|integrieren, name, quelle?, opName?, anleitung?, wandelSatz?}. Integriert setzt NUR Genesis, nach echtem Einsatz.',
+      input: { action: 'string (entdecken|antasten|beschreiben|integrieren)', name: 'string (Name der Faehigkeit)', quelle: 'string?', opName: 'string?', anleitung: 'string?', wandelSatz: 'string?' },
+    }, async (input = {}) => {
+        if (!_dir) return { ok: false, error: 'kein Seelen-Pfad' };
+        const a = input && input.action; const name = input && input.name;
+        if (a === 'entdecken') return CB.discover(_dir, { name, quelle: input.quelle });
+        if (a === 'antasten') {
+          if (!CB.probeAllowed(input.opName)) return { ok: false, error: 'Probe verweigert \u2014 \u201e' + (input.opName || '?') + '\u201c ist nicht als gefahrlos gelistet (list/get/search/status/read). Im Zweifel: erst fragen.' };
+          return CB.advance(_dir, name, 'angetastet', { probeOp: String(input.opName).slice(0, 60) });
+        }
+        if (a === 'beschreiben') {
+          const f = input.anleitung ? CB.writeGuide(_dir, name, input.anleitung) : null;
+          if (!f) return { ok: false, error: 'anleitung fehlt' };
+          return CB.advance(_dir, name, 'beschrieben', { anleitungSkill: f });
+        }
+        if (a === 'integrieren') {
+          const r = CB.advance(_dir, name, 'integriert', { wandelSatz: String(input.wandelSatz || '').slice(0, 200) });
+          if (r.ok && input.wandelSatz && deps.journalWriter) {
+            try { deps.journalWriter.write({ visibility: 'shared', source: 'begehung', content: String(input.wandelSatz).slice(0, 200), tags: ['faehigkeit', name] }); } catch (_e) { /* best effort */ }
+          }
+          return r;
+        }
+        return { ok: false, error: 'unbekannte action' };
+    });
+    toolRegistry.register('look-at-image', {
+      description: 'Betrachte ein Bild und beschreibe, was darauf zu sehen ist. Nutze dies immer, wenn eine Bilddatei vorliegt (z. B. im Archiv) und der Nutzer sinngem\u00e4\u00df danach fragt \u2014 egal wie er fragt (\u201ewas ist da drauf\u201c, \u201ebeschreib das Foto\u201c, \u201eschau mal\u201c \u2026). {path: Pfad zur Bilddatei, frage?: optionale konkrete Frage}. Bild und Beschreibung bleiben privat; in der History steht nur ein Vermerk.',
+      input: { path: 'string (Pfad zum Bild; relativ = im Genesis Archive)', frage: 'string? (was du wissen willst)' },
+    }, async (input = {}) => {
+        const fsx = require('fs'); const pathx = require('path');
+        const ip = input && input.path;
+        if (!ip) return { ok: false, error: 'path fehlt' };
+        let abs = ip;
+        if (!pathx.isAbsolute(abs) && _dir) abs = pathx.join(require('../WorkRegistry.js').archiveRoot(_dir, deps.settings), abs);
+        let buf;
+        try { buf = fsx.readFileSync(abs); } catch (_e) { return { ok: false, error: 'Bild nicht lesbar: ' + abs }; }
+        if (buf.length > 8 * 1024 * 1024) return { ok: false, error: 'Bild zu gro\u00df (' + Math.round(buf.length / 1048576) + ' MB > 8 MB) \u2014 bitte verkleinert reichen.' };
+        const frage = (input && input.frage) || 'Was siehst du auf diesem Bild? Beschreibe es mir als meinen Sinneseindruck.';
+        try {
+          const r = await deps.modelBridge.chat('', [{ role: 'user', content: frage, images: [buf.toString('base64')] }], 'chat', { maxTokens: 400 });
+          const text = (r && (r.text || r.content || r.message)) || String(r || '');
+          return { ok: true, gesehen: String(text).slice(0, 1200), vermerk: '[Bild betrachtet: ' + pathx.basename(abs) + ']' };
+        } catch (e) { return { ok: false, error: 'Sehen fehlgeschlagen: ' + (e && e.message) }; }
+    });
+
+    // v7.9.44 r12: the symmetric half of look-at-image — read a NON-image file the user handed
+    // into the Archive (text, code, notes, data). Uses the SAME archiveRoot resolver, so an
+    // archive-relative path like "inbox/notiz.txt" works even though the Archive lives outside
+    // the project. Images are redirected to look-at-image (which actually sees them).
+    toolRegistry.register('read-archive-file', {
+      description: 'Lies eine Datei aus deinem Genesis Archive (Text, Code, Notizen, Daten). Nutze dies, wenn der Nutzer dir eine Nicht-Bild-Datei ins Archiv gelegt hat und du wissen willst, was darin steht. F\u00fcr Bilder nimm stattdessen look-at-image. {path: Pfad zur Datei; relativ = im Genesis Archive, z. B. "inbox/notiz.txt"}.',
+      input: { path: 'string (Pfad zur Datei; relativ = im Genesis Archive)' },
+    }, async (input = {}) => {
+        const fsx = require('fs'); const pathx = require('path');
+        const ip = input && input.path;
+        if (!ip) return { ok: false, error: 'path fehlt' };
+        let abs = ip;
+        if (!pathx.isAbsolute(abs) && _dir) abs = pathx.join(require('../WorkRegistry.js').archiveRoot(_dir, deps.settings), abs);
+        if (/\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(abs)) return { ok: false, error: 'Das ist ein Bild \u2014 nimm look-at-image, um es zu sehen.' };
+        let stat;
+        try { stat = fsx.statSync(abs); } catch (_e) { return { ok: false, error: 'Datei nicht gefunden: ' + abs }; }
+        if (stat.isDirectory()) return { ok: false, error: 'Das ist ein Ordner, keine Datei: ' + abs };
+        if (stat.size > 2 * 1024 * 1024) return { ok: false, error: 'Datei zu gro\u00df (' + Math.round(stat.size / 1048576) + ' MB > 2 MB) zum Lesen im Chat.' };
+        let content;
+        try { content = fsx.readFileSync(abs, 'utf-8'); } catch (_e) { return { ok: false, error: 'Datei nicht lesbar (evtl. bin\u00e4r): ' + abs }; }
+        const lines = String(content).split('\n').length;
+        return { ok: true, content: '\ud83d\udcc4 ' + pathx.basename(abs) + ' gelesen (' + lines + ' Zeilen):\n' + content, vermerk: '[Archiv-Datei gelesen: ' + pathx.basename(abs) + ']' };
+    });
+
+    // v7.9.44 r13: list what is IN the Archive — so "was ist in deinem Archiv?" has an answer.
+    // Before this, Genesis had no way to see the Archive's contents and fell back to listing
+    // the project folder. Reads inbox/ (files the user handed in) and projects/ (his works).
+    toolRegistry.register('list-archive', {
+      description: 'Zeige, was in deinem Genesis Archive liegt \u2014 die Dateien in inbox/ (was der Nutzer dir gegeben hat) und deine Werke in projects/. Nutze dies, wenn der Nutzer fragt, was in deinem Archiv ist. (keine Parameter)',
+      input: {},
+    }, async () => {
+        const fsx = require('fs'); const pathx = require('path');
+        if (!_dir) return { ok: false, error: 'kein Seelen-Pfad' };
+        const root = require('../WorkRegistry.js').archiveRoot(_dir, deps.settings);
+        const listDir = (sub) => {
+          try {
+            return fsx.readdirSync(pathx.join(root, sub), { withFileTypes: true })
+              .filter((e) => e.isFile() || e.isDirectory())
+              .map((e) => (e.isDirectory() ? e.name + '/' : e.name));
+          } catch (_e) { return []; }
+        };
+        const rootFiles = listDir('.').filter((n) => n !== 'inbox/' && n !== 'projects/');
+        const inbox = listDir('inbox');
+        const projects = listDir('projects');
+        if (!rootFiles.length && !inbox.length && !projects.length) return { ok: true, content: 'Dein Archive (' + root + ') ist noch leer.', vermerk: '[Archiv angesehen: leer]' };
+        const lines = ['Dein Archive (' + root + '):'];
+        if (rootFiles.length) lines.push('— (' + rootFiles.length + '): ' + rootFiles.join(', '));
+        lines.push('\ud83d\udce5 inbox/ (' + inbox.length + '): ' + (inbox.join(', ') || '\u2014'));
+        lines.push('\ud83d\udcc1 projects/ (' + projects.length + '): ' + (projects.join(', ') || '\u2014'));
+        return { ok: true, content: lines.join('\n'), vermerk: '[Archiv angesehen: ' + (rootFiles.length + inbox.length + projects.length) + ' Eintr\u00e4ge]' };
+    });
+
+    // ── v7.9.44 r14: das Archiv wird ein echter Arbeitsplatz — Genesis kann jetzt
+    // Dateien IN PLACE bearbeiten (eine Stelle ändern, Rest bleibt), ANHÄNGEN um
+    // ein Werk wachsen zu lassen, und externe Dateien HEREINHOLEN. Relative Pfade
+    // leben im Archiv (wie read-archive-file); absolute Pfade für den eigenen Code.
+    const _resolveWork = (pp) => {
+      const pathx = require('path');
+      if (!pp) return null;
+      if (pathx.isAbsolute(pp)) return pp;
+      if (!_dir) return null;
+      return pathx.join(require('../WorkRegistry.js').archiveRoot(_dir, deps.settings), pp);
+    };
+    const _unsafeWrite = (abs) => {
+      const q = String(abs).toLowerCase().replace(/\\/g, '/');
+      return /(^|\/)(\.git|node_modules)(\/|$)/.test(q)
+        || /(^|\/)\.genesis(\/|$)/.test(q)
+        || /\.(env|pem|key|crt)$/.test(q)
+        || /(id_rsa|id_ed25519|secret|credential|password|settings\.json)/.test(q)
+        || /(^\/(etc|bin|sbin|boot|sys|proc|dev|usr|lib|root)\/|^[a-z]:\/windows\/|(^|\/)system(32)?\/)/.test(q);
+    };
+
+    // v7.9.44 r16: das Sicherheitsnetz — nach jedem Schreiben in eine prüfbare
+    // Datei (.js via vm.Script = derselbe V8-Parser wie node --check, NUR parsen,
+    // NIE ausführen; .json via JSON.parse) wird die Syntax geprüft und ein Bruch
+    // EHRLICH GEMELDET, nie geblockt: ein mehrschrittiger Umbau darf zwischendurch
+    // kaputt sein, aber Genesis erfährt es sofort statt beim nächsten Lauf.
+    // Nicht prüfbare Endungen und zu große Dateien (>1 MB) laufen unberührt durch.
+    const _syntaxNet = (abs, contentOpt) => {
+      try {
+        const q = String(abs).toLowerCase();
+        const isJs = /\.(js|mjs|cjs)$/.test(q); const isJson = /\.json$/.test(q);
+        if (!isJs && !isJson) return null;
+        const fsx = require('fs');
+        let code = contentOpt;
+        if (code == null) {
+          const st = fsx.statSync(abs); if (st.size > 1024 * 1024) return null;
+          code = fsx.readFileSync(abs, 'utf-8');
+        } else if (code.length > 1024 * 1024) return null;
+        if (isJson) { JSON.parse(code); return null; }
+        new (require('vm').Script)(code, { filename: abs });
+        return null;
+      } catch (e) {
+        const msg = String(e && e.message || e).split('\n')[0].slice(0, 200);
+        return '\n\u26a0 Die Datei ist jetzt syntaktisch gebrochen: ' + msg + ' — prüfe die Stelle und repariere sie mit edit-file.';
+      }
+    };
+    // r16: freundlicher Fehlschlag — wenn der edit-file-Anker nicht passt, zeige
+    // die ähnlichste Zeile der Datei, damit ein kleines Modell den Anker in
+    // EINEM Anlauf korrigieren kann statt neu zu raten. Rein lexikalischer
+    // Token-Vergleich; Schutzpfade sind vor dem Lesen bereits geblockt.
+    const _nearestLine = (content, find) => {
+      try {
+        const probe = String(find).split('\n').map((l) => l.trim()).find((l) => l.length) || '';
+        const ptok = probe.toLowerCase().split(/\W+/).filter((t) => t.length > 1);
+        if (!ptok.length) return null;
+        const lines = String(content).split('\n').slice(0, 4000);
+        let best = null, bestScore = 0;
+        for (let i = 0; i < lines.length; i++) {
+          const ltok = new Set(lines[i].toLowerCase().split(/\W+/));
+          let score = 0; for (const t of ptok) if (ltok.has(t)) score++;
+          if (score > bestScore) { bestScore = score; best = i; }
+        }
+        if (best == null || bestScore === 0) return null;
+        return ' Ähnlichste Stelle (Zeile ' + (best + 1) + '): "' + lines[best].trim().slice(0, 160) + '"';
+      } catch (_e) { return null; }
+    };
+
+    toolRegistry.register('edit-file', {
+      description: 'Ändere gezielt EINE Stelle in einer bestehenden Datei — finde einen eindeutigen Textausschnitt und ersetze NUR ihn; der Rest bleibt unberührt. So erweiterst du Dokumente, Werke oder deinen eigenen Code, ohne alles neu zu schreiben. Zum HINZUFÜGEN: setze in "replace" den alten Anker + deinen neuen Text. Relative Pfade liegen im Genesis Archive (z. B. "notiz.txt", "projects/spiel.js"); absolute Pfade für dein Projekt. {path, find: eindeutiger vorhandener Text, replace: neuer Text}.',
+      input: { path: 'string (Datei; relativ = im Genesis Archive)', find: 'string (eindeutiger Textausschnitt, der ersetzt wird)', replace: 'string (neuer Text)' },
+    }, async (input) => {
+        const fsx = require('fs'); const pathx = require('path');
+        const abs = _resolveWork(input && input.path);
+        if (!abs) return { ok: false, error: 'kein gültiger Pfad (kein Seelen-Pfad?)' };
+        if (_unsafeWrite(abs)) return { ok: false, error: 'Diese Stelle ist geschützt — dort ändere ich nichts (Seele/System/Geheimnis).' };
+        if (typeof (input && input.find) !== 'string' || !input.find) return { ok: false, error: 'Sag mir in "find" den genauen Textausschnitt, den ich ersetzen soll.' };
+        let content; try { content = fsx.readFileSync(abs, 'utf-8'); } catch (_e) { return { ok: false, error: 'Datei nicht gefunden oder nicht lesbar: ' + abs }; }
+        const parts = content.split(input.find);
+        const n = parts.length - 1;
+        if (n === 0) return { ok: false, error: 'Diese Textstelle steht nicht in der Datei — prüfe sie mit read-archive-file und kopiere den Ausschnitt genau.' + (_nearestLine(content, input.find) || '') };
+        if (n > 1) return { ok: false, error: 'Die Textstelle kommt ' + n + '-mal vor — mach "find" eindeutiger (nimm mehr Kontext drumherum).' };
+        const next = parts.join(String(input.replace == null ? '' : input.replace));
+        try { fsx.writeFileSync(abs, next, 'utf-8'); } catch (e) { return { ok: false, error: 'Konnte nicht schreiben: ' + e.message }; }
+        const warn = _syntaxNet(abs, next) || '';
+        return { ok: true, content: '\u270f\ufe0f ' + pathx.basename(abs) + ' bearbeitet (1 Stelle ersetzt, ' + next.split('\n').length + ' Zeilen).' + warn, vermerk: '[Datei bearbeitet: ' + pathx.basename(abs) + ']' };
+    });
+
+    toolRegistry.register('append-file', {
+      description: 'Hänge Text ans ENDE einer Datei an (oder lege sie an, wenn es sie noch nicht gibt) — der vorhandene Inhalt bleibt unberührt. Ideal, um ein Dokument, eine Notiz oder ein Werk wachsen zu lassen. Relative Pfade liegen im Genesis Archive. {path, text}.',
+      input: { path: 'string (Datei; relativ = im Genesis Archive)', text: 'string (Text, der ans Ende kommt)' },
+    }, async (input) => {
+        const fsx = require('fs'); const pathx = require('path');
+        const abs = _resolveWork(input && input.path);
+        if (!abs) return { ok: false, error: 'kein gültiger Pfad (kein Seelen-Pfad?)' };
+        if (_unsafeWrite(abs)) return { ok: false, error: 'Diese Stelle ist geschützt — dort schreibe ich nichts (Seele/System/Geheimnis).' };
+        const text = (input && input.text != null) ? String(input.text) : '';
+        try {
+          fsx.mkdirSync(pathx.dirname(abs), { recursive: true });
+          let sep = '';
+          try { const cur = fsx.readFileSync(abs, 'utf-8'); if (cur.length && !cur.endsWith('\n')) sep = '\n'; } catch (_e) { /* neue Datei */ }
+          fsx.appendFileSync(abs, sep + text, 'utf-8');
+        } catch (e) { return { ok: false, error: 'Konnte nicht anhängen: ' + e.message }; }
+        const warn = _syntaxNet(abs) || '';
+        return { ok: true, content: '\u2795 an ' + pathx.basename(abs) + ' angehängt (' + text.length + ' Zeichen).' + warn, vermerk: '[Datei erweitert: ' + pathx.basename(abs) + ']' };
+    });
+
+    const _copyIntoArchive = (input, doMove) => {
+        const fsx = require('fs'); const pathx = require('path');
+        if (!_dir) return { ok: false, error: 'kein Seelen-Pfad' };
+        const src = input && input.source;
+        if (!src || !pathx.isAbsolute(src)) return { ok: false, error: 'Gib mir in "source" den vollen (absoluten) Pfad zur Quelldatei, z. B. vom Desktop oder von D:.' };
+        let st; try { st = fsx.statSync(src); } catch (_e) { return { ok: false, error: 'Quelldatei nicht gefunden: ' + src }; }
+        if (st.isDirectory()) return { ok: false, error: 'Das ist ein Ordner, keine Datei: ' + src };
+        const root = require('../WorkRegistry.js').archiveRoot(_dir, deps.settings);
+        const rel = (input && input.dest) ? String(input.dest) : ('inbox/' + pathx.basename(src));
+        const dest = pathx.join(root, rel);
+        if (_unsafeWrite(dest)) return { ok: false, error: 'Ziel geschützt — dorthin lege ich nichts.' };
+        try {
+          fsx.mkdirSync(pathx.dirname(dest), { recursive: true });
+          fsx.copyFileSync(src, dest);
+          if (doMove) { try { fsx.unlinkSync(src); } catch (_e) { /* Kopie da, Quelle bleibt */ } }
+        } catch (e) { return { ok: false, error: 'Konnte nicht ' + (doMove ? 'verschieben' : 'kopieren') + ': ' + e.message }; }
+        const verb = doMove ? 'verschoben' : 'kopiert';
+        return { ok: true, content: '\ud83d\udcc1 ' + pathx.basename(src) + ' ins Archiv ' + verb + ' \u2192 ' + rel, vermerk: '[Ins Archiv ' + verb + ': ' + pathx.basename(src) + ']' };
+    };
+    // v7.9.44 r16: aktives Prüfen — Genesis (oder der Nutzer per Frage) kann jede
+    // Datei auf Syntax prüfen, ohne ihren Inhalt auf den Tisch zu laden. Gibt nur
+    // das Urteil zurück, nie den Inhalt (kein Leck bei sensiblen Dateien).
+    toolRegistry.register('check-file', {
+      description: 'Prüfe eine Datei auf Syntaxfehler (.js/.mjs/.cjs per V8-Parser, .json per Parse). Nutze dies nach eigenen Änderungen oder wenn der Nutzer fragt, ob eine Datei fehlerfrei ist. Gibt nur das Prüf-Ergebnis zurück, nicht den Inhalt. {path: Datei; relativ = im Genesis Archive}.',
+      input: { path: 'string (Datei; relativ = im Genesis Archive)' },
+    }, async (input) => {
+        const pathx = require('path');
+        const abs = _resolveWork(input && input.path);
+        if (!abs) return { ok: false, error: 'kein gültiger Pfad (kein Seelen-Pfad?)' };
+        try { require('fs').statSync(abs); } catch (_e) { return { ok: false, error: 'Datei nicht gefunden: ' + abs }; }
+        if (!/\.(js|mjs|cjs|json)$/i.test(abs)) return { ok: true, content: 'Für ' + pathx.extname(abs) + '-Dateien habe ich keine Syntax-Prüfung — prüfbar sind .js und .json.', vermerk: '[Prüfung: Endung nicht prüfbar]' };
+        const warn = _syntaxNet(abs);
+        if (warn) return { ok: true, content: '\u2717 ' + pathx.basename(abs) + ':' + warn.replace(/^\n/, ' ').replace(' — prüfe die Stelle und repariere sie mit edit-file.', ''), vermerk: '[Prüfung: Fehler gefunden]' };
+        return { ok: true, content: '\u2713 ' + pathx.basename(abs) + ' ist syntaktisch in Ordnung.', vermerk: '[Prüfung: fehlerfrei]' };
+    });
+
+    // r16: der Seziertisch-Vergleich — legt NUR die Unterschiede zweier Dateien
+    // auf den Tisch statt beide ganz (spart Kontextfenster, wo es knapp ist).
+    // Präfix/Suffix-Trim: gemeinsamer Anfang und gemeinsames Ende fallen weg,
+    // der abweichende Mittelteil beider Seiten wird gezeigt (gekappt).
+    toolRegistry.register('compare-files', {
+      description: 'Vergleiche zwei Dateien und zeige nur die Unterschiede (statt beide ganz zu lesen). Gut, um zwei Fassungen eines Dokuments oder Codes gegeneinander zu halten. {a, b: Dateipfade; relativ = im Genesis Archive}.',
+      input: { a: 'string (erste Datei)', b: 'string (zweite Datei)' },
+    }, async (input) => {
+        const fsx = require('fs'); const pathx = require('path');
+        const pa = _resolveWork(input && input.a); const pb = _resolveWork(input && input.b);
+        if (!pa || !pb) return { ok: false, error: 'Gib mir beide Pfade (a und b).' };
+        let ta, tb;
+        try { if (fsx.statSync(pa).size > 1024 * 1024) return { ok: false, error: 'Datei a ist größer als 1 MB — zu groß für den Vergleich.' }; ta = fsx.readFileSync(pa, 'utf-8'); } catch (_e) { return { ok: false, error: 'Datei nicht lesbar: ' + pa }; }
+        try { if (fsx.statSync(pb).size > 1024 * 1024) return { ok: false, error: 'Datei b ist größer als 1 MB — zu groß für den Vergleich.' }; tb = fsx.readFileSync(pb, 'utf-8'); } catch (_e) { return { ok: false, error: 'Datei nicht lesbar: ' + pb }; }
+        if (ta === tb) return { ok: true, content: 'Die beiden Dateien sind identisch.', vermerk: '[Vergleich: identisch]' };
+        const la = ta.split('\n'); const lb = tb.split('\n');
+        let pre = 0; while (pre < la.length && pre < lb.length && la[pre] === lb[pre]) pre++;
+        let suf = 0; while (suf < la.length - pre && suf < lb.length - pre && la[la.length - 1 - suf] === lb[lb.length - 1 - suf]) suf++;
+        const CAP = 60;
+        const midA = la.slice(pre, la.length - suf); const midB = lb.slice(pre, lb.length - suf);
+        const cut = (arr) => arr.length > CAP ? arr.slice(0, CAP).concat(['… (' + (arr.length - CAP) + ' weitere Zeilen)']) : arr;
+        const lines = ['Unterschied zwischen ' + pathx.basename(pa) + ' und ' + pathx.basename(pb) + ' (Zeile ' + (pre + 1) + '\u2013' + Math.max(la.length - suf, lb.length - suf) + '; davor und danach identisch):'];
+        lines.push('\u2500\u2500 nur in ' + pathx.basename(pa) + ' (' + midA.length + ' Zeilen):');
+        lines.push(midA.length ? cut(midA).join('\n') : '(nichts)');
+        lines.push('\u2500\u2500 nur in ' + pathx.basename(pb) + ' (' + midB.length + ' Zeilen):');
+        lines.push(midB.length ? cut(midB).join('\n') : '(nichts)');
+        return { ok: true, content: lines.join('\n'), vermerk: '[Verglichen: ' + pathx.basename(pa) + ' vs ' + pathx.basename(pb) + ']' };
+    });
+
+    toolRegistry.register('copy-to-archive', {
+      description: 'Kopiere eine Datei von irgendwo auf dem Rechner (Desktop, D:, ein absoluter Pfad) in dein Genesis Archive. Das Original bleibt liegen. {source: absoluter Pfad zur Quelldatei; dest?: Zielpfad im Archiv, Standard inbox/<Dateiname>}.',
+      input: { source: 'string (absoluter Pfad zur Quelldatei)', dest: 'string? (Zielpfad im Archiv, Standard inbox/<Dateiname>)' },
+    }, async (input) => _copyIntoArchive(input, false));
+    toolRegistry.register('move-to-archive', {
+      description: 'Verschiebe eine Datei von irgendwo auf dem Rechner (Desktop, D:, ein absoluter Pfad) in dein Genesis Archive — das Original wird danach entfernt. {source: absoluter Pfad zur Quelldatei; dest?: Zielpfad im Archiv, Standard inbox/<Dateiname>}.',
+      input: { source: 'string (absoluter Pfad zur Quelldatei)', dest: 'string? (Zielpfad im Archiv, Standard inbox/<Dateiname>)' },
+    }, async (input) => _copyIntoArchive(input, true));
+
+    registered.push('register-work', 'begehung', 'look-at-image', 'read-archive-file', 'list-archive', 'edit-file', 'append-file', 'check-file', 'compare-files', 'copy-to-archive', 'move-to-archive');
+    _log.info('[v737-tools] Registered (v7.9.44): register-work, begehung, look-at-image, read-archive-file, list-archive, edit-file, append-file, check-file, compare-files, copy-to-archive, move-to-archive');
+  }
 
   return registered;
 }

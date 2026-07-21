@@ -76,7 +76,7 @@ describe('v7.3.7 #9 — registerV737Tools', () => {
       coreMemories: {},
       episodicMemory: {},
     });
-    assert.strictEqual(result.length, 3);
+    assert.ok(result.length >= 3); // v7.9.44 follow-up: the house grew (register-work, begehung, look-at-image join the three core tools)
     assert.ok(reg._has('mark-moment'));
     assert.ok(reg._has('journal-write'));
     assert.ok(reg._has('release-protected-memory'));

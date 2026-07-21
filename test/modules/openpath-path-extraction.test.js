@@ -65,7 +65,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   // openPath actually tried to open. We don't need a real OS-call.
   // ──────────────────────────────────────────────────────────────
 
-  function makeMockCtx({ rootDir = '/home/garrus/Genesis' } = {}) {
+  function makeMockCtx({ rootDir = '/home/human/Genesis' } = {}) {
     const calls = [];
     return {
       shell: {
@@ -96,33 +96,33 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   stubExistence(true);
 
   await test('relative path .genesis/self-statements resolves against rootDir', async () => {
-    const ctx = makeMockCtx({ rootDir: '/home/garrus/Genesis' });
+    const ctx = makeMockCtx({ rootDir: '/home/human/Genesis' });
     await commandHandlersShell.openPath.call(ctx, 'zeig mir den inhalt von .genesis/self-statements/2026-05-02.jsonl');
     assertEqual(ctx._calls.length, 1, 'expected one shell.run call');
     const opened = extractedPath(ctx._calls[0]);
-    assertEqual(opened, path.resolve('/home/garrus/Genesis', '.genesis/self-statements/2026-05-02.jsonl'),
+    assertEqual(opened, path.resolve('/home/human/Genesis', '.genesis/self-statements/2026-05-02.jsonl'),
       'relative path must resolve against rootDir, not be treated as absolute');
   });
 
   await test('"./foo" resolves against rootDir', async () => {
-    const ctx = makeMockCtx({ rootDir: '/home/garrus/Genesis' });
+    const ctx = makeMockCtx({ rootDir: '/home/human/Genesis' });
     await commandHandlersShell.openPath.call(ctx, 'öffne ./foo/bar.txt');
     const opened = extractedPath(ctx._calls[0]);
-    assertEqual(opened, path.resolve('/home/garrus/Genesis', './foo/bar.txt'));
+    assertEqual(opened, path.resolve('/home/human/Genesis', './foo/bar.txt'));
   });
 
   await test('"../foo" resolves against rootDir', async () => {
-    const ctx = makeMockCtx({ rootDir: '/home/garrus/Genesis' });
+    const ctx = makeMockCtx({ rootDir: '/home/human/Genesis' });
     await commandHandlersShell.openPath.call(ctx, 'öffne ../foo/bar.txt');
     const opened = extractedPath(ctx._calls[0]);
-    assertEqual(opened, path.resolve('/home/garrus/Genesis', '../foo/bar.txt'));
+    assertEqual(opened, path.resolve('/home/human/Genesis', '../foo/bar.txt'));
   });
 
   await test('".genesis/foo" (dot-prefixed name) resolves against rootDir', async () => {
-    const ctx = makeMockCtx({ rootDir: '/home/garrus/Genesis' });
+    const ctx = makeMockCtx({ rootDir: '/home/human/Genesis' });
     await commandHandlersShell.openPath.call(ctx, 'open .genesis/foo');
     const opened = extractedPath(ctx._calls[0]);
-    assertEqual(opened, path.resolve('/home/garrus/Genesis', '.genesis/foo'));
+    assertEqual(opened, path.resolve('/home/human/Genesis', '.genesis/foo'));
   });
 
   // ──────────────────────────────────────────────────────────────
@@ -170,7 +170,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   });
 
   await test('Quoted path overrides any other heuristic', async () => {
-    const ctx = makeMockCtx({ rootDir: '/home/garrus/Genesis' });
+    const ctx = makeMockCtx({ rootDir: '/home/human/Genesis' });
     await commandHandlersShell.openPath.call(ctx, 'öffne "/some/quoted/path"');
     const opened = extractedPath(ctx._calls[0]);
     assertEqual(opened, '/some/quoted/path');
@@ -188,17 +188,17 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   // ──────────────────────────────────────────────────────────────
 
   await test('REGRESSION: ".genesis/x" must NOT degrade to "/x" via greedy unix-match', async () => {
-    const ctx = makeMockCtx({ rootDir: '/home/garrus/Genesis' });
+    const ctx = makeMockCtx({ rootDir: '/home/human/Genesis' });
     await commandHandlersShell.openPath.call(ctx, 'öffne .genesis/x');
     const opened = extractedPath(ctx._calls[0]);
     // Pre-fix this would have been '/x' (the bug). Post-fix must be the
     // resolved relative path.
-    assertEqual(opened, path.resolve('/home/garrus/Genesis', '.genesis/x'));
+    assertEqual(opened, path.resolve('/home/human/Genesis', '.genesis/x'));
     assert(opened !== '/x', 'must not slice the dot-prefix off');
   });
 
   await test('REGRESSION: "foo/bar" inside a sentence must not match as "/bar"', async () => {
-    const ctx = makeMockCtx({ rootDir: '/home/garrus/Genesis' });
+    const ctx = makeMockCtx({ rootDir: '/home/human/Genesis' });
     // "den inhalt von foo/bar" — no quotes, no leading slash, no dot.
     // Pre-fix would have matched "/bar" (greedy) — post-fix should fall
     // through to app-launch path or "Welchen Ordner..." prompt.
@@ -228,8 +228,8 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   stubExistence(false);
 
   await test('Non-existent path returns "Pfad existiert nicht" — no shell call', async () => {
-    const ctx = makeMockCtx({ rootDir: '/home/garrus/Genesis' });
-    // /home/garrus/Genesis/.genesis/foo definitiv nicht existent in CI/test
+    const ctx = makeMockCtx({ rootDir: '/home/human/Genesis' });
+    // /home/human/Genesis/.genesis/foo definitiv nicht existent in CI/test
     const result = await commandHandlersShell.openPath.call(ctx, 'öffne .genesis/foo');
     assertEqual(ctx._calls.length, 0, 'shell.run must NOT be called for non-existent paths');
     assert(result.startsWith('Pfad existiert nicht'),

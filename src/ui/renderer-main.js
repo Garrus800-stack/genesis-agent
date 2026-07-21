@@ -17,6 +17,7 @@ const { t, loadI18n } = require('./modules/i18n');
 const { addMessage, startStreamingMessage, appendToStream, finishStream, sendMessage, stopGeneration, getStreamingState, autoResize } = require('./modules/chat');
 const { initMonaco, setCurrentFile } = require('./modules/editor');
 const { updateStatus, refreshStatusI18n, showToast, showHealth, showSelfModel } = require('./modules/statusbar');
+const { setPendingAttachment, clearPendingAttachmentUI, attachFile, ensureArchive, attachButtonClick } = require('./modules/chat');
 const { loadFileTree } = require('./modules/filetree');
 const { openSettings, closeSettings, saveSettings, refreshSettingsI18n } = require('./modules/settings');
 const { showGoalTree, undoLastChange } = require('./modules/goal-management');
@@ -236,6 +237,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   chatInput.addEventListener('input', () => autoResize(chatInput));
 
   $('#btn-send').addEventListener('click', sendMessage);
+  // v7.9.44 r12: the ◈ button uses the ONE shared attach path (chat.attachFile). Drag & drop
+  // uses the exact same function, wired once in drag-drop.js — no second handler here, so a
+  // dropped file can never fire two systems at once.
+  // v7.9.44 r18 (the user's order, without the r17 regression): the FIRST click
+  // opens the folder pick alone (how else would the Archive be chosen?) and asks
+  // for one more click; every later click opens the file chooser synchronously
+  // inside the gesture — no await before .click(), so Chromium never blocks it.
+  $('#btn-attach').addEventListener('click', () => attachButtonClick());
+  $('#file-attach').addEventListener('change', (e) => { attachFile(e.target.files && e.target.files[0]); e.target.value = ''; });
+  $('#attach-chip-remove').addEventListener('click', () => { setPendingAttachment(null); clearPendingAttachmentUI(); });
   $('#btn-stop').addEventListener('click', stopGeneration);
   $('#btn-toggle-editor').addEventListener('click', () => window.togglePanel('editor-panel'));
   $('#btn-toggle-tree').addEventListener('click', () => { window.togglePanel('file-tree-panel'); loadFileTree(); });

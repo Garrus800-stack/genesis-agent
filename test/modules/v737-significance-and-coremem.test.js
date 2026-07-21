@@ -67,14 +67,14 @@ describe('v7.3.7 #6a — detectRelationalAnchors', () => {
     assert.ok(r.includes('johnny-reference'));
   });
 
-  it('detects garrus-trust from summary', () => {
+  it('detects human-trust from summary', () => {
     const r = detectRelationalAnchors({ summary: 'Alex gibt mir immer Raum, ich bin immer da' });
-    assert.ok(r.includes('garrus-trust'));
+    assert.ok(r.includes('human-trust'));
   });
 
-  it('detects garrus-vulnerability', () => {
+  it('detects human-vulnerability', () => {
     const r = detectRelationalAnchors({ text: 'Ich habe Angst, dass das nicht funktioniert' });
-    assert.ok(r.includes('garrus-vulnerability'));
+    assert.ok(r.includes('human-vulnerability'));
   });
 
   it('detects shared-build', () => {
@@ -99,7 +99,7 @@ describe('v7.3.7 #6a — detectRelationalAnchors', () => {
     };
     const r = detectRelationalAnchors(input);
     assert.ok(r.includes('johnny-reference'));
-    assert.ok(r.includes('garrus-trust'));
+    assert.ok(r.includes('human-trust'));
     assert.ok(r.includes('turning-point'));
     assert.strictEqual(r.length, 3);
   });
@@ -112,7 +112,7 @@ describe('v7.3.7 #6a — detectRelationalAnchors', () => {
       userMessages: [{ text: 'Ich bin traurig' }],
     });
     assert.ok(r.includes('johnny-reference'));
-    assert.ok(r.includes('garrus-vulnerability'));
+    assert.ok(r.includes('human-vulnerability'));
   });
 
   it('respects custom patterns (overrides defaults)', () => {
@@ -131,7 +131,7 @@ describe('v7.3.7 #6a — detectRelationalAnchors', () => {
     const keys = Object.keys(DEFAULT_ANCHOR_PATTERNS);
     assert.strictEqual(keys.length, 6);
     assert.ok(keys.includes('johnny-reference'));
-    assert.ok(keys.includes('garrus-trust'));
+    assert.ok(keys.includes('human-trust'));
   });
 
   it('handles bad regex in custom map without throwing', () => {

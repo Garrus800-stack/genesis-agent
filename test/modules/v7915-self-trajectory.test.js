@@ -80,7 +80,7 @@ async function commitEntry(st, suffix) {
   await st.generateDraft();
   for (const k of FIELD_NAMES) st.setDraftField(k, `${suffix}-${k}`);
   st.setDraftNote('genesis', `${suffix}-gn`);
-  st.setDraftNote('garrus', `${suffix}-hn`);
+  st.setDraftNote('human', `${suffix}-hn`);
   return st.commit();
 }
 
@@ -123,7 +123,7 @@ describe('v7.9.15 — schema & persistence', () => {
     assert(/^\d{4}-\d{2}-\d{2}\.cycle\.1$/.test(e.cycle_id), 'cycle_id format');
     assertEqual(e.event_count, null, 'event_count null (no engine yet)');
     assertEqual(e.first_entry, true, 'first entry flagged');
-    assertDeepEqual(e.author, ['genesis', 'garrus'], 'author both (garrus noted)');
+    assertDeepEqual(e.author, ['genesis', 'human'], 'author both (human noted)');
     assertEqual(st.readEntries().length, 1, 'one entry persisted');
     assertEqual(st.latestEntry().cycle_id, e.cycle_id, 'latestEntry matches');
     assertEqual(st.readEntry(e.cycle_id).fields.traits, 'x-traits', 'readEntry by id');
@@ -196,8 +196,8 @@ describe('v7.9.15 — draft lifecycle & commit guard', () => {
     assertDeepEqual([r.error, r.detail], ['first-entry-note', 'genesis_note'], 'needs genesis_note');
     st.setDraftNote('genesis', 'g');
     r = st.commit();
-    assertDeepEqual([r.error, r.detail], ['first-entry-note', 'garrus_note'], 'needs garrus_note');
-    st.setDraftNote('garrus', 'h');
+    assertDeepEqual([r.error, r.detail], ['first-entry-note', 'human_note'], 'needs human_note');
+    st.setDraftNote('human', 'h');
     assert(st.commit().ok, 'commits once both notes present');
   });
 
@@ -243,12 +243,12 @@ describe('v7.9.15 — handler routing & set parser', () => {
       'newlines + internal colon kept');
   });
 
-  test('note routing: genesis/garrus with colon in text', async () => {
+  test('note routing: genesis/human with colon in text', async () => {
     const { st } = freshST();
     const h = handlerFor(st);
     await h.trajectory('/trajectory new');
-    await h.trajectory('/trajectory new note garrus: a note: with a colon');
-    assertEqual(st.readDraft().garrus_note, 'a note: with a colon', 'garrus note kept verbatim');
+    await h.trajectory('/trajectory new note human: a note: with a colon');
+    assertEqual(st.readDraft().human_note, 'a note: with a colon', 'human note kept verbatim');
   });
 
   test('no-silent-regenerate over an existing draft', async () => {
@@ -321,7 +321,7 @@ describe('v7.9.15 — late_notes byte-stability', () => {
     const file = path.join(dir, JOURNAL_FILE);
 
     const before = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
-    const r = st.addLateNote(first.entry.cycle_id, 'garrus', 'a later thought');
+    const r = st.addLateNote(first.entry.cycle_id, 'human', 'a later thought');
     assert(r.ok, 'late note ok');
     const after = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
 
@@ -333,7 +333,7 @@ describe('v7.9.15 — late_notes byte-stability', () => {
   test('late note on a missing cycle_id is reported, not written', async () => {
     const { st } = freshST();
     await commitEntry(st, 'x');
-    const r = st.addLateNote('does-not-exist', 'garrus', 'x');
+    const r = st.addLateNote('does-not-exist', 'human', 'x');
     assertEqual(r.ok, false, 'rejected');
     assertEqual(r.error, 'cycle-not-found', 'reason given');
   });
@@ -348,7 +348,7 @@ describe('v7.9.15 — refuse token', () => {
     for (const k of FIELD_NAMES) st.setDraftField(k, 'v');
     st.setDraftField('value', REFUSE_TOKEN); // declined on purpose
     st.setDraftNote('genesis', 'g');
-    st.setDraftNote('garrus', 'h');
+    st.setDraftNote('human', 'h');
     const r = st.commit();
     assert(r.ok, 'refuse commits (not empty, not stub)');
     assertEqual(st.latestEntry().fields.value, REFUSE_TOKEN, 'refuse preserved in journal');

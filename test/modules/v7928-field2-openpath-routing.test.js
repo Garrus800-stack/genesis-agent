@@ -6,7 +6,7 @@
 // to the fuzzy/LLM fallback, which was slow and inconsistent:
 //   - "öffne firefox" bounced to the slash-only open-software intent ("/open").
 //   - "öffne google chrome" hit the LLM, routed to open-path, then hung.
-//   - "öffne in d: GMxBGxx" was mis-classified by the LLM as a file-search and
+//   - "öffne in d: <ordner>" was mis-classified by the LLM as a file-search and
 //     listed the project root instead of opening the folder on D:.
 //   - "öffne auf dem desktop Batocera" only worked name-before-location.
 //
@@ -30,7 +30,7 @@ for (const m of ['öffne firefox', 'öffne chrome', 'öffne google chrome',
 }
 
 // (D) drive-scoped opens → open-path
-for (const m of ['öffne in d: GMxBGxx', 'öffne auf d den ordner GMxBGxx',
+for (const m of ['öffne in d: <ordner>', 'öffne auf d den ordner <ordner>',
                  'öffne d:', 'öffne in c projekte']) {
   eq('drive: ' + m, r.classify(m).type, 'open-path');
 }

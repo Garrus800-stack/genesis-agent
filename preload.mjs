@@ -12,6 +12,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 const ALLOWED_INVOKE = [
+  'archive:ensure',
+  'archive:drop-file',
   'agent:chat',
   'agent:chat:stop',
   'agent:get-self-model',
@@ -24,7 +26,6 @@ const ALLOWED_INVOKE = [
   'agent:switch-model',
   'agent:list-models',
   'agent:clone',
-  'agent:import-file',
   'agent:file-info',
   'agent:execute-file',
   'agent:read-external-file',

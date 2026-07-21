@@ -16,11 +16,11 @@ const src = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 describe('v7943 W1 — the guard on model text', () => {
   test('the exact field line is stripped and flagged when nothing ran', () => {
-    const fieldLine = 'Danke, Daniel.\n\n\u26ed tool: resonance-note() \u2192 ok';
+    const fieldLine = 'Danke, the user.\n\n\u26ed tool: resonance-note() \u2192 ok';
     const out = sanitizeModelToolLines(fieldLine, new Set());
     assert(!out.includes('\u26ed tool:'), 'glyph line gone');
     assert(out.includes('nicht ausgef\u00fchrt: resonance-note'), 'visible marker names the tool');
-    assert(out.startsWith('Danke, Daniel.'), 'the honest prose stays');
+    assert(out.startsWith('Danke, the user.'), 'the honest prose stays');
   });
   test('real-run lines are removed silently — the :229 trace is the only trace', () => {
     const out = sanitizeModelToolLines('Text\n\u26ed tool: journal-write() \u2192 ok', new Set(['journal-write']));
