@@ -56,10 +56,10 @@ test('changelog-split contract: CHANGELOG.md contains exactly one version header
 test('changelog-split contract: per-major archives exist', () => {
   // v7.9.0: older archives (v5, v6, pre-v5) moved to docs/ for tidier root.
   // CHANGELOG-v7.md stays at root since v7 is the current active major.
-  const rootArchives = ['CHANGELOG-v7.md'];
-  const docsArchives = ['CHANGELOG-v6.md', 'CHANGELOG-v5.md', 'CHANGELOG-archive.md'];
+  const rootArchives = []; // v7.9.45: v7 joined its siblings in docs/
+  const docsArchives = ['CHANGELOG-v7.md', 'CHANGELOG-v6.md', 'CHANGELOG-v5.md', 'CHANGELOG-archive.md'];
   for (const f of rootArchives) {
-    assert.ok(fs.existsSync(path.join(ROOT, f)), `${f} must exist at root`);
+    assert.ok(fs.existsSync(path.join(ROOT, f)), `${f} must exist in docs/ (moved v7.9.45)`);
   }
   for (const f of docsArchives) {
     assert.ok(fs.existsSync(path.join(ROOT, 'docs', f)), `docs/${f} must exist after move`);
@@ -69,7 +69,7 @@ test('changelog-split contract: per-major archives exist', () => {
 test('changelog-split contract: CHANGELOG.md indexes the archive files', () => {
   // v7.9.0: docs/-archives still need to be linked from CHANGELOG.md.
   const indexedTargets = [
-    'CHANGELOG-v7.md',
+    'docs/CHANGELOG-v7.md',
     'docs/CHANGELOG-v6.md',
     'docs/CHANGELOG-v5.md',
     'docs/CHANGELOG-archive.md',
@@ -82,7 +82,7 @@ test('changelog-split contract: CHANGELOG.md indexes the archive files', () => {
 
 test('changelog-split contract: no duplicate version headers within any single archive', () => {
   const archivePaths = [
-    'CHANGELOG-v7.md',
+    'docs/CHANGELOG-v7.md',
     'docs/CHANGELOG-v6.md',
     'docs/CHANGELOG-v5.md',
     'docs/CHANGELOG-archive.md',
@@ -98,7 +98,7 @@ test('changelog-split contract: no duplicate version headers within any single a
 });
 
 test('changelog-split contract: archive entries land in the right major file', () => {
-  const v7 = fs.readFileSync(path.join(ROOT, 'CHANGELOG-v7.md'), 'utf-8');
+  const v7 = fs.readFileSync(path.join(ROOT, 'docs', 'CHANGELOG-v7.md'), 'utf-8');
   const v6 = fs.readFileSync(path.join(ROOT, 'docs', 'CHANGELOG-v6.md'), 'utf-8');
   // v7 archive must only contain v7.x.x headers
   const v7headers = v7.match(/^## \[(\d+)\./gm) || [];

@@ -364,6 +364,14 @@ If you're at AUTONOMOUS and want approval prompts on high-sim-risk steps regardl
 
 ---
 
+## npm script flags (EUNKNOWNCONFIG)
+
+`npm run audit:doc-drift --strict` hands `--strict` to **npm itself** — newer
+npm errors with `EUNKNOWNCONFIG`, older npm silently drops the flag (the
+script then runs without it). Use the dedicated scripts
+(`npm run audit:doc-drift:strict`) or put flags after the separator:
+`npm run audit:doc-drift -- --strict`.
+
 ## Test Suite Performance
 
 ### `npm test` walltime appears unreasonably long (pre-v7.9.10)

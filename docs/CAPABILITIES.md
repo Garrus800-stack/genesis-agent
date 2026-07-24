@@ -4,7 +4,8 @@
 
 ## Scale
 
-- 432 source modules across 12 boot phases
+- **The cognitive laboratory** (v7.9.45) — `lab-status` / `lab-run`: throwaway offline Docker rooms for risky or foreign code, opt-in by the word "Labor"/"lab" in any of the four locales; images freed via `lab.images`, results fetched only through `copy-to-archive`.
+- 438 source modules across 12 boot phases
 - 185 DI services (172 manifest + 13 bootstrap)
 - 9122 tests on Windows / 9096 on Linux (passing; the 4 UI suites need the Win toolchain)
 - 498 events with 498 payload schemas (full parity)
@@ -264,7 +265,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **644 test files** | 9122 tests (Win baseline, v7.9.37), coverage gates: 80% lines, 76% branches, 78% functions |
+| **650 test files** | 9122 tests (Win baseline, v7.9.37), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |
@@ -475,3 +476,23 @@ Network resilience, intelligence pipeline validation, and codebase consolidation
 | **ChangeRegister** | A passive Phase-9 observer that writes one append-only line per change event into `.genesis/change-register.jsonl` — never pruned, never read on the runtime path. Six sources: both knowledge-graph prune paths (cap eviction and the previously silent stale sweep, tagged by cause), schema pruning, two memory releases, and episode consolidation — each carrying up to twenty identities or a label so a line stays readable after the memory behind it decays. |
 | **Fitness listening post** | The register is the first listener `fitness:evaluated` has ever had: pure record with a derived baseline field (`self` / `peer`), no reaction, no threshold. Long silences are expected — the evaluator is milestone-driven. |
 | **CLI: /changes [n]** | Human-readable tail of the register, grouped by kind (default 20, max 100), with an honest answer on an empty journal. |
+
+## Examples — spoken, no commands
+
+**If Obsidian is where your thinking lives**, Genesis joins your vault as a careful guest. You have already picked a folder as your vault in Obsidian — now hand the same folder to Genesis in one sentence; no JSON, no restart:
+
+- "My vault lives in D:\\Notes" (or "here is my vault: /home/me/notes") → path checked, stored, live immediately.
+- "Look in my vault: what is my favourite color?" → he finds the matching note, answers from its real lines and names the file and full path — never from chat memory.
+- "Look in my vault and tell me a color" → the same road without the colon.
+- "Create a first note in your Genesis corner and link my color note" → he asks for a name and remembers target and link; your answer ("call it ideas") lands as `ideas.md` containing `Verweis: [[Color]]` — notes in his corner are born `.md`, so Obsidian indexes them and the node appears in your graph with an edge to Color.
+- "Change blue to green in my note color" → the note is edited in place; the reply gives the count and the real path.
+
+The boundary stays visible: Genesis writes only inside his own `Genesis/` corner of your vault and touches your notes only on your direct ask.
+
+**If Docker Desktop is part of your day**, the lab will feel familiar: one throwaway container per run, gone afterwards, nothing shared. Have Docker Desktop running and free the blueprints once in settings (`lab.images`; default: a Node and a Python room). A missing blueprint is answered with the exact `docker pull` line — Genesis never downloads images on his own:
+
+- "Run this in the lab: print(21*2)" → a fresh offline room, the reply shows the output (42), the exit code and the lab folder kept under `%TEMP%\genesis-lab-*`.
+- "Write a small script that checks whether 97 is prime, and try it in the lab." → he writes it, then proves it in the room.
+- "Look into the lab" → status only: Docker reachable, which rooms exist, which blueprints are freed — never an uninvited run.
+- The room has no network (`--network none`): a fetch attempt ends in `EAI_AGAIN`, which is the room doing its job.
+- Everyday "run this code" stays in the normal sandbox — the lab only wakes on the word "lab"/"Labor".

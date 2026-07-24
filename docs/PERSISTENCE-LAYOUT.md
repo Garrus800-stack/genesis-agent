@@ -25,6 +25,9 @@ of **this specific installation**:
 - `change-register.jsonl` — the change witness (v7.9.33): one append-only line per loss or change across six sources (both KG prune paths, schema prune, two memory releases, consolidation) plus every fitness evaluation. **Never pruned, never rotated** — this file is deliberately permanent; readable via `/changes`
 - `continuity-anchor.json` — the pre-wake continuity anchor (v7.9.34): one object, overwritten at each clean shutdown inside the awaited session-ending emit — snapshot plus the last first-person thought; read by the WakeUpRoutine as its fourth context source, journal-only
 - `flight-recorder.log` — crash/error ring buffer (renamed from `crash.log` in v7.9.32, migrated automatically); inspect via `/crashlog`
+- `resonance.jsonl` — anchored resonance moments; written ONLY by a real `resonance-note` tool run (v7.9.43) — the single way to truly anchor one
+- `resonance-candidates.jsonl` — the Nachklang candidate ledger (v7.9.43): heuristic/dream suggestions awaiting his confirmation; decays by his measures (3 days, max 5 open, 3rd unanswered offer), each decay leaving a short journal note
+- `correction-candidates.jsonl` — the correction ledger (v7.9.45): the partner's corrections as candidates; only a real `accept-lesson` run turns one into a lesson, same decay measures
 - and more (genome, metabolism, settings overrides, etc.)
 
 This directory **is** the identity of a Genesis instance. Two

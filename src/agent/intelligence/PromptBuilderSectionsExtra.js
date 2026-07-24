@@ -202,6 +202,15 @@ const sectionsExtra = {
     } catch (_e) { return null; }
   },
 
+  _correctionOfferBlock() { // v7.9.45 K: the partner's correction as a candidate — his sovereignty
+    try {
+      const dir = this._genesisDir || (this._idleMind && this._idleMind.storageDir);
+      if (!dir) return null;
+      const offer = this._pickCorrectionOffer ? this._pickCorrectionOffer(dir) : null; // wired by BootWire (phase-clean)
+      return offer ? offer.block : null;
+    } catch (_e) { return null; }
+  },
+
   _selfClockLine() {
     try {
       const seg = [];
@@ -233,7 +242,7 @@ const sectionsExtra = {
       // v7.9.40 (B1/V4): the self clock is the FIRST verified fact.
       const clock = this._selfClockLine();
       if (clock) parts.push(clock);
-      { const _al = this._selfConsistencyLine(); if (_al) parts.push(_al); } { const _th = this._openThreadsBlock(); if (_th) parts.push(_th); } { const _of = this._resonanceOfferBlock(); if (_of) parts.push(_of); } // v7.9.43 W2+W3 · v7.9.44 F1: threads first, then at most one card
+      { const _al = this._selfConsistencyLine(); if (_al) parts.push(_al); } { const _th = this._openThreadsBlock(); if (_th) parts.push(_th); } { const _of = this._resonanceOfferBlock(); if (_of) parts.push(_of); } { const _ko = this._correctionOfferBlock(); if (_ko) parts.push(_ko); } // v7.9.43 W2+W3 · v7.9.44 F1: threads first, then at most one card
 
       // SelfModel: module counts, version, capabilities
       const manifest = this.selfModel?.manifest;

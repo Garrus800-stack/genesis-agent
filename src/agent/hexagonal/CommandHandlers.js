@@ -42,6 +42,9 @@ const { commandHandlersCleanup } = require('./CommandHandlersCleanup');   // v7.
 const { commandHandlersTrajectory } = require('./CommandHandlersTrajectory'); // v7.9.15
 const { commandHandlersProposals } = require('./CommandHandlersProposals'); // v7.9.20
 const { commandHandlersFileView } = require('./CommandHandlersFileView'); // v7.9.28 field-fix #3
+const { commandHandlersLab } = require('./CommandHandlersLab');            // v7.9.45 field
+const { commandHandlersVault } = require('./CommandHandlersVault');        // v7.9.45 field
+const { commandHandlersCreate } = require('./CommandHandlersCreate');      // v7.9.45 field
 
 class CommandHandlers {
   constructor({ bus, lang, sandbox, fileProcessor, network, daemon, idleMind, analyzer, goalStack, settings, webFetcher, shellAgent, mcpClient, coreMemories, genesisDir, skillEffectivenessTracker}) {
@@ -106,8 +109,16 @@ class CommandHandlers {
     orchestrator.registerHandler('open-path', (msg) => this.openPath(msg));
     orchestrator.registerHandler('file-search-local', (msg) => this.scopedSearch(msg));
     orchestrator.registerHandler('list-folder', (msg) => this.listFolder(msg));   // v7.9.28 field-fix #3
-    orchestrator.registerHandler('read-file', (msg) => this.readFile(msg));       // v7.9.28 field-fix #3
+    orchestrator.registerHandler('lab-run', (msg) => this.labRun(msg, orchestrator));
+    orchestrator.registerHandler('vault-set', (msg) => this.vaultSet(msg)); // v7.9.45 field: no more JSON by hand // v7.9.45 field: explicit lab sentences go straight to the real room
+    orchestrator.registerHandler('read-file', (msg) => this.readFile(msg, orchestrator)); // v7.9.28 field-fix #3 · v7.9.45: orchestrator rides along so the Archive hand (PDF sense) can serve reads
     orchestrator.registerHandler('create-file', (msg) => this.createFile(msg));   // v7.9.28 field-fix #3
+    orchestrator.registerHandler('edit-file', (msg) => this.changeInFile(msg));   // v7.9.45 field: spoken edit, vault-aware
+    orchestrator.registerHandler('where-is', () => this.whereIs());               // v7.9.45 field: places map
+    orchestrator.registerHandler('vault-lookup', (msg) => this.vaultLookup(msg)); // v7.9.45 field: read-then-answer
+    // v7.9.45 field: the pending probe — lets the orchestrator route a short
+    // answer straight back to the asking hand instead of the model.
+    orchestrator._pendingProbe = () => { const p = this._pendingFileRequest; return (p && p.kind === 'create' && Date.now() - p.ts < 5 * 60 * 1000) ? 'create-file' : null; };
     orchestrator.registerHandler('summarize-file', (msg) => this.summarizeFile(msg)); // v7.9.28 field-fix #3
     orchestrator.registerHandler('write-file', (msg) => this.writeFile(msg));      // v7.9.28 field-fix #3
     // v7.3.2: Core Memory controls
@@ -271,6 +282,9 @@ Object.assign(
   , commandHandlersTrajectory // v7.9.15
   , commandHandlersProposals // v7.9.20
   , commandHandlersFileView // v7.9.28 field-fix #3
+  , commandHandlersLab // v7.9.45 field: explicit-lab road
+  , commandHandlersVault // v7.9.45 field: spoken vault handshake
+  , commandHandlersCreate // v7.9.45 field: creation hand with vault corner
 );
 
 module.exports = { CommandHandlers };

@@ -187,12 +187,45 @@ const sections = {
     lines.push([
       'YOUR ARCHIVE is your workspace — inbox/ for files the user hands you, projects/ for your works, plus files you create.',
       'When the user attaches a file, its path appears in his message (e.g. "inbox/notiz.txt").',
-      'SEE it with list-archive. READ a text/code/data file with read-archive-file; an image with look-at-image. Paths are archive-relative.',
+      'SEE it with list-archive. READ a text/code/data/PDF file with read-archive-file; an image with look-at-image. Paths are archive-relative.',
       'CREATE: files you make land in the Archive by default (your ordered home, not the project) unless you are told elsewhere.',
       'GROW a file without rewriting the whole thing: append-file adds to the end, edit-file replaces ONE exact spot. Use these for documents, your works, and your own code. After a write into a .js/.json file the tool itself checks the syntax and tells you honestly if the file is now broken — read that and repair it.',
       'CHECK a file anytime with check-file (syntax verdict only, .js/.json). COMPARE two versions with compare-files — it lays only the differences on your table, not both files whole.',
       'BRING IN a file from the Desktop, D:, or anywhere with copy-to-archive / move-to-archive.',
       'Don\'t use file-read or shell listing for the Archive — those are scoped to the project, not the Archive.',
+    ].join('\n'));
+    // v7.9.45 field: the PLACES MAP — three fixed terms, never to be confused,
+    // the same answer from every model.
+    lines.push([
+      'YOUR PLACES — three distinct terms, never mix them up:',
+      '1. YOUR WORKSPACE = the Genesis Archive. Where you create and keep working files.',
+      '2. YOUR HOME (and backup) = your program folder. Your body and soul live here; you never work here.',
+      '3. THE PARTNER\'S VAULT = HIS place (details below). Not your workspace, not your archive.',
+    ].join('\n'));
+    // v7.9.45 Z — the two-memories bridge: only spoken when a vault is configured.
+    const _vaultPath = this._settings?.get?.('vault.path');
+    if (_vaultPath && String(_vaultPath).trim()) {
+      lines.push([
+        'THE PARTNER\'S VAULT (his Obsidian notes; he may call it anything) at "' + String(_vaultPath).trim() + '" — his second memory beside your Archive (linked Obsidian notes).',
+        'READ anywhere in it (absolute paths) when it helps a task. WRITE only inside its Genesis/ folder — your own corner there; his notes are additive-protected, never yours to change unless he explicitly asks you in the moment.',
+        'From your notes, link his with [[wikilinks]]. Two memories with one shared edge — a give and take, no merging.',
+        'On your first visit, walk it briefly and leave a short first note in Genesis/.',
+      ].join('\n'));
+    } else {
+      // v7.9.45 field: no configured vault must never become a guess — the
+      // Archive is NOT the vault, and honesty beats improvisation.
+      lines.push([
+        'THE PARTNER\'S VAULT: no location configured yet. If he asks about his vault or notes: say honestly that you do not know where it lives and ask him to name the folder (he can just tell you the path in chat).',
+        'NEVER present the Genesis Archive as his vault \u2014 they are two different places.',
+      ].join('\n'));
+    }
+    // v7.9.45 L: the laboratory — spoken always; the tools answer honestly
+    // when this machine has no Docker.
+    lines.push([
+      'THE LAB — a throwaway proving room (Docker), when this machine has one: lab-status to look, lab-run to try code.',
+      'Your everyday work stays in your everyday sandbox exactly as before — the lab is OPT-IN: use lab-run only when the partner names the lab, or when code is risky, foreign or destructive enough to deserve the sealed room.',
+      'One-way for data: no network in there, nothing of your soul, vault or project is ever mounted; results stay in the lab folder until YOU fetch them with copy-to-archive.',
+      'Before anything moves from lab into the house, his three: stable over cycles · a real use you can name · integration understood.',
     ].join('\n'));
     lines.push('Focus on answering the user\'s question directly. Never list your internal modules, capabilities, or architecture unless explicitly asked.');
     const defaultText = lines.join('\n');

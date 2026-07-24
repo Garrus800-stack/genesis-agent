@@ -9,6 +9,18 @@
 | 7.5.x  | ❌ Unsupported |
 | < 7.5  | ❌ Unsupported |
 
+## The laboratory one-way street (v7.9.45)
+
+Risky or foreign code can run in the cognitive laboratory — a throwaway
+Docker container with a hard one-way design: `--network none` (the room is
+offline), exactly one mount of a fresh empty work folder (never `.genesis`,
+never the partner's vault, never project or system paths), removed after
+every run. Genesis never pulls images: the human frees room blueprints via
+`lab.images` in settings, and a missing image is answered with the one
+`docker pull` command instead of a download. Results leave the lab only
+through an explicit `copy-to-archive`. A controlled network stage for the
+lab would be conceivable; it is not planned.
+
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in Genesis, **please do not open a public issue.**
@@ -27,7 +39,7 @@ Genesis is a self-modifying AI agent, which makes its security model uniquely im
 `main.js`, `preload.js`, `preload.mjs`, and `src/kernel/` are SHA-256 hash-locked at boot. The agent **cannot modify, delete, or replace** these files. `SafeGuard.lockKernel()` enforces this at every write operation.
 
 ### Layer 2: Hash-Locked Critical Files
-Sixteen agent files are hash-locked via `SafeGuard.lockCritical()` (expanded in v7.0.8, v7.1.3, v7.2.1):
+Forty-three files are hash-locked via `SafeGuard.lockCritical()` — twenty-one agent source files (expanded v7.0.8 → v7.9.6) plus the twenty-two CI gate and validator scripts (v7.9.6), the only mechanical defense against silent gate-weakening:
 - `CodeSafetyScanner.js` — AST-based code analysis
 - `VerificationEngine.js` — programmatic result verification
 - `Constants.js` — system limits and thresholds

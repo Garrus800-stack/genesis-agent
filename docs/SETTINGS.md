@@ -286,6 +286,29 @@ default sits beside the releases — `../../Genesis Archive` relative to
 separate thing to copy when moving machines — see
 [PERSISTENCE-LAYOUT.md](./PERSISTENCE-LAYOUT.md).
 
+
+## vault bridge (`vault.path`)
+
+The partner's vault — an Obsidian vault of linked notes — can be
+made known to Genesis in two ways (v7.9.45). The spoken way: just tell
+him in chat — *"my vault lives in D:\\Notes"* or *"here is my vault:
+/home/me/notes"* — the same sentence works in all four locales ("mein/dein
+… liegt in …"), the folder is checked, stored, and live without a
+restart. The JSON way: set `vault.path` in `settings.json`, nested as
+`{ "vault": { "path": "..." } }` via the JSON Editor. When set, his self-knowledge
+names the location, reading is free anywhere in the vault, and his
+writing hands work ONLY inside its `Genesis/` folder — the partner's
+notes are additive-protected. Remove the key and the bridge is silent
+again; nothing else changes.
+
+## Laboratory rooms (`lab.images`)
+
+The lab (v7.9.45) may only build rooms from images the human has freed:
+`{ "lab": { "images": ["node:alpine", "python:3-alpine"] } }` — that pair
+is the built-in default, so the key is optional. Add any image name to the
+list to free it (a Rust room, a self-built one); Genesis chooses only from
+this list and never pulls — a missing image is answered with the exact
+`docker pull` command for the human to run once.
 ---
 
 ## Troubleshooting

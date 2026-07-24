@@ -90,10 +90,9 @@ class ChatOrchestrator {
   }
 
   async handleChat(message) {
-    this.history.push({ role: 'user', content: message });
+    this.history.push({ role: 'user', content: message }); this._observeCorrection && this._observeCorrection(this, message); // v7.9.45 K
     this._trimHistory();
     this.lang.detect(message);
-    // FIX v3.5.0: Non-critical telemetry events use fire() (non-blocking)
     this.bus.fire('user:message', { length: message.length }, { source: 'ChatOrchestrator' });
 
     // v6.0.4: Cognitive budget + provenance (same as handleStream)
@@ -116,7 +115,8 @@ class ChatOrchestrator {
 
       let response;
       // v7.5.9 ZIP7: route slash-discipline rewrites to slash-hint handler.
-      const handlerKey = (intent._wasSlashOnlyRewrite && this.handlers.has('slash-hint')) ? 'slash-hint' : intent.type;
+      const _pk = (this._pendingProbe && (intent.type === 'general' || (intent.confidence || 0) < 0.6)) ? this._pendingProbe() : null; // v7.9.45 field: a fresh pending file-question catches only what the router itself cannot place — real commands („lies x22“) keep their road
+      const handlerKey = (_pk && this.handlers.has(_pk)) ? _pk : ((intent._wasSlashOnlyRewrite && this.handlers.has('slash-hint')) ? 'slash-hint' : intent.type);
       const handler = this.handlers.get(handlerKey);
 
       // v7.8.3 follow-up (F8): vague-reference detection lifted ABOVE
@@ -130,7 +130,6 @@ class ChatOrchestrator {
         response = await handler(message, { history: this.history, intent, vagueSignal });
       }
       // v7.1.9: handler missing or null → general-chat fallback.
-      // v7.8.3: setter cluster collapsed into one block so paths agree.
       if (!response) {
         if (this.promptBuilder.setQuery) this.promptBuilder.setQuery(message);
         if (this.promptBuilder.setIntent) this.promptBuilder.setIntent(intent.type);
@@ -217,7 +216,7 @@ class ChatOrchestrator {
   }
 
   async handleStream(message, onChunk, onDone) {
-    this.history.push({ role: 'user', content: message });
+    this.history.push({ role: 'user', content: message }); this._observeCorrection && this._observeCorrection(this, message); // v7.9.45 K
     this._trimHistory();
     this.abortController = new AbortController();
     this.lang.detect(message);
@@ -246,7 +245,8 @@ class ChatOrchestrator {
 
       // Check for registered handler (non-streaming path)
       // v7.5.9 ZIP7: route to slash-hint if guard rewrote intent.
-      const handlerKey = (intent._wasSlashOnlyRewrite && this.handlers.has('slash-hint')) ? 'slash-hint' : intent.type;
+      const _pk = (this._pendingProbe && (intent.type === 'general' || (intent.confidence || 0) < 0.6)) ? this._pendingProbe() : null; // v7.9.45 field: a fresh pending file-question catches only what the router itself cannot place — real commands („lies x22“) keep their road
+      const handlerKey = (_pk && this.handlers.has(_pk)) ? _pk : ((intent._wasSlashOnlyRewrite && this.handlers.has('slash-hint')) ? 'slash-hint' : intent.type);
       const handler = this.handlers.get(handlerKey);
       if (handler) {
         let response = await handler(message, { history: this.history, intent });

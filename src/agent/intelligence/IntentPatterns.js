@@ -1,6 +1,5 @@
 // ============================================================
 // GENESIS — IntentPatterns.js (v7.4.3 "Aufräumen II")
-//
 // Pure data module — extracted from IntentRouter.js as part of
 // the v7.4.3 cleanup pass. Holds:
 //
@@ -25,7 +24,6 @@
 
 const { allCommandNames } = require('./slash-commands');
 
-// v7.3.6 — post-classification guard. The 13 slash-commands registered in
 // slash-commands.js must NEVER be returned from classifyAsync() unless the
 // user's message contains an actual '/'. The sync regex patterns in
 // INTENT_DEFINITIONS already enforce this, but classifyAsync() has two
@@ -45,7 +43,6 @@ const { allCommandNames } = require('./slash-commands');
 // model changes, or learned false-positives.
 const SLASH_ONLY_INTENTS = new Set(allCommandNames());
 
-// v7.7.9 Phase 2: Slash-commands that are *harmless* — they only read
 // state (proactive-status) or set a user-visible mute (quiet). When the
 // LLM/Local-classifier mis-classifies normal chat as one of these, the
 // correct response is NOT a "this is slash-only" hint — that hint shows
@@ -63,7 +60,6 @@ const SAFE_SLASH_FALLTHROUGH = new Set([
   'proactive-status',
 ]);
 
-// v7.5.1 (H-fix): Security-relevant intents that — though not registered as
 // canonical slash-commands — must REQUIRE an explicit slash trigger to fire.
 // Before v7.5.1 their classifier patterns could match conversational free
 // text ("lass uns das Database-Skill nutzen" → run-skill, "was ist mit
@@ -93,7 +89,6 @@ function enforceSlashDiscipline(result, message) {
   if (!result) return result;
   const isSlashOnly = SLASH_ONLY_INTENTS.has(result.type) || SECURITY_REQUIRED_SLASH.has(result.type);
   if (!isSlashOnly) return result;
-  // v7.5.8: A literal `/` anywhere in the message is too permissive — a
   // 6-point reflection list that happened to contain a date "03/05" or a
   // markdown link slipped past, the LLM-classifier returned 'self-modify',
   // and an 18-item code-improvement plan was generated from a personal
@@ -110,7 +105,6 @@ function enforceSlashDiscipline(result, message) {
   // via run-skill would now never route there. A genuine command still
   // starts the message ("/run-skill x", "  /shell-task dir").
   if (typeof message === 'string' && /^\s*\/[a-z][\w-]*\b/i.test(message)) return result;
-  // v7.5.9 B1: narrow exception for execute-code — a message starting with
   // a fenced code block (```...```) is a documented alternate trigger
   // (user pasted runnable code, explicit content). This is intentionally
   // NOT extended to free-text imperatives like "fuehr aus den code"
@@ -119,7 +113,6 @@ function enforceSlashDiscipline(result, message) {
   if (result.type === 'execute-code' && typeof message === 'string' && /^```/.test(message)) {
     return result;
   }
-  // v7.7.9 Phase 2: SAFE_SLASH_FALLTHROUGH — for harmless commands
   // (quiet, proactive-status) the slash-hint is more confusing than
   // helpful when it fires on a false-positive ("na, läuft alles?" was
   // hitting "proactive-status"). Silently fall through to general so
@@ -132,7 +125,6 @@ function enforceSlashDiscipline(result, message) {
       match: 'safe-slash-fallthrough',
     };
   }
-  // v7.5.9 ZIP7: Mark the result with metadata so ChatOrchestrator can
   // route to the slash-hint handler instead of falling through to the
   // LLM (which used to confabulate refusals like "Ich kann keine
   // Software installieren" — wrong AND frustrating). Type stays
@@ -223,6 +215,18 @@ const INTENT_DEFINITIONS = [
     /^(?:run|execute|use)\s+(?:the\s+)?[a-z][\w-]+$/i,
   ], 16, ['skill', 'ausfuehren', 'nutzen', 'verwenden', 'starten']],
 
+  ['vault-set', [ // v7.9.45 field: spoken vault handshake, four locales
+    /\b(?:mein|der|dein)\s+(?:obsidian[-\s]?)?(?:vault|notiz[-\s]?ordner)\s+(?:liegt|ist|befindet\s+sich)\s+(?:in|unter|auf|bei)\b|\bvault[-\s]?pfad\s+ist\b|\bhier\s+ist\s+mein\s+(?:obsidian[-\s]?)?vault\b/i,
+    /\b(?:my|your)\s+(?:obsidian\s+)?(?:vault|notes?\s+folder)\s+(?:is|lives)\s+(?:at|in)\b|\bhere\s+is\s+my\s+(?:obsidian\s+)?vault\b/i,
+    /\b(?:mon|ton)\s+(?:vault|dossier\s+de\s+notes)\s+(?:est|se\s+trouve)\s+(?:dans|sous|\u00e0)\b|\b(?:mi|tu)\s+(?:vault|carpeta\s+de\s+notas)\s+(?:est\u00e1|esta|vive)\s+en\b|\bvoici\s+mon\s+vault\b|\baqu\u00ed\s+est\u00e1\s+mi\s+vault\b/i,
+  ], 30],
+  ['lab-run', [
+    /\b(?:f(?:ü|u)hr(?:e|st)?|starte?|mach(?:e)?|lass|run|execute|try|test(?:e)?|probier(?:e)?|ex(?:é|e)cute[sz]?|lance[sz]?|fais|ejecuta|corre|pru[eé]ba|haz|essaie)\w*\b[\s\S]{0,60}?\b(?:im|in\s+the|dans\s+l[ea]|en\s+el)\s+lab(?:o(?:ratoire)?|or(?:atorio)?)?\b[\s\S]*?(?::|```)/i,
+    /\b(?:im|in\s+the|dans\s+l[ea]|en\s+el)\s+lab(?:o(?:ratoire)?|or(?:atorio)?)?\b[\s\S]{0,60}?\b(?:diesen|folgenden|den|this|the|ce|cet|este)\s+(?:code|python-?code|js-?code)\b/i,
+    /\b(?:probier|test|versuch|try|essaie?|pru[eé]ba)\w*\s+(?:mal\s+|doch\s+|bitte\s+)*(?:es|das|ihn|it|\u00e7a|lo)?\s*(?:mal\s+|doch\s+|bitte\s+)*(?:im|in\s+the|dans\s+l[ea]|en\s+el)\s+lab\w*\s*[.!?]*\s*$/i,
+    /\b(?:schau|sieh|guck|look|regarde|mira)\s*(?:mal\s+)?in(?:s|to)?\s+(?:das\s+|the\s+|le\s+|el\s+)?lab\w*\b|\b(?:wie\s+geht(?:'?s|\s+es)?|how(?:'s|\s+is)|status)\b[^,]{0,24}\blab(?:o|or)\w*/i,
+    /\blab-?run\b[\s\S]*?(?::|```)/i,
+  ], 60],
   ['execute-code', [
     // v7.5.1: slash-trigger (REQUIRED — see SECURITY_REQUIRED_SLASH)
     /(?:^|\s)\/execute-code\b/i,
@@ -259,7 +263,7 @@ const INTENT_DEFINITIONS = [
   ], 12, ['trust', 'vertrauen', 'stufe', 'level', 'autonomie', 'freigabe', 'genehmigung']],
 
   ['open-path', [
-    /(?:oeffne|öffne|open)\s+(?:den\s+)?(?:ordner|folder|verzeichnis|dir|pfad|path|datei|file)\s*/i,
+    /(?:oeffne|öffne|open|ouvre[sz]?|abre)\s+(?:(?:den|die|das|the|le|la|el)\s+)?(?:ordner|folder|directory|verzeichnis|dir|pfad|path|datei|file|dossier|r(?:é|e)pertoire|carpeta|archivo)\s*/i,
     /(?:oeffne|öffne|open)\s+["']?[A-Za-z]:\\/i,
     /(?:oeffne|öffne|open)\s+["']?[~/]\S+/i,
     /(?:zeig|show)\s+(?:mir\s+)?(?:den\s+)?(?:ordner|folder|inhalt|content)/i,
@@ -274,18 +278,15 @@ const INTENT_DEFINITIONS = [
     //     ShellAgent.openPath handler can do the alias resolution.
     /(?:oeffne|öffne)\s+(?:den\s+|das\s+|die\s+)?\w+[-_.\w]*\s+(?:ordner|folder|verzeichnis|dir|datei|file)\b/i,
     /(?:ordner|folder|verzeichnis|datei|file)\s+(?:oeffnen|öffnen|open)\b/i,
-    // Win-path standalone — but not when the message starts with a
     // different slash-command like /install, /open-this, /run, etc.
     // The negative lookahead protects "/install winrar D:\Programme"
     // from being routed to open-path instead of install-software.
-    /^(?!\/(?!open\b)\w)[^\n]*?[A-Za-z]:\\[^\s"']{2,}/,
+    /^(?!\/(?!open\b)\w)(?![^\n]*\b(?:warum|wieso|weshalb|why|pourquoi|por\s+qu[e\u00e9]|nicht|not\s+open|n['e]\s?ouvre|no\s+abr|leg\b|erstell|schreib|create|make|cr[e\u00e9]e|crea)\b)[^\n]*?[A-Za-z]:\\[^\s"']{2,}/,
     /welche\s+dateien.*(?:in\s+(?:ihm|dem|diesem))/i,
     /(?:was|welche)\s+(?:ist|sind|liegt|liegen)\s+(?:in|im)\s+(?:dem\s+|diesem\s+)?(?:ordner|folder|verzeichnis)/i,
-    // v7.9.28 (F2/G5): capability-framed open/launch — "kannst du firefox
     // öffnen", "could you open the report". Leading slash-exclusion (CI fix):
     // must NOT fire when the message carries a different slash-command (" /x").
     /^(?![\s\S]*\s\/[a-z])(?:kannst|könntest|könnt|kannste|could|can|would|will|würdest)\s+(?:du|ihr|you)\b[\s\S]*\b(?:oeffne|öffne|öffnen|open|starte|start)\b/i,
-    // v7.9.28 (field-fix A): app launch — "öffne firefox", "öffne google
     // chrome", "open notepad.exe". Moved here from the slash-only
     // open-software intent so a chat launch reaches openPath -> tryAppLaunch
     // (which launches) instead of bouncing to "/open firefox". The
@@ -293,13 +294,11 @@ const INTENT_DEFINITIONS = [
     // field used; "build"/"node" etc. are NOT app keywords so shell/execute
     // intents keep those.
     /(?<![\/\w])(?:oeffne|öffne|starte?|f(?:ü|ue|u)hre?|open|launch|start|run)\s+(?:mir\s+|bitte\s+|das\s+|die\s+|den\s+|the\s+|a\s+)*(?:google\s+|mozilla\s+|microsoft\s+)?(?:app|application|anwendung|programm|program|browser|editor|ide|terminal|konsole|console|explorer|notepad|vscode|code|chrome|firefox|edge|msedge|[\w.-]+\.(?:exe|app|sh|bat|cmd|msi|desktop|appimage))\b/i,
-    // v7.9.28 (field-fix D): drive-scoped open — "öffne in d: <name>",
     // "öffne auf d den ordner <name>", "öffne d:". Route here (not the LLM,
     // which mis-classified it as a file-search) so openPath's drive branch
     // resolves and opens the target on that drive.
     /(?:oeffne|öffne|open)\s+(?:in|auf|unter|on|im)\s+["']?[A-Za-z]:?(?=[\s\\/]|$)/i,
     /(?:oeffne|öffne|open)\s+["']?[A-Za-z]:(?=\s|$)/i,
-    // v7.9.28 (field-fix B): location-scoped open — "öffne auf dem desktop
     // <name>" in either word order. Deterministic so it no longer depends on
     // the fuzzy/LLM fallback that the field showed was flaky.
     /(?:oeffne|öffne|open)\s+[\s\S]*?\b(?:auf|in|unter|on|im)\s+(?:dem|den|der|the)\s+(?:desktop|schreibtisch|downloads?|dokumente|documents?|bilder|pictures?|musik|music)\b/i,
@@ -323,6 +322,7 @@ const INTENT_DEFINITIONS = [
     /\bwie\s*viele?\s+(?:datei(?:en|n)?|ordner|elemente|dinge)\b/i,
     /\bwelche\s+(?:datei(?:en|n)?|ordner|elemente)\b/i,
     /\bliste?\s+(?:mir\s+)?(?:den\s+)?(?:ordner)?inhalt\b/i,
+    /\b(?:list\s+the\s+files?|liste[rz]?\s+les\s+fichiers|lista[r]?\s+los\s+archivos)\b/i,
     /\b(?:datei(?:en|n)?|ordner)\s+(?:sind\s+)?(?:dort\s+|da\s+|drin\s+)?(?:enthalten|drin)\b/i,
     /\binhalt\s+(?:des|vom|von)\s+(?:dem\s+)?ordner/i,
     /\bwas\s+(?:ist|sind|liegt|liegen)\s+(?:da\s+|dort\s+|alles\s+)*(?:drin|im\s+ordner|enthalten)\b/i,
@@ -348,6 +348,9 @@ const INTENT_DEFINITIONS = [
   ['read-file', [
     /\bwas\s+steht\s+(?:in|im|drin|da\b)/i,
     /\bwas\s+ist\s+(?:der\s+|das\s+)?inhalt\s+(?:von|des|der\s+datei|vom|im)\b/i,
+    /\b(?:what\s+is\s+the\s+content\s+of|quel\s+est\s+le\s+contenu\s+d[eu]|cu[aá]l\s+es\s+el\s+contenido\s+de)\b/i, // v7.9.45 parity: DE=EN=FR=ES (field law)
+    /\b(?:que\s+dit|qu[eé]\s+dice)\s+\S/i,
+    /\b(?:lis|lee|montre(?:-moi)?|mu[eé]strame|regarde|mira)\s+(?:le\s+fichier\s+|el\s+archivo\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py|pdf|png|jpe?g|gif|webp)\b/i,
     /\bwas\s+ist\s+(?:in|im)\s+(?:dem\s+|der\s+|einem\s+)?(?:datei|dokument|file|document)\b/i,
     /\blies\s+(?:mir\s+)?(?:den\s+inhalt|die\s+datei)\b/i,
     // v7.9.29 (Teil B): direct read of a NAMED file — "lies X.md", "schau (dir)
@@ -355,53 +358,71 @@ const INTENT_DEFINITIONS = [
     // bare "schau dir das an" / "zeig mir das" (no file) does NOT match and
     // falls through to general. Resolution + graceful null-fallthrough live in
     // the readFile handler.
-    /\blies\s+(?:mir\s+)?(?:die\s+datei\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
-    /\bschau(?:e|st)?\s+(?:dir\s+)?(?:mal\s+)?(?:die\s+datei\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
-    /\bzeig(?:e|st)?\s+(?:mir\s+)?(?:die\s+datei\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    /\blies\s+(?:mir\s+)?(?:die\s+datei\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py|pdf|png|jpe?g|gif|webp)\b/i,
+    /\bschau(?:e|st)?\s+(?:dir\s+)?(?:mal\s+)?(?:die\s+datei\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py|pdf|png|jpe?g|gif|webp)\b/i,
+    /\bzeig(?:e|st)?\s+(?:mir\s+)?(?:die\s+datei\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py|pdf|png|jpe?g|gif|webp)\b/i,
     // v7.9.30 (Teil B ext): verb-postposed — "kannst du mir README.md zeigen".
-    /[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\s+(?:zeigen|anzeigen|lesen|öffnen|aufmachen)\b/i,
+    /[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py|pdf|png|jpe?g|gif|webp)\s+(?:zeigen|anzeigen|lesen|öffnen|aufmachen)\b/i,
     // English
     /\bwhat(?:'s|\s+is)?\s+(?:in|inside)\s+(?:the\s+|this\s+)?(?:file|document)\b/i,
     /\bwhat\s+does\s+(?:the\s+)?(?:file\s+)?[\w.()-]+\s+(?:say|contain)\b/i,
     /\bread\s+(?:me\s+)?(?:the\s+)?(?:file|document|contents?\s+of)\b/i,
     /\bshow\s+(?:me\s+)?(?:the\s+)?(?:contents?\s+of|file\s+content)\b/i,
-    /(?<!(?:did|have)\s+you\s+)\bread\s+(?:me\s+)?(?:the\s+file\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
-    /\bshow\s+(?:me\s+)?(?:the\s+file\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py)\b/i,
+    /(?<!(?:did|have)\s+you\s+)\bread\s+(?:me\s+)?(?:the\s+file\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py|pdf|png|jpe?g|gif|webp)\b/i,
+    /\bshow\s+(?:me\s+)?(?:the\s+file\s+)?["']?[\w][\w./()\\-]*\.(?:md|txt|json|js|jsx|ts|tsx|yaml|yml|toml|html|css|log|csv|xml|ini|cfg|conf|sh|py|pdf|png|jpe?g|gif|webp)\b/i,
+    /\b(?:was\s+ist\s+auf\s+(?:dem|der)|what(?:'s|\s+is)\s+(?:on|in)\s+the|que\s+voit-on\s+sur|qu[eé]\s+se\s+ve\s+en)\s+\S+\.(?:png|jpe?g|gif|webp|bmp)\b/i,
   ], 14, ['steht', 'lesen', 'drin', 'inhalt', 'read', 'file', 'content']],
 
   // v7.9.28 (field-fix #3): safe deterministic file creation — "erstelle eine
   // Textdatei mit Namen X und Inhalt Y in <ort>". A bounded fs write (one named
   // file), not arbitrary shell, so it is trusted by source and needs no slash
   // gate; guarded against system/secret paths and never overwrites.
+  // names no file word) stays with the model — Genesis answered a reflective
+  // question with 'which file?' once; never again. Commands keep routing.
   // v7.9.28 (field-fix #3): write text INTO a file — "schreibe den text - … in
   // x2", "speichere die Zusammenfassung mit Namen one", "save the summary to
   // notes". Distinct from create-file (which refuses to overwrite): this is an
   // explicit write that persists a literal or the last summary.
   ['write-file', [
-    /\bspeicher(?:e|n|st)?\b[\s\S]{0,80}\b(?:datei|dokument|file|mit\s+namen?|namens|als\b|in\s+["']?[\w.()\-]+)/i,
-    /\bschreib(?:e|en|st)?\s+(?:den\s+|mir\s+|die\s+|das\s+)?(?:text|zusammenfassung|zusammenfassund|inhalt|folgendes|ergebnis)\b/i,
-    /\bschreib(?:e|en)?\b[\s\S]*?\b(?:in|nach)\s+(?:die\s+)?(?:datei\s+|dokument\s+)?["']?[\w][\w.()\-]*["']?\s*[.?!]*$/i,
+    /(?!(?=[\s\S]*\?\s*$)(?![\s\S]*\b(?:datei|file|dokument|document|\.md|\.txt|\.json)\b))\bspeicher(?:e|n|st)?\b[\s\S]{0,80}\b(?:datei|dokument|file|mit\s+namen?|namens|als\b|in\s+["']?[\w.()\-]+)/i,
+    /(?!(?=[\s\S]*\?\s*$)(?![\s\S]*\b(?:datei|file|dokument|document|\.md|\.txt|\.json)\b))\bschreib(?:e|en|st)?\s+(?:den\s+|mir\s+|die\s+|das\s+)?(?:text|zusammenfassung|zusammenfassund|inhalt|folgendes|ergebnis)\b/i,
+    /(?!(?=[\s\S]*\?\s*$)(?![\s\S]*\b(?:datei|file|dokument|document|\.md|\.txt|\.json)\b))\bschreib(?:e|en)?\b[\s\S]*?\b(?:in|nach)\s+(?:die\s+)?(?:datei\s+|dokument\s+)?["']?[\w][\w.()\-]*["']?\s*[.?!]*$/i,
     // "schreiben test in den inhalt / hinein / rein" — and "schreib das in
     // eine datei / ein dokument" — but NOT part of an "erstelle …" command
     // (that stays create-file).
-    /^(?![\s\S]*\berstell)[\s\S]*?\bschreib\w*\s+[\s\S]+?\s+(?:in\s+den\s+inhalt|in\s+(?:die|eine[rnm]?|der)\s+datei|in\s+(?:das|ein|einem)\s+dokument|hinein|rein|dazu)\b/i,
-    /^(?![\s\S]*\berstell)[\s\S]*?\bschreib\w*\s+[\s\S]*?\bin\s+(?:eine?[nrm]?\s+|einem\s+|die\s+|das\s+|dem\s+)?(?:datei|dokument|file)\b/i,
-    /\b(?:save|write)\b[\s\S]*\b(?:to|into)\s+(?:the\s+|a\s+)?(?:file|document|["']?[\w.()\-]+)/i,
+    /(?!(?=[\s\S]*\?\s*$)(?![\s\S]*\b(?:datei|file|dokument|document|\.md|\.txt|\.json)\b))^(?![\s\S]*\berstell)[\s\S]*?\bschreib\w*\s+[\s\S]+?\s+(?:in\s+den\s+inhalt|in\s+(?:die|eine[rnm]?|der)\s+datei|in\s+(?:das|ein|einem)\s+dokument|hinein|rein|dazu)\b/i,
+    /(?!(?=[\s\S]*\?\s*$)(?![\s\S]*\b(?:datei|file|dokument|document|\.md|\.txt|\.json)\b))^(?![\s\S]*\berstell)[\s\S]*?\bschreib\w*\s+[\s\S]*?\bin\s+(?:eine?[nrm]?\s+|einem\s+|die\s+|das\s+|dem\s+)?(?:datei|dokument|file)\b/i,
+    /(?!(?=[\s\S]*\?\s*$)(?![\s\S]*\b(?:datei|file|dokument|document|\.md|\.txt|\.json)\b))\b(?:save|write)\b[\s\S]*\b(?:to|into)\s+(?:the\s+|a\s+)?(?:file|document|["']?[\w.()\-]+)/i,
   ], 15, ['speichern', 'schreiben', 'save', 'write', 'zusammenfassung']],
 
+  ['vault-lookup', [ // v7.9.45 field: read-then-answer, never memory-first
+    /\b(?:schau(?:\s+mal)?\s+in\s+mein(?:en|em)?|look\s+in(?:to)?\s+my|regarde\s+dans\s+mon|mira\s+en\s+mi)\s+[^\s:\uff1a]+\s*[:\uff1a]/i,
+    /\b(?:schau|sieh)\s+in\s+(?:den|dein(?:en)?|meinen)\s+(?:vault|notiz[-\s]?ordner)\b|\blook\s+in(?:to)?\s+(?:the|your|my)\s+vault\b/i,
+    /\b(?:schau(?:\s+mal)?|sieh)\s+in\s+mein\w*\s+[^\s:]+\s+(?:und\s+|,\s*)?(?:sag|nenn|zeig|such)|\blook\s+in(?:to)?\s+my\s+[^\s:]+\s+and\s+(?:tell|say|show|find)|\bregarde\s+dans\s+mon\s+[^\s:]+\s+et\s+dis|\bmira\s+en\s+mi\s+[^\s:]+\s+y\s+di/i,
+  ], 45],
+  ['where-is', [ // v7.9.45 field: places map — deterministic, model-free
+    /\bwo\s+(?:ist|liegt|soll|befindet\s+sich)\s+(?:denn\s+)?(?:dein|deine|mein|meine)\s+(?:arbeitsbereich|archiv|backup|zuhause|vault)\b|\bwhere\s+is\s+(?:your|my)\s+(?:workspace|archive|backup|home|vault)\b|\bo[\u00f9u]\s+est\s+(?:ton|mon)\s+(?:espace|archive|vault)\b|\bd[\u00f3o]nde\s+est[\u00e1a]\s+(?:tu|mi)\s+(?:espacio|archivo|vault)\b/i,
+  ], 35],
+  ['edit-file', [ // v7.9.45 field: spoken edit — old + to/durch + new must both appear
+    /^(?!.*\btrust\b)(?=[\s\S]*(?:(?:^|[\s"„'(])(?:ver)?(?:änder|ersetz)\w*|\b(?:change|replace|remplace\w*|cambia|reemplaza)\b))[\s\S]*?\S+\s+(?:zu|durch|to|with|par|por|con)\s+\S+/i,
+  ], 40],
   ['create-file', [
+    /\b(?:leg(?:e)?|erstell\w*)\s+(?:dir\s+|mir\s+)?(?:in\s+[\s\S]{0,40}?)?(?:eine?[nr]?\s+)?(?:erste[n]?\s+|neue[n]?\s+)?(?:notiz|note|nota)\b|\b(?:cr[e\u00e9]e[rz]?|crea[r]?)\s+(?:une\s+|una\s+)?not[ae]\b|\bmake\s+(?:a\s+)?(?:first\s+)?note\b/i,
+    /^[\w][\w.\- ]{0,40}\s+(?:und|mit|and|with)\s+(?:dem\s+|the\s+)?(?:text|inhalt|content)\s+\S/i, // v7.9.45: the name-question answer form
+    /^(?:sie|es|die\s+datei|the\s+file|it)\s+(?:s?oll(?:te)?|should)\s+\S{1,40}\s+hei(?:\u00df|ss)en\b|^(?:nenn(?:e)?\s+sie|call\s+it|name\s+it)\s+\S/i,
     /\berstell(?:e|en)?\s+(?:mir\s+)?(?:eine?\s+|einen?\s+|das\s+)?(?:neue?\s+)?(?:text[\s-]*)?(?:datei|dokument|file|document)\b/i,
     /\b(?:neue?\s+)?(?:text[\s-]*)?(?:datei|dokument)\s+(?:mit\s+namen?|namens)\b/i,
     /\bschreib(?:e)?\s+(?:eine?\s+)?(?:text[\s-]*)?(?:datei|dokument)\b/i,
+    /\bcr[eé]e[rz]?\s+(?:un\s+)?(?:nouveau\s+)?fichier\b/i,
+    /\bcrea[r]?\s+(?:un\s+)?(?:nuevo\s+)?archivo\b/i,
     // English
     /\b(?:create|make|write)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:text\s+|empty\s+)?(?:file|document)\b/i,
     /\b(?:file|document)\s+(?:named|called)\b/i,
-    // v7.9.44 r15 (field): spoken / verb-at-end forms — "kannst (du) ein
     // dokument erstellen mit namen …", "eine datei anlegen namens …". The
     // noun-verb adjacency plus a name/content marker keeps capability
     // questions ("welche dateien kann man erstellen?") with the model.
     /\b(?:datei(?:en)?|dokumente?|files?|documents?)\s+(?:bitte\s+|jetzt\s+|mal\s+|noch\s+|zu\s+)*(?:erstell|anleg)\w*\b[\s\S]{0,80}\b(?:namens?|inhalt|text|content|named|called)\b/i,
-  ], 14, ['erstelle', 'erstellen', 'datei', 'dokument', 'anlegen', 'schreiben', 'create', 'file']],
+  ], 16, ['erstelle', 'erstellen', 'datei', 'dokument', 'anlegen', 'schreiben', 'create', 'file']],
 
   // v7.9.28 (field-fix #3): deterministic file summary — resolves + reads the
   // FULL file and makes one LLM call, so no announce-and-wait and no partial
@@ -409,8 +430,8 @@ const INTENT_DEFINITIONS = [
   // zusammen" → last file), German + English.
   ['summarize-file', [
     /\bfass(?:e|en|t|st)?\b[\s\S]*?\bzusammen\b/i,
-    /\bzusammenfass\w*/i,
-    /\bsummariz\w*/i,
+    /\b(?:zusammenfass|summariz)\w*/i,
+    /\b(?:r[ée]sume[rz]?|resume)\s+(?:le\s+fichier\s+|el\s+archivo\s+)?\S+\.(?:md|txt|json|js|log|csv|yaml|yml|pdf)\b/i,
   ], 14, ['fassen', 'zusammenfassen', 'zusammenfassung', 'summarize', 'summary']],
 
   ['mcp', [

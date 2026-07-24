@@ -230,7 +230,7 @@ describe('v7.5.9 live-fix — open-path catches natural folder phrasings', () =>
   test('source-presence: extended open-path patterns', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/IntentPatterns.js'), 'utf8');
     const idx = src.indexOf("'open-path'");
-    const slice = src.slice(idx, idx + 1500);
+    const slice = src.slice(idx, idx + 1700); // v7.9.45: open-path line grew for four-language parity
     // Pattern (a): "öffne den X ordner" with alias before noun
     assert(/oeffne.+ordner.+folder.+verzeichnis.+dir.+datei.+file/i.test(slice),
       'pattern allowing alias-before-noun must be present');

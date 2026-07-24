@@ -100,7 +100,7 @@ describe('v7944 r6 — the + owns the Archive location', () => {
     assert(!/agent\.settings/.test(dropBlock), 'drop-file must NOT use the phantom agent.settings');
     assert(/resolve\('settings'\)/.test(dropBlock) && /archiveRoot\(/.test(dropBlock), 'drop-file resolves settings from the container before calling archiveRoot');
     const w = src('src/agent/AgentCoreBootWire.js');
-    assert(/registerV737Tools\([\s\S]{0,400}settings:\s*c\.tryResolve\('settings'\)/.test(w), 'the archive tools are wired WITH settings so they resolve the chosen path');
+    assert(/registerV737Tools\([\s\S]{0,600}settings:\s*c\.tryResolve\('settings'\)/.test(w), 'the archive tools are wired WITH settings so they resolve the chosen path');
     // and the resolver actually ignores a phantom (undefined) settings by using the default —
     // proving why the missing settings caused the wrong path
     const gd = path.join(require('os').tmpdir(), 'r13-'+Date.now());

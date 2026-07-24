@@ -90,7 +90,7 @@ describe('v7944 Werkstatt — the Archive as a workspace', () => {
 
   test('r15: a name keeps its spaces; content sheds the instruction shell', async () => {
     const gd = createTestRoot('w-f');
-    const H = require(path.join(ROOT, 'src/agent/hexagonal/CommandHandlersFileView.js')).commandHandlersFileView;
+    const H = { ...require(path.join(ROOT, 'src/agent/hexagonal/CommandHandlersFileView.js')).commandHandlersFileView, ...require(path.join(ROOT, 'src/agent/hexagonal/CommandHandlersCreate.js')).commandHandlersCreate }; // v7.9.45: createFile moved
     const ctx = { fp: { rootDir: gd } };
     await H.createFile.call(ctx, 'erstelle ein text dokument mit namen Genesis 01 und inhalt da fügst du das ein: hallo Wrorld .');
     assert(fs.existsSync(path.join(gd, 'Genesis 01.txt')), 'name keeps its spaces');

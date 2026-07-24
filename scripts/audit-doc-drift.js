@@ -631,10 +631,10 @@ function runChecks() {
     }
   }
 
-  // #11: AUDIT-BACKLOG.md header version (root-level doc, custom load)
+  // #11: AUDIT-BACKLOG.md header version (lives in docs/ since v7.9.45, custom load)
   {
     let src;
-    try { src = fs.readFileSync(path.join(ROOT, 'AUDIT-BACKLOG.md'), 'utf-8'); }
+    try { src = fs.readFileSync(path.join(ROOT, 'docs', 'AUDIT-BACKLOG.md'), 'utf-8'); }
     catch { src = null; }
     if (src) {
       const m = /^> Version: (\d+\.\d+\.\d+)/m.exec(src);

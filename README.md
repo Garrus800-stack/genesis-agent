@@ -8,12 +8,12 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.9.44-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/version-7.9.45-d4a017?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/tests-9122%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-432-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/modules-438-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-185-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
@@ -93,7 +93,16 @@ Every step is **verified by the machine**, not the LLM. AST parsing, exit codes,
 
 **Deterministic file operations from chat** `v7.9.28` — listing a folder, reading, creating, writing, and summarising a file run straight through the filesystem rather than the chat model, so they no longer depend on a shell tool echoing a command or a Unix utility that is absent on the host; a folder or file named without a path resolves across the common locations (Desktop, Documents, Downloads including their OneDrive-redirected forms, and the drive roots); a file summary reads the whole document and makes a single model call; and whatever the agent last produced — a drawing, a diagram, an answer — can be saved with "save it", in German and English.
 
-**Genesis Archive** `v7.9.44` — a file vault Genesis owns, kept in one place you choose (a folder picker opens the first time you hand him a file, and its path is remembered): `inbox/` for what you pass in, `projects/` for his works, plus the files he creates. Hand a file over with the ◈ button or by dragging it onto the chat — it is copied into `inbox/` on send, with a neutral note of what arrived, and he decides in his own voice what to do. It is his workbench, not just storage: he can see the whole of it (`list-archive`), read what is inside (`read-archive-file`, `look-at-image` for pictures), create there by default rather than scattering files through the project, change one exact spot in place (`edit-file`) or grow a file from its end (`append-file`) instead of rewriting the whole thing, and pull a file in from anywhere on the machine (`copy-to-archive` / `move-to-archive`). The same in-place editing lets him work on his own code without rewriting it wholesale; writes into his soul, secrets, or system paths are refused.
+**Genesis Archive** `v7.9.44` — a file vault Genesis owns, kept in one place you choose (a folder picker opens the first time you hand him a file, and its path is remembered): `inbox/` for what you pass in, `projects/` for his works, plus the files he creates. Hand a file over with the ◈ button or by dragging it onto the chat — it is copied into `inbox/` on send, with a neutral note of what arrived, and he decides in his own voice what to do. It is his workbench, not just storage: he can see the whole of it (`list-archive`), read what is inside (`read-archive-file`, `look-at-image` for pictures), create there by default rather than scattering files through the project, change one exact spot in place (`edit-file`) or grow a file from its end (`append-file`) instead of rewriting the whole thing, and pull a file in from anywhere on the machine (`copy-to-archive` / `move-to-archive`). Every write into a checkable file is syntax-checked by the tool itself (a break is reported, never blocked), `check-file` gives a verdict without loading content, `compare-files` lays only the differences on the table, and the spoken create command tolerates question forms, names with spaces, and instruction shells around the content. The same in-place editing lets him work on his own code without rewriting it wholesale; writes into his soul, secrets, or system paths are refused — and since v7.9.45 the source side is guarded too: nothing is ever moved out of protected ground.
+
+
+**The two-memories bridge** `v7.9.45` — point `vault.path` at your Obsidian vault — or just tell him in chat, *“my vault lives in …”*, in any of the four locales — and it becomes a place Genesis can walk: he reads anywhere in it when a task needs your notes, but his hands write only inside his own `Genesis/` corner — your notes are additive-protected, wikilinks from his corner may point at your thoughts, two memories with one shared edge and no merging.
+
+**The quiet sense** `v7.9.45` — PDFs are readable by the same archive-relative paths: extracted text with the page count, politely capped. Unreadable cases answer in his own words — an image-only scan is "like a photo of a book", an encrypted one "a door he has no key for" — instead of failing blind.
+
+**The correction lesson** `v7.9.45` — when you correct him in chat (a plain "no — you should only …", in any of the four locales), the moment becomes a candidate card, never silently a lesson: the next prompt offers it once, and only a real `accept-lesson` run records it into his lessons — his sovereignty, your teaching.
+
+**The cognitive laboratory** `v7.9.45` — his own name for the proving room: `lab-run` executes code in a throwaway Docker container that is offline by design, sees exactly one fresh work folder and nothing else, and is torn down after every run. Results leave the lab only through a conscious `copy-to-archive`; images are freed by you via `lab.images`, never pulled by him.
 
 > **For the full feature list with version history**, see [CAPABILITIES.md](docs/CAPABILITIES.md).
 
@@ -463,12 +472,12 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Metric | Value |
 |---|---|
 | Source modules | 376 modules (src/) |
-| Lines of code | ~119k src + ~101k test |
+| Lines of code | ~134k src + ~120k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 172 manifest + 13 bootstrap = 185 at runtime |
 | Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 644 files, 9122 tests (coverage gates: 80/76/78, ratchet floor 6014) |
-| Dependencies | 5 production + 1 optional + 10 dev |
+| Test suites | 650 files, 9122 tests (coverage gates: 80/76/78, ratchet floor 6014) |
+| Dependencies | 6 production + 1 optional + 10 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 79 main ↔ 79 preload (rate-limited, all in sync) |
 | Event types | 498 across ~114 namespaces (catalogued in EventTypes.js) |

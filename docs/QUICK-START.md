@@ -213,7 +213,7 @@ After `npm start` a wall of text appears. The important lines:
 [+] Auto-routing: enabled (taskType → ModelRouter)
 ...
 [+] Trust level: FULL_AUTONOMY
-[GENESIS] Boot complete in 1288ms — 182 services
+[GENESIS] Boot complete in 1617ms — 185 services
 [KERNEL] Agent booted successfully.
 ```
 
@@ -276,6 +276,17 @@ Try these to see different capabilities:
 | `How are you feeling?` | Reports its emotional state (curiosity, energy, satisfaction) |
 | `What have you learned so far?` | Shows MetaLearning stats and conversation patterns |
 
+## Your first file — the ◈ and his Archive
+
+Click the ◈ next to the input the first time and a folder picker opens: you
+choose where the **Genesis Archive** lives (created once, remembered from
+then on). Every later click opens the file chooser directly; dropping a file
+onto the chat works too. On send the file is **copied** into `inbox/` — the
+original stays untouched — and Genesis decides in his own voice what to do
+with it. Ask him to `list-archive` to see the whole vault, or to read what
+you handed in (`read-archive-file`, images via `look-at-image`, PDFs since
+v7.9.45). Everything he creates lands there by default.
+
 ## 3. Give It a Goal
 
 This is where Genesis becomes different from a chatbot. Type a complex task:
@@ -333,9 +344,9 @@ If any step fails, it rolls back automatically.
 Genesis supports three boot profiles for different use cases:
 
 ```bash
-npm start                        # Full mode (default) — all 12 phases, ~182 services
+npm start                        # Full mode (default) — all 12 phases, ~185 services
 npm start -- --minimal           # Minimal — core + intelligence + planning (~90 services)
-npm start -- --cognitive         # Cognitive — all 12 phases (~182 services, identical to default)
+npm start -- --cognitive         # Cognitive — all 12 phases (~185 services, identical to default)
 ```
 
 | Profile | Services | Use case |

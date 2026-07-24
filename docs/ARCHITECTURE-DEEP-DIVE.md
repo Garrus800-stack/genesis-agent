@@ -13,12 +13,12 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 432 JS files |
-| Test Files / Tests | 644 / 9122 (Win baseline) |
+| Source Modules | 438 JS files |
+| Test Files / Tests | 650 / 9122 (Win baseline) |
 | DI Services | 185 (172 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
-| npm Dependencies | 5 production + 1 optional + 10 dev |
+| npm Dependencies | 6 production + 1 optional + 10 dev |
 | Event Types (catalogued) | 498 |
 | Event Schemas | 498 |
 | IPC Channels | 68 main ↔ 68 preload |
@@ -210,7 +210,7 @@ It skips only the specific failed model name plus any model marked unavailable. 
 
 ## 5. The 12-Phase Service Architecture
 
-### Phase 1: Foundation (41 files, ~11,300 LOC)
+### Phase 1: Foundation (49 files, ~14,300 LOC)
 
 Core infrastructure: Settings, ModelBridge (split via `ModelBridgeAvailability` mixin in v7.5.6 to manage TTL-marked unavailability), Sandbox, ConversationMemory, KnowledgeGraph, GraphStore, EventStore, WorldState, EmbeddingService, ModuleSigner, SelfModel (split into 4 files via Prototype-Delegation in v7.4.1), PromptEngine, StorageService, LLMCache, WebFetcher, ASTDiff, CapabilityGuard, UncertaintyGuard, DesktopPerception, TrustLevelSystem, LinuxSandboxHelper (`isAvailable()` contract tightened in v7.5.6 — only returns `true` when at least one wrappable namespace is available), BootTelemetry, BootRecovery, AwarenessPort + NullAwareness, GenesisBackup (v7.2.3), and 4 LLM backends (Ollama, Anthropic, OpenAI, Mock).
 
@@ -553,23 +553,24 @@ IdleMind has had 17 activities since v7.9.5 (Inhabit added; SkillRehearsal in v7
 
 ## 15. LOC Distribution by Directory
 
-Approximate as of v7.5.6 (numbers shift with each release):
+Measured as of v7.9.45 (recursive per phase folder):
 
 ```
-  core/             25 files    8,064 LOC
-  foundation/       41 files   11,283 LOC
-  intelligence/     28 files   10,127 LOC
-  capabilities/     25 files    7,790 LOC
-  planning/         13 files    3,938 LOC
-  hexagonal/        23 files    7,315 LOC
-  autonomy/         28 files    6,074 LOC
-  organism/         16 files    5,954 LOC
-  revolution/       17 files    7,236 LOC
-  cognitive/        35 files   13,234 LOC
-  ports/            12 files    1,614 LOC
-  manifest/         12 files    2,438 LOC
+  core/             35 files   11.971 LOC
+  foundation/       57 files   16.723 LOC
+  intelligence/     32 files   12.041 LOC
+  capabilities/     26 files    9.039 LOC
+  planning/         14 files    4.221 LOC
+  hexagonal/        49 files   13.368 LOC
+  autonomy/         41 files    8.245 LOC
+  organism/         17 files    6.184 LOC
+  revolution/       28 files    9.426 LOC
+  cognitive/        68 files   21.278 LOC
+  agency/            3 files    1.178 LOC
+  ports/            12 files    1.644 LOC
+  manifest/         14 files    3.046 LOC
   ─────────────────────────────────────────────
-  agent/ total     259 files  ~84,900 LOC
-  + UI/kernel       47 files  ~13,800 LOC
-  = src/ total     432 modules ~119,000 LOC
+  agent/ total     396 files ~118,364 LOC
+  + UI/kernel       42 files ~16,487 LOC
+  = src/ total     438 modules ~134,000 LOC
 ```

@@ -3,7 +3,7 @@
 > Audit findings, monitor items, and resolution status.
 
 This document tracks all audit findings, monitor items, and their resolution status.
-Referenced from [ARCHITECTURE.md](ARCHITECTURE.md). Per-version details in [CHANGELOG.md](CHANGELOG.md).
+Referenced from [ARCHITECTURE.md](../ARCHITECTURE.md). Per-version details in [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 
@@ -78,7 +78,7 @@ No code change. Memory item closed.
 - **stale-refs.json deduplication** — `effective-model contract:` and
   `effective-model-ui contract:` were each registered twice; gone.
 
-See [CHANGELOG.md § 7.8.6](CHANGELOG.md) for full details.
+See [CHANGELOG.md § 7.8.6](../CHANGELOG.md) for full details.
 
 ---
 
@@ -172,7 +172,7 @@ them together.
   zero real HTTP calls to Ollama during full test runs.
   (`test-isolation contract:` prefix, 5 tests.)
 
-See [CHANGELOG.md § 7.8.4](CHANGELOG.md) for full file change list
+See [CHANGELOG.md § 7.8.4](../CHANGELOG.md) for full file change list
 and verification numbers.
 
 ---
@@ -1077,7 +1077,7 @@ v7.7.2-* eras separate in the test history.
 
 - ✅ File-Size-Guard WARN — AgentLoop.js (Track A)
 
-See [CHANGELOG.md § 7.6.9](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.6.9](../CHANGELOG.md) for details.
 
 ## Items still deferred after v7.6.9
 
@@ -1105,7 +1105,7 @@ preventive — kept in mind during feature work.
 - ✅ File-Size-Guard WARN — GoalStack.js (Track A)
 - ✅ 8 frequently-emitted events fully resolved (Track B)
 
-See [CHANGELOG.md § 7.6.8](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.6.8](../CHANGELOG.md) for details.
 
 ## Resolved in v7.6.7
 
@@ -1113,7 +1113,7 @@ See [CHANGELOG.md § 7.6.8](CHANGELOG.md) for details.
 - ✅ audit-events scanner pattern coverage (Track B)
 - ✅ colony:run-request reserved-slot (Track B follow-on)
 
-See [CHANGELOG.md § 7.6.7](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.6.7](../CHANGELOG.md) for details.
 
 ## Items still deferred after v7.6.7
 
@@ -1148,7 +1148,7 @@ Dashboard listener) or the baseline is bumped intentionally.
 - ✅ CostStream-Dissonance-Listener (Track C)
 - ✅ Stale TS-error backlog entry retired (Track D)
 
-See [CHANGELOG.md § 7.6.6](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.6.6](../CHANGELOG.md) for details.
 
 ## Resolved in v7.6.5
 
@@ -1156,14 +1156,14 @@ See [CHANGELOG.md § 7.6.6](CHANGELOG.md) for details.
 - ✅ Track 2 — A2 ModelBridge file-size split (701 → 646 LOC)
 - ✅ Structural fix — README badge drift
 
-See [CHANGELOG.md § 7.6.5](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.6.5](../CHANGELOG.md) for details.
 
 ## Resolved in v7.6.4
 
 - ✅ L1 — Listener lifecycle (10 findings closed)
 - ✅ In-version closeout — external audit follow-up (no version bump)
 
-See [CHANGELOG.md § 7.6.4](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.6.4](../CHANGELOG.md) for details.
 
 ## Resolved in v7.6.3
 
@@ -1173,7 +1173,7 @@ See [CHANGELOG.md § 7.6.4](CHANGELOG.md) for details.
 - ✅ Pre-existing test fix carried in
 - ✅ Tests / fitness / audits at v7.6.3
 
-See [CHANGELOG.md § 7.6.3](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.6.3](../CHANGELOG.md) for details.
 
 ## Resolved in v7.6.2
 
@@ -1181,7 +1181,7 @@ See [CHANGELOG.md § 7.6.3](CHANGELOG.md) for details.
 - ✅ Tests / fitness / audits at v7.6.2 (post-closeout)
 - ✅ Items still deferred after v7.6.2
 
-See [CHANGELOG.md § 7.6.2](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.6.2](../CHANGELOG.md) for details.
 
 ## Resolved in v7.6.1 (audit-closeout)
 
@@ -1189,14 +1189,14 @@ See [CHANGELOG.md § 7.6.2](CHANGELOG.md) for details.
 - ✅ Items deferred from the v7.6.1 audit
 - ✅ Memory-backlog reality-check (informational)
 
-See [CHANGELOG.md § 7.6.1](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.6.1](../CHANGELOG.md) for details.
 
 ## Resolved in v7.6.0
 
 - ✅ Tests / fitness / audits at v7.6.0
 - ✅ Items NOT in v7.6.0 (Medium/Low from audit)
 
-See [CHANGELOG.md § 7.6.0](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.6.0](../CHANGELOG.md) for details.
 
 ## Resolved in v7.5.9
 
@@ -1205,14 +1205,14 @@ See [CHANGELOG.md § 7.6.0](CHANGELOG.md) for details.
 - ✅ Verified structurally healthy at v7.5.9 (audit findings)
 - ✅ Deferred to v7.6+
 
-See [CHANGELOG.md § 7.5.9](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.9](../CHANGELOG.md) for details.
 
 ## Resolved in v7.5.8
 
 - ✅ Tests / fitness / audits at v7.5.8
 - ✅ Files
 
-See [CHANGELOG.md § 7.5.8](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.8](../CHANGELOG.md) for details.
 
 ## Resolved in v7.5.7
 
@@ -1220,44 +1220,44 @@ See [CHANGELOG.md § 7.5.8](CHANGELOG.md) for details.
 - ✅ Tests / fitness / audits at v7.5.7
 - ✅ Files
 
-See [CHANGELOG.md § 7.5.7](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.7](../CHANGELOG.md) for details.
 
 ## Resolved in v7.5.6
 
 - ✅ Boy-Scout cleanups
 - ✅ Items reviewed and closed without code change
 
-See [CHANGELOG.md § 7.5.6](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.6](../CHANGELOG.md) for details.
 
 ## Open items from v7.5.5
 
 - ✅ Closeout / cleanup
 
-See [CHANGELOG.md § 7.5.5](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.5](../CHANGELOG.md) for details.
 
 ## Resolved in v7.5.3
 
 - ✅ Closeout / cleanup
 
-See [CHANGELOG.md § 7.5.3](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.3](../CHANGELOG.md) for details.
 
 ## Backlog (added in v7.5.3)
 
 - ✅ Closeout / cleanup
 
-See [CHANGELOG.md § 7.5.3](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.3](../CHANGELOG.md) for details.
 
 ## Resolved in v7.5.2
 
 - ✅ Closeout / cleanup
 
-See [CHANGELOG.md § 7.5.2](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.2](../CHANGELOG.md) for details.
 
 ## Backlog (added in v7.5.2)
 
 - ✅ Closeout / cleanup
 
-See [CHANGELOG.md § 7.5.2](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.2](../CHANGELOG.md) for details.
 
 ## Resolved in v7.5.1
 
@@ -1268,26 +1268,26 @@ See [CHANGELOG.md § 7.5.2](CHANGELOG.md) for details.
 - ✅ Quality-Sweep (verification analyses run during v7.5.1)
 - ✅ Deferred to v7.6+
 
-See [CHANGELOG.md § 7.5.1](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.1](../CHANGELOG.md) for details.
 
 ## Resolved in v7.5.0
 
 - ✅ Closeout / cleanup
 
-See [CHANGELOG.md § 7.5.0](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.5.0](../CHANGELOG.md) for details.
 
 ## Resolved in v7.4.9
 
 - ✅ Open / new items in v7.4.9
 - ✅ Open / deferred (carry-over)
 
-See [CHANGELOG.md § 7.4.9](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.4.9](../CHANGELOG.md) for details.
 
 ## Resolved in v7.4.8
 
 - ✅ Open / deferred
 
-See [CHANGELOG.md § 7.4.8](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.4.8](../CHANGELOG.md) for details.
 
 ## Resolved in v7.4.7 — Cleanroom (Settings Hygiene)
 
@@ -1296,7 +1296,7 @@ See [CHANGELOG.md § 7.4.8](CHANGELOG.md) for details.
 - ✅ Verification
 - ✅ Honest scope note
 
-See [CHANGELOG.md § 7.4.7](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.4.7](../CHANGELOG.md) for details.
 
 ## Resolved in v7.4.6 — Goal-Pipeline Fixes (real this time)
 
@@ -1305,7 +1305,7 @@ See [CHANGELOG.md § 7.4.7](CHANGELOG.md) for details.
 - ✅ Principle added
 - ✅ Why this happened (post-mortem)
 
-See [CHANGELOG.md § 7.4.6](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.4.6](../CHANGELOG.md) for details.
 
 ## Resolved in v7.4.5 — Endurance
 
@@ -1314,7 +1314,7 @@ See [CHANGELOG.md § 7.4.6](CHANGELOG.md) for details.
 - ✅ O-8 status update — REGRESSION (deferred)
 - ✅ Items added (open by design)
 
-See [CHANGELOG.md § 7.4.5](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.4.5](../CHANGELOG.md) for details.
 
 ## Resolved in v7.4.4 — Bookkeeping
 
@@ -1324,7 +1324,7 @@ See [CHANGELOG.md § 7.4.5](CHANGELOG.md) for details.
 - ✅ Items reformulated
 - ✅ What was deliberately not done
 
-See [CHANGELOG.md § 7.4.4](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.4.4](../CHANGELOG.md) for details.
 
 ## Resolved in v7.3.7 – v7.4.2 (Stocktaking-Catch-Up)
 
@@ -1336,7 +1336,7 @@ See [CHANGELOG.md § 7.4.4](CHANGELOG.md) for details.
 - ✅ From v7.4.1 — **not documented in CHANGELOG** (Erratum)
 - ✅ From v7.4.2 — Stocktaking (this release)
 
-See [CHANGELOG.md § 7.3.7](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.3.7](../CHANGELOG.md) for details.
 
 ## Resolved in v7.1.6 (Post-Release)
 
@@ -1348,7 +1348,7 @@ See [CHANGELOG.md § 7.3.7](CHANGELOG.md) for details.
 - ✅ R-6: 21 Cross-Phase Required Late Bindings
 - ✅ R-7: 2 Dangling Late Binding Names
 
-See [CHANGELOG.md § 7.1.6](CHANGELOG.md) for details.
+See [CHANGELOG.md § 7.1.6](../CHANGELOG.md) for details.
 
 ## Open Items
 
@@ -1365,7 +1365,7 @@ See [CHANGELOG.md § 7.1.6](CHANGELOG.md) for details.
 - ✅ O-11: Circuit-Breaker uses one global timeout for all backends
 - ✅ O-12: PromptBuilderSections re-org bundled with BeliefStore
 
-See [CHANGELOG.md](CHANGELOG.md) for details.
+See [CHANGELOG.md](../CHANGELOG.md) for details.
 
 ## Resolved Items
 
@@ -1374,7 +1374,7 @@ See [CHANGELOG.md](CHANGELOG.md) for details.
 - ✅ V7 Roadmap Items
 - ✅ File Size Guard Resolutions (v7.1.3)
 
-See [CHANGELOG.md](CHANGELOG.md) for details.
+See [CHANGELOG.md](../CHANGELOG.md) for details.
 
 ## Audit History
 

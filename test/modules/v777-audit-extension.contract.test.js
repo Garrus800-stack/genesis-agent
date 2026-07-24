@@ -70,7 +70,7 @@ track('A2: GATE-INVENTORY.md claims the live SECURITY_REQUIRED_SLASH count', () 
 // ── A3: AUDIT-BACKLOG slash-discipline entry uses 12 ────────
 
 track('A3: AUDIT-BACKLOG.md slash-discipline entry uses 12 (not 9)', () => {
-  const src = read('AUDIT-BACKLOG.md');
+  const src = read('docs/AUDIT-BACKLOG.md');
   assert.ok(/4 of the 12 SECURITY_REQUIRED_SLASH/.test(src),
     'AUDIT-BACKLOG should say "4 of the 12 SECURITY_REQUIRED_SLASH"');
   assert.ok(!/4 of the 9 SECURITY_REQUIRED_SLASH/.test(src),

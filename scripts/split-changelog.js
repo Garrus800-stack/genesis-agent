@@ -49,48 +49,62 @@ for (const s of sections) {
 //     gets a full CHANGELOG-v7.md archive of all v7 entries
 //   - v6, v5 — their own files
 //   - v0–v4 — combined into docs/CHANGELOG-archive.md
+// v7.9.45 guard — this splitter REGENERATES archives from the current
+// CHANGELOG.md alone. Run against a single-entry changelog it would erase
+// history (it did, once — restored from the release zip). Never shrink:
+function safeWrite(outPath, content, label) {
+  const fsx = require('fs');
+  try {
+    const prev = fsx.readFileSync(outPath, 'utf-8');
+    const prevN = (prev.match(/^## \[/gm) || []).length;
+    const nextN = (content.match(/^## \[/gm) || []).length;
+    if (prevN > nextN && !process.argv.includes('--force')) {
+      console.warn(`PRESERVED ${label} (${prevN} entries kept, refusing to shrink to ${nextN}; use --force to override).`);
+      return;
+    }
+  } catch (_e) { /* no existing file — write freely */ }
+  fsx.writeFileSync(outPath, content, 'utf-8');
+  console.log(`Wrote ${label} (${(content.match(/^## \[/gm) || []).length} entries).`);
+}
+
 function header(text) {
   return `# Genesis Agent — ${text}\n\nFor the current release notes see [CHANGELOG.md](CHANGELOG.md).\n\n---\n\n`;
 }
 
 // CHANGELOG-v7.md (all v7 entries)
 const v7Entries = byMajor.get(7) || [];
-fs.writeFileSync(
-  path.join(ROOT, 'CHANGELOG-v7.md'),
+safeWrite(
+  path.join(ROOT, 'docs', 'CHANGELOG-v7.md'),
   header('Changelog v7.x.x') + v7Entries.map(s => s.body).join('---\n\n'),
-  'utf-8'
+  'CHANGELOG-v7.md'
 );
-console.log(`Wrote CHANGELOG-v7.md (${v7Entries.length} entries).`);
 
 // CHANGELOG-v6.md
 const v6Entries = byMajor.get(6) || [];
-fs.writeFileSync(
+safeWrite(
   path.join(ROOT, 'docs', 'CHANGELOG-v6.md'),
   header('Changelog v6.x.x') + v6Entries.map(s => s.body).join('---\n\n'),
-  'utf-8'
+  'CHANGELOG-v6.md'
 );
-console.log(`Wrote docs/CHANGELOG-v6.md (${v6Entries.length} entries).`);
 
 // CHANGELOG-v5.md
 const v5Entries = byMajor.get(5) || [];
-fs.writeFileSync(
+safeWrite(
   path.join(ROOT, 'docs', 'CHANGELOG-v5.md'),
   header('Changelog v5.x.x') + v5Entries.map(s => s.body).join('---\n\n'),
-  'utf-8'
+  'CHANGELOG-v5.md'
 );
-console.log(`Wrote docs/CHANGELOG-v5.md (${v5Entries.length} entries).`);
 
 // CHANGELOG-archive.md (v0–v4)
 const archiveEntries = [];
 for (const major of [4, 3, 2, 1, 0]) {
   archiveEntries.push(...(byMajor.get(major) || []));
 }
-fs.writeFileSync(
+safeWrite(
   path.join(ROOT, 'docs', 'CHANGELOG-archive.md'),
   header('Changelog archive (v0.x.x – v4.x.x)') + archiveEntries.map(s => s.body).join('---\n\n'),
-  'utf-8'
+  'CHANGELOG-archive.md'
 );
-console.log(`Wrote docs/CHANGELOG-archive.md (${archiveEntries.length} entries).`);
 
 // Rebuild CHANGELOG.md = preamble + newest entry inline + index.
 const newest = sections[0];
@@ -102,10 +116,10 @@ const indexBlock = `
 
 For prior version history, see the archive files:
 
-- [**CHANGELOG-v7.md**](CHANGELOG-v7.md) — all v7.x.x releases (${v7Entries.length} entries)
-- [**CHANGELOG-v6.md**](CHANGELOG-v6.md) — all v6.x.x releases (${v6Entries.length} entries)
-- [**CHANGELOG-v5.md**](CHANGELOG-v5.md) — all v5.x.x releases (${v5Entries.length} entries)
-- [**CHANGELOG-archive.md**](CHANGELOG-archive.md) — v0.x.x – v4.x.x (${archiveEntries.length} entries)
+- [**CHANGELOG-v7.md**](docs/CHANGELOG-v7.md) — all v7.x.x releases (${v7Entries.length} entries)
+- [**CHANGELOG-v6.md**](docs/CHANGELOG-v6.md) — all v6.x.x releases (${v6Entries.length} entries)
+- [**CHANGELOG-v5.md**](docs/CHANGELOG-v5.md) — all v5.x.x releases (${v5Entries.length} entries)
+- [**CHANGELOG-archive.md**](docs/CHANGELOG-archive.md) — v0.x.x – v4.x.x (${archiveEntries.length} entries)
 
 This index file (\`CHANGELOG.md\`) keeps only the newest release inline so
 the file stays readable. The major-version archives carry the full

@@ -151,6 +151,10 @@ class IntentRouter {
     if (typeof message !== 'string') return null;
     const trimmed = message.trim();
     if (!trimmed) return null;
+    // v7.9.45 revision: any HIGH-PRIORITY regex intent (>=30: lab, vault,
+    // lookup, edit, places, every file road) outranks small-talk heuristics — a question-shaped
+    // command („wie geht es dem Labor“, „wo ist dein Arbeitsbereich“) must reach its road.
+    if (trimmed.length > 4 && INTENT_DEFINITIONS.some((d) => (d[2] || 0) >= 14 && d[1].some((rx) => rx.test(trimmed)))) return null;
 
     // Pure greetings
     if (/^(hi|hallo|moin|hey|servus|guten\s+(morgen|tag|abend))[\s!?.]*$/i.test(trimmed)) {

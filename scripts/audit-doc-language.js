@@ -30,7 +30,7 @@
 //   - docs/*.md: every file under docs/, full content, with
 //     a few narrative/historical exemptions.
 //
-// CHANGELOG-v7.md and docs/CHANGELOG-v6.md are explicitly NOT
+// docs/CHANGELOG-v7.md and docs/CHANGELOG-v6.md are explicitly NOT
 // scanned. They are historical archives. The convention is
 // "historical entries are not rewritten in place" — they
 // document what was, not what should be.
@@ -96,6 +96,7 @@ const EXEMPT_PATHS = new Set([
   'docs/SELF-KNOWLEDGE.md',
   'docs/AUDIT-BACKLOG.md',
   'docs/CHANGELOG-v6.md',
+  'docs/CHANGELOG-v7.md',
   'LICENSE',
   'CODE_OF_CONDUCT.md',
   'SECURITY.md',
@@ -183,7 +184,7 @@ function listDocFiles() {
   }
 
   // CHANGELOG.md — current section only.
-  // CHANGELOG-v7.md is a historical archive and not scanned (by design).
+  // docs/CHANGELOG-v7.md is a historical archive and not scanned (by design).
   const clMain = readCurrentChangelogSection(path.join(REPO_ROOT, 'CHANGELOG.md'));
   if (clMain) files.push({ rel: 'CHANGELOG.md (current section)', content: clMain });
 

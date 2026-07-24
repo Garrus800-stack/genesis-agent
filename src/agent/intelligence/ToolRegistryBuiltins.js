@@ -323,7 +323,14 @@ class _ToolRegistryBuiltinsHost {
       output: { content: 'string', size: 'number', exists: 'boolean' },
     }, (input) => {
       const r = _resolveProjectPath(input.path);
-      if (!r.ok) return { content: '', size: 0, exists: false, error: r.error };
+      if (!r.ok) {
+        // v7.9.45 field: a small model reaching for the project reader with an
+        // Archive-relative path gets pointed at the right hand instead of a
+        // dead end.
+        let _err = r.error;
+        if (/^(inbox|projects)\//i.test(String(input && input.path || ''))) _err = _err + ' — Hinweis: Pfade wie inbox/… liegen im Genesis Archive; nutze read-archive-file.';
+        return { content: '', size: 0, exists: false, error: _err };
+      }
       let filePath = r.abs;
       // v7.5.9 live-fix: filename-variant resolution. Pre-fix the LLM
       // could call file-read({ path: 'readme' }) and get exists:false,

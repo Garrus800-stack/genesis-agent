@@ -275,7 +275,16 @@ const commandHandlersFileView = {
    * last-opened file for "was steht da drin") and reads it straight from fs.
    * Large files return a head + a hint to use "fasse <datei> zusammen".
    */
-  async readFile(message) {
+  // v7.9.45 field: Archive location, locally (settings first; no cross-phase require).
+
+  _archiveRoot() {
+    const path = require('path');
+    try { const c = this.settings && this.settings.get ? this.settings.get('archive.path') : null; if (c && String(c).trim()) return path.resolve(String(c).trim()); } catch (_e) { /* fall through */ }
+    try { if (this.genesisDir) return path.resolve(this.genesisDir, '..', '..', 'Genesis Archive'); } catch (_e) { /* none */ }
+    return null;
+  },
+
+  async readFile(message, orch) {
     const fs = require('fs');
     const path = require('path');
     const { getLastDoc, setLastDoc } = require('./LastDocStore');
@@ -305,12 +314,19 @@ const commandHandlersFileView = {
       // in package.json", "inhalt von readme". Resolve it against the project
       // root with common extensions, so a named file works even without a path.
       const nameM = message.match(/(?:datei|dokument|file|document|inhalt\s+von|inhalt\s+des|content\s+of)\s+(?:the\s+)?["']?([\w][\w.()\- ]*?)["']?(?=\s|$|[?.,]|\s+say|\s+contain)/i)
-        || message.match(/(?:steht\s+in(?:\s+der)?|ist\s+in\s+(?:dem\s+|der\s+)?(?:datei|dokument|file)|read|does)\s+(?:the\s+(?:file\s+|document\s+)?)?["']?([\w][\w.()\- ]*?)["']?(?=\s|$|[?.,]|\s+say|\s+contain)/i);
+        || message.match(/(?:steht\s+in(?:\s+der)?|ist\s+in\s+(?:dem\s+|der\s+)?(?:datei|dokument|file)|ist\s+auf\s+(?:dem|der)|on\s+the|sur|se\s+ve\s+en|read|does)\s+(?:the\s+(?:file\s+|document\s+)?)?["']?([\w][\w.()\- ]*?)["']?(?=\s|$|[?.,]|\s+say|\s+contain)/i);
       if (nameM) {
         const cand = nameM[1].trim();
         const rootDir = (this.fp && this.fp.rootDir) || process.cwd();
-        const exts = ['', '.txt', '.md', '.json', '.js', '.log', '.yaml', '.yml'];
-        for (const baseDir of [rootDir, process.cwd()]) {
+        const exts = ['', '.txt', '.md', '.json', '.js', '.log', '.yaml', '.yml', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+        let _archDirs = [];
+        try {
+          const _ar = this._archiveRoot();
+          if (_ar) _archDirs = [_ar, path.join(_ar, 'inbox'), path.join(_ar, 'projects')];
+          const _v = this.settings && this.settings.get ? this.settings.get('vault.path') : null;
+          if (_v && String(_v).trim()) _archDirs.push(String(_v).trim(), path.join(String(_v).trim(), 'Genesis'));
+        } catch (_e) { /* no archive configured */ }
+        for (const baseDir of [rootDir, process.cwd(), ..._archDirs]) {
           for (const e of exts) {
             const p = path.join(baseDir, cand + e);
             try { if (fs.existsSync(p) && fs.statSync(p).isFile()) { target = p; break; } } catch { /* skip */ }
@@ -347,6 +363,12 @@ const commandHandlersFileView = {
       }
       return 'Welche Datei soll ich lesen? Gib mir den Namen oder Pfad an.';
     }
+    try {
+      if (target && !path.isAbsolute(String(target)) && !fs.existsSync(target)) {
+        const _ar = this._archiveRoot(); const cand = _ar ? path.join(_ar, String(target)) : null;
+        if (cand && fs.existsSync(cand)) target = cand;
+      }
+    } catch (_e) { /* keep original target */ }
     const absLower = String(target).toLowerCase();
     if (_isCriticalSystemPath(absLower, process.platform === 'win32') || _isSecretFile(absLower)) {
       return 'Diese Datei ist geschützt und kann nicht gelesen werden.';
@@ -364,6 +386,27 @@ const commandHandlersFileView = {
         return 'Diese Datei ist geschützt und kann nicht gelesen werden.';
       }
     } catch { /* realpath failed → the earlier name-based check stands */ }
+    // v7.9.45 field: Archive paths and every PDF go through the archive hand (one reader, one truth).
+    try {
+      const _ar = this._archiveRoot();
+      const _n = (x) => String(x).toLowerCase().replace(/\\/g, '/');
+      const inArchive = _ar && (_n(target) === _n(_ar) || _n(target).startsWith(_n(_ar) + '/'));
+      const _reg = orch && orch.tools;
+      const _can = _reg && typeof _reg.hasTool === 'function' && typeof _reg.executeSingleTool === 'function';
+      if (/\.(?:png|jpe?g|gif|webp|bmp)$/i.test(String(target)) && _can && _reg.hasTool('look-at-image')) {
+        const ri = await _reg.executeSingleTool('look-at-image', { path: target });
+        const rri = (ri && ri.result !== undefined) ? ri.result : ri;
+        try { setLastDoc(target, 'file'); } catch { /* ignore */ }
+        if (rri && (rri.ok || rri.error)) return rri.ok ? (rri.gesehen || rri.content) : rri.error;
+      }
+      if ((inArchive || /\.pdf$/i.test(String(target))) && _can && _reg.hasTool('read-archive-file')) {
+        const r = await _reg.executeSingleTool('read-archive-file', { path: target });
+        try { setLastDoc(target, 'file'); } catch { /* ignore */ }
+        const rr = (r && r.result !== undefined) ? r.result : r; // unwrap if execute() envelopes
+        if (rr && rr.ok) return rr.content;
+        if (rr && rr.error) return rr.error;
+      }
+    } catch (_e) { /* fall back to the plain read below */ }
     let content;
     try { content = fs.readFileSync(target, 'utf8'); } catch (e) { return `Konnte die Datei nicht lesen: ${e.message}`; }
     try { setLastDoc(target, 'file'); } catch { /* ignore */ }
@@ -386,93 +429,7 @@ const commandHandlersFileView = {
    * existing file. Target dir: "genesis ordner" → project root; a named location
    * (Desktop/Documents/... plain or OneDrive); an explicit drive path; else root.
    */
-  async createFile(message) {
-    const fs = require('fs');
-    const path = require('path');
-    const os = require('os');
-    const { _isCriticalSystemPath, _isSecretFile } = require('../core/shell/ShellSafety');
-    const rootDir = (this.fp && this.fp.rootDir) || process.cwd();
-
-    // name
-    // v7.9.44 r15 (field): a name may carry spaces ("Genesis 01") — capture up
-    // to "und/mit inhalt|text", a location clause, punctuation, or the end.
-    const nameM = message.match(/(?:mit\s+)?(?:namens?|named|called)\s+["']?([^\s"',][^"',]*?)["']?(?=\s+(?:und|and)\b|\s+(?:mit|with)\s+(?:dem\s+|the\s+)?(?:inhalt|text|content)\b|\s+(?:der|dem|den|the)\s+(?:inhalt|text|content)\b|\s+(?:in|im|auf|unter|on)\s+|\s*[,.!?;]|\s*$)/i)
-      || message.match(/(?:text[\s-]*)?(?:datei|dokument|file|document)\s+["']([^"']+)["']/i);
-    let name = nameM ? nameM[1].trim() : null;
-    if (!name) {
-      return 'Wie soll die Datei heißen? Sag z.B. „erstelle eine Textdatei mit Namen notiz und Inhalt Hallo".';
-    }
-    if (!/\.[A-Za-z0-9]+$/.test(name)) name += '.txt';
-
-    // content: "mit inhalt X", "der text (in dem dokument) ist X",
-    // "der inhalt ist X", "inhalt: X", "mit dem text X". The field showed
-    // "… der text in dem dokument ist test" produced an empty file because only
-    // "inhalt X" was parsed. Cut a trailing "in/auf <ort>" clause so the target
-    // directory does not leak into the content.
-    const stripLoc = (s) => String(s)
-      .replace(/\s+(?:in|im|auf|unter|on)\s+(?:dem\s+|der\s+|das\s+|den\s+|the\s+)?(?:genesis[-\s]?ordner|genesis[-\s]?verzeichnis|genesis\b|projekt(?:ordner|verzeichnis)?|desktop|schreibtisch|downloads?|dokumente|documents?|bilder|pictures?|musik|music|[A-Za-z]:\\?)[\s\S]*$/i, '')
-      .trim();
-    const contentM =
-      // "… und schreibe test 1 in den inhalt / hinein / rein"
-      message.match(/\bschreib\w*\s+(?:den\s+text\s+|mir\s+|die\s+|das\s+)?([\s\S]+?)\s+(?:in\s+den\s+inhalt|in\s+die\s+datei|in\s+das\s+dokument|hinein|rein|dazu|hinzu)\b/i)
-      || message.match(/(?:der\s+|dem\s+)?(?:text|inhalt)\s+(?:in\s+(?:dem|der|das)\s+(?:dokument|datei|file|document)\s+)?(?:ist|lautet|soll\s+(?:sein|lauten))\s*[:=]?\s*["']?([\s\S]+?)["']?$/i)
-      || message.match(/(?:mit\s+)?inhalt\s*[:=]?\s*["']?([\s\S]*?)["']?(?:\s+(?:in|im|auf|unter|on)\s+(?:dem\s+|der\s+|das\s+|den\s+)?(?:genesis|desktop|schreibtisch|downloads?|dokumente|documents?|bilder|pictures?|musik|music|ordner|verzeichnis|[A-Za-z]:)\b[\s\S]*)?$/i)
-      || message.match(/\bmit\s+(?:dem\s+)?text\s+["']?([\s\S]+?)["']?$/i)
-      // English: "with content X", "the content/text is X", "saying/that says X"
-      || message.match(/(?:the\s+)?(?:content|text)\s+(?:is|reads|:|=)\s*["']?([\s\S]+?)["']?$/i)
-      || message.match(/(?:with\s+(?:the\s+)?(?:content|text)|saying|that\s+says?|containing)\s*[:=]?\s*["']?([\s\S]*?)["']?(?:\s+(?:in|on)\s+(?:the\s+)?(?:desktop|downloads?|documents?|pictures?|music|genesis|[A-Za-z]:)\b[\s\S]*)?$/i);
-    let content = contentM ? _stripContentMeta(stripLoc(contentM[1])) : '';
-    // A bare reference to the last output ("es", "das", "die Zusammenfassung",
-    // "die Zeichnung") resolves to whatever Genesis last produced. Any OTHER
-    // literal text is written verbatim — the remembered output is one source.
-    const bareRef = /^(?:die\s+|der\s+|das\s+|letzte[nr]?\s+|diese[nrs]?\s+|obige[nrs]?\s+)?(?:es|das|dies(?:es|e)?|zusammenfassung|summary|zusammenfassund|ergebnis|zeichnung|bild|diagramm|grafik|ausgabe|output|antwort)$/i.test(content);
-    const msgRef = /\b(?:zusammenfassung|summary|zusammenfassund|zeichnung|diagramm|grafik)\b|\b(?:das|die|der)\s+(?:ergebnis|bild|diagramm|zeichnung|obige|letzte|antwort|ausgabe)\b|(?:schreib\w*)\s+(?:mir\s+)?(?:es|das|dies(?:es|e)?)\b/i.test(message);
-    if (bareRef || (!content && msgRef)) {
-      try { const lt = require('./LastDocStore').getLastText(); if (lt && lt.text) content = lt.text; } catch { /* ignore */ }
-    }
-
-    // target directory — default is the Archive when one exists, else the project.
-    const _arch = _archiveDir(rootDir);
-    let dir = (_arch && require('fs').existsSync(_arch)) ? _arch : rootDir;
-    const driveM = message.match(/\b(?:in|im|unter|auf|on)\s+["']?([A-Za-z]:\\[^\s"']*)/i);
-    const locM = message.match(/\b(?:auf|in|unter|on|im)\s+(?:dem|den|der|de|the)\s+(desktop|schreibtisch|downloads?|dokumente|documents?|bilder|pictures?|musik|music)\b/i);
-    const genM = /\b(?:in|im)\s+(?:dem\s+|das\s+|den\s+)?(?:genesis[-\s]?ordner|genesis[-\s]?verzeichnis|genesis[-\s]?folder|genesis\b|projekt(?:ordner|verzeichnis)?)/i.test(message);
-    if (driveM) {
-      dir = driveM[1];
-    } else if (locM) {
-      const key = locM[1].toLowerCase();
-      const folder = ({
-        desktop: 'Desktop', schreibtisch: 'Desktop',
-        download: 'Downloads', downloads: 'Downloads',
-        dokumente: 'Documents', document: 'Documents', documents: 'Documents',
-        bilder: 'Pictures', picture: 'Pictures', pictures: 'Pictures',
-        musik: 'Music', music: 'Music',
-      })[key] || 'Desktop';
-      const home = os.homedir();
-      const cands = [path.join(home, 'OneDrive', folder), path.join(home, folder)];
-      dir = cands.find((d) => { try { return fs.existsSync(d); } catch { return false; } }) || path.join(home, folder);
-    } else if (genM) {
-      dir = rootDir;
-    }
-
-    const target = path.join(dir, name);
-    const absLower = target.toLowerCase();
-    if (_isCriticalSystemPath(absLower, process.platform === 'win32') || _isSecretFile(absLower)) {
-      return 'Dieser Pfad ist geschützt — dort erstelle ich keine Datei.';
-    }
-    try {
-      if (fs.existsSync(target)) {
-        // Protect a file that already has content, but allow writing into an
-        // empty placeholder (a common two-step: create empty, then fill it).
-        let sz = 1; try { sz = fs.statSync(target).size; } catch { /* treat as non-empty */ }
-        if (sz > 0) return `Die Datei \`${target}\` existiert bereits und ist nicht leer — ich überschreibe nichts. Sag „schreibe … in ${name}", wenn du sie ersetzen willst, oder wähle einen anderen Namen.`;
-      }
-    } catch { /* proceed */ }
-    try { fs.mkdirSync(dir, { recursive: true }); } catch { /* dir may exist */ }
-    try { fs.writeFileSync(target, content, 'utf8'); } catch (e) { return `Konnte die Datei nicht erstellen: ${e.message}`; }
-    try { require('./LastDocStore').setLastDoc(target, 'file'); } catch { /* ignore */ }
-    return `Datei erstellt: ${target}${content ? ` (${content.length} Zeichen)` : ' (leer)'}`;
-  },
+// v7.9.45: createFile moved to CommandHandlersCreate.js (size guard); mixins share `this`.
 
   /**
    * v7.9.28 (field-fix #3): write text INTO a (possibly existing) file —
@@ -656,4 +613,4 @@ const commandHandlersFileView = {
 
 };
 
-module.exports = { commandHandlersFileView };
+module.exports = { commandHandlersFileView, _stripContentMeta, _archiveDir }; // helpers shared with the Create hand (v7.9.45)

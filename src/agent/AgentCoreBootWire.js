@@ -51,6 +51,7 @@ const agentCoreBootWireMixin = {
         const registered = registerV737Tools(tools, {
           pendingMomentsStore: c.tryResolve('pendingMomentsStore'),
           journalWriter:       c.tryResolve('journalWriter'),
+          lessonsStore:        c.tryResolve('lessonsStore'), // v7.9.45 K: accept-lesson target
           coreMemories:        c.tryResolve('coreMemories'),
           episodicMemory:      c.tryResolve('episodicMemory'),
           modelBridge:         c.tryResolve('model'), // v7.9.42 V2a: resonance-note needs one small model call
@@ -62,6 +63,24 @@ const agentCoreBootWireMixin = {
       }
     } catch (e) {
       _log.debug('[v737-tools] registration skipped:', e.message);
+    }
+    // v7.9.45 L: the cognitive laboratory — lab-status / lab-run (Docker,
+    // one-way, offline by design). Best-effort like every tool family.
+    try {
+      // v7.9.45 field-fix (two roots, both silent): the boot container offers
+      // tryResolve only, and `tools` was scoped INSIDE the v7.3.7 try above —
+      // this block needs its own resolve of both.
+      const tools = c.tryResolve('tools');
+      if (tools) {
+        const { registerV745Tools } = require('./cognitive/tools/v745-labor-tools.js');
+        registerV745Tools(tools, {
+          settings:       c.tryResolve('settings'),
+          earnedAutonomy: c.tryResolve('earnedAutonomy'),
+          logger:         _log,
+        });
+      }
+    } catch (e) {
+      _log.debug('[v745-tools] registration skipped:', e.message);
     }
 
     // v7.2.1: Log expected-active bindings that are missing
@@ -90,7 +109,7 @@ const agentCoreBootWireMixin = {
 
     // Handler registrations
     const chat = c.resolve('chatOrchestrator');
-    try { chat._observeResonance = require('./cognitive/ResonanceHeuristic.js').observeAssistant; require('./intelligence/PromptBuilderSectionsExtra.js').sectionsExtra._pickOffer = (d) => require('./cognitive/ResonanceCandidates.js').pickOffer(d); /* v7.9.44 r12: the Archive is NOT forced at boot — archive:ensure creates inbox/ + projects/ when you first attach a file (picking a location), and register-work creates projects/<name>/ on demand. No ghost folder before a location is chosen. */ require('./intelligence/PromptBuilderSectionsExtra.js').sectionsExtra._buildThreads = (d) => { try { require('./cognitive/WorkRegistry.js').checkWorks(d); } catch (_e) { /* care is best effort */ } return require('./cognitive/OpenThreads.js').buildBlock(d); }; } catch (_e) { /* v7.9.43 W3 wiring best effort */ }
+    try { chat._observeResonance = require('./cognitive/ResonanceHeuristic.js').observeAssistant; chat._observeCorrection = require('./cognitive/CorrectionHeuristic.js').observeUser; require('./intelligence/PromptBuilderSectionsExtra.js').sectionsExtra._pickCorrectionOffer = (d) => require('./cognitive/CorrectionCandidates.js').pickOffer(d); /* v7.9.45 K */ require('./intelligence/PromptBuilderSectionsExtra.js').sectionsExtra._pickOffer = (d) => require('./cognitive/ResonanceCandidates.js').pickOffer(d); /* v7.9.44 r12: the Archive is NOT forced at boot — archive:ensure creates inbox/ + projects/ when you first attach a file (picking a location), and register-work creates projects/<name>/ on demand. No ghost folder before a location is chosen. */ require('./intelligence/PromptBuilderSectionsExtra.js').sectionsExtra._buildThreads = (d) => { try { require('./cognitive/WorkRegistry.js').checkWorks(d); } catch (_e) { /* care is best effort */ } return require('./cognitive/OpenThreads.js').buildBlock(d); }; } catch (_e) { /* v7.9.43 W3 wiring best effort */ }
     c.resolve('selfModPipeline').registerHandlers(chat);
     c.resolve('commandHandlers').registerHandlers(chat);
     // v7.9.20 (C): late-bind the skill registry onto the agent loop so an

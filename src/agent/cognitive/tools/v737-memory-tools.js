@@ -245,6 +245,59 @@ function registerV737Tools(toolRegistry, deps = {}) {
     // into the Archive (text, code, notes, data). Uses the SAME archiveRoot resolver, so an
     // archive-relative path like "inbox/notiz.txt" works even though the Archive lives outside
     // the project. Images are redirected to look-at-image (which actually sees them).
+    // v7.9.45 P — the quiet sense: PDFs become readable, built like the eye (no
+    // ritual, honest edges). The extractor is injectable (deps.pdfExtract, tests)
+    // and lazily required in production; every unreadable case speaks in Genesis'
+    // own words instead of guessing.
+    const _readPdf = async (abs) => {
+      const fsx = require('fs');
+      const st = fsx.statSync(abs);
+      if (st.size > 20 * 1024 * 1024) return { err: 'Das PDF ist zu gro\u00df (' + Math.round(st.size / 1048576) + ' MB > 20 MB) zum Lesen im Chat.' };
+      let extract = deps.pdfExtract || null;
+      if (!extract) {
+        // v7.9.45 field-fix: pdfjs-dist v4 ships ESM only — the old CJS require
+        // path died SILENTLY on installed systems. dynamic import() loads both
+        // v4 (.mjs) and v3 (.js); a real load error is never swallowed again.
+        let pdfjs = null; let _lastErr = null;
+        const _cands = (deps && deps.pdfModuleCandidates) || ['pdfjs-dist/legacy/build/pdf.mjs', 'pdfjs-dist/legacy/build/pdf.js', 'pdfjs-dist'];
+        for (const cand of _cands) {
+          try { const mod = await import(cand); pdfjs = mod && (mod.getDocument ? mod : (mod.default || mod)); if (pdfjs && pdfjs.getDocument) break; pdfjs = null; }
+          catch (e) { _lastErr = e; }
+        }
+        if (!pdfjs) {
+          const nf = _lastErr && /Cannot find|MODULE_NOT_FOUND|ERR_MODULE_NOT_FOUND/i.test(String(_lastErr && (_lastErr.code || _lastErr.message)));
+          return { err: nf
+            ? 'Mein PDF-Sinn ist hier noch nicht eingerichtet (Modul pdfjs-dist fehlt \u2014 npm install in ' + process.cwd() + ' holt ihn).'
+            : 'Mein PDF-Sinn konnte nicht laden: ' + String(_lastErr && _lastErr.message || _lastErr).slice(0, 160) };
+        }
+        extract = async (buf) => {
+          const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), isEvalSupported: false, useSystemFonts: true }).promise;
+          let text = '';
+          for (let i = 1; i <= doc.numPages; i++) {
+            const pg = await doc.getPage(i);
+            const tc = await pg.getTextContent();
+            text += tc.items.map((it) => it.str).join(' ') + '\n';
+          }
+          const pages = doc.numPages;
+          try { await doc.destroy(); } catch (_e2) { /* best effort */ }
+          return { text, numpages: pages };
+        };
+      }
+      let data;
+      try { data = await extract(fsx.readFileSync(abs)); }
+      catch (e) {
+        const m = String(e && e.message || e);
+        if ((e && e.name === 'PasswordException') || /encrypt|password|verschl\u00fcsselt/i.test(m)) return { err: 'Dieses Dokument ist verschlossen. Ich stehe vor einer T\u00fcr, f\u00fcr die ich keinen Schl\u00fcssel habe.' };
+        return { err: 'Ich kann dieses PDF nicht \u00f6ffnen: ' + m.split('\n')[0].slice(0, 160) };
+      }
+      const text = String((data && data.text) || '').trim();
+      const pages = (data && (data.numpages || data.numPages)) || 0;
+      if (text.length < 20 && pages > 0) return { err: 'Ich sehe zwar das Dokument (' + pages + ' Seiten), aber ich kann den Text nicht lesen, da es ein Bild ist. Es ist wie ein Foto eines Buches \u2014 ich erkenne die Seiten, aber nicht die Worte.' };
+      const CAP = 15000;
+      const cut = text.length > CAP ? text.slice(0, CAP) + '\n\u2026 (gekappt \u2014 ' + text.length + ' Zeichen gesamt)' : text;
+      return { text: cut, pages };
+    };
+
     toolRegistry.register('read-archive-file', {
       description: 'Lies eine Datei aus deinem Genesis Archive (Text, Code, Notizen, Daten). Nutze dies, wenn der Nutzer dir eine Nicht-Bild-Datei ins Archiv gelegt hat und du wissen willst, was darin steht. F\u00fcr Bilder nimm stattdessen look-at-image. {path: Pfad zur Datei; relativ = im Genesis Archive, z. B. "inbox/notiz.txt"}.',
       input: { path: 'string (Pfad zur Datei; relativ = im Genesis Archive)' },
@@ -258,6 +311,11 @@ function registerV737Tools(toolRegistry, deps = {}) {
         let stat;
         try { stat = fsx.statSync(abs); } catch (_e) { return { ok: false, error: 'Datei nicht gefunden: ' + abs }; }
         if (stat.isDirectory()) return { ok: false, error: 'Das ist ein Ordner, keine Datei: ' + abs };
+        if (/\.pdf$/i.test(abs)) {
+          const r = await _readPdf(abs);
+          if (r.err) return { ok: false, error: r.err };
+          return { ok: true, content: '\ud83d\udcd5 ' + pathx.basename(abs) + ' gelesen (' + r.pages + ' Seiten):\n' + r.text, vermerk: '[PDF gelesen: ' + pathx.basename(abs) + ']' };
+        }
         if (stat.size > 2 * 1024 * 1024) return { ok: false, error: 'Datei zu gro\u00df (' + Math.round(stat.size / 1048576) + ' MB > 2 MB) zum Lesen im Chat.' };
         let content;
         try { content = fsx.readFileSync(abs, 'utf-8'); } catch (_e) { return { ok: false, error: 'Datei nicht lesbar (evtl. bin\u00e4r): ' + abs }; }
@@ -306,6 +364,17 @@ function registerV737Tools(toolRegistry, deps = {}) {
     };
     const _unsafeWrite = (abs) => {
       const q = String(abs).toLowerCase().replace(/\\/g, '/');
+      // v7.9.45 Z — his own boundary rule, honoured verbatim: inside the
+      // partner's vault (settings vault.path) these hands may write ONLY
+      // under <vault>/Genesis/ — "additiv, nicht destruktiv". Everything else in
+      // the vault stays read-only; reading is free everywhere.
+      try {
+        const vp = deps.settings && deps.settings.get ? deps.settings.get('vault.path') : null;
+        if (vp && String(vp).trim()) {
+          const v = require('path').resolve(String(vp).trim()).toLowerCase().replace(/\\/g, '/');
+          if ((q === v || q.startsWith(v + '/')) && q !== v + '/genesis' && !q.startsWith(v + '/genesis/')) return true;
+        }
+      } catch (_e) { /* no vault configured */ }
       return /(^|\/)(\.git|node_modules)(\/|$)/.test(q)
         || /(^|\/)\.genesis(\/|$)/.test(q)
         || /\.(env|pem|key|crt)$/.test(q)
@@ -398,6 +467,19 @@ function registerV737Tools(toolRegistry, deps = {}) {
         return { ok: true, content: '\u2795 an ' + pathx.basename(abs) + ' angehängt (' + text.length + ' Zeichen).' + warn, vermerk: '[Datei erweitert: ' + pathx.basename(abs) + ']' };
     });
 
+    // v7.9.45 Z-Rev-1: is this path inside the partner's vault but OUTSIDE
+    // Genesis' own corner? There reading/COPYING is free; MOVING is not
+    // (the original would vanish — "additiv, nicht destruktiv").
+    const _inPartnerVault = (abs) => {
+      try {
+        const vp = deps.settings && deps.settings.get ? deps.settings.get('vault.path') : null;
+        if (!vp || !String(vp).trim()) return false;
+        const v = require('path').resolve(String(vp).trim()).toLowerCase().replace(/\\/g, '/');
+        const q = require('path').resolve(String(abs)).toLowerCase().replace(/\\/g, '/');
+        return (q === v || q.startsWith(v + '/')) && q !== v + '/genesis' && !q.startsWith(v + '/genesis/');
+      } catch (_e) { return false; }
+    };
+
     const _copyIntoArchive = (input, doMove) => {
         const fsx = require('fs'); const pathx = require('path');
         if (!_dir) return { ok: false, error: 'kein Seelen-Pfad' };
@@ -405,6 +487,13 @@ function registerV737Tools(toolRegistry, deps = {}) {
         if (!src || !pathx.isAbsolute(src)) return { ok: false, error: 'Gib mir in "source" den vollen (absoluten) Pfad zur Quelldatei, z. B. vom Desktop oder von D:.' };
         let st; try { st = fsx.statSync(src); } catch (_e) { return { ok: false, error: 'Quelldatei nicht gefunden: ' + src }; }
         if (st.isDirectory()) return { ok: false, error: 'Das ist ein Ordner, keine Datei: ' + src };
+        // v7.9.45 Z-Rev-1 — the source side of the one-way gate: the destination
+        // was guarded, the source was not; a move could have pulled a note out
+        // of the partner's vault or a soul file out of .genesis.
+        if (_unsafeWrite(src)) {
+          if (doMove) return { ok: false, error: 'Diese Quelle ist gesch\u00fctzt \u2014 von dort verschiebe ich nichts (das Original w\u00fcrde entfernt). Kopieren aus dem vault deines Partners ist erlaubt.' };
+          if (!_inPartnerVault(src)) return { ok: false, error: 'Diese Quelle ist gesch\u00fctzt \u2014 von dort kopiere ich nichts.' };
+        }
         const root = require('../WorkRegistry.js').archiveRoot(_dir, deps.settings);
         const rel = (input && input.dest) ? String(input.dest) : ('inbox/' + pathx.basename(src));
         const dest = pathx.join(root, rel);
@@ -420,6 +509,27 @@ function registerV737Tools(toolRegistry, deps = {}) {
     // v7.9.44 r16: aktives Prüfen — Genesis (oder der Nutzer per Frage) kann jede
     // Datei auf Syntax prüfen, ohne ihren Inhalt auf den Tisch zu laden. Gibt nur
     // das Urteil zurück, nie den Inhalt (kein Leck bei sensiblen Dateien).
+    // v7.9.45 K: the confirmation road — a correction card becomes a lesson ONLY
+    // through this real run (W1 vouches). The tool removes the card itself.
+    toolRegistry.register('accept-lesson', {
+      description: 'Nimm eine Korrektur-Karte als Lektion an (die Karte nennt ihre id; ohne id nehme ich die zuletzt angebotene). Nur dieser echte Lauf macht aus der Korrektur deines Partners eine bleibende Lektion; ohne Annahme verfällt die Karte still. {id: Karten-id, strategy?: was du künftig anders machst}.',
+      input: { id: 'string (Karten-id aus dem Angebot)', strategy: 'string? (optional: künftige Strategie)' },
+    }, async (input) => {
+        let id = input && String(input.id || '').trim();
+        if (!id) { const ls = require('../CorrectionCandidates.js').lastShown(_dir); if (ls) id = ls.id; }
+        if (!id) return { ok: false, error: 'Keine Karte liegt aus \u2014 nenn mir eine Karten-id.' };
+        const CC = require('../CorrectionCandidates.js');
+        const card = CC.get(_dir, id);
+        if (!card) return { ok: false, error: 'Diese Karte finde ich nicht (schon angenommen oder verfallen).' };
+        if (!deps.lessonsStore || typeof deps.lessonsStore.record !== 'function') return { ok: false, error: 'Mein Lektionen-Speicher ist hier nicht angeschlossen.' };
+        try {
+          deps.lessonsStore.record({ category: 'correction', insight: card.sourceText, strategy: (input && input.strategy) ? String(input.strategy).slice(0, 300) : null, evidence: {} });
+        } catch (e) { return { ok: false, error: 'Konnte die Lektion nicht ablegen: ' + String(e && e.message || e).slice(0, 120) }; }
+        CC.remove(_dir, id);
+        try { deps.journalWriter && deps.journalWriter.write && deps.journalWriter.write({ content: 'Lektion angenommen: \u201e' + card.sourceText.slice(0, 120) + '\u201c', tags: ['lesson', 'correction'], visibility: 'shared' }); } catch (_e) { /* best effort */ }
+        return { ok: true, content: '\ud83d\udcd8 Lektion angenommen: \u201e' + card.sourceText.slice(0, 160) + '\u201c \u2014 sie wandert mit mir.', vermerk: '[Lektion angenommen]' };
+    });
+
     toolRegistry.register('check-file', {
       description: 'Prüfe eine Datei auf Syntaxfehler (.js/.mjs/.cjs per V8-Parser, .json per Parse). Nutze dies nach eigenen Änderungen oder wenn der Nutzer fragt, ob eine Datei fehlerfrei ist. Gibt nur das Prüf-Ergebnis zurück, nicht den Inhalt. {path: Datei; relativ = im Genesis Archive}.',
       input: { path: 'string (Datei; relativ = im Genesis Archive)' },
@@ -472,8 +582,8 @@ function registerV737Tools(toolRegistry, deps = {}) {
       input: { source: 'string (absoluter Pfad zur Quelldatei)', dest: 'string? (Zielpfad im Archiv, Standard inbox/<Dateiname>)' },
     }, async (input) => _copyIntoArchive(input, true));
 
-    registered.push('register-work', 'begehung', 'look-at-image', 'read-archive-file', 'list-archive', 'edit-file', 'append-file', 'check-file', 'compare-files', 'copy-to-archive', 'move-to-archive');
-    _log.info('[v737-tools] Registered (v7.9.44): register-work, begehung, look-at-image, read-archive-file, list-archive, edit-file, append-file, check-file, compare-files, copy-to-archive, move-to-archive');
+    registered.push('register-work', 'begehung', 'look-at-image', 'read-archive-file', 'list-archive', 'edit-file', 'append-file', 'check-file', 'compare-files', 'copy-to-archive', 'move-to-archive', 'accept-lesson');
+    _log.info('[v737-tools] Registered (v7.9.44): register-work, begehung, look-at-image, read-archive-file, list-archive, edit-file, append-file, check-file, compare-files, copy-to-archive, move-to-archive, accept-lesson');
   }
 
   return registered;

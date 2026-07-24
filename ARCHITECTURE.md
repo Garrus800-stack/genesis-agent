@@ -9,7 +9,7 @@
 
 Genesis is a self-modifying AI agent that runs as an Electron desktop app. It talks to LLM backends (Ollama local, Anthropic, OpenAI-compatible), plans multi-step tasks, writes and verifies code, modifies its own source, and monitors its own health. It has an organism-inspired layer that regulates behavior under stress and a lightweight awareness system that gates self-modification via coherence checks.
 
-The codebase is ~119k LOC of JavaScript (CommonJS), 432 source modules, with zero external runtime frameworks. The manifest statically registers 172 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 185 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
+The codebase is ~134k LOC of JavaScript (CommonJS), 438 source modules, with zero external runtime frameworks. The manifest statically registers 172 DI-managed services. During boot, late-binding wiring and derived services (like `llmCache` being exposed from `model._cache`) bring the active service count to 185 — this is what you'll see in the final boot log line. Four production dependencies: `acorn` (AST parsing), `chokidar` (file watching), `dompurify` (XSS sanitisation in the chat-renderer), `tree-kill` (process cleanup).
 
 ---
 
@@ -755,7 +755,8 @@ genesis-agent/
 ├── types/
 │   └── node.d.ts              → Minimal Node.js type declarations for TSC
 ├── CHANGELOG.md               → Detailed per-version change history
-├── AUDIT-BACKLOG.md           → Open findings, monitor items, resolved items
+│                                (full v7 history: docs/CHANGELOG-v7.md;
+│                                 open findings: docs/AUDIT-BACKLOG.md)
 └── ARCHITECTURE.md            → This file
 ```
 
@@ -1207,7 +1208,7 @@ src/agent/hexagonal/PeerNetworkExchange.js
 
 The last three (`PluginRegistry`, `SkillManager`, `PeerNetworkExchange`) were added in v7.6.4 because they are the only defense against subdirectory-writes — plugin and skill code arriving from outside the source tree. If Genesis rewrote `PluginRegistry.js`, the AST-safety scan for plugins would silently disappear; the hash-lock prevents that.
 
-`audit-hash-lock-coverage.js` verifies at every CI run that no critical file dropped out of the locked set after a code split. It is one of the 18 CI gates.
+`audit-hash-lock-coverage.js` verifies at every CI run that no critical file dropped out of the locked set after a code split. It is one of the 20 CI gates.
 
 ### The asymmetry that keeps it honest
 
@@ -1246,4 +1247,24 @@ Together these form the answer to the question "how does Genesis modify itself w
 
 ---
 
-*This document should be updated when new layers, phases, or fundamental patterns are added. For per-version changes, see CHANGELOG.md. For open findings, see AUDIT-BACKLOG.md.*
+## Recent subsystem notes (v7.9.43 – v7.9.45)
+
+**Truth guard (v7.9.43).** Model-written tool-trace lines never reach the
+reader unchanged: a claimed deed without a real run is replaced by a visible
+marker naming the tool that never ran; a self-consistency alarm and the
+Nachklang candidate stage ride alongside (candidates confirm only through a
+real tool run).
+
+**Genesis Archive (v7.9.44).** His vault, gallery and workbench in one —
+copy-never-move intake, in-place `edit-file`/`append-file` with a syntax net,
+`check-file`/`compare-files`, everything he creates landing in one chosen
+place; soul, secrets and system paths refused, and (v7.9.45) the source side
+guarded too.
+
+**Cognitive laboratory (v7.9.45).** A throwaway Docker proving room, offline
+by design: one fresh `/work` mount and nothing else, no auto-pull (`image
+inspect` first — `--network none` alone would not stop a pull), results
+fetched only through a conscious `copy-to-archive`. Rooms are freed by the
+human via `lab.images`.
+
+*This document should be updated when new layers, phases, or fundamental patterns are added. For per-version changes, see CHANGELOG.md. For open findings, see docs/AUDIT-BACKLOG.md.*

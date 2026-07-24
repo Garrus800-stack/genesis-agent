@@ -125,6 +125,11 @@ function statusFor(name, kind, inSec) {
 // even though they're fuzzy — but lists them separately so a reviewer
 // can re-check the rationale.
 const FUZZY_BY_DESIGN = {
+  'vault-lookup': 'read-then-answer (v7.9.45 field) — finds and reads the partner\'s own note and answers from its literal lines with the source named; read-only, no secret. The spoken question IS the interface; a slash would ritualize plain asking.',
+  'where-is': 'places map (v7.9.45 field) — a read-only answer naming workspace/home/vault from live settings; pure information, no action, no secret. A slash form would add ritual to a question every partner asks in words.',
+  'edit-file': 'spoken edit is the design: the sentence itself must carry old + to/durch + new, and a chat ask is the explicit permission the vault boundary waits for — a slash form would bypass that consent shape',
+  'vault-set': 'Spoken vault handshake (v7.9.45 field) — stores a single READ-location setting (vault.path) after verifying the folder exists; no execution, no secret, and the vault write-boundary stays enforced elsewhere. The spoken road replaces hazardous hand-edited JSON; a slash would reintroduce the hazard it removes.',
+  'lab-run': 'the lab IS the safety model — an offline, throwaway Docker room with argument-pinned one-way walls (--rm, --network none, one fresh mount); it fires only on the explicit word "Labor/lab". Opt-in by word is the partner\'s no-incantation principle; a slash would defeat it, not protect it (v7.9.45 field).',
   greeting:        'Conversational small-talk; matching slash would break chat UX entirely.',
   'file-search-local': 'Read-only scoped file search (v7.9.28 F7) — "suche eine Anwendung in C:/Tools". Natural-language UX; FileSearchSkill is read-only with its own depth/skip guards. Slash would be theatre.',
   retry:           'Repeats last user command; cannot escalate beyond what was already allowed.',

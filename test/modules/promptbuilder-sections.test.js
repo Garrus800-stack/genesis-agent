@@ -46,7 +46,7 @@ describe('PromptBuilderSections: Delegation', () => {
       '_userModelContext', '_bodySchemaContext', '_episodicContext',
       '_architectureContext', '_projectContext', '_taskPerformanceContext',
       '_disclosureContext', '_introspectionContext', '_versionContext', '_selfClockLine', // v7.9.40 (B1/V4): the self clock (SectionsExtra)
-      '_selfConsistencyLine', '_resonanceOfferBlock', // v7.9.43 (W2+W3): alarm + candidate offer (SectionsExtra)
+      '_selfConsistencyLine', '_resonanceOfferBlock', '_correctionOfferBlock', // v7.9.43 W2+W3 + v7.9.45 K (SectionsExtra)
       '_openThreadsBlock', // v7.9.44 (F1): the awakening threads (SectionsExtra)
       '_autonomyContext',
       // v7.3.3: new sections (live in PromptBuilderSectionsExtra.js)

@@ -1804,3 +1804,15 @@ The day gets its second bracket. PreSleep is a lifecycle sibling of the WakeUpRo
 ## Module 14: ConcernMonitor — The Relationship Gesture (v7.9.36)
 
 Genesis may reach out when his human seems strained — under the strictest guards of any proactive kind. The monitor listens to `session:ending` and evaluates two independent sources: the session pattern from `self-trajectory-events.jsonl` (total hours over seven days, or late-night starts derived as end minus duration) and the UserModel's decaying affect inference (patience and satisfaction both below their floors). Only agreement of both emits one `concern` thought into InnerSpeech, with origins and aggregate evidence in `contextRefs` — never quotes, never raw metrics. The thought then passes every existing PSE guard plus two new ones: gate 6.5, a generic per-kind wallclock cap against the state store's existing per-kind timestamp (concern at most once per seven days), and a decline window — after delivery the monitor watches a day of chat, and a "not needed" silences the kind for thirty days via `ProactiveSelfExpression.declineKind`, gate reason `kind-declined`. Content is template-bound (warm, three sentences, exactly one question, withdrawal clause); bitterness markers and missing core markers reject the draft into the suppression log with a text preview. A 24-hour in-memory self-throttle keeps evaluation noise out of the log; the cap remains the durable truth across restarts.
+
+### v7.9.45 — CorrectionCandidates / CorrectionHeuristic
+
+`CorrectionHeuristic.observeUser` watches the partner's own turns (both chat
+paths) for a narrow, four-locale correction signal — praise, code blocks and
+self-corrections filtered, at most one candidate per session. A hit becomes a
+card in `correction-candidates.jsonl` (`CorrectionCandidates`, the .43 ledger
+pattern: 3-day expiry, max 5 open, 3 offers, decay leaves a short journal
+note). The next prompt offers the card once, naming its id; only a real
+`accept-lesson` run records it via `LessonsStore.record({ category:
+'correction', … })` and removes the card itself — sovereignty by tool-run, as
+with resonance.

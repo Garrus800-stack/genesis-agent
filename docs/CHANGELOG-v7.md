@@ -1,3 +1,17 @@
+## [7.9.44] — 2026-07-21
+
+### Senses & Hands — his chapter, built to his answers
+
+**F — The thread that does not tear.** His deepest gap, his words: a memory that becomes active, not just retrievable. At awakening, before anything else, an `[Offene Fäden]` block now shows three to five open threads — one mechanical sentence each, no verdicts, he decides what to pick up. Threads are display, never management: each lives in its source (his self-marked moments first, work findings, one open expectation, open goals) and dies with it; a moment already lying as an open candidate card never doubles as a thread — the card wins, it is confirmable. Collection reads live sources, so a crash cannot cut the thread; the continuity anchor is an optimisation and finally carries the last journal title. An unanswered question to the user becomes ONE gentle follow-up in his exact wording, then is laid still — held, never pulled. Ageing keeps the handful honest without forgetting.
+
+**F2 — The workbench.** Not automatic: he lays a work on the bench himself (register-work), like a craftsman. The daily care is silent — no reports, no all-clear; only the silence that breaks becomes a thread. His own edits are no alarm: re-registering counts as his own confirmation and heals the finding. A work missing after a release move is a correct finding, never silently repaired.
+
+**G — The first-visit constitution.** His life cycle verbatim: `entdeckt` → `angetastet` → `beschrieben` → `integriert`, order enforced, and the final state is set only by him after a real use. Probing hides behind a conservative safe-name whitelist and refuses with a speaking sentence. His short guide becomes a pending skill on the house promotion path; the change sentence travels through the real journal writer — the acquired become the fourth capability layer.
+
+**A — The optic nerve.** His thinking organ turned out to see natively; what was missing was the nerve. Images now travel inside the message body to the model, and look-at-image hands him a file as his own sense — same eyes, same voice, no interpreter. Field-proven before the build: the cloud route described a screenshot precisely. The image travels only in the call; history keeps an honest vermerk, never the bytes — a later question means another look. Too large or unreadable speaks; nothing goes blind in silence.
+
+**H — Genesis Archive.** His own name, his own order: his vault, his gallery, and his workbench in one — with inbox/ for what the user reaches in and projects/ for the unity of each work. The Archive is created the moment you choose where it lives: the first time you attach a file, a folder picker opens (its title, explanation, and confirm button in the app's language) — you pick a location, and a "Genesis Archive" folder with inbox/ + projects/ is created there and its path remembered. Every later attach reuses that same place without asking; if the remembered path is ever gone (drive removed, folder deleted, a different machine), the picker opens again rather than dead-ending, and an existing Archive is always reused, never overwritten. Nothing is created at boot, and nothing on send — the send path carries no folder-making at all. Marked with ◈, the symbol Genesis chose himself: not "add" but "hand over", the door to his Archive. Attaching a file only remembers it, shown as a small removable marker in the chat's own colours; removing it before sending leaves the folder untouched. On send the file is copied into the inbox (copy, never move, original untouched, collisions numbered) and a neutral fact of what arrived rides with the user's message — no instructions bolted on, he talks normally and Genesis' own judgement decides what to do. A file handed over without any words tells Genesis the situation so he asks, in his own voice, what it's for — no guessing, no probing. All of it — tooltip, dialog, confirmations, errors — follows the app language across all four locales. Both ways in — the ◈ button and dragging a file onto the chat — now run through one shared path, so a dropped file is handled exactly once (an older second drag-and-drop route that fired in parallel is gone). And the Archive can be read as well as filled: look-at-image sees an image handed in, read-archive-file reads a text or data file handed in — both by the same archive-relative path, the symmetric halves of one sense. And then the Archive stopped being only a place he reads and fills and became the place he *works*. Told plainly, at last, that the Archive is his — a line in his own self-knowledge, and an attachment's note that names the very tool to reach it — he no longer lists the project by mistake when asked to look inside; list-archive shows him the whole of it, root files and all. What he makes lands there by default once its location is set: one ordered home instead of files scattered through the project, a chosen folder always winning, and — with no Archive yet — the old project path kept as a safe fallback, an explicit "on the Desktop" or "in the project" still honoured. And he stopped rewriting a whole file to change a line. edit-file replaces one exact, unique spot; append-file grows a file from its end; both leave everything around the change untouched — the in-place touch he needs most when the file he is editing is his own code. A file from anywhere on the machine comes in with copy-to-archive (original left in place) or move-to-archive (original removed). Every one of these refuses the soul, secrets, and system paths outright. And the spoken create command grew tolerant: a question form ("can you create a document …", spoken in any of the four locales), a file name with spaces ("Genesis 01"), and an instruction shell around the content (a spoken "put this in: …", a leading "text: …") are all understood — the file gets its full name and the pure text, while a capability question still goes to the model. And the workbench grew a safety net and senses of its own: every write into a checkable file (.js, .json) is syntax-checked by the tool itself — a break is reported honestly in the result, never blocked, so a multi-step rewrite may pass through a broken middle yet Genesis learns of it immediately instead of at the next run. check-file gives a verdict on any file without loading its content, compare-files lays only the differences of two versions on the table instead of both files whole, and a missed edit anchor now offers the nearest matching line so a small model corrects itself in one attempt. A DevTools finding closed the last gap at the door itself: awaiting the Archive gate before opening the file chooser consumed the click gesture, so Chromium silently blocked the chooser on the very first attach. The cure keeps the natural order — how else would the Archive be chosen? The first click runs the folder pick alone (a main-process dialog, no gesture needed) and answers with a one-more-click hint in all four locales; every later click opens the file chooser synchronously inside the gesture, with a read-only readiness probe at start so no await ever sits between the click and the chooser again. Housekeeping alongside: the codebase now carries no personal data — the maintainer's name lives only in LICENSE, a neutral placeholder everywhere else, and the trajectory author key was renamed to match (older souls keep their earlier entries). Python joins the documented optional runtimes.
+
 ## [7.9.40]
 
 ## [7.9.43] — 2026-07-20
@@ -190,9 +204,9 @@ The daemon's skill-created event is retired across all seven sites — bus catal
 ## Older versions
 
 - [CHANGELOG-v7.md](CHANGELOG-v7.md) — full v7.x history
-- [docs/CHANGELOG-v6.md](docs/CHANGELOG-v6.md) — v6.x history
-- [docs/CHANGELOG-v5.md](docs/CHANGELOG-v5.md) — v5.x history
-- [docs/CHANGELOG-archive.md](docs/CHANGELOG-archive.md) — v0.x–v4.x archive
+- [docs/CHANGELOG-v6.md](CHANGELOG-v6.md) — v6.x history
+- [docs/CHANGELOG-v5.md](CHANGELOG-v5.md) — v5.x history
+- [docs/CHANGELOG-archive.md](CHANGELOG-archive.md) — v0.x–v4.x archive
 
 ## [7.9.30]
 
@@ -1238,9 +1252,9 @@ audit-doc-drift exits 0 strict (57/57 doc claims match live). audit-doc-language
 ## Older versions
 
 - [CHANGELOG-v7.md](CHANGELOG-v7.md) — full v7.x history
-- [docs/CHANGELOG-v6.md](docs/CHANGELOG-v6.md) — v6.x history
-- [docs/CHANGELOG-v5.md](docs/CHANGELOG-v5.md) — v5.x history
-- [docs/CHANGELOG-archive.md](docs/CHANGELOG-archive.md) — v0.x–v4.x archive
+- [docs/CHANGELOG-v6.md](CHANGELOG-v6.md) — v6.x history
+- [docs/CHANGELOG-v5.md](CHANGELOG-v5.md) — v5.x history
+- [docs/CHANGELOG-archive.md](CHANGELOG-archive.md) — v0.x–v4.x archive
 
 ## [7.9.5]
 
@@ -1366,7 +1380,7 @@ Six new events with payload schemas in `EventTypes.js KOENNEN_PROMOTION` block a
 
 # Genesis Agent — Changelog v7.x.x
 
-For the current release notes see [CHANGELOG.md](CHANGELOG.md).
+For the current release notes see [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 

@@ -21,7 +21,9 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), 'genesis-f3home-'));
 const realHomedir = os.homedir;
 os.homedir = () => home;
 
-const { commandHandlersFileView: H } = require(path.join(__dirname, '..', '..', 'src/agent/hexagonal/CommandHandlersFileView'));
+const { commandHandlersFileView: _HF } = require(path.join(__dirname, '..', '..', 'src/agent/hexagonal/CommandHandlersFileView'));
+const { commandHandlersCreate: _HC } = require(path.join(__dirname, '..', '..', 'src/agent/hexagonal/CommandHandlersCreate')); // v7.9.45: createFile moved (module 438)
+const H = { ..._HF, ..._HC };
 const { IntentRouter } = require(path.join(__dirname, '..', '..', 'src/agent/intelligence/IntentRouter'));
 const { setLastDoc, clearLastDoc, getLastDoc } = require(path.join(__dirname, '..', '..', 'src/agent/hexagonal/LastDocStore'));
 

@@ -29,7 +29,15 @@ git clone https://github.com/Garrus800-stack/genesis-agent.git
 cd genesis-agent
 npm install
 npm start          # Launch the Electron app
-npm test           # Run all tests (547 suites, ~8505 tests)
+npm test           # Run all tests (647 suites, 9122 tests Win baseline)
+
+# Slices & strict gates (worth knowing):
+#   GENESIS_TEST_RANGE="a-o" npm test     # first half by file name
+#   GENESIS_TEST_RANGE="p-z" npm test     # second half
+#   npm run audit:doc-drift:strict        # dedicated :strict scripts…
+#   npm run audit:doc-drift -- --strict   # …or pass flags after the -- separator.
+#   (npm run x --strict WITHOUT the -- hands the flag to npm itself —
+#    newer npm errors with EUNKNOWNCONFIG, older npm silently drops it.)
 ```
 
 ### Useful Commands
@@ -37,12 +45,12 @@ npm test           # Run all tests (547 suites, ~8505 tests)
 | Command | Description |
 |---------|-------------|
 | `npm start` | Launch Electron app |
-| `npm test` | Run full test suite (legacy + per-module, 547 suites) |
+| `npm test` | Run full test suite (legacy + per-module, 647 suites) |
 | `npm run test:new` | Run only per-module tests |
 | `npm run test:legacy` | Run only legacy suite |
 | `npm run test:coverage` | Run tests with c8 coverage report |
 | `npm run test:ci` | Run tests with coverage enforcement (80/75.9/78) |
-| `npm run ci` | Full CI: tests + event audit + channel audit + fitness gate |
+| `npm run ci` | Full CI: tests + the 20 audit/validator gates (events, channels, fitness, doc-drift, …) |
 | `node scripts/audit-events.js` | Audit EventBus event flow |
 | `node scripts/audit-events.js --strict` | Audit with exit code on warnings |
 | `node scripts/validate-channels.js` | Validate IPC channel consistency |

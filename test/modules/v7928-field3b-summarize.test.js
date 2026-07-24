@@ -20,7 +20,9 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 
-const { commandHandlersFileView: H } = require(path.join(__dirname, '..', '..', 'src/agent/hexagonal/CommandHandlersFileView'));
+const { commandHandlersFileView: _HF } = require(path.join(__dirname, '..', '..', 'src/agent/hexagonal/CommandHandlersFileView'));
+const { commandHandlersCreate: _HC } = require(path.join(__dirname, '..', '..', 'src/agent/hexagonal/CommandHandlersCreate')); // v7.9.45: createFile moved (module 438)
+const H = { ..._HF, ..._HC };
 const { IntentRouter } = require(path.join(__dirname, '..', '..', 'src/agent/intelligence/IntentRouter'));
 const { setLastDoc, clearLastDoc } = require(path.join(__dirname, '..', '..', 'src/agent/hexagonal/LastDocStore'));
 
