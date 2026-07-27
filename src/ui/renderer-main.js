@@ -194,14 +194,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   // v4.0.0: Global Error Boundary — catches unhandled errors and
   // promise rejections, displays user-facing toast instead of silent failure.
   // Also logs to console for debugging.
+  // v7.9.46: Chromium raises two ResizeObserver notices as window 'error'
+  // events. They are not failures — the observer changed layout inside its
+  // own callback, so the browser deferred the remaining notifications to the
+  // next frame and says so. Letting them through cost a red toast AND a slot
+  // in the five-toast budget below; after five of them the boundary switches
+  // to "Multiple errors detected" and every REAL error is suppressed from
+  // then on. That is the actual damage, so they are dropped here at the one
+  // place both listeners funnel through.
+  const _BENIGN_ERRORS = /^ResizeObserver loop (?:limit exceeded|completed with undelivered notifications)/;
+
   const _errorBoundary = {
     _errorCount: 0,
     _maxToasts: 5,  // Don't flood the user with error toasts
     _suppressedSince: null,
+    _benignCount: 0,
 
     handle(error, context = 'unknown') {
-      this._errorCount++;
       const msg = error?.message || String(error);
+      if (_BENIGN_ERRORS.test(msg)) {
+        this._benignCount++;
+        console.debug(`[ERROR-BOUNDARY] benign, ignored (${this._benignCount}): ${msg}`);
+        return;
+      }
+      this._errorCount++;
       console.error(`[ERROR-BOUNDARY] ${context}:`, error);
 
       if (this._errorCount <= this._maxToasts) {
@@ -213,7 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     },
 
     getStats() {
-      return { totalErrors: this._errorCount, suppressedSince: this._suppressedSince };
+      return { totalErrors: this._errorCount, suppressedSince: this._suppressedSince, benignIgnored: this._benignCount };
     },
   };
 

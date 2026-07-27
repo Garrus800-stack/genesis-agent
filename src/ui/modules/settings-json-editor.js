@@ -27,10 +27,17 @@ const { t } = require('./i18n');
 
 const $ = (sel) => document.querySelector(sel);
 
+// v7.9.46 r7: mcp.serve.apiKey joins the list. Settings.getAll already
+// hands the editor '(set)' instead of the value, so nothing leaked — but
+// without an entry here the key rendered as an ordinary editable string
+// and the write-back guard below (which exists so a mask never becomes the
+// stored value) did not cover it. Now it gets the same treatment as the
+// other two secrets: masked on display, skipped on save.
 const SENSITIVE_PATHS = new Set([
   'models.anthropicApiKey',
   'models.openaiApiKey',
   'peer.discoveryToken',
+  'mcp.serve.apiKey',
 ]);
 
 function _maskSensitiveInJson(obj) {
@@ -46,7 +53,9 @@ function _maskSensitiveInJson(obj) {
     if (cur && typeof cur === 'object' && parts[parts.length - 1] in cur) {
       const val = cur[parts[parts.length - 1]];
       if (typeof val === 'string' && val.length > 0) {
-        cur[parts[parts.length - 1]] = '***MASKED*** (set via Modelle-Tab)';
+        // v7.9.46 r7: name the tab the field actually lives in.
+        const tab = dotPath.startsWith('mcp.') ? 'MCP-Tab' : 'Modelle-Tab';
+        cur[parts[parts.length - 1]] = `***MASKED*** (set via ${tab})`;
       }
     }
   }

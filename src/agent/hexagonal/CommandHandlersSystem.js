@@ -14,6 +14,21 @@
 
 'use strict';
 
+const { SENSITIVE_KEYS } = require('../foundation/SettingsEncryption');
+
+/**
+ * v7.9.46 r7 (Begleitfix 4): a sensitive leaf path never prints its value
+ * in chat. A chat reply is persisted in chat-history.json and from there
+ * flows into follow-up prompts, so echoing a key here is the same leak
+ * class as writing it to the log. Used by the GET branch and by BOTH
+ * setter branches. Ausgewiesener Beifang: this also stops the model API
+ * keys from being printed by the very same command (pre-existing hole).
+ * @param {string} dotPath
+ */
+function _isSensitivePath(dotPath) {
+  return SENSITIVE_KEYS.has(dotPath);
+}
+
 const commandHandlersSystem = {
 
   async daemonControl(message) {
@@ -26,18 +41,27 @@ const commandHandlersSystem = {
   handleSettings(message) {
     if (!this.settings) return this.lang.t('settings.unavailable');
 
-    // Set API key (legacy specific match)
-    const apiMatch = message.match(/(?:anthropic|api).?key.*?[:=]\s*(\S+)/i);
-    if (apiMatch) {
-      this.settings.set('models.anthropicApiKey', apiMatch[1]);
-      return this.lang.t('settings.api_key_saved', { key: apiMatch[1].slice(0, 8) });
-    }
-
     // v7.9.0 follow-up: strip the leading "/settings" or "settings" command
     // verb so dot-path expressions reach the parsers below. Without this,
     // `/settings cognitive.koennen.enabled false` was treated as one long
     // line with no `=`/`:` and fell through to the generic overview.
     const body = message.replace(/^\s*\/?\s*settings\s+/i, '').trim();
+
+    // Set API key (legacy specific match) — natural phrasing only
+    // ("anthropic key: sk-...", "api key = ...").
+    //
+    // v7.9.46 r7 FIX: the pattern `(?:anthropic|api).?key` also matched the
+    // dotted path `mcp.serve.apiKey` ("api" + "Key"), so
+    // `settings mcp.serve.apiKey = <pw>` was swallowed here and written to
+    // models.anthropicApiKey — the MCP password never arrived AND the
+    // Anthropic key was silently overwritten. A leading dotted path now
+    // falls through to the proper dot-path parsers below.
+    const leadsWithDotPath = /^[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)+\s*[=:]/.test(body);
+    const apiMatch = leadsWithDotPath ? null : message.match(/(?:anthropic|api).?key.*?[:=]\s*(\S+)/i);
+    if (apiMatch) {
+      this.settings.set('models.anthropicApiKey', apiMatch[1]);
+      return this.lang.t('settings.api_key_saved', { key: apiMatch[1].slice(0, 8) });
+    }
 
     // Coerce a raw string token into typed value.
     const coerce = (raw) => {
@@ -59,6 +83,8 @@ const commandHandlersSystem = {
       const value = coerce(dotMatch[2]);
       try {
         this.settings.set(path, value);
+        // v7.9.46 r7 (Begleitfix 4b): never echo a sensitive value back.
+        if (_isSensitivePath(path)) return `✓ ${path} = ${value ? '(set)' : '(empty)'}`;
         return `✓ ${path} = ${JSON.stringify(value)}`;
       } catch (err) {
         return `✗ Failed to set ${path}: ${err.message}`;
@@ -73,6 +99,8 @@ const commandHandlersSystem = {
       const value = coerce(wsMatch[2]);
       try {
         this.settings.set(path, value);
+        // v7.9.46 r7 (Begleitfix 4b): never echo a sensitive value back.
+        if (_isSensitivePath(path)) return `✓ ${path} = ${value ? '(set)' : '(empty)'}`;
         return `✓ ${path} = ${JSON.stringify(value)}`;
       } catch (err) {
         return `✗ Failed to set ${path}: ${err.message}`;
@@ -88,6 +116,10 @@ const commandHandlersSystem = {
       try {
         const v = this.settings.get(path);
         if (v === undefined) return `✗ ${path} is not set`;
+        // v7.9.46 r7 (Begleitfix 4a): sensitive leaf paths report state, not
+        // value. Subtree queries (`settings mcp.serve`) still print the
+        // stored form — that is ciphertext, never plaintext.
+        if (_isSensitivePath(path)) return `${path} = ${v ? '(set — hidden)' : '(not set)'}`;
         const out = (typeof v === 'object' && v !== null)
           ? JSON.stringify(v, null, 2)
           : JSON.stringify(v);

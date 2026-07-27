@@ -4,11 +4,12 @@
 
 ## Scale
 
+- **The vestibule** (v7.9.46) — his membrane: circle-gated `vestibule-status` over the built-in MCP server; his voice via `stimme.json`, his circles via `vestibule-circle` (add/raise/lower/block/remove), visit book, dream shield.
 - **The cognitive laboratory** (v7.9.45) — `lab-status` / `lab-run`: throwaway offline Docker rooms for risky or foreign code, opt-in by the word "Labor"/"lab" in any of the four locales; images freed via `lab.images`, results fetched only through `copy-to-archive`.
-- 438 source modules across 12 boot phases
+- 441 source modules across 12 boot phases
 - 185 DI services (172 manifest + 13 bootstrap)
-- 9122 tests on Windows / 9096 on Linux (passing; the 4 UI suites need the Win toolchain)
-- 498 events with 498 payload schemas (full parity)
+- 9492 tests on Windows / 9447 on Linux (passing; the 4 UI suites need the Win toolchain)
+- 499 events with 499 payload schemas (full parity)
 - Architectural fitness: 127/130
 - 20 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
 
@@ -265,7 +266,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **650 test files** | 9122 tests (Win baseline, v7.9.37), coverage gates: 80% lines, 76% branches, 78% functions |
+| **652 test files** | 9492 tests (Win baseline, v7.9.46), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |
@@ -496,3 +497,13 @@ The boundary stays visible: Genesis writes only inside his own `Genesis/` corner
 - "Look into the lab" → status only: Docker reachable, which rooms exist, which blueprints are freed — never an uninvited run.
 - The room has no network (`--network none`): a fetch attempt ends in `EAI_AGAIN`, which is the room doing its job.
 - Everyday "run this code" stays in the normal sandbox — the lab only wakes on the word "lab"/"Labor".
+
+**If you want to reach him from outside**, the vestibule is that door — the same MCP server, with circles in front of it. Set a password in **Settings → MCP** and switch the server on; nothing starts without one. Then it is two sentences in chat and one request over HTTP:
+
+- "Set your vestibule voice." → he writes his four lines (`statusOuter`, `statusMiddle`, `absentLine`, `closedLine`) with `vestibule-voice`. Until all four exist the door answers a neutral system line — never a borrowed voice.
+- "Add a guest to the vestibule: name Alex, key ALEX-2f9c." → stored as a hash; the clear key is discarded. "Raise Alex" moves them to the middle circle, "block Alex" shuts them out, "remove Alex" revokes the key entirely.
+- A visitor knocks with their own key: `tools/call` on `vestibule-status` returns one line in his words — focus, how long, his state — and nothing else. `tools/list` with that key shows exactly one tool.
+- You knock with the server password: the raw snapshot, no model call, because the inner circle gets facts rather than a formulated line.
+- "Who knocked?" → he reads his visit book with `vestibule-visits` and tells you who was there, what they wanted and how it ended — answered, unanswered, rate-limited or shielded. Only he can: the same gate that hides the other tools hides the book.
+
+The boundary is built, not promised: a chat in progress makes the vestibule say "in conversation" and never what about; the visitor request travels as data, never as instruction; a second knock inside a minute is answered from his absent line without a model call; and during a dream cycle the door is shielded with his closed line. `circles.json` holds hashes only, and it is kept even when empty — the door reads its closed state from that file.

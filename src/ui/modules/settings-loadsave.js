@@ -287,6 +287,12 @@ async function saveSettings() {
     const port = parseInt(mcpPortEl.value, 10);
     if (!Number.isNaN(port) && port >= 1024 && port <= 65535) sets.push(['mcp.serve.port', port]);
   }
+  // v7.9.46 r7: MCP server password — write-only, exactly like the model
+  // keys (index.html:191 / the anthropic branch above). Empty field = keep
+  // what is stored; the value is never loaded back into the DOM. Clearing
+  // it is a deliberate settings.json edit, same as for the model keys.
+  const mcpKeyEl = $('#set-mcp-key');
+  if (mcpKeyEl?.value) sets.push(['mcp.serve.apiKey', mcpKeyEl.value]);
   const approvalTimeoutEl = $('#set-approval-timeout');
   if (approvalTimeoutEl?.value) {
     const t = parseInt(approvalTimeoutEl.value, 10);

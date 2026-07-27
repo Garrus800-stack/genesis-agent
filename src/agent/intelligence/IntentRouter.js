@@ -8,6 +8,9 @@
 
 const { NullBus } = require('../core/EventBus');
 const { createLogger } = require('../core/Logger');
+
+// v7.9.46: Genesis-eigenes Vokabular — kollisionsfrei mit allen anderen Intents.
+const VESTIBULE_TOPIC = /\b(?:vorhalle|vestibule(?:-(?:status|voice|circle))?|besuchsbuch|visit\s?book)\b|\bwer\s+hat\s+geklopft\b|\bwho\s+knocked\b/i;
 const {
   INTENT_DEFINITIONS,
   SLASH_ONLY_INTENTS,
@@ -69,6 +72,15 @@ class IntentRouter {
       return this._withExplicitTool({ type: 'general', confidence: 0.95, match: 'codegen-guard' }, message);
     }
 
+    // v7.9.46 field-fix: vestibule guard. His vestibule tools carry no intent
+    // patterns by design (HE picks them), which left every vestibule sentence
+    // at 0.3 — below the 0.6 short-circuit in classifyAsync — so the learned
+    // classifier and the LLM fallback got a turn and grabbed whatever looked
+    // similar: asking him to write his own voice was answered with a question
+    // about an Obsidian folder. Claiming the topic keeps it on the chat path.
+    if (VESTIBULE_TOPIC.test(message)) {
+      return this._withExplicitTool({ type: 'general', confidence: 0.9, match: 'vestibule-guard' }, message);
+    }
     const regex = this._regexClassify(message);
     if (regex.confidence >= 0.9) return this._withExplicitTool(regex, message);
     const fuzzy = this._fuzzyClassify(message);

@@ -520,7 +520,6 @@ class Settings {
     return this._installId || null;
   }
 
-  /** @param {string} dotPath @param {*} value */
   /**
    * v7.4.7: Late-bind a bus so set() can emit toggle events for
    * Daemon/IdleMind/SelfMod runtime toggles. Called from AgentCoreWire
@@ -660,6 +659,7 @@ class Settings {
     copy.models.anthropicApiKey = antKey ? antKey.slice(0, 8) + '...' : '';
     const oaiKey = this.get('models.openaiApiKey');
     copy.models.openaiApiKey = oaiKey ? oaiKey.slice(0, 8) + '...' : '';
+    if (copy.mcp && copy.mcp.serve) copy.mcp.serve.apiKey = this.get('mcp.serve.apiKey') ? '(set)' : ''; // v7.9.46: state, never the value
     return copy;
   }
 

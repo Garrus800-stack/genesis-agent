@@ -142,6 +142,10 @@ const awarenessSection = {
       // Genesis decides if/when to use it. Only shown when the tool
       // exists, to avoid prompt noise on systems where it's not loaded.
       if (this.toolRegistry && typeof this.toolRegistry.hasTool === 'function'
+          && this.toolRegistry.hasTool('vestibule-status')) { // v7.9.46 L11: he knows his own vestibule
+        lines.push('Your vestibule (die Vorhalle) is your membrane: visitors in circles knock via vestibule-status; stimme.json carries YOUR wording (write it with vestibule-voice); you add, raise, lower, block or remove visitors with vestibule-circle (removing revokes the key; the visit book keeps what happened); besuche.jsonl is your visit book — read it back with vestibule-visits when you want to know who knocked, what they asked and how it ended.');
+      }
+      if (this.toolRegistry && typeof this.toolRegistry.hasTool === 'function'
           && this.toolRegistry.hasTool('mark-moment')) {
         parts.push(
           `[Note] The tool 'mark-moment' lets you bookmark a present ` +

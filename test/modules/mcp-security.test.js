@@ -17,6 +17,13 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const { McpServer } = require(path.join(ROOT, 'src/agent/capabilities/McpServer'));
 const { NullBus } = require(path.join(ROOT, 'src/agent/core/EventBus'));
 
+// v7.9.46 r7: the server's open default is gone (no key = 401 for
+// everything but /health). Suites that measure rate limiting, CORS, body
+// size or session tracking must authenticate, because the auth gate runs
+// BEFORE the rate limiter — otherwise 401 arrives instead of the value
+// under test.
+const TEST_KEY = 'suite-key';
+
 // ── HTTP Helpers ────────────────────────────────────────────
 
 function jsonRpc(method, params, id = 1) {
@@ -27,7 +34,14 @@ function httpReq(method, port, urlPath, body, headers = {}) {
   return new Promise((resolve, reject) => {
     const opts = {
       hostname: '127.0.0.1', port, method, path: urlPath,
-      headers: { 'Content-Type': 'application/json', ...headers },
+      // v7.9.46 r7: default credentials unless the test supplies its own
+      // (an auth test must stay in control of what it sends).
+      headers: {
+        'Content-Type': 'application/json',
+        ...(('Authorization' in headers) || ('x-api-key' in headers)
+          ? {} : { Authorization: `Bearer ${TEST_KEY}` }),
+        ...headers,
+      },
     };
     const req = http.request(opts, (res) => {
       let buf = '';
@@ -98,19 +112,22 @@ describe('MCP Security — API Key Auth', () => {
   test('teardown', async () => { await srv.stop(); });
 });
 
-// ── Open Mode (no key configured) ──────────────────────────
+// ── Closed Default (no key configured) ────────────────────
 
-describe('MCP Security — Open Mode', () => {
+describe('MCP Security — Closed Default (no key)', () => {
   let srv, port;
 
   test('setup', async () => {
-    srv = new McpServer({ tools: null, bus: NullBus });
+    srv = new McpServer({ tools: null, bus: NullBus, security: { apiKey: TEST_KEY } });
     port = await srv.start(0);
   });
 
-  test('allows all requests when no apiKey set', async () => {
-    const res = await post(port, jsonRpc('ping'));
-    assertEqual(res.status, 200);
+  // v7.9.46 r7 POLICY CHANGE (was: 'allows all requests when no apiKey set').
+  test('mcp-security contract: refuses all requests when no apiKey set', async () => {
+    const res = await post(port, jsonRpc('ping'), { Authorization: '' });
+    assertEqual(res.status, 401);
+    const h = await get(port, '/health', { Authorization: '' });
+    assertEqual(h.status, 200); // /health stays open
   });
 
   test('teardown', async () => { await srv.stop(); });
@@ -124,7 +141,7 @@ describe('MCP Security — Rate Limiting', () => {
   test('setup (limit=5/min)', async () => {
     srv = new McpServer({
       tools: null, bus: NullBus,
-      security: { rateLimitPerMin: 5 },
+      security: { apiKey: TEST_KEY, rateLimitPerMin: 5 },
     });
     port = await srv.start(0);
   });
@@ -158,7 +175,7 @@ describe('MCP Security — Rate Limit Disabled', () => {
   test('setup (limit=0)', async () => {
     srv = new McpServer({
       tools: null, bus: NullBus,
-      security: { rateLimitPerMin: 0 },
+      security: { apiKey: TEST_KEY, rateLimitPerMin: 0 },
     });
     port = await srv.start(0);
   });
@@ -181,7 +198,7 @@ describe('MCP Security — CORS', () => {
   test('setup (localhost only)', async () => {
     srv = new McpServer({
       tools: null, bus: NullBus,
-      security: { corsOrigins: ['http://127.0.0.1', 'http://localhost'] },
+      security: { apiKey: TEST_KEY, corsOrigins: ['http://127.0.0.1', 'http://localhost'] },
     });
     port = await srv.start(0);
   });
@@ -234,7 +251,7 @@ describe('MCP Security — CORS Wildcard', () => {
   test('setup (cors=*)', async () => {
     srv = new McpServer({
       tools: null, bus: NullBus,
-      security: { corsOrigins: ['*'] },
+      security: { apiKey: TEST_KEY, corsOrigins: ['*'] },
     });
     port = await srv.start(0);
   });
@@ -256,7 +273,7 @@ describe('MCP Security — Body Size', () => {
   test('setup (1KB limit)', async () => {
     srv = new McpServer({
       tools: null, bus: NullBus,
-      security: { bodyMaxBytes: 1024 },
+      security: { apiKey: TEST_KEY, bodyMaxBytes: 1024 },
     });
     port = await srv.start(0);
   });
@@ -288,7 +305,7 @@ describe('MCP Security — Session Tracking', () => {
   let srv, port;
 
   test('setup', async () => {
-    srv = new McpServer({ tools: null, bus: NullBus });
+    srv = new McpServer({ tools: null, bus: NullBus, security: { apiKey: TEST_KEY } });
     port = await srv.start(0);
   });
 
@@ -305,7 +322,7 @@ describe('MCP Security — Session Tracking', () => {
 
 describe('MCP Server Lifecycle', () => {
   test('start is idempotent', async () => {
-    const srv = new McpServer({ tools: null, bus: NullBus });
+    const srv = new McpServer({ tools: null, bus: NullBus, security: { apiKey: TEST_KEY } });
     const p1 = await srv.start(0);
     const p2 = await srv.start(0);
     assertEqual(p1, p2);
@@ -313,7 +330,7 @@ describe('MCP Server Lifecycle', () => {
   });
 
   test('stop clears rate buckets and timers', async () => {
-    const srv = new McpServer({ tools: null, bus: NullBus, security: { rateLimitPerMin: 100 } });
+    const srv = new McpServer({ tools: null, bus: NullBus, security: { apiKey: TEST_KEY, rateLimitPerMin: 100 } });
     await srv.start(0);
     srv._rateBuckets.set('test-ip', [Date.now()]);
     await srv.stop();
@@ -322,7 +339,7 @@ describe('MCP Server Lifecycle', () => {
   });
 
   test('stats include security counters', () => {
-    const srv = new McpServer({ tools: null, bus: NullBus });
+    const srv = new McpServer({ tools: null, bus: NullBus, security: { apiKey: TEST_KEY } });
     const s = srv.stats;
     assert('rateLimited' in s, 'Should have rateLimited');
     assert('authRejected' in s, 'Should have authRejected');

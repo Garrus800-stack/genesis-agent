@@ -78,6 +78,11 @@ class McpClient {
     if (configs.length === 0) {
       _log.info('[MCP] No servers configured');
       this._registerMetaTools();
+      // v7.9.46 r7 (A0): the auto-start used to sit AFTER this early return,
+      // so "MCP server: On" silently did nothing after a restart whenever the
+      // external client list was empty — the common case. Minimal insert
+      // rather than merging the branches, so _registerMetaTools stays single.
+      await this._autoStartServer();
       return;
     }
 
@@ -105,7 +110,9 @@ class McpClient {
     const serve = this.settings.get('mcp.serve');
     if (!serve || serve.enabled !== true) return;
     try {
-      const port = await this.startServer(serve.port || 3580);
+      // v7.9.46 r7 (A): no port argument — startServer resolves
+      // mcp.serve.port itself, so there is one port truth.
+      const port = await this.startServer();
       _log.info(`[MCP] Genesis MCP server auto-started on port ${port}`);
     } catch (err) {
       _log.warn('[MCP] Auto-start server failed:', err.message);
@@ -411,37 +418,91 @@ class McpClient {
   // GENESIS AS MCP SERVER (delegated to McpServer.js)
   // ════════════════════════════════════════════════════════
 
-  async startServer(port = 0) {
+  /**
+   * v7.9.46 r7 (A): the ONE construction path for the embedded server.
+   *
+   * Constructs on first use and caches the instance (bridge tools and
+   * registered resources live on it, so it must survive a stop/start).
+   * On EVERY call the security config is refreshed on that cached
+   * instance — before this, apiKey and bind were frozen at construction
+   * time, so a password set later only took effect after an app restart.
+   *
+   * apiKey is read as a LEAF path: Settings.get() only decrypts on a full
+   * dot-path match, so get('mcp.serve') would hand back ciphertext.
+   *
+   * The gate is passed as a PROVIDER function: a boot-autostarted server
+   * is built in phase 3, while BootWire sets _vestibuleGate in phase 4.
+   * Resolving per request (McpServer._gate) makes the order irrelevant.
+   *
+   * Never throws — the no-key refusal lives in startServer() alone, so
+   * the getter, the stop-before-start edge and the tool bridge stay usable.
+   * @private
+   */
+  _ensureServer() {
+    const s = this.settings;
+    const serve = (s && s.get('mcp.serve')) || {};
+    const apiKey = (s && s.get('mcp.serve.apiKey')) || null; // leaf-get: decrypts
+    const bind = serve.bind || null;
     if (!this._mcpServer) {
-      const serve = this.settings.get('mcp.serve') || {};
       this._mcpServer = new McpServer({
         tools: this.tools, bus: this.bus,
+        vestibule: () => this._vestibuleGate || null, // v7.9.46: circle gate provider
         security: {
-          apiKey:          serve.apiKey || null,
+          apiKey,
+          bind, // v7.9.46 V2b: ring 2 — the server side was ready, the feed was missing
           rateLimitPerMin: serve.rateLimit || 120,
           corsOrigins:     serve.corsOrigins || ['http://127.0.0.1', 'http://localhost'],
           bodyMaxBytes:    serve.bodyMaxBytes || 1e6,
         },
       });
+    } else {
+      // Refresh on the cached instance. The key is read per request, so a
+      // rotation takes effect immediately even on a running server; port
+      // and bind sit in the socket and need an off→on.
+      this._mcpServer._apiKey = apiKey;
+      this._mcpServer._bind = bind;
     }
-    return this._mcpServer.start(port);
+    return this._mcpServer;
+  }
+
+  /**
+   * v7.9.46 r7 (A/C): start the embedded server.
+   *
+   * @param {number|null} [port] explicit port wins; an explicit 0 keeps the
+   *   OS random port (demo/test path); null/undefined inherits
+   *   mcp.serve.port, falling back to 3580.
+   * @throws {Error} with `code` MCP_NO_KEY / MCP_KEY_UNREADABLE when no
+   *   usable password is configured — every start path inherits this.
+   */
+  async startServer(port = null) {
+    const s = this.settings;
+    const key = (s && s.get('mcp.serve.apiKey')) || null;
+    if (!key) {
+      // Distinguish "not set" from "set but undecryptable" (enc3 is anchored
+      // to .genesis/.install-id; after a folder move decryptValue returns '').
+      // get() only decrypts on a full leaf match, so the subtree hands back
+      // the value exactly as stored — no getRaw(), no plaintext anywhere.
+      const raw = ((s && s.get('mcp.serve')) || {}).apiKey;
+      if (typeof raw === 'string' && raw.startsWith('enc')) {
+        const e = new Error('MCP password is set but cannot be decrypted on this installation — set it again in Settings → MCP');
+        /** @type {*} */ (e).code = 'MCP_KEY_UNREADABLE';
+        throw e;
+      }
+      const e = new Error('No MCP password set — Settings → MCP');
+      /** @type {*} */ (e).code = 'MCP_NO_KEY';
+      throw e;
+    }
+    const server = this._ensureServer();
+    let resolved;
+    if (port === 0) resolved = 0;                                  // deliberate random port
+    else if (typeof port === 'number' && port > 0) resolved = port; // explicit wins
+    else resolved = Number(s && s.get('mcp.serve.port')) || 3580;   // settings, then default
+    return server.start(resolved);
   }
 
   /** @returns {*} The underlying McpServer instance (for McpServerToolBridge) */
   get mcpServer() {
-    if (!this._mcpServer) {
-      const serve = this.settings.get('mcp.serve') || {};
-      this._mcpServer = new McpServer({
-        tools: this.tools, bus: this.bus,
-        security: {
-          apiKey:          serve.apiKey || null,
-          rateLimitPerMin: serve.rateLimit || 120,
-          corsOrigins:     serve.corsOrigins || ['http://127.0.0.1', 'http://localhost'],
-          bodyMaxBytes:    serve.bodyMaxBytes || 1e6,
-        },
-      });
-    }
-    return this._mcpServer;
+    return this._ensureServer();
   }
 
   // ════════════════════════════════════════════════════════

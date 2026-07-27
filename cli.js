@@ -51,7 +51,10 @@ const flags = {
   })(),
   port:      (() => {
     const idx = args.indexOf('--port');
-    return idx >= 0 && args[idx + 1] ? parseInt(args[idx + 1], 10) : 3580;
+    // v7.9.46 r7 (A): null instead of a hard 3580 — startServer resolves
+    // mcp.serve.port itself, so the CLI inherits the configured port. The
+    // help text stays true because the settings default IS 3580.
+    return idx >= 0 && args[idx + 1] ? parseInt(args[idx + 1], 10) : null;
   })(),
   // v6.0.4: --skip-phase N[,N] for layer A/B benchmarking
   skipPhases: (() => {
@@ -206,10 +209,23 @@ async function runServe(agent) {
     process.exit(1);
   }
 
-  const port = await mcpClient.startServer(flags.port);
-  console.log(`[CLI] MCP server listening on http://127.0.0.1:${port}`);
-  console.log('[CLI] Health: http://127.0.0.1:' + port + '/health');
-  console.log('[CLI] SSE:    http://127.0.0.1:' + port + '/sse');
+  // v7.9.46 r7 (C): startServer refuses without a password. Unhandled, that
+  // rejection killed the whole --serve mode with a stack trace instead of
+  // naming the missing setting.
+  let port;
+  try {
+    port = await mcpClient.startServer(flags.port);
+  } catch (err) {
+    console.error(`[CLI] MCP server not started: ${err.message}`);
+    process.exit(1);
+    return;
+  }
+  // v7.9.46 r7: honour mcp.serve.bind — the printed URL used to claim
+  // 127.0.0.1 even when the server was bound elsewhere.
+  const host = mcpClient._mcpServer?._bind || '127.0.0.1';
+  console.log(`[CLI] MCP server listening on http://${host}:${port}`);
+  console.log(`[CLI] Health: http://${host}:${port}/health`);
+  console.log(`[CLI] SSE:    http://${host}:${port}/sse`);
   console.log('\n[CLI] Running as daemon. Press Ctrl+C to stop.\n');
 
   // Keep alive
@@ -238,7 +254,11 @@ async function runREPL(agent) {
     try {
       const port = await mcpClient.startServer(flags.port);
       console.log(`[CLI] MCP server on port ${port} (background)\n`);
-    } catch (_e) { /* best effort */ }
+    } catch (err) {
+      // v7.9.46 r7 (C): best-effort stays best-effort (the REPL runs on),
+      // but the reason is named instead of swallowed.
+      console.log(`[CLI] MCP server not started: ${err.message}\n`);
+    }
   }
 
   const health = agent.getHealth();

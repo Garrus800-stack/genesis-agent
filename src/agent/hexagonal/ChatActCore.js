@@ -22,6 +22,11 @@ const KNOWN_DOCS = {
 const VERB = /\b(?:lies|les(?:e|en)|schau(?:e|en)?(?:\s+dir)?|[öo]ffn(?:e|en)|fass(?:e|en)|zeig(?:e|en)?|pr[üu]f(?:e|en)|inspizier(?:e|en)?|untersuch(?:e|en)?|erfass(?:e|en)?|read|open|summari[sz]e|inspect|show|check|list(?:e|en)?)\b/i;
 const ASKS = /\bwas\s+steht\s+(?:in|im|drin)\b/i;
 const LISTY = /\b(?:struktur|verzeichnis(?:se)?|ordner|dateien\s+auflisten|habitat[- ]struktur|directory|folder|structure)\b/i;
+// v7.9.46 field: the visit book. "Wer hat geklopft?" carries no verb and no
+// path, so it never reached the act core — and a model that emits no tool
+// call left him answering "nobody knocked" while four visits sat in the book.
+// Read-only, his own record, so it belongs exactly here.
+const KNOCKS = /\bwer\s+(?:hat|war)\b[^?.!]{0,40}\b(?:geklopft|angeklopft|in\s+der\s+vorhalle|zu\s+besuch)\b|\bwho\s+knocked\b|\bbesuchsbuch\b|\bvisit\s?book\b|\bwer\s+war\s+(?:alles\s+)?(?:da|hier)\b|\bklopf\w*\s+(?:heute|bisher|schon)\b/i;
 
 /**
  * Deterministically plan a read-only tool step from a sentence — the
@@ -32,6 +37,11 @@ const LISTY = /\b(?:struktur|verzeichnis(?:se)?|ordner|dateien\s+auflisten|habit
 function planActFromText(text) {
   const t = String(text || '');
   if (!t || t.length > 2000) return null;
+  // 0) the visit book — checked before the verb gate, because the natural
+  //    question ("Wer hat geklopft?") has no verb at all.
+  if (KNOCKS.test(t)) {
+    return { name: 'vestibule-visits', input: {}, note: 'act: vestibule-visits' };
+  }
   const wantsAct = VERB.test(t) || ASKS.test(t);
   if (!wantsAct) return null;
   // 1) explicit path-looking token (docs/x.md, src/a/b.js, FILE.ext)
@@ -53,4 +63,4 @@ function planActFromText(text) {
   return null;
 }
 
-module.exports = { planActFromText, KNOWN_DOCS };
+module.exports = { planActFromText, KNOWN_DOCS, KNOCKS };

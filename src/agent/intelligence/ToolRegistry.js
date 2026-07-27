@@ -252,20 +252,25 @@ ${descriptions.join('\n\n')}`;
     const toolCalls = [];
     let text = response;
     let match;
+    // v7.9.46 field: consume ONLY what was actually understood. Before this,
+    // every format stripped its matched span unconditionally — so a tool call
+    // whose body did not parse was deleted anyway, the reply came out empty
+    // and the user saw the honest "no answer emerged" line instead of either
+    // the tool result or the model's own words. A parser must not throw away
+    // what it could not read.
+    const _consume = (span) => { if (span) text = text.split(span).join(''); };
 
     // Format 1: <tool_call>{...}</tool_call> (canonical) — flexible fields.
     const tagRegex = /<tool_call>\s*(\{[\s\S]*?\})\s*<\/tool_call>/g;
     while ((match = tagRegex.exec(response))) {
-      try { const n = this._normalizeToolCall(this._robustJsonParse(match[1])); if (n) toolCalls.push(n); } catch (_err) { /* skip */ }
+      try { const n = this._normalizeToolCall(this._robustJsonParse(match[1])); if (n) { toolCalls.push(n); _consume(match[0]); } } catch (_err) { /* leave it in the text */ }
     }
-    text = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '');
 
     // Format 2: ```tool_call ... ``` markdown-fence variant — flexible fields.
     const fenceRegex = /```tool_call\s*\n?([\s\S]*?)```/g;
     while ((match = fenceRegex.exec(response))) {
-      try { const n = this._normalizeToolCall(this._robustJsonParse(match[1].trim())); if (n) toolCalls.push(n); } catch (_err) { /* skip */ }
+      try { const n = this._normalizeToolCall(this._robustJsonParse(match[1].trim())); if (n) { toolCalls.push(n); _consume(match[0]); } } catch (_err) { /* leave it in the text */ }
     }
-    text = text.replace(/```tool_call\s*\n?[\s\S]*?```/g, '');
 
     // Format 4 (v7.9.28): Anthropic-style XML — <function_calls><invoke name="X">
     // <parameter name="k">v</parameter></invoke></function_calls>. Bare or antml:.
@@ -281,11 +286,10 @@ ${descriptions.join('\n\n')}`;
         try { const j = JSON.parse(val.trim()); if (j !== null && typeof j !== 'string') val = j; else if (j === null) val = null; } catch (_e) { /* keep raw */ }
         input[key] = val;
       }
-      if (name) toolCalls.push({ name, input });
+      if (name) { toolCalls.push({ name, input }); _consume(match[0]); }
     }
-    text = text
-      .replace(/<(?:antml:)?function_calls>[\s\S]*?<\/(?:antml:)?function_calls>/gi, '')
-      .replace(/<(?:antml:)?invoke\s+name=["'][^"']+["']\s*>[\s\S]*?<\/(?:antml:)?invoke>/gi, '');
+    // The wrapper tags carry no content of their own — those may always go.
+    text = text.replace(/<\/?(?:antml:)?function_calls>/gi, '');
 
     // Format 5 (v7.9.28): <tool name="X">{args}</tool> and <tool_use name="X">…</tool_use>.
     // The inner JSON is the arguments object directly (or wraps input/arguments).
@@ -305,9 +309,40 @@ ${descriptions.join('\n\n')}`;
           }
         } catch (_e) { /* no args */ }
       }
-      if (name) toolCalls.push({ name, input });
+      if (name) { toolCalls.push({ name, input }); _consume(match[0]); }
     }
-    text = text.replace(/<(tool|tool_use)\s+name=["'][^"']+["']\s*>[\s\S]*?<\/\1>/gi, '');
+
+    // Format 7 (v7.9.46 field): pipe-delimited special tokens, as emitted by
+    // Qwen/DeepSeek-family local models:
+    //   <|tool_call>call:NAME{args}<tool_call|>   (seen in the field)
+    //   <|tool_call|>{"name":"NAME","arguments":{}}<|/tool_call|>
+    // Format 1 requires bare <tool_call> tags, so these fell through and the
+    // raw token was printed into the chat as if it were an answer — the model
+    // had asked for a tool and nobody listened. Runs on the already-stripped
+    // `text`, so a canonical call is never counted twice.
+    // One token pattern covers every delimiter this family emits:
+    // <tool_call> <|tool_call> <tool_call|> </tool_call> <|/tool_call|> </|tool_call|>
+    const pipeRegex = /<[/|]{0,2}\s*tool_call\s*[/|]{0,2}>\s*([\s\S]*?)\s*<[/|]{0,2}\s*tool_call\s*[/|]{0,2}>/gi;
+    while ((match = pipeRegex.exec(text))) {
+      const inner = match[1].trim();
+      if (!inner) continue;
+      // (a) call:NAME{...} or NAME{...}
+      const named = inner.match(/^(?:call\s*[:=]\s*)?([a-zA-Z][\w:-]*)\s*(\{[\s\S]*\})?$/);
+      if (named) {
+        let input = {};
+        if (named[2]) {
+          try { const j = this._robustJsonParse(named[2]); if (j && typeof j === 'object') input = j.input || j.arguments || j.args || j.parameters || j.params || j; } catch (_e) { /* no args */ }
+        }
+        if (typeof input !== 'object' || input === null) input = {};
+        toolCalls.push({ name: named[1].trim(), input });
+        _consume(match[0]);
+        continue;
+      }
+      // (b) a plain JSON call object
+      try { const n = this._normalizeToolCall(this._robustJsonParse(inner)); if (n) { toolCalls.push(n); _consume(match[0]); } } catch (_e) { /* leave it in the text */ }
+    }
+    // A bare token carries no content — those may always go.
+    text = text.replace(/<[/|]{1,2}\s*tool_call\s*[/|]{0,2}>|<[/|]{0,2}\s*tool_call\s*[/|]{1,2}>/gi, '');
 
     // Format 6 (v7.9.28): generalized JSON tool calls. Flexible field names, so a
     // model emitting yet another JSON shape (e.g.

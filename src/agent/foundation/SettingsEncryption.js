@@ -33,7 +33,14 @@ const { createLogger } = require('../core/Logger');
 const _log = createLogger('Settings');
 
 // ── Constants ──────────────────────────────────────────────
-const SENSITIVE_KEYS = new Set(['models.anthropicApiKey', 'models.openaiApiKey']);
+// v7.9.46 r7: mcp.serve.apiKey joins the encrypted set. It is the bearer
+// token for the embedded MCP server (and therefore for the vestibule), so
+// it must not sit in settings.json in the clear. Consequences that are
+// deliberate, not accidental: get() decrypts ONLY on a full leaf match
+// (McpClient reads 'mcp.serve.apiKey', never the subtree), and
+// _migratePlaintextKeys encrypts an existing hand-written value (>10
+// chars) on the next load.
+const SENSITIVE_KEYS = new Set(['models.anthropicApiKey', 'models.openaiApiKey', 'mcp.serve.apiKey']);
 
 const ENC_PREFIX = 'enc:';
 // FIX v4.10.0 (S-4): v2 prefix for 600k-iteration keys.

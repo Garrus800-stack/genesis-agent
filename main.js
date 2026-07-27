@@ -779,7 +779,10 @@ const CHANNELS = {
     // Sensitive keys (API keys, etc.) are redacted to first 4 chars.
     if (changes.length > 0) {
       const log = require('./src/agent/core/Logger').createLogger('Settings');
-      const SENSITIVE = new Set(['models.anthropicApiKey', 'models.openaiApiKey', 'peer.discoveryToken']);
+      // v7.9.46 r7: mcp.serve.apiKey added — setBatch pushes changes[].to as
+      // the PLAINTEXT (it is captured before encryption), so without this the
+      // log line would carry the full MCP password on every save.
+      const SENSITIVE = new Set(['models.anthropicApiKey', 'models.openaiApiKey', 'peer.discoveryToken', 'mcp.serve.apiKey']);
       for (const c of changes) {
         const redact = (v) => {
           if (SENSITIVE.has(c.key)) {
@@ -918,16 +921,28 @@ const CHANNELS = {
     if (!agent) return { error: 'MCP not available' };
     const mcp = agent.container.tryResolve('mcpClient');
     if (!mcp) return { error: 'MCP not available' };
-    const port = await mcp.startServer();
-    return { ok: true, port };
+    // v7.9.46 r7 (C): startServer now refuses without a password. Without
+    // this catch the rejection reached the renderer as an unhandled
+    // promise and the dashboard button just did nothing, silently.
+    try {
+      const port = await mcp.startServer();
+      return { ok: true, port };
+    } catch (err) {
+      return { error: err.message, code: /** @type {*} */ (err).code || null };
+    }
   },
 
   // v5.9.0: Stop Genesis MCP server
   'agent:mcp-stop-server': async () => {
     if (!agent) return { error: 'Agent not booted' };
     const mcp = agent.container.tryResolve('mcpClient');
-    if (!mcp || !mcp.mcpServer) return { error: 'MCP server not running' };
-    await mcp.mcpServer.stop();
+    // v7.9.46 r7: `mcp.mcpServer` is a getter that CONSTRUCTS on access, so
+    // it is never falsy — the old check was dead code and "MCP server not
+    // running" unreachable. Ask the raw field for a bound port instead;
+    // that is the same source health.mcp.serving is built from
+    // (McpClient.getStatus), so button and status cannot disagree.
+    if (!mcp || !mcp._mcpServer || !mcp._mcpServer.port) return { error: 'MCP server not running' };
+    await mcp._mcpServer.stop();
     return { ok: true };
   },
 

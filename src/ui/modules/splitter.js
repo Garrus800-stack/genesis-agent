@@ -48,8 +48,12 @@ function _readWidth(panelKey) {
   return DEFAULTS[panelKey];
 }
 
+function _clampWidth(panelKey, px) {
+  return Math.max(MIN_WIDTHS[panelKey], Math.min(px, _maxWidthForPanel()));
+}
+
 function _writeWidth(panelKey, px) {
-  const clamped = Math.max(MIN_WIDTHS[panelKey], Math.min(px, _maxWidthForPanel()));
+  const clamped = _clampWidth(panelKey, px);
   document.documentElement.style.setProperty(`--panel-width-${panelKey}`, `${clamped}px`);
   return clamped;
 }
@@ -190,9 +194,16 @@ function _setupResizeObserver() {
   const layout = document.querySelector('#main-layout');
   if (!layout || typeof ResizeObserver === 'undefined') return;
   _resizeObserver = new ResizeObserver(() => {
+    // v7.9.46: write ONLY on an actual change. Setting a custom property on
+    // documentElement invalidates layout even when the value is identical,
+    // so the old unconditional write re-triggered this very observer on
+    // every tick — which is what Chromium reports as "ResizeObserver loop
+    // completed with undelivered notifications". The purpose (clamp panel
+    // widths when the window shrinks) is unchanged.
     for (const key of Object.keys(DEFAULTS)) {
       const current = _readWidth(key);
-      _writeWidth(key, current);
+      const clamped = _clampWidth(key, current);
+      if (clamped !== current) _writeWidth(key, clamped);
     }
   });
   _resizeObserver.observe(layout);

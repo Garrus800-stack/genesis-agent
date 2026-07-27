@@ -124,7 +124,13 @@ class DreamCycle {
    * Run a dream cycle. Called by IdleMind when DREAM activity is selected.
    * @returns {Promise<object>}
    */
-  async dream(options = {}) {
+  /** v7.9.46 (plan H7): honest active flag around the cycle — the shield reads it. */
+  async dream(...args) {
+    this.active = true;
+    try { return await this._dreamInner(...args); } finally { this.active = false; }
+  }
+
+  async _dreamInner(options = {}) {
     const startTime = Date.now();
     // v7.2.5: Intensity scaling — lighter cycles when resources are tight.
     // 1.0 = full 5-phase cycle, 0.5 = heuristic only (no LLM), 0.25 = consolidation + decay only

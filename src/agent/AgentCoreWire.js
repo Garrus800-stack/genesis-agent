@@ -624,7 +624,12 @@ class AgentCoreWire {
         }
       } catch (err) {
         _log.warn('[GENESIS] runtime mcp serve toggle failed:', err.message);
-        chatNotify(t('ui.toggle.mcp_failed', { error: err.message }));
+        // v7.9.46 r7 (C): the two password refusals get their own localized
+        // line — "toggle failed: <english>" would bury the one thing the
+        // user has to do. Everything else keeps the generic message.
+        const KEYS = { MCP_NO_KEY: 'ui.toggle.mcp_no_key', MCP_KEY_UNREADABLE: 'ui.toggle.mcp_key_unreadable' };
+        const key = KEYS[/** @type {*} */ (err).code];
+        chatNotify(key ? t(key) : t('ui.toggle.mcp_failed', { error: err.message }));
       }
     });
   }

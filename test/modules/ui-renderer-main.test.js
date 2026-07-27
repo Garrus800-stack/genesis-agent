@@ -129,5 +129,29 @@ test('window.togglePanel toggles hidden class on element', () => {
   assert.ok(panel.classList.contains('hidden'), 'hidden re-added on second toggle');
 });
 
+// ── v7.9.46: benign ResizeObserver notices must not reach the user ──
+// Source pins (no module load — these run on every platform).
+test('error boundary drops the benign ResizeObserver notices', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'src/ui/renderer-main.js'), 'utf8');
+  const m = src.match(/const _BENIGN_ERRORS = (\/.*\/);/);
+  assert.ok(m, 'boundary declares a benign-error filter');
+  const re = new RegExp(m[1].slice(1, -1));
+  assert.ok(re.test('ResizeObserver loop completed with undelivered notifications'),
+    'filters the notification variant Chromium raises');
+  assert.ok(re.test('ResizeObserver loop limit exceeded'), 'filters the older variant');
+  assert.ok(!re.test('TypeError: x is not a function'), 'a real error still passes through');
+  // the filter must sit BEFORE the counter, or it would still eat the
+  // five-toast budget and suppress real errors afterwards
+  assert.ok(src.indexOf('_BENIGN_ERRORS.test(msg)') < src.indexOf('this._errorCount++'),
+    'filter runs before the error counter');
+});
+
+test('splitter resize observer writes only on an actual change', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'src/ui/modules/splitter.js'), 'utf8');
+  const body = src.slice(src.indexOf('new ResizeObserver'));
+  assert.ok(/if \(clamped !== current\) _writeWidth/.test(body),
+    'unconditional write would re-trigger the observer every tick');
+});
+
 console.log(`\n    ${passed} passed · ${failed} failed · v7.7.0 ui-renderer-main`);
 process.exit(failed > 0 ? 1 : 0);

@@ -68,6 +68,9 @@ class _SettingsPersistenceHost {
     clamp('idleMind.goalStepsPerActivityPick',    0, 50);
     clamp('daemon.cycleMinutes',                  1, 1440);
     clamp('mcp.serve.port',                       1024, 65535);
+    // v7.9.46: knock budget for the vestibule responder. Floor keeps a typo
+    // from making every knock absent; ceiling keeps a visitor from hanging.
+    clamp('mcp.serve.knockTimeoutMs',             5000, 300000);
     clamp('health.httpPort',                      1024, 65535);
     clamp('timeouts.approvalSec',                  0, 86400);
     // v7.9.5 live-fix: shutdown summary protection

@@ -197,6 +197,11 @@ const commandHandlersNetwork = {
         const port = await this.mcp.startServer();
         return this.lang.t('mcp.server_started', { port });
       } catch (err) {
+        // v7.9.46 r7 (C): same two password refusals as the settings toggle,
+        // so the chat answer names the fix instead of an English error text.
+        const KEYS = { MCP_NO_KEY: 'ui.toggle.mcp_no_key', MCP_KEY_UNREADABLE: 'ui.toggle.mcp_key_unreadable' };
+        const key = KEYS[/** @type {*} */ (err).code];
+        if (key) return this.lang.t(key);
         return this.lang.t('mcp.server_start_failed', { error: err.message });
       }
     }

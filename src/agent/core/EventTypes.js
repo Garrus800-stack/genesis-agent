@@ -761,6 +761,7 @@ const EVENTS = Object.freeze({
     ERROR:            'mcp:error',
     TOOLS_DISCOVERED: 'mcp:tools-discovered',
     SERVER_REMOVED:   'mcp:server-removed',
+    VESTIBULE_KNOCK:  'vestibule:knock', // v7.9.46: a visitor knocks at the vestibule
     SERVER_STARTED:   'mcp:server-started',
     BRIDGE_STARTED:   'mcp:bridge-started',
     RESOURCE_READ:    'mcp:resource-read',

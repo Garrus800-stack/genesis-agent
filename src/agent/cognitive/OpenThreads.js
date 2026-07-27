@@ -54,6 +54,19 @@ function collectThreads(dir, now) {
     if (candTexts.some((t) => t.includes(sum.slice(0, 40)))) continue; // P13 dedupe
     threads.push({ key: 'moment:' + m.id, prio: 4, satz: 'Markierter Moment: \u201e' + sum + '\u201c (' + _ago(m.ts || now, now) + ')' });
   }
+  // 1b) vestibule (v7.9.46 L7/L8): unanswered knocks since 48h as ONE line;
+  // a shield override by the inner circle gets its own line — visibility is the check.
+  try {
+    const book = _lines(path.join(dir, 'vorhalle', 'besuche.jsonl')).filter((b) => (now - (b.ts || 0)) < 48 * 3600 * 1000);
+    const un = book.filter((b) => ['absent', 'rate', 'shielded'].includes(b.outcome));
+    if (un.length) {
+      const names = [...new Set(un.map((b) => b.who || '?'))].slice(0, 4).join(', ');
+      threads.push({ key: 'vestibule:unanswered', prio: 1, satz: 'Besuche in der Vorhalle: ' + un.length + ' unbeantwortet (' + names + ')' });
+    }
+    if (book.some((b) => b.outcome === 'override')) {
+      threads.push({ key: 'vestibule:override', prio: 1, satz: 'Daniel hat w\u00e4hrend deines Traums an die Vorhalle geklopft.' });
+    }
+  } catch (_e) { /* the book must never break awakening */ }
   // 2) work findings (F2 lays them here — the silence that breaks)
   for (const n of _lines(path.join(dir, NOTES))) {
     if (n.type === 'werk-befund') threads.push({ key: 'werk:' + (n.quelleId || n.ts), prio: 3, satz: 'Werk-Befund: ' + n.text });

@@ -13,14 +13,14 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 438 JS files |
-| Test Files / Tests | 650 / 9122 (Win baseline) |
+| Source Modules | 441 JS files |
+| Test Files / Tests | 652 / 9492 (Win baseline) |
 | DI Services | 185 (172 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
 | npm Dependencies | 6 production + 1 optional + 10 dev |
-| Event Types (catalogued) | 498 |
-| Event Schemas | 498 |
+| Event Types (catalogued) | 499 |
+| Event Schemas | 499 |
 | IPC Channels | 68 main ↔ 68 preload |
 | LLM Backends | 3 (Ollama, Anthropic, OpenAI-compatible) |
 | Coverage Gates | 80% lines, 76% branches, 78% functions |
@@ -421,8 +421,8 @@ The EmbeddingService integration is optional. Without an embedding backend (Olla
 
 The EventBus (~600 LOC) is the nervous system of Genesis:
 
-- **498 catalogued event types** in EventTypes.js (1316 LOC) with JSDoc payload docs
-- **498 payload schemas** in EventPayloadSchemas.js (~846 LOC) — full parity since v7.6.x (every catalog entry has a registered schema; v7.6.3 dropped 4 dead entries from both files in lockstep, B1+B2 regression tests in `store-event-catalog.test.js` enforce the link)
+- **499 catalogued event types** in EventTypes.js (1316 LOC) with JSDoc payload docs
+- **499 payload schemas** in EventPayloadSchemas.js (~846 LOC) — full parity since v7.6.x (every catalog entry has a registered schema; v7.6.3 dropped 4 dead entries from both files in lockstep, B1+B2 regression tests in `store-event-catalog.test.js` enforce the link)
 - **Dev-mode validation** — unknown events produce warnings with stack traces
 - **Wildcard prefix-map** (v3.8.0) — O(k) matching instead of O(n)
 - **Ring buffer history** (v4.0.0) — O(1) push instead of O(n) push+slice
@@ -572,5 +572,5 @@ Measured as of v7.9.45 (recursive per phase folder):
   ─────────────────────────────────────────────
   agent/ total     396 files ~118,364 LOC
   + UI/kernel       42 files ~16,487 LOC
-  = src/ total     438 modules ~134,000 LOC
+  = src/ total     441 modules ~134,000 LOC
 ```

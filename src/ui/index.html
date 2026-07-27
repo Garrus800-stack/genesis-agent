@@ -554,6 +554,11 @@
             <label data-i18n="ui.mcp_port">MCP Server Port</label>
             <input type="number" id="set-mcp-port" min="1024" max="65535" placeholder="3580" class="setting-input">
           </div>
+          <div class="setting-group">
+            <label data-i18n="ui.mcp_key">MCP Server Password</label>
+            <input type="password" id="set-mcp-key" placeholder="••••••••" class="setting-input">
+            <span class="setting-hint" data-i18n="ui.mcp_key_hint">Required — without it the server refuses to start. Write-only: a saved password is never shown again, and an empty field leaves it unchanged. Set it here rather than by hand, so it is stored encrypted.</span>
+          </div>
           <div class="setting-group setting-divider">
             <label class="setting-section-label" data-i18n="settings.section.mcp_external">Externe MCP-Server (verbinden)</label>
           </div>

@@ -129,6 +129,14 @@ function showToast(message, type = 'info') {
   setTimeout(() => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
+// v7.9.46 r7: expose the toast globally. The dashboard renderers are
+// deliberately require()-free (they register themselves as browser globals
+// for the DashboardRenderers barrel), so this is the only way they can
+// report an error to the user. An inline message in the dashboard body
+// would be wiped by the 2s auto-refresh. Same pattern as
+// window.GenesisFieldRegistry in settings-defaults.js.
+if (typeof window !== 'undefined') window.GenesisUiToast = showToast;
+
 async function showHealth() {
   const { addMessage } = require('./chat');
   // v7.7.0: not-ready guard — agent:get-health IPC needs backend ready.

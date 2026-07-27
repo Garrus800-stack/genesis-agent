@@ -25,7 +25,7 @@ const helpers = {
   async _processToolLoop(response, onChunk, userMessage, intentType = 'general') {
     let fullText = response; this._execNames = new Set(); // v7.9.43 W1: what REALLY ran this turn
     let lastCallSignature = null;
-    let nudges = 0; let lastNudgeCalls = -1; let _acts = 0; const _recent = (this.history || []).slice(-8); // v7.9.28 + v7.9.37 (K1): the conversation travels with every inner call — field 15: the model saw only the system prompt and said so
+    let nudges = 0; let lastNudgeCalls = -1; let _acts = 0; let _actThisRound = false; const _recent = (this.history || []).slice(-8); // v7.9.28 + v7.9.37 (K1): the conversation travels with every inner call — field 15: the model saw only the system prompt and said so
     let shellRuns = 0; // v7.9.28: bounded read-only shell-fence executions
     let dedupNote = ''; // v7.9.30 (S4): carried into synthesis when duplicates collapse
     // v7.3.5: Accumulate every tool call fired across rounds, for the
@@ -90,7 +90,7 @@ const helpers = {
           if (fenceCmds.length) shellRuns++;
           toolCalls = [...slashSkills, ...fenceCmds.map((command) => ({ name: 'shell', input: { command } }))];
           // fall through to execution below (S4 dedup + gate + synthesis apply)
-        } else { const _act = (_acts < 2) ? (require('./ChatActCore.js').planActFromText(text) || (round === 0 ? require('./ChatActCore.js').planActFromText(String(userMessage || '')) : null)) : null; if (_act) { _acts++; toolCalls = [_act]; try { onChunk('\n*[' + _act.note + ']*\n'); } catch (_e) {} } if (toolCalls.length === 0) { // v7.9.41 r3: said = done — deterministic read-only act from demand or announcement; the nudge below stays the fallback
+        } else { const _act = (_acts < 2) ? (require('./ChatActCore.js').planActFromText(text) || (round === 0 ? require('./ChatActCore.js').planActFromText(String(userMessage || '')) : null)) : null; if (_act) { _acts++; _actThisRound = true; toolCalls = [_act]; try { onChunk('\n*[' + _act.note + ']*\n'); } catch (_e) {} } if (toolCalls.length === 0) { // v7.9.41 r3: said = done — deterministic read-only act from demand or announcement; the nudge below stays the fallback
         // v7.9.28: false-stop recovery. A capable model often does ONE tool
         // round, then narrates the next step ("Next, I'll read ARCHITECTURE.md",
         // "Ich schaue mir jetzt …") and emits no tool call — so the loop ended
@@ -273,7 +273,7 @@ const helpers = {
       // v7.9.37 (V1): side-effect tools (mark-moment, journal-write) never rewrite a finished answer — field 19: the model answered the awakening speech completely AND marked the moment; the synthesis then restated the whole greeting into the same bubble.
       const _resultsTrivial = results.length > 0 && results.every(r => r.success && String(typeof r.result === 'string' ? r.result : JSON.stringify(r.result ?? '')).trim().length < 120);
       const _answerDelivered = String(text || '').trim().length > 200 && /[.!?…"'”’)\]}]\s*$/.test(String(text || '').trimEnd());
-      if (_resultsTrivial && _answerDelivered) { _log.info(`[CHAT] synthesis skipped — answer already complete, ${results.length} side-effect tool(s) with trivial results`); fullText = text; break; }
+      if (!_actThisRound && _resultsTrivial && _answerDelivered) { _log.info(`[CHAT] synthesis skipped — answer already complete, ${results.length} side-effect tool(s) with trivial results`); fullText = text; break; }
       const resultSummary = results.map(r => {
         if (!r.success) return `[${r.name}]: ${this.lang.t('agent.error').toUpperCase()} - ${r.error}`;
         if (r.result && r.result._injectionFlagged) {
@@ -303,7 +303,7 @@ const helpers = {
       const { clean: synthesis } = stripThinkingBlocks(rawSynthesis);
 
       onChunk('\n' + synthesis);
-      fullText = text + '\n\n' + synthesis;
+      fullText = _actThisRound ? synthesis : text + '\n\n' + synthesis; _actThisRound = false; // v7.9.46 field: a SYSTEM-planned act replaces the pre-act text — it was written without the facts, and appending produced one bubble saying "nobody knocked" and then listing the visits; a model-planned round keeps its step, a real partial.
     }
 
     // v7.3.5: If the injection gate flagged exactly one signal earlier, we

@@ -82,6 +82,49 @@ const agentCoreBootWireMixin = {
     } catch (e) {
       _log.debug('[v745-tools] registration skipped:', e.message);
     }
+    // v7.9.46: the vestibule — his membrane. Gate built here, handed to the
+    // MCP client (server construction site) and to his own tools.
+    try {
+      // v7.9.46 field-fix: `tools` was NOT resolved in this block — it was
+      // scoped inside the v7.3.7 try above, so this line threw a
+      // ReferenceError that the catch below swallowed at debug level. Result:
+      // the vestibule tools were never registered and _vestibuleGate never
+      // set, in every app boot since .46 shipped. Exactly the trap the lab
+      // block documents one screen above; this block missed the same lesson.
+      const tools = c.tryResolve('tools');
+      const _model = c.tryResolve('model');
+      const _gdir = _model && _model._genesisDir;
+      if (tools && _gdir) {
+        const { VestibuleGate } = require('./capabilities/VestibuleGate.js');
+        const _vgate = new VestibuleGate({ genesisDir: _gdir });
+        const _mcpC = c.tryResolve('mcpClient');
+        if (_mcpC) _mcpC._vestibuleGate = _vgate;
+        const { registerV7946Tools } = require('./cognitive/tools/v7946-vestibule-tools.js');
+        const _registered = registerV7946Tools(tools, {
+          vestibuleGate:  _vgate,
+          modelBridge:    _model,
+          idleMindStatus: c.tryResolve('idleMindStatus'),
+          goalStack:      c.tryResolve('goalStack'),
+          dreamCycle:     c.tryResolve('dreamCycle'),
+          journalWriter:  c.tryResolve('journalWriter'),
+          bus:            c.tryResolve('bus'),
+          settings:       c.tryResolve('settings'), // v7.9.46: knock budget
+        });
+        const _bus = c.tryResolve('bus');
+        if (_bus && _bus.on) {
+          _bus.on('vestibule:knock', (ev) => { // live delivery into the next prompt build
+            try { const se = require('./intelligence/PromptBuilderSectionsExtra.js').sectionsExtra; (se._pendingKnocks = se._pendingKnocks || []).push(ev); } catch (_e) { /* soft */ }
+          });
+        }
+        // Say it out loud, like the two tool families above — a silent
+        // success is indistinguishable from a silent failure.
+        _log.info(`  [WIRE] v7.9.46 vestibule: ${_registered.join(', ')}`);
+      }
+    } catch (e) {
+      // warn, not debug: this block failing means the vestibule is gone and
+      // nobody notices until a knock is refused.
+      _log.warn('[v7946-vestibule] wiring FAILED — vestibule inactive:', e.message);
+    }
 
     // v7.2.1: Log expected-active bindings that are missing
     if (bindResult.expectedMissing && bindResult.expectedMissing.length > 0) {

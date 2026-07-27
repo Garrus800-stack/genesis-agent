@@ -14,14 +14,26 @@ const http = require('http');
 const ROOT = require('path').resolve(__dirname, '..', '..');
 const { McpServer } = require(ROOT + '/src/agent/capabilities/McpServer');
 
+// v7.9.46 r7: the server's open default is gone — no key means every
+// request except /health is refused with 401. Suites that measure
+// something OTHER than auth (rate limiting, CORS, body size, stats) now
+// have to be authenticated, otherwise the auth gate (which runs BEFORE
+// the rate limiter) answers 401 and the measurement never happens.
+const TEST_KEY = 'suite-key';
+
 // ── Auth Tests ──────────────────────────────────────────────
 
 describe('McpServer — API key auth', () => {
-  test('no key configured → all requests pass', async () => {
+  // v7.9.46 r7 POLICY CHANGE (was: "no key configured → all requests pass").
+  // The open default let any localhost process — and through a tunnel any
+  // remote one — call every Genesis tool. The root now refuses instead.
+  test('mcp-security contract: no key configured → all requests refused (401)', async () => {
     const server = new McpServer({ tools: null, security: { apiKey: null } });
     const port = await server.start(0);
-    const res = await jsonRpc(port, 'ping', {});
-    assertEqual(res.status, 200);
+    const res = await jsonRpc(port, 'ping', {}, { Authorization: '' });
+    assertEqual(res.status, 401);
+    const health = await httpGet(port, '/health');
+    assertEqual(health.status, 200); // /health stays open — probes keep working
     await server.stop();
   });
 
@@ -74,7 +86,7 @@ describe('McpServer — API key auth', () => {
 
 describe('McpServer — rate limiting', () => {
   test('allows requests under limit', async () => {
-    const server = new McpServer({ tools: null, security: { rateLimitPerMin: 10 } });
+    const server = new McpServer({ tools: null, security: { apiKey: TEST_KEY, rateLimitPerMin: 10 } });
     const port = await server.start(0);
     for (let i = 0; i < 10; i++) {
       const res = await jsonRpc(port, 'ping', {});
@@ -84,7 +96,7 @@ describe('McpServer — rate limiting', () => {
   });
 
   test('mcp-security contract: rejects requests over limit with 429', async () => {
-    const server = new McpServer({ tools: null, security: { rateLimitPerMin: 3 } });
+    const server = new McpServer({ tools: null, security: { apiKey: TEST_KEY, rateLimitPerMin: 3 } });
     const port = await server.start(0);
     // First 3 should succeed
     for (let i = 0; i < 3; i++) {
@@ -98,7 +110,7 @@ describe('McpServer — rate limiting', () => {
   });
 
   test('rate limit 0 disables limiting', async () => {
-    const server = new McpServer({ tools: null, security: { rateLimitPerMin: 0 } });
+    const server = new McpServer({ tools: null, security: { apiKey: TEST_KEY, rateLimitPerMin: 0 } });
     const port = await server.start(0);
     // Should never 429
     for (let i = 0; i < 20; i++) {
@@ -113,7 +125,7 @@ describe('McpServer — rate limiting', () => {
 
 describe('McpServer — CORS', () => {
   test('default CORS allows localhost origin', async () => {
-    const server = new McpServer({ tools: null });
+    const server = new McpServer({ tools: null, security: { apiKey: TEST_KEY } });
     const port = await server.start(0);
     const res = await jsonRpc(port, 'ping', {}, { Origin: 'http://localhost:3000' });
     assertEqual(res.headers['access-control-allow-origin'], 'http://localhost:3000');
@@ -121,7 +133,7 @@ describe('McpServer — CORS', () => {
   });
 
   test('default CORS allows 127.0.0.1 origin', async () => {
-    const server = new McpServer({ tools: null });
+    const server = new McpServer({ tools: null, security: { apiKey: TEST_KEY } });
     const port = await server.start(0);
     const res = await jsonRpc(port, 'ping', {}, { Origin: 'http://127.0.0.1:8080' });
     assertEqual(res.headers['access-control-allow-origin'], 'http://127.0.0.1:8080');
@@ -129,7 +141,7 @@ describe('McpServer — CORS', () => {
   });
 
   test('mcp-security contract: default CORS blocks external origin', async () => {
-    const server = new McpServer({ tools: null });
+    const server = new McpServer({ tools: null, security: { apiKey: TEST_KEY } });
     const port = await server.start(0);
     const res = await jsonRpc(port, 'ping', {}, { Origin: 'http://evil.com' });
     assertEqual(res.headers['access-control-allow-origin'], '');
@@ -137,7 +149,7 @@ describe('McpServer — CORS', () => {
   });
 
   test('wildcard CORS allows all origins', async () => {
-    const server = new McpServer({ tools: null, security: { corsOrigins: ['*'] } });
+    const server = new McpServer({ tools: null, security: { apiKey: TEST_KEY, corsOrigins: ['*'] } });
     const port = await server.start(0);
     const res = await jsonRpc(port, 'ping', {}, { Origin: 'http://evil.com' });
     assertEqual(res.headers['access-control-allow-origin'], '*');
@@ -145,7 +157,7 @@ describe('McpServer — CORS', () => {
   });
 
   test('CORS allows Mcp-Session-Id header', async () => {
-    const server = new McpServer({ tools: null });
+    const server = new McpServer({ tools: null, security: { apiKey: TEST_KEY } });
     const port = await server.start(0);
     const res = await jsonRpc(port, 'ping', {});
     const allowHeaders = res.headers['access-control-allow-headers'] || '';
@@ -154,7 +166,7 @@ describe('McpServer — CORS', () => {
   });
 
   test('no Origin header allows request (non-browser clients)', async () => {
-    const server = new McpServer({ tools: null });
+    const server = new McpServer({ tools: null, security: { apiKey: TEST_KEY } });
     const port = await server.start(0);
     const res = await jsonRpc(port, 'ping', {});
     assertEqual(res.status, 200);
@@ -175,7 +187,7 @@ describe('McpServer — security stats', () => {
   });
 
   test('tracks rateLimited count', async () => {
-    const server = new McpServer({ tools: null, security: { rateLimitPerMin: 1 } });
+    const server = new McpServer({ tools: null, security: { apiKey: TEST_KEY, rateLimitPerMin: 1 } });
     const port = await server.start(0);
     await jsonRpc(port, 'ping', {});  // OK
     await jsonRpc(port, 'ping', {});  // Rate limited
@@ -191,7 +203,15 @@ function jsonRpc(port, method, params, extraHeaders = {}) {
     const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method, params });
     const options = {
       hostname: '127.0.0.1', port, path: '/', method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...extraHeaders },
+      // v7.9.46 r7: authenticate by default, but only when the test did not
+      // supply credentials of its own — an auth test (wrong key, x-api-key,
+      // no key at all) must keep full control over what it sends.
+      headers: {
+        'Content-Type': 'application/json',
+        ...(('Authorization' in extraHeaders) || ('x-api-key' in extraHeaders)
+          ? {} : { Authorization: `Bearer ${TEST_KEY}` }),
+        ...extraHeaders,
+      },
     };
     const req = http.request(options, (res) => {
       let data = '';

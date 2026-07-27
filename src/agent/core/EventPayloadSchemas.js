@@ -213,6 +213,7 @@ const SCHEMAS = {
   // Reserved (registered in EventTypes, not yet emitted — schemas ready for use)
   // v7.1.6: shell:complete removed — consolidated to shell:outcome (see line 322)
   'mcp:tool-call':           { server: 'required', tool: 'required' },
+  'vestibule:knock': { who: 'required', circle: 'required', request: 'optional' }, // v7.9.46
   'mcp:server-started':      { port: 'required' },
   'mcp:bridge-started':      { tools: 'required', resources: 'optional' },
   'mcp:resource-read':       { uri: 'required' },

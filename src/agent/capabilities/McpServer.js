@@ -43,9 +43,13 @@ try {
 
 class McpServer {
   /**
-   * @param {{ tools: *, bus?: *, bridgeTools?: Map<string, *>, security?: { apiKey?: string, rateLimitPerMin?: number, corsOrigins?: string[], bodyMaxBytes?: number } }} config
+   * @param {{ tools: *, bus?: *, bridgeTools?: Map<string, *>, vestibule?: *, security?: { apiKey?: string, bind?: string, rateLimitPerMin?: number, corsOrigins?: string[], bodyMaxBytes?: number } }} config
    */
-  constructor({ tools, bus, bridgeTools, security }) {
+  constructor({ tools, bus, bridgeTools, security, vestibule }) {
+    /** v7.9.46: circle gate — optional; absent = legacy behaviour.
+     *  May be the gate OBJECT or a PROVIDER FUNCTION returning it
+     *  (see _gate() — lets the gate be wired after construction). */
+    this.vestibule = vestibule || null;
     /** @type {*} */ this.tools = tools;
     /** @type {*} */ this.bus = bus || NullBus;
     /** @type {Map<string, *>} */ this._bridgeTools = bridgeTools || new Map();
@@ -62,6 +66,7 @@ class McpServer {
     // ── Security config ──────────────────────────────────
     const sec = security || {};
     /** @type {string|null} */  this._apiKey       = sec.apiKey || null;
+    /** @type {string|null} */  this._bind         = sec.bind || null; // v7.9.46 V2b
     /** @type {number} */       this._rateLimit    = sec.rateLimitPerMin || DEFAULT_RATE_LIMIT;
     /** @type {string[]} */     this._corsOrigins  = sec.corsOrigins || DEFAULT_CORS_ORIGINS;
     /** @type {number} */       this._bodyMax      = sec.bodyMaxBytes || DEFAULT_BODY_MAX;
@@ -103,7 +108,8 @@ class McpServer {
       }
 
       // ── Auth gate ────────────────────────────────────
-      if (!this._checkAuth(req)) {
+      const _vc = this._resolveCircle(req); /** @type {*} */ (req)._vCircle = _vc; // v7.9.46
+      if (!_vc.ok) {
         this._stats.authRejected++;
         _log.warn(`[MCP-SERVER] Auth rejected from ${req.socket.remoteAddress}`);
         res.writeHead(401, { 'Content-Type': 'application/json', ...this._corsHeaders(req) });
@@ -140,16 +146,16 @@ class McpServer {
 
     return new Promise((resolve) => {
       const server = /** @type {NonNullable<typeof this._httpServer>} */ (this._httpServer);
-      server.listen(port, '127.0.0.1', () => {
+      server.listen(port, this._bind || '127.0.0.1' /* v7.9.46 V2b: ring 2 via mcp.serve.bind */, () => {
         const addr = server.address();
         this._serverPort = (typeof addr === 'object' && addr) ? addr.port : port;
         _log.info(`[MCP-SERVER] Genesis serving on port ${this._serverPort} (HTTP + SSE)`);
-        // FIX v6.0.3 (L-6): Warn when running without API key authentication.
-        // CORS restricts to localhost, but port-forwarding or tunnel tools
-        // (ngrok, ssh -R, etc.) could expose the server to remote access.
+        // v7.9.46 r7: the old "running WITHOUT API key" warning (FIX v6.0.3
+        // L-6) is gone — that state is no longer a warning but a refusal.
+        // _checkAuth returns false without a key, so a key-less server
+        // answers 401 to everything except /health.
         if (!this._apiKey) {
-          _log.warn('[MCP-SERVER] ⚠ Running WITHOUT API key authentication. Any localhost client can connect.');
-          _log.warn('[MCP-SERVER]   Set mcp.serve.apiKey in Settings to require Bearer token auth.');
+          _log.warn('[MCP-SERVER] ⚠ No API key configured — every request except /health will be refused with 401.');
         }
         this.bus.fire('mcp:server-started', { port: this._serverPort }, { source: 'McpServer' });
         resolve(this._serverPort);
@@ -224,7 +230,7 @@ class McpServer {
 
       // Notifications (no id) — fire and forget
       if (msg.id === undefined || msg.id === null) {
-        try { await this._dispatch(msg); } catch (_e) { /* notification errors are silent */ }
+        try { await this._dispatch(msg, /** @type {*} */ (req)._vCircle); } catch (_e) { /* notification errors are silent */ }
         res.writeHead(204, corsH);
         res.end();
         return;
@@ -234,7 +240,7 @@ class McpServer {
       if (wantsStream) {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', ...corsH });
         try {
-          const result = await this._dispatch(msg);
+          const result = await this._dispatch(msg, /** @type {*} */ (req)._vCircle);
           res.write(`event: message\ndata: ${JSON.stringify({ jsonrpc: '2.0', id: msg.id, result })}\n\n`);
         } catch (err) {
           this._stats.errors++;
@@ -247,7 +253,7 @@ class McpServer {
 
       // Standard JSON-RPC response
       try {
-        const result = await this._dispatch(msg);
+        const result = await this._dispatch(msg, /** @type {*} */ (req)._vCircle);
         res.writeHead(200, { 'Content-Type': 'application/json', ...corsH });
         res.end(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result }));
       } catch (err) {
@@ -302,7 +308,7 @@ class McpServer {
   // ── JSON-RPC Dispatch ─────────────────────────────────────
 
   /** @param {{ method: string, params?: * }} msg */
-  async _dispatch(msg) {
+  async _dispatch(msg, vc) {
     switch (msg.method) {
 
       case 'initialize':
@@ -322,17 +328,35 @@ class McpServer {
       case 'ping':
         return {};
 
-      case 'tools/list':
-        return { tools: this._collectToolSchemas() };
+      case 'tools/list': {
+        const _t = this._collectToolSchemas();
+        const _g = this._gate(); // v7.9.46 r7: resolved per request
+        return { tools: _g ? _g.filterTools(_t, vc && vc.circle) : _t }; // v7.9.46 gate
+      }
 
-      case 'tools/call':
+      case 'tools/call': {
+        const _g = this._gate(); // v7.9.46 r7: resolved per request
+        if (_g && !_g.allowCall(msg.params && msg.params.name, vc && vc.circle)) {
+          throw this._rpcErr(ERR_NOT_FOUND, `Tool not found: ${msg.params && msg.params.name}`); // v7.9.46: no leak which tools exist
+        }
+        if (_g && msg.params && msg.params.name === 'vestibule-status') {
+          msg.params.arguments = { ...(msg.params.arguments || {}), __circle: vc && vc.circle, __who: vc && vc.name }; // v7.9.46: circle travels into the knock
+        }
         return this._handleToolCall(msg.params);
+      }
 
-      case 'resources/list':
-        return { resources: this._collectResources() };
+      case 'resources/list': {
+        const _g = this._gate(); // v7.9.46 r7: resolved per request
+        return { resources: (_g && !_g.allowResources(vc && vc.circle)) ? [] : this._collectResources() }; // v7.9.46 gate
+      }
 
-      case 'resources/read':
+      case 'resources/read': {
+        const _g = this._gate(); // v7.9.46 r7: resolved per request
+        if (_g && !_g.allowResources(vc && vc.circle)) {
+          throw this._rpcErr(ERR_NOT_FOUND, 'Resource not found'); // v7.9.46 gate
+        }
         return this._handleResourceRead(msg.params);
+      }
 
       case 'resources/templates/list':
         return { resourceTemplates: [] };
@@ -531,8 +555,53 @@ class McpServer {
    * @param {import('http').IncomingMessage} req
    * @returns {boolean}
    */
+  /** v7.9.46: extract bearer (Authorization: Bearer … or x-api-key). */
+  _bearerOf(req) {
+    const a = /** @type {string} */ (req.headers.authorization || '');
+    if (a.startsWith('Bearer ')) return a.slice(7).trim();
+    const x = /** @type {string} */ (req.headers['x-api-key'] || '');
+    return x ? String(x).trim() : '';
+  }
+
+  /**
+   * v7.9.46 r7: resolve the vestibule gate. `vestibule` may be an OBJECT
+   * (contract suite, revision matrix, direct embedders) or a PROVIDER
+   * FUNCTION (McpClient). The provider form exists because the gate is
+   * wired in boot phase 4 while a boot-autostarted server is constructed
+   * in phase 3 — resolving per request makes the phase order irrelevant.
+   * @returns {*} the gate, or null
+   */
+  _gate() {
+    const v = this.vestibule;
+    return typeof v === 'function' ? v() || null : v;
+  }
+
+  /** v7.9.46 (plan H1): resolve the visitor circle. With circles.json present,
+   *  the open-default is OFF — no key or unknown key refuses; blocked refuses. */
+  _resolveCircle(req) {
+    if (req.method === 'GET' && req.url === '/health') return { ok: true, circle: 'health', name: null };
+    const g = this._gate();
+    if (g && g.hasCircles()) {
+      const b = this._bearerOf(req);
+      if (this._apiKey && b === this._apiKey) return { ok: true, circle: 'full', name: 'inner' };
+      const c = g.circleFor(b);
+      if (c.circle === 'outer' || c.circle === 'middle') return { ok: true, circle: c.circle, name: c.name };
+      return { ok: false, circle: c.circle, name: c.name };
+    }
+    // v7.9.46 r7: with the closed default below, the 'legacy' circle is only
+    // reachable for a keyed server without circles.json — i.e. never from a
+    // no-key start. VestibuleGate keeps its own 'legacy' (contract-pinned).
+    return this._checkAuth(req) ? { ok: true, circle: this._apiKey ? 'full' : 'legacy', name: null } : { ok: false, circle: 'none', name: null };
+  }
+
   _checkAuth(req) {
-    if (!this._apiKey) return true; // No key configured = open (local-first default)
+    // v7.9.46 r7 POLICY CHANGE: no key configured = CLOSED (was: open).
+    // The old local-first open default meant any localhost process — and,
+    // through a tunnel or port-forward, any remote one — could call every
+    // Genesis tool. Production paths cannot reach this state anymore
+    // (McpClient.startServer refuses to start without a key), but a direct
+    // `new McpServer(...)` embedder could, so the root itself now refuses.
+    if (!this._apiKey) return false;
     // Health endpoint bypasses auth
     if (req.method === 'GET' && req.url === '/health') return true;
 

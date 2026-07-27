@@ -279,12 +279,28 @@ function apply(Dashboard) {
     // Wire toggle button
     var toggleBtn = (typeof document !== 'undefined') ? document.getElementById('btn-mcp-toggle') : null;
     if (toggleBtn && window.genesis) {
-      toggleBtn.addEventListener('click', function() {
-        if (mcpServing) {
-          window.genesis.invoke('agent:mcp-stop-server').catch(function(err) { console.debug('[DASH] MCP stop:', err.message); });
-        } else {
-          window.genesis.invoke('agent:mcp-start-server').catch(function(err) { console.debug('[DASH] MCP start:', err.message); });
+      // v7.9.46 r7: the button used to be doubly mute — the IPC handler
+      // returns {error} as a RESOLVED promise (so .catch never fired) and
+      // the .catch only wrote console.debug. Since startServer now refuses
+      // without a password, a silent no-op would be the most common
+      // outcome. Both paths are surfaced and the panel is refreshed so the
+      // button label matches reality.
+      var self = this;
+      var report = function(prefix, res, err) {
+        var msg = err ? err.message : (res && res.error);
+        if (msg) {
+          var toast = (typeof window !== 'undefined') ? window.GenesisUiToast : null;
+          if (toast) { try { toast(msg, 'error'); } catch (e) { /* toast optional */ } }
+          else console.warn('[DASH] ' + prefix + ':', msg);
         }
+        try { self.refresh(); } catch (e) { /* best-effort */ }
+      };
+      toggleBtn.addEventListener('click', function() {
+        var channel = mcpServing ? 'agent:mcp-stop-server' : 'agent:mcp-start-server';
+        var prefix = mcpServing ? 'MCP stop' : 'MCP start';
+        window.genesis.invoke(channel)
+          .then(function(res) { report(prefix, res, null); })
+          .catch(function(err) { report(prefix, null, err); });
       });
     }
   };

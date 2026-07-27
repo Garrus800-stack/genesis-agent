@@ -301,6 +301,55 @@ writing hands work ONLY inside its `Genesis/` folder — the partner's
 notes are additive-protected. Remove the key and the bridge is silent
 again; nothing else changes.
 
+## The vestibule (circles and ring 2)
+
+> How the vestibule works, what each circle sees and how visitors are managed
+> is described once, in
+> [MCP-SERVER-SETUP.md](MCP-SERVER-SETUP.md#the-vestibule-circles-in-front-of-the-same-door).
+> This section covers only the settings behind it.
+
+The MCP server doubles as Genesis' vestibule. Visitors get personal keys you
+generate and hand over privately; `vestibule-circle` stores only their hash and
+Genesis adds, raises, lowers, blocks or removes by name, and reads his visit book back with `vestibule-visits`. Removing revokes the
+key — the bearer is a stranger again — while the visit book keeps what
+happened; history is not rewritten, not even from the inner circle. The file
+`vorhalle/circles.json` survives an empty circle list on purpose: the door
+keys its closed regime on that file, so losing it would reopen the old
+pre-vestibule behaviour. With a `vorhalle/circles.json` present
+the server refuses keyless or unknown callers — and since v7.9.46 that is true
+without circles too: a server with no `mcp.serve.apiKey` refuses everything
+except `/health`, and no start path will even bring it up. `mcp.serve.bind`
+(default `127.0.0.1`) is the deliberate ring-2 opt-in: set it to your LAN
+address to reach the vestibule from a second machine in your home network —
+the world stays out until the outpost era.
+
+### The MCP password (`mcp.serve.apiKey`)
+
+Set it in **Settings → MCP**. The field is write-only: a stored password is
+never shown again and an empty field leaves it untouched, exactly like the
+model API keys. It is encrypted in `settings.json` (`enc3:`, anchored to
+`.genesis/.install-id`) and never leaves as a value — the renderer feed, the
+JSON editor, the change log and the settings chat command all report `(set)`
+rather than the password.
+
+Two consequences worth knowing:
+
+- Without it, no start path works — the settings toggle, the boot autostart,
+  the dashboard button, `mcp serve` in chat, `node cli.js --serve` and the
+  CLI REPL all report the same reason instead of failing silently.
+- Copying `.genesis/` to another machine without `.install-id` makes the
+  stored password undecryptable. Genesis says so explicitly ("cannot be
+  decrypted on this installation") instead of claiming none is set — set it
+  again in the MCP tab.
+
+Editing it by hand is still possible but discouraged: a value shorter than
+eleven characters is not migrated to `enc3:` on load and stays readable in
+`settings.json`, and setting it through the chat command coerces digit-only
+input to a number, which is neither encrypted nor usable as a bearer token.
+Changing the password takes effect immediately — the key is read per request,
+so the running server accepts the new one as soon as any start path is
+triggered again. Port and bind live in the socket and need an off→on.
+
 ## Laboratory rooms (`lab.images`)
 
 The lab (v7.9.45) may only build rooms from images the human has freed:
@@ -342,6 +391,8 @@ These are wired to Settings event listeners or read fresh on every use:
 - `cognitive.strictMode`, `cognitive.koennen.enabled`
 - `models.anthropicApiKey`, `models.openaiApiKey` — API keys reload live
 - `mcp.serve.enabled` — MCP server toggle
+- `mcp.serve.apiKey` — MCP server password; the new value is used from the next start call on, no restart
+- `mcp.serve.knockTimeoutMs` — how long the vestibule responder waits for the model before it answers with his absent line (default 90000, clamped 5000-300000). Raise it for a slow or cloud-hosted model; a fast one never waits for it
 - `timeouts.approvalSec`, `llm.costGuard.*` (after Bug F+S fix)
 - `health.httpEnabled` — health server toggle
 - `ui.editorFontSize`, `ui.chatFontSize` — apply live to Monaco editor + chat container
@@ -373,6 +424,7 @@ Limits tab (constructor-time parameters):
 
 MCP tab:
 - `mcp.serve.port`
+- `mcp.serve.bind` — both sit in the listening socket; an off→on of the toggle is enough, a full restart is not needed
 
 Advanced tab:
 - `cognitive.simulation.maxBranches`, `cognitive.simulation.maxDepth`

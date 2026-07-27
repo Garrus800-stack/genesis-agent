@@ -185,6 +185,14 @@ const sectionsExtra = {
     } catch (_e) { return null; }
   },
 
+  _vestibuleKnockBlock() { // v7.9.46 V3: a knock reaches him in the very next prompt build
+    const ks = this._pendingKnocks;
+    if (!Array.isArray(ks) || !ks.length) return null;
+    const lines = ks.slice(0, 3).map((k) => '- ' + (k.who || '?') + ' (' + (k.circle || '?') + '): \u201e' + String(k.request || '').slice(0, 120) + '\u201c');
+    this._pendingKnocks = [];
+    return '[Vorhalle \u2014 es klopft]\n' + lines.join('\n');
+  },
+
   _openThreadsBlock() { // v7.9.44 F1: the awakening sees what is open — before any card
     try {
       const dir = this._genesisDir || (this._idleMind && this._idleMind.storageDir);
@@ -242,7 +250,7 @@ const sectionsExtra = {
       // v7.9.40 (B1/V4): the self clock is the FIRST verified fact.
       const clock = this._selfClockLine();
       if (clock) parts.push(clock);
-      { const _al = this._selfConsistencyLine(); if (_al) parts.push(_al); } { const _th = this._openThreadsBlock(); if (_th) parts.push(_th); } { const _of = this._resonanceOfferBlock(); if (_of) parts.push(_of); } { const _ko = this._correctionOfferBlock(); if (_ko) parts.push(_ko); } // v7.9.43 W2+W3 · v7.9.44 F1: threads first, then at most one card
+      { const _al = this._selfConsistencyLine(); if (_al) parts.push(_al); } { const _kn = this._vestibuleKnockBlock(); if (_kn) parts.push(_kn); } { const _th = this._openThreadsBlock(); if (_th) parts.push(_th); } { const _of = this._resonanceOfferBlock(); if (_of) parts.push(_of); } { const _ko = this._correctionOfferBlock(); if (_ko) parts.push(_ko); } // v7.9.43 W2+W3 · v7.9.44 F1: threads first, then at most one card
 
       // SelfModel: module counts, version, capabilities
       const manifest = this.selfModel?.manifest;

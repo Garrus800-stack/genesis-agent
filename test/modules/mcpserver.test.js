@@ -6,6 +6,11 @@ const { describe, it, after, before } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
 const { McpServer } = require('../../src/agent/capabilities/McpServer');
+
+// v7.9.46 r7: the server refuses every request without an API key now
+// (only /health stays open), so this suite runs a keyed server and the
+// request helpers authenticate by default.
+const TEST_KEY = 'suite-key';
 const { EventBus } = require('../../src/agent/core/EventBus');
 
 // ── Helpers ─────────────────────────────────────────────────
@@ -33,7 +38,7 @@ function mockToolRegistry() {
 async function rpc(port, method, params, id = 1) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({ jsonrpc: '2.0', id, method, params });
-    const req = http.request({ hostname: '127.0.0.1', port, method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
+    const req = http.request({ hostname: '127.0.0.1', port, method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TEST_KEY}` } }, (res) => {
       let data = '';
       res.on('data', (c) => { data += c; });
       res.on('end', () => {
@@ -66,7 +71,7 @@ describe('McpServer', () => {
 
   before(async () => {
     bus = new EventBus();
-    server = new McpServer({ tools: mockToolRegistry(), bus });
+    server = new McpServer({ tools: mockToolRegistry(), bus, security: { apiKey: TEST_KEY } });
     port = await server.start(0);
   });
 
@@ -201,7 +206,7 @@ describe('McpServer', () => {
   describe('error handling', () => {
     it('parse error for invalid JSON', async () => {
       const res = await new Promise((resolve, reject) => {
-        const req = http.request({ hostname: '127.0.0.1', port, method: 'POST', headers: { 'Content-Type': 'application/json' } }, (r) => {
+        const req = http.request({ hostname: '127.0.0.1', port, method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TEST_KEY}` } }, (r) => {
           let d = '';
           r.on('data', (c) => { d += c; });
           r.on('end', () => resolve(JSON.parse(d)));
@@ -214,7 +219,7 @@ describe('McpServer', () => {
 
     it('invalid request for missing jsonrpc field', async () => {
       const res = await new Promise((resolve, reject) => {
-        const req = http.request({ hostname: '127.0.0.1', port, method: 'POST', headers: { 'Content-Type': 'application/json' } }, (r) => {
+        const req = http.request({ hostname: '127.0.0.1', port, method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TEST_KEY}` } }, (r) => {
           let d = '';
           r.on('data', (c) => { d += c; });
           r.on('end', () => resolve(JSON.parse(d)));
@@ -241,7 +246,7 @@ describe('McpServer', () => {
   describe('405 for unsupported methods', () => {
     it('rejects PUT', async () => {
       const res = await new Promise((resolve, reject) => {
-        const req = http.request({ hostname: '127.0.0.1', port, method: 'PUT' }, (r) => {
+        const req = http.request({ hostname: '127.0.0.1', port, method: 'PUT', headers: { Authorization: `Bearer ${TEST_KEY}` } }, (r) => {
           resolve({ status: r.statusCode });
         });
         req.on('error', reject);
@@ -315,7 +320,7 @@ describe('McpServer', () => {
         const body = JSON.stringify({ jsonrpc: '2.0', id: 99, method: 'ping' });
         const req = http.request({
           hostname: '127.0.0.1', port, method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+          headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream', Authorization: `Bearer ${TEST_KEY}` },
         }, (r) => {
           let d = '';
           r.on('data', (c) => { d += c; });
@@ -335,7 +340,7 @@ describe('McpServer', () => {
         const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' });
         const req = http.request({
           hostname: '127.0.0.1', port, method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Mcp-Session-Id': 'test-session-123' },
+          headers: { 'Content-Type': 'application/json', 'Mcp-Session-Id': 'test-session-123', Authorization: `Bearer ${TEST_KEY}` },
         }, (r) => { let d = ''; r.on('data', c => { d += c; }); r.on('end', () => resolve(d)); });
         req.on('error', reject);
         req.end(body);
@@ -357,7 +362,7 @@ describe('McpServer', () => {
     });
 
     it('shutdown alias works', async () => {
-      const s2 = new McpServer({ tools: mockToolRegistry(), bus });
+      const s2 = new McpServer({ tools: mockToolRegistry(), bus, security: { apiKey: TEST_KEY } });
       const p2 = await s2.start(0);
       assert.ok(s2.isRunning);
       await s2.shutdown();

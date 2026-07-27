@@ -130,6 +130,62 @@ r=await say('Bänder zu kaufen wäre gut');
 chk('H4 kein Phantom-Edit',/\[MODELL\]/.test(r),'');
 r=await say('was ist deine lieblingsfarbe');
 chk('H5 Frage an Genesis selbst → Modell',/\[MODELL\]/.test(r),'');
+// ── V VORHALLE (v7.9.46): Klopf-Weg je Kreis über echtes HTTP + Dreifach-Leck-Negativ ──
+await (async()=>{
+  const http=require('http'),crypto=require('crypto');
+  const vbase=path.join(os.tmpdir(),'vmx-'+Date.now()); fs.mkdirSync(path.join(vbase,'vorhalle'),{recursive:true});
+  const hh=(s)=>crypto.createHash('sha256').update(s).digest('hex');
+  fs.writeFileSync(path.join(vbase,'vorhalle','circles.json'),JSON.stringify({[hh('kO')]:{name:'Gast',circle:'outer'},[hh('kM')]:{name:'Neo',circle:'middle'}}));
+  fs.writeFileSync(path.join(vbase,'vorhalle','stimme.json'),JSON.stringify({statusOuter:'Aktiv: {focus}.',statusMiddle:'Bei {focus}, {who}.',absentLine:'{who}, noch nicht gesehen.',closedLine:'Nicht erreichbar.'}));
+  const {McpServer}=require('../src/agent/capabilities/McpServer.js');
+  const {VestibuleGate}=require('../src/agent/capabilities/VestibuleGate.js');
+  const {registerV7946Tools}=require('../src/agent/cognitive/tools/v7946-vestibule-tools.js');
+  const vgate=new VestibuleGate({genesisDir:vbase});
+  // v7.9.46 field-fix: echte ToolRegistry statt Attrappe — die Attrappe nahm
+  // ein Objekt entgegen und verbarg, dass die Vorhallen-Werkzeuge gegen eine
+  // nicht existierende Signatur registriert wurden.
+  const {ToolRegistry}=require('../src/agent/intelligence/ToolRegistry.js');
+  let vmc=0; const vreg=new ToolRegistry({});
+  vreg.register('file-write',{description:'d',input:{path:'string',content:'string'}},async()=>{vmc+=100;return 'WROTE';});
+  registerV7946Tools(vreg,{vestibuleGate:vgate,modelBridge:{_genesisDir:vbase,chat:async()=>{vmc++;return 'Zeile.';}},idleMindStatus:{getStatus:()=>({isIdle:true,idleSince:60000,recentActivities:[{activity:'reflect'}]})},goalStack:{getActive:()=>[]},dreamCycle:{active:false},bus:{fire(){}}});
+  const srv=new McpServer({tools:vreg,bus:{fire(){},on(){}},bridgeTools:new Map(),security:{apiKey:'FULL'},vestibule:vgate});
+  await srv.start(0); const vp=srv._serverPort;
+  const vc=(key,method,params)=>new Promise((res)=>{const b=JSON.stringify({jsonrpc:'2.0',id:1,method,params});const q=http.request({port:vp,method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(b),Authorization:'Bearer '+key}},r=>{let d='';r.on('data',x=>d+=x);r.on('end',()=>res(d));});q.end(b);});
+  let rr=JSON.parse(await vc('kM','tools/call',{name:'vestibule-status',arguments:{question:'hi'}}));
+  chk('V1 Klopf-E2E middle: Antwort in seiner Stimme, 1 Modell-Call',vmc===1&&/Zeile|noch nicht/.test(JSON.stringify(rr)),JSON.stringify(rr).slice(0,60));
+  vmc=0; rr=JSON.parse(await vc('FULL','tools/call',{name:'vestibule-status',arguments:{}}));
+  chk('V2 Voll-Schlüssel: Roh-Snapshot ohne Modell-Call',vmc===0&&/focus/.test(JSON.stringify(rr)),'');
+  vmc=0; const leak=await vc('kO','tools/call',{name:'file-write',arguments:{path:'x',content:'y'}});
+  const lst=JSON.parse(await vc('kO','tools/list')).result.tools.map(t=>t.name);
+  chk('V3 Dreifach-Leck-Negativ: outer weder call noch list noch write',vmc===0&&/Tool not found/.test(leak)&&lst.length===1&&lst[0]==='vestibule-status','');
+  await srv.stop();
+  // ── v7.9.46 r7: Boot-Weg mit LEERER externer Serverliste + Gate-Provider ──
+  // Vor A0 stieg McpClient.boot() bei 0 externen Servern aus, BEVOR der
+  // Auto-Start lief: "MCP-Server: An" wirkte nach jedem Neustart nicht. Und
+  // das Gate wird erst in Phase 4 gesetzt — ein in Phase 3 gestarteter Server
+  // trug es nie. Beides in einem Lauf.
+  const {McpClient}=require('../src/agent/capabilities/McpClient.js');
+  const vset={data:{mcp:{servers:[],serve:{enabled:true,port:0,apiKey:'FULL'}}},get(pp){let v=this.data;for(const k of pp.split('.')){if(v==null)return undefined;v=v[k];}return v;}};
+  const vcli=new McpClient({settings:vset,toolRegistry:vreg,storageDir:vbase,bus:{fire(){},on(){}}});
+  await vcli.boot();                       // Phase 3
+  const bootPort=vcli._mcpServer&&vcli._mcpServer.port;
+  vcli._vestibuleGate=vgate;               // Phase 4 — NACH dem Start
+  const bc=(key,method,params)=>new Promise((res)=>{const b=JSON.stringify({jsonrpc:'2.0',id:1,method,params});const q=http.request({port:bootPort,method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(b),Authorization:'Bearer '+key}},r=>{let d='';r.on('data',x=>d+=x);r.on('end',()=>res(d));});q.end(b);});
+  vmc=0; const bootOuter=await bc('kO','tools/call',{name:'vestibule-status',arguments:{question:'hi'}});
+  // Ohne Gate liefe der outer-Schluessel gegen _checkAuth (apiKey 'FULL')
+  // und bekaeme 401; ohne A0 gaebe es ueberhaupt keinen Port.
+  chk('V4 Boot mit leerer Serverliste startet UND traegt das Gate (A0 + Provider)',!!bootPort&&/"result"/.test(bootOuter)&&!/Unauthorized|Tool not found/.test(bootOuter),String(bootPort)+' '+bootOuter.slice(0,80));
+  // ── v7.9.46 r7: Schluesselwechsel wirkt ohne App-Neustart ──
+  // _apiKey wird pro Request gelesen, _ensureServer frischt ihn auf: ein
+  // zweiter startServer-Aufruf genuegt, der Socket bleibt bestehen.
+  const oldKeyRes=await bc('FULL','ping',{});
+  vset.data.mcp.serve.apiKey='ROTATED';
+  await vcli.startServer();
+  const staleRes=await bc('FULL','ping',{});
+  const freshRes=await bc('ROTATED','ping',{});
+  chk('V5 Schluesselwechsel ohne Neustart: alt faellt aus, neu greift sofort',/result/.test(oldKeyRes)&&/Unauthorized/.test(staleRes)&&/result/.test(freshRes),staleRes.slice(0,40)+' | '+freshRes.slice(0,40));
+  await vcli._mcpServer.stop();
+})();
 console.log('MATRIX:',pass,'OK ·',fail,'FAIL');
 for(const x of F)console.log('  ✗',x);
 })();

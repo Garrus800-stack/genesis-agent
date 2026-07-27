@@ -86,6 +86,10 @@ const FIELD_REGISTRY = {
   // ── MCP ───────────────────────────────────────────────
   'set-mcp-serve':                { type: 'bool',     settingsPath: 'mcp.serve.enabled',               resetSafe: true,  default: false },
   'set-mcp-port':                 { type: 'number',   settingsPath: 'mcp.serve.port',                  resetSafe: true,  default: 3580, min: 1024, max: 65535, requiresRestart: true },
+  // v7.9.46 r7: write-only like the model keys — resetSafe:false hides the
+  // ↺ button, and type 'password' renders no default hint (buildDefaultHint
+  // returns null), so nothing about the stored value is surfaced.
+  'set-mcp-key':                  { type: 'password', settingsPath: 'mcp.serve.apiKey',                resetSafe: false, default: '' },
 
   // ── Install / Auto-Install (Bug P) ─────────────────────
   'set-install-auto':             { type: 'bool',     settingsPath: 'agency.installAuto',              resetSafe: true,  default: false },

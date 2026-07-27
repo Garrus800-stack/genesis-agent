@@ -135,6 +135,16 @@ function pause(ms) { return new Promise(r => setTimeout(r, ms)); }
     header('Phase 4: MCP Server');
     const mcp = agent.container.tryResolve('mcpClient');
     if (mcp) {
+      // v7.9.46 r7 (C): startServer refuses without a password, and this
+      // demo runs against the REAL .genesis (rootDir: ROOT above). So: seed
+      // a throwaway key ONLY when none is set — a real password is never
+      // touched — and remove the seed again in `finally`, so the demo
+      // leaves no `demo-…` remnant behind in settings.json.
+      const _settings = agent.container.tryResolve('settings');
+      const _hadKey = _settings ? _settings.get('mcp.serve.apiKey') : null;
+      if (_settings && !_hadKey) {
+        _settings.set('mcp.serve.apiKey', 'demo-' + Math.random().toString(36).slice(2, 10));
+      }
       try {
         console.log = () => {}; console.warn = () => {}; console.info = () => {};
         const port = await mcp.startServer(0);
@@ -164,6 +174,10 @@ function pause(ms) { return new Promise(r => setTimeout(r, ms)); }
       } catch (err) {
         console.log = _origLog; console.warn = _origWarn; console.info = _origInfo;
         print(`  ${YELLOW}MCP: ${err.message}${RESET}`);
+      } finally {
+        // '' passes the encrypt guard (`value &&`) as plain empty string,
+        // so nothing encrypted is left behind either.
+        if (_settings && !_hadKey) _settings.set('mcp.serve.apiKey', '');
       }
     }
     await pause(500);

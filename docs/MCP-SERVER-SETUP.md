@@ -22,9 +22,16 @@ Open Genesis → Settings → set:
 }
 ```
 
-### Security: API Key Authentication (Recommended)
+### Security: API Key Authentication (mandatory since v7.9.46)
 
-By default, the MCP server accepts all localhost connections without authentication. While CORS restricts access to localhost origins, tools like SSH tunnels, ngrok, or Docker port mappings can expose the server to remote clients. **Set an API key to require Bearer token authentication:**
+The MCP server used to accept every localhost connection without
+authentication. CORS restricts origins, but SSH tunnels, ngrok or Docker port
+mappings can still carry a request in from outside — so the open default is
+gone. **Without a password the server refuses to start, and a server built
+without one answers 401 to everything except `/health`.**
+
+Set it in **Settings → MCP**. The field is write-only and the value is stored
+encrypted; that is the recommended road. The equivalent by hand:
 
 ```json
 {
@@ -38,7 +45,14 @@ By default, the MCP server accepts all localhost connections without authenticat
 }
 ```
 
-Clients must then include `Authorization: Bearer your-secret-key-here` or `x-api-key: your-secret-key-here` in every request. The `/health` endpoint is exempt (useful for monitoring probes).
+A hand-written password of eleven characters or more is encrypted on the next
+load; shorter ones stay readable in the file, which is why the settings field
+is the better road.
+
+Clients must include `Authorization: Bearer your-secret-key-here` or
+`x-api-key: your-secret-key-here` in every request. The `/health` endpoint is
+exempt (useful for monitoring probes). Changing the password takes effect
+without an app restart — the key is read per request.
 
 **Built-in protections (always active, regardless of API key):**
 - CORS: localhost-only by default
@@ -61,12 +75,60 @@ node cli.js
 # MCP server daemon only (no chat)
 node cli.js --serve
 
-# Custom port
+# Custom port (without --port the configured mcp.serve.port is used)
 node cli.js --serve --port 4000
 
 # Minimal boot (fewer services, faster start)
 node cli.js --serve --minimal
 ```
+
+## The vestibule: circles in front of the same door
+
+Since v7.9.46 the server carries Genesis' vestibule. The password you set above
+is the **inner circle** — full access, raw state, no model call. Everyone else
+holds a personal key that you generate and hand over privately; Genesis stores
+only its hash and decides the circle himself.
+
+| Key | Sees | Answer |
+|---|---|---|
+| server password (`mcp.serve.apiKey`) | every tool | raw snapshot, no model call |
+| a visitor key in the **middle** circle | exactly one tool: `vestibule-status` | his `statusMiddle` line, with the visitor named |
+| a visitor key in the **outer** circle | exactly one tool: `vestibule-status` | his `statusOuter` line |
+| a blocked, removed or unknown key | nothing | `401` |
+
+The filter is a triple gate: `tools/list`, `tools/call` and resources all apply
+it, so an outer visitor cannot even learn that the other tools exist — an
+attempt to call one is answered with "Tool not found", never with "forbidden".
+
+Managing visitors is his hand, not yours. Ask him in chat and he calls
+`vestibule-circle`: add, raise, lower, block, remove. `remove` revokes the key
+for good; the visit book keeps what happened, because removing means the key
+stops opening, not that the visit never was.
+
+Every knock is written into his visit book with its outcome — answered, absent
+(the model did not reply in time), rate (a second knock from the same visitor
+inside a minute), shielded (a dream cycle), blocked, or an inner-circle
+override. Ask him in chat *"who knocked?"* and he reads it back with
+`vestibule-visits`. That tool is his alone: the triple gate lets an outer or
+middle visitor see exactly `vestibule-status`, so nobody can read the book from
+outside.
+
+One precondition: the door only speaks once `vestibule-voice` has written all
+four of his lines into `stimme.json`. Until then every outer or middle knock is
+answered with a neutral system line — Genesis borrows no wording he did not
+write himself. Ask him in chat to set his vestibule voice.
+
+Two protections are always on. A second knock from the same visitor inside a
+minute is answered from his absent line without a model call, and during a dream
+cycle the door is shielded with his closed line. A knock that the model does not
+answer within `mcp.serve.knockTimeoutMs` (default 90 s) also falls back to the
+absent line rather than leaving the visitor hanging — raise that value for a
+slow or cloud-hosted model, since a fast one never waits for it. The visit book
+records which of the two it was: `rate` for the window, `absent` for the budget.
+
+By default this stays on `127.0.0.1`. `mcp.serve.bind` opens it to your home
+network — see [SETTINGS.md](SETTINGS.md) for that switch and for how the
+password is stored.
 
 ## IDE Configuration
 

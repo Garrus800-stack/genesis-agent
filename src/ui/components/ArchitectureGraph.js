@@ -160,7 +160,7 @@ class ArchitectureGraph {
         label.setAttribute('x', '9');
         label.setAttribute('y', '3');
         label.setAttribute('fill', 'var(--color-text-secondary, #aaa)');
-        label.setAttribute('font-size', '8');
+        label.setAttribute('font-size', '10');
         label.setAttribute('font-family', 'var(--font-mono, monospace)');
         label.textContent = node.name.length > 18 ? node.name.slice(0, 16) + '…' : node.name;
         g.appendChild(label);
@@ -484,7 +484,7 @@ class ArchitectureGraph {
       txt.setAttribute('x', x + 11);
       txt.setAttribute('y', '7');
       txt.setAttribute('fill', 'var(--color-text-secondary, #888)');
-      txt.setAttribute('font-size', '7');
+      txt.setAttribute('font-size', '9');
       const short = name.length > 6 ? name.slice(0, 5) : name;
       txt.textContent = short;
       g.appendChild(txt);
