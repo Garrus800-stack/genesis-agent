@@ -702,6 +702,53 @@ Fix: Settings → Models → LLM local timeout → raise to `300000` or `600000`
 
 ---
 
+## The vestibule (MCP door)
+
+### Every knock is answered with his absent line
+
+The knock responder gives the model a budget and falls back to his absent
+line when it runs out. The default is 90 s (`mcp.serve.knockTimeoutMs`,
+clamped 5000–300000). A cloud-hosted model measured 25–200 s per call in
+the field, so a budget set for a fast local model turns every knock into
+an absent line — which reads like a broken vestibule but is a wrong number.
+
+Tell the two causes apart in his visit book (`vestibule-visits`, or ask him
+"who knocked?"): `absent` is the budget, `rate` is the per-visitor window
+that answers a second knock inside a minute without any model call at all.
+
+Fix: raise `mcp.serve.knockTimeoutMs` in `settings.json` under `mcp.serve`.
+A fast model never waits for it.
+
+### The door answers `vestibule not yet opened`
+
+His voice is missing or incomplete. The door speaks only in the four lines
+he wrote himself into `.genesis/vorhalle/stimme.json` — `statusOuter`,
+`statusMiddle`, `absentLine`, `closedLine` — and if one is missing it
+answers this neutral system line rather than borrowing a voice.
+
+Two common causes. A fresh installation: `.genesis/vorhalle/` was not
+carried over during the habitat swap (see PERSISTENCE-LAYOUT). Or the
+first-opening ritual never completed: ask him in chat to set his vestibule
+voice with `vestibule-voice`, then verify at the door rather than at the
+file — a knock that returns his line is the proof.
+
+### MCP toggle is On but nothing is listening
+
+The server refuses to start without a password. Settings → MCP → set the
+password, then toggle. Every path names the reason instead of failing
+silently: the toggle, the boot autostart, the dashboard button, `mcp serve`
+in chat, `--serve` and the CLI REPL. Without a key the server answers `401`
+to everything but `/health`, so an open door by omission is impossible.
+
+### A visitor sees more than one tool
+
+That should be impossible — the triple gate leaves outer and middle
+circles exactly `vestibule-status` across `tools/list`, `tools/call` and
+resources. If it happens, it is a defect, not a setting. Capture the key's
+circle from `.genesis/vorhalle/circles.json` and report it.
+
+---
+
 ## Getting Help
 
 1. Check the [docs/](.) directory for architecture details

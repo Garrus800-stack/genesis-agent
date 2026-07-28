@@ -57,7 +57,7 @@ describe('v7.9.13 (Item A) — stream-timeout settings', () => {
   });
 
   test('source: Settings references the constants, does not hardcode the numbers', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf8');
     // The streamTimeouts block must use TIMEOUTS.* references.
     assert(/firstChunk:\s*TIMEOUTS\.LLM_STREAM_FIRST_CHUNK/.test(src), 'firstChunk must reference the constant');
     assert(/chunk:\s*TIMEOUTS\.LLM_STREAM_CHUNK/.test(src), 'chunk must reference the constant');

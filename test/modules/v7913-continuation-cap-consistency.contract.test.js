@@ -32,14 +32,16 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+// v7.9.47: the default tree moved to SettingsDefaults.js in the growth split.
 const SETTINGS = path.join(ROOT, 'src/agent/foundation/Settings.js');
+const SETTINGS_DEFAULTS = path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js');
 const CONTINUATION = path.join(ROOT, 'src/agent/foundation/backends/ContinuationLoop.js');
 const BRIDGE_CONT = path.join(ROOT, 'src/agent/foundation/ModelBridgeContinuation.js');
 
 describe('v7.9.13 (P6) — continuation-cap value + comment consistency', () => {
 
   test('Settings default maxAttempts is 6', () => {
-    const src = fs.readFileSync(SETTINGS, 'utf8');
+    const src = (fs.readFileSync(SETTINGS, 'utf8') + '\n' + fs.readFileSync(SETTINGS_DEFAULTS, 'utf8'));
     assert(/continuation:\s*\{\s*maxAttempts:\s*6\s*\}/.test(src),
       'Settings.js must keep continuation.maxAttempts at 6 (local-prefill floor)');
   });
@@ -78,7 +80,7 @@ describe('v7.9.13 (P6) — continuation-cap value + comment consistency', () => 
   test('comments reference the v7.9.10 per-capability mechanism', () => {
     // The corrected comments should point the reader to where the 10
     // actually lives, so the drift is not reintroduced.
-    const settingsSrc = fs.readFileSync(SETTINGS, 'utf8');
+    const settingsSrc = (fs.readFileSync(SETTINGS, 'utf8') + '\n' + fs.readFileSync(SETTINGS_DEFAULTS, 'utf8'));
     assert(/computeEffectiveMaxContinuations|CLOUD_NO_PREFILL_FLOOR/.test(settingsSrc),
       'Settings.js comment should reference the v7.9.10 cloud-lift mechanism');
   });

@@ -124,7 +124,7 @@ describe('v7.9.14 (Punkt 2) — local/cloud timeout clamps', () => {
     // Belt-and-suspenders: also assert presence in the source so a
     // refactor that, say, deletes the clamps in favour of a runtime
     // factory must touch this test too.
-    const src = (fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsPersistence.js'), 'utf8'));
+    const src = (fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsPersistence.js'), 'utf8'));
     assert(/clamp\('llm\.localTimeoutMs',\s*30000,\s*900000\)/.test(src),
       "Settings.js must contain clamp('llm.localTimeoutMs', 30000, 900000)");
     assert(/clamp\('llm\.cloudTimeoutMs',\s*60000,\s*900000\)/.test(src),

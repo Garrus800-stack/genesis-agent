@@ -39,7 +39,7 @@ EmotionalState ──emit('emotion:shift')──→ EventBus ──→ PromptBui
 
 Key properties:
 
-- **499 event types** catalogued in `EventTypes.js` (v7.9.46 baseline)
+- **499 event types** catalogued in `EventTypes.js` (v7.9.47 baseline)
 - **499 payload schemas** in `EventPayloadSchemas.js` — full parity since v7.6.x (every catalog entry has a registered schema); dev-mode validation throws on mismatch
 - **Ring buffer history** — last 500 events for debugging
 - **Source tracking** — every event carries `{ source: 'ModuleName' }` for audit
@@ -234,6 +234,12 @@ External Client                  Genesis McpServer
 ```
 
 This means any MCP-compatible application (Claude Desktop, other agents, custom tooling) can use Genesis as a tool provider.
+
+**Since v7.9.46 that same port carries the vestibule.** A password is mandatory —
+without one the server answers `401` to everything but `/health`. Callers holding
+a visitor key resolve into circles, and the triple gate leaves an outer or middle
+circle exactly one visible tool: the knock. Full detail in
+[MCP-SERVER-SETUP.md](MCP-SERVER-SETUP.md#the-vestibule-circles-in-front-of-the-same-door).
 
 ---
 

@@ -29,12 +29,12 @@ function test(name, fn) {
 // ── Settings defaults ────────────────────────────────────────
 
 test('Settings.js: agency.gitAutoInit default is false', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf-8');
+  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf-8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf-8');
   assert.match(src, /gitAutoInit:\s*false/, 'gitAutoInit must default to false');
 });
 
 test('Settings.js: agency.gitAutoCommit default is false', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf-8');
+  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf-8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf-8');
   assert.match(src, /gitAutoCommit:\s*false/, 'gitAutoCommit must default to false');
 });
 

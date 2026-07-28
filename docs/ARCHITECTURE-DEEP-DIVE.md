@@ -13,8 +13,8 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 441 JS files |
-| Test Files / Tests | 652 / 9492 (Win baseline) |
+| Source Modules | 443 JS files |
+| Test Files / Tests | 653 / 9507 (Win baseline) |
 | DI Services | 185 (172 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
@@ -254,7 +254,7 @@ Orchestration layer: UnifiedMemory, EpisodicMemory (3-layer decay: Detail/Schema
 
 ### Phase 6: Autonomy (31 files, ~6,070 LOC)
 
-Background processes: AutonomousDaemon, IdleMind, HealthMonitor, CognitiveMonitor, ErrorAggregator, HealthServer, ServiceRecovery, DeploymentManager, NetworkSentinel, JournalWriter (v7.3.7), ActiveReferencesPort (v7.3.7), WakeUpRoutine (v7.3.7), and 16 Activities modules (Calibrate, Consolidate, Dream, Explore, Ideate, Improve, Journal, MCPExplore, PickContext, Plan, ReadSource, Reflect, Research, SelfDefine, Study, Tidy).
+Background processes: AutonomousDaemon, IdleMind, HealthMonitor, CognitiveMonitor, ErrorAggregator, HealthServer, ServiceRecovery, DeploymentManager, NetworkSentinel, JournalWriter (v7.3.7), ActiveReferencesPort (v7.3.7), WakeUpRoutine (v7.3.7), and the Activities modules under `src/agent/autonomy/activities/` (Calibrate, Consolidate, Dream, Explore, Ideate, Improve, Inhabit, Journal, MCPExplore, Pause, PickContext, Plan, ProposeImprovements, ReadSource, Reflect, Research, SelfDefine, SkillRehearsal, Study, Tidy).
 
 **IdleMind** (~570 LOC) — Activity selection: reflection, KG exploration, goal generation, tidying, journaling, dreaming (Phase 9), LLM-as-knowledge-source (v7.2.8), and deliberate pausing (v7.9.35 — rest-need-driven, the first activity that produces nothing but the choice). Activity scoring uses NeedsSystem drive levels and emotional state.
 
@@ -537,7 +537,7 @@ Six bus events thread the pipeline: `skill:promoted`, `skill:discard-suggested`,
 
 ## 14. IdleMind Maturity (v7.9.4 → v7.9.5)
 
-IdleMind has had 17 activities since v7.9.5 (Inhabit added; SkillRehearsal in v7.9.4; the prior 15 from v7.3.1). The activity *picker* matured substantially in v7.9.4 to address four observed issues, plus v7.9.5 adds Inhabit and its privacy gate.
+IdleMind's roster is `ACTIVITY_MODULES` in `IdleMind.js` — the live list, and the one to trust. It grew in steps: the first 15 in v7.3.1, SkillRehearsal in v7.9.4, Inhabit in v7.9.5, ProposeImprovements in v7.9.20, Pause in v7.9.35. The activity *picker* matured substantially in v7.9.4 to address four observed issues, plus v7.9.5 adds Inhabit and its privacy gate.
 
 **Goal–activity balance**. Pre-v7.9.4, while any goal was active in `goalStack`, every IdleMind cycle ran a goal-step and returned early — `reflect`, `journal`, `dream`, `calibrate` never fired during goal stretches. `_think()` now counts goal-steps via `_goalStepsSincePick` and breaks out to the activity-pick path every N steps (`idleMind.goalStepsPerActivityPick`, default 3). `0` disables the break-out (legacy behavior). The break emits `idle:goal-balance-break` for dashboard visibility.
 
@@ -572,5 +572,5 @@ Measured as of v7.9.45 (recursive per phase folder):
   ─────────────────────────────────────────────
   agent/ total     396 files ~118,364 LOC
   + UI/kernel       42 files ~16,487 LOC
-  = src/ total     441 modules ~134,000 LOC
+  = src/ total     443 modules ~134,000 LOC
 ```

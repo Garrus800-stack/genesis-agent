@@ -229,7 +229,7 @@
   ],
   "_excludePaths": [
     "CHANGELOG.md",
-    "CHANGELOG-v7.md",
+    "docs/CHANGELOG-v7.md",
     "docs/CHANGELOG-v5.md",
     "docs/CHANGELOG-v6.md",
     "docs/CHANGELOG-archive.md",

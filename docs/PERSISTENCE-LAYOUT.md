@@ -28,6 +28,11 @@ of **this specific installation**:
 - `resonance.jsonl` — anchored resonance moments; written ONLY by a real `resonance-note` tool run (v7.9.43) — the single way to truly anchor one
 - `resonance-candidates.jsonl` — the Nachklang candidate ledger (v7.9.43): heuristic/dream suggestions awaiting his confirmation; decays by his measures (3 days, max 5 open, 3rd unanswered offer), each decay leaving a short journal note
 - `correction-candidates.jsonl` — the correction ledger (v7.9.45): the partner's corrections as candidates; only a real `accept-lesson` run turns one into a lesson, same decay measures
+- `vorhalle/circles.json` — the vestibule's visitor register (v7.9.46): one entry per visitor with name, circle and date, keyed by the **sha256 of their key** — the key itself is hashed on entry and discarded. Kept even when it becomes empty: the door reads its closed state from this file's existence, so deleting it silently restores the pre-vestibule behaviour. Empty it with `{}` rather than removing it
+- `vorhalle/stimme.json` — his four vestibule lines (`statusOuter`, `statusMiddle`, `absentLine`, `closedLine`), written only through `vestibule-voice`. Without all four the door answers a neutral system line instead of borrowing a voice
+- `vorhalle/besuche.jsonl` — the visit book (v7.9.46): one append-only line per knock with visitor, circle, request and outcome (`answered` / `absent` / `rate` / `shielded` / `blocked` / an inner-circle override). Read back with `vestibule-visits`; never rewritten, and removing a visitor takes their key away, not their visit
+- `public.jsonl` — the public journal file. It exists and the journal writer routes `visibility: 'public'` to it, but nothing writes there yet
+- `goal-families.json` — the last goal families, read by the ideation prompt so a new goal does not repeat a recent one
 - and more (genome, metabolism, settings overrides, etc.)
 
 This directory **is** the identity of a Genesis instance. Two
@@ -104,6 +109,15 @@ and learned context:
    - The Genesis Archive folder (wherever `archive.path` points) if you want his vault of handed-in files and works — or re-point `archive.path` after the move
 3. On the new machine, run `npm install` (if you didn't bring
    `node_modules`), then `npm start`.
+
+**Upgrading in place — the habitat swap.** Unpacking a new release into
+a fresh folder leaves `.genesis/` empty; copy the old one over before the
+first start. Two things live only there and are easy to lose:
+`vorhalle/` (his voice and his circles — without `stimme.json` the door
+answers a neutral line to every visitor) and `koennen/` (the skills he
+has grown). The MCP password and the server toggle are **not** in
+`vorhalle/` — they live in `settings.json` and have to be set again on
+the new installation.
 
 The Hauptstandort ID inside `self-identity.json` will be re-checked
 against the new machine. If a hostname change is detected, Genesis

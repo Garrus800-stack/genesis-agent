@@ -143,6 +143,41 @@ const commandHandlersMemory = {
   // v7.9.33 (AP-2, S7): /changes [n] — read the change register. Reads the
   // journal file directly via this._genesisDir (exactly how skillsPending
   // reads its folder — no service binding, never on the runtime path).
+  /**
+   * v7.9.47: /crashlog in chat. The flight recorder was readable only from the
+   * CLI branch in cli.js — the same file, the same ring buffer, but invisible
+   * to the partner in the app. Reads the file directly, like /changes does,
+   * so it needs no service wiring and works even when CrashLog is not running.
+   */
+  async crashlog(message) {
+    const fs = require('fs');
+    const path = require('path');
+    const genesisDir = this._genesisDir || '.genesis';
+    const file = path.join(genesisDir, 'flight-recorder.log');
+
+    const m = String(message || '').match(/\/crashlog\s+(\d{1,3})/i);
+    const limit = Math.min(m ? parseInt(m[1], 10) : 20, 100);
+
+    let lines = [];
+    try {
+      if (fs.existsSync(file)) {
+        lines = fs.readFileSync(file, 'utf-8').split('\n').filter(Boolean);
+      }
+    } catch (_e) { /* unreadable → treated as empty */ }
+
+    if (lines.length === 0) return 'Flight recorder is empty — no warnings or errors recorded.';
+
+    const tail = lines.slice(-limit).reverse();
+    const out = tail.map((l) => {
+      try {
+        const e = JSON.parse(l);
+        const when = e.ts ? new Date(e.ts).toISOString().slice(5, 19).replace('T', ' ') : '?';
+        return `${when}  ${String(e.level || '?').toUpperCase().padEnd(5)} ${e.module || '-'}: ${String(e.msg || '').slice(0, 160)}`;
+      } catch (_e) { return l.slice(0, 200); }
+    });
+    return `Flight recorder — last ${out.length} of ${lines.length}:\n${out.join('\n')}`;
+  },
+
   async changes(message) {
     const fs = require('fs');
     const path = require('path');

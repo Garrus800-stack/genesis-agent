@@ -594,7 +594,7 @@ graph TB
     HasGoal -->|no| Pick["_pickActivity(ctx)<br/>= buildPickContext + score each<br/>+ Set-based repetition-penalty<br/>(v7.9.4 multiplicative-bug fix)"]
     BalanceBreak --> Pick
 
-    Pick --> Activity["chosen activity.run(idleMind)<br/>(17 activities: reflect, plan,<br/>explore, journal, dream, ...,<br/>skill-rehearsal, inhabit)"]
+    Pick --> Activity["chosen activity.run(idleMind)<br/>(ACTIVITY_MODULES: reflect, plan,<br/>explore, journal, dream, ...,<br/>inhabit, propose-improvements, pause)"]
     Activity --> Charge2["metabolism.consume(`idleMind:${activity}`)<br/>(per-activity cost, v7.9.4)"]
     Charge2 --> LogStats["activityLog.push + counters++"]
     LogStats --> Persist["debounced writeJSON<br/>.genesis/idle-activity-stats.json<br/>(v7.9.4 cross-restart history)"]

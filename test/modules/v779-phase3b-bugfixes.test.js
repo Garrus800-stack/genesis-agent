@@ -37,6 +37,8 @@ const IDLEMIND_PATH = path.join(__dirname, '..', '..', 'src/agent/autonomy/IdleM
 // from IdleMind.js into the IdleMindJournal mixin; Bug-2 pins follow the code to its new home.
 const JOURNAL_PATH = path.join(__dirname, '..', '..', 'src/agent/autonomy/IdleMindJournal.js');
 const SETTINGS_PATH = path.join(__dirname, '..', '..', 'src/agent/foundation/Settings.js');
+// v7.9.47: the default tree moved to SettingsDefaults.js (growth split)
+const SETTINGS_DEFAULTS_PATH = path.join(__dirname, '..', '..', 'src/agent/foundation/SettingsDefaults.js');
 const SETTINGS_PERSISTENCE_PATH = path.join(__dirname, '..', '..', 'src/agent/foundation/SettingsPersistence.js'); // v7.9.29 (hygiene)
 
 describe('Bug 1a — abort-return includes `error` field for GoalDriver resolve-side', () => {
@@ -129,7 +131,7 @@ describe('Bug 2 — IdleMind insightThoughtCount drives novelty (not bare though
 
 describe('Bug 3 — proactive.minIntervalMs reduced to 10 min', () => {
   test('Settings default minIntervalMs is 10 * 60 * 1000 (not 30 * 60 * 1000)', () => {
-    const src = (fs.readFileSync(SETTINGS_PATH, 'utf-8') + fs.readFileSync(SETTINGS_PERSISTENCE_PATH, 'utf-8'));
+    const src = ((fs.readFileSync(SETTINGS_PATH, 'utf8') + '\n' + fs.readFileSync(SETTINGS_DEFAULTS_PATH, 'utf8')) + fs.readFileSync(SETTINGS_PERSISTENCE_PATH, 'utf-8'));
     // Find the proactive block and the minIntervalMs key inside.
     const proactiveBlock = src.match(/proactive:\s*\{[\s\S]*?\n\s+\}/);
     assert(proactiveBlock, 'expected proactive settings block');
@@ -140,7 +142,7 @@ describe('Bug 3 — proactive.minIntervalMs reduced to 10 min', () => {
   });
 
   test('clamp range still validates (≥ 30s ≤ 24h)', () => {
-    const src = (fs.readFileSync(SETTINGS_PATH, 'utf-8') + fs.readFileSync(SETTINGS_PERSISTENCE_PATH, 'utf-8'));
+    const src = ((fs.readFileSync(SETTINGS_PATH, 'utf8') + '\n' + fs.readFileSync(SETTINGS_DEFAULTS_PATH, 'utf8')) + fs.readFileSync(SETTINGS_PERSISTENCE_PATH, 'utf-8'));
     // The clamp() call enforces the range. We do not change it — verify
     // the boundaries are intact (30s..24h) so user can still set lower
     // or higher if they want.
@@ -149,7 +151,7 @@ describe('Bug 3 — proactive.minIntervalMs reduced to 10 min', () => {
   });
 
   test('rationale comment notes Phase 3b burn-in data', () => {
-    const src = (fs.readFileSync(SETTINGS_PATH, 'utf-8') + fs.readFileSync(SETTINGS_PERSISTENCE_PATH, 'utf-8'));
+    const src = ((fs.readFileSync(SETTINGS_PATH, 'utf8') + '\n' + fs.readFileSync(SETTINGS_DEFAULTS_PATH, 'utf8')) + fs.readFileSync(SETTINGS_PERSISTENCE_PATH, 'utf-8'));
     assert(/Phase 3b/.test(src),
       'minIntervalMs line must reference Phase 3b reason for the change');
   });

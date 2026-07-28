@@ -91,8 +91,32 @@ function listDocs(dir) {
   try {
     return fs.readdirSync(dir)
       .filter(f => f.endsWith('.md'))
+      // v7.9.47: the changelog archives are immutable record. This audit's own
+      // convention already says historical CHANGELOG entries are not checked —
+      // it just never applied that to the archives, so thirteen sentences like
+      // "deferred to v7.1.5", written years ago and true then, kept the gate
+      // red. ci:full dies here, which is why every gate after it never ran.
+      .filter(f => !/^CHANGELOG-.*\.md$/i.test(f))
       .map(f => path.join(dir, f));
   } catch { return []; }
+}
+
+/**
+ * v7.9.47: strip sections that record what a PAST release decided. A backlog
+ * entry under "## Resolved in v7.5.9" saying "Deferred to v7.6+" is history,
+ * not a plan — and rewriting history to please a gate is the wrong repair.
+ * Open sections stay in scope, so a real deferral in current work still fails.
+ */
+function stripResolvedSections(text) {
+  if (!text) return text;
+  const out = [];
+  let skipping = false;
+  for (const line of text.split('\n')) {
+    const h = /^(#{2,3})\s+(.*)$/.exec(line);
+    if (h) skipping = /^resolved in\b/i.test(h[2].trim());
+    out.push(skipping ? '' : line);
+  }
+  return out.join('\n');
 }
 
 function scanText(text, sourceLabel) {
@@ -131,7 +155,7 @@ violations.push(...scanText(readSafe(path.join(ROOT, 'README.md')), 'README.md')
 // docs/*.md full
 for (const docPath of listDocs(path.join(ROOT, 'docs'))) {
   const rel = path.relative(ROOT, docPath);
-  violations.push(...scanText(readSafe(docPath), rel));
+  violations.push(...scanText(stripResolvedSections(readSafe(docPath)), rel));
 }
 
 // ── Output ──────────────────────────────────────────────────

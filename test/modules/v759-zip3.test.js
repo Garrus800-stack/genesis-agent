@@ -382,7 +382,7 @@ describe('v7.5.9 ZIP3 — EventTypes catalog', () => {
 
 describe('v7.5.9 ZIP3 — Settings defaults', () => {
 
-  const settingsSrc = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+  const settingsSrc = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf8');
 
   test('install defaults present', () => {
     assert(/install:\s*{/.test(settingsSrc), 'install block missing');

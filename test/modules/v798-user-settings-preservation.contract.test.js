@@ -234,7 +234,7 @@ test('NODOUBLE-01: second boot after migration leaves the value untouched', asyn
 // ── Settings clamp removed (v7.9.8 Fix 3) ──────────────────
 
 test('CLAMP-01: Settings.js no longer clamps trust.level (TrustLevelSystem owns validation)', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf8');
   assert(!/clamp\('trust\.level',\s*0,\s*3\)/.test(src),
     'old clamp(0,3) for trust.level must be removed in v7.9.8');
   assert(!/clamp\('trust\.level',\s*0,\s*2\)/.test(src),
@@ -244,7 +244,7 @@ test('CLAMP-01: Settings.js no longer clamps trust.level (TrustLevelSystem owns 
 // ── v7.9.9 (A) Trust-system final corrections ─────────────
 
 test('V799A-01: Settings.js trust default reads { level: 0 } not 1', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf8');
   assert(/trust:\s*\{\s*level:\s*0\s*\}/.test(src),
     'v7.9.9 (A): Settings.js fresh-install default must be { level: 0 }');
   assert(!/trust:\s*\{\s*level:\s*1\s*\}/.test(src),
@@ -252,7 +252,7 @@ test('V799A-01: Settings.js trust default reads { level: 0 } not 1', () => {
 });
 
 test('V799A-02: Settings.js trust comment reads 0..2 not 0..3', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf8');
   // Look for the trust-level documentation comment block.
   const idx = src.indexOf('trust: { level: 0 }');
   assert(idx > 0, 'must find trust default declaration');

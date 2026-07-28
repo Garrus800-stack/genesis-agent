@@ -77,6 +77,32 @@ function shouldExclude(filePath, config) {
   return excludes.some(ex => rel === ex || rel.startsWith(ex + path.sep));
 }
 
+// ── Mode 0: the exclude list itself ─────────────────────────
+//
+// v7.9.47: every entry in _excludePaths must point at something that
+// actually exists. The v7 changelog archive was listed WITHOUT its
+// docs/ prefix while three siblings carried it, so the comparison in
+// isExcluded() never matched and six archive references kept the gate
+// red for months. A gate that is always red stops being read — and a
+// dead exclude entry looks present while doing nothing.
+function checkExcludePaths(config) {
+  const excludes = config._excludePaths || [];
+  // Only FILE entries are verified. A directory entry such as node_modules is
+  // legitimately absent in a fresh checkout before npm install — requiring it
+  // would turn this check into the very thing it exists to prevent: a gate
+  // that is red for a reason nobody needs to act on.
+  const files = excludes.filter((ex) => path.basename(ex).includes('.'));
+  const dirs = excludes.length - files.length;
+  const dead = files.filter((ex) => !fs.existsSync(path.join(ROOT, ex)));
+  if (dead.length) {
+    console.log(red(`  ✗ ${dead.length} dead _excludePaths entr${dead.length === 1 ? 'y' : 'ies'}:`));
+    for (const d of dead) console.log(`    ${d}  ${dim('(no such file — check the path prefix)')}`);
+    return false;
+  }
+  console.log(green(`  ✓ ${files.length} file exclude(s) resolve${dirs ? `, ${dirs} directory entr${dirs === 1 ? 'y' : 'ies'} not checked` : ''}`));
+  return true;
+}
+
 // ── Mode 1: Symbol scan ─────────────────────────────────────
 
 function scanSymbols(config) {
@@ -233,6 +259,10 @@ function main() {
   console.log('  GENESIS — Stale-Reference & Contract Check');
   console.log('  ──────────────────────────────────────────');
 
+  // Mode 0 (v7.9.47)
+  console.log(dim('\n  Mode 0: Exclude paths'));
+  const excludesOk = checkExcludePaths(config);
+
   // Mode 1
   console.log(dim('\n  Mode 1: Symbol scan'));
   const sym = scanSymbols(config);
@@ -288,7 +318,8 @@ function main() {
   }
 
   // Summary
-  const failureCount = sym.hits.length
+  const failureCount = (excludesOk ? 0 : 1)
+    + sym.hits.length
     + con.failures.filter(f => !f._ok).length
     + auto.unregistered.length;
   console.log('');

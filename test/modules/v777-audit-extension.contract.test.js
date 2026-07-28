@@ -57,7 +57,9 @@ function track(name, fn) {
 
 track('A2: GATE-INVENTORY.md claims the live SECURITY_REQUIRED_SLASH count', () => {
   const src = read('docs/GATE-INVENTORY.md');
-  const intentSrc = read('src/agent/intelligence/IntentPatterns.js');
+  // v7.9.47: the security set moved to IntentSlashDiscipline.js (growth split)
+  const intentSrc = read('src/agent/intelligence/IntentPatterns.js')
+    + '\n' + read('src/agent/intelligence/IntentSlashDiscipline.js');
   // Find the SECURITY_REQUIRED_SLASH Set and count the entries.
   const setBlock = intentSrc.match(/SECURITY_REQUIRED_SLASH\s*=\s*new\s+Set\(\[([\s\S]+?)\]\)/);
   assert.ok(setBlock, 'SECURITY_REQUIRED_SLASH Set must exist in IntentPatterns.js');

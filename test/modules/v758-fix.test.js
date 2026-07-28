@@ -103,7 +103,11 @@ describe('v7.5.8 — Bug 3: Slash-discipline requires slash-command position', (
   );
 
   test('source-presence: pattern is /^\\s*\\/word/ (v7.9.30 start-anchor), not includes("/")', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/IntentPatterns.js'), 'utf8');
+    // v7.9.47: the guard moved to IntentSlashDiscipline.js in the growth
+    // split. Read both, the way validate-intent-wiring.js does — a source
+    // pin must follow its subject, not the file it used to live in.
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/IntentPatterns.js'), 'utf8')
+      + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/IntentSlashDiscipline.js'), 'utf8');
     assert(!/message\.includes\(\s*['"]\/['"]\s*\)/.test(src),
       'pre-fix message.includes("/") must be removed');
     assert(/\^\\s\*\\\/\[a-z\]\[\\w-\]\*\\b/.test(src),

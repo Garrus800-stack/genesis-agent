@@ -211,7 +211,7 @@ describe('v7.9.29 hygiene #4 — SettingsPersistence', () => {
   test('methods are mixed onto Settings.prototype; file under 700 LOC', () => {
     assert(typeof Settings.prototype._load === 'function', '_load on prototype');
     assert(typeof Settings.prototype._sanityClampOnLoad === 'function', '_sanityClampOnLoad on prototype');
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf8');
     assert(/SettingsPersistence/.test(src), 'Settings imports the persistence module');
     assert(loc('src/agent/foundation/Settings.js') < 700, 'Settings under 700 LOC');
   });

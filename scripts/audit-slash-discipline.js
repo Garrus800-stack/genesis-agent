@@ -36,6 +36,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const PATTERNS_FILE = path.join(ROOT, 'src', 'agent', 'intelligence', 'IntentPatterns.js');
+const DISCIPLINE_FILE = path.join(ROOT, 'src', 'agent', 'intelligence', 'IntentSlashDiscipline.js');
 
 const args = process.argv.slice(2);
 const jsonOutput = args.includes('--json');
@@ -149,9 +150,18 @@ const FUZZY_BY_DESIGN = {
   'write-file':    'Bounded single-file write (v7.9.28 field-fix #3) — "schreibe die Zusammenfassung in Datei X". Writes one named file via fs (literal text or the last generated summary), guarded against system/secret paths; overwrites only on an explicit write command. Trusted by source (observed content is rewritten to general by RuntimeGuard and never reaches this intent); slash would force dual-form interaction for a routine save.',
 };
 
-const source = fs.readFileSync(PATTERNS_FILE, 'utf8');
+// v7.9.47: the intent table and the slash-discipline sets now live in two
+// files. Read both — the set moved to IntentSlashDiscipline.js, and reading
+// only the old file left this audit reporting "Security set 0 entries" while
+// still exiting 0: a gate that had quietly stopped checking anything.
+const source = fs.readFileSync(PATTERNS_FILE, 'utf8')
+  + '\n' + fs.readFileSync(DISCIPLINE_FILE, 'utf8');
 const intents = parsePatterns(source);
 const securitySet = parseSecuritySet(source);
+if (securitySet.size === 0) {
+  console.error('  ✗ SECURITY_REQUIRED_SLASH parsed as empty — the set moved or its shape changed.');
+  process.exit(1);
+}
 
 const rows = intents.map(intent => {
   const kind = classifyIntent(intent.patterns);

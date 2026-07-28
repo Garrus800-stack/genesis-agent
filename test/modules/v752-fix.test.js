@@ -136,7 +136,9 @@ describe('v7.5.2/A · Setting & Defaults', () => {
 
   test('A3: TOGGLE_EVENT_KEYS contains agency.autoRouteByTask', () => {
     const settingsSrc = fs.readFileSync(
-      path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+      path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8')
+      // v7.9.47: the default tree moved to SettingsDefaults.js (growth split)
+      + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf8');
     assert(/['"]agency\.autoRouteByTask['"]\s*:\s*['"]settings:auto-route-toggled['"]/.test(settingsSrc),
       'TOGGLE_EVENT_KEYS map should include agency.autoRouteByTask');
   });

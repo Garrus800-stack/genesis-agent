@@ -174,7 +174,7 @@ describe('v7.9.17 — registration', () => {
   });
 
   test('prediction-mechanism-review registered in Settings, prompts, ContentSanity', () => {
-    const settings = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+    const settings = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf8');
     const prompts = fs.readFileSync(path.join(ROOT, 'src/agent/cognitive/proactiveSelfExpression/prompts.js'), 'utf8');
     const sanity = fs.readFileSync(path.join(ROOT, 'src/agent/cognitive/proactiveSelfExpression/ContentSanity.js'), 'utf8');
     assert(/'prediction-mechanism-review'/.test(settings), 'in Settings (allowedKinds + floors)');

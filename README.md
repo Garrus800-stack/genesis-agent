@@ -8,12 +8,12 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.9.46-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-9492%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.9.47-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-9507%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-441-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/modules-443-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-185-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
@@ -473,17 +473,17 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 376 modules (src/) |
+| Source modules | 443 modules (src/) |
 | Lines of code | ~134k src + ~120k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 172 manifest + 13 bootstrap = 185 at runtime |
-| Late-bindings | 263 cross-phase dependency bindings (2 optional skipped) |
-| Test suites | 652 files, 9492 tests (coverage gates: 80/76/78, ratchet floor 6014) |
+| Late-bindings | cross-phase dependencies resolved at boot (the boot log reports the exact count) |
+| Test suites | 653 files, 9507 tests (coverage gates: 80/76/78, ratchet floor 6014) |
 | Dependencies | 6 production + 1 optional + 10 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 79 main ↔ 79 preload (rate-limited, all in sync) |
 | Event types | 499 across ~114 namespaces (catalogued in EventTypes.js) |
-| Event schemas | 424 declared, 0 mismatches, 424/424 coverage (enforced by CI ratchet) |
+| Event schemas | 499 declared, 0 mismatches, 499/499 coverage (enforced by CI ratchet) |
 | Cross-layer event flows | 361 emitted events, 62 listeners (via EventBus, no direct imports) |
 | Hexagonal ports | 11 (LLM, Memory, Knowledge, Sandbox, CodeSafety, Workspace, Awareness, ActiveRefs, CostGuard, DaemonControl, RuntimeState) |
 | Cognitive modules | 17 (ExpectationEngine, MentalSimulator, SurpriseAccumulator, DreamCycle, SelfNarrative, CognitiveHealthTracker, CognitiveWorkspace, OnlineLearner, LessonsStore, ReasoningTracer, ArchitectureReflection, DynamicToolSynthesis, ProjectIntelligence, CognitiveSelfModel, TaskOutcomeTracker, MemoryConsolidator, TaskRecorder) |

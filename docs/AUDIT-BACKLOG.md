@@ -28,6 +28,8 @@ Two observations from the v7.9.5 outpost trace that were not addressed in the v7
 
 ## Verified in v7.9.6 — IdleMind activity-trigger structural distribution
 
+> **Snapshot note (v7.9.47 audit):** the counts below describe the roster **as it stood at v7.9.6** — seventeen activities. The roster has since grown (ProposeImprovements v7.9.20, Pause v7.9.35); the live list is `ACTIVITY_MODULES` in `IdleMind.js`. The finding itself — that the distribution is structural rather than a bug — is unaffected, but the soft-zero / hard-zero split was counted against that snapshot and would need a fresh count to be quoted as current.
+
 This is the closure of an earlier observation: that across a long session, only a handful of the 17 IdleMind activities surface in practice (often four or five), even though all 17 are registered and weighted. The concern was that `_pickActivity` was buggy and silently locking activities out. The v7.9.4 fix to the recent-penalty multiplier (Set-wrap so each unique recent activity gets the 0.2× factor exactly once, not 0.2^N for repeats) closed the most acute version of that problem, but the underlying distribution stayed asymmetric and the question was whether anything else was wrong.
 
 Per-activity review of all 17 `shouldTrigger(ctx)` returns confirms the distribution is structural, not a bug. The 17 activities split into two groups:

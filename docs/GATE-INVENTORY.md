@@ -10,7 +10,7 @@
 | 2  | `tool-call-verification`  | `ChatOrchestratorHelpers._processToolLoop`      | verified→pass, _→warn      | detective             |
 | 3  | `self-gate`               | `core/self-gate.js`                             | pass / warn (never block)  | telemetry-only by design |
 | 4  | `intent-tool-coherence`   | `core/intent-tool-coherence.js` (v7.5.1)        | coherent / mismatch (low\|noteworthy\|high) | telemetry-only by design |
-| 5  | `slash-discipline`        | 15 Slash-Handlers + 13 SECURITY_REQUIRED_SLASH (v7.8.4) | pass / block               | preventive            |
+| 5  | `slash-discipline`        | every slash command (`allCommandNames()`) + 13 SECURITY_REQUIRED_SLASH | pass / block               | preventive            |
 | 6  | `self-mod:circuit-breaker`| `SelfModificationPipelineModify`                | pass / block               | blocking              |
 | 7  | `self-mod:consciousness`  | `SelfModificationPipelineModify`                | pass / block (when coherence < 0.4) | **structurally inert** with `NullAwareness` default (`getCoherence()` → 1.0) |
 | 8  | `self-mod:energy`         | `SelfModificationPipelineModify`                | pass / block               | blocking              |
@@ -19,7 +19,17 @@
 | 11 | `pse:content-sanity`      | `cognitive/proactiveSelfExpression/ContentSanity.js` (v7.7.9) | pass / block (length, repetition, self-negation, profanity) | blocking |
 | 12 | `pse:scoring`             | `cognitive/proactiveSelfExpression/Scoring.js` (v7.7.9) | passes when significance×novelty×context-fit ≥ per-kind floor | preventive (threshold) |
 | 13 | `pse:private-kind`        | `proactiveSelfExpression/HardGates.js` gate-0 (v7.9.5) | block on `thought.kind ∈ PRIVATE_KINDS` regardless of settings | **structurally blocking** — unreachable from settings |
+| 15 | `vestibule:triple-gate`   | `capabilities/VestibuleGate` + `McpServer` (v7.9.46) | full / middle / outer / none — outer and middle resolve to exactly one visible tool | preventive, three surfaces |
 | 14 | `cognitive:hard-gate`     | `revolution/AgentLoopPursuitGate.handleHardGateAbort` (v7.9.9) | three-branch dispatch by trust level: SUPERVISED/AUTONOMOUS warn-only, FULL_AUTONOMY decompose-or-obsolete | **branching** — fires `agent-loop:simulation-abort` always; `aborted: false` at SUPERVISED+AUTONOMOUS, `aborted: true` at FULL_AUTONOMY |
+
+**On gate 15 (the vestibule's triple gate).** It is the only gate in this
+table that filters three surfaces from one decision: `tools/list` (what a
+caller may see), `tools/call` (what a caller may run) and the resources
+listing. A key resolves to a circle, and outer and middle circles are left
+with exactly one tool — the knock. The refusal wording is part of the gate,
+not decoration: a blocked call is answered `Tool not found`, never
+`forbidden`, so a visitor cannot learn from the refusal that the tool
+exists. Contract: `test/modules/v7946-vorhalle.contract.test.js`.
 
 Integration test: `test/modules/gate-stats-integration.test.js` — end-to-end
 coverage that `recordGate()` is triggered by real ChatOrchestrator flows.

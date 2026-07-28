@@ -291,7 +291,7 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '9492 passing',      label: 'badge: tests',
+        tests:      { live: '9507 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
                       // v7.9.24: re-baselined to the measured Windows full-suite passing
@@ -417,7 +417,7 @@ function runChecks() {
       //   minus 6 v790-koennen-narrative-and-slash tests rewritten for the new status-grouped
       //   /skills-pending output, plus the v742-structure update for goals-mixin LOC and count
       //   to accommodate the two new skill* slash handlers).
-      const TESTS_WIN_BASELINE = 9492; // v7.9.46 MEASURED on Win (9480) + 12 field-fix pins (2 ResizeObserver, BootWire wiring, registry API, circle remove, intent guard, responder call, visit book, tool-call parser, circle templates, knock budget, act replaces pre-act answer)
+      const TESTS_WIN_BASELINE = 9507; // v7.9.47: measured Linux 9460 (+13 over .46), Win = 9492 + 13 // v7.9.46 MEASURED on Win (9480) + 12 field-fix pins (2 ResizeObserver, BootWire wiring, registry API, circle remove, intent guard, responder call, visit book, tool-call parser, circle templates, knock budget, act replaces pre-act answer)
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -457,7 +457,7 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 9492; // v7.9.46 measured on Win (9480) + 12 field-fix pins
+  const TESTS_WIN = 9507; // v7.9.46 measured on Win (9480) + 12 field-fix pins
   // v7.7.7: TEST_FILES is now dynamic — counts *.test.js under test/ at audit-time.
   // This closes the drift-blind tautology where the constant was pinned and the
   // doc was pinned to the same constant — drift would never be detected. With
@@ -579,6 +579,39 @@ function runChecks() {
         /\|\s*Dependencies\s*\|\s*([^|]+?)\s*\|/, expectedDepsR,
         (m) => m[1].trim());
       if (rRD) { checked.push(rRD); if (!rRD.ok) drifts.push(rRD); }
+
+      // v7.9.47: two more rows of the Project Stats table. They had drifted far
+      // (376 modules against 441, 424 schemas against 499) precisely because
+      // nothing watched them — every number this gate checks was correct, every
+      // number beside it was not. The late-bindings row carries no number any
+      // more: no static source reproduces the runtime figure (a naive manifest
+      // count gives 272 against the 381 the boot reports), and a number without
+      // a nameable source cannot be guarded, so it does not belong in a table.
+      const rRM = check('README.md', readme, 'Project Stats source modules',
+        /\|\s*Source modules\s*\|\s*(\d+)\s*modules/, getSourceModuleCount());
+      if (rRM) { checked.push(rRM); if (!rRM.ok) drifts.push(rRM); }
+
+      // v7.9.47: the archive index in CHANGELOG.md claimed 3/0/0/0 entries
+      // against a live 128/12/17/29 — the split moved releases out for years
+      // and nobody counted. Each archive is now watched against its own file.
+      let cl = null;
+      try { cl = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf-8'); } catch { cl = null; }
+      if (cl) {
+        for (const [file, label] of [['docs/CHANGELOG-v7.md', 'v7'], ['docs/CHANGELOG-v6.md', 'v6'],
+          ['docs/CHANGELOG-v5.md', 'v5'], ['docs/CHANGELOG-archive.md', 'archive']]) {
+          let live = null;
+          try { live = (fs.readFileSync(path.join(ROOT, file), 'utf-8').match(/^## \[/gm) || []).length; } catch { live = null; }
+          if (live === null) continue;
+          const rA = check('CHANGELOG.md', cl, `archive index (${label})`,
+            new RegExp(`${file.replace(/[/.]/g, '\\$&')}\\)[^\\n]*?\\((\\d+) entries\\)`), live);
+          if (rA) { checked.push(rA); if (!rA.ok) drifts.push(rA); }
+        }
+      }
+
+      const rRS = check('README.md', readme, 'Project Stats event schemas',
+        /\|\s*Event schemas\s*\|\s*(\d+)\s*declared/, SCHEMAS);
+      if (rRS) { checked.push(rRS); if (!rRS.ok) drifts.push(rRS); }
+
     }
   }
 
@@ -1137,8 +1170,10 @@ function runChecks() {
         // Live count: parse the Set in IntentPatterns.js
         let liveCount = null;
         try {
+          // v7.9.47: the set moved to IntentSlashDiscipline.js in the growth
+          // split. Read both — a miss here does not fail, it silently skips.
           const intentSrc = fs.readFileSync(
-            path.join(ROOT, 'src/agent/intelligence/IntentPatterns.js'),
+            path.join(ROOT, 'src/agent/intelligence/IntentSlashDiscipline.js'),
             'utf-8'
           );
           // Extract the Set body

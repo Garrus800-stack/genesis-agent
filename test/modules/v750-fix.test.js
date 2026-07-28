@@ -286,7 +286,7 @@ const ROOT = path.join(__dirname, '..', '..');
   // ──────────────────────────────────────────────────────────────
 
   await test('F1: agency.negotiateBeforeAdd defaults to false (opt-in)', () => {
-    const settingsSrc = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf-8');
+    const settingsSrc = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf-8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf-8');
     assert(/negotiateBeforeAdd:\s*false/.test(settingsSrc),
       'Settings default for agency.negotiateBeforeAdd must be false (opt-in)');
   });

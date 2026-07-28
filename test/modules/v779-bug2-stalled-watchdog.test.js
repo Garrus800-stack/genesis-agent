@@ -320,6 +320,10 @@ describe('StalledGoalWatchdog — manifest registration', () => {
     const src = fs.readFileSync(
       path.join(__dirname, '..', '..', 'src/agent/foundation/Settings.js'),
       'utf-8',
+    ) + '\n' + fs.readFileSync(
+      // v7.9.47: the default tree moved to SettingsDefaults.js (growth split)
+      path.join(__dirname, '..', '..', 'src/agent/foundation/SettingsDefaults.js'),
+      'utf-8',
     );
     assert(/goals:\s*\{[^}]*stalledTimeoutMs/s.test(src),
       'goals.stalledTimeoutMs default missing');

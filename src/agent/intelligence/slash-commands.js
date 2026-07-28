@@ -189,6 +189,12 @@ const SLASH_COMMANDS = [
     sinceVersion: 'v7.9.33',
   },
   {
+    name: 'crashlog',
+    aliases: [],
+    description: 'Show the last entries of the flight recorder (crash/error ring buffer): last N, default 20, max 100',
+    sinceVersion: 'v7.9.47',
+  },
+  {
     name: 'skill-info',
     aliases: ['skill-bio'],
     description: 'Show full info about one skill including its acquisition biography',

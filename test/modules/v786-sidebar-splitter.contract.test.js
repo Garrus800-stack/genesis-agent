@@ -144,7 +144,7 @@ describe('sidebar-splitter contract: CSS in styles.css', () => {
 describe('sidebar-splitter contract: settings + togglePanel wireup', () => {
 
   test('sidebar-splitter contract: Settings.js has ui.panelWidths default', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf-8');
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf-8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf-8');
     assert(/panelWidths:\s*\{[\s\S]*?'file-tree'[\s\S]*?'goals'[\s\S]*?'editor'/.test(src));
   });
 

@@ -296,7 +296,7 @@ describe('v7.9.37 pass 4 — E3: the real window reaches the server (C1/C2)', ()
   test('C1 wiring + C3 cloud-fair + C4 probe exist', () => {
     const bridge = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/ModelBridge.js'), 'utf8');
     assert(bridge.includes("setContextConfig?.({"), 'bridge injects settings config');
-    const settings = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8');
+    const settings = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/Settings.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsDefaults.js'), 'utf8');
     assert(settings.includes('numCtxCap: 65536') && settings.includes('maxTokensDefault: 0'), 'defaults');
     const pers = fs.readFileSync(path.join(ROOT, 'src/agent/foundation/SettingsPersistence.js'), 'utf8');
     assert(pers.includes("clamp('llm.numCtxCap'") && pers.includes("clamp('llm.maxTokensDefault'"), 'clamps');
