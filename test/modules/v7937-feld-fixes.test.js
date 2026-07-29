@@ -446,7 +446,7 @@ describe('v7.9.37 pass 5 — X2/X3: memory of the question, provenance in the an
 
 describe('v7.9.37 pass 5 — X4/T1: act in the same move, shell that spawns', () => {
   test('X4: the announce-without-call reprompt allows two strikes with a sharper second text', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8');
+    const src = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestratorStream.js'), 'utf8'); // v7.9.48: split
     assert(src.includes('_toolIntentReprompts < 2'), 'two strikes');
     assert(src.includes('WIEDER nur angekündigt'), 'sharper second text (de)');
     const rt = fs.readFileSync(path.join(ROOT, 'src/agent/intelligence/PromptBuilderRuntimeState.js'), 'utf8');
@@ -510,7 +510,7 @@ describe('v7.9.37 pass 6 — S-C/S-D/S-E/S-F: gate, honest archive, crash trace,
   });
 
   test('S-F: after two strikes a raw announce is replaced by one honest status line', () => {
-    const co = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8');
+    const co = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestratorStream.js'), 'utf8'); // v7.9.48: split
     assert(co.includes('_toolIntentReprompts >= 2 && this.tools.detectToolIntentWithoutCall?.(response)'), 'guard');
     assert(co.includes('Ich konnte gerade kein Werkzeug starten'), 'german status line');
     assert(co.indexOf('honest status line') < co.indexOf('// No tools (and no re-prompt warranted)'), 'sits before the done branch');
@@ -624,7 +624,7 @@ describe('v7.9.37 V-series — code reaches the parser clean, spirals cannot for
 
 describe('v7.9.37 W-series — one clean bubble, honest tool lifecycle', () => {
   test('W1/W2: slash-as-prose is confronted after tool rounds; the prompt never teaches the phrase', () => {
-    const co = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8');
+    const co = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestratorStream.js'), 'utf8'); // v7.9.48: split
     assert(co.includes('_slashLines'), 'W1 counter exists');
     assert(co.indexOf('_slashLines') < co.indexOf('Continue based on these results'), 'sits on the tool-results message');
     assert(co.includes('wurden NICHT ausgeführt'), 'the confrontation is explicit');
@@ -641,7 +641,7 @@ describe('v7.9.37 W-series — one clean bubble, honest tool lifecycle', () => {
   });
 
   test('W4: the done event carries the final text and only the normal path replaces', () => {
-    const co = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8');
+    const co = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestratorStream.js'), 'utf8'); // v7.9.48: split
     assert(co.includes('onDone(cleanResponse)'), 'normal path hands over the final');
     assert(co.includes("onDone(response); // v7.9.37 (W4)"), 'intent branch hands its own variable');
     assert(co.includes('onDone(null); // v7.9.37 (W4)'), 'agent escalation never replaces');
@@ -710,7 +710,7 @@ describe('v7.9.37 Y1 — an empty reply becomes one honest line', () => {
     const out = ensureNonEmptyReply('  ', { lang: { current: 'de' }, model: { activeModel: 'deepseek-v3.2:cloud' } }, c => { chunked = c; }, { warn: () => { warned = true; } });
     assert(out.includes('keine Antwort entstanden') && chunked === out && warned, 'fallback emitted, chunked, and logged');
     assert.strictEqual(ensureNonEmptyReply('Hallo the user.', {}, () => {}, {}), 'Hallo the user.', 'real replies untouched');
-    const co = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8');
+    const co = fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestrator.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'src/agent/hexagonal/ChatOrchestratorStream.js'), 'utf8'); // v7.9.48: split
     assert(co.indexOf('ensureNonEmptyReply(cleanResponse') < co.indexOf('onDone(cleanResponse)'), 'guard sits before the final handover');
   });
 });

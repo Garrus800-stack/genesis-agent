@@ -552,6 +552,25 @@ const INTENT_DEFINITIONS = [
   // v7.9.47: /crashlog existed as a CLI branch only (cli.js) — in chat the
   // command did nothing at all. A command exists or it does not; it does not
   // exist at one of two front doors.
+  // v7.9.48: four reports that existed only in the CLI. Of twenty commands the
+  // terminal had and the app did not, these speak most directly about him —
+  // whoever talked to Genesis in the app could not ask how he sees himself.
+  ['selfmodel', [
+    /(?:^|\s)\/selfmodel\b/i,
+  ], 25, []],
+
+  ['adaptations', [
+    /(?:^|\s)\/adaptations\b/i,
+  ], 25, []],
+
+  ['autonomy', [
+    /(?:^|\s)\/autonomy\b/i,
+  ], 25, []],
+
+  ['budget', [
+    /(?:^|\s)\/budget\b/i,
+  ], 25, []],
+
   ['crashlog', [
     /(?:^|\s)\/crashlog\b/i,
   ], 25, []],

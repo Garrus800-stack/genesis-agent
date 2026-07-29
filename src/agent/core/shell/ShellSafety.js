@@ -33,9 +33,9 @@ const BLOCKED_PATTERNS = Object.freeze({
   read: /\b(rm|del|mv|move|cp|copy|mkdir|rmdir|chmod|chown|kill|shutdown|reboot|mkfs|dd\s+if|format|>\s)/i,
   write: new RegExp([
     // Direct system destruction
-    /rm\s+-rf\s+\//.source,
+    /rm\s+-[a-z]*f[a-z]*\s+\/(?:\s|$)/.source,
     /mkfs/.source,
-    /dd\s+if=\/dev/.source,
+    /dd\s+(?:[a-z]+=\S+\s+)*(?:if|of)=\/dev/.source,
     /format\s+[a-z]:/.source,
     /shutdown/.source,
     /reboot/.source,
@@ -76,6 +76,29 @@ const BLOCKED_PATTERNS = Object.freeze({
  * @param {{maxChars?: number}} [opts]
  * @returns {{ ok: boolean, command?: string, error?: string }}
  */
+/**
+ * v7.9.48: collapse consecutive single-letter short flags into one sorted
+ * cluster, so `-r -f`, `-fr` and `-rf` all become `-fr`. Long flags and flags
+ * carrying a value are left alone.
+ *
+ * Why here: sanitizeCommand already normalises Unicode confusables "so
+ * blocklist regex can match". The block patterns were written around ONE
+ * spelling — `rm -rf` matched, `rm -r -f` and `rm -fr` did not — so the single
+ * most destructive command passed when its flags were merely written
+ * differently. Normalising beats enumerating variants: the next flag order is
+ * covered without touching any pattern.
+ * @param {string} cmd
+ * @returns {string}
+ */
+function _normalizeShortFlags(cmd) {
+  return cmd.replace(/(?:(?:^|\s)-[A-Za-z]{1,8})+(?=\s|$)/g, (run) => {
+    const letters = (run.match(/-([A-Za-z]+)/g) || []).join('').replace(/-/g, '');
+    if (!letters) return run;
+    const sorted = [...new Set(letters.split(''))].sort().join('');
+    return `${run.startsWith(' ') ? ' ' : ''}-${sorted}`;
+  });
+}
+
 function sanitizeCommand(command, opts = {}) {
   const maxChars = opts.maxChars || 100000;
   if (typeof command !== 'string') return { ok: false, error: 'Command must be a string' };
@@ -88,7 +111,7 @@ function sanitizeCommand(command, opts = {}) {
   // NFKC normalization — converts Unicode confusables (fullwidth ｒｍ → rm,
   // homoglyphs, etc.) so blocklist regex can match.
   const normalized = cleaned.normalize('NFKC');
-  return { ok: true, command: normalized };
+  return { ok: true, command: _normalizeShortFlags(normalized) }; // v7.9.48
 }
 
 // ── Sandbox ──────────────────────────────────────────────────
@@ -170,7 +193,7 @@ function checkRootDirSandbox(command, rootDir, opts = {}) {
   // critical-system-path block. The previous "isWindows ? [] : ..."
   // gating left a hole through which POSIX system paths slipped on Win.
   const posixQuoted = [...command.matchAll(/["'](\/[^"']*)["']/g)].map(m => m[1]);
-  const posixUnquoted = (command.match(/(?:^|\s)(\/(?:home|usr|var|etc|opt|tmp|root|mnt|srv|bin|sbin|lib|proc|sys|run|boot|System|Library)\/[^\s"';|&<>]*)/g) || [])
+  const posixUnquoted = (command.match(/(?:^|\s)(\/(?:home|usr|var|etc|opt|tmp|root|mnt|srv|bin|sbin|lib|proc|sys|run|boot|System|Library|Users)(?:\/[^\s"';|&<>]*|(?=\s|$)))/g) || [])
     .map(s => s.trim());
   const candidates = [...winQuoted, ...winUnquoted, ...posixQuoted, ...posixUnquoted];
 

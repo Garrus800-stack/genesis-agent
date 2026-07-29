@@ -463,7 +463,13 @@ class TrustLevelSystem {
   // ════════════════════════════════════════════════════════
 
   _getActionRisk(actionType) {
-    return ACTION_RISK[actionType] || 'high'; // Unknown actions are high risk
+    // v7.9.48: 'critical', not 'high'. The comment promised caution the table
+    // did not deliver: 'high' is auto-approved from AUTONOMOUS upward, so an
+    // action nobody classified was treated like a known shell command. The
+    // live case was `self-modification` — the lowercase twin of SELF_MODIFY,
+    // which the table rates 'critical'. With 'critical', anything unclassified
+    // stays approval-bound until FULL_AUTONOMY.
+    return ACTION_RISK[actionType] || 'critical';
   }
 
   _audit(actionType, risk, decision) {

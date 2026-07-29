@@ -136,6 +136,9 @@ philosophy (something declared must be wired) one layer up.
 | 16 | `audit-tool-selftest --strict`      | v7.9.30 | Registered tools must pass their own self-test declarations at audit time — catches tool wiring that would fail at first live call |
 | 17 | `audit-future-version-refs --strict`| v7.9.x  | Docs and plans must not reference future versions ("v7.x.y+", "coming later") — every shipped artifact describes only the current state |
 | 18 | `audit-service-numbers --strict`    | v7.9.33 | Documented service counts (six doc sites) must match the live manifest+runtime counts |
+| 23 | `sync-doc-numbers --check` | v7.9.48 | Numeric doc slots must equal live values — the tool existed and ran only by hand | fail |
+| 22 | `audit-slash-discipline --strict` | v7.9.48 | Every fuzzy/mix intent must be in SECURITY_REQUIRED_SLASH — the v7.9.47 fix that makes it die on an empty set only bites once it is in a chain | fail |
+| 21 | `audit-schemas --strict` | v7.9.48 | EventTypes catalog and EventPayloadSchemas must agree | fail |
 | 19 | `check-stale-refs`                  | v7.5.x  | Locked contract prefixes in `stale-refs.json` must still resolve — protects event/test shapes against silent drift |
 
 The `ci:full` script wraps these 14 audit scripts plus `npm test`,

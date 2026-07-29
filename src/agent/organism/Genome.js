@@ -12,9 +12,16 @@
 //
 //   curiosity       → IdleMind exploration weight
 //   caution         → Sandbox timeout, approval thresholds
-//   verbosity       → PromptBuilder response length guidance
+//   verbosity        RECORDED INTENT, NOT WIRED (v7.9.48 audit): this line
+//                    claimed "PromptBuilder response length guidance", but no
+//                    module reads the trait. The only `verbosity` in the tree
+//                    belongs to UserModel and describes the HUMAN's preference,
+//                    not his. Kept, not deleted — deleting a considered knob
+//                    because it was forgotten is the wrong repair.
 //   riskTolerance   → SelfMod circuit breaker sensitivity
-//   socialDrive     → NeedsSystem social need growth rate
+//   socialDrive      RECORDED INTENT, NOT WIRED (v7.9.48 audit): claimed
+//                    "NeedsSystem social need growth rate"; NeedsSystem does not
+//                    read it, and neither does anything else.
 //   consolidation   → DreamCycle vs exploration ratio
 //
 // Traits are NOT parameters — they are tendencies. A high-curiosity
@@ -41,9 +48,9 @@ const _log = createLogger('Genome');
 const DEFAULT_TRAITS = {
   curiosity:       0.6,   // Moderate exploration drive
   caution:         0.5,   // Balanced safety threshold
-  verbosity:       0.5,   // Average response length
+  verbosity:       0.5,   // v7.9.48: no reader — see the header note
   riskTolerance:   0.3,   // Conservative self-modification
-  socialDrive:     0.5,   // Moderate interaction seeking
+  socialDrive:     0.5,   // v7.9.48: no reader — see the header note
   consolidation:   0.6,   // Slight preference for consolidation over exploration
   selfAwareness:   0.5,   // v7.0.9: Controls GoalSynthesizer frequency (higher = more self-improvement)
 };

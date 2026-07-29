@@ -89,6 +89,44 @@ const AST_RULES = [
       node.callee.name === 'Function',
   },
   {
+    // v7.9.48: Function() WITHOUT new. Identical in effect to new Function()
+    // and to eval(); the rule above and both regex patterns required `new`,
+    // so one missing keyword was a complete bypass. The header of this file
+    // has promised "catches eval, Function(), kernel imports" since v5.1.0 —
+    // this rule is what makes that true.
+    severity: 'block',
+    description: 'Function() without new — dynamic code execution',
+    match: (node) =>
+      node.type === 'CallExpression' &&
+      node.callee.type === 'Identifier' &&
+      node.callee.name === 'Function',
+  },
+  {
+    // v7.9.48: dynamic import(). Loads arbitrary modules at runtime and was
+    // covered by no rule at all — neither AST nor regex.
+    severity: 'block',
+    description: 'dynamic import() with a computed specifier — arbitrary module load',
+    match: (node) =>
+      node.type === 'ImportExpression' &&
+      node.source &&
+      node.source.type !== 'Literal',
+  },
+  {
+    // v7.9.48: require() with a computed argument. The rule below catches the
+    // template-literal form only; require(v), require(a+b) and
+    // require(c ? 'a' : 'b') passed. Warn, not block — same severity as its
+    // template-literal sibling.
+    severity: 'warn',
+    description: 'dynamic require with a computed specifier — potential allowlist bypass',
+    match: (node) =>
+      node.type === 'CallExpression' &&
+      node.callee.type === 'Identifier' &&
+      node.callee.name === 'require' &&
+      node.arguments.length === 1 &&
+      node.arguments[0].type !== 'Literal' &&
+      node.arguments[0].type !== 'TemplateLiteral',
+  },
+  {
     severity: 'block',
     description: 'indirect eval via (0,eval)() or window.eval()',
     match: (node) => {

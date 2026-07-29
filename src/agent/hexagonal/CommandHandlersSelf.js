@@ -27,6 +27,49 @@ const commandHandlersSelf = {
    *   /recall promise 5          → last 5 promise-statements
    *   /recall since:2026-04-25   → all types since that date
    */
+  /**
+   * v7.9.48: /selfmodel — his empirical self-model, in chat.
+   * It lived only in the CLI. Of twenty commands the terminal had and the app
+   * did not, this and /adaptations are the two that speak most directly about
+   * him: whoever talks to Genesis in the app could not ask how he sees himself.
+   */
+  selfmodel() {
+    const sm = this.cognitiveSelfModel;
+    if (!sm || typeof sm.getReport !== 'function') return 'The self-model is not available right now.';
+    let r;
+    try { r = sm.getReport(); } catch (_e) { return 'The self-model could not be read.'; }
+    if (!r) return 'The self-model is empty.';
+    const zeilen = [];
+    if (r.moduleCount != null) zeilen.push(`Modules: ${r.moduleCount}`);
+    if (r.capabilities) {
+      const c = Array.isArray(r.capabilities) ? r.capabilities : Object.keys(r.capabilities);
+      zeilen.push(`Capabilities known: ${c.length}`);
+    }
+    if (r.confidence != null) zeilen.push(`Confidence: ${r.confidence}`);
+    if (r.summary) zeilen.push(String(r.summary).slice(0, 400));
+    return zeilen.length ? `Cognitive self-model:\n${zeilen.join('\n')}` : JSON.stringify(r).slice(0, 600);
+  },
+
+  /**
+   * v7.9.48: /adaptations — what his meta-cognitive loop has changed about
+   * the way he works. CLI-only until now.
+   */
+  adaptations() {
+    const st = this.adaptiveStrategy;
+    if (!st || typeof st.getReport !== 'function') return 'AdaptiveStrategy is not available right now.';
+    let r;
+    try { r = st.getReport(); } catch (_e) { return 'The adaptations could not be read.'; }
+    if (!r) return 'No adaptations recorded yet.';
+    const teile = [];
+    if (r.proposed != null) teile.push(`proposed ${r.proposed}`);
+    if (r.confirmed != null) teile.push(`confirmed ${r.confirmed}`);
+    if (r.rolledBack != null) teile.push(`rolled back ${r.rolledBack}`);
+    const kopf = teile.length ? `Adaptations — ${teile.join(', ')}.` : 'Adaptations:';
+    const liste = Array.isArray(r.recent) ? r.recent.slice(0, 8)
+      .map((a) => `  ${a.what || a.name || '?'}${a.outcome ? ` → ${a.outcome}` : ''}`).join('\n') : '';
+    return liste ? `${kopf}\n${liste}` : kopf;
+  },
+
   async selfRecall(message) {
     if (!this.selfStatementLog) {
       return this.lang.current === 'de'

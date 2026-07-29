@@ -31,7 +31,9 @@ describe('v7.9.41 r4 — the silence belongs to the user', () => {
     assert.ok(INTERVALS.IDLE_THRESHOLD + INTERVALS.IDLE_THINK_CYCLE <= 6 * 60 * 1000, 'the promise: <= 6 minutes');
   });
   test('user:message fires on both orchestrator paths (source pin)', () => {
-    const t = src('src/agent/hexagonal/ChatOrchestrator.js');
+    // v7.9.48: streaming path split out — read both halves.
+    const t = src('src/agent/hexagonal/ChatOrchestrator.js')
+      + '\n' + src('src/agent/hexagonal/ChatOrchestratorStream.js');
     assert.ok((t.match(/fire\('user:message'/g) || []).length >= 2);
   });
   test('the self-cadence reset after a thought stays (userActive API untouched)', () => {

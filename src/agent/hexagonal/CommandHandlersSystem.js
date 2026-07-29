@@ -144,6 +144,48 @@ const commandHandlersSystem = {
     ].join('\n');
   },
 
+  /**
+   * v7.9.48: /autonomy — what he may release himself, and what he has earned.
+   * Sits next to trustControl because it is the same domain.
+   */
+  autonomy() {
+    const ea = this.earnedAutonomy;
+    const trust = this.trustLevel;
+    const teile = [];
+    if (trust && typeof trust.getStatus === 'function') {
+      try { teile.push(`Trust level: ${trust.getStatus().levelName}`); } catch (_e) { /* optional */ }
+    }
+    if (!ea || typeof ea.getReport !== 'function') {
+      return teile.length ? `${teile.join('\n')}\nEarnedAutonomy is not available right now.`
+        : 'EarnedAutonomy is not available right now.';
+    }
+    let r;
+    try { r = ea.getReport(); } catch (_e) { return 'The autonomy report could not be read.'; }
+    if (r) {
+      if (r.promotions != null) teile.push(`Promotions: ${r.promotions}`);
+      if (r.revocations != null) teile.push(`Revocations: ${r.revocations}`);
+      if (Array.isArray(r.earned) && r.earned.length) {
+        teile.push(`Auto-approves: ${r.earned.slice(0, 10).map((e) => e.action || e).join(', ')}`);
+      }
+    }
+    return teile.join('\n') || 'No autonomy data yet.';
+  },
+
+  /**
+   * v7.9.48: /budget — token spend against the cost guard. CLI-only until now.
+   */
+  budget() {
+    const cg = this.costGuard;
+    if (!cg || typeof cg.getUsage !== 'function') return 'The cost guard is not available right now.';
+    let u;
+    try { u = cg.getUsage(); } catch (_e) { return 'The budget could not be read.'; }
+    if (!u) return 'No budget data yet.';
+    const z = [];
+    if (u.session) z.push(`Session: ${u.session.pct}% used (${u.session.used}/${u.session.limit})`);
+    if (u.daily) z.push(`Daily:   ${u.daily.pct}% used (${u.daily.used}/${u.daily.limit})`);
+    return z.length ? `LLM budget:\n${z.join('\n')}` : JSON.stringify(u).slice(0, 400);
+  },
+
   async trustControl(message) {
     // v7.4.5.fix: prefer late-bound `this.trustLevelSystem` (wired via
     // phase5 manifest), fall back to container-lookup for legacy paths.

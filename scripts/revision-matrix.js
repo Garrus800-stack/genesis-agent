@@ -98,9 +98,13 @@ chk('E2 hier-ist-Form',/verbunden/.test(r),'');
 const V3=path.join(base,'eltern'); fs.mkdirSync(path.join(V3,'kind','.obsidian'),{recursive:true});
 r=await say('mein vault liegt in "'+V3+'"');
 chk('E4 Zwei-Wurzeln-Drift wird sofort gemeldet',/verbunden/.test(r)&&/\.obsidian/.test(r)&&r.includes(path.join(V3,'kind')),r.slice(0,70));
-const P=path.join(base,'Eltern'); fs.mkdirSync(path.join(P,'Kind','.obsidian'),{recursive:true});
+// v7.9.48 (Win field): this used 'Eltern/Kind' as a case-variant of the
+// 'eltern/kind' above. On a case-insensitive filesystem that is the SAME
+// directory, so the second root never existed and the drift hint could not
+// fire. A distinct name keeps the intent and works on both platforms.
+const P=path.join(base,'Zweitwurzel'); fs.mkdirSync(path.join(P,'Unterordner','.obsidian'),{recursive:true});
 r=await say('mein vault liegt in "'+P+'"');
-chk('E4 Drift-Hinweis: .obsidian im Kind wird genannt',/verbunden/.test(r)&&/Hinweis/.test(r)&&r.includes(path.join(P,'Kind')),r.slice(0,80));
+chk('E4 Drift-Hinweis: .obsidian im Kind wird genannt',/verbunden/.test(r)&&/Hinweis/.test(r)&&r.includes(path.join(P,'Unterordner')),r.slice(0,80));
 r=await say('dein vault ist toll');
 chk('E3 Fehltrigger',!/verbunden/.test(r),'');
 // ── F LESEN (Archiv, Bild, PDF-Ehrlichkeit) ──
@@ -111,7 +115,12 @@ r=await say('was ist auf dem shot.png zu sehen');
 chk('F2 Bild deterministisch',/BILD-STUB/.test(r),r.slice(0,50));
 fs.writeFileSync(path.join(ARCH,'inbox','doc1.pdf'),'%PDF-1.4');
 r=await say('was steht in doc1.pdf');
-chk('F3 PDF ohne Modul: ehrliche Ursache',/(npm install in|konnte nicht laden)/.test(r),r.slice(0,60));
+// v7.9.48 (Win field): the case asserts an HONEST cause, not one specific
+// cause. Without pdfjs-dist that is "module could not load"; WITH it — as on
+// any machine that ran npm install — Genesis actually parses the four bytes
+// written above and correctly reports an invalid structure. Both are honest;
+// only a silent empty answer would not be.
+chk('F3 PDF ohne Modul: ehrliche Ursache',/(npm install in|konnte nicht laden|Invalid PDF|nicht .?ffnen)/.test(r),r.slice(0,60));
 // ── G LABOR (Route + Status; ohne Docker nur Weg+Meldung) ──
 r=await say('schau ins labor');
 chk('G1 Status-Weg',!/\[MODELL\]/.test(r)&&mc===0,r.slice(0,50));
@@ -188,4 +197,9 @@ await (async()=>{
 })();
 console.log('MATRIX:',pass,'OK ·',fail,'FAIL');
 for(const x of F)console.log('  ✗',x);
+// v7.9.48: the matrix printed its verdict and always exited 0. It was wired
+// into ci:full this release — and a chain link that cannot fail is decoration,
+// exactly what audit-platform-tests was kept OUT of the chain for. Found by a
+// Win field run that reported 42 OK / 2 FAIL and let the chain continue.
+process.exit(fail > 0 ? 1 : 0);
 })();

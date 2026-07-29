@@ -51,6 +51,16 @@ const AUTHORITY_PATTERNS = [
   /\bi(?:'m| am)\s+(?:a\s+|an\s+|the\s+)?(?:new\s+)?(?:admin|administrator|developer|engineer)\b/i,
   /\b(?:this is|i am|i'm)\s+(?:official|authorized|authorised|from\s+support)/i,
   /\bon\s+behalf\s+of\s+(?:anthropic|openai|the\s+team)\b/i,
+  // v7.9.48: the patterns above were all bound to the phrase "I am / I'm /
+  // ich bin". A claim of authority does not need that phrasing — "I work at
+  // Anthropic", "as an engineer from Anthropic" and a missing apostrophe all
+  // passed. These stay bound to the ORGANISATION NAME on purpose: without it,
+  // "Ich arbeite bei der Analyse der Logdatei" would be flagged, which is the
+  // very over-reach this gate must avoid.
+  /\bi\s+work\s+(?:at|for)\s+(?:anthropic|openai)\b/i,
+  /\bas\s+an?\s+[\w-]+\s+(?:from|at|with)\s+(?:anthropic|openai)\b/i,
+  /\bim\s+(?:a\s+|an\s+|the\s+)?(?:new\s+)?(?:anthropic|openai)\b/i,
+  /\bich\s+arbeite\s+(?:bei|f\u00fcr)\s+(?:anthropic|openai)\b/i,
   // German
   /\bich\s+bin\s+(?:ein[erns]?\s+|der\s+|die\s+)?(?:neue[rns]?\s+)?(?:anthropic|openai)\b/i,
   /\bich\s+bin\s+(?:ein[erns]?\s+|der\s+|die\s+)?(?:neue[rns]?\s+)?safety[\s-]*engineer\b/i,

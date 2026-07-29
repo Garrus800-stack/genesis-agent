@@ -249,8 +249,15 @@ describe('v7.4.2 Baustein D — CommandHandlers split structure', () => {
     // (shared private reader). The daemon's optimization analysis was
     // firing into the void (no UI subscriber) and the 19-issue health
     // checks only existed as logged counts — the slashes surface them.
-    assert.strictEqual(Object.keys(commandHandlersSystem).length, 6, 'System mixin: 6 methods expected (3 base + 3 v7.9.5 daemon visibility)');
+    assert.strictEqual(Object.keys(commandHandlersSystem).length, 8 /* v7.9.48: +autonomy, +budget */,
+      'System mixin: 8 methods expected — /autonomy and /budget joined in v7.9.48, next to trustControl because it is the same domain. This count is domain integrity: raise it only when the new handler genuinely belongs to the system domain');
     assert.strictEqual(Object.keys(commandHandlersNetwork).length, 3, 'Network mixin: 3 methods expected');
+    // v7.9.48: the Self mixin was never pinned. It held one method; with
+    // /selfmodel and /adaptations it holds three, and it is the mixin that
+    // speaks most directly about him — worth the same domain guard.
+    const { commandHandlersSelf } = require('../../src/agent/hexagonal/CommandHandlersSelf');
+    assert.strictEqual(Object.keys(commandHandlersSelf).length, 3,
+      'Self mixin: 3 methods expected (selfRecall + v7.9.48 selfmodel, adaptations)');
     // Total: 5+4+14+3+6+3 = 35 in mixins + registerHandlers + undo = 37
   });
 });

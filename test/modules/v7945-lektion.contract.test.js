@@ -47,7 +47,7 @@ describe('v7945 K — the correction lesson', () => {
   });
 
   test('the wiring is complete: both chat paths observe, the offer block is spoken', () => {
-    const orch = src('src/agent/hexagonal/ChatOrchestrator.js');
+    const orch = src('src/agent/hexagonal/ChatOrchestrator.js') + '\n' + src('src/agent/hexagonal/ChatOrchestratorStream.js') /* v7.9.48: split */;
     assert((orch.match(/_observeCorrection && this\._observeCorrection\(this, message\)/g) || []).length === 2, 'both user-push paths carry the hook');
     const wire = src('src/agent/AgentCoreBootWire.js');
     assert(/CorrectionHeuristic\.js'\)\.observeUser/.test(wire) && /_pickCorrectionOffer/.test(wire), 'BootWire wires heuristic and offer (phase-clean)');

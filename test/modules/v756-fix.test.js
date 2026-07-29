@@ -251,7 +251,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   });
 
   await test('C4 source-presence: ChatOrchestrator imports + uses thinking-block filter', () => {
-    const orchSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/hexagonal/ChatOrchestrator.js'), 'utf8');
+    const orchSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/hexagonal/ChatOrchestrator.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../src/agent/hexagonal/ChatOrchestratorStream.js'), 'utf8'); // v7.9.48: split
     assert(/createThinkingBlockStreamFilter|stripThinkingBlocks/.test(orchSrc),
       'ChatOrchestrator must import the filter');
     assert(/cleanResponse/.test(orchSrc),

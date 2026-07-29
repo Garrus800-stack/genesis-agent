@@ -344,8 +344,17 @@ check('Shutdown Persist Safety', (r) => {
 // ════════════════════════════════════════════════════════════
 
 check('Test Coverage Gaps', (r) => {
-  const srcFiles = walkJs(path.join(SRC, 'agent'))
-    .filter(f => !f.includes('manifest') && !f.includes('ports') && !path.basename(f).startsWith('index'));
+  // v7.9.48: src/ui and src/kernel were never looked at here. Twelve of the
+  // thirteen checks stop at src/agent; only the file-size guard reaches the UI.
+  // The result was a truthful-but-partial "100%" while IntelRenderers.js
+  // (653 lines) had no test at all. Vendored code is exempt, as it is there.
+  const srcFiles = [
+    ...walkJs(path.join(SRC, 'agent')),
+    ...walkJs(path.join(SRC, 'ui')),
+    ...walkJs(path.join(SRC, 'kernel')),
+  ]
+    .filter(f => !f.includes('manifest') && !f.includes('ports') && !path.basename(f).startsWith('index'))
+    .filter(f => !f.includes('vendor'));
 
   const testFiles = fs.existsSync(TEST)
     ? fs.readdirSync(TEST).filter(f => f.endsWith('.test.js'))

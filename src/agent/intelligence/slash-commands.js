@@ -189,6 +189,30 @@ const SLASH_COMMANDS = [
     sinceVersion: 'v7.9.33',
   },
   {
+    name: 'selfmodel',
+    aliases: [],
+    description: 'Show his empirical self-model: modules, known capabilities, confidence',
+    sinceVersion: 'v7.9.48',
+  },
+  {
+    name: 'adaptations',
+    aliases: [],
+    description: 'Show what his meta-cognitive loop has changed about the way he works',
+    sinceVersion: 'v7.9.48',
+  },
+  {
+    name: 'autonomy',
+    aliases: [],
+    description: 'Show his trust level and what he has earned the right to approve himself',
+    sinceVersion: 'v7.9.48',
+  },
+  {
+    name: 'budget',
+    aliases: [],
+    description: 'Show token spend against the session and daily cost guard',
+    sinceVersion: 'v7.9.48',
+  },
+  {
     name: 'crashlog',
     aliases: [],
     description: 'Show the last entries of the flight recorder (crash/error ring buffer): last N, default 20, max 100',

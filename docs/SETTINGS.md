@@ -392,7 +392,7 @@ These are wired to Settings event listeners or read fresh on every use:
 - `models.anthropicApiKey`, `models.openaiApiKey` — API keys reload live
 - `mcp.serve.enabled` — MCP server toggle
 - `mcp.serve.apiKey` — MCP server password; the new value is used from the next start call on, no restart
-- `mcp.serve.knockTimeoutMs` — how long the vestibule responder waits for the model before it answers with his absent line (default 90000, clamped 5000-300000). Raise it for a slow or cloud-hosted model; a fast one never waits for it
+- `mcp.serve.knockTimeoutMs` — **file-only, no UI field**; edit `settings.json` under `mcp.serve`. — how long the vestibule responder waits for the model before it answers with his absent line (default 90000, clamped 5000-300000). Raise it for a slow or cloud-hosted model; a fast one never waits for it
 - `timeouts.approvalSec`, `llm.costGuard.*` (after Bug F+S fix)
 - `health.httpEnabled` — health server toggle
 - `ui.editorFontSize`, `ui.chatFontSize` — apply live to Monaco editor + chat container

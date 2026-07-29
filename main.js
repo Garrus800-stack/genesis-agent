@@ -64,6 +64,17 @@ app.whenReady().then(async () => {
   // Phase 1b (v3.5.4): Hash-lock safety-critical agent files
   // These are outside the kernel but must not be weakened by self-modification.
   guard.lockCritical([
+    // v7.9.48: the guard files themselves. The model here is "what constrains
+    // or checks him, he must not touch" — 21 self-mod files and 22 audit
+    // scripts already followed it; these six did not, although they decide
+    // which shell commands run, what a visitor sees and how his keys are kept.
+    'src/agent/core/injection-gate.js',
+    'src/agent/core/shell/ShellSafety.js',
+    'src/agent/capabilities/VestibuleGate.js',
+    'src/agent/foundation/SettingsEncryption.js',
+    'src/agent/intelligence/ToolRegistry.js',
+    'src/agent/capabilities/McpServer.js',
+    'scripts/check-ratchet.js',
     'src/agent/intelligence/CodeSafetyScanner.js',
     'src/agent/intelligence/VerificationEngine.js',
     'src/agent/core/Constants.js',

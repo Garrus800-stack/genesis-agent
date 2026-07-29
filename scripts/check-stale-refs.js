@@ -73,8 +73,16 @@ function loadConfig() {
 
 function shouldExclude(filePath, config) {
   const excludes = config._excludePaths || [];
-  const rel = path.relative(ROOT, filePath);
-  return excludes.some(ex => rel === ex || rel.startsWith(ex + path.sep));
+  // v7.9.48 (field, Win): path.relative returns backslashes on Windows while
+  // the config is written with forward slashes, so `rel === ex` never matched
+  // and all four changelog archives were scanned — eleven historical symbol
+  // references kept the gate red on Win while it was green on Linux. Same
+  // shape as the rest of this release: a comparison built around ONE spelling.
+  const rel = path.relative(ROOT, filePath).split(path.sep).join('/');
+  return excludes.some((ex) => {
+    const e = ex.split(/[\\/]/).join('/');
+    return rel === e || rel.startsWith(`${e}/`);
+  });
 }
 
 // ── Mode 0: the exclude list itself ─────────────────────────

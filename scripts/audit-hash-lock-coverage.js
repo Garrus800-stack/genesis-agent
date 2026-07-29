@@ -93,6 +93,21 @@ const WRITE_PATTERNS = [
 // plugin code, SkillManager loading skill files, etc.) and don't need
 // to be hash-locked under the same regime — they get a WARN line so
 // future drift is visible.
+// v7.9.48: a second required set. The audit above derives its list from the
+// self-mod write-side signature, so the files that constrain Genesis at
+// RUNTIME — the shell gate, the injection gate, the vestibule's triple gate,
+// the key encryption, the tool registry and the MCP door — were invisible to
+// it: adding them went unnoticed, and removing them again would too. Named
+// explicitly, because no code signature identifies "this is a guard".
+const REQUIRED_GUARD_FILES = [
+  'src/agent/core/injection-gate.js',
+  'src/agent/core/shell/ShellSafety.js',
+  'src/agent/capabilities/VestibuleGate.js',
+  'src/agent/foundation/SettingsEncryption.js',
+  'src/agent/intelligence/ToolRegistry.js',
+  'src/agent/capabilities/McpServer.js',
+];
+
 const STRICT_THRESHOLD = 3;
 const WARN_THRESHOLD   = 2;
 
@@ -203,7 +218,17 @@ function main() {
     }
   }
 
-  if (missingStrict.length > 0) process.exit(1);
+  // v7.9.48: the named guard files must be locked, always.
+  const missingGuards = REQUIRED_GUARD_FILES.filter((f) => !locked.has(f));
+  if (missingGuards.length > 0) {
+    console.log(`\n  ${missingGuards.length} runtime guard file(s) NOT hash-locked:`);
+    for (const g of missingGuards) console.log(`   - ${g}`);
+    console.log('  These decide what runs, what a visitor sees and how keys are kept.');
+  } else {
+    console.log(`  Runtime guard files hash-locked: ${REQUIRED_GUARD_FILES.length}/${REQUIRED_GUARD_FILES.length}`);
+  }
+
+  if (missingStrict.length > 0 || missingGuards.length > 0) process.exit(1);
   if (strict && (missingWarn.length > 0 || stale.length > 0)) process.exit(1);
   process.exit(0);
 }

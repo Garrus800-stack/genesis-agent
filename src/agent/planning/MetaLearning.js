@@ -3,7 +3,8 @@
 // GENESIS — MetaLearning.js (v3.5.0 — Cognitive Agent)
 //
 // THE CLOSED LOOP: Genesis learns what works for its specific
-// model. After 200 interactions, it knows: "json-schema output
+// model. After _minSamples (10) samples per bucket it recommends, and
+// recalculates every _recalcEveryN (50): "json-schema output
 // works 89% of the time for code-gen with gemma2:9b, but
 // free-text only works 61%."
 //

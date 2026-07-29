@@ -405,8 +405,13 @@ console.log('\n  📦 v7.5.1 Regression Tests\n');
     // v7.5.6: variable renamed from fullResponse → cleanResponse
     // when the thinking-block filter was added (it strips <think>...</think>
     // before the response is fed to the tool-loop).
+    // v7.9.48: the streaming path moved to ChatOrchestratorStream.js — a
+    // source pin follows its subject, not the file it used to live in.
     const orchSrc = require('fs').readFileSync(
       require('path').resolve(__dirname, '../../src/agent/hexagonal/ChatOrchestrator.js'),
+      'utf8'
+    ) + '\n' + require('fs').readFileSync(
+      require('path').resolve(__dirname, '../../src/agent/hexagonal/ChatOrchestratorStream.js'),
       'utf8'
     );
     assert.ok(

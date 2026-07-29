@@ -7,7 +7,10 @@ const path = require('path');
 const assert = require('assert');
 const ROOT = path.resolve(__dirname, '..', '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
-const orch = read('src/agent/hexagonal/ChatOrchestrator.js');
+// v7.9.48: the streaming path moved to ChatOrchestratorStream.js — a source
+// pin follows its subject, not the file it used to live in.
+const orch = read('src/agent/hexagonal/ChatOrchestrator.js')
+  + '\n' + read('src/agent/hexagonal/ChatOrchestratorStream.js');
 const purs = read('src/agent/revolution/AgentLoopPursuit.js');
 const sm = read('src/agent/hexagonal/SelfModificationPipeline.js');
 const sh = read('src/agent/hexagonal/CommandHandlersShell.js');

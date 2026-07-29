@@ -62,7 +62,11 @@ const agentCoreBootWireMixin = {
         }
       }
     } catch (e) {
-      _log.debug('[v737-tools] registration skipped:', e.message);
+      // v7.9.48: warn, not debug. tryResolve + `if (tools)` mean a missing
+      // service never reaches this catch — it fires only on a real defect,
+      // and a defect here costs Genesis sixteen memory and archive tools
+      // without a trace. Same lesson the vestibule block learned in v7.9.46.
+      _log.warn('[v737-tools] registration FAILED — memory/archive tools inactive:', e.message);
     }
     // v7.9.45 L: the cognitive laboratory — lab-status / lab-run (Docker,
     // one-way, offline by design). Best-effort like every tool family.
@@ -80,7 +84,10 @@ const agentCoreBootWireMixin = {
         });
       }
     } catch (e) {
-      _log.debug('[v745-tools] registration skipped:', e.message);
+      // v7.9.48: warn, not debug — see the note in the v7.3.7 block. This
+      // block already documents the v7.9.45 field-fix for its own resolve;
+      // the logging half of that lesson was never applied.
+      _log.warn('[v745-tools] registration FAILED — lab tools inactive:', e.message);
     }
     // v7.9.46: the vestibule — his membrane. Gate built here, handed to the
     // MCP client (server construction site) and to his own tools.

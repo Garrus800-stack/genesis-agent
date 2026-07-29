@@ -88,6 +88,10 @@ class CommandHandlers {
     orchestrator.registerHandler('skills-pending', (msg) => this.skillsPending(msg)); // v7.9.0
     orchestrator.registerHandler('changes', (msg) => this.changes(msg)); // v7.9.33 (AP-2, S7)
     orchestrator.registerHandler('crashlog', (msg) => this.crashlog(msg)); // v7.9.47 (hygiene)
+    orchestrator.registerHandler('selfmodel',   () => this.selfmodel());   // v7.9.48 (CLI parity)
+    orchestrator.registerHandler('adaptations', () => this.adaptations()); // v7.9.48
+    orchestrator.registerHandler('autonomy',    () => this.autonomy());    // v7.9.48
+    orchestrator.registerHandler('budget',      () => this.budget());      // v7.9.48
     orchestrator.registerHandler('skill-info', (msg) => this.skillInfo(msg));    // v7.9.4
     orchestrator.registerHandler('skill-discard', (msg) => this.skillDiscard(msg)); // v7.9.4
     orchestrator.registerHandler('trajectory', (msg) => this.trajectory(msg)); // v7.9.15

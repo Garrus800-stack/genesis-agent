@@ -125,6 +125,13 @@ function phase5(ctx, R) {
         { prop: 'skillManager', service: 'skills', optional: true },
         // v7.3.2: P5→P9 for memory-mark / memory-list / memory-veto commands
         { prop: 'coreMemories', service: 'coreMemories', optional: true },
+        // v7.9.48: four reports that were CLI-only. All four services were
+        // registered long ago; none was ever handed to the command handlers.
+        { prop: 'cognitiveSelfModel', service: 'cognitiveSelfModel', optional: true },
+        { prop: 'adaptiveStrategy',   service: 'adaptiveStrategy',   optional: true },
+        { prop: 'earnedAutonomy',     service: 'earnedAutonomy',     optional: true },
+        { prop: 'costGuard',          service: 'costGuard',          optional: true },
+        { prop: 'trustLevel',         service: 'trustLevelSystem',   optional: true },
         // v7.5.5: P5→P9 for /recall (self-recall) command
         { prop: 'selfStatementLog', service: 'selfStatementLog', optional: true },
         // v7.5.6: P5→P1 for /model-reset command

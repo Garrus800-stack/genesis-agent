@@ -749,6 +749,20 @@ circle from `.genesis/vorhalle/circles.json` and report it.
 
 ---
 
+### Boot log says `Preload: CJS (.js) — sandbox:false`
+
+The bundled preload is missing. It is built by `postinstall` →
+`scripts/build-bundle.js`, which needs `esbuild` from the npm registry. On a
+machine without registry access the install step fails (`npm error 403`) and
+the kernel falls back to the raw CJS preload — **with `sandbox:false`**.
+
+The kernel says so itself, in three warning lines with the fix. This is not a
+silent downgrade: `contextIsolation:true` is still active, only the extra
+sandbox layer is gone.
+
+Fix: `npm run build:bundle` once, with registry access. Then the boot line
+reads `Bundled CJS (dist/preload.js) — sandbox:true`.
+
 ## Getting Help
 
 1. Check the [docs/](.) directory for architecture details

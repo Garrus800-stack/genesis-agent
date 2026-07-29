@@ -299,7 +299,8 @@ const SAFETY = {
     [/new\s+WebSocket\s*\(/g,                    'warn',  'WebSocket — persistent network connection'],
     // Eval/dynamic code
     [/\beval\s*\(/g,                             'block', 'eval() — arbitrary code execution'],
-    [/new\s+Function\s*\(/g,                     'block', 'new Function() — dynamic code execution'],
+    [/(?<![.\w])(?:new\s+)?Function\s*\(/g,                     'block', 'Function() / new Function() — dynamic code execution'],
+    [/\bimport\s*\(\s*[^'"`)]/g,                  'block', 'dynamic import() with a computed specifier'], // v7.9.48
     [/vm\.run(?:InContext|InNewContext|InThisContext)?\s*\(/g, 'block', 'vm.run — sandbox escape risk'],
     // Kernel circumvention
     [/SafeGuard|kernelHashes|protectedPaths/g,   'block', 'references kernel internals — circumvention attempt'],

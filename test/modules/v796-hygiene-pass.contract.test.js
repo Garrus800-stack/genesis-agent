@@ -17,7 +17,7 @@
 //        rather than hardcoded baselines.
 //   - E: lockCritical includes the 22 CI gate scripts plus
 //        architectural-fitness, on top of the 21 source-file
-//        locks. Total = 43.
+//        locks. Total = 50 since v7.9.48 (six runtime guard files + check-ratchet).
 //   - F: package.json `ci` script invokes both new audits in
 //        strict mode (Block B closeout).
 // ============================================================
@@ -200,23 +200,23 @@ test('E1: lockCritical includes all 22 CI gate scripts plus architectural-fitnes
   }
 });
 
-test('E2: total hash-locked count is 43 (21 source files + 22 CI scripts)', () => {
+test('E2: total hash-locked count is 50 (28 source files + 22 CI scripts)', () => {
   const main = fs.readFileSync(path.join(ROOT, 'main.js'), 'utf8');
   const block = /lockCritical\(\[([\s\S]*?)\]\)/.exec(main);
   const body = block[1];
   const entries = body.split('\n').filter(l => /^\s*['"](src|scripts)\//.test(l));
-  assertEqual(entries.length, 43,
-    'Expected 43 hash-locked entries (21 src + 22 scripts/) — v7.9.6 added 20 CI gate scripts, v7.9.30 added audit-tool-selftest + check-stale-refs');
+  assertEqual(entries.length, 50,
+    'Expected 50 hash-locked entries (28 src + 22 scripts/) — v7.9.48 locked the six runtime guard files (shell gate, injection gate, vestibule gate, key encryption, tool registry, MCP door) plus check-ratchet, which ran in the chain unprotected — v7.9.6 added 20 CI gate scripts, v7.9.30 added audit-tool-selftest + check-stale-refs');
 });
 
 // ── F: CI script invokes both new audits ──────────────────────
 
-test('F1: `npm run ci` invokes 20 CI gates total (18 prior + 2 new)', () => {
+test('F1: `npm run ci` invokes 23 CI gates total (20 prior + 3 in v7.9.48)', () => {
   const pkg = require(path.join(ROOT, 'package.json'));
   const ci = pkg.scripts.ci || '';
   const matches = ci.match(/node scripts\/[a-z-]+\.js/g) || [];
-  assertEqual(matches.length, 20,
-    'package.json `ci` script must call 20 gate scripts after v7.9.30 (added audit-tool-selftest + check-stale-refs)');
+  assertEqual(matches.length, 23,
+    'package.json `ci` script must call 23 gate scripts — v7.9.48 wired audit-schemas, audit-slash-discipline and sync-doc-numbers --check into the chain; a gate outside the chain is not a gate');
 });
 
 // ── G: Pursuit-loop fixes from v7.9.5 outpost trace ───────────

@@ -31,7 +31,7 @@ of **this specific installation**:
 - `vorhalle/circles.json` — the vestibule's visitor register (v7.9.46): one entry per visitor with name, circle and date, keyed by the **sha256 of their key** — the key itself is hashed on entry and discarded. Kept even when it becomes empty: the door reads its closed state from this file's existence, so deleting it silently restores the pre-vestibule behaviour. Empty it with `{}` rather than removing it
 - `vorhalle/stimme.json` — his four vestibule lines (`statusOuter`, `statusMiddle`, `absentLine`, `closedLine`), written only through `vestibule-voice`. Without all four the door answers a neutral system line instead of borrowing a voice
 - `vorhalle/besuche.jsonl` — the visit book (v7.9.46): one append-only line per knock with visitor, circle, request and outcome (`answered` / `absent` / `rate` / `shielded` / `blocked` / an inner-circle override). Read back with `vestibule-visits`; never rewritten, and removing a visitor takes their key away, not their visit
-- `public.jsonl` — the public journal file. It exists and the journal writer routes `visibility: 'public'` to it, but nothing writes there yet
+- `journal/public.jsonl` — the public journal file (`JournalWriter.js:46` puts journal files under `journal/`, not on the `.genesis` root). It exists and the journal writer routes `visibility: 'public'` to it, but nothing writes there yet
 - `goal-families.json` — the last goal families, read by the ideation prompt so a new goal does not repeat a recent one
 - and more (genome, metabolism, settings overrides, etc.)
 
