@@ -18,6 +18,14 @@
 'use strict';
 
 const path = require('path');
+// v7.9.48 (field): handleStream passes the module logger to ensureNonEmptyReply.
+// It was declared in ChatOrchestrator.js and did not travel with the method —
+// so every streamed answer ended in "Fehler: _log is not defined", caught by
+// the chat error handler and shown under his reply. The split checked five
+// identifiers by name instead of resolving ALL free identifiers; this is what
+// that shortcut cost.
+const { createLogger } = require('../core/Logger');
+const _log = createLogger('ChatOrchestrator');
 const { dedupeSeams } = require('../foundation/backends/ContinuationLoop.js');
 const { createToolCallStreamFilter } = require('../core/tool-call-stream-filter');
 const { createThinkingBlockStreamFilter } = require('../core/thinking-block-stream-filter');

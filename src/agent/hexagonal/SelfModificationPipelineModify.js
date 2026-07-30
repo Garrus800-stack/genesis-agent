@@ -26,6 +26,10 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { createLogger } = require('../core/Logger');
+// v7.9.48 (found by audit-free-identifiers): THRESHOLDS was used at line 128
+// and never imported. It sits inside a try/catch, so the ReferenceError was
+// swallowed and the awareness gate never blocked a single self-modification.
+const { THRESHOLDS } = require('../core/Constants');
 const _log = createLogger('SelfModificationPipeline');
 
 // v7.4.3 Baustein D: mirrored from SelfModificationPipeline.js because

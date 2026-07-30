@@ -1,5 +1,5 @@
 // ============================================================
-// GENESIS — v7.9.48 contract
+// GENESIS — v7.9.49 contract
 //
 // The release that came out of a full audit of v7.9.47. What these pins guard
 // is not the individual holes but the BUILD PATTERN behind them.
@@ -43,7 +43,7 @@ function t(name, fn) {
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 (async () => {
-  console.log('\nv7.9.48 — the build pattern behind three security layers\n');
+  console.log('\nv7.9.49 — the build pattern behind three security layers\n');
 
   // ── S1a: code execution ───────────────────────────────────
   t('S1a: blocked form AND its variant — Function() with and without new', () => {
@@ -128,7 +128,7 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
   // ── S1d: the rule that keeps this from coming back ────────
   t('S1d: every blocked pattern list has a variant pin in this file', () => {
-    const self = read('test/modules/v7948.contract.test.js');
+    const self = read('test/modules/v7949.contract.test.js');
     // one variant probe per layer, named so a later reader sees the intent
     assert.ok(/rm -r -f \//.test(self) && /rm -fr \//.test(self), 'shell variants pinned');
     assert.ok(/Function\("x"\)/.test(self) && /new Function\("x"\)/.test(self), 'code variants pinned');
@@ -257,6 +257,73 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
     const pkg = JSON.parse(read('package.json'));
     assert.ok(!pkg.scripts.ci.includes('audit-platform-tests')
       && !pkg.scripts['ci:full'].includes('audit-platform-tests'));
+  });
+
+  t('field: the split left a name behind, and a name-based check could not find it', () => {
+    const stream = read('src/agent/hexagonal/ChatOrchestratorStream.js');
+    assert.ok(/const _log = createLogger/.test(stream),
+      'handleStream passes the module logger to ensureNonEmptyReply — it was declared in '
+      + 'ChatOrchestrator.js and did not travel, so every streamed answer ended in '
+      + '"Fehler: _log is not defined". Syntax valid, module loaded, 9534 tests green.');
+    // the gate that turns "search for five names" into "resolve every name"
+    assert.ok(fs.existsSync(path.join(ROOT, 'scripts/audit-free-identifiers.js')),
+      'a name-based search cannot find the name nobody thought of');
+    const pkg = JSON.parse(read('package.json'));
+    assert.ok(pkg.scripts.ci.includes('audit-free-identifiers')
+      && pkg.scripts['ci:full'].includes('audit-free-identifiers'), 'and it must run in both chains');
+    // the four it found on its first run, each a name used and never imported
+    assert.ok(/const \{ THRESHOLDS \} = require/.test(read('src/agent/hexagonal/SelfModificationPipelineModify.js')),
+      'THRESHOLDS sat inside a try/catch, so the awareness gate never blocked a self-modification');
+    assert.ok(!/lines\.push\('Your vestibule/.test(read('src/agent/intelligence/PromptBuilderSectionsAwareness.js')),
+      'the vestibule paragraph pushed to `lines` in a block that builds `parts` — it never reached his prompt');
+    const stepsCode = read('src/agent/revolution/AgentLoopStepsCode.js');
+    assert.ok(/^const path = require\('path'\);$/m.test(stepsCode), 'path was only required inline elsewhere');
+    assert.ok(/sourceForPrompt \} = require/.test(stepsCode), 'sourceForPrompt was used without importing it');
+  });
+
+  t('field pass 2: a 402 is a class, and the status code cannot be rephrased', () => {
+    const mf = require(path.join(ROOT, 'src/agent/foundation/ModelBridgeFailover.js'));
+    const helper = Object.assign({}, Object.values(mf)[0]);
+    const real = '[OLLAMA] HTTP 402: {"error":"this model uses extra usage only (not included plan '
+      + 'usage) and your extra usage balance is empty, add extra usage or turn on auto reload"}';
+    // Ollama's actual wording contains none of "subscription", "upgrade" or
+    // "quota exceeded" — the phrasings the classifier was written around. So no
+    // reason matched, the model was never marked unavailable, and Genesis paid a
+    // failed round trip on every single message.
+    assert.strictEqual(helper._classifyFailoverReason(new Error(real)), 'subscription-required',
+      'the real message must classify — and 402 alone is enough, whatever words follow');
+    assert.strictEqual(helper._classifyFailoverReason(new Error('HTTP 402 payment required')), 'subscription-required');
+    // and nothing else moved
+    assert.strictEqual(helper._classifyFailoverReason(new Error('HTTP 429 too many')), 'rate-limit');
+    assert.strictEqual(helper._classifyFailoverReason(new Error('HTTP 401 unauthorized')), 'auth');
+    assert.strictEqual(helper._classifyFailoverReason(new Error('weekly limit reached')), 'quota-exhausted');
+  });
+
+  t('field: a 402 is answered with a measurement, not a guess', () => {
+    const { OllamaBackend } = require(path.join(ROOT, 'src/agent/foundation/backends/OllamaBackend.js'));
+    const b = new OllamaBackend({ baseUrl: 'http://127.0.0.1:11434' });
+    const body = { model: 'kimi-k2.7-code:cloud', options: { temperature: 0.7, num_ctx: 65536, num_predict: 4096 } };
+    // `ollama run <model>` answered while Genesis got 402 on the same daemon with
+    // plan usage at 0.5%. The only difference is what we add to the request.
+    // wording that does NOT match the answered case, so the measurement still runs
+    const retry = b._retryBodyFor402(new Error('[OLLAMA] HTTP 402: request refused'), body);
+    assert.deepStrictEqual(retry.options, { temperature: 0.7 },
+      'the retry drops num_ctx and num_predict and keeps everything else');
+    assert.strictEqual(b._retryBodyFor402(new Error('HTTP 500'), body), null, 'only 402');
+    assert.strictEqual(b._retryBodyFor402(new Error('HTTP 402'), { model: 'x', options: { temperature: 1 } }), null,
+      'nothing to drop means nothing to retry — and no second attempt can loop');
+    const src = read('src/agent/foundation/backends/OllamaBackend.js');
+    assert.ok(/_emitted \+\+|_emitted\+\+/.test(src) && /_emitted > 0\) throw err/.test(src),
+      'a retry must never duplicate output that already reached the user');
+    // The field ran that measurement: the retry fired four times and the success
+    // line never followed. Dropping the knobs changes nothing for THIS 402, so it
+    // is skipped for exactly that answer — and kept for a 402 that says something
+    // else, where a knob may still be the cause.
+    const answered = '[OLLAMA] HTTP 402: this model uses extra usage only (not included plan usage)';
+    assert.strictEqual(b._retryBodyFor402(new Error(answered), body), null,
+      'one measured case closes one door; it does not close the others');
+    assert.ok(b._retryBodyFor402(new Error('HTTP 402: context too large'), body),
+      'a differently worded 402 is still worth one measurement');
   });
 
   console.log(`\n${pass} passed · ${fail} failed`);

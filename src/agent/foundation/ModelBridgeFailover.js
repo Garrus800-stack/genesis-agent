@@ -84,6 +84,15 @@ const failoverMixin = {
     // v7.5.7-fix: subscription checked before generic 401/403 'auth'
     // — Ollama Cloud Pro-gates carry both. Without this, gated cloud
     // models would get the 1h auth-TTL not the 24h subscription-TTL.
+    // v7.9.49 (field): HTTP 402 is Payment Required — that IS the class, whatever
+    // words follow it. The patterns below were written around the phrasings we had
+    // seen, and Ollama's actual message contains none of them: "this model uses
+    // extra usage only (not included plan usage) and your extra usage balance is
+    // empty". So no reason matched, the model was never marked unavailable, and
+    // Genesis paid a failed round trip on every single message. The status code
+    // cannot be rephrased; the sentence can.
+    if (/\b402\b|payment required/.test(msg)) return 'subscription-required';
+    if (/extra usage|not included (in )?(your )?plan|billing|add (extra )?credit/.test(msg)) return 'subscription-required';
     if (/subscription|requires.*upgrade|upgrade for access|ollama\.com\/upgrade/.test(msg)) return 'subscription-required';
     // v7.8.2: tightened quota detection. v7.8.1 used `limit.{0,20}reached`
     // and bare `reset.{0,20}(in|on|at)` which matched normal 5min rate-

@@ -8,10 +8,10 @@
 - **The cognitive laboratory** (v7.9.45) — `lab-status` / `lab-run`: throwaway offline Docker rooms for risky or foreign code, opt-in by the word "Labor"/"lab" in any of the four locales; images freed via `lab.images`, results fetched only through `copy-to-archive`.
 - 444 source modules across 12 boot phases
 - 185 DI services (172 manifest + 13 bootstrap)
-- 9534 tests on Windows / 9533 on Linux, both green (measured v7.9.47). The single difference is `linux-sandbox`, whose eleventh case is the not-on-Linux branch — it does not run where it does not apply
+- 9538 tests on Windows / 9537 on Linux, both green (measured v7.9.47). The single difference is `linux-sandbox`, whose eleventh case is the not-on-Linux branch — it does not run where it does not apply
 - 499 events with 499 payload schemas (full parity)
 - Architectural fitness: 127/130
-- 23 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
+- 24 CI audit gates — see [GATE-INVENTORY.md](GATE-INVENTORY.md) for the runtime gates
 
 
 ---
@@ -266,7 +266,7 @@ See [COMMUNICATION.md](COMMUNICATION.md) for the full protocol specification.
 | **Dashboard** | EventBus inspector, health status, dependency graph (v5.4: extracted to 3 delegate files) |
 | **i18n** | EN, DE, FR, ES UI (auto-detected, switchable) |
 | **Structured logging** | Human-readable or JSON-lines format, pluggable sink |
-| **655 test files** | 9534 tests (Win baseline, v7.9.48), coverage gates: 80% lines, 76% branches, 78% functions |
+| **655 test files** | 9538 tests (Win baseline, v7.9.48), coverage gates: 80% lines, 76% branches, 78% functions |
 | **CI scripts** | `npm run ci` = tests + event validation + channel validation + fitness gate |
 | **TypeScript CI** `v5.4` | `tsc --noEmit` blocks merges — zero type regressions allowed |
 | **Degradation matrix** | Auto-generated report showing what breaks if each service is missing |

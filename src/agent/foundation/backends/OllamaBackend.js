@@ -195,6 +195,42 @@ class OllamaBackend {
     return Math.min(8192, Math.floor(ctxSize / 4));
   }
 
+  /**
+   * v7.9.49: recover from a 402 by asking the same question with fewer knobs.
+   *
+   * A field run showed `ollama run kimi-k2.7-code:cloud` answering normally
+   * while Genesis got HTTP 402 for the same model on the same daemon, with
+   * plan usage at 0.5%. The only difference between the two requests is what
+   * we add: `options.num_ctx` (up to 65536) and `options.num_predict`. num_ctx
+   * was introduced in v7.9.37 for a LOCAL problem — Ollama defaults to 8192
+   * and truncated the head of large prompts — and cloud endpoints manage their
+   * own window.
+   *
+   * We do NOT assume that is the cause. We retry once without those two knobs
+   * and log which shape failed and which worked, so the field answers the
+   * question instead of a guess deciding it. Nothing changes for a request
+   * that succeeds: this path is only ever entered on a 402.
+   *
+   * @param {Error} err
+   * @param {object} body
+   * @returns {object|null} a body worth retrying, or null
+   */
+  _retryBodyFor402(err, body) {
+    const msg = String(err && err.message);
+    if (!/\b402\b/.test(msg)) return null;
+    // v7.9.49 pass 2: the field answered the question the first retry was built
+    // to ask. It fired four times and the success line never followed — dropping
+    // num_ctx/num_predict changes nothing, the model itself is extra-usage-only.
+    // So the retry is skipped for exactly that answer and kept for a 402 whose
+    // wording does NOT say so, where a knob may still be the cause. One measured
+    // case closes one door; it does not close the others.
+    if (/extra usage|not included (in )?(your )?plan/.test(msg.toLowerCase())) return null;
+    const opts = body && body.options;
+    if (!opts || (opts.num_ctx === undefined && opts.num_predict === undefined)) return null;
+    const { num_ctx: _ctx, num_predict: _pred, ...rest } = opts;
+    return { ...body, options: rest };
+  }
+
   async chat(systemPrompt, messages, temperature, modelName, maxTokens) {
     const ollamaMessages = [];
 
@@ -235,7 +271,16 @@ class OllamaBackend {
     const data = await this._httpPost(
       `${this.baseUrl}/api/chat`, body, {},
       this._timeoutForModel(modelName)   // v7.9.12: cloud models get longer timeout
-    );
+    ).catch(async (err) => {
+      const retry = this._retryBodyFor402(err, body);
+      if (!retry) throw err;
+      _log.warn(`[OLLAMA] 402 for "${modelName}" with num_ctx=${body.options.num_ctx} — retrying without num_ctx/num_predict`);
+      const second = await this._httpPost(
+        `${this.baseUrl}/api/chat`, retry, {}, this._timeoutForModel(modelName)
+      );
+      _log.warn(`[OLLAMA] retry WITHOUT those options succeeded for "${modelName}" — the window hint, not the plan, was refused`);
+      return second;
+    });
 
     return data.message?.content || '';
   }
@@ -270,9 +315,13 @@ class OllamaBackend {
     };
     body.options.num_predict = this._predictFor(maxTokens, ctxSize); // (C2)
 
-    return new Promise((resolve, reject) => {
+    // v7.9.49: one attempt as a function, so a 402 can be retried with fewer
+    // knobs. The retry is only safe because the status check below runs before
+    // any chunk is emitted — guarded explicitly by _emitted all the same.
+    let _emitted = 0;
+    const attempt = (b) => new Promise((resolve, reject) => {
       const url = new URL(`${this.baseUrl}/api/chat`);
-      const postData = JSON.stringify(body);
+      const postData = JSON.stringify(b);
       let _settled = false;
       let _doneReason = null;
       const _resolve = () => {
@@ -325,7 +374,7 @@ class OllamaBackend {
               try {
                 const parsed = JSON.parse(line);
                 _consecutiveParseErrors = 0;
-                if (parsed.message?.content) onChunk(parsed.message.content);
+                if (parsed.message?.content) { _emitted++; onChunk(parsed.message.content); } // v7.9.49: a retry must never duplicate output
                 if (parsed.done) {
                   // v7.8.9: capture done_reason from terminal chunk
                   _doneReason = parsed.done_reason || 'stop';
@@ -363,6 +412,15 @@ class OllamaBackend {
       req.on('error', (err) => _reject(new Error(`[NETWORK] Ollama: ${err.message}`)));
       req.write(postData);
       req.end();
+    });
+
+    return attempt(body).catch(async (err) => {
+      const retry = this._retryBodyFor402(err, body);
+      if (!retry || _emitted > 0) throw err;
+      _log.warn(`[OLLAMA] 402 for "${modelName}" with num_ctx=${body.options.num_ctx} — retrying without num_ctx/num_predict`);
+      const out = await attempt(retry);
+      _log.warn(`[OLLAMA] retry WITHOUT those options succeeded for "${modelName}" — the window hint, not the plan, was refused`);
+      return out;
     });
   }
 

@@ -12,6 +12,12 @@
 // ============================================================
 
 const { TIMEOUTS } = require('../core/Constants');
+// v7.9.48 (found by audit-free-identifiers): path is used at lines 91-92 while
+// it was only ever required inline in a different function.
+const path = require('path');
+// v7.9.48: sourceForPrompt lives in AgentLoopGrounding and is imported by
+// AgentLoopSteps — this sibling used it without importing it.
+const { sourceForPrompt } = require('./AgentLoopGrounding');
 
 // v7.9.40 (B0): code-step tests may READ the project's own src/ tree —
 // the same read-only allowance testPatch has had (Sandbox.js:262/:283).

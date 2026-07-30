@@ -211,12 +211,12 @@ test('E2: total hash-locked count is 50 (28 source files + 22 CI scripts)', () =
 
 // ── F: CI script invokes both new audits ──────────────────────
 
-test('F1: `npm run ci` invokes 23 CI gates total (20 prior + 3 in v7.9.48)', () => {
+test('F1: `npm run ci` invokes 24 CI gates total (20 prior + 4 in v7.9.48)', () => {
   const pkg = require(path.join(ROOT, 'package.json'));
   const ci = pkg.scripts.ci || '';
   const matches = ci.match(/node scripts\/[a-z-]+\.js/g) || [];
-  assertEqual(matches.length, 23,
-    'package.json `ci` script must call 23 gate scripts — v7.9.48 wired audit-schemas, audit-slash-discipline and sync-doc-numbers --check into the chain; a gate outside the chain is not a gate');
+  assertEqual(matches.length, 24,
+    'package.json `ci` script must call 24 gate scripts — v7.9.48 wired audit-schemas, audit-slash-discipline and sync-doc-numbers --check into the chain; a gate outside the chain is not a gate');
 });
 
 // ── G: Pursuit-loop fixes from v7.9.5 outpost trace ───────────

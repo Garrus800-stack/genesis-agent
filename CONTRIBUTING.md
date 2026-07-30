@@ -29,7 +29,7 @@ git clone https://github.com/Garrus800-stack/genesis-agent.git
 cd genesis-agent
 npm install
 npm start          # Launch the Electron app
-npm test           # Run all tests (654 suites, 9534 tests Win baseline)
+npm test           # Run all tests (654 suites, 9538 tests Win baseline)
 
 # Slices & strict gates (worth knowing):
 #   GENESIS_TEST_RANGE="a-o" npm test     # first half by file name
