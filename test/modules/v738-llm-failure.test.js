@@ -37,6 +37,9 @@ const assert = require('assert');
 
 const { ChatOrchestrator } = require('../../src/agent/hexagonal/ChatOrchestrator');
 const { helpers } = require('../../src/agent/hexagonal/ChatOrchestratorHelpers');
+// v7.9.50: the error half moved to ChatOrchestratorErrors — a stub that binds
+// the helpers must bind these too, or every classifier test loses its subject.
+const { chatOrchestratorErrors } = require('../../src/agent/hexagonal/ChatOrchestratorErrors');
 
 function makeMockBus() {
   const events = [];
@@ -73,7 +76,7 @@ function makeClassifier(bus) {
     model: makeMockModel(),
   };
   // Attach helpers to host
-  for (const [name, fn] of Object.entries(helpers)) {
+  for (const [name, fn] of Object.entries({ ...helpers, ...chatOrchestratorErrors })) {
     host[name] = fn.bind(host);
   }
   return host;

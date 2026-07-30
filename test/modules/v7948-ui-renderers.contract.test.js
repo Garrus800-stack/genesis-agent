@@ -21,6 +21,7 @@
 
 const assert = require('assert');
 const path = require('path');
+const fs = require('fs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const applyAgent = require(path.join(ROOT, 'src/ui/renderers/AgentRenderers.js'));
@@ -93,6 +94,42 @@ t('the widened coverage check reaches src/ui', () => {
     'the coverage check must walk src/ui');
   assert.ok(/walkJs\(path\.join\(SRC, 'kernel'\)\)/.test(block.slice(0, 900)),
     'and src/kernel');
+});
+
+t('v7.9.50: the graph is whole in the RENDERER, not only in Node', () => {
+  // Field bug: the viewport mixin was placed inside `if (typeof module !== ...)`.
+  // Node has `module`, so every test stayed green; the renderer does not, so the
+  // block was skipped, the mixin never ran, and the graph died with
+  // "_addZoomToolbar is not a function". A mixin belongs to the class, never to
+  // the export.
+  const src = fs.readFileSync(path.join(ROOT, 'src/ui/components/ArchitectureGraph.js'), 'utf8');
+  const iMix = src.indexOf('Object.assign(ArchitectureGraph.prototype, _view)');
+  const iMod = src.indexOf("if (typeof module !== 'undefined') {");
+  assert.ok(iMix > 0, 'the mixin must exist');
+  assert.ok(iMix < iMod, 'and it must stand BEFORE the module guard, not inside it');
+
+  // index.html must load the sibling first, or the global is not there yet
+  const html = fs.readFileSync(path.join(ROOT, 'src/ui/index.html'), 'utf8');
+  assert.ok(html.indexOf('ArchitectureGraphView.js') < html.indexOf('components/ArchitectureGraph.js'),
+    'the viewport script must be loaded before the file that mixes it in');
+
+  // no UI file may hide anything but its export behind the module guard
+  const walk = (d, a = []) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const q = path.join(d, e.name);
+      if (e.isDirectory()) walk(q, a); else if (e.name.endsWith('.js')) a.push(q);
+    }
+    return a;
+  };
+  for (const f of walk(path.join(ROOT, 'src/ui'))) {
+    const s2 = fs.readFileSync(f, 'utf8');
+    for (const m of s2.matchAll(/if\s*\(\s*typeof module[^)]*\)\s*\{([\s\S]*?)\n\}/g)) {
+      const zeilen = m[1].split('\n').map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('//') && !l.startsWith('*') && !l.startsWith('/*'));
+      assert.ok(zeilen.every((l) => /^module\.exports/.test(l)),
+        `${path.basename(f)}: only the export may sit behind the module guard — the renderer skips it`);
+    }
+  }
 });
 
 console.log(`\n${pass} passed · ${fail} failed`);

@@ -30,6 +30,7 @@ const {
   SAFE_SLASH_FALLTHROUGH,
   SECURITY_REQUIRED_SLASH,
   enforceSlashDiscipline,
+  noBlindWrite,
 } = require('./IntentSlashDiscipline');
 
 
@@ -614,4 +615,5 @@ module.exports = {
   SECURITY_REQUIRED_SLASH,
   SAFE_SLASH_FALLTHROUGH,
   enforceSlashDiscipline,
+  noBlindWrite, // v7.9.50: restored — a guess must not gain a side effect
 };

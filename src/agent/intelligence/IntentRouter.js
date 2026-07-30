@@ -15,7 +15,7 @@ const {
   INTENT_DEFINITIONS,
   SLASH_ONLY_INTENTS,
   SECURITY_REQUIRED_SLASH,
-  enforceSlashDiscipline: _enforceSlashDiscipline,
+  enforceSlashDiscipline: _enforceSlashDiscipline, noBlindWrite: _noBlindWrite, // v7.9.50
 } = require('./IntentPatterns');
 const _log = createLogger('IntentRouter');
 
@@ -353,7 +353,7 @@ class IntentRouter {
         // v7.3.6: Enforce slash-discipline. Rewrites to 'general' if a
         // slash-command intent was returned without an actual '/' in the
         // message. See _enforceSlashDiscipline() for rationale.
-        return _enforceSlashDiscipline(local, message);
+        return _noBlindWrite(_enforceSlashDiscipline(local, message)); // v7.9.50: a guess must not gain a side effect
       }
     }
 
@@ -365,7 +365,7 @@ class IntentRouter {
           this._localClassifier.addSample(message, llm.type);
         }
         // v7.3.6: Enforce slash-discipline after LLM verdict too.
-        return _enforceSlashDiscipline(llm, message);
+        return _noBlindWrite(_enforceSlashDiscipline(llm, message)); // v7.9.50: same for the model verdict
       }
     }
     // v7.5.9 B1: also enforce on the final fall-through return.

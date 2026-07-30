@@ -505,5 +505,6 @@ module.exports = { ChatOrchestrator };
 // sibling modules and prototype-delegated to keep this file under the
 // 700-LOC threshold. External API unchanged.
 const { helpers: _coHelpers } = require('./ChatOrchestratorHelpers');
+const { chatOrchestratorErrors: _coErrors } = require('./ChatOrchestratorErrors'); // v7.9.50
 const { sourceRead: _coSourceRead } = require('./ChatOrchestratorSourceRead');
-Object.assign(ChatOrchestrator.prototype, _coHelpers, _coSourceRead, _coStream);
+Object.assign(ChatOrchestrator.prototype, _coHelpers, _coErrors, _coSourceRead, _coStream);

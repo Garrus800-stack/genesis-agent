@@ -326,6 +326,31 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
       'a differently worded 402 is still worth one measurement');
   });
 
+  t('rebuild loss: three pieces that were not part of the withdrawn feature', () => {
+    // v7.9.48's expressions channel was withdrawn and the release rebuilt from a
+    // fresh v7.9.47 copy. Three things in that build had nothing to do with the
+    // channel and vanished with it. A rebuild is a merge, not a fresh start.
+    assert.ok(fs.existsSync(path.join(ROOT, 'scripts/audit-settings-coverage.js')),
+      'the settings-coverage gate checks key AND documented default — it found nine real drifts on its first run');
+    const pkg = JSON.parse(read('package.json'));
+    assert.ok(pkg.scripts.ci.includes('audit-settings-coverage')
+      && pkg.scripts['ci:full'].includes('audit-settings-coverage'), 'and it must run in both chains');
+    // the nine drifted rows it found, back where they belong
+    const set = read('docs/SETTINGS.md');
+    assert.ok(/minWilsonLB` \| `0\.7`/.test(set) && /minInvocations` \| `8`/.test(set),
+      'the same wrong promotion rule that was removed from his self-image in v7.9.47 — it stood in two places');
+    assert.ok(/`goals\.stalledTimeoutMs`/.test(set) && !/`proactive\.goals\.stalledTimeoutMs`/.test(set),
+      'two keys were documented under a prefix that does not exist');
+    // the side-effect guard
+    const disc = require(path.join(ROOT, 'src/agent/intelligence/IntentSlashDiscipline.js'));
+    assert.ok(disc.SIDE_EFFECT_INTENTS && disc.SIDE_EFFECT_INTENTS.size === 11);
+    assert.strictEqual(disc.noBlindWrite({ type: 'create-file', confidence: 0.8 }).type, 'general',
+      'a guess must not gain a side effect');
+    const router = read('src/agent/intelligence/IntentRouter.js');
+    assert.strictEqual((router.match(/_noBlindWrite\(_enforceSlashDiscipline/g) || []).length, 2,
+      'both guessed returns must be wrapped — the deterministic path stays untouched');
+  });
+
   console.log(`\n${pass} passed · ${fail} failed`);
   if (fail > 0) process.exit(1);
 })();

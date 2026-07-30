@@ -291,7 +291,7 @@ function runChecks() {
       const decode = (s) => decodeURIComponent(s.replace(/%20/gi, ' '));
       const badgeChecks = {
         version:    { live: VERSION,             label: 'badge: version' },
-        tests:      { live: '9538 passing',      label: 'badge: tests',
+        tests:      { live: '9539 passing',      label: 'badge: tests',
                       // tests value is "<n> passing" — pin to Win-baseline + new contract tests.
                       // Update this constant on each release that changes test count.
                       // v7.9.24: re-baselined to the measured Windows full-suite passing
@@ -417,7 +417,7 @@ function runChecks() {
       //   minus 6 v790-koennen-narrative-and-slash tests rewritten for the new status-grouped
       //   /skills-pending output, plus the v742-structure update for goals-mixin LOC and count
       //   to accommodate the two new skill* slash handlers).
-      const TESTS_WIN_BASELINE = 9538; // v7.9.49: Linux sandbox 9491 (+3 over .48) // v7.9.48: Linux sandbox 9487 (+25 over .47) // v7.9.47: measured Linux 9460 (+13 over .46), Win = 9492 + 13 // v7.9.46 MEASURED on Win (9480) + 12 field-fix pins (2 ResizeObserver, BootWire wiring, registry API, circle remove, intent guard, responder call, visit book, tool-call parser, circle templates, knock budget, act replaces pre-act answer)
+      const TESTS_WIN_BASELINE = 9539; // v7.9.49: Linux sandbox 9491 (+3 over .48) // v7.9.48: Linux sandbox 9487 (+25 over .47) // v7.9.47: measured Linux 9460 (+13 over .46), Win = 9492 + 13 // v7.9.46 MEASURED on Win (9480) + 12 field-fix pins (2 ResizeObserver, BootWire wiring, registry API, circle remove, intent guard, responder call, visit book, tool-call parser, circle templates, knock budget, act replaces pre-act answer)
       const rT = check('CAPABILITIES.md', src, 'tests (Win baseline)',
         /(\d+)\s+tests \(Win baseline\)/, TESTS_WIN_BASELINE);
       if (rT) { checked.push(rT); if (!rT.ok) drifts.push(rT); }
@@ -457,7 +457,7 @@ function runChecks() {
   // version tables, and self-referential drifts
   // ════════════════════════════════════════════════════════════
 
-  const TESTS_WIN = 9538; // v7.9.46 measured on Win (9480) + 12 field-fix pins
+  const TESTS_WIN = 9539; // v7.9.46 measured on Win (9480) + 12 field-fix pins
   // v7.7.7: TEST_FILES is now dynamic — counts *.test.js under test/ at audit-time.
   // This closes the drift-blind tautology where the constant was pinned and the
   // doc was pinned to the same constant — drift would never be detected. With

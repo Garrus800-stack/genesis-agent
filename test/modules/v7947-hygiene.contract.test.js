@@ -193,6 +193,12 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
       'the habitat-swap paragraph must name what is easy to lose');
     assert.ok(/vestibule:triple-gate/.test(read('docs/GATE-INVENTORY.md')),
       'the sharpest gate in the tree was missing from the gate inventory');
+    // v7.9.47 self-correction: public.jsonl was first documented one level too
+    // high. A path in a persistence document is only useful if it is the path.
+    assert.ok(/journal\/public\.jsonl/.test(p),
+      'public.jsonl lives under journal/ — JournalWriter joins storageDir with "journal"');
+    assert.ok(/this\.dir = path\.join\(storageDir, 'journal'\)/.test(read('src/agent/memory/JournalWriter.js')),
+      'and that is where the writer actually puts it');
   });
 
   t('H7: the changelog archive index counts what the archives hold', () => {

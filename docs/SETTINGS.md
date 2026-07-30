@@ -57,8 +57,8 @@ Models tab.
 | Per-task model: chat / code / analysis / creative | `null` (= auto) | Overrides Active Model for specific task types. |
 | Fallback chain | `[]` | Ordered list. If primary fails, Genesis walks the chain. **Empty chain + cloud-only primary = no failover.** Boot warns about this. |
 | Anthropic API key | `''` | Masked in UI after entry. Encrypted in `settings.json`. |
-| OpenAI API key | `''` | Same. Also `openaiBaseUrl` for OpenAI-compatible endpoints. |
-| Ollama keep-alive | `null` (= 5min) | `30s` to free RAM faster, `0` to unload immediately, `-1` or `1h` to keep loaded longer. |
+| OpenAI API key `models.openaiApiKey` | `''` | Same. Also `openaiBaseUrl` for OpenAI-compatible endpoints. |
+| Ollama keep-alive `models.ollamaKeepAlive` | `null` (= 5min) | `30s` to free RAM faster, `0` to unload immediately, `-1` or `1h` to keep loaded longer. |
 | Max concurrent LLM requests | `3` | Lower to `1` on CPU-only setups to avoid Ollama thrashing. |
 | LLM local timeout (ms) | `180_000` | HTTP timeout for local Ollama. **Raise to `300_000` or higher on slow CPUs running 7B+ models** — first inference can take 240–300s. Setting key: `llm.localTimeoutMs`. *(v7.5.9)* |
 
@@ -76,7 +76,7 @@ Models tab.
 | IdleMind goal-step balance | `3` | After N consecutive goal-step cycles, IdleMind breaks out to pick a non-goal activity (reflect, journal, dream, calibrate, inhabit). `0` = legacy always-goal-step. *(v7.9.4)* |
 | IdleMind score normalization | `'none'` | Recorded design, **not wired** (v7.9.47 audit): `'log'` would dampen score outliers via `log1p`, but no code reads this key. Kept as the intent. *(v7.9.4)* |
 | IdleMind recurrence bonus | `false` | Recorded design, **not wired** (v7.9.47 audit): the picker applies a repetition penalty but no recurrence bonus, and no code reads this key. Kept as the intent. *(v7.9.4)* |
-| Trust level | `0` (SUPERVISED) | `0`=Supervised (always ask), `1`=Autonomous (ask only on categorically critical actions: DEPLOY/EXTERNAL_API/EMAIL_SEND/SELF_MODIFY), `2`=Full Autonomy (never ask). v7.9.9 froze this three-level structure — `TrustLevelSystem`, the migration table, and the default are settled and remain unchanged. |
+| Trust level `trust.level` | `0` (SUPERVISED) | `0`=Supervised (always ask), `1`=Autonomous (ask only on categorically critical actions: DEPLOY/EXTERNAL_API/EMAIL_SEND/SELF_MODIFY), `2`=Full Autonomy (never ask). v7.9.9 froze this three-level structure — `TrustLevelSystem`, the migration table, and the default are settled and remain unchanged. |
 | Sandbox read scope | `user-home` | Second key of the two-key rule for broad filesystem reach: `sandbox.readScope` is **never derived from the trust level** — it defaults to `user-home` and must be set to `permissive` explicitly. Full reach requires *both* `readScope=permissive` *and* trust ≥ 2; absolute system-path and secret-file blocks apply at every level. Setting key: `sandbox.readScope`. |
 | IdleMind — idle threshold (minutes) | `10` | How long without user activity before IdleMind starts autonomous thinking. *(default raised from 2 in v7.9.10 after Win-trace evidence)* |
 | IdleMind — think interval (minutes) | `15` | How often IdleMind picks a new activity once idle. *(default raised from 3 in v7.9.10)* |
@@ -96,16 +96,16 @@ itself to surface to you proactively.
 | Setting | Default | Notes |
 |---|---|---|
 | `proactive.enabled` | `true` | Master toggle for the Proactive Self-Expression (PSE) pipeline (v7.7.9). When off, Genesis still emits inner-speech thoughts but never surfaces them to chat. |
-| `proactive.minIntervalMs` | `1800000` (30 min) | Minimum quiet gap between two proactive self-messages. |
+| `proactive.minIntervalMs` | `600000` (10 min) | Minimum quiet gap between two proactive self-messages. |
 | `proactive.userActivityCooldownMs` | `600000` (10 min) | After you send a message, PSE stays silent for this window. |
 | `proactive.quietHours.start` / `.end` | `'22:00'` / `'07:00'` | Local-time quiet hours. Wrap-around supported. |
-| `proactive.allowedKinds` | `['plan-failure-reflection', 'concern']` | Allowlist of thought-kinds that may surface. `self-state-snapshot` is **structurally private** and blocked at the gate regardless of this list (v7.9.5). |
+| `proactive.allowedKinds` | `["plan-failure-reflection","concern","prediction-mechanism-review"]` | Allowlist of thought-kinds that may surface. `self-state-snapshot` is **structurally private** and blocked at the gate regardless of this list (v7.9.5). |
 | `proactive.perKindFloors.*` | varies | Per-kind significance/novelty thresholds. Each kind has its own floor. |
-| `proactive.perKindWallclockCaps` | `{ concern: 604800000 }` | v7.9.36 (gate 6.5): minimum wallclock distance between deliveries per kind — concern at most once per seven days, whatever the scores. |
+| `proactive.perKindWallclockCaps` | `{"concern":604800000}` | v7.9.36 (gate 6.5): minimum wallclock distance between deliveries per kind — concern at most once per seven days, whatever the scores. |
 | `proactive.concern.*` | see below | v7.9.36 ConcernMonitor thresholds. `hoursFloor` 20 / `nightFloor` 3 (starting ≥ `nightHour` 23) for the journal source; `patienceFloor` 0.35 AND `satisfactionFloor` 0.40 for the chat-model source — both sources must fire. `declineWindowMs` (30 days) silences the kind after a "not needed"; `concern` is in `allowedKinds`, but allowed is not auto-trigger — only the monitor emits it. |
 | `proactive.dailyVolumeSoftCap` | `8` | Soft cap on daily self-messages. Hard stop at 2× this value. |
-| `proactive.goals.stalledTimeoutMs` | `900000` (15 min) | StalledGoalWatchdog converts blocked goals to failure-reflections after this. |
-| `proactive.goals.stalledWatchdogTickMs` | `60000` (1 min) | How often the watchdog scans. |
+| `goals.stalledTimeoutMs` | `900000` (15 min) | StalledGoalWatchdog converts blocked goals to failure-reflections after this. |
+| `goals.stalledWatchdogTickMs` | `60000` (1 min) | How often the watchdog scans. |
 | `organism.metabolism.differentiatedCosts` | `true` | Per-activity energy costs (idleMind:plan = 12, idleMind:journal = 2, idleMind:inhabit = 2, etc.). Pre-v7.9.4 every activity charged the flat `idleMindCycle = 2`. Set to `false` to revert. *(v7.9.4)* |
 | `organism.inhabit.enabled` | `true` | Master toggle for the Inhabit activity (17th IdleMind activity). Composes a deterministic self-state snapshot (energy, dominant emotion, urgent need, body restrictions, goal count) and emits it via InnerSpeech with kind `'self-state-snapshot'`. PSE HardGate blocks proactive surfacing — text stays private to Genesis. *(v7.9.5)* |
 | `organism.inhabit.cooldownMinutes` | `15` | Min minutes between two inhabit emissions. Clamped 1–1440. *(v7.9.5)* |
@@ -121,9 +121,9 @@ controlled by settings under `cognitive.koennen.*`.
 | `cognitive.koennen.enabled` | `true` | Master toggle for the entire Können system. *(v7.8.9)* |
 | `cognitive.koennen.crystallization.enabled` | `true` | If off, SkillCrystallizer stops collecting candidate patterns. *(v7.8.9, restart)* |
 | `cognitive.koennen.crystallization.minCandidatesPerPattern` | `3` | How many occurrences of the same pattern before crystallization fires. *(v7.8.9, restart)* |
-| `cognitive.koennen.crystallization.cooldownMs` | `300000` (5 min) | Min gap between two crystallization runs. *(v7.8.9, restart)* |
-| `cognitive.koennen.promotion.minWilsonLB` | `0.55` | Promotion threshold on the Wilson lower bound of skill-effectiveness. Below this, skills stay pending. *(v7.9.0)* |
-| `cognitive.koennen.promotion.minInvocations` | `5` | Min invocation count before a skill is eligible for promotion. *(v7.9.0)* |
+| `cognitive.koennen.crystallization.cooldownMs` | `21600000` (6 h) | Min gap between two crystallization runs. *(v7.8.9, restart)* |
+| `cognitive.koennen.promotion.minWilsonLB` | `0.7` | Promotion threshold on the Wilson lower bound of skill-effectiveness. Below this, skills stay pending. *(v7.9.0)* |
+| `cognitive.koennen.promotion.minInvocations` | `8` | Min invocation count before a skill is eligible for promotion. *(v7.9.0)* |
 | `cognitive.koennen.rehearsal.enabled` | `true` | Toggle for SkillRehearsal IdleMind activity. When on, Genesis exercises promoted skills during idle to keep them warm. *(v7.9.4)* |
 
 #### v7.9.5 live-fix settings
@@ -134,7 +134,7 @@ These six settings came out of the v7.9.5 live-fix audit. They're not in the Beh
 |---|---|---|
 | `shutdown.sessionSummaryMinMs` | `60000` (60 s) | Sessions shorter than this with no chat content skip the shutdown summary entirely. Pre-fix Genesis waited 80 + s for a cloud-LLM summary even on instant test-runs. *(v7.9.5)* |
 | `shutdown.sessionSummaryTimeoutMs` | `8000` (8 s) | Hard timeout on the shutdown summary LLM call. Range 500–120000. Above this, the call is abandoned and shutdown proceeds. *(v7.9.5)* |
-| `llm.continuation.maxAttempts` | `4` | Hard cap on ContinuationLoop attempts for Ollama code-generation. Previously hardcoded — `qwen3-coder:480b-cloud` hit the ceiling at 9131 chars partial output. Range 1–20. *(v7.9.5)* |
+| `llm.continuation.maxAttempts` | `6` | Hard cap on ContinuationLoop attempts for Ollama code-generation. Previously hardcoded — `qwen3-coder:480b-cloud` hit the ceiling at 9131 chars partial output. Range 1–20. *(v7.9.5)* |
 | `cognitive.architectureReflection.staleThresholdMs` | `900000` (15 min) | Architecture graph rebuild cadence (was 5 min hardcoded, so the daemon rebuilt every ~6 min unprompted). Range 60000–86400000. *(v7.9.5)* |
 | `peer.discoveryToken` | `''` (empty) | Multicast discovery is opt-in by setting a shared token across instances. Pre-fix the multicast log line fired regardless of token, which was misleading. *(v7.9.5)* |
 | `agency.gitAutoCommit` | `false` | Existed since v7.7.1 but the Undo button surfaced raw `fatal: not a git repository` when off + no `.git`. The UI button now hides when this is off, and slash `/undo` returns a friendly i18n message. *(v7.9.5 visibility fix)* |
@@ -188,7 +188,7 @@ Plus two new slash commands surface daemon work that previously disappeared into
 | IdleMind journal max rotations | `3` | |
 | SelfSpawner max workers | `3` | Concurrent self-spawned worker processes. |
 | SelfSpawner timeout (ms) | `300_000` | 5 minutes per spawn. |
-| SelfSpawner memory limit (MB) | `256` | Per spawned worker. |
+| SelfSpawner memory limit (MB) `selfSpawner.memoryLimitMB` | `256` | Per spawned worker. |
 | WorkerPool max workers | `0` (= auto) | `worker_threads` pool for code-analysis. |
 | Editor font size | `13` | Monaco. |
 | Chat font size | `13` | The chat panel. |

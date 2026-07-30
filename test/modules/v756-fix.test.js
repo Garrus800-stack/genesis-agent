@@ -53,7 +53,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   // ──────────────────────────────────────────────────────────────
 
   await test('A4 source-presence: old strict check (model.backend !== failedBackend) is gone', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
+    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeDispatch.js'), 'utf8'); // v7.9.50: split
     assert(!/model\.backend\s*!==\s*failedBackend/.test(mbSrc),
       'the strict cross-backend-only check must be removed');
   });
@@ -127,7 +127,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   // ──────────────────────────────────────────────────────────────
 
   await test('B1 source-presence: ModelBridge has markUnavailable/isMarkedUnavailable/clearUnavailable', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
+    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeDispatch.js'), 'utf8'); // v7.9.50: split
     const mixinSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeAvailability.js'), 'utf8');
     const combined = mbSrc + '\n' + mixinSrc;
     assert(/\bmarkUnavailable\s*\(/.test(combined), 'markUnavailable missing');
@@ -136,7 +136,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   });
 
   await test('B2 source-presence: persistence helpers _loadUnavailable/_persistUnavailable', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
+    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeDispatch.js'), 'utf8'); // v7.9.50: split
     const mixinSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeAvailability.js'), 'utf8');
     // Methods may live in the mixin (v7.5.6 split for LOC budget), so check both files.
     const combined = mbSrc + '\n' + mixinSrc;
@@ -153,13 +153,13 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   });
 
   await test('B3 source-presence: constructor accepts genesisDir', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
+    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeDispatch.js'), 'utf8'); // v7.9.50: split
     assert(/constructor\s*\(\s*\{\s*[^}]*genesisDir[^}]*\}\s*=\s*\{\s*\}\s*\)/.test(mbSrc),
       'constructor must accept { ..., genesisDir }');
   });
 
   await test('B4 source-presence: failover handler triggers markUnavailable with TTL map', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
+    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeDispatch.js'), 'utf8'); // v7.9.50: split
     // v7.5.6: chat() and streamChat() share a single _handleFailoverError
     // helper; the markUnavailable trigger lives there now (was duplicated
     // in both catch-blocks pre-helper). One trigger site is correct.
@@ -181,7 +181,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   });
 
   await test('B5 source-presence: detectAvailable filters marked at all 4 priorities', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
+    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeDispatch.js'), 'utf8'); // v7.9.50: split
     // v7.5.7: detectAvailable + _scoreModel + _selectBestModel + getRankedModels
     // were extracted to ModelBridgeDiscovery.js (mixin) for the LOC budget.
     // Search both files together — the boot-time selection still has to skip
@@ -318,7 +318,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   // ──────────────────────────────────────────────────────────────
 
   await test('E1 source-presence: _recordMetaOutcome accepts calledModel parameter', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
+    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeDispatch.js'), 'utf8'); // v7.9.50: split
     assert(/_recordMetaOutcome\([^)]*calledModel\s*=\s*null\s*\)/.test(mbSrc),
       '_recordMetaOutcome must accept calledModel parameter');
     assert(/model:\s*calledModel\s*\|\|\s*this\.activeModel/.test(mbSrc),
@@ -326,7 +326,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   });
 
   await test('E2 source-presence: chat() catch passes calledModel for failure path', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
+    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeDispatch.js'), 'utf8'); // v7.9.50: split
     // Failure path records with calledModel
     assert(/_recordMetaOutcome\([^)]*false[^)]*options[^)]*calledModel\)/.test(mbSrc),
       'failure-path _recordMetaOutcome must include calledModel arg');
@@ -366,7 +366,7 @@ function assertEqual(a, b, m) { if (a !== b) throw new Error(`${m || 'not equal'
   });
 
   await test('E6 source-presence: streamChat records to MetaLearning (parity with chat)', () => {
-    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8');
+    const mbSrc = fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridge.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../../src/agent/foundation/ModelBridgeDispatch.js'), 'utf8'); // v7.9.50: split
     // v7.5.6: streamChat now records via _handleFailoverError (failure +
     // post-failover success) and directly on the success path. Pre-v7.5.6
     // streamChat had no MetaLearning recording at all — streaming-failure

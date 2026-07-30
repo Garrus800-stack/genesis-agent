@@ -137,9 +137,45 @@ function enforceSlashDiscipline(result, message) {
   };
 }
 
+// ── v7.9.48: uncertainty may lead to reading, never to writing ──
+//
+// Field case: a question addressed to Genesis ("what may be changed? a
+// setting is not the same as a trait of your genome") was answered by
+// WRITING a file. Measured afterwards, the deterministic router had done
+// its job — it placed that sentence as `general` at confidence 0.3, and it
+// places a genuine request ("can you create notiz.txt …?") as `create-file`
+// at confidence 1.0. The write came from the layers BEHIND it: below the
+// 0.6 short-circuit the learned classifier and the model each get a turn,
+// and one of them guessed an intent with a side effect.
+//
+// A rule "questions must not write" would have been wrong — the legitimate
+// request is a question too. The right rule is narrower: what the
+// deterministic layer could not place must not gain a side effect from a
+// guess. Reading can be taken back; writing cannot.
+const SIDE_EFFECT_INTENTS = new Set([
+  'self-modify', 'create-skill', 'run-skill', 'lab-run', 'execute-code',
+  'execute-file', 'write-file', 'create-file', 'install-software',
+  'shell-task', 'shell-run',
+]);
+
+/**
+ * Downgrade a GUESSED verdict that carries a side effect to plain
+ * conversation. Only applied at the two return sites fed by the learned
+ * classifier and the LLM — a regex verdict at confidence 1.0 never passes
+ * through here and is unaffected.
+ * @param {{type: string, confidence: number}} verdict
+ * @returns {{type: string, confidence: number}}
+ */
+function noBlindWrite(verdict) {
+  if (!verdict || !SIDE_EFFECT_INTENTS.has(verdict.type)) return verdict;
+  return { ...verdict, type: 'general', match: 'no-blind-write', _downgradedFrom: verdict.type };
+}
+
 module.exports = {
   SLASH_ONLY_INTENTS,
   SAFE_SLASH_FALLTHROUGH,
   SECURITY_REQUIRED_SLASH,
+  SIDE_EFFECT_INTENTS,
   enforceSlashDiscipline,
+  noBlindWrite,
 };

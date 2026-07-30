@@ -13,8 +13,8 @@ Genesis Agent is a **self-modifying, self-verifying, cognitive AI agent** built 
 | Metric | Value |
 |--------|-------|
 | Production LOC (src/) | ~101,500 |
-| Source Modules | 444 JS files |
-| Test Files / Tests | 655 / 9538 (Win baseline) |
+| Source Modules | 447 JS files |
+| Test Files / Tests | 655 / 9539 (Win baseline) |
 | DI Services | 185 (172 manifest + 13 bootstrap) |
 | Boot Phases | 12 |
 | Boot Time (Windows, cold) | ~1.3 s |
@@ -572,5 +572,5 @@ Measured as of v7.9.45 (recursive per phase folder):
   ─────────────────────────────────────────────
   agent/ total     396 files ~118,364 LOC
   + UI/kernel       42 files ~16,487 LOC
-  = src/ total     444 modules ~134,000 LOC
+  = src/ total     447 modules ~134,000 LOC
 ```

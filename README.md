@@ -8,12 +8,12 @@
   <br>
   <sub>Reads its own source code. Plans changes. Tests them in a sandbox before applying.<br>Verifies output programmatically before trusting it. Pursues multi-step goals across restarts.<br>Runs idle-time consolidation in the background. Tracks an emotional state as a behavioral steering signal — not a claim of sentience.<br>Learns what prompts and temperatures work for its specific model.</sub>
   <br><br>
-  <img src="https://img.shields.io/badge/version-7.9.49-d4a017?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/tests-9538%20passing-4ade80?style=flat-square" alt="Tests">
+  <img src="https://img.shields.io/badge/version-7.9.50-d4a017?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/tests-9539%20passing-4ade80?style=flat-square" alt="Tests">
   <img src="https://img.shields.io/badge/fitness-130%2F130-4ade80?style=flat-square" alt="Fitness">
   <img src="https://img.shields.io/badge/TSC-typecheck_ok-4ade80?style=flat-square" alt="TSC">
   <img src="https://img.shields.io/badge/schemas-100%25-4ade80?style=flat-square" alt="Schemas">
-  <img src="https://img.shields.io/badge/modules-444-e0e0e8?style=flat-square" alt="Modules">
+  <img src="https://img.shields.io/badge/modules-447-e0e0e8?style=flat-square" alt="Modules">
   <img src="https://img.shields.io/badge/services-185-fbbf24?style=flat-square" alt="Services">
   <img src="https://img.shields.io/badge/capabilities-240+-fbbf24?style=flat-square" alt="Capabilities">
   <img src="https://img.shields.io/badge/phases-12-c084fc?style=flat-square" alt="Phases">
@@ -473,12 +473,12 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 
 | Metric | Value |
 |---|---|
-| Source modules | 444 modules (src/) |
+| Source modules | 447 modules (src/) |
 | Lines of code | ~134k src + ~120k test |
 | Manifest phases | 12 (Phase 1–12, boot order enforced) |
 | DI services | 172 manifest + 13 bootstrap = 185 at runtime |
 | Late-bindings | cross-phase dependencies resolved at boot (the boot log reports the exact count) |
-| Test suites | 655 files, 9538 tests (coverage gates: 80/76/78, ratchet floor 6014) |
+| Test suites | 655 files, 9539 tests (coverage gates: 80/76/78, ratchet floor 6014) |
 | Dependencies | 6 production + 1 optional + 10 dev |
 | LLM backends | 3 (Anthropic, OpenAI-compatible, Ollama) |
 | IPC channels | 84 handlers in main, 69 invokable from the renderer (rate-limited; the 15 remaining are push-only) |
@@ -494,7 +494,7 @@ All tests run without external dependencies (no Ollama, no API keys, no internet
 | Languages | EN primary (+ DE, FR, ES via i18n) |
 | Architectural fitness | 130/130 — 0 cross-layer violations, 0 orphans, 0 phantoms, 0 files >700 LOC |
 | TypeScript | TSC clean — 0 errors in agent source (checkJs + strictNullChecks) |
-| CI gates | 24 (architectural-fitness + audit-events + validate-events + validate-channels + validate-service-wiring + validate-intent-wiring + audit-self-gate-coverage + audit-gate-stats-callers + audit-hash-lock-coverage + audit-contracts + audit-doc-drift + audit-doc-language + audit-service-numbers + audit-future-version-refs + audit-raw-settimeout + audit-class-wiring + audit-listener-lifecycle + audit-tool-selftest + check-stale-refs + check-ratchet) |
+| CI gates | 25 (architectural-fitness + audit-events + validate-events + validate-channels + validate-service-wiring + validate-intent-wiring + audit-self-gate-coverage + audit-gate-stats-callers + audit-hash-lock-coverage + audit-contracts + audit-doc-drift + audit-doc-language + audit-service-numbers + audit-future-version-refs + audit-raw-settimeout + audit-class-wiring + audit-listener-lifecycle + audit-tool-selftest + check-stale-refs + check-ratchet) |
 
 ---
 
